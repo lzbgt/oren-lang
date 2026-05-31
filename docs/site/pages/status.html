@@ -131,6 +131,15 @@
 <p>  then runs OBC that reads it with <code>oren_net_get(url)</code>. This is the current</p>
 <p>  app-facing NET bridge; AVM still does not expose raw host networking to bytecode.</p>
 <ul>
+<li>The first GUI bridge slice now exists as a GFX frame mailbox. Bytecode can publish</li>
+</ul>
+<p>  a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> / <code>oren_gfx_present_frame</code>;</p>
+<p>  embedders can read and clear it with <code>avm_embed_gfx_frame_get</code> and</p>
+<p>  <code>avm_embed_gfx_frame_clear</code>; <code>OrenAVMKit</code> exposes matching Objective-C helpers.</p>
+<p>  The iOS verifier checks exported symbols, device/simulator SDK linkage, and a host</p>
+<p>  OBC run that publishes a frame and retrieves it through the SDK. Actual UIKit/Metal</p>
+<p>  rendering and input events remain pending.</p>
+<ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>
 <p>  dereferencing failed allocations.</p>

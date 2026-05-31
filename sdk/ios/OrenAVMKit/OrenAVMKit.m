@@ -39,7 +39,7 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
     OrenAVMRuntimeConfig* cfg = [[self alloc] init];
     cfg.timeMode = OrenAVMTimeModeDeterministic;
     cfg.allowedDomains = OrenAVMDomainCore | OrenAVMDomainFS | OrenAVMDomainTime |
-        OrenAVMDomainNet | OrenAVMDomainProc | OrenAVMDomainExit;
+        OrenAVMDomainNet | OrenAVMDomainProc | OrenAVMDomainExit | OrenAVMDomainGFX;
     cfg.gasLimit = 5000000ull;
     cfg.heapLimitBytes = 32ull * 1024ull * 1024ull;
     cfg.ioLimitBytes = 1024ull * 1024ull;
@@ -290,6 +290,27 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
         avm_embed_free_bytes(stdoutBytes);
     }
     return [[OrenAVMRunResult alloc] initWithResult:&result stdoutData:stdoutData];
+}
+
+- (NSData*)getGraphicsFrameDataWithError:(NSError**)error {
+    uint8_t* bytes = NULL;
+    size_t len = 0;
+    AvmEmbedResult result;
+    int rc = avm_embed_gfx_frame_get(_handle, &bytes, &len, &result);
+    if (rc != AVM_EMBED_OK) {
+        OrenAVMKitAssignError(error, @"failed to read GFX frame", &result);
+        return nil;
+    }
+    NSData* out = [NSData dataWithBytes:bytes length:len];
+    avm_embed_free_bytes(bytes);
+    return out;
+}
+
+- (BOOL)clearGraphicsFrameWithError:(NSError**)error {
+    AvmEmbedResult result;
+    int rc = avm_embed_gfx_frame_clear(_handle, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear GFX frame", &result);
+    return YES;
 }
 
 @end

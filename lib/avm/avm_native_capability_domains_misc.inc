@@ -228,6 +228,36 @@
         return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "host net backend not implemented", domain, op);
     }
 
+    // Domain 9: GFX frame mailbox.
+    // Oren owns portable command-frame data; the host app owns rendering devices.
+    if (domain == 9) {
+        switch (op) {
+            case 0: { // present_frame(frame_json: string) -> INT
+                if (nargs < 1 || args[0].type != AVM_VAL_STRING || !args[0].as.p) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.present_frame expects frame JSON string", domain, op);
+                }
+                const char* s = (const char*)args[0].as.p;
+                size_t len = strlen(s);
+                if (len == 0 || len > (size_t)UINT32_MAX) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.present_frame invalid frame size", domain, op);
+                }
+                if (!avm_io_charge(vm, (uint64_t)len, domain, op)) return vm->last_error;
+                uint8_t* copy = (uint8_t*)malloc(len);
+                if (!copy) return avm_err_domop(AVM_ERR_BUDGET, "gfx.present_frame allocation failed", domain, op);
+                memcpy(copy, s, len);
+                if (vm->gfx_frame_data) free(vm->gfx_frame_data);
+                vm->gfx_frame_data = copy;
+                vm->gfx_frame_len = len;
+                AvmValue ret = avm_int(0);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            default:
+                return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported GFX domain/op", domain, op);
+        }
+    }
+
     // Domain 8: AVM (nested universes via host service)
     if (domain == 8) {
         switch (op) {

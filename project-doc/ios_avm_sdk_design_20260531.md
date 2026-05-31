@@ -46,10 +46,17 @@ Retained SDK slices on 2026-05-31:
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
   and then runs the same `.obc` program against `oren_net_get(url)`, proving the
   real host-fetch-to-OBC-read chain.
+- The first GFX bridge slice is implemented. `std:ui/avm` serializes validated
+  `std:ui` v0 command buffers into `oren.gfx.frame.v0`, bytecode publishes them
+  through `oren_gfx_present_frame`, `libavm` stores the latest frame in a GFX
+  mailbox, and `OrenAVMKit` exposes frame get/clear helpers.
+- The iOS verifier compiles device/simulator SDK smokes and runs a host SDK smoke
+  that executes OBC, publishes a frame, retrieves it with
+  `getGraphicsFrameDataWithError:`, validates the schema/op text, and clears it.
 
 Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
-compiler helper Swift/Objective-C package, OBC store helper, and GFX mailbox
-adapter. GUI remains last because `libavm` has no graphics mailbox yet.
+compiler helper Swift/Objective-C package, OBC store helper, UIKit/Metal rendering,
+and input-event injection.
 
 ## SDK Components
 
@@ -119,13 +126,15 @@ Default TIME adapter.
 
 ### OrenAVMGraphicsKit
 
-Future GUI adapter.
+Current GUI adapter boundary.
 
 - Receives validated frame command buffers from the AVM graphics mailbox.
 - Renders through UIKit/CoreGraphics for simple 2D or Metal/`MTKView` for GPU
   paths.
 - Encodes pointer/keyboard/resize/input events back into AVM.
 - Does not expose UIKit or Metal objects directly to Oren code.
+- Current SDK implementation retrieves and clears frame payloads only; host-side
+  rendering and input queues are the next slices.
 
 ### OrenAVMPackageStore
 
@@ -144,7 +153,7 @@ Public OBC store helper.
 | NET | VirtualNET/no host network | SDK `URLSession` prefetch into VirtualNET with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
-| GUI | No raw host access | GFX mailbox to UIKit/Metal adapter |
+| GUI | GFX frame mailbox, no raw host access | UIKit/Metal renderer plus input event queue |
 | INPUT | No implicit input | Explicit event queue/mailbox |
 | STDOUT | Captured stdout | App-controlled log/result UI |
 
@@ -181,8 +190,8 @@ The SDK should not be called production-ready until these gates exist:
 4. NetworkProvider proves VirtualNET and deny-by-default host network.
 5. ProcessProvider proves iOS VirtualPROC and no host subprocess path.
 6. TimeProvider proves deterministic virtual time and interactive wall-clock sleep.
-7. GraphicsKit proves one rendered frame and one input event when the GFX mailbox
-   exists.
+7. GraphicsKit proves one rendered frame through UIKit/Metal and one input event
+   through the AVM input mailbox.
 8. PackageStore proves signed fixture download, verification, install, and run.
 
 ## Relationship To Existing Designs

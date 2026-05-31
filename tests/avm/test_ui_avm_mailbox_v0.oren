@@ -1,0 +1,22 @@
+// AVM headless UI test: std:ui/avm GFX mailbox v0
+
+import ui_avm "std:ui/avm"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"}]
+    var frame = ui_avm.frame_json(cmds, 4, 2, {"strict_bounds": true})
+    assert_eq(frame, "{\"h\":2,\"ops\":[{\"color\":\"#102030\",\"h\":2,\"op\":\"fill_rect\",\"w\":4,\"x\":0,\"y\":0}],\"scale\":1,\"schema\":\"oren.gfx.frame.v0\",\"w\":4}")
+    assert_eq(ui_avm.present_frame(cmds, 4, 2, {"strict_bounds": true}), 0)
+    exit(0)
+}

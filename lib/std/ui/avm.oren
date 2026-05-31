@@ -1,0 +1,65 @@
+// std:ui/avm (rolling)
+//
+// AVM graphics bridge for host-rendered UI frames. This module serializes the
+// current std:ui v0 command buffer into a stable frame envelope and publishes it
+// to the AVM GFX mailbox. The host app owns actual drawing.
+
+import ui_cmds "std:ui/commands"
+import json "std:json"
+
+fn _jcmd(c) {
+    var op = c["op"]
+    if op == "fill_rect" {
+        return json.jobject({
+            "op": json.jstring("fill_rect"),
+            "x": json.jint(c["x"]),
+            "y": json.jint(c["y"]),
+            "w": json.jint(c["w"]),
+            "h": json.jint(c["h"]),
+            "color": json.jstring(c["color"])
+        })
+    }
+    if op == "text" {
+        return json.jobject({
+            "op": json.jstring("text"),
+            "x": json.jint(c["x"]),
+            "y": json.jint(c["y"]),
+            "text": json.jstring(c["text"]),
+            "color": json.jstring(c["color"])
+        })
+    }
+    return json.jobject({"op": json.jstring("unknown")})
+}
+
+fn frame_json(cmds, w, h, opts) {
+    if opts == nil { opts = {} }
+    var vr = ui_cmds.try_validate(cmds, w, h, opts)
+    if oren_is_err(vr) { return vr }
+
+    var arr = []
+    var i = 0
+    while i < oren_list_len(cmds) {
+        oren_list_push(arr, _jcmd(cmds[i]))
+        i = i + 1
+    }
+
+    var scale = opts["scale"]
+    if scale == nil { scale = 1 }
+    return json.encode(json.jobject({
+        "schema": json.jstring("oren.gfx.frame.v0"),
+        "w": json.jint(w),
+        "h": json.jint(h),
+        "scale": json.jint(scale),
+        "ops": json.jarray(arr)
+    }))
+}
+
+fn present_json(frame) {
+    return oren_gfx_present_frame(frame)
+}
+
+fn present_frame(cmds, w, h, opts) {
+    var frame = frame_json(cmds, w, h, opts)
+    if oren_is_err(frame) { return frame }
+    return present_json(frame)
+}

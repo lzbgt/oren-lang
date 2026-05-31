@@ -18,7 +18,8 @@ typedef NS_OPTIONS(uint64_t, OrenAVMDomain) {
     OrenAVMDomainTime = UINT64_C(1) << 2,
     OrenAVMDomainNet = UINT64_C(1) << 4,
     OrenAVMDomainProc = UINT64_C(1) << 5,
-    OrenAVMDomainExit = UINT64_C(1) << 6
+    OrenAVMDomainExit = UINT64_C(1) << 6,
+    OrenAVMDomainGFX = UINT64_C(1) << 9
 };
 
 typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
@@ -75,6 +76,8 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 - (BOOL)putVirtualProcExitForCommand:(NSString*)command exitCode:(int)exitCode error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)setVirtualProcDefaultExitCode:(int)exitCode error:(NSError* _Nullable* _Nullable)error;
 - (nullable OrenAVMRunResult*)runOBCData:(NSData*)obcData error:(NSError* _Nullable* _Nullable)error;
+- (nullable NSData*)getGraphicsFrameDataWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)clearGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
 
 @end
 

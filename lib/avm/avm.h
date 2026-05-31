@@ -214,6 +214,10 @@ typedef struct {
     // Internal: VirtualNET fixtures table (owned by VM heap; freed on teardown via leak-free teardown).
     void* vnet;
 
+    // GFX frame mailbox (rolling): latest validated host-renderable frame payload.
+    uint8_t* gfx_frame_data;
+    size_t gfx_frame_len;
+
     // Embedder stdout capture (rolling): disabled for CLI by default, enabled by libavm embed.
     int stdout_capture_enabled;
     char* stdout_capture;

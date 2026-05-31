@@ -57,7 +57,8 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
         (UINT64_C(1) << 2) |
         (UINT64_C(1) << 4) |
         (UINT64_C(1) << 5) |
-        (UINT64_C(1) << 6);
+        (UINT64_C(1) << 6) |
+        (UINT64_C(1) << 9);
     config->gas_limit = 5000000ull;
     config->heap_limit_bytes = 32ull * 1024ull * 1024ull;
     config->io_limit_bytes = 1024ull * 1024ull;
@@ -599,6 +600,38 @@ int avm_embed_output_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed output clear argument");
     }
     avm_embed_output_clear_vm(handle->vm);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_gfx_frame_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
+    if (out_data) *out_data = NULL;
+    if (out_len) *out_len = 0;
+    if (!avm_embed_valid_handle(handle) || !out_data || !out_len) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame get argument");
+    }
+    size_t len = handle->vm->gfx_frame_len;
+    if (len == 0 || !handle->vm->gfx_frame_data) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_VM, AVM_ERR_NOT_FOUND, "GFX frame mailbox is empty");
+    }
+    uint8_t* copy = (uint8_t*)malloc(len);
+    if (!copy) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM GFX frame bytes");
+    memcpy(copy, handle->vm->gfx_frame_data, len);
+    *out_data = copy;
+    *out_len = len;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_gfx_frame_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame clear argument");
+    }
+    if (handle->vm->gfx_frame_data) {
+        free(handle->vm->gfx_frame_data);
+        handle->vm->gfx_frame_data = NULL;
+    }
+    handle->vm->gfx_frame_len = 0;
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }

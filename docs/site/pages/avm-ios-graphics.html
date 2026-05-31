@@ -52,6 +52,27 @@
 </ul>
 <p>  UIKit/CoreGraphics/Metal draw calls, present on the main UI thread, and inject input</p>
 <p>  events back into AVM.</p>
+<h2 id="current-implementation-slice">Current Implementation Slice</h2>
+<p>The first retained implementation slice exists as of 2026-05-31:</p>
+<ul>
+<li><code>lib/avm</code> has a GFX capability domain and a latest-frame mailbox.</li>
+<li><code>lib/avm/avm_embed.h</code> exposes <code>avm_embed_gfx_frame_get(...)</code> and</li>
+</ul>
+<p>  <code>avm_embed_gfx_frame_clear(...)</code>.</p>
+<ul>
+<li><code>lib/std/ui/avm.oren</code> serializes validated <code>std:ui</code> v0 command buffers into</li>
+</ul>
+<p>  <code>oren.gfx.frame.v0</code> JSON and publishes them with <code>oren_gfx_present_frame(...)</code>.</p>
+<ul>
+<li><code>sdk/ios/OrenAVMKit</code> exposes <code>getGraphicsFrameDataWithError:</code> and</li>
+</ul>
+<p>  <code>clearGraphicsFrameWithError:</code>.</p>
+<ul>
+<li><code>make verify-libavm-ios</code> proves the chain by running OBC that publishes a frame,</li>
+</ul>
+<p>  then retrieving and clearing that frame through the host SDK smoke.</p>
+<p>Still pending: input-event mailbox, UIKit/CoreGraphics/Metal rendering adapter, 2D</p>
+<p>geometry expansion beyond the existing <code>std:ui</code> v0 command set, and 3D mesh commands.</p>
 <h2 id="source-facts">Source Facts</h2>
 <ul>
 <li>Apple OpenGL ES archive: <code>project-doc/web/apple-ios-graphics-20260529/apple-opengles-introduction.html</code>.</li>
@@ -70,8 +91,8 @@
 <ul>
 <li>Current AVM embed API: <code>lib/avm/avm_embed.h</code> exposes argv, VFS, VNET, VPROC,</li>
 </ul>
-<p>  stdout capture, OBC load, and run helpers. It has no frame mailbox, input-event queue,</p>
-<p>  texture/buffer handoff, or graphics capability domain yet.</p>
+<p>  stdout capture, OBC load/run helpers, and a GFX latest-frame mailbox. It does not</p>
+<p>  yet expose an input-event queue, texture/buffer handoff, or host renderer adapter.</p>
 <ul>
 <li>Current Oren UI stdlib: <code>lib/std/ui/</code> already uses the right architectural pattern:</li>
 </ul>
@@ -141,6 +162,8 @@
 int avm_embed_gfx_frame_clear(AvmEmbedHandle* h, AvmEmbedResult* r);
 int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t event_len,
                             AvmEmbedResult* r);</code></pre>
+<p>The first two functions are implemented. <code>avm_embed_gfx_input_put(...)</code> remains a</p>
+<p>planned input-event mailbox API.</p>
 <p>The payload should be a versioned binary or canonical JSON envelope in v0:</p>
 <pre><code>{
   &quot;schema&quot;: &quot;oren.gfx.frame.v0&quot;,
@@ -149,9 +172,9 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
   &quot;scale&quot;: 3,
   &quot;ops&quot;: []
 }</code></pre>
-<p>Use VFS as a temporary proof path if needed (<code>/out/frame.gfx.json</code>), but the production</p>
-<p>bridge should use an explicit graphics mailbox so the Note app does not poll arbitrary</p>
-<p>files and so graphics budgets can be accounted separately from filesystem IO.</p>
+<p>The retained implementation uses the explicit graphics mailbox, not VFS or stdout.</p>
+<p>Frame publication is charged against AVM I/O budget so graphics output cannot grow</p>
+<p>unbounded.</p>
 <h3 id="2-oren-stdlib-surface">2. Oren Stdlib Surface</h3>
 <p>Add <code>std:gfx</code> as data-first APIs. It should not expose platform objects.</p>
 <p>Initial modules:</p>
@@ -247,8 +270,8 @@ fn main() {
 <h3 id="7-verification-plan">7. Verification Plan</h3>
 <p>Required gates before Note integration should be called production-ready:</p>
 <ol>
-<li>AVM bytecode fixture creates a 2D frame and host test reads it from the graphics mailbox.</li>
-<li>Host-side C embed smoke validates <code>avm_embed_gfx_frame_get</code> and input injection.</li>
+<li>AVM bytecode fixture creates a 2D frame and host test reads it from the graphics mailbox. Done for frame get/clear.</li>
+<li>Host-side C embed smoke validates <code>avm_embed_gfx_frame_get</code>; input injection remains pending.</li>
 <li>iOS simulator/device link smoke proves the new graphics API exports from</li>
 </ol>
 <p>   <code>LibAVM.xcframework</code>.</p>
@@ -262,11 +285,12 @@ fn main() {
 </ol>
 <h2 id="implementation-order">Implementation Order</h2>
 <ol>
-<li>Define <code>oren.gfx.frame.v0</code> and add AVM-side mailbox storage plus C embed getter/clearer.</li>
-<li>Add <code>std:gfx/frame</code> and <code>std:gfx/canvas2d</code> with validator-only bytecode fixtures.</li>
-<li>Add iOS C smoke to <code>make verify-libavm-ios</code> for exported graphics symbols.</li>
-<li>Add Note Swift/ObjC bridge smoke using <code>MTKView</code> and one frame.</li>
-<li>Add <code>std:gfx/mesh3d</code> after the 2D path is proven.</li>
+<li>Done: define <code>oren.gfx.frame.v0</code> for existing <code>std:ui</code> v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.</li>
+<li>Done: add <code>std:ui/avm</code> and AVM/iOS verifier coverage that publishes a <code>fill_rect</code> frame.</li>
+<li>Done: add iOS C/SDK smoke to <code>make verify-libavm-ios</code> for exported graphics symbols and frame retrieval.</li>
+<li>Next: add input-event mailbox.</li>
+<li>Next: add Note Swift/ObjC bridge smoke using UIKit/CoreGraphics or <code>MTKView</code> and one frame.</li>
+<li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> after the current <code>std:ui</code> frame path is proven in the app.</li>
 </ol>
 <p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>
 <p>right app boundary: AVM computes and describes frames; iOS renders them.</p>
@@ -275,6 +299,7 @@ fn main() {
       <h2>On This Page</h2>
       <a class="toc-l1" href="#avm-ios-graphics-design">AVM iOS Graphics Design</a>
 <a class="toc-l2" href="#verdict">Verdict</a>
+<a class="toc-l2" href="#current-implementation-slice">Current Implementation Slice</a>
 <a class="toc-l2" href="#source-facts">Source Facts</a>
 <a class="toc-l2" href="#non-goals">Non-Goals</a>
 <a class="toc-l2" href="#proposed-architecture">Proposed Architecture</a>
