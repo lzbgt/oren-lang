@@ -108,11 +108,12 @@
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code> geometry through a Metal</p>
-<p>  pipeline. Its <code>targetHzMilli</code> setting drives <code>MTKView.preferredFramesPerSecond</code></p>
-<p>  so hosts can request 60/90/120 Hz pacing without exposing UIKit/Metal objects to</p>
-<p>  OBC. CoreGraphics remains the complete fallback for text until text atlas and</p>
-<p>  richer retained resources exist.</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code> geometry plus text</p>
+<p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
+<p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
+<p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses transient</p>
+<p>  per-frame textures; retained text atlas and richer resources remain the next</p>
+<p>  performance step.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>Host helpers can publish persistent screen/media state and can enqueue</li>
@@ -290,7 +291,7 @@
 <ol>
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter for the current low-level</li>
 </ol>
-<p>   <code>OGF0</code> fill-rect/stroke-line/circle geometry, touch forwarding, host screen</p>
+<p>   <code>OGF0</code> fill-rect/stroke-line/circle/text records, touch forwarding, host screen</p>
 <p>   state, and target-refresh pacing through <code>MTKView.preferredFramesPerSecond</code>.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>

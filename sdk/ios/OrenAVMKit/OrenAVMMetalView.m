@@ -18,6 +18,21 @@ typedef struct {
     float a;
 } OrenAVMMetalVertex;
 
+typedef struct {
+    float x;
+    float y;
+    float u;
+    float v;
+} OrenAVMMetalTextVertex;
+
+@interface OrenAVMMetalTextRun : NSObject
+@property(nonatomic, strong) id<MTLTexture> texture;
+@property(nonatomic, strong) NSData* vertices;
+@end
+
+@implementation OrenAVMMetalTextRun
+@end
+
 static uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -155,9 +170,44 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
     }
 }
 
+static NSData* OrenAVMMetalTextQuad(float x,
+                                    float y,
+                                    float w,
+                                    float h,
+                                    float logicalWidth,
+                                    float logicalHeight) {
+    OrenAVMMetalTextVertex out[6];
+    out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
+                                      OrenAVMMetalClipY(y, logicalHeight),
+                                      0.0f,
+                                      0.0f};
+    out[1] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
+                                      OrenAVMMetalClipY(y, logicalHeight),
+                                      1.0f,
+                                      0.0f};
+    out[2] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
+                                      OrenAVMMetalClipY(y + h, logicalHeight),
+                                      0.0f,
+                                      1.0f};
+    out[3] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
+                                      OrenAVMMetalClipY(y, logicalHeight),
+                                      1.0f,
+                                      0.0f};
+    out[4] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
+                                      OrenAVMMetalClipY(y + h, logicalHeight),
+                                      1.0f,
+                                      1.0f};
+    out[5] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
+                                      OrenAVMMetalClipY(y + h, logicalHeight),
+                                      0.0f,
+                                      1.0f};
+    return [NSData dataWithBytes:out length:sizeof(out)];
+}
+
 @interface OrenAVMMetalView () <MTKViewDelegate>
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
+@property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenTextPipelineState;
 @end
 
 @implementation OrenAVMMetalView
@@ -219,10 +269,18 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
         "using namespace metal;\n"
         "struct V { float2 pos; float4 color; };\n"
         "struct O { float4 position [[position]]; float4 color; };\n"
+        "struct TV { float2 pos; float2 uv; };\n"
+        "struct TO { float4 position [[position]]; float2 uv; };\n"
         "vertex O oren_vertex(uint vid [[vertex_id]], constant V* verts [[buffer(0)]]) {\n"
         "  O o; o.position = float4(verts[vid].pos, 0.0, 1.0); o.color = verts[vid].color; return o;\n"
         "}\n"
-        "fragment float4 oren_fragment(O in [[stage_in]]) { return in.color; }\n";
+        "fragment float4 oren_fragment(O in [[stage_in]]) { return in.color; }\n"
+        "vertex TO oren_text_vertex(uint vid [[vertex_id]], constant TV* verts [[buffer(0)]]) {\n"
+        "  TO o; o.position = float4(verts[vid].pos, 0.0, 1.0); o.uv = verts[vid].uv; return o;\n"
+        "}\n"
+        "fragment float4 oren_text_fragment(TO in [[stage_in]], texture2d<float> tex [[texture(0)]]) {\n"
+        "  constexpr sampler s(address::clamp_to_edge, filter::linear); return tex.sample(s, in.uv);\n"
+        "}\n";
     NSError* error = nil;
     id<MTLLibrary> library = [self.device newLibraryWithSource:source options:nil error:&error];
     if (!library) return;
@@ -236,6 +294,17 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
     descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
     descriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
     self.orenPipelineState = [self.device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+
+    MTLRenderPipelineDescriptor* textDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+    textDescriptor.vertexFunction = [library newFunctionWithName:@"oren_text_vertex"];
+    textDescriptor.fragmentFunction = [library newFunctionWithName:@"oren_text_fragment"];
+    textDescriptor.colorAttachments[0].pixelFormat = self.colorPixelFormat;
+    textDescriptor.colorAttachments[0].blendingEnabled = YES;
+    textDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    textDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    textDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+    textDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    self.orenTextPipelineState = [self.device newRenderPipelineStateWithDescriptor:textDescriptor error:&error];
 }
 
 - (BOOL)reloadFrameWithError:(NSError**)error {
@@ -307,7 +376,75 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
                                                   error:error];
 }
 
-- (NSMutableData*)orenVerticesForFrame:(NSData*)frame clearColor:(MTLClearColor*)clearColor {
+- (OrenAVMMetalTextRun*)orenTextRunWithText:(NSString*)text
+                                          x:(float)x
+                                          y:(float)y
+                                        rgba:(const uint8_t*)rgba
+                                logicalWidth:(float)logicalWidth
+                               logicalHeight:(float)logicalHeight {
+    if (!text || text.length == 0 || !self.device) return nil;
+    UIFont* font = [UIFont systemFontOfSize:14.0];
+    UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
+                                     green:(CGFloat)rgba[1] / 255.0
+                                      blue:(CGFloat)rgba[2] / 255.0
+                                     alpha:(CGFloat)rgba[3] / 255.0];
+    NSDictionary<NSAttributedStringKey, id>* attrs = @{
+        NSForegroundColorAttributeName: color,
+        NSFontAttributeName: font
+    };
+    CGSize textSize = [text sizeWithAttributes:attrs];
+    if (textSize.width <= 0.0 || textSize.height <= 0.0) return nil;
+    CGFloat scale = self.window.screen.scale;
+    if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
+    if (scale <= 0.0) scale = 1.0;
+    NSUInteger pixelWidth = (NSUInteger)ceil(textSize.width * scale);
+    NSUInteger pixelHeight = (NSUInteger)ceil(textSize.height * scale);
+    if (pixelWidth == 0 || pixelHeight == 0 || pixelWidth > 4096u || pixelHeight > 4096u) return nil;
+
+    NSMutableData* pixels = [NSMutableData dataWithLength:pixelWidth * pixelHeight * 4u];
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes,
+                                             pixelWidth,
+                                             pixelHeight,
+                                             8,
+                                             pixelWidth * 4u,
+                                             colorSpace,
+                                             kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(colorSpace);
+    if (!ctx) return nil;
+    CGContextClearRect(ctx, CGRectMake(0.0, 0.0, (CGFloat)pixelWidth, (CGFloat)pixelHeight));
+    CGContextScaleCTM(ctx, scale, scale);
+    UIGraphicsPushContext(ctx);
+    [text drawAtPoint:CGPointZero withAttributes:attrs];
+    UIGraphicsPopContext();
+    CGContextRelease(ctx);
+
+    MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                         width:pixelWidth
+                                                                                        height:pixelHeight
+                                                                                     mipmapped:NO];
+    descriptor.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> texture = [self.device newTextureWithDescriptor:descriptor];
+    if (!texture) return nil;
+    [texture replaceRegion:MTLRegionMake2D(0, 0, pixelWidth, pixelHeight)
+               mipmapLevel:0
+                 withBytes:pixels.bytes
+               bytesPerRow:pixelWidth * 4u];
+
+    OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
+    run.texture = texture;
+    run.vertices = OrenAVMMetalTextQuad(x,
+                                        y,
+                                        (float)textSize.width,
+                                        (float)textSize.height,
+                                        logicalWidth,
+                                        logicalHeight);
+    return run;
+}
+
+- (NSMutableData*)orenVerticesForFrame:(NSData*)frame
+                            clearColor:(MTLClearColor*)clearColor
+                              textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns {
     NSMutableData* vertices = [NSMutableData data];
     if (frame.length < 40) return vertices;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -362,6 +499,22 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
                                      (float)logicalW,
                                      (float)logicalH,
                                      payload + 16);
+        } else if (opcode == 2 && payloadLen >= 16) {
+            uint32_t x = OrenAVMMetalReadU32LE(payload);
+            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t textLen = OrenAVMMetalReadU32LE(payload + 12);
+            if (textLen == (uint32_t)payloadLen - 16u) {
+                NSString* text = [[NSString alloc] initWithBytes:payload + 16
+                                                          length:(NSUInteger)textLen
+                                                        encoding:NSUTF8StringEncoding];
+                OrenAVMMetalTextRun* run = [self orenTextRunWithText:text
+                                                                    x:(float)x
+                                                                    y:(float)y
+                                                                  rgba:payload + 8
+                                                          logicalWidth:(float)logicalW
+                                                         logicalHeight:(float)logicalH];
+                if (run) [textRuns addObject:run];
+            }
         }
         off += payloadLen;
     }
@@ -379,7 +532,10 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
     if (!drawable || !pass) return;
 
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
-    NSMutableData* vertices = [self orenVerticesForFrame:self.frameData clearColor:&clearColor];
+    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
+    NSMutableData* vertices = [self orenVerticesForFrame:self.frameData
+                                              clearColor:&clearColor
+                                                textRuns:textRuns];
     pass.colorAttachments[0].clearColor = clearColor;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
@@ -392,6 +548,17 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                      vertexStart:0
                      vertexCount:vertices.length / sizeof(OrenAVMMetalVertex)];
+    }
+    if (encoder && self.orenTextPipelineState) {
+        [encoder setRenderPipelineState:self.orenTextPipelineState];
+        for (OrenAVMMetalTextRun* run in textRuns) {
+            if (!run.texture || run.vertices.length == 0) continue;
+            [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
+            [encoder setFragmentTexture:run.texture atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                         vertexStart:0
+                         vertexCount:run.vertices.length / sizeof(OrenAVMMetalTextVertex)];
+        }
     }
     [encoder endEncoding];
     [commandBuffer presentDrawable:drawable];
