@@ -92,6 +92,10 @@ Remaining service work before deployment:
 - signed index rotation/key-id publication beyond the current single-key signer;
 - production auth model for publishers/API tokens;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
+- host deployment can use `scripts/deploy_obc_store_service.sh` or
+  `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
+  cross-builds the Go binary, uploads external admin env values, and copies the
+  index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`;
 - deployment unit/Traefik config and health smoke on `store.hubstack.cn`;
 - SDK end-to-end install smoke against the service endpoint.
 
