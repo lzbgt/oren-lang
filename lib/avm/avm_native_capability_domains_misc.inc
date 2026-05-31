@@ -897,5 +897,227 @@
         return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported permission domain/op", domain, op);
     }
 
+    // Domain 11: AVM virtual-resource event bus. OBC watches virtual handles and
+    // mailboxes; host adapters may map those to select/kqueue/dispatch internally.
+    if (domain == 11) {
+        if (vm->replay_log_bytes) {
+            return rr_replay_entry_mem(vm, vm->replay_log_bytes, &vm->replay_log_pos, domain, op, args, nargs);
+        }
+        if (vm->replay_log) {
+            return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
+        }
+        switch (op) {
+            case 0: { // event_select(watches: list<map>, timeout_ms?: int) -> map|nil
+                if (nargs < 1 || args[0].type != AVM_VAL_LIST || !args[0].as.l) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select expects (watches: list, timeout_ms?: int)", domain, op);
+                }
+                AvmList* watches = args[0].as.l;
+                if (watches->count < 0 || watches->count > 1024) {
+                    return avm_err_domop(AVM_ERR_BUDGET, "event.select watch count too large", domain, op);
+                }
+                uint32_t timeout_ms = 0;
+                if (nargs >= 2) timeout_ms = (uint32_t)avm_value_u64(args[1], 0);
+                uint64_t start_ns = 0;
+                if (vm->deterministic) {
+                    __uint128_t t = (__uint128_t)vm->virtual_now_ns + (__uint128_t)vm->virtual_sleep_ns + (__uint128_t)vm->gas_executed * (__uint128_t)vm->virtual_step_ns;
+                    start_ns = (t > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)t;
+                } else {
+                    start_ns = avm_now_ns();
+                }
+                uint64_t deadline_ns = start_ns;
+                if (timeout_ms > 0) {
+                    __uint128_t d = (__uint128_t)start_ns + (__uint128_t)timeout_ms * 1000000ull;
+                    deadline_ns = (d > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)d;
+                }
+
+                while (1) {
+                    uint64_t now_ns = 0;
+                    if (vm->deterministic) {
+                        __uint128_t t = (__uint128_t)vm->virtual_now_ns + (__uint128_t)vm->virtual_sleep_ns + (__uint128_t)vm->gas_executed * (__uint128_t)vm->virtual_step_ns;
+                        now_ns = (t > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)t;
+                    } else {
+                        now_ns = avm_now_ns();
+                    }
+
+                    uint32_t session_ids[1024];
+                    uint32_t session_events[1024];
+                    int session_watch_index[1024];
+                    int net_count = 0;
+                    uint64_t nearest_timer_ns = UINT64_MAX;
+
+                    for (int i = 0; i < watches->count; i++) {
+                        AvmValue wv = watches->items[i];
+                        if (wv.type != AVM_VAL_MAP || !wv.as.m) {
+                            return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select watch must be map", domain, op);
+                        }
+                        AvmValue kindv;
+                        if (!avm_map_get_key(wv, "kind", &kindv) || kindv.type != AVM_VAL_STRING || !kindv.as.p) {
+                            return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select watch missing kind", domain, op);
+                        }
+                        const char* kind = (const char*)kindv.as.p;
+                        if (strcmp(kind, "timer") == 0) {
+                            AvmValue dv;
+                            if (!avm_map_get_key(wv, "deadline_ns", &dv) || dv.type != AVM_VAL_INT) {
+                                return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select timer watch missing deadline_ns", domain, op);
+                            }
+                            uint64_t d = (dv.as.i < 0) ? 0u : (uint64_t)dv.as.i;
+                            if (d <= now_ns) {
+                                AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+                                if (!out) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                                memset(out, 0, sizeof(*out));
+                                AvmValue idv;
+                                if (!avm_map_get_key(wv, "id", &idv)) idv = avm_int(i);
+                                int ok = 1;
+                                ok = ok && avm_map_set_sorted(out, avm_string("kind"), avm_string("timer"));
+                                ok = ok && avm_map_set_sorted(out, avm_string("id"), idv);
+                                ok = ok && avm_map_set_sorted(out, avm_string("index"), avm_int(i));
+                                ok = ok && avm_map_set_sorted(out, avm_string("deadline_ns"), dv);
+                                if (!ok) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                                AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+                                if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+                                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                                return ret;
+                            }
+                            if (d < nearest_timer_ns) nearest_timer_ns = d;
+                            continue;
+                        }
+                        if (strcmp(kind, "ui") == 0 || strcmp(kind, "gfx") == 0 || strcmp(kind, "input") == 0) {
+                            AvmGfxInputQueue* q = vm ? (AvmGfxInputQueue*)vm->gfx_input_queue : NULL;
+                            if (q && q->count > 0 && q->entries) {
+                                AvmGfxInputEntry entry = q->entries[0];
+                                if (!avm_io_charge(vm, (uint64_t)entry.len, domain, op)) return vm->last_error;
+                                AvmValue raw = avm_bytes_new((int)entry.len);
+                                if (raw.type != AVM_VAL_BYTES || !raw.as.b) { avm_abort(vm, raw); return raw; }
+                                if (entry.len > 0 && entry.data) memcpy(raw.as.b->data, entry.data, entry.len);
+                                if (entry.data) free(entry.data);
+                                if (q->count > 1u) memmove(q->entries, q->entries + 1, sizeof(AvmGfxInputEntry) * (size_t)(q->count - 1u));
+                                q->count--;
+                                if (q->entries) { q->entries[q->count].data = NULL; q->entries[q->count].len = 0; }
+                                AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+                                if (!out) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                                memset(out, 0, sizeof(*out));
+                                AvmValue idv;
+                                if (!avm_map_get_key(wv, "id", &idv)) idv = avm_int(i);
+                                int ok = 1;
+                                ok = ok && avm_map_set_sorted(out, avm_string("kind"), avm_string("ui"));
+                                ok = ok && avm_map_set_sorted(out, avm_string("id"), idv);
+                                ok = ok && avm_map_set_sorted(out, avm_string("index"), avm_int(i));
+                                ok = ok && avm_map_set_sorted(out, avm_string("raw"), raw);
+                                if (!ok) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                                AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+                                if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+                                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                                return ret;
+                            }
+                            continue;
+                        }
+                        if (strcmp(kind, "net") == 0 || strcmp(kind, "vnet") == 0) {
+                            AvmValue sidv;
+                            if (!avm_map_get_key(wv, "session_id", &sidv) || sidv.type != AVM_VAL_INT) {
+                                return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select net watch missing session_id", domain, op);
+                            }
+                            AvmValue evv;
+                            uint32_t evs = 1u;
+                            if (avm_map_get_key(wv, "events", &evv) && evv.type == AVM_VAL_INT) evs = (uint32_t)avm_value_u64(evv, 1);
+                            if (evs == 0 || (evs & ~3u) != 0) {
+                                return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select net events must use read=1/write=2", domain, op);
+                            }
+                            session_ids[net_count] = (uint32_t)avm_value_u64(sidv, 0);
+                            session_events[net_count] = evs;
+                            session_watch_index[net_count] = i;
+                            net_count++;
+                            continue;
+                        }
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select unsupported watch kind", domain, op);
+                    }
+
+                    uint32_t wait_ms = timeout_ms;
+                    if (timeout_ms > 0) {
+                        if (now_ns >= deadline_ns) wait_ms = 0;
+                        else {
+                            uint64_t remaining_ns = deadline_ns - now_ns;
+                            wait_ms = (uint32_t)(remaining_ns / 1000000ull);
+                            if ((remaining_ns % 1000000ull) != 0) wait_ms++;
+                        }
+                    }
+                    if (nearest_timer_ns != UINT64_MAX && nearest_timer_ns > now_ns) {
+                        uint64_t timer_ns = nearest_timer_ns - now_ns;
+                        uint32_t timer_ms = (uint32_t)(timer_ns / 1000000ull);
+                        if ((timer_ns % 1000000ull) != 0) timer_ms++;
+                        if (timeout_ms == 0 || timer_ms < wait_ms) wait_ms = timer_ms;
+                    }
+
+                    if (net_count > 0) {
+                        size_t ready_index = 0;
+                        uint32_t ready_mask = 0;
+                        int got = 0;
+                        if (vm && vm->net_backend_kind == 1 && vm->net_session_select_fn) {
+                            if (vm->net_session_select_fn(vm->net_session_user_data, session_ids, session_events, (size_t)net_count, wait_ms, &ready_index, &ready_mask) != 0) {
+                                return avm_err_domop(AVM_ERR_NOT_FOUND, "event.select vnet provider failed", domain, op);
+                            }
+                            if (ready_index < (size_t)net_count && (ready_mask & session_events[ready_index]) != 0) got = 1;
+                        } else if (vm && vm->net_backend_kind == 1 && vm->net_session_poll_fn) {
+                            for (int ni = 0; ni < net_count; ni++) {
+                                uint32_t r = 0;
+                                if (vm->net_session_poll_fn(vm->net_session_user_data, session_ids[ni], session_events[ni], 0, &r) != 0) {
+                                    return avm_err_domop(AVM_ERR_NOT_FOUND, "event.select vnet poll failed", domain, op);
+                                }
+                                if ((r & session_events[ni]) != 0) {
+                                    ready_index = (size_t)ni;
+                                    ready_mask = r;
+                                    got = 1;
+                                    break;
+                                }
+                            }
+                        }
+                        if (got) {
+                            int wi = session_watch_index[ready_index];
+                            AvmValue wv = watches->items[wi];
+                            AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+                            if (!out) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                            memset(out, 0, sizeof(*out));
+                            AvmValue idv;
+                            if (!avm_map_get_key(wv, "id", &idv)) idv = avm_int(wi);
+                            int ok = 1;
+                            ok = ok && avm_map_set_sorted(out, avm_string("kind"), avm_string("net"));
+                            ok = ok && avm_map_set_sorted(out, avm_string("id"), idv);
+                            ok = ok && avm_map_set_sorted(out, avm_string("index"), avm_int(wi));
+                            ok = ok && avm_map_set_sorted(out, avm_string("session_id"), avm_int((int64_t)session_ids[ready_index]));
+                            ok = ok && avm_map_set_sorted(out, avm_string("events"), avm_int((int64_t)session_events[ready_index]));
+                            ok = ok && avm_map_set_sorted(out, avm_string("ready"), avm_int((int64_t)(ready_mask & session_events[ready_index])));
+                            if (!ok) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                            AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+                            if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+                            if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                            return ret;
+                        }
+                    }
+
+                    if (timeout_ms == 0 || now_ns >= deadline_ns) {
+                        AvmValue ret = avm_nil();
+                        if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+                        if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                        return ret;
+                    }
+
+                    uint32_t sleep_ms = wait_ms;
+                    if (sleep_ms == 0) sleep_ms = 1;
+                    if (sleep_ms > 8 && (net_count == 0 || !vm || !vm->net_session_select_fn)) sleep_ms = 8;
+                    if (vm->deterministic) {
+                        __uint128_t add = (__uint128_t)sleep_ms * 1000000ull;
+                        uint64_t add64 = (add > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)add;
+                        uint64_t prev = vm->virtual_sleep_ns;
+                        vm->virtual_sleep_ns = prev + add64;
+                        if (vm->virtual_sleep_ns < prev) vm->virtual_sleep_ns = UINT64_MAX;
+                    } else if (net_count == 0 || !vm || !vm->net_session_select_fn) {
+                        usleep((useconds_t)sleep_ms * 1000u);
+                    }
+                }
+            }
+            default: break;
+        }
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported event domain/op", domain, op);
+    }
+
     // Unknown/unsupported domain in bootstrap.
     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);

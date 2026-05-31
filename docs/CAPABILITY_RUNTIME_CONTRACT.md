@@ -49,7 +49,8 @@ Oren has three capability layers today.
 3. **AVM policy layer.**
    The bytecode backend tags effectful native calls by AVM domain. The AVM can run
    with allowed-domain masks, VirtualFS/VirtualNET/VirtualPROC-style fixtures,
-   budgets, snapshots, and record/replay surfaces for deterministic effect handling.
+   GFX/PERMISSION/EVENT mailboxes and reactors, budgets, snapshots, and
+   record/replay surfaces for deterministic effect handling.
 
 ## Source Metadata Manifest
 

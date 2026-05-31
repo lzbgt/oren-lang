@@ -176,11 +176,12 @@ Default NET adapter.
   with `select()`, `kqueue`, dispatch sources, Network.framework callbacks, and
   display-link ticks, while OBC sees only stable virtual handles, event masks,
   sequence numbers, and bounded event payloads.
-- The first OBC-facing event-bus facade is `std:avm/events`. It offers
-  `select`/`select_once` over timer, UI/GFX input, and VNET session-readiness
-  watches by composing existing AVM-safe primitives. This establishes the app API
-  shape; a later native AVM multi-watch op should replace the facade loop for
-  high-volume game/app workloads.
+- `std:avm/events` now offers `select`/`select_once` over timer, UI/GFX input,
+  and VNET session-readiness watches through a native AVM `EVENT` capability
+  domain. The iOS SDK backs VNET multi-watch selection with one host `select()`
+  over app-owned sockets, so high-volume app/game code does not pay an
+  Oren-level polling loop for network readiness. OBC still sees only stable
+  virtual watch maps, event masks, and bounded event maps.
 - The current HTTP body provider keeps a reusable ephemeral `NSURLSession` per
   `OrenAVMRuntime` so capability-enabled prefetch/live fetches use the fast SDK
   provider path by default instead of rebuilding a session for each OBC request.

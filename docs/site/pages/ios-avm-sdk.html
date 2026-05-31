@@ -240,12 +240,13 @@
 <p>  display-link ticks, while OBC sees only stable virtual handles, event masks,</p>
 <p>  sequence numbers, and bounded event payloads.</p>
 <ul>
-<li>The first OBC-facing event-bus facade is <code>std:avm/events</code>. It offers</li>
+<li><code>std:avm/events</code> now offers <code>select</code>/<code>select_once</code> over timer, UI/GFX input,</li>
 </ul>
-<p>  <code>select</code>/<code>select_once</code> over timer, UI/GFX input, and VNET session-readiness</p>
-<p>  watches by composing existing AVM-safe primitives. This establishes the app API</p>
-<p>  shape; a later native AVM multi-watch op should replace the facade loop for</p>
-<p>  high-volume game/app workloads.</p>
+<p>  and VNET session-readiness watches through a native AVM <code>EVENT</code> capability</p>
+<p>  domain. The iOS SDK backs VNET multi-watch selection with one host <code>select()</code></p>
+<p>  over app-owned sockets, so high-volume app/game code does not pay an</p>
+<p>  Oren-level polling loop for network readiness. OBC still sees only stable</p>
+<p>  virtual watch maps, event masks, and bounded event maps.</p>
 <ul>
 <li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
 </ul>

@@ -140,11 +140,11 @@ Facts from the 2026-05-28 implementation pass:
   VNET readiness, GFX/input events, timers, cancellation, and future FS/package
   events. Host SDKs may implement that bus with platform reactors, but OBC must
   not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
-- The first OBC-facing event-bus facade is implemented as `std:avm/events`.
-  It multiplexes timer watches, GFX input watches, and VNET session readiness
-  over current AVM-safe primitives. This is a correctness/API slice; the next
-  performance slice should replace the facade loop with a native multi-watch AVM
-  op and host-backed provider integration.
+- `std:avm/events` now uses a native AVM `EVENT` capability domain for timer
+  watches, GFX input watches, and VNET session readiness. The iOS SDK backs VNET
+  multi-watch selection with one host `select()` over app-owned sockets, while
+  OBC still sees only virtual watch maps and event maps. Remaining event-bus work
+  is cancellation, FS/package events, and richer lifecycle integration.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

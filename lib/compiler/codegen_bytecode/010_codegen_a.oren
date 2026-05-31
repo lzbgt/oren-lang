@@ -984,6 +984,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_chmod" { native_domain = AVM_DOMAIN_FS; native_op = 6 }
         if name == "oren_avm_run_obc_bytes" { native_domain = AVM_DOMAIN_AVM; native_op = 0 }
         if name == "oren_avm_permission_request" { native_domain = AVM_DOMAIN_PERMISSION; native_op = 0 }
+        if name == "oren_avm_event_select" { native_domain = AVM_DOMAIN_EVENT; native_op = 0 }
         if name == "oren_gfx_present_frame" { native_domain = AVM_DOMAIN_GFX; native_op = 0 }
         if name == "oren_gfx_poll_input" { native_domain = AVM_DOMAIN_GFX; native_op = 1 }
 

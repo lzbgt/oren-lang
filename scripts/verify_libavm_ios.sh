@@ -63,6 +63,7 @@ OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
+import avm_events "std:avm/events"
 import ui_avm "std:ui/avm"
 import perm "std:avm/permission"
 import bytes "std:bytes"
@@ -85,12 +86,12 @@ fn main() {
     if args[3] != "session-none" {
         var sid = net_avm.session_open(args[3], 5000)
         if oren_is_err(sid) { oren_exit(57) }
-        var pw = net_avm.session_select_write(sid, 5000)
-        if oren_is_err(pw) || (pw & 2) == 0 { oren_exit(63) }
+        var pw = avm_events.select([{"kind": "net", "session_id": sid, "events": avm_events.event_write(), "id": "tcp-write"}], 5000)
+        if oren_is_err(pw) || pw == nil || pw["kind"] != "net" || pw["id"] != "tcp-write" || (pw["ready"] & 2) == 0 { oren_exit(63) }
         var wn = net_avm.session_write(sid, "ping", 5000)
         if oren_is_err(wn) || wn != 4 { oren_exit(58) }
-        var pr = net_avm.session_select_read(sid, 5000)
-        if oren_is_err(pr) || (pr & 1) == 0 { oren_exit(64) }
+        var pr = avm_events.select([{"kind": "net", "session_id": sid, "events": avm_events.event_read(), "id": "tcp-read"}], 5000)
+        if oren_is_err(pr) || pr == nil || pr["kind"] != "net" || pr["id"] != "tcp-read" || (pr["ready"] & 1) == 0 { oren_exit(64) }
         var rb = net_avm.session_read(sid, 4, 5000)
         if oren_is_err(rb) { oren_exit(59) }
         if bytes.to_string(rb) != "pong" { oren_exit(60) }
@@ -112,7 +113,9 @@ fn main() {
         "target_hz_milli": 120000
     })
     if gr != 0 { oren_exit(19) }
-    var ev = ui_avm.next_event()
+    var ev_ready = avm_events.select_once([{"kind": "ui", "id": "input"}])
+    if oren_is_err(ev_ready) || ev_ready == nil || ev_ready["kind"] != "ui" || ev_ready["id"] != "input" { oren_exit(32) }
+    var ev = ev_ready["event"]
     if ev["kind"] != "pointer" || ev["phase"] != "down" { oren_exit(33) }
     if ev["x"] != 1 || ev["y"] != 2 || ev["pointer_id"] != 7 { oren_exit(34) }
     var ev2 = ui_avm.next_event()

@@ -66,8 +66,8 @@ This file is the concise task view. Detailed implementation status lives in
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
      session, plus first `std:net/avm.session_open/write/read/select/close` TCP/UDP virtual
-     session handles over host-owned iOS sockets with readiness selection, plus the `std:avm/events`
-     virtual event-bus facade and `std:avm/permission`
+     session handles over host-owned iOS sockets with readiness selection, plus the native `std:avm/events`
+     virtual event-bus facade over AVM `EVENT` domain and `std:avm/permission`
      facade and OPR0 permission mailbox for host-visible OBC permission intent,
      plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
@@ -77,7 +77,7 @@ This file is the concise task view. Detailed implementation status lives in
      `stroke_line`/`circle` subset.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
      WebSocket/listen/accept/DNS/cancellation on the VNET
-     session protocol and a native multi-watch AVM virtual-resource event bus without exposing raw sockets to OBC, compiler helper
+     session protocol, event-bus cancellation/FS/package events without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
      input ordering, Metal/`MTKView`, richer drawing ops, and richer

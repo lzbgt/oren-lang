@@ -89,6 +89,7 @@ var AVM_DOMAIN_ENV = 7
 var AVM_DOMAIN_AVM = 8
 var AVM_DOMAIN_GFX = 9
 var AVM_DOMAIN_PERMISSION = 10
+var AVM_DOMAIN_EVENT = 11
 
 fn bc_diag_escape(msg) {
     if msg == nil { return "" }

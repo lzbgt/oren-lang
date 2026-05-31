@@ -68,8 +68,23 @@ fn _check_one(w, i) {
     return oren_err(4, "std:avm/events.select: unsupported watch kind")
 }
 
+fn _decode_native_event(ev) {
+    if ev == nil || oren_is_err(ev) { return ev }
+    if ev["kind"] == "ui" {
+        var raw = ev["raw"]
+        if raw != nil {
+            var decoded = ui_avm.decode_event_bytes(raw)
+            if oren_is_err(decoded) { return decoded }
+            ev["event"] = decoded
+        }
+    }
+    return ev
+}
+
 fn select_once(watches) {
     if watches == nil { return oren_err(4, "std:avm/events.select_once: watches is nil") }
+    var ev_native = oren_avm_event_select(watches, 0)
+    if !oren_is_err(ev_native) { return _decode_native_event(ev_native) }
     var n = oren_list_len(watches)
     var i = 0
     while i < n {
@@ -84,6 +99,8 @@ fn select_once(watches) {
 fn select(watches, timeout_ms) {
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 0 }
     if timeout_ms < 0 { return oren_err(4, "std:avm/events.select: negative timeout_ms") }
+    var ev_native = oren_avm_event_select(watches, timeout_ms)
+    if !oren_is_err(ev_native) { return _decode_native_event(ev_native) }
     var start = time.now_ns()
     var deadline = start + timeout_ms * 1000000
     while true {

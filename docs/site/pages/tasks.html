@@ -119,8 +119,8 @@
 <p>     interactive-default live NET callback for OBC <code>std:net/avm.try_get_text(url)</code></p>
 <p>     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK</p>
 <p>     session, plus first <code>std:net/avm.session_open/write/read/select/close</code> TCP/UDP virtual</p>
-<p>     session handles over host-owned iOS sockets with readiness selection, plus the <code>std:avm/events</code></p>
-<p>     virtual event-bus facade and <code>std:avm/permission</code></p>
+<p>     session handles over host-owned iOS sockets with readiness selection, plus the native <code>std:avm/events</code></p>
+<p>     virtual event-bus facade over AVM <code>EVENT</code> domain and <code>std:avm/permission</code></p>
 <p>     facade and OPR0 permission mailbox for host-visible OBC permission intent,</p>
 <p>     plus binary</p>
 <p>     GFX frame and input mailboxes for OBC-published <code>std:ui</code> frames and</p>
@@ -130,7 +130,7 @@
 <p>     <code>stroke_line</code>/<code>circle</code> subset.</p>
 <p>     Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,</p>
 <p>     WebSocket/listen/accept/DNS/cancellation on the VNET</p>
-<p>     session protocol and a native multi-watch AVM virtual-resource event bus without exposing raw sockets to OBC, compiler helper</p>
+<p>     session protocol, event-bus cancellation/FS/package events without exposing raw sockets to OBC, compiler helper</p>
 <p>     package, package store helper, and the game-grade GUI path:</p>
 <p>     display-link pacing, retained resource handles, budget gates, low-latency</p>
 <p>     input ordering, Metal/<code>MTKView</code>, richer drawing ops, and richer</p>
