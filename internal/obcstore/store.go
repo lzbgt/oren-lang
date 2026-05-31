@@ -1,6 +1,7 @@
 package obcstore
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -13,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -99,6 +101,11 @@ type ReleaseMeta struct {
 	MinApp                    string    `json:"min_app,omitempty"`
 	CreatedAt                 time.Time `json:"created_at"`
 	UpdatedAt                 time.Time `json:"updated_at"`
+}
+
+type ReleasePublishRequest struct {
+	SignatureAlg              string `json:"signature_alg,omitempty"`
+	SignatureP256SHA256DERHex string `json:"signature_p256_sha256_der_hex,omitempty"`
 }
 
 func New(cfg Config) (*Service, error) {
@@ -240,7 +247,7 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 5 && r.Method == http.MethodPost && s.requireAdmin(w, r) {
 		switch parts[4] {
 		case "publish":
-			s.setReleaseStatus(w, pub, name, version, "published")
+			s.publishRelease(w, r, pub, name, version)
 		case "yank":
 			s.setReleaseStatus(w, pub, name, version, "yanked")
 		case "artifacts":
@@ -435,6 +442,45 @@ func (s *Service) writeAssets(w http.ResponseWriter, dir string, assets []AssetU
 	return out, true
 }
 
+func (s *Service) publishRelease(w http.ResponseWriter, r *http.Request, pub, name, version string) {
+	var req ReleasePublishRequest
+	if !decodeOptionalJSON(w, r, &req) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := filepath.Join(s.releaseDir(pub, name, version), "release.json")
+	rel, err := readJSONFile[ReleaseMeta](path)
+	if err != nil {
+		http.Error(w, "release not found", http.StatusNotFound)
+		return
+	}
+	if req.SignatureAlg != "" || req.SignatureP256SHA256DERHex != "" {
+		if req.SignatureAlg != "p256-sha256-der" {
+			http.Error(w, "unsupported package signature algorithm", http.StatusBadRequest)
+			return
+		}
+		signature := decodeHex(req.SignatureP256SHA256DERHex)
+		if len(signature) == 0 {
+			http.Error(w, "invalid package signature", http.StatusBadRequest)
+			return
+		}
+		if err := s.verifyPublisherSignature(pub, []byte(rel.ManifestSHA256), signature); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		rel.SignatureAlg = req.SignatureAlg
+		rel.SignatureP256SHA256DERHex = strings.ToLower(req.SignatureP256SHA256DERHex)
+	}
+	rel.Status = "published"
+	rel.UpdatedAt = s.now().UTC()
+	if err := writeJSONFile(path, rel); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, rel)
+}
+
 func (s *Service) setReleaseStatus(w http.ResponseWriter, pub, name, version, status string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -451,6 +497,40 @@ func (s *Service) setReleaseStatus(w http.ResponseWriter, pub, name, version, st
 		return
 	}
 	writeJSON(w, http.StatusOK, rel)
+}
+
+func (s *Service) verifyPublisherSignature(pub string, message []byte, signature []byte) error {
+	publisher, err := readJSONFile[Publisher](s.publisherPath(pub))
+	if err != nil || len(publisher.PublicKeys) == 0 {
+		return nil
+	}
+	sum := sha256.Sum256(message)
+	for _, raw := range publisher.PublicKeys {
+		key, err := parseP256PublicKeyX963Base64(raw)
+		if err == nil && ecdsa.VerifyASN1(key, sum[:], signature) {
+			return nil
+		}
+	}
+	return errors.New("publisher signature verification failed")
+}
+
+func decodeOptionalJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return false
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return true
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
 func (s *Service) listPackages(w http.ResponseWriter, r *http.Request) {
@@ -783,6 +863,34 @@ func loadP256PrivateKey(path string) (*ecdsa.PrivateKey, error) {
 		return nil, fmt.Errorf("index signing key must be ECDSA P-256: %s", path)
 	}
 	return ec, nil
+}
+
+func parseP256PublicKeyX963Base64(raw string) (*ecdsa.PublicKey, error) {
+	body, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, err
+	}
+	if len(body) != 65 || body[0] != 4 {
+		return nil, errors.New("publisher public key must be 65-byte X9.63 P-256")
+	}
+	x := new(big.Int).SetBytes(body[1:33])
+	y := new(big.Int).SetBytes(body[33:65])
+	curve := elliptic.P256()
+	if !curve.IsOnCurve(x, y) {
+		return nil, errors.New("publisher public key is not on P-256")
+	}
+	return &ecdsa.PublicKey{Curve: curve, X: x, Y: y}, nil
+}
+
+func decodeHex(raw string) []byte {
+	if raw == "" || len(raw)%2 != 0 {
+		return nil
+	}
+	body, err := hex.DecodeString(raw)
+	if err != nil {
+		return nil
+	}
+	return body
 }
 
 func safeID(s string) bool {

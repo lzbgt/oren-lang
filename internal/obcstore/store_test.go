@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"net/http"
@@ -115,6 +116,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 func TestStoreSignsStableIndex(t *testing.T) {
 	dir := t.TempDir()
 	key, keyPath := writeTestP256Key(t, dir)
+	publisherKey, _ := writeTestP256Key(t, t.TempDir())
 	svc, err := New(Config{
 		DataDir:                dir,
 		AdminUser:              "admin",
@@ -130,7 +132,8 @@ func TestStoreSignsStableIndex(t *testing.T) {
 	ts := httptest.NewServer(svc.Handler())
 	defer ts.Close()
 
-	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs"}, true); got.Code != http.StatusCreated {
+	publisherPublicKey := p256PublicKeyX963Base64(&publisherKey.PublicKey)
+	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs", "public_keys": []string{publisherPublicKey}}, true); got.Code != http.StatusCreated {
 		t.Fatalf("publisher status=%d body=%s", got.Code, got.Body.String())
 	}
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "signed-demo"}, true); got.Code != http.StatusCreated {
@@ -143,7 +146,25 @@ func TestStoreSignsStableIndex(t *testing.T) {
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/signed-demo/versions", upload, true); got.Code != http.StatusCreated {
 		t.Fatalf("version status=%d body=%s", got.Code, got.Body.String())
 	}
-	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/signed-demo/versions/0.1.0/publish", map[string]any{}, true); got.Code != http.StatusOK {
+	rel := getJSON[map[string]any](t, ts, "/api/v0/packages/oren-labs/signed-demo/versions/0.1.0")
+	manifestHash := rel["manifest_sha256"].(string)
+	badPublish := map[string]any{
+		"signature_alg":                 "p256-sha256-der",
+		"signature_p256_sha256_der_hex": "00",
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/signed-demo/versions/0.1.0/publish", badPublish, true); got.Code != http.StatusBadRequest {
+		t.Fatalf("bad publish status=%d body=%s", got.Code, got.Body.String())
+	}
+	sum := sha256.Sum256([]byte(manifestHash))
+	packageSig, err := ecdsa.SignASN1(rand.Reader, publisherKey, sum[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := map[string]any{
+		"signature_alg":                 "p256-sha256-der",
+		"signature_p256_sha256_der_hex": hex.EncodeToString(packageSig),
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/signed-demo/versions/0.1.0/publish", publish, true); got.Code != http.StatusOK {
 		t.Fatalf("publish status=%d body=%s", got.Code, got.Body.String())
 	}
 
@@ -153,9 +174,15 @@ func TestStoreSignsStableIndex(t *testing.T) {
 		t.Fatalf("index bytes are not stable")
 	}
 	sig := rawGet(t, ts, "/api/v0/index.json.sig")
-	sum := sha256.Sum256(indexA)
-	if !ecdsa.VerifyASN1(&key.PublicKey, sum[:], sig) {
+	indexSum := sha256.Sum256(indexA)
+	if !ecdsa.VerifyASN1(&key.PublicKey, indexSum[:], sig) {
 		t.Fatalf("index signature did not verify")
+	}
+	index := getJSON[map[string]any](t, ts, "/api/v0/index.json")
+	packages := index["packages"].([]any)
+	entry := packages[0].(map[string]any)
+	if entry["signature_alg"] != "p256-sha256-der" || entry["signature_p256_sha256_der_hex"] != hex.EncodeToString(packageSig) {
+		t.Fatalf("missing package signature entry=%v", entry)
 	}
 }
 
@@ -207,6 +234,16 @@ func writeTestP256Key(t *testing.T, dir string) (*ecdsa.PrivateKey, string) {
 		t.Fatal(err)
 	}
 	return key, path
+}
+
+func p256PublicKeyX963Base64(key *ecdsa.PublicKey) string {
+	x := key.X.Bytes()
+	y := key.Y.Bytes()
+	body := make([]byte, 65)
+	body[0] = 4
+	copy(body[33-len(x):33], x)
+	copy(body[65-len(y):65], y)
+	return base64.StdEncoding.EncodeToString(body)
 }
 
 func getJSON[T any](t *testing.T, ts *httptest.Server, path string) T {

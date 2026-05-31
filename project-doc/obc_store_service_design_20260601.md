@@ -96,7 +96,9 @@ Remaining service work before deployment:
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
   cross-builds the Go binary, uploads external admin env values, and copies the
   index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`;
-- deployment unit/Traefik config and health smoke on `store.hubstack.cn`;
+- deployment unit/Traefik route config and health smoke on `store.hubstack.cn`;
+  the cloud host Traefik layer owns automatic DNS and HTTPS certificate handling,
+  so this repo should not manage TLS cert material;
 - SDK end-to-end install smoke against the service endpoint.
 
 ## Registry Model
@@ -189,8 +191,18 @@ Publish flow:
 3. Service verifies manifest schema, semantic version, hashes, size limits,
    capability declarations, and AVM ABI compatibility.
 4. Service stores immutable artifacts by SHA-256.
-5. Publisher provides metadata signature, or the service verifies a detached
-   publisher signature generated outside the service.
+5. Publisher reads the returned `manifest_sha256`, signs that lowercase hex string
+   outside the service, then calls `publish` with:
+
+   ```json
+   {
+     "signature_alg": "p256-sha256-der",
+     "signature_p256_sha256_der_hex": "<DER signature hex>"
+   }
+   ```
+
+   If the publisher has registered public keys, the service verifies the detached
+   publisher signature before moving the release to `published`.
 6. Release becomes visible only after validation and index regeneration.
 
 The service should not hold publisher private keys by default. If a future hosted

@@ -178,6 +178,11 @@ This file is the concise task view. Detailed implementation status lives in
    - No source file should exceed 2000 lines.
    - Keep canonical docs concise; archive raw history in logs or focused project notes.
 
+5. **Oren language tooling**
+   - After the current AVM/OBC store jobs land, build a Go language server and
+     VS Code extension for Oren syntax highlighting, diagnostics, completion,
+     navigation, and code intelligence.
+
 ## Closed/Do-Not-Repeat Families
 
 - Do not re-open Mach-O resolver variants based on generic Oren maps, global sorting,

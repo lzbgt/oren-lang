@@ -26,6 +26,7 @@ design evidence lives under `project-doc/`.
 | AVM-EVENT-FS-PACKAGE | P2 | W3 | todo | Add FS/package events to the virtual event bus without exposing raw OS descriptors. | `make test-avm && make verify-libavm-ios` |
 | AVM-COMPILERKIT-IOS | P2 | W3 | todo | Add iOS CompilerKit helper API: source in, diagnostics/OBC out, stdlib bundle resources wired automatically. | `make verify-compiler-in-avm-ios-chain && make verify-libavm-ios` |
 | MATH-STDLIB-EXPAND | P2 | W3 | todo | Continue deterministic `std:math` expansion toward C/C++ mathlib breadth with native and AVM fixtures per function family. | focused math fixtures plus `make test-avm` |
+| OREN-LSP-VSCODE | P2 | W3 | todo | Build a Go Oren language server plus VS Code extension for syntax highlighting, diagnostics, completion, navigation, and code intelligence after the current AVM/OBC store jobs land. | Go LSP tests plus VS Code extension smoke |
 | LANG-ANON-IMPORT | P3 | W2 | todo | Add anonymous import syntax such as `import . "std:math"` after defining collision, visibility, import-cache, and fixture behavior. | parser/import/backend fixtures |
 
 ## Current Done Evidence
