@@ -80,10 +80,11 @@ Implemented as of 2026-05-31:
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels; host apps can clear the cache on
   memory pressure. The view exposes frame metrics for rendered frame count, CPU
-  encode time, target frame budget, geometry vertex count, and text-run count so
-  host apps and verifiers can observe pacing cost. `text_bytes` lets OBC publish
-  UTF-8 bytes directly on the frame hot path; OBC-visible retained text atlas and
-  richer resources remain the next performance step.
+  encode time, target frame budget, budget-usage permille, over-budget status,
+  geometry vertex count, and text-run count so host apps and verifiers can observe
+  and gate pacing cost. `text_bytes` lets OBC publish UTF-8 bytes directly on the
+  frame hot path; OBC-visible retained text atlas and richer resources remain the
+  next performance step.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on
@@ -258,8 +259,11 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 10. Done: add `fill_triangle` as a compact 2D geometry record across validation,
     binary frames, AVM protocol checks, deterministic raster, CoreGraphics fallback,
     Metal, and iOS verifier coverage.
-11. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
-12. Add retained resources, batching, and resource lifetime records.
-13. Add text atlas/sprite/mesh rendering on the Metal path.
-14. Add richer 2D and 3D command sets.
-15. Add game/app package smoke in the Note host or iOS SDK harness.
+11. Done: add SDK-side measured frame-budget helpers for Metal views:
+    configurable warning threshold, budget usage permille, over-budget status, and
+    verifier coverage for 60/90/120 Hz budget math.
+12. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
+13. Add retained resources, batching, and resource lifetime records.
+14. Add text atlas/sprite/mesh rendering on the Metal path.
+15. Add richer 2D and 3D command sets.
+16. Add game/app package smoke in the Note host or iOS SDK harness.

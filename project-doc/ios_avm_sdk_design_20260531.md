@@ -93,7 +93,9 @@ Retained SDK slices on 2026-05-31:
   `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
   state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
   stroke-line, circle, fill-triangle, and byte-native text payloads through Metal
-  pipelines. OBC-visible retained text atlas/sprite resources remain pending.
+  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
+  over-budget frames without reading raw Metal timing APIs. OBC-visible retained
+  text atlas/sprite resources remain pending.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, and UTF-8 text-input events. These are still
   mailbox records, not UIKit objects.

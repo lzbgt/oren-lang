@@ -296,6 +296,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
+    if (self.frameBudgetWarningPermille == 0) self.frameBudgetWarningPermille = 1000u;
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     [self orenApplyFrameRate];
     if (self.device) {
@@ -386,6 +387,25 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     self.lastFrameVertexCount = 0;
     self.lastFrameTextRunCount = 0;
+}
+
+- (uint32_t)lastFrameBudgetUsagePermille {
+    if (self.lastFrameTargetBudgetNs == 0) return 0;
+    long double usage = ((long double)self.lastFrameCPUNs * 1000.0L) / (long double)self.lastFrameTargetBudgetNs;
+    if (usage <= 0.0L) return 0;
+    if (usage > 4294967295.0L) return UINT32_MAX;
+    return (uint32_t)usage;
+}
+
+- (BOOL)frameCPUNsExceedsBudget:(uint64_t)cpuNs {
+    if (self.frameBudgetWarningPermille == 0 || self.lastFrameTargetBudgetNs == 0) return NO;
+    long double lhs = (long double)cpuNs * 1000.0L;
+    long double rhs = (long double)self.lastFrameTargetBudgetNs * (long double)self.frameBudgetWarningPermille;
+    return lhs > rhs;
+}
+
+- (BOOL)lastFrameOverBudget {
+    return [self frameCPUNsExceedsBudget:self.lastFrameCPUNs];
 }
 
 - (void)orenEmitFrameTick {

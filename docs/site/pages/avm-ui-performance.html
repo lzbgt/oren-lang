@@ -123,10 +123,11 @@
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
 <p>  SDK-side LRU texture cache for repeated labels; host apps can clear the cache on</p>
 <p>  memory pressure. The view exposes frame metrics for rendered frame count, CPU</p>
-<p>  encode time, target frame budget, geometry vertex count, and text-run count so</p>
-<p>  host apps and verifiers can observe pacing cost. <code>text_bytes</code> lets OBC publish</p>
-<p>  UTF-8 bytes directly on the frame hot path; OBC-visible retained text atlas and</p>
-<p>  richer resources remain the next performance step.</p>
+<p>  encode time, target frame budget, budget-usage permille, over-budget status,</p>
+<p>  geometry vertex count, and text-run count so host apps and verifiers can observe</p>
+<p>  and gate pacing cost. <code>text_bytes</code> lets OBC publish UTF-8 bytes directly on the</p>
+<p>  frame hot path; OBC-visible retained text atlas and richer resources remain the</p>
+<p>  next performance step.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
@@ -330,6 +331,11 @@
 </ol>
 <p>    binary frames, AVM protocol checks, deterministic raster, CoreGraphics fallback,</p>
 <p>    Metal, and iOS verifier coverage.</p>
+<ol>
+<li>Done: add SDK-side measured frame-budget helpers for Metal views:</li>
+</ol>
+<p>    configurable warning threshold, budget usage permille, over-budget status, and</p>
+<p>    verifier coverage for 60/90/120 Hz budget math.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>

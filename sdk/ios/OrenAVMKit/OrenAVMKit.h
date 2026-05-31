@@ -316,9 +316,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 @property(nonatomic, copy, nullable) NSData* frameData;
 @property(nonatomic) uint32_t targetHzMilli;
 @property(nonatomic) uint32_t mediaFlags;
+@property(nonatomic) uint32_t frameBudgetWarningPermille;
 @property(nonatomic, readonly) uint64_t renderedFrameCount;
 @property(nonatomic, readonly) uint64_t lastFrameCPUNs;
 @property(nonatomic, readonly) uint64_t lastFrameTargetBudgetNs;
+@property(nonatomic, readonly) uint32_t lastFrameBudgetUsagePermille;
+@property(nonatomic, readonly) BOOL lastFrameOverBudget;
 @property(nonatomic, readonly) uint32_t lastFrameVertexCount;
 @property(nonatomic, readonly) uint32_t lastFrameTextRunCount;
 
@@ -328,6 +331,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (BOOL)reloadFrameWithError:(NSError* _Nullable* _Nullable)error;
 - (void)clearTextTextureCache;
 - (void)resetFrameMetrics;
+- (BOOL)frameCPUNsExceedsBudget:(uint64_t)cpuNs;
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind
                            point:(CGPoint)point
                        pointerId:(uint32_t)pointerId

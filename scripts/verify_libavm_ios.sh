@@ -1043,12 +1043,20 @@ int main(void) {
         metalView.mediaFlags = 5;
         if (metalView.preferredFramesPerSecond != 120) return 129;
         if (metalView.lastFrameTargetBudgetNs != 8333333ull) return 131;
+        if (metalView.frameBudgetWarningPermille != 1000u) return 136;
+        if ([metalView frameCPUNsExceedsBudget:8333333ull]) return 137;
+        if (![metalView frameCPUNsExceedsBudget:8333334ull]) return 138;
+        metalView.frameBudgetWarningPermille = 500u;
+        if ([metalView frameCPUNsExceedsBudget:4166666ull]) return 139;
+        if (![metalView frameCPUNsExceedsBudget:4166667ull]) return 140;
+        metalView.frameBudgetWarningPermille = 1000u;
         metalView.targetHzMilli = 90000;
         if (metalView.preferredFramesPerSecond != 90) return 130;
         if (metalView.lastFrameTargetBudgetNs != 11111111ull) return 132;
         metalView.targetHzMilli = 120000;
         [metalView resetFrameMetrics];
         if (metalView.renderedFrameCount != 0 || metalView.lastFrameCPUNs != 0) return 133;
+        if (metalView.lastFrameBudgetUsagePermille != 0 || metalView.lastFrameOverBudget) return 141;
         if (![metalView sendPointerEventsWithKind:2 points:@[[NSValue valueWithCGPoint:CGPointMake(1.0, 1.0)],
                                                              [NSValue valueWithCGPoint:CGPointMake(3.0, 2.0)]]
                                        pointerIDs:@[@(10u), @(11u)]

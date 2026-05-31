@@ -151,7 +151,9 @@
 <p>  <code>MTKView</code> adapter that owns the Metal draw loop, publishes host screen/media</p>
 <p>  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
 <p>  stroke-line, circle, fill-triangle, and byte-native text payloads through Metal</p>
-<p>  pipelines. OBC-visible retained text atlas/sprite resources remain pending.</p>
+<p>  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect</p>
+<p>  over-budget frames without reading raw Metal timing APIs. OBC-visible retained</p>
+<p>  text atlas/sprite resources remain pending.</p>
 <ul>
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>

@@ -276,7 +276,7 @@ Facts from the 2026-05-28 implementation pass:
   event path instead of polling raw platform clocks. Frame ticks are coalesced so
   stale timing records cannot fill the input FIFO and starve real input. The Metal
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-  target frame budget, geometry vertex count, and text-run count; OBC-visible
+  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count; OBC-visible
   retained text atlas resources remain the next performance step. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
