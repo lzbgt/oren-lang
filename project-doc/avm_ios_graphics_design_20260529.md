@@ -331,9 +331,14 @@ Required gates before Note integration should be called production-ready:
    frame I/O budget, and host input queue depth.
 10. Done: add high-resolution resize scale, latest-frame replacement/clear, and
     FIFO pointer down/move/up ordering gates.
-11. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
-12. Add IME/composition helpers.
-13. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
+11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
+    Metal draw loop, publishes screen state, forwards touch input, and renders the
+    current `fill_rect`/`stroke_line` geometry records.
+12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
+    `OrenAVMMetalView`, runs a bundled OBC, renders one frame, and injects one touch.
+13. Add IME/composition helpers.
+14. Add retained resources plus `std:gfx/canvas2d` / `std:gfx/mesh3d` records for
+    sprite/text/mesh rendering on the Metal path.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
 right app boundary: AVM computes and describes frames; iOS renders them.

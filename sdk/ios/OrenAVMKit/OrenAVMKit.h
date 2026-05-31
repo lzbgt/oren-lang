@@ -5,6 +5,7 @@
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+#import <MetalKit/MetalKit.h>
 #endif
 
 #include "avm_embed.h"
@@ -296,6 +297,26 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (BOOL)publishScreenStateWithTargetHzMilli:(uint32_t)targetHzMilli
                                       flags:(uint32_t)flags
                                       error:(NSError* _Nullable* _Nullable)error;
+
+@end
+
+@interface OrenAVMMetalView : MTKView
+
+@property(nonatomic, strong, nullable) OrenAVMRuntime* runtime;
+@property(nonatomic, copy, nullable) NSData* frameData;
+@property(nonatomic) uint32_t targetHzMilli;
+@property(nonatomic) uint32_t mediaFlags;
+
+- (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithFrame:(CGRect)frame device:(nullable id<MTLDevice>)device NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithCoder:(NSCoder*)coder NS_DESIGNATED_INITIALIZER;
+- (BOOL)reloadFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendPointerEventWithKind:(uint8_t)kind
+                           point:(CGPoint)point
+                       pointerId:(uint32_t)pointerId
+                           error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)publishScreenStateWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendMediaEventWithError:(NSError* _Nullable* _Nullable)error;
 
 @end
 

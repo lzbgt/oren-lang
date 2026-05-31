@@ -65,6 +65,11 @@ Implemented as of 2026-05-31:
   Oren maps so OBC programs do not have to parse bytes manually.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`, `stroke_line`, and `circle`.
+- iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
+  loop, publishes host-populated screen state, forwards touch input into `OGE0`,
+  and renders current `OGF0` `fill_rect`/`stroke_line` geometry through a Metal
+  pipeline. CoreGraphics remains the complete fallback for text/circle until text
+  atlas and richer retained resources exist.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - Host helpers can publish persistent screen/media state and can enqueue
   media-query change events so OBC can adapt to logical size, native drawable
@@ -207,8 +212,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 6. large text/geometry frames that stay within budget and render without JSON;
 7. retained resource upload/update/destroy smoke;
 8. low-latency input ordering smoke across multiple pointer events;
-9. Metal/`MTKView` renderer smoke for at least one sprite/mesh-like retained
-   resource once the resource protocol exists;
+9. Metal/`MTKView` renderer smoke for retained sprite/mesh resources once the
+   resource protocol exists;
 10. docs-site page and conformance fixtures for the binary protocol.
 
 ## Reweighted Implementation Order
@@ -222,8 +227,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
    input queue depth.
 5. Done: add latest-frame replacement/clear, high-resolution resize scale, and
    FIFO pointer down/move/up ordering gates in the iOS embed verifier.
-6. Add Note/iOS display-link smoke for high-refresh pacing behavior.
-7. Add retained resources, batching, and resource lifetime records.
-8. Add Metal/`MTKView` renderer as the game-grade iOS path.
-9. Add richer 2D and 3D command sets.
-10. Add game/app package smoke in the Note host or iOS SDK harness.
+6. Done: add first SDK Metal/`MTKView` adapter for the current low-level
+   `OGF0` fill-rect/stroke-line geometry, touch forwarding, and host screen state.
+7. Add Note/iOS display-link smoke for high-refresh pacing behavior.
+8. Add retained resources, batching, and resource lifetime records.
+9. Add text atlas/sprite/mesh rendering on the Metal path.
+10. Add richer 2D and 3D command sets.
+11. Add game/app package smoke in the Note host or iOS SDK harness.

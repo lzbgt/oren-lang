@@ -67,6 +67,8 @@ nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenA
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPermissionGrantStore'
 nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
+nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMMetalView'
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMMetalView'
 
 OREN_SRC="$TMP_DIR/embed_chain.oren"
 OBC_OUT="$TMP_DIR/embed_chain.obc"
@@ -1005,6 +1007,12 @@ int main(void) {
         if (![graphicsView sendResizeEventWithScaleMilli:1000 error:&error]) return 57;
         if (![graphicsView publishScreenStateWithTargetHzMilli:120000 flags:5 error:&error]) return 123;
         if (![graphicsView sendMediaEventWithTargetHzMilli:120000 flags:5 error:&error]) return 124;
+        OrenAVMMetalView* metalView = [[OrenAVMMetalView alloc] initWithRuntime:runtime];
+        if (!metalView) return 127;
+        metalView.frameData = frame;
+        metalView.targetHzMilli = 120000;
+        metalView.mediaFlags = 5;
+        if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
         if ([runtime getGraphicsFrameDataWithError:&error] != nil) return 50;
@@ -1061,6 +1069,9 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -framework Metal \
+  -framework MetalKit \
+  -framework QuartzCore \
   -lz \
   -o "$TMP_DIR/sdk_smoke_sim"
 "$SIM_CC" \
@@ -1076,6 +1087,9 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -framework Metal \
+  -framework MetalKit \
+  -framework QuartzCore \
   -lz \
   -o "$TMP_DIR/sdk_module_smoke_sim"
 
@@ -1104,6 +1118,9 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -framework Metal \
+  -framework MetalKit \
+  -framework QuartzCore \
   -lz \
   -o "$TMP_DIR/sdk_smoke_device"
 "$DEV_CC" \
@@ -1119,6 +1136,9 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -framework Metal \
+  -framework MetalKit \
+  -framework QuartzCore \
   -lz \
   -o "$TMP_DIR/sdk_module_smoke_device"
 

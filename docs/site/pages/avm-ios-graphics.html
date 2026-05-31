@@ -381,10 +381,19 @@ fn main() {
 </ol>
 <p>    FIFO pointer down/move/up ordering gates.</p>
 <ol>
-<li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
-<li>Add IME/composition helpers.</li>
-<li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> and Metal rendering after the current <code>std:ui</code> frame path is proven in the app.</li>
+<li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>
+<p>    Metal draw loop, publishes screen state, forwards touch input, and renders the</p>
+<p>    current <code>fill_rect</code>/<code>stroke_line</code> geometry records.</p>
+<ol>
+<li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code> or</li>
+</ol>
+<p>    <code>OrenAVMMetalView</code>, runs a bundled OBC, renders one frame, and injects one touch.</p>
+<ol>
+<li>Add IME/composition helpers.</li>
+<li>Add retained resources plus <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> records for</li>
+</ol>
+<p>    sprite/text/mesh rendering on the Metal path.</p>
 <p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>
 <p>right app boundary: AVM computes and describes frames; iOS renders them.</p>
     </main>

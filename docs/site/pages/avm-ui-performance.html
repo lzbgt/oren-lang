@@ -105,6 +105,13 @@
 </ul>
 <p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>.</p>
 <ul>
+<li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
+</ul>
+<p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code> geometry through a Metal</p>
+<p>  pipeline. CoreGraphics remains the complete fallback for text/circle until text</p>
+<p>  atlas and richer retained resources exist.</p>
+<ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>Host helpers can publish persistent screen/media state and can enqueue</li>
 </ul>
@@ -254,9 +261,9 @@
 <li>large text/geometry frames that stay within budget and render without JSON;</li>
 <li>retained resource upload/update/destroy smoke;</li>
 <li>low-latency input ordering smoke across multiple pointer events;</li>
-<li>Metal/<code>MTKView</code> renderer smoke for at least one sprite/mesh-like retained</li>
+<li>Metal/<code>MTKView</code> renderer smoke for retained sprite/mesh resources once the</li>
 </ol>
-<p>   resource once the resource protocol exists;</p>
+<p>   resource protocol exists;</p>
 <ol>
 <li>docs-site page and conformance fixtures for the binary protocol.</li>
 </ol>
@@ -279,9 +286,13 @@
 </ol>
 <p>   FIFO pointer down/move/up ordering gates in the iOS embed verifier.</p>
 <ol>
+<li>Done: add first SDK Metal/<code>MTKView</code> adapter for the current low-level</li>
+</ol>
+<p>   <code>OGF0</code> fill-rect/stroke-line geometry, touch forwarding, and host screen state.</p>
+<ol>
 <li>Add Note/iOS display-link smoke for high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>
-<li>Add Metal/<code>MTKView</code> renderer as the game-grade iOS path.</li>
+<li>Add text atlas/sprite/mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
 <li>Add game/app package smoke in the Note host or iOS SDK harness.</li>
 </ol>

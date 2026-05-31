@@ -146,6 +146,14 @@
 <p>  back through the <code>OGE0</code> input mailbox. This is the default 2D fallback; it is</p>
 <p>  not the future high-volume Metal path.</p>
 <ul>
+<li>The first high-volume renderer is implemented as <code>OrenAVMMetalView</code>, an</li>
+</ul>
+<p>  <code>MTKView</code> adapter that owns the Metal draw loop, publishes host screen/media</p>
+<p>  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect and</p>
+<p>  stroke-line geometry through a Metal pipeline. Text/circle rendering remains on</p>
+<p>  <code>OrenAVMGraphicsView</code> until the retained text atlas/sprite resource protocol is</p>
+<p>  added.</p>
+<ul>
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>
 <p>  media-query events, key events, and UTF-8 text-input events. These are still</p>

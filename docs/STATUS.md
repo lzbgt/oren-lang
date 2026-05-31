@@ -265,14 +265,19 @@ Facts from the 2026-05-28 implementation pass:
   text events plus host-populated persistent screen state and runtime media-query
   events with logical size, native drawable size, device scale, target refresh,
   and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
-  consuming an input event. Bidirectional UI is a hard requirement for game-level OBC packages:
-  OBC must publish frames and consume host-originated input through the same virtual
-  protocol, while the host owns platform event APIs and rendering devices. Metal
-  rendering, multitouch/gamepad/motion input, IME/composition helpers, and richer 2D/3D command
-  sets remain pending. The next GUI contract is game-grade rather than widget-only:
-  display-link pacing, latest-frame/drop-stale behavior, retained resource handles,
-  strict budgets, low-latency input ordering, and Metal/`MTKView`
-  conformance gates are documented in
+  consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
+  adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
+  events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/stroke-line
+  geometry through a Metal pipeline while CoreGraphics remains the complete fallback
+  for the current text/circle subset. Bidirectional UI is a hard requirement for
+  game-level OBC packages: OBC must publish frames and consume host-originated input
+  through the same virtual protocol, while the host owns platform event APIs and
+  rendering devices. Remaining game-grade work is retained resources, text atlas/
+  sprite/mesh records, multitouch/gamepad/motion input, IME/composition helpers,
+  frame timing budgets, and richer 2D/3D command sets. The next GUI contract is
+  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
+  behavior, retained resource handles, strict budgets, low-latency input ordering,
+  and Metal/`MTKView` conformance gates are documented in
   `project-doc/avm_ui_render_performance_design_20260531.md`.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.

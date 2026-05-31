@@ -89,6 +89,12 @@ Retained SDK slices on 2026-05-31:
   (`fill_rect`, `text`, `stroke_line`, and `circle`) and enqueues pointer events
   back through the `OGE0` input mailbox. This is the default 2D fallback; it is
   not the future high-volume Metal path.
+- The first high-volume renderer is implemented as `OrenAVMMetalView`, an
+  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
+  state, forwards touch events to OBC, and renders current `OGF0` fill-rect and
+  stroke-line geometry through a Metal pipeline. Text/circle rendering remains on
+  `OrenAVMGraphicsView` until the retained text atlas/sprite resource protocol is
+  added.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, and UTF-8 text-input events. These are still
   mailbox records, not UIKit objects.
