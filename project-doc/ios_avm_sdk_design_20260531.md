@@ -283,10 +283,22 @@ Public OBC store helper.
   the indexed manifest SHA-256, fetch the manifest, OBC, and declared assets,
   verify asset SHA-256 values, install them into an app-owned directory, and then
   run through the same local verifier path.
-- Next slices should add signed store indexes and package manifests.
-- Signature verification is still pending; hash verification is implemented.
+- A signed download overload accepts trusted publisher P-256 public keys and
+  verifies `p256-sha256-der` signatures over the manifest hash before install.
+  The retained gate proves valid signatures and bad-signature rejection.
+- Next slices should add signed store indexes, root trust rotation, persisted
+  install/update/remove lifecycle, and Note app smoke.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
+
+The same model should be replicated for macOS, Linux, and Windows after iOS
+matures: keep OBC on portable virtual resources and ship platform SDK providers
+for native FS/NET/TIME/PROC/UI implementations.
+
+Private package signing keys and root CA material should stay outside this repo,
+recommended at `../oren-ca/` for local bring-up. `OrenAVMKit` should consume
+public publisher keys/trust bundles from app configuration; sibling apps such as
+`../note` can share the same external CA location without committing secrets.
 
 ## Default Policy
 

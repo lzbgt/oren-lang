@@ -369,11 +369,25 @@
 <p>  verify asset SHA-256 values, install them into an app-owned directory, and then</p>
 <p>  run through the same local verifier path.</p>
 <ul>
-<li>Next slices should add signed store indexes and package manifests.</li>
-<li>Signature verification is still pending; hash verification is implemented.</li>
+<li>A signed download overload accepts trusted publisher P-256 public keys and</li>
+</ul>
+<p>  verifies <code>p256-sha256-der</code> signatures over the manifest hash before install.</p>
+<p>  The retained gate proves valid signatures and bad-signature rejection.</p>
+<ul>
+<li>Next slices should add signed store indexes, root trust rotation, persisted</li>
+</ul>
+<p>  install/update/remove lifecycle, and Note app smoke.</p>
+<ul>
 <li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
 </ul>
 <p>  remain host/app policy until the Metal/GFX release gate is stronger.</p>
+<p>The same model should be replicated for macOS, Linux, and Windows after iOS</p>
+<p>matures: keep OBC on portable virtual resources and ship platform SDK providers</p>
+<p>for native FS/NET/TIME/PROC/UI implementations.</p>
+<p>Private package signing keys and root CA material should stay outside this repo,</p>
+<p>recommended at <code>../oren-ca/</code> for local bring-up. <code>OrenAVMKit</code> should consume</p>
+<p>public publisher keys/trust bundles from app configuration; sibling apps such as</p>
+<p><code>../note</code> can share the same external CA location without committing secrets.</p>
 <h2 id="default-policy">Default Policy</h2>
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>

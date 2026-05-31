@@ -137,13 +137,19 @@
 <p>  the manifest, OBC, and declared assets into an app-owned install directory,</p>
 <p>  verify asset SHA-256 values, then reuse the local</p>
 <p>  verifier/runner path. The iOS verifier now proves local package install/asset/run</p>
-<p>  plus HTTP index download/install/asset/run. Signature validation is still pending.</p>
+<p>  plus HTTP index download/install/asset/run. A signed download overload accepts</p>
+<p>  trusted publisher P-256 public keys and verifies <code>p256-sha256-der</code> signatures over</p>
+<p>  the manifest hash before package install; the iOS verifier proves valid-signature,</p>
+<p>  bad-asset-hash, and bad-signature paths.</p>
 <ul>
 <li>iOS SDK design is documented in <code>project-doc/ios_avm_sdk_design_20260531.md</code>:</li>
 </ul>
 <p>  Oren should ship host-adapter SDK components so Note can use default</p>
 <p>  app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of</p>
 <p>  hand-writing each bridge.</p>
+<p>  The same virtual-resource SDK pattern should later be applied to macOS, Linux,</p>
+<p>  and Windows: platform SDKs own native providers while OBC sees only portable</p>
+<p>  virtual handles, mailboxes, capabilities, and budgets.</p>
 <ul>
 <li>First SDK implementation slice: <code>scripts/build_libavm_ios.sh</code> now also builds</li>
 </ul>

@@ -619,6 +619,7 @@ int main(void) {
         NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
         NSString* packageIndexURL = env[@"OREN_AVM_SDK_PACKAGE_INDEX_URL"];
         NSString* packageDownloadDir = env[@"OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR"];
+        NSString* packagePublisherKeyB64 = env[@"OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64"];
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
@@ -753,12 +754,15 @@ int main(void) {
         }
         if (packageIndexURL.length > 0 && packageDownloadDir.length > 0) {
             OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
+            NSData* publisherKey = [[NSData alloc] initWithBase64EncodedString:(packagePublisherKeyB64 ?: @"") options:0];
+            NSDictionary<NSString*, NSData*>* trustedKeys = publisherKey ? @{@"oren-labs": publisherKey} : nil;
             OrenAVMPackage* package = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
                                                                packageID:@"oren-labs/sdk-package-remote"
                                                                  version:@"0.1.0"
                                                  destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
                                                             allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
                                                           timeoutSeconds:5.0
+                                            trustedPublisherPublicKeys:trustedKeys
                                                                    error:&error];
             if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 94;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
@@ -775,8 +779,19 @@ int main(void) {
                                                          destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
                                                                     allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
                                                                   timeoutSeconds:5.0
+                                                    trustedPublisherPublicKeys:trustedKeys
                                                                            error:&error];
             if (badAssetPackage || !error) return 99;
+            error = nil;
+            OrenAVMPackage* badSignaturePackage = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                           packageID:@"oren-labs/sdk-package-bad-signature"
+                                                                             version:@"0.1.0"
+                                                             destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                                        allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                      timeoutSeconds:5.0
+                                                        trustedPublisherPublicKeys:trustedKeys
+                                                                               error:&error];
+            if (badSignaturePackage || !error) return 100;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -848,6 +863,7 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
   -framework Foundation \
+  -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
   -o "$TMP_DIR/sdk_smoke_sim"
@@ -861,6 +877,7 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
   -framework Foundation \
+  -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
   -o "$TMP_DIR/sdk_module_smoke_sim"
@@ -887,6 +904,7 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphoneos-arm64/libavm.a" \
   -framework Foundation \
+  -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
   -o "$TMP_DIR/sdk_smoke_device"
@@ -900,6 +918,7 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphoneos-arm64/libavm.a" \
   -framework Foundation \
+  -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
   -o "$TMP_DIR/sdk_module_smoke_device"
@@ -927,7 +946,7 @@ HOST_SDK_BIN="$TMP_DIR/sdk_smoke_host"
 clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK=1 \
   -Ilib/avm -Ibuild -I"$TMP_DIR" -I"$OUT_ROOT/include" \
   "$TMP_DIR/sdk_smoke.m" sdk/ios/OrenAVMKit/OrenAVMKit.m "${HOST_SOURCES[@]}" \
-  -fobjc-arc -framework Foundation -o "$HOST_SDK_BIN"
+  -fobjc-arc -framework Foundation -framework Security -o "$HOST_SDK_BIN"
 NET_DIR="$TMP_DIR/net_server"
 rm -rf "$NET_DIR"
 mkdir -p "$NET_DIR"
@@ -991,14 +1010,17 @@ PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
 REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
 REMOTE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.1.0"
 REMOTE_BAD_ASSET_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-asset/0.1.0"
+REMOTE_BAD_SIGNATURE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-signature/0.1.0"
 rm -rf "$TMP_DIR/package_store" "$REMOTE_STORE_DIR"
-mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets"
+mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets"
 cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_ASSET_PACKAGE_DIR/program.obc"
+cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/program.obc"
 printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets/config.txt"
+printf 'pkg-asset' > "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets/config.txt"
 PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
 REMOTE_PACKAGE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/program.obc" | awk '{print $1}')"
 REMOTE_ASSET_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/assets/config.txt" | awk '{print $1}')"
@@ -1083,8 +1105,62 @@ cat > "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" <<JSON
   ]
 }
 JSON
+cat > "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-package-bad-signature",
+  "publisher": "oren-labs",
+  "version": "0.1.0",
+  "title": "SDK Bad Signature Package Smoke",
+  "summary": "Verifies manifest signature rejection.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$REMOTE_PACKAGE_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "assets": [
+    { "path": "assets/config.txt", "sha256": "$REMOTE_ASSET_HASH" }
+  ],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
+}
+JSON
 REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_ASSET_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" | awk '{print $1}')"
+REMOTE_BAD_SIGNATURE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" | awk '{print $1}')"
+PACKAGE_SIGN_KEY="$TMP_DIR/package_store_p256.pem"
+REMOTE_MANIFEST_HASH_MSG="$TMP_DIR/remote_manifest_hash.txt"
+REMOTE_BAD_ASSET_HASH_MSG="$TMP_DIR/remote_bad_asset_manifest_hash.txt"
+openssl ecparam -name prime256v1 -genkey -noout -out "$PACKAGE_SIGN_KEY"
+printf '%s' "$REMOTE_MANIFEST_HASH" > "$REMOTE_MANIFEST_HASH_MSG"
+printf '%s' "$REMOTE_BAD_ASSET_MANIFEST_HASH" > "$REMOTE_BAD_ASSET_HASH_MSG"
+openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_manifest.sig" "$REMOTE_MANIFEST_HASH_MSG"
+openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_bad_asset_manifest.sig" "$REMOTE_BAD_ASSET_HASH_MSG"
+REMOTE_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest.sig" | tr -d '\n')"
+REMOTE_BAD_ASSET_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_bad_asset_manifest.sig" | tr -d '\n')"
+PACKAGE_PUBLISHER_KEY_B64="$(
+  python3 - "$PACKAGE_SIGN_KEY" <<'PY'
+import base64
+import subprocess
+import sys
+der = subprocess.check_output(["openssl", "ec", "-in", sys.argv[1], "-pubout", "-outform", "DER"], stderr=subprocess.DEVNULL)
+idx = der.rfind(b"\x03\x42\x00\x04")
+if idx < 0:
+    raise SystemExit("missing P-256 public key bit string")
+pub = der[idx + 3:idx + 68]
+if len(pub) != 65 or pub[0] != 4:
+    raise SystemExit("invalid P-256 public key length")
+print(base64.b64encode(pub).decode("ascii"))
+PY
+)"
 cat > "$REMOTE_STORE_DIR/index.json" <<JSON
 {
   "schema": "oren.obc.store.index.v0",
@@ -1095,6 +1171,8 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
       "version": "0.1.0",
       "manifest": "packages/oren-labs/sdk-package-remote/0.1.0/package.json",
       "manifest_sha256": "$REMOTE_MANIFEST_HASH",
+      "signature_alg": "p256-sha256-der",
+      "signature_p256_sha256_der_hex": "$REMOTE_SIGNATURE_HEX",
       "tags": ["sdk", "smoke"],
       "min_app": "0.1.0"
     },
@@ -1103,6 +1181,18 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
       "version": "0.1.0",
       "manifest": "packages/oren-labs/sdk-package-bad-asset/0.1.0/package.json",
       "manifest_sha256": "$REMOTE_BAD_ASSET_MANIFEST_HASH",
+      "signature_alg": "p256-sha256-der",
+      "signature_p256_sha256_der_hex": "$REMOTE_BAD_ASSET_SIGNATURE_HEX",
+      "tags": ["sdk", "negative"],
+      "min_app": "0.1.0"
+    },
+    {
+      "id": "oren-labs/sdk-package-bad-signature",
+      "version": "0.1.0",
+      "manifest": "packages/oren-labs/sdk-package-bad-signature/0.1.0/package.json",
+      "manifest_sha256": "$REMOTE_BAD_SIGNATURE_MANIFEST_HASH",
+      "signature_alg": "p256-sha256-der",
+      "signature_p256_sha256_der_hex": "00",
       "tags": ["sdk", "negative"],
       "min_app": "0.1.0"
     }
@@ -1297,6 +1387,7 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
 OREN_AVM_SDK_PACKAGE_INDEX_URL="http://127.0.0.1:${PKG_PORT}/index.json" \
 OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_packages" \
+OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \

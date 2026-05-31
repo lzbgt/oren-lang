@@ -92,11 +92,17 @@ Facts from the 2026-05-28 implementation pass:
   the manifest, OBC, and declared assets into an app-owned install directory,
   verify asset SHA-256 values, then reuse the local
   verifier/runner path. The iOS verifier now proves local package install/asset/run
-  plus HTTP index download/install/asset/run. Signature validation is still pending.
+  plus HTTP index download/install/asset/run. A signed download overload accepts
+  trusted publisher P-256 public keys and verifies `p256-sha256-der` signatures over
+  the manifest hash before package install; the iOS verifier proves valid-signature,
+  bad-asset-hash, and bad-signature paths.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of
   hand-writing each bridge.
+  The same virtual-resource SDK pattern should later be applied to macOS, Linux,
+  and Windows: platform SDKs own native providers while OBC sees only portable
+  virtual handles, mailboxes, capabilities, and budgets.
 - First SDK implementation slice: `scripts/build_libavm_ios.sh` now also builds
   `OrenAVMKit.xcframework`. The Objective-C API provides deterministic defaults,
   interactive app defaults for wall-clock `time.sleep_ms`, VirtualFS file helpers,

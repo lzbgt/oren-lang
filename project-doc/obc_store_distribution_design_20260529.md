@@ -199,8 +199,18 @@ SHA-256, package capabilities, budget/time-mode runtime config, and read-only
 package asset mounts before running the OBC. It can fetch `index.json`, download
 the selected manifest/OBC plus declared assets into an app-owned install directory,
 verify each asset SHA-256, and run the package through the same local verifier
-path. Signature validation, persisted install/update/remove lifecycle, and Note
-app smoke remain required before a public store is release-ready.
+path. The iOS SDK also has a signed download overload for publisher signatures:
+host apps pass trusted P-256 public keys by publisher ID, and the SDK verifies
+`p256-sha256-der` signatures over indexed manifest hashes before install.
+Remaining store work is signed index/root trust rotation, persisted
+install/update/remove lifecycle, and Note app smoke before a public store is
+release-ready.
+
+Key custody rule: private signing keys and any root CA material must live outside
+this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo
+may document paths and commit public trust anchors or test public keys, but must
+not commit private keys. Sibling apps such as `../note` should consume a public
+trust bundle or a local config path that points at `../oren-ca/` during development.
 
 ## Initial Public Repo Shape
 

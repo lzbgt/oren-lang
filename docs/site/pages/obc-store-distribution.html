@@ -231,8 +231,17 @@ packages/...</code></pre>
 <p>package asset mounts before running the OBC. It can fetch <code>index.json</code>, download</p>
 <p>the selected manifest/OBC plus declared assets into an app-owned install directory,</p>
 <p>verify each asset SHA-256, and run the package through the same local verifier</p>
-<p>path. Signature validation, persisted install/update/remove lifecycle, and Note</p>
-<p>app smoke remain required before a public store is release-ready.</p>
+<p>path. The iOS SDK also has a signed download overload for publisher signatures:</p>
+<p>host apps pass trusted P-256 public keys by publisher ID, and the SDK verifies</p>
+<p><code>p256-sha256-der</code> signatures over indexed manifest hashes before install.</p>
+<p>Remaining store work is signed index/root trust rotation, persisted</p>
+<p>install/update/remove lifecycle, and Note app smoke before a public store is</p>
+<p>release-ready.</p>
+<p>Key custody rule: private signing keys and any root CA material must live outside</p>
+<p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
+<p>may document paths and commit public trust anchors or test public keys, but must</p>
+<p>not commit private keys. Sibling apps such as <code>../note</code> should consume a public</p>
+<p>trust bundle or a local config path that points at <code>../oren-ca/</code> during development.</p>
 <h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
 <p>Suggested public repository:</p>
 <pre><code>oren-obc-store/

@@ -2,6 +2,7 @@
 
 #import <CommonCrypto/CommonDigest.h>
 #import <dispatch/dispatch.h>
+#import <Security/Security.h>
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
@@ -256,6 +257,44 @@ static NSNumber* OrenAVMPackageNumber(NSDictionary<NSString*, id>* manifest, NSS
     return [v isKindOfClass:[NSNumber class]] ? (NSNumber*)v : nil;
 }
 
+static NSData* OrenAVMPackageDecodeHex(NSString* hex) {
+    if ((hex.length & 1u) != 0) return nil;
+    NSMutableData* out = [NSMutableData dataWithLength:hex.length / 2u];
+    uint8_t* bytes = out.mutableBytes;
+    for (NSUInteger i = 0; i < hex.length; i += 2u) {
+        unsigned int v = 0;
+        NSString* part = [hex substringWithRange:NSMakeRange(i, 2u)];
+        NSScanner* scanner = [NSScanner scannerWithString:part];
+        if (![scanner scanHexInt:&v] || !scanner.isAtEnd || v > 255u) return nil;
+        bytes[i / 2u] = (uint8_t)v;
+    }
+    return out;
+}
+
+static BOOL OrenAVMPackageVerifyP256Signature(NSData* publicKeyX963, NSData* message, NSData* signatureDER) {
+    if (publicKeyX963.length != 65u || signatureDER.length == 0 || message.length == 0) return NO;
+    NSDictionary* attrs = @{
+        (__bridge NSString*)kSecAttrKeyType: (__bridge NSString*)kSecAttrKeyTypeECSECPrimeRandom,
+        (__bridge NSString*)kSecAttrKeyClass: (__bridge NSString*)kSecAttrKeyClassPublic,
+        (__bridge NSString*)kSecAttrKeySizeInBits: @256,
+    };
+    CFErrorRef cfError = NULL;
+    SecKeyRef key = SecKeyCreateWithData((__bridge CFDataRef)publicKeyX963, (__bridge CFDictionaryRef)attrs, &cfError);
+    if (!key) {
+        if (cfError) CFRelease(cfError);
+        return NO;
+    }
+    BOOL ok = SecKeyIsAlgorithmSupported(key, kSecKeyOperationTypeVerify, kSecKeyAlgorithmECDSASignatureMessageX962SHA256) &&
+        SecKeyVerifySignature(key,
+                              kSecKeyAlgorithmECDSASignatureMessageX962SHA256,
+                              (__bridge CFDataRef)message,
+                              (__bridge CFDataRef)signatureDER,
+                              &cfError);
+    if (cfError) CFRelease(cfError);
+    CFRelease(key);
+    return ok;
+}
+
 static BOOL OrenAVMPackagePathIsSafe(NSString* path) {
     if (path.length == 0 || [path hasPrefix:@"/"] || [path containsString:@"\0"]) return NO;
     for (NSString* part in [path pathComponents]) {
@@ -364,6 +403,24 @@ static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
                                   allowedHosts:(NSSet<NSString*>*)allowedHosts
                                 timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                          error:(NSError**)error {
+    return [self downloadPackageFromIndexURL:indexURL
+                                   packageID:packageID
+                                     version:version
+                     destinationDirectoryURL:destinationDirectoryURL
+                                allowedHosts:allowedHosts
+                              timeoutSeconds:timeoutSeconds
+                  trustedPublisherPublicKeys:nil
+                                       error:error];
+}
+
+- (OrenAVMPackage*)downloadPackageFromIndexURL:(NSURL*)indexURL
+                                     packageID:(NSString*)packageID
+                                       version:(NSString*)version
+                       destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                  allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                    trustedPublisherPublicKeys:(NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
+                                         error:(NSError**)error {
     if (!indexURL || packageID.length == 0 || !destinationDirectoryURL.isFileURL) {
         OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"index URL, package id, and destination directory are required");
         return nil;
@@ -408,6 +465,19 @@ static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
     if (![[OrenAVMPackageStore sha256HexForData:manifestData] isEqualToString:manifestHash.lowercaseString]) {
         OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest hash mismatch");
         return nil;
+    }
+    if (trustedPublisherPublicKeys.count > 0) {
+        NSString* publisherID = [[packageID componentsSeparatedByString:@"/"] firstObject];
+        NSData* publisherKey = trustedPublisherPublicKeys[publisherID];
+        NSString* signatureAlg = OrenAVMPackageString(entry, @"signature_alg");
+        NSString* signatureHex = OrenAVMPackageString(entry, @"signature_p256_sha256_der_hex");
+        NSData* signature = OrenAVMPackageDecodeHex(signatureHex);
+        NSData* signedMessage = [manifestHash.lowercaseString dataUsingEncoding:NSUTF8StringEncoding];
+        if (!publisherKey || ![signatureAlg isEqualToString:@"p256-sha256-der"] || !signature ||
+            !OrenAVMPackageVerifyP256Signature(publisherKey, signedMessage, signature)) {
+            OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package signature verification failed");
+            return nil;
+        }
     }
     id manifestJSON = [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:error];
     if (![manifestJSON isKindOfClass:[NSDictionary class]]) {

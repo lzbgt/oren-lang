@@ -109,9 +109,9 @@ This file is the concise task view. Detailed implementation status lives in
      manifest schema/ABI/hash validation, capability/budget/time config derivation,
      read-only package asset mounting into VirtualFS, package OBC run, HTTP
      `index.json` fetch, manifest hash verification, OBC download, declared asset
-     download with SHA-256 verification, install, and run. Remaining package-store
-     work is signature validation, persisted install/update/remove flows, and Note
-     app smoke.
+     download with SHA-256 verification, trusted P-256 publisher signature
+     verification, install, and run. Remaining package-store work is signed index
+     root/trust rotation, persisted install/update/remove flows, and Note app smoke.
 
 2. **AVM full-suite manifest runner**
    - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`
