@@ -108,6 +108,11 @@ Facts from the 2026-05-28 implementation pass:
   and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
   by default under `../oren-ca/private`, exports SDK-ready public key bytes and
   `trust/obc_store_trust.json`, and self-checks signing/verification.
+- The sibling Note repo handoff/verifier has been updated to consume this SDK
+  surface (`../note` commit `35995ee`): its AVM engine checks now require
+  signed-index download APIs, install policies, trusted index/publisher key
+  inputs, and the external trust issue tool. Further Note app UI work should be
+  handled by the Note-side agent through that handoff.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

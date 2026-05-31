@@ -117,8 +117,10 @@ This file is the concise task view. Detailed implementation status lives in
      are implemented and verified, with staged remote install before final path
      replacement. Explicit install policy is implemented and verified for signed-index
      downloads: replace, keep-existing, and fail-if-installed, including a signed
-     `0.2.0` update fixture. Remaining package-store work is root trust rotation,
-     richer update UX/persistence, and Note app smoke.
+     `0.2.0` update fixture. A sibling Note handoff/verifier update now checks
+     the staged signed package/trust SDK surface (`../note` commit `35995ee`).
+     Remaining package-store work is root trust rotation, richer update UX/
+     persistence, and visible Note install/update/remove UX.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys

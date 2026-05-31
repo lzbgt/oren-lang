@@ -209,9 +209,12 @@ user-confirmed "run untrusted OBC" path. The SDK also has persisted app-director
 lifecycle helpers for list, load, and remove installed packages, and remote installs
 stage into a temporary package directory before replacing the final package path.
 Signed-index installs now expose replace, keep-existing, and fail-if-installed
-policies so host apps can make update behavior explicit. Remaining store work is
-root trust rotation, richer update UX/persistence, and Note app smoke before a
-public store is release-ready.
+policies so host apps can make update behavior explicit. The sibling Note repo
+has a handoff/verifier update at commit `35995ee` that checks the staged SDK for
+signed package downloads, install policies, trusted key inputs, and the external
+trust issue tool. Remaining store work is root trust rotation, richer update
+UX/persistence, and visible Note install/update/remove UX before a public store
+is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo

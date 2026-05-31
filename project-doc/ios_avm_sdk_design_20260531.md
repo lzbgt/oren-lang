@@ -301,8 +301,13 @@ Public OBC store helper.
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting
   users run non-store software while owning the risk.
-- Next slices should add root trust rotation, richer update UX/persistence, and Note
-  app smoke.
+- The sibling Note repo now has a handoff/verifier update at commit `35995ee`
+  that checks the staged SDK for signed-index package downloads, install policies,
+  trusted key inputs, and the external trust issue tool. Further Note app
+  implementation should proceed through that handoff because another Note-side
+  agent is active.
+- Next slices should add root trust rotation, richer update UX/persistence, and
+  visible Note install/update/remove UX.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 
