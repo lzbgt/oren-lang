@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define AVM_EMBED_ABI_VERSION 3u
+#define AVM_EMBED_ABI_VERSION 4u
 
 enum {
     AVM_EMBED_OK = 0,
@@ -71,6 +71,8 @@ int avm_embed_output_clear(AvmEmbedHandle* handle, AvmEmbedResult* result);
 int avm_embed_gfx_frame_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_gfx_frame_clear(AvmEmbedHandle* handle, AvmEmbedResult* result);
 int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, size_t event_len, AvmEmbedResult* result);
+int avm_embed_permission_request_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
+int avm_embed_permission_request_clear(AvmEmbedHandle* handle, AvmEmbedResult* result);
 void avm_embed_free_bytes(uint8_t* data);
 int avm_embed_program_from_obc_bytes(const uint8_t* data, size_t len, int verify_strict, AvmEmbedProgram** out_program, AvmEmbedResult* result);
 void avm_embed_program_free(AvmEmbedProgram* program);

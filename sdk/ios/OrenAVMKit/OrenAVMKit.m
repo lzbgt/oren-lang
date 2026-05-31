@@ -51,6 +51,22 @@ static void OrenAVMKitPutU32LE(uint8_t* dst, uint32_t v) {
     dst[3] = (uint8_t)((v >> 24) & 255u);
 }
 
+static uint16_t OrenAVMKitReadU16LE(const uint8_t* p) {
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t OrenAVMKitReadU32LE(const uint8_t* p) {
+    return (uint32_t)p[0] |
+        ((uint32_t)p[1] << 8) |
+        ((uint32_t)p[2] << 16) |
+        ((uint32_t)p[3] << 24);
+}
+
+static NSString* OrenAVMKitUTF8Field(const uint8_t* bytes, NSUInteger len) {
+    if (len == 0) return @"";
+    return [[NSString alloc] initWithBytes:bytes length:len encoding:NSUTF8StringEncoding];
+}
+
 static NSData* OrenAVMKitMakeGFXEvent(uint8_t opcode, const uint8_t* payload, uint16_t payloadLen) {
     NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)12u + (NSUInteger)payloadLen];
     uint8_t* buf = (uint8_t*)data.mutableBytes;
@@ -103,7 +119,8 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     OrenAVMRuntimeConfig* cfg = [[self alloc] init];
     cfg.timeMode = OrenAVMTimeModeDeterministic;
     cfg.allowedDomains = OrenAVMDomainCore | OrenAVMDomainFS | OrenAVMDomainTime |
-        OrenAVMDomainNet | OrenAVMDomainProc | OrenAVMDomainExit | OrenAVMDomainGFX;
+        OrenAVMDomainNet | OrenAVMDomainProc | OrenAVMDomainExit | OrenAVMDomainGFX |
+        OrenAVMDomainPermission;
     cfg.gasLimit = 5000000ull;
     cfg.heapLimitBytes = 32ull * 1024ull * 1024ull;
     cfg.ioLimitBytes = 1024ull * 1024ull;
@@ -895,6 +912,64 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     AvmEmbedResult result;
     int rc = avm_embed_gfx_frame_clear(_handle, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear GFX frame", &result);
+    return YES;
+}
+
+- (NSData*)getPermissionRequestDataWithError:(NSError**)error {
+    uint8_t* bytes = NULL;
+    size_t len = 0;
+    AvmEmbedResult result;
+    int rc = avm_embed_permission_request_get(_handle, &bytes, &len, &result);
+    if (rc != AVM_EMBED_OK) {
+        OrenAVMKitAssignError(error, @"failed to read permission request", &result);
+        return nil;
+    }
+    NSData* out = [NSData dataWithBytes:bytes length:len];
+    avm_embed_free_bytes(bytes);
+    return out;
+}
+
+- (NSDictionary<NSString*, id>*)getPermissionRequestWithError:(NSError**)error {
+    NSData* data = [self getPermissionRequestDataWithError:error];
+    if (!data) return nil;
+    const uint8_t* b = (const uint8_t*)data.bytes;
+    NSUInteger len = data.length;
+    if (len < 20 || b[0] != 'O' || b[1] != 'P' || b[2] != 'R' || b[3] != '0') {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"invalid permission request payload");
+        return nil;
+    }
+    uint16_t version = OrenAVMKitReadU16LE(b + 4);
+    uint16_t headerLen = OrenAVMKitReadU16LE(b + 6);
+    uint32_t sequence = OrenAVMKitReadU32LE(b + 8);
+    uint16_t domainLen = OrenAVMKitReadU16LE(b + 12);
+    uint16_t actionLen = OrenAVMKitReadU16LE(b + 14);
+    uint32_t detailLen = OrenAVMKitReadU32LE(b + 16);
+    if (version != 1 || headerLen < 20 || headerLen > len ||
+        (NSUInteger)headerLen + (NSUInteger)domainLen + (NSUInteger)actionLen + (NSUInteger)detailLen != len) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"invalid permission request lengths");
+        return nil;
+    }
+    const uint8_t* p = b + headerLen;
+    NSString* domain = OrenAVMKitUTF8Field(p, domainLen); p += domainLen;
+    NSString* action = OrenAVMKitUTF8Field(p, actionLen); p += actionLen;
+    NSString* detail = OrenAVMKitUTF8Field(p, detailLen);
+    if (!domain || !action || !detail) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"permission request contains invalid UTF-8");
+        return nil;
+    }
+    return @{
+        @"schema": @"oren.permission.request.v0",
+        @"sequence": @(sequence),
+        @"domain": domain,
+        @"action": action,
+        @"detail": detail
+    };
+}
+
+- (BOOL)clearPermissionRequestWithError:(NSError**)error {
+    AvmEmbedResult result;
+    int rc = avm_embed_permission_request_clear(_handle, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear permission request", &result);
     return YES;
 }
 

@@ -23,7 +23,8 @@ typedef NS_OPTIONS(uint64_t, OrenAVMDomain) {
     OrenAVMDomainNet = UINT64_C(1) << 4,
     OrenAVMDomainProc = UINT64_C(1) << 5,
     OrenAVMDomainExit = UINT64_C(1) << 6,
-    OrenAVMDomainGFX = UINT64_C(1) << 9
+    OrenAVMDomainGFX = UINT64_C(1) << 9,
+    OrenAVMDomainPermission = UINT64_C(1) << 10
 };
 
 typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
@@ -95,6 +96,9 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (nullable OrenAVMRunResult*)runOBCData:(NSData*)obcData error:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getGraphicsFrameDataWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (nullable NSData*)getPermissionRequestDataWithError:(NSError* _Nullable* _Nullable)error;
+- (nullable NSDictionary<NSString*, id>*)getPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)clearPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsInputEventData:(NSData*)data error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsResizeEventWithWidth:(uint32_t)width height:(uint32_t)height scaleMilli:(uint32_t)scaleMilli error:(NSError* _Nullable* _Nullable)error;

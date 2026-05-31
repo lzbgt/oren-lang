@@ -989,7 +989,8 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
         sha_u32_le(&h, 0);
     }
 
-    // GFX frame and input mailboxes are observable through embedder APIs and GFX poll ops.
+    // GFX frame/input and permission mailboxes are observable through embedder APIs
+    // and GFX/permission poll ops.
     {
         uint32_t fl = (vm->gfx_frame_data && vm->gfx_frame_len <= (size_t)UINT32_MAX) ? (uint32_t)vm->gfx_frame_len : 0u;
         sha_u32_le(&h, fl);
@@ -1004,6 +1005,13 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
             sha_u32_le(&h, len);
             if (len > 0 && q->entries[i].data) avm_sha256_update(&h, q->entries[i].data, len);
         }
+    }
+    {
+        uint32_t seq = vm->permission_request_sequence;
+        sha_u32_le(&h, seq);
+        uint32_t len = (vm->permission_request_data && vm->permission_request_len <= (size_t)UINT32_MAX) ? (uint32_t)vm->permission_request_len : 0u;
+        sha_u32_le(&h, len);
+        if (len > 0) avm_sha256_update(&h, vm->permission_request_data, len);
     }
 
     avm_sha256_final(&h, out);

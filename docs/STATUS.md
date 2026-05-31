@@ -73,7 +73,7 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-libavm-ios` now also runs
   `scripts/verify_avm_stdlib_obc_surface.sh`: it compiles a representative app
   fixture with `--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc`
-  and runs the result in AVM. The smoke imports `std:buffer`, `std:bytes`,
+  and runs the result in AVM. The smoke imports `std:avm/permission`, `std:buffer`, `std:bytes`,
   `std:cbor`, `std:encoding/base64`, `std:crypto/pem`,
   `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:json`,
   `std:linalg`, `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`,
@@ -120,6 +120,13 @@ Facts from the 2026-05-28 implementation pass:
   allowlist/dynamic live-NET controls. OBC receives only integer virtual session
   IDs and bytes; it never receives a socket or file descriptor. `make
   verify-libavm-ios` proves local TCP ping/pong through this path.
+- OBC packages can now publish runtime permission intent through
+  `std:avm/permission.request*`, which maps to a separate `PERMISSION` capability
+  domain rather than the broader nested-AVM domain. AVM stores the latest request
+  as a compact `OPR0` binary mailbox; embedders read/clear it with
+  `avm_embed_permission_request_get/clear`, and iOS `OrenAVMKit` exposes raw and
+  decoded helpers. This lets host apps show user permission UI and then update
+  provider policy with existing SDK controls without recompiling OBC.
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. Remaining UDP/WebSocket,
   listen/accept, async readiness, DNS policy, cancellation, and richer lifecycle

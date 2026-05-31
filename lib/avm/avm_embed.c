@@ -58,7 +58,8 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
         (UINT64_C(1) << 4) |
         (UINT64_C(1) << 5) |
         (UINT64_C(1) << 6) |
-        (UINT64_C(1) << 9);
+        (UINT64_C(1) << 9) |
+        (UINT64_C(1) << 10);
     config->gas_limit = 5000000ull;
     config->heap_limit_bytes = 32ull * 1024ull * 1024ull;
     config->io_limit_bytes = 1024ull * 1024ull;
@@ -672,6 +673,38 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, s
     q->entries[q->count].data = copy;
     q->entries[q->count].len = (uint32_t)event_len;
     q->count++;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_permission_request_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
+    if (out_data) *out_data = NULL;
+    if (out_len) *out_len = 0;
+    if (!avm_embed_valid_handle(handle) || !out_data || !out_len) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed permission request get argument");
+    }
+    size_t len = handle->vm->permission_request_len;
+    if (len == 0 || !handle->vm->permission_request_data) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_VM, AVM_ERR_NOT_FOUND, "permission request mailbox is empty");
+    }
+    uint8_t* copy = (uint8_t*)malloc(len);
+    if (!copy) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM permission request bytes");
+    memcpy(copy, handle->vm->permission_request_data, len);
+    *out_data = copy;
+    *out_len = len;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_permission_request_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed permission request clear argument");
+    }
+    if (handle->vm->permission_request_data) {
+        free(handle->vm->permission_request_data);
+        handle->vm->permission_request_data = NULL;
+    }
+    handle->vm->permission_request_len = 0;
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }

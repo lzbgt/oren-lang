@@ -52,7 +52,7 @@ This file is the concise task view. Detailed implementation status lives in
    - Stdlib OBC gate: `make verify-libavm-ios` now also runs
      `scripts/verify_avm_stdlib_obc_surface.sh`, compiling a representative app
      fixture against `build/plugins/stdlib_bundle.obc` and running it in AVM. The
-     smoke imports `std:buffer`, `std:bytes`, `std:cbor`,
+     smoke imports `std:avm/permission`, `std:buffer`, `std:bytes`, `std:cbor`,
      `std:encoding/base64`, `std:crypto/pem`, `std:crypto/sha1`,
      `std:crypto/sha256`, `std:crypto/x509`, `std:json`, `std:linalg`,
      `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
@@ -66,13 +66,16 @@ This file is the concise task view. Detailed implementation status lives in
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
      session, plus first `std:net/avm.session_open/write/read/close` TCP virtual
-     session handles over host-owned iOS sockets, plus binary
+     session handles over host-owned iOS sockets, plus the `std:avm/permission`
+     facade and OPR0 permission mailbox for host-visible OBC permission intent,
+     plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
-     Remaining SDK work: UDP/WebSocket/listen/accept/async readiness on the VNET
+     Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
+     UDP/WebSocket/listen/accept/async readiness on the VNET
      session protocol without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency

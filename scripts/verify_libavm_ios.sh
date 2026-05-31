@@ -45,6 +45,8 @@ for sym in \
   _avm_embed_gfx_frame_get \
   _avm_embed_gfx_frame_clear \
   _avm_embed_gfx_input_put \
+  _avm_embed_permission_request_get \
+  _avm_embed_permission_request_clear \
   _avm_embed_free_bytes; do
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
@@ -62,6 +64,7 @@ cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
 import ui_avm "std:ui/avm"
+import perm "std:avm/permission"
 import bytes "std:bytes"
 
 fn main() {
@@ -140,6 +143,8 @@ fn main() {
     var sr = time.sleep_ms(25)
     if sr != 0 { oren_exit(17) }
     if time.now_unix_ns() < t0 { oren_exit(18) }
+    var pr = perm.request_net("connect", args[3])
+    if oren_is_err(pr) || pr <= 0 { oren_exit(62) }
     oren_exit(9)
 }
 main()
@@ -177,6 +182,17 @@ static uint64_t host_now_ns(void) {
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+static uint16_t read_u16_le(const uint8_t* p) {
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t read_u32_le(const uint8_t* p) {
+    return (uint32_t)p[0] |
+        ((uint32_t)p[1] << 8) |
+        ((uint32_t)p[2] << 16) |
+        ((uint32_t)p[3] << 24);
 }
 
 int main(void) {
@@ -243,6 +259,16 @@ int main(void) {
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 8;
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 9;
+    uint8_t* perm = 0;
+    size_t perm_len = 0;
+    if (avm_embed_permission_request_get(handle, &perm, &perm_len, &result) != AVM_EMBED_OK) return 63;
+    if (perm_len != 42 || memcmp(perm, "OPR0", 4) != 0) return 64;
+    if (read_u16_le(perm + 4) != 1 || read_u16_le(perm + 6) != 20 || read_u32_le(perm + 8) != 1) return 64;
+    if (read_u16_le(perm + 12) != 3 || read_u16_le(perm + 14) != 7 || read_u32_le(perm + 16) != 12) return 64;
+    if (memcmp(perm + 20, "NETconnect", 10) != 0 || memcmp(perm + 30, "session-none", 12) != 0) return 64;
+    avm_embed_free_bytes(perm);
+    if (avm_embed_permission_request_clear(handle, &result) != AVM_EMBED_OK) return 65;
+    if (avm_embed_permission_request_get(handle, &perm, &perm_len, &result) == AVM_EMBED_OK) return 66;
     uint8_t* out = 0;
     size_t out_len = 0;
     if (avm_embed_vfs_get(handle, "out.txt", &out, &out_len, &result) != AVM_EMBED_OK) return 10;
@@ -404,6 +430,16 @@ int main(void) {
         if (!result) return 41;
         if (result.exitCode != 9) return 42;
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
+        NSDictionary<NSString*, id>* permission = [runtime getPermissionRequestWithError:&error];
+        if (!permission) return 72;
+        if (![permission[@"domain"] isEqual:@"NET"]) return 73;
+        if (![permission[@"action"] isEqual:@"connect"]) return 74;
+        if (![permission[@"detail"] isEqual:tcpURL]) return 75;
+        if (![permission[@"sequence"] isEqual:@1]) return 76;
+        NSData* permissionData = [runtime getPermissionRequestDataWithError:&error];
+        if (!permissionData || permissionData.length < 20) return 77;
+        if (![runtime clearPermissionRequestWithError:&error]) return 78;
+        if ([runtime getPermissionRequestDataWithError:&error] != nil) return 79;
         NSData* out = [runtime getVFSFileAtPath:@"out.txt" error:&error];
         if (![out isEqualToData:[@"ios:abc" dataUsingEncoding:NSUTF8StringEncoding]]) return 44;
         NSData* nested = [runtime getVFSFileAtPath:@"assets/nested/skip.txt" error:&error];

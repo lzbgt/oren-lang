@@ -250,9 +250,10 @@ endif
 		tests/avm/test_call_depth_limit.oren \
 		tests/avm/test_arith_invalid.oren \
 		tests/avm/test_vfs_no_host_fs.oren \
-		tests/avm/test_vproc_no_host_proc.oren \
-		tests/avm/test_vnet_no_host_net.oren \
-		tests/avm/test_switch.oren \
+			tests/avm/test_vproc_no_host_proc.oren \
+			tests/avm/test_vnet_no_host_net.oren \
+			tests/avm/test_avm_permission_request_v0.oren \
+			tests/avm/test_switch.oren \
 		tests/avm/test_list_sum_opcodes.oren \
 		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \

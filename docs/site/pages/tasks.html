@@ -103,7 +103,7 @@
 </ul>
 <p>     <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, compiling a representative app</p>
 <p>     fixture against <code>build/plugins/stdlib_bundle.obc</code> and running it in AVM. The</p>
-<p>     smoke imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:cbor</code>,</p>
+<p>     smoke imports <code>std:avm/permission</code>, <code>std:buffer</code>, <code>std:bytes</code>, <code>std:cbor</code>,</p>
 <p>     <code>std:encoding/base64</code>, <code>std:crypto/pem</code>, <code>std:crypto/sha1</code>,</p>
 <p>     <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>, <code>std:linalg</code>,</p>
 <p>     <code>std:math</code>, <code>std:net/avm</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and</p>
@@ -119,13 +119,16 @@
 <p>     interactive-default live NET callback for OBC <code>std:net/avm.try_get_text(url)</code></p>
 <p>     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK</p>
 <p>     session, plus first <code>std:net/avm.session_open/write/read/close</code> TCP virtual</p>
-<p>     session handles over host-owned iOS sockets, plus binary</p>
+<p>     session handles over host-owned iOS sockets, plus the <code>std:avm/permission</code></p>
+<p>     facade and OPR0 permission mailbox for host-visible OBC permission intent,</p>
+<p>     plus binary</p>
 <p>     GFX frame and input mailboxes for OBC-published <code>std:ui</code> frames and</p>
 <p>     host-injected pointer/resize/key/text events with Oren-side decoded</p>
 <p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>
 <p>     <code>OrenAVMGraphicsView</code> renderer for the current <code>fill_rect</code>/<code>text</code>/</p>
 <p>     <code>stroke_line</code>/<code>circle</code> subset.</p>
-<p>     Remaining SDK work: UDP/WebSocket/listen/accept/async readiness on the VNET</p>
+<p>     Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,</p>
+<p>     UDP/WebSocket/listen/accept/async readiness on the VNET</p>
 <p>     session protocol without exposing raw sockets to OBC, compiler helper</p>
 <p>     package, package store helper, and the game-grade GUI path:</p>
 <p>     display-link pacing, retained resource handles, budget gates, low-latency</p>

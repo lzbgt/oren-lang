@@ -468,7 +468,7 @@ int parse_oren_domains_mask(const char* s, uint64_t* out_mask) {
     // Parse Oren-style capability domain names into an AVM domain bitmask.
     //
     // Accepts CSV tokens (case-insensitive):
-    //   CORE, FS, TIME, RNG, NET, PROC, EXIT, ENV, AVM, ALL
+    //   CORE, FS, TIME, RNG, NET, PROC, EXIT, ENV, AVM, GFX, PERMISSION, ALL
     //
     // Used to bridge Oren native capsule env into AVM when running `avm` as a child process.
     if (!out_mask) return 0;
@@ -510,6 +510,8 @@ int parse_oren_domains_mask(const char* s, uint64_t* out_mask) {
         if (strcmp(t, "EXIT") == 0) { mask |= (1ULL << 6); continue; }
         if (strcmp(t, "ENV") == 0) { mask |= (1ULL << 7); continue; }
         if (strcmp(t, "AVM") == 0) { mask |= (1ULL << 8); continue; }
+        if (strcmp(t, "GFX") == 0) { mask |= (1ULL << 9); continue; }
+        if (strcmp(t, "PERMISSION") == 0) { mask |= (1ULL << 10); continue; }
         return 0;
     }
 

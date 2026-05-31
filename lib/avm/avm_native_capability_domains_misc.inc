@@ -806,5 +806,73 @@
         return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
+    // Domain 10: Permission request mailbox. OBC publishes intent; the embedder
+    // decides whether to grant/restrict the corresponding virtual provider.
+    if (domain == 10) {
+        switch (op) {
+            case 0: { // permission_request(domain, action, detail) -> INT sequence
+                if (nargs < 2 || args[0].type != AVM_VAL_STRING || args[1].type != AVM_VAL_STRING) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "permission.request expects (domain: string, action: string, detail?: string)", domain, op);
+                }
+                const char* req_domain = (const char*)args[0].as.p;
+                const char* req_action = (const char*)args[1].as.p;
+                const char* req_detail = "";
+                if (nargs >= 3) {
+                    if (args[2].type != AVM_VAL_STRING) {
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "permission.request detail must be string", domain, op);
+                    }
+                    req_detail = (const char*)args[2].as.p;
+                }
+                if (!req_domain || !req_action || !req_detail) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "permission.request strings must be non-null", domain, op);
+                }
+                size_t domain_len = strlen(req_domain);
+                size_t action_len = strlen(req_action);
+                size_t detail_len = strlen(req_detail);
+                if (domain_len == 0 || action_len == 0 || domain_len > 255u || action_len > 255u || detail_len > 4096u) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "permission.request field length out of range", domain, op);
+                }
+                size_t total_len = 20u + domain_len + action_len + detail_len;
+                if (!avm_io_charge(vm, (uint64_t)total_len, domain, op)) return vm->last_error;
+                uint8_t* payload = (uint8_t*)malloc(total_len);
+                if (!payload) return avm_err_domop(AVM_ERR_BUDGET, "failed to allocate permission request", domain, op);
+                uint32_t seq = vm ? (vm->permission_request_sequence + 1u) : 1u;
+                if (seq == 0) seq = 1u;
+                size_t p = 0;
+                payload[p++] = 'O'; payload[p++] = 'P'; payload[p++] = 'R'; payload[p++] = '0';
+                payload[p++] = 1; payload[p++] = 0;
+                payload[p++] = 20; payload[p++] = 0;
+                payload[p++] = (uint8_t)(seq & 0xffu);
+                payload[p++] = (uint8_t)((seq >> 8) & 0xffu);
+                payload[p++] = (uint8_t)((seq >> 16) & 0xffu);
+                payload[p++] = (uint8_t)((seq >> 24) & 0xffu);
+                payload[p++] = (uint8_t)domain_len; payload[p++] = 0;
+                payload[p++] = (uint8_t)action_len; payload[p++] = 0;
+                uint32_t dl = (uint32_t)detail_len;
+                payload[p++] = (uint8_t)(dl & 0xffu);
+                payload[p++] = (uint8_t)((dl >> 8) & 0xffu);
+                payload[p++] = (uint8_t)((dl >> 16) & 0xffu);
+                payload[p++] = (uint8_t)((dl >> 24) & 0xffu);
+                memcpy(payload + p, req_domain, domain_len); p += domain_len;
+                memcpy(payload + p, req_action, action_len); p += action_len;
+                if (detail_len > 0) memcpy(payload + p, req_detail, detail_len);
+                if (vm) {
+                    if (vm->permission_request_data) free(vm->permission_request_data);
+                    vm->permission_request_data = payload;
+                    vm->permission_request_len = total_len;
+                    vm->permission_request_sequence = seq;
+                } else {
+                    free(payload);
+                }
+                AvmValue ret = avm_int((int64_t)seq);
+                if (vm && vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+                if (vm && vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            default: break;
+        }
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported permission domain/op", domain, op);
+    }
+
     // Unknown/unsupported domain in bootstrap.
     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);

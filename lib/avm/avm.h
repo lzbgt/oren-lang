@@ -234,6 +234,11 @@ typedef struct {
     // GFX input mailbox (rolling): FIFO binary event payloads from host adapters.
     void* gfx_input_queue;
 
+    // Permission request mailbox (rolling): latest OBC-published OPR0 request.
+    uint8_t* permission_request_data;
+    size_t permission_request_len;
+    uint32_t permission_request_sequence;
+
     // Embedder stdout capture (rolling): disabled for CLI by default, enabled by libavm embed.
     int stdout_capture_enabled;
     char* stdout_capture;

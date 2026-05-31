@@ -1,0 +1,23 @@
+// AVM virtual-resource permission request facade.
+//
+// OBC programs use this to publish intent to the host app. The host decides
+// whether to grant/restrict the corresponding virtual provider at runtime.
+
+fn request(domain, action, detail) {
+    if domain == nil { return oren_err(4, "std:avm/permission.request: domain is nil") }
+    if action == nil { return oren_err(4, "std:avm/permission.request: action is nil") }
+    if detail == nil { detail = "" }
+    return oren_avm_permission_request(domain, action, detail)
+}
+
+fn request_net(action, detail) {
+    return request("NET", action, detail)
+}
+
+fn request_fs(action, detail) {
+    return request("FS", action, detail)
+}
+
+fn request_ui(action, detail) {
+    return request("UI", action, detail)
+}

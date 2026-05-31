@@ -302,9 +302,14 @@
 <p>AVM worker through the interactive default provider. Network permission is a</p>
 <p>runtime host policy: an OBC app can request network capability, the host app can</p>
 <p>raise UI, and the SDK can then enable/restrict/disable the live provider without</p>
-<p>changing OBC. High-performance networking should be implemented as a host-backed</p>
-<p>VNET provider with virtual session handles, not as bytecode-visible native sockets.</p>
-<p>Raw TCP/UDP requires an explicit reviewed session protocol before exposure. PROC on</p>
+<p>changing OBC. The current implementation exposes that request path as</p>
+<p><code>std:avm/permission.request*</code> over a separate AVM <code>PERMISSION</code> domain. AVM stores</p>
+<p>the latest request in a compact <code>OPR0</code> binary mailbox; embedders can retrieve and</p>
+<p>clear it through <code>avm_embed_permission_request_get/clear</code>, and <code>OrenAVMKit</code></p>
+<p>provides raw and decoded helpers. High-performance networking should be implemented</p>
+<p>as a host-backed VNET provider with virtual session handles, not as</p>
+<p>bytecode-visible native sockets. TCP client streams now use that reviewed session</p>
+<p>protocol; UDP/WebSocket and listen/accept still need explicit reviewed extensions. PROC on</p>
 <p>iOS should remain</p>
 <p>VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.</p>
 <p>UI/GFX follows the same policy: the SDK may use CoreGraphics, Metal, <code>MTKView</code>,</p>

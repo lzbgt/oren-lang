@@ -1,0 +1,12 @@
+import perm "std:avm/permission"
+
+fn main() {
+    var s1 = perm.request_net("connect", "tcp://127.0.0.1:7")
+    if oren_is_err(s1) || s1 != 1 { exit(1) }
+    var s2 = perm.request_ui("present", "main")
+    if oren_is_err(s2) || s2 != 2 { exit(2) }
+    print("avm permission request ok")
+    exit(0)
+}
+
+main()
