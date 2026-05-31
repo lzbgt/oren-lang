@@ -55,6 +55,17 @@ static void OrenAVMKitPutU32LE(uint8_t* dst, uint32_t v) {
     dst[3] = (uint8_t)((v >> 24) & 255u);
 }
 
+static void OrenAVMKitPutU64LE(uint8_t* dst, uint64_t v) {
+    dst[0] = (uint8_t)(v & 255u);
+    dst[1] = (uint8_t)((v >> 8) & 255u);
+    dst[2] = (uint8_t)((v >> 16) & 255u);
+    dst[3] = (uint8_t)((v >> 24) & 255u);
+    dst[4] = (uint8_t)((v >> 32) & 255u);
+    dst[5] = (uint8_t)((v >> 40) & 255u);
+    dst[6] = (uint8_t)((v >> 48) & 255u);
+    dst[7] = (uint8_t)((v >> 56) & 255u);
+}
+
 static uint16_t OrenAVMKitReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -1613,6 +1624,22 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     OrenAVMKitPutU32LE(payload + 20, targetHzMilli);
     OrenAVMKitPutU32LE(payload + 24, flags);
     NSData* data = OrenAVMKitMakeGFXEvent(17, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
+- (BOOL)putGraphicsFrameTickEventWithSequence:(uint32_t)sequence
+                                        nowNs:(uint64_t)nowNs
+                                      deltaNs:(uint64_t)deltaNs
+                                targetHzMilli:(uint32_t)targetHzMilli
+                                        flags:(uint32_t)flags
+                                        error:(NSError**)error {
+    uint8_t payload[28];
+    OrenAVMKitPutU32LE(payload, sequence);
+    OrenAVMKitPutU64LE(payload + 4, nowNs);
+    OrenAVMKitPutU64LE(payload + 12, deltaNs);
+    OrenAVMKitPutU32LE(payload + 20, targetHzMilli);
+    OrenAVMKitPutU32LE(payload + 24, flags);
+    NSData* data = OrenAVMKitMakeGFXEvent(18, payload, sizeof(payload));
     return [self putGraphicsInputEventData:data error:error];
 }
 

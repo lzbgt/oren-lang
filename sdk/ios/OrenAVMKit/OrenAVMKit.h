@@ -138,6 +138,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                           targetHzMilli:(uint32_t)targetHzMilli
                                   flags:(uint32_t)flags
                                   error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsFrameTickEventWithSequence:(uint32_t)sequence
+                                        nowNs:(uint64_t)nowNs
+                                      deltaNs:(uint64_t)deltaNs
+                                targetHzMilli:(uint32_t)targetHzMilli
+                                        flags:(uint32_t)flags
+                                        error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsKeyEventWithKind:(uint8_t)kind keyCode:(uint32_t)keyCode modifiers:(uint32_t)modifiers error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsTextInputString:(NSString*)text error:(NSError* _Nullable* _Nullable)error;
 

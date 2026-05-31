@@ -144,6 +144,13 @@ int avm_gfx_validate_event(const uint8_t* data, size_t len, char* err, size_t er
         }
         return 1;
     }
+    if (opcode == 18u) {
+        if (payload_len != 28u) {
+            avm_gfx_err(err, err_cap, "invalid OGE0 event: bad frame_tick payload");
+            return 0;
+        }
+        return 1;
+    }
     if (opcode == 32u || opcode == 33u) {
         if (payload_len != 8u) {
             avm_gfx_err(err, err_cap, "invalid OGE0 event: bad key payload");

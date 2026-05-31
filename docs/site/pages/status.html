@@ -355,8 +355,11 @@
 <p>  circle geometry plus text through Metal pipelines. Its <code>targetHzMilli</code> setting</p>
 <p>  drives <code>MTKView.preferredFramesPerSecond</code>. Current text rendering uses a bounded</p>
 <p>  SDK-side LRU texture cache for repeated labels, and host apps can clear that cache</p>
-<p>  on memory pressure; OBC-visible retained text atlas resources remain the next</p>
-<p>  performance step.</p>
+<p>  on memory pressure. The UI input stream now also carries validated <code>frame_tick</code></p>
+<p>  records so OBC game loops can receive host display timing through the same virtual</p>
+<p>  event path instead of polling raw platform clocks. Frame ticks are coalesced so</p>
+<p>  stale timing records cannot fill the input FIFO and starve real input;</p>
+<p>  OBC-visible retained text atlas resources remain the next performance step.</p>
 <p>  Bidirectional UI is a hard requirement for</p>
 <p>  game-level OBC packages: OBC must publish frames and consume host-originated input</p>
 <p>  through the same virtual protocol, while the host owns platform event APIs and</p>

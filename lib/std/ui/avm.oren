@@ -200,6 +200,12 @@ fn _read_u32_le(bs, off, ctx) {
     return v
 }
 
+fn _read_u64_le(bs, off, ctx) {
+    var v = oren_bytes_get_u64_le(bs, off)
+    if oren_is_err(v) { return oren_err(4, ctx + ": truncated u64") }
+    return v
+}
+
 fn _pointer_phase(opcode) {
     if opcode == 1 { return "down" }
     if opcode == 2 { return "move" }
@@ -276,6 +282,29 @@ fn decode_event_bytes(ev) {
             "drawable_h": drawable_h,
             "target_hz_milli": target_hz,
             "flags": flags
+        }
+    }
+
+    if opcode == 18 {
+        if payload_len != 28 { return oren_err(4, "ui.avm.decode_event_bytes: bad frame_tick payload") }
+        var seq = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var now_ns = _read_u64_le(ev, 16, "ui.avm.decode_event_bytes")
+        var delta_ns = _read_u64_le(ev, 24, "ui.avm.decode_event_bytes")
+        var tick_hz = _read_u32_le(ev, 32, "ui.avm.decode_event_bytes")
+        var tick_flags = _read_u32_le(ev, 36, "ui.avm.decode_event_bytes")
+        if oren_is_err(seq) { return seq }
+        if oren_is_err(now_ns) { return now_ns }
+        if oren_is_err(delta_ns) { return delta_ns }
+        if oren_is_err(tick_hz) { return tick_hz }
+        if oren_is_err(tick_flags) { return tick_flags }
+        return {
+            "kind": "frame_tick",
+            "opcode": opcode,
+            "sequence": seq,
+            "now_ns": now_ns,
+            "delta_ns": delta_ns,
+            "target_hz_milli": tick_hz,
+            "flags": tick_flags
         }
     }
 

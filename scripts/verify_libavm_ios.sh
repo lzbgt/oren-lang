@@ -216,6 +216,9 @@ fn main() {
     if ev5["kind"] != "media" { oren_exit(53) }
     if ev5["width"] != 4 || ev5["height"] != 3 || ev5["scale_milli"] != 3000 { oren_exit(54) }
     if ev5["drawable_w"] != 12 || ev5["drawable_h"] != 9 || ev5["target_hz_milli"] != 120000 || ev5["flags"] != 5 { oren_exit(55) }
+    var evtick = ui_avm.next_event()
+    if evtick["kind"] != "frame_tick" || evtick["sequence"] != 9 { oren_exit(67) }
+    if evtick["now_ns"] != 1000 || evtick["delta_ns"] != 16 || evtick["target_hz_milli"] != 120000 || evtick["flags"] != 5 { oren_exit(68) }
     var ev6 = ui_avm.next_event()
     if ev6["kind"] != "key" || ev6["phase"] != "down" { oren_exit(44) }
     if ev6["key_code"] != 65 || ev6["modifiers"] != 1 { oren_exit(45) }
@@ -508,6 +511,22 @@ int main(void) {
         12, 0, 0, 0, 9, 0, 0, 0, 192, 212, 1, 0,
         5, 0, 0, 0
     };
+    static const uint8_t frame_tick_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 18, 0, 28, 0,
+        9, 0, 0, 0,
+        232, 3, 0, 0, 0, 0, 0, 0,
+        16, 0, 0, 0, 0, 0, 0, 0,
+        192, 212, 1, 0,
+        5, 0, 0, 0
+    };
+    static const uint8_t stale_frame_tick_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 18, 0, 28, 0,
+        8, 0, 0, 0,
+        132, 3, 0, 0, 0, 0, 0, 0,
+        15, 0, 0, 0, 0, 0, 0, 0,
+        96, 234, 0, 0,
+        4, 0, 0, 0
+    };
     static const uint8_t key_event[] = {
         79, 71, 69, 48, 0, 0, 0, 0, 32, 0, 8, 0,
         65, 0, 0, 0, 1, 0, 0, 0
@@ -553,7 +572,9 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, pointer_move_event, sizeof(pointer_move_event), &result) != AVM_EMBED_OK) return 42;
     if (avm_embed_gfx_input_put(handle, pointer_up_event, sizeof(pointer_up_event), &result) != AVM_EMBED_OK) return 43;
     if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
+    if (avm_embed_gfx_input_put(handle, stale_frame_tick_event, sizeof(stale_frame_tick_event), &result) != AVM_EMBED_OK) return 46;
     if (avm_embed_gfx_input_put(handle, media_event, sizeof(media_event), &result) != AVM_EMBED_OK) return 44;
+    if (avm_embed_gfx_input_put(handle, frame_tick_event, sizeof(frame_tick_event), &result) != AVM_EMBED_OK) return 45;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
@@ -623,7 +644,9 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, pointer_move_event, sizeof(pointer_move_event), &result) != AVM_EMBED_OK) return 42;
     if (avm_embed_gfx_input_put(handle, pointer_up_event, sizeof(pointer_up_event), &result) != AVM_EMBED_OK) return 43;
     if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
+    if (avm_embed_gfx_input_put(handle, stale_frame_tick_event, sizeof(stale_frame_tick_event), &result) != AVM_EMBED_OK) return 46;
     if (avm_embed_gfx_input_put(handle, media_event, sizeof(media_event), &result) != AVM_EMBED_OK) return 44;
+    if (avm_embed_gfx_input_put(handle, frame_tick_event, sizeof(frame_tick_event), &result) != AVM_EMBED_OK) return 45;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
@@ -743,6 +766,7 @@ int main(void) {
         if (![runtime putGraphicsResizeEventWithWidth:4 height:3 scaleMilli:3000 error:&error]) return 54;
         if (![runtime setGraphicsScreenWithID:0 width:4 height:3 scaleMilli:3000 drawableWidth:12 drawableHeight:9 targetHzMilli:120000 flags:5 error:&error]) return 62;
         if (![runtime putGraphicsMediaEventWithWidth:4 height:3 scaleMilli:3000 drawableWidth:12 drawableHeight:9 targetHzMilli:120000 flags:5 error:&error]) return 60;
+        if (![runtime putGraphicsFrameTickEventWithSequence:9 nowNs:1000 deltaNs:16 targetHzMilli:120000 flags:5 error:&error]) return 67;
         if (![runtime putGraphicsKeyEventWithKind:32 keyCode:65 modifiers:1 error:&error]) return 55;
         if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
 

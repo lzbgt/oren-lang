@@ -63,6 +63,13 @@ Implemented as of 2026-05-31:
   remains only as a compatibility alias during rolling development.
 - `std:ui/avm.next_event()` decodes `OGE0` pointer/resize/key/text records into
   Oren maps so OBC programs do not have to parse bytes manually.
+- `OGE0` also carries `frame_tick` records with sequence, host tick time,
+  delta time, target refresh, and flags. Host renderers such as `OrenAVMMetalView`
+  emit these records from the display draw loop so OBC game loops can pace
+  simulation from virtual display events, not raw OS handles. `frame_tick`
+  is coalesced by AVM so a slow or paused OBC consumer keeps only the newest
+  tick and cannot starve pointer/key/text events by filling the FIFO with stale
+  timing records.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`, `stroke_line`, and `circle`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
@@ -75,6 +82,7 @@ Implemented as of 2026-05-31:
   memory pressure. OBC-visible retained text atlas and richer resources remain the
   next performance step.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
+- Host helpers can enqueue frame-tick events for display-paced game loops.
 - Host helpers can publish persistent screen/media state and can enqueue
   media-query change events so OBC can adapt to logical size, native drawable
   size, device scale, target refresh rate, and host flags at runtime without
@@ -234,8 +242,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 6. Done: add first SDK Metal/`MTKView` adapter for the current low-level
    `OGF0` fill-rect/stroke-line/circle/text records, touch forwarding, host screen
    state, and target-refresh pacing through `MTKView.preferredFramesPerSecond`.
-7. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
-8. Add retained resources, batching, and resource lifetime records.
-9. Add text atlas/sprite/mesh rendering on the Metal path.
-10. Add richer 2D and 3D command sets.
-11. Add game/app package smoke in the Note host or iOS SDK harness.
+7. Done: add compact coalesced `OGE0` `frame_tick` events and OBC decoding so
+   display-paced loops can consume host timing through the virtual event stream.
+8. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
+9. Add retained resources, batching, and resource lifetime records.
+10. Add text atlas/sprite/mesh rendering on the Metal path.
+11. Add richer 2D and 3D command sets.
+12. Add game/app package smoke in the Note host or iOS SDK harness.

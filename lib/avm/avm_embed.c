@@ -698,6 +698,23 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, s
         if (!q) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM GFX input queue");
         handle->vm->gfx_input_queue = q;
     }
+    if (event_data[8] == 18u && q->count > 0 && q->entries) {
+        uint32_t dst = 0;
+        for (uint32_t src = 0; src < q->count; src++) {
+            AvmGfxInputEntry entry = q->entries[src];
+            if (entry.len >= 12u && entry.data && entry.data[8] == 18u) {
+                free(entry.data);
+                continue;
+            }
+            if (dst != src) q->entries[dst] = entry;
+            dst++;
+        }
+        for (uint32_t i = dst; i < q->count; i++) {
+            q->entries[i].data = NULL;
+            q->entries[i].len = 0;
+        }
+        q->count = dst;
+    }
     if (q->count >= 1024u) {
         return avm_embed_fail(result, AVM_EMBED_ERR_VM, AVM_ERR_BUDGET, "AVM GFX input queue is full");
     }

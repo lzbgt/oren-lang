@@ -101,6 +101,15 @@
 </ul>
 <p>  Oren maps so OBC programs do not have to parse bytes manually.</p>
 <ul>
+<li><code>OGE0</code> also carries <code>frame_tick</code> records with sequence, host tick time,</li>
+</ul>
+<p>  delta time, target refresh, and flags. Host renderers such as <code>OrenAVMMetalView</code></p>
+<p>  emit these records from the display draw loop so OBC game loops can pace</p>
+<p>  simulation from virtual display events, not raw OS handles. <code>frame_tick</code></p>
+<p>  is coalesced by AVM so a slow or paused OBC consumer keeps only the newest</p>
+<p>  tick and cannot starve pointer/key/text events by filling the FIFO with stale</p>
+<p>  timing records.</p>
+<ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
 <p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>.</p>
@@ -117,6 +126,7 @@
 <p>  next performance step.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
+<li>Host helpers can enqueue frame-tick events for display-paced game loops.</li>
 <li>Host helpers can publish persistent screen/media state and can enqueue</li>
 </ul>
 <p>  media-query change events so OBC can adapt to logical size, native drawable</p>
@@ -294,6 +304,10 @@
 </ol>
 <p>   <code>OGF0</code> fill-rect/stroke-line/circle/text records, touch forwarding, host screen</p>
 <p>   state, and target-refresh pacing through <code>MTKView.preferredFramesPerSecond</code>.</p>
+<ol>
+<li>Done: add compact coalesced <code>OGE0</code> <code>frame_tick</code> events and OBC decoding so</li>
+</ol>
+<p>   display-paced loops can consume host timing through the virtual event stream.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>

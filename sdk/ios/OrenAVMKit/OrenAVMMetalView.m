@@ -223,6 +223,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong) NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
 @property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
 @property(nonatomic) NSUInteger orenTextCachePixels;
+@property(nonatomic) uint32_t orenFrameTickSequence;
+@property(nonatomic) uint64_t orenLastFrameTickNs;
 @end
 
 @implementation OrenAVMMetalView
@@ -339,6 +341,20 @@ static NSData* OrenAVMMetalTextQuad(float x,
     [self.orenTextCache removeAllObjects];
     [self.orenTextCacheOrder removeAllObjects];
     self.orenTextCachePixels = 0;
+}
+
+- (void)orenEmitFrameTick {
+    if (!self.runtime) return;
+    uint64_t nowNs = (uint64_t)llround(CACurrentMediaTime() * 1000000000.0);
+    uint64_t deltaNs = self.orenLastFrameTickNs == 0 ? 0 : nowNs - self.orenLastFrameTickNs;
+    self.orenLastFrameTickNs = nowNs;
+    self.orenFrameTickSequence += 1u;
+    (void)[self.runtime putGraphicsFrameTickEventWithSequence:self.orenFrameTickSequence
+                                                        nowNs:nowNs
+                                                      deltaNs:deltaNs
+                                                targetHzMilli:self.targetHzMilli
+                                                        flags:self.mediaFlags
+                                                        error:nil];
 }
 
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind point:(CGPoint)point pointerId:(uint32_t)pointerId error:(NSError**)error {
@@ -602,6 +618,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     (void)view;
     if (!self.device || !self.orenCommandQueue) return;
     (void)[self publishScreenStateWithError:nil];
+    [self orenEmitFrameTick];
     (void)[self reloadFrameWithError:nil];
 
     id<CAMetalDrawable> drawable = self.currentDrawable;
