@@ -1,5 +1,7 @@
 #import "OrenAVMKit.h"
 
+#import <dispatch/dispatch.h>
+
 NSString* const OrenAVMKitErrorDomain = @"org.oren.avmkit";
 
 @interface OrenAVMRunResult ()
@@ -19,6 +21,15 @@ static NSError* OrenAVMKitMakeError(NSString* message, const AvmEmbedResult* res
 
 static BOOL OrenAVMKitAssignError(NSError** error, NSString* message, const AvmEmbedResult* result) {
     if (error) *error = OrenAVMKitMakeError(message, result);
+    return NO;
+}
+
+static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* message) {
+    if (error) {
+        *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
+                                     code:code
+                                 userInfo:@{NSLocalizedDescriptionKey: message ?: @"OrenAVMKit error"}];
+    }
     return NO;
 }
 
@@ -109,12 +120,14 @@ static BOOL OrenAVMKitAssignError(NSError** error, NSString* message, const AvmE
 
 @implementation OrenAVMRuntime {
     AvmEmbedHandle* _handle;
+    uint64_t _ioLimitBytes;
 }
 
 - (instancetype)initWithConfig:(OrenAVMRuntimeConfig*)config {
     self = [super init];
     if (!self) return nil;
     OrenAVMRuntimeConfig* effective = config ?: [OrenAVMRuntimeConfig deterministicDefaults];
+    _ioLimitBytes = effective.ioLimitBytes;
     AvmEmbedConfig embedConfig = [effective makeEmbedConfig];
     AvmEmbedResult result;
     _handle = avm_embed_open(&embedConfig, &result);
@@ -172,6 +185,79 @@ static BOOL OrenAVMKitAssignError(NSError** error, NSString* message, const AvmE
     int rc = avm_embed_vnet_put(_handle, url.UTF8String, data.bytes, data.length, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to write VirtualNET fixture", &result);
     return YES;
+}
+
+- (BOOL)fetchURLIntoVirtualNet:(NSURL*)url
+                  allowedHosts:(NSSet<NSString*>*)allowedHosts
+                timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                          error:(NSError**)error {
+    NSString* scheme = url.scheme.lowercaseString;
+    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"network prefetch requires an http or https URL");
+    }
+    NSString* host = url.host;
+    if (host.length == 0) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"network prefetch URL must include a host");
+    }
+    if (allowedHosts.count > 0 && ![allowedHosts containsObject:host]) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
+                                        @"network prefetch host is not allowlisted");
+    }
+
+    NSTimeInterval effectiveTimeout = timeoutSeconds > 0.0 ? timeoutSeconds : 15.0;
+    NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url
+                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                       timeoutInterval:effectiveTimeout];
+    request.HTTPMethod = @"GET";
+
+    NSURLSessionConfiguration* sessionConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+    sessionConfig.timeoutIntervalForRequest = effectiveTimeout;
+    sessionConfig.timeoutIntervalForResource = effectiveTimeout;
+    NSURLSession* session = [NSURLSession sessionWithConfiguration:sessionConfig];
+
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    __block NSData* responseData = nil;
+    __block NSURLResponse* response = nil;
+    __block NSError* requestError = nil;
+    NSURLSessionDataTask* task = [session dataTaskWithRequest:request
+                                            completionHandler:^(NSData* data, NSURLResponse* taskResponse, NSError* taskError) {
+        responseData = data ? [data copy] : [NSData data];
+        response = taskResponse;
+        requestError = taskError;
+        dispatch_semaphore_signal(done);
+    }];
+    [task resume];
+
+    int64_t timeoutNanos = (int64_t)(effectiveTimeout * (NSTimeInterval)NSEC_PER_SEC);
+    if (timeoutNanos <= 0) timeoutNanos = (int64_t)(15.0 * (NSTimeInterval)NSEC_PER_SEC);
+    long waitResult = dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, timeoutNanos));
+    if (waitResult != 0) {
+        [task cancel];
+        [session finishTasksAndInvalidate];
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
+                                        @"network prefetch timed out");
+    }
+    [session finishTasksAndInvalidate];
+
+    if (requestError) {
+        if (error) *error = requestError;
+        return NO;
+    }
+    if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
+        NSInteger statusCode = ((NSHTTPURLResponse*)response).statusCode;
+        if (statusCode < 200 || statusCode >= 300) {
+            NSString* message = [NSString stringWithFormat:@"network prefetch returned HTTP %ld", (long)statusCode];
+            return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM, message);
+        }
+    }
+    if (_ioLimitBytes > 0 && responseData.length > _ioLimitBytes) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
+                                        @"network prefetch response exceeds runtime I/O budget");
+    }
+    return [self putVirtualNetResponseForURL:url.absoluteString data:(responseData ?: [NSData data]) error:error];
 }
 
 - (BOOL)putVirtualProcExitForCommand:(NSString*)command exitCode:(int)exitCode error:(NSError**)error {

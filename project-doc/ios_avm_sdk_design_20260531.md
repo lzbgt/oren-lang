@@ -22,7 +22,7 @@ Oren source / OBC
 
 ## Implementation Status
 
-First retained slice on 2026-05-31:
+Retained SDK slices on 2026-05-31:
 
 - `scripts/build_libavm_ios.sh` builds `OrenAVMKit.xcframework` next to
   `LibAVM.xcframework`.
@@ -37,8 +37,17 @@ First retained slice on 2026-05-31:
 - `make verify-libavm-ios` compiles iOS device/simulator SDK smokes and runs a
   host SDK smoke proving interactive `time.sleep_ms(25)` has real elapsed-time
   effect.
+- `OrenAVMRuntime fetchURLIntoVirtualNet:allowedHosts:timeoutSeconds:error:`
+  provides the first app-usable NetworkProvider slice. The SDK owns the host
+  `URLSession` request, enforces an allowlisted host and timeout, then injects
+  the response bytes into VirtualNET under the original URL. OBC code still uses
+  the portable `oren_net_get(url)` surface and never receives raw host networking
+  authority.
+- The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
+  and then runs the same `.obc` program against `oren_net_get(url)`, proving the
+  real host-fetch-to-OBC-read chain.
 
-Not implemented yet: app-sandbox file mounts, URLSession host networking,
+Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
 compiler helper Swift/Objective-C package, OBC store helper, and GFX mailbox
 adapter. GUI remains last because `libavm` has no graphics mailbox yet.
 
@@ -83,6 +92,10 @@ Default NET adapter.
 - Optional reviewed mode: allowlisted `URLSession` requests.
 - Package manifest declares network domains before launch.
 - The SDK maps responses back into the AVM NET surface with size/time budgets.
+- Current implementation is prefetch-oriented: host code fetches allowlisted URLs
+  before or between AVM runs, then OBC reads the materialized body through
+  `oren_net_get(url)`. This preserves deterministic AVM execution and keeps iOS
+  networking policy in the host SDK.
 
 ### OrenAVMProcessProvider
 
@@ -128,7 +141,7 @@ Public OBC store helper.
 | Surface | Default iOS implementation | Escalation |
 | --- | --- | --- |
 | FS | VirtualFS | Explicit app-sandbox mounts |
-| NET | VirtualNET/no host network | URLSession allowlist |
+| NET | VirtualNET/no host network | SDK `URLSession` prefetch into VirtualNET with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
 | GUI | No raw host access | GFX mailbox to UIKit/Metal adapter |

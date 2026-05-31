@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals and Current Tasks
 
-**Last updated:** 2026-05-29
+**Last updated:** 2026-05-31
 
 This file is the concise task view. Detailed implementation status lives in
 `docs/STATUS.md`; dated investigation notes live in `project-doc/`.
@@ -49,12 +49,13 @@ This file is the concise task view. Detailed implementation status lives in
      gate, broader compiler/stdlib surface coverage, and CI coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
-   - SDK slice retained: `OrenAVMKit.xcframework` now provides the TIME-first
-     Objective-C adapter surface with deterministic/interactive configs, virtual
-     FS/NET/PROC helpers, OBC run, stdout capture, and a verifier smoke proving
-     interactive `std:time.sleep_ms` blocks the AVM worker on wall-clock time.
-     Remaining SDK work: app-sandbox FileProvider, URLSession allowlist
-     NetworkProvider, compiler helper package, package store helper, and GFX last.
+   - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
+     interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,
+     verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
+     wall-clock time, and an allowlisted `URLSession` prefetch bridge that injects
+     host-fetched bytes into VirtualNET for OBC `oren_net_get(url)`.
+     Remaining SDK work: app-sandbox FileProvider, live/asynchronous network
+     sessions if required, compiler helper package, package store helper, and GFX last.
      Design note: `project-doc/ios_avm_sdk_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated
      signed OBC store repo with package manifests, hashes, capability declarations,

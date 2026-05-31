@@ -33,7 +33,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-05-29</p>
+<p><strong>Last updated:</strong> 2026-05-31</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -123,6 +123,13 @@
 <p>  a module map for app imports. <code>make verify-libavm-ios</code> compiles iOS</p>
 <p>  device/simulator SDK smokes and runs a host SDK smoke that proves interactive</p>
 <p>  sleep has real elapsed-time effect.</p>
+<ul>
+<li>The SDK now includes an allowlisted <code>URLSession</code> prefetch helper that maps real</li>
+</ul>
+<p>  host network responses into VirtualNET. <code>make verify-libavm-ios</code> starts a local</p>
+<p>  HTTP server, fetches it through the SDK, injects the body under the requested URL,</p>
+<p>  then runs OBC that reads it with <code>oren_net_get(url)</code>. This is the current</p>
+<p>  app-facing NET bridge; AVM still does not expose raw host networking to bytecode.</p>
 <ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>

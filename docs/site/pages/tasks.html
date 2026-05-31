@@ -33,7 +33,7 @@
     </nav>
     <main class="content">
       <h1 id="bleeding-edge-goals-and-current-tasks">Bleeding-Edge Goals and Current Tasks</h1>
-<p><strong>Last updated:</strong> 2026-05-29</p>
+<p><strong>Last updated:</strong> 2026-05-31</p>
 <p>This file is the concise task view. Detailed implementation status lives in</p>
 <p><code>docs/STATUS.md</code>; dated investigation notes live in <code>project-doc/</code>.</p>
 <h2 id="goals">Goals</h2>
@@ -98,13 +98,14 @@
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
-<li>SDK slice retained: <code>OrenAVMKit.xcframework</code> now provides the TIME-first</li>
+<li>SDK slices retained: <code>OrenAVMKit.xcframework</code> now provides deterministic and</li>
 </ul>
-<p>     Objective-C adapter surface with deterministic/interactive configs, virtual</p>
-<p>     FS/NET/PROC helpers, OBC run, stdout capture, and a verifier smoke proving</p>
-<p>     interactive <code>std:time.sleep_ms</code> blocks the AVM worker on wall-clock time.</p>
-<p>     Remaining SDK work: app-sandbox FileProvider, URLSession allowlist</p>
-<p>     NetworkProvider, compiler helper package, package store helper, and GFX last.</p>
+<p>     interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,</p>
+<p>     verifier proof that interactive <code>std:time.sleep_ms</code> blocks the AVM worker on</p>
+<p>     wall-clock time, and an allowlisted <code>URLSession</code> prefetch bridge that injects</p>
+<p>     host-fetched bytes into VirtualNET for OBC <code>oren_net_get(url)</code>.</p>
+<p>     Remaining SDK work: app-sandbox FileProvider, live/asynchronous network</p>
+<p>     sessions if required, compiler helper package, package store helper, and GFX last.</p>
 <p>     Design note: <code>project-doc/ios_avm_sdk_design_20260531.md</code>.</p>
 <ul>
 <li>Follow-up distribution design: after the GUI bridge gate, publish a curated</li>

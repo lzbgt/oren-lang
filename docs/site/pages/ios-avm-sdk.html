@@ -48,7 +48,7 @@
   -&gt; OrenAVMKit iOS adapters
   -&gt; Note app UI, sandbox, URLSession, Metal/MTKView, app lifecycle</code></pre>
 <h2 id="implementation-status">Implementation Status</h2>
-<p>First retained slice on 2026-05-31:</p>
+<p>Retained SDK slices on 2026-05-31:</p>
 <ul>
 <li><code>scripts/build_libavm_ios.sh</code> builds <code>OrenAVMKit.xcframework</code> next to</li>
 </ul>
@@ -74,7 +74,20 @@
 </ul>
 <p>  host SDK smoke proving interactive <code>time.sleep_ms(25)</code> has real elapsed-time</p>
 <p>  effect.</p>
-<p>Not implemented yet: app-sandbox file mounts, URLSession host networking,</p>
+<ul>
+<li><code>OrenAVMRuntime fetchURLIntoVirtualNet:allowedHosts:timeoutSeconds:error:</code></li>
+</ul>
+<p>  provides the first app-usable NetworkProvider slice. The SDK owns the host</p>
+<p>  <code>URLSession</code> request, enforces an allowlisted host and timeout, then injects</p>
+<p>  the response bytes into VirtualNET under the original URL. OBC code still uses</p>
+<p>  the portable <code>oren_net_get(url)</code> surface and never receives raw host networking</p>
+<p>  authority.</p>
+<ul>
+<li>The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,</li>
+</ul>
+<p>  and then runs the same <code>.obc</code> program against <code>oren_net_get(url)</code>, proving the</p>
+<p>  real host-fetch-to-OBC-read chain.</p>
+<p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
 <p>compiler helper Swift/Objective-C package, OBC store helper, and GFX mailbox</p>
 <p>adapter. GUI remains last because <code>libavm</code> has no graphics mailbox yet.</p>
 <h2 id="sdk-components">SDK Components</h2>
@@ -115,7 +128,11 @@
 <li>Optional reviewed mode: allowlisted <code>URLSession</code> requests.</li>
 <li>Package manifest declares network domains before launch.</li>
 <li>The SDK maps responses back into the AVM NET surface with size/time budgets.</li>
+<li>Current implementation is prefetch-oriented: host code fetches allowlisted URLs</li>
 </ul>
+<p>  before or between AVM runs, then OBC reads the materialized body through</p>
+<p>  <code>oren_net_get(url)</code>. This preserves deterministic AVM execution and keeps iOS</p>
+<p>  networking policy in the host SDK.</p>
 <h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>
 <p>Default PROC adapter.</p>
 <ul>
@@ -157,7 +174,7 @@
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>
 <tr><td>FS</td><td>VirtualFS</td><td>Explicit app-sandbox mounts</td></tr>
-<tr><td>NET</td><td>VirtualNET/no host network</td><td>URLSession allowlist</td></tr>
+<tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch into VirtualNET with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
 <tr><td>GUI</td><td>No raw host access</td><td>GFX mailbox to UIKit/Metal adapter</td></tr>
