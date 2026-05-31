@@ -276,7 +276,7 @@ Facts from the 2026-05-28 implementation pass:
   event path instead of polling raw platform clocks. Frame ticks are coalesced so
   stale timing records cannot fill the input FIFO and starve real input. The Metal
 	  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-		  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes; explicit resource budgets and text atlas resources remain next. UIKit/CoreGraphics
+		  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes, with Oren-side image upload budgets and SDK retained image count/pixel budgets; text atlas resources remain next. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
@@ -284,8 +284,8 @@ Facts from the 2026-05-28 implementation pass:
   Bidirectional UI is a hard requirement for
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and
-		  rendering devices. Remaining game-grade work is explicit resource budgets,
-		  text atlas/sprite/mesh records, gamepad/motion input, IME/composition helpers,
+		  rendering devices. Remaining game-grade work is text atlas/sprite/mesh
+		  records, gamepad/motion input, IME/composition helpers,
 	  and richer 2D/3D command sets. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,

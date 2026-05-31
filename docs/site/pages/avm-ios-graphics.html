@@ -98,7 +98,7 @@
 <p>  event, consuming that event from OBC, and compiling the UIKit renderer adapter for</p>
 <p>  device/simulator targets.</p>
 <p>Still pending: game-grade render protocol hardening beyond the current Metal adapter,</p>
-<p>IME/composition helpers, explicit resource budgets, 2D geometry expansion beyond the retained v0 shape</p>
+<p>IME/composition helpers, 2D geometry expansion beyond the retained v0 shape</p>
 <p>subset, and 3D mesh commands. The high-refresh/high-resolution contract is now</p>
 <p>tracked in <code>project-doc/avm_ui_render_performance_design_20260531.md</code>; follow it</p>
 <p>before growing the command set.</p>
@@ -395,9 +395,13 @@ fn main() {
 <p>    <code>OrenAVMMetalView</code>, runs a bundled OBC, renders one frame, and injects one touch.</p>
 <ol>
 <li>Add IME/composition helpers.</li>
-<li>Add explicit resource budgets plus <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code></li>
+<li>Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel</li>
 </ol>
-<p>    records for sprite/text/mesh rendering on the Metal path.</p>
+<p>    limits and counters.</p>
+<ol>
+<li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> records for sprite/text/mesh rendering</li>
+</ol>
+<p>    on the Metal path.</p>
 <p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>
 <p>right app boundary: AVM computes and describes frames; iOS renders them.</p>
     </main>

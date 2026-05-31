@@ -360,7 +360,7 @@
 <p>  event path instead of polling raw platform clocks. Frame ticks are coalesced so</p>
 <p>  stale timing records cannot fill the input FIFO and starve real input. The Metal</p>
 <p>	  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,</p>
-<p>		  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes; explicit resource budgets and text atlas resources remain next. UIKit/CoreGraphics</p>
+<p>		  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes, with Oren-side image upload budgets and SDK retained image count/pixel budgets; text atlas resources remain next. UIKit/CoreGraphics</p>
 <p>  and Metal views now forward every touch in a UIKit touch set, assign stable compact</p>
 <p>  pointer IDs for each active touch, release IDs on end/cancel, and expose batch</p>
 <p>  pointer-event helpers, so multi-finger input reaches OBC as multiple virtual</p>
@@ -368,8 +368,8 @@
 <p>  Bidirectional UI is a hard requirement for</p>
 <p>  game-level OBC packages: OBC must publish frames and consume host-originated input</p>
 <p>  through the same virtual protocol, while the host owns platform event APIs and</p>
-<p>		  rendering devices. Remaining game-grade work is explicit resource budgets,</p>
-<p>		  text atlas/sprite/mesh records, gamepad/motion input, IME/composition helpers,</p>
+<p>		  rendering devices. Remaining game-grade work is text atlas/sprite/mesh</p>
+<p>		  records, gamepad/motion input, IME/composition helpers,</p>
 <p>	  and richer 2D/3D command sets. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>

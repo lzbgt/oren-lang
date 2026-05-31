@@ -128,8 +128,10 @@
 <p>  geometry vertex count, and text-run count so host apps and verifiers can observe</p>
 <p>  and gate pacing cost. <code>text_bytes</code> lets OBC publish UTF-8 bytes directly on the</p>
 <p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code> is the first</p>
-<p>  OBC-visible retained sprite resource lifetime and atlas sub-rect path; text atlas,</p>
-<p>  and richer resources remain the next performance steps.</p>
+<p>  OBC-visible retained sprite resource lifetime and atlas sub-rect path. Oren-side</p>
+<p>  validation can gate per-frame image upload bytes/count, and SDK renderers expose</p>
+<p>  retained image count/pixel limits and counters. Text atlas and richer resources</p>
+<p>  remain the next performance steps.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
@@ -237,6 +239,11 @@
 <li>atlas sub-rect record: <code>draw_image_rect {id,sx,sy,sw,sh,x,y,w,h}</code> draws part of a</li>
 </ul>
 <p>  retained image into a destination rect for sprite-atlas use;</p>
+<ul>
+<li>explicit budgets: <code>std:ui/commands</code> accepts <code>max_image_bytes</code> and</li>
+</ul>
+<p>  <code>max_image_count</code>, and iOS CoreGraphics/Metal renderers expose retained image</p>
+<p>  count/pixel limits plus current counters;</p>
 <ul>
 <li>path/shape handles;</li>
 <li>vertex/index buffers for plots and meshes;</li>
@@ -358,7 +365,10 @@
 <p>    checks, deterministic raster, CoreGraphics fallback, Metal texture cache, and</p>
 <p>    iOS verifier coverage.</p>
 <ol>
-<li>Add explicit resource budgets for retained images/textures.</li>
+<li>Done: add explicit retained image budgets: Oren-side image upload byte/count</li>
+</ol>
+<p>    validation plus iOS SDK retained image count/pixel limits and counters.</p>
+<ol>
 <li>Add text atlas/sprite/mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
 <li>Add game/app package smoke in the Note host or iOS SDK harness.</li>

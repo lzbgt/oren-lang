@@ -85,8 +85,10 @@ Implemented as of 2026-05-31:
   geometry vertex count, and text-run count so host apps and verifiers can observe
   and gate pacing cost. `text_bytes` lets OBC publish UTF-8 bytes directly on the
   frame hot path. `image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect` is the first
-  OBC-visible retained sprite resource lifetime and atlas sub-rect path; text atlas,
-  and richer resources remain the next performance steps.
+  OBC-visible retained sprite resource lifetime and atlas sub-rect path. Oren-side
+  validation can gate per-frame image upload bytes/count, and SDK renderers expose
+  retained image count/pixel limits and counters. Text atlas and richer resources
+  remain the next performance steps.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on
@@ -187,6 +189,9 @@ High-volume 2D and 3D need retained resources:
   cached resource for the virtual image handle;
 - atlas sub-rect record: `draw_image_rect {id,sx,sy,sw,sh,x,y,w,h}` draws part of a
   retained image into a destination rect for sprite-atlas use;
+- explicit budgets: `std:ui/commands` accepts `max_image_bytes` and
+  `max_image_count`, and iOS CoreGraphics/Metal renderers expose retained image
+  count/pixel limits plus current counters;
 - path/shape handles;
 - vertex/index buffers for plots and meshes;
 - transform, clip, layer, and canvas records;
@@ -275,7 +280,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     `draw_image`, `destroy_image`, `draw_image_rect`) across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal texture cache, and
     iOS verifier coverage.
-14. Add explicit resource budgets for retained images/textures.
+14. Done: add explicit retained image budgets: Oren-side image upload byte/count
+    validation plus iOS SDK retained image count/pixel limits and counters.
 15. Add text atlas/sprite/mesh rendering on the Metal path.
 16. Add richer 2D and 3D command sets.
 17. Add game/app package smoke in the Note host or iOS SDK harness.

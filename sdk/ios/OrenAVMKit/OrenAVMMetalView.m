@@ -52,6 +52,8 @@ typedef struct {
 
 static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalTextCacheEntryLimit = 256u;
+static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
+static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
 
 static uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -271,6 +273,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
+@property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic) uint32_t orenFrameTickSequence;
 @property(nonatomic) uint64_t orenLastFrameTickNs;
 @property(nonatomic, readwrite) uint64_t renderedFrameCount;
@@ -316,10 +320,13 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
     if (!self.orenImageTextures) self.orenImageTextures = [NSMutableDictionary dictionary];
+    if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
     if (self.frameBudgetWarningPermille == 0) self.frameBudgetWarningPermille = 1000u;
+    if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMMetalDefaultRetainedImagePixelLimit;
+    if (self.retainedImageCountLimit == 0) self.retainedImageCountLimit = OrenAVMMetalDefaultRetainedImageCountLimit;
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     [self orenApplyFrameRate];
     if (self.device) {
@@ -406,6 +413,12 @@ static NSData* OrenAVMMetalTextQuad(float x,
 
 - (void)clearImageTextureCache {
     [self.orenImageTextures removeAllObjects];
+    [self.orenImagePixels removeAllObjects];
+    self.retainedImagePixelCount = 0;
+}
+
+- (NSUInteger)retainedImageCount {
+    return self.orenImageTextures.count;
 }
 
 - (void)resetFrameMetrics {
@@ -651,6 +664,14 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!self.device || imageID == 0 || width == 0 || height == 0 || !rgba) return;
     uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
     if (expected != (uint64_t)byteCount) return;
+    NSUInteger pixels = (NSUInteger)width * (NSUInteger)height;
+    NSNumber* key = @(imageID);
+    NSNumber* oldPixels = self.orenImagePixels[key];
+    NSUInteger old = oldPixels ? oldPixels.unsignedIntegerValue : 0;
+    NSUInteger countAfter = self.orenImageTextures[key] ? self.orenImageTextures.count : self.orenImageTextures.count + 1u;
+    NSUInteger pixelAfter = self.retainedImagePixelCount >= old ? self.retainedImagePixelCount - old + pixels : pixels;
+    if (self.retainedImageCountLimit == 0 || countAfter > self.retainedImageCountLimit) return;
+    if (self.retainedImagePixelLimit == 0 || pixels > self.retainedImagePixelLimit || pixelAfter > self.retainedImagePixelLimit) return;
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                           width:(NSUInteger)width
                                                                                          height:(NSUInteger)height
@@ -662,7 +683,9 @@ static NSData* OrenAVMMetalTextQuad(float x,
                mipmapLevel:0
                  withBytes:rgba
                bytesPerRow:(NSUInteger)width * 4u];
-    self.orenImageTextures[@(imageID)] = texture;
+    self.orenImageTextures[key] = texture;
+    self.orenImagePixels[key] = @(pixels);
+    self.retainedImagePixelCount = pixelAfter;
 }
 
 - (OrenAVMMetalImageRun*)orenImageRunWithID:(uint32_t)imageID
@@ -812,7 +835,14 @@ static NSData* OrenAVMMetalTextQuad(float x,
             if (run) [imageRuns addObject:run];
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            [self.orenImageTextures removeObjectForKey:@(imageID)];
+            NSNumber* key = @(imageID);
+            NSNumber* oldPixels = self.orenImagePixels[key];
+            if (oldPixels) {
+                NSUInteger pixels = oldPixels.unsignedIntegerValue;
+                self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
+                [self.orenImagePixels removeObjectForKey:key];
+            }
+            [self.orenImageTextures removeObjectForKey:key];
         } else if (opcode == 67 && payloadLen == 36) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t sx = OrenAVMMetalReadU32LE(payload + 4);

@@ -45,10 +45,22 @@ fn validate(cmds, w, h, opts) {
     //
     // opts (rolling):
     // - strict_bounds: bool (default false) — reject ops that extend outside the framebuffer.
+    // - max_image_bytes: int (optional) — reject frames uploading more RGBA image bytes.
+    // - max_image_count: int (optional) — reject frames uploading more retained images.
     if opts == nil { opts = {} }
     var strict = opts["strict_bounds"]
     if strict == nil { strict = false }
     strict = strict != 0
+    var max_image_bytes = opts["max_image_bytes"]
+    var max_image_count = opts["max_image_count"]
+    var image_bytes = 0
+    var image_count = 0
+    if max_image_bytes != nil && (_is_int(max_image_bytes) == false || max_image_bytes < 0) {
+        return oren_err(4, "ui.validate: invalid max_image_bytes")
+    }
+    if max_image_count != nil && (_is_int(max_image_count) == false || max_image_count < 0) {
+        return oren_err(4, "ui.validate: invalid max_image_count")
+    }
 
     if _is_int(w) == false || _is_int(h) == false { return oren_err(4, "ui.validate: invalid framebuffer size") }
     if w < 0 || h < 0 { return oren_err(4, "ui.validate: negative framebuffer size") }
@@ -130,6 +142,10 @@ fn validate(cmds, w, h, opts) {
             if oren_is_err(ilen) { return oren_err(4, "ui.validate: image_rgba expects byte data") }
             if ilen != iw * ih * 4 { return oren_err(4, "ui.validate: image_rgba data length mismatch") }
             if ilen > 65519 { return oren_err(4, "ui.validate: image_rgba data too large") }
+            image_bytes = image_bytes + ilen
+            image_count = image_count + 1
+            if max_image_bytes != nil && image_bytes > max_image_bytes { return oren_err(4, "ui.validate: image byte budget exceeded") }
+            if max_image_count != nil && image_count > max_image_count { return oren_err(4, "ui.validate: image count budget exceeded") }
         } else if op == "draw_image" {
             var did = c["id"]; var dx = c["x"]; var dy = c["y"]; var dw = c["w"]; var dh = c["h"]
             if _is_int(did) == false || did < 1 { return oren_err(4, "ui.validate: draw_image invalid id") }

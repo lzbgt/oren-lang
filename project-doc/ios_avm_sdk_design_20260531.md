@@ -95,8 +95,9 @@ Retained SDK slices on 2026-05-31:
 	  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
 	  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native text payloads through Metal
 	  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
-	  over-budget frames without reading raw Metal timing APIs. Explicit resource
-	  budgets and text atlas resources remain pending.
+	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
+	  renderers also expose retained image count/pixel limits and counters so host apps
+	  can bound sprite/atlas memory. Text atlas resources remain pending.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, and UTF-8 text-input events. These are still
   mailbox records, not UIKit objects.

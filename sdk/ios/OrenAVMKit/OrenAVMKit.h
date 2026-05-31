@@ -287,11 +287,16 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @property(nonatomic, strong, nullable) OrenAVMRuntime* runtime;
 @property(nonatomic, copy, nullable) NSData* frameData;
+@property(nonatomic) NSUInteger retainedImagePixelLimit;
+@property(nonatomic) NSUInteger retainedImageCountLimit;
+@property(nonatomic, readonly) NSUInteger retainedImagePixelCount;
+@property(nonatomic, readonly) NSUInteger retainedImageCount;
 
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFrame:(CGRect)frame NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder*)coder NS_DESIGNATED_INITIALIZER;
 - (BOOL)reloadFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (void)clearImageCache;
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind
                            point:(CGPoint)point
                        pointerId:(uint32_t)pointerId
@@ -317,6 +322,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 @property(nonatomic) uint32_t targetHzMilli;
 @property(nonatomic) uint32_t mediaFlags;
 @property(nonatomic) uint32_t frameBudgetWarningPermille;
+@property(nonatomic) NSUInteger retainedImagePixelLimit;
+@property(nonatomic) NSUInteger retainedImageCountLimit;
 @property(nonatomic, readonly) uint64_t renderedFrameCount;
 @property(nonatomic, readonly) uint64_t lastFrameCPUNs;
 @property(nonatomic, readonly) uint64_t lastFrameTargetBudgetNs;
@@ -324,6 +331,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 @property(nonatomic, readonly) BOOL lastFrameOverBudget;
 @property(nonatomic, readonly) uint32_t lastFrameVertexCount;
 @property(nonatomic, readonly) uint32_t lastFrameTextRunCount;
+@property(nonatomic, readonly) NSUInteger retainedImagePixelCount;
+@property(nonatomic, readonly) NSUInteger retainedImageCount;
 
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFrame:(CGRect)frame device:(nullable id<MTLDevice>)device NS_DESIGNATED_INITIALIZER;

@@ -1033,6 +1033,28 @@ int main(void) {
         UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 3.0), NO, 1.0);
         [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 3.0)];
         UIGraphicsEndImageContext();
+        if (graphicsView.retainedImageCount != 0 || graphicsView.retainedImagePixelCount != 0) return 142;
+        uint8_t imageOnlyFrameBytes[] = {
+            79, 71, 70, 48, 1, 0, 40, 0,
+            1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+            64, 0, 20, 0,
+            1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0,
+            255, 0, 0, 255
+        };
+        graphicsView.frameData = [NSData dataWithBytes:imageOnlyFrameBytes length:sizeof(imageOnlyFrameBytes)];
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(1.0, 1.0), NO, 1.0);
+        [graphicsView drawRect:CGRectMake(0.0, 0.0, 1.0, 1.0)];
+        UIGraphicsEndImageContext();
+        if (graphicsView.retainedImageCount != 1 || graphicsView.retainedImagePixelCount != 1) return 145;
+        [graphicsView clearImageCache];
+        if (graphicsView.retainedImageCount != 0 || graphicsView.retainedImagePixelCount != 0) return 146;
+        graphicsView.retainedImageCountLimit = 0;
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 3.0), NO, 1.0);
+        [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 3.0)];
+        UIGraphicsEndImageContext();
+        if (graphicsView.retainedImageCount != 0 || graphicsView.retainedImagePixelCount != 0) return 143;
+        graphicsView.retainedImageCountLimit = 1024;
         if (![graphicsView sendPointerEventWithKind:2 point:CGPointMake(2.0, 1.0) pointerId:8 error:&error]) return 53;
         if (![graphicsView sendPointerEventsWithKind:2 points:@[[NSValue valueWithCGPoint:CGPointMake(1.0, 1.0)],
                                                                  [NSValue valueWithCGPoint:CGPointMake(3.0, 2.0)]]
@@ -1062,6 +1084,10 @@ int main(void) {
         [metalView resetFrameMetrics];
         if (metalView.renderedFrameCount != 0 || metalView.lastFrameCPUNs != 0) return 133;
         if (metalView.lastFrameBudgetUsagePermille != 0 || metalView.lastFrameOverBudget) return 141;
+        metalView.retainedImageCountLimit = 0;
+        [metalView clearImageTextureCache];
+        if (metalView.retainedImageCount != 0 || metalView.retainedImagePixelCount != 0) return 144;
+        metalView.retainedImageCountLimit = 1024;
         if (![metalView sendPointerEventsWithKind:2 points:@[[NSValue valueWithCGPoint:CGPointMake(1.0, 1.0)],
                                                              [NSValue valueWithCGPoint:CGPointMake(3.0, 2.0)]]
                                        pointerIDs:@[@(10u), @(11u)]

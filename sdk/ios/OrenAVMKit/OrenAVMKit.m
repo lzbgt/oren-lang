@@ -109,6 +109,9 @@ static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
 }
 
 #if TARGET_OS_IPHONE
+static const NSUInteger OrenAVMDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
+static const NSUInteger OrenAVMDefaultRetainedImageCountLimit = 1024u;
+
 static uint16_t OrenAVMGfxReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -235,6 +238,8 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
+@property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @end
 
 @implementation OrenAVMGraphicsView
@@ -246,6 +251,44 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
+    if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
+    if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
+    if (self.retainedImageCountLimit == 0) self.retainedImageCountLimit = OrenAVMDefaultRetainedImageCountLimit;
+}
+
+- (NSUInteger)retainedImageCount {
+    return self.orenImages.count;
+}
+
+- (void)clearImageCache {
+    [self.orenImages removeAllObjects];
+    [self.orenImagePixels removeAllObjects];
+    self.retainedImagePixelCount = 0;
+}
+
+- (void)orenRemoveImageWithID:(uint32_t)imageID {
+    NSNumber* key = @(imageID);
+    NSNumber* oldPixels = self.orenImagePixels[key];
+    if (oldPixels) {
+        NSUInteger pixels = oldPixels.unsignedIntegerValue;
+        self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
+        [self.orenImagePixels removeObjectForKey:key];
+    }
+    [self.orenImages removeObjectForKey:key];
+}
+
+- (void)orenPutImage:(UIImage*)image imageID:(uint32_t)imageID pixels:(NSUInteger)pixels {
+    if (!image || imageID == 0) return;
+    NSNumber* key = @(imageID);
+    NSNumber* oldPixels = self.orenImagePixels[key];
+    NSUInteger old = oldPixels ? oldPixels.unsignedIntegerValue : 0;
+    NSUInteger countAfter = self.orenImages[key] ? self.orenImages.count : self.orenImages.count + 1u;
+    NSUInteger pixelAfter = self.retainedImagePixelCount >= old ? self.retainedImagePixelCount - old + pixels : pixels;
+    if (self.retainedImageCountLimit == 0 || countAfter > self.retainedImageCountLimit) return;
+    if (self.retainedImagePixelLimit == 0 || pixels > self.retainedImagePixelLimit || pixelAfter > self.retainedImagePixelLimit) return;
+    self.orenImages[key] = image;
+    self.orenImagePixels[key] = @(pixels);
+    self.retainedImagePixelCount = pixelAfter;
 }
 
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime {
@@ -481,7 +524,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             uint32_t imageLen = OrenAVMGfxReadU32LE(payload + 12);
             if (imageLen == (uint32_t)payloadLen - 16u) {
                 UIImage* image = OrenAVMGfxImageRGBA(payload + 16, iw, ih, imageLen);
-                if (image) self.orenImages[@(imageID)] = image;
+                [self orenPutImage:image imageID:imageID pixels:(NSUInteger)iw * (NSUInteger)ih];
             }
         } else if (opcode == 65 && payloadLen == 20) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
@@ -493,7 +536,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
-            [self.orenImages removeObjectForKey:@(imageID)];
+            [self orenRemoveImageWithID:imageID];
         } else if (opcode == 67 && payloadLen == 36) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
             uint32_t sx = OrenAVMGfxReadU32LE(payload + 4);

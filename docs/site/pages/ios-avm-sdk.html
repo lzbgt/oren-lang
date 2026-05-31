@@ -153,8 +153,9 @@
 <p>	  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
 <p>	  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native text payloads through Metal</p>
 <p>	  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect</p>
-<p>	  over-budget frames without reading raw Metal timing APIs. Explicit resource</p>
-<p>	  budgets and text atlas resources remain pending.</p>
+<p>	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal</p>
+<p>	  renderers also expose retained image count/pixel limits and counters so host apps</p>
+<p>	  can bound sprite/atlas memory. Text atlas resources remain pending.</p>
 <ul>
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>
