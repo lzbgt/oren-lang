@@ -101,11 +101,17 @@ Facts from the 2026-05-28 implementation pass:
   then runs OBC that reads it with `std:net/avm.try_get_text(url)`. The raw
   `oren_net_get` intrinsic remains the AVM substrate, not the app-facing API.
   AVM still does not expose raw host networking to bytecode.
-- The SDK also exposes `enableLiveNetworkWithAllowedHosts:timeoutSeconds:`. This
-  installs an embedder NET callback so OBC can call `std:net/avm.try_get_text(url)`
-  and have the iOS SDK synchronously perform an allowlisted `URLSession` fetch while
-  the AVM worker is running. `make verify-libavm-ios` proves both prefetch and live
-  fetch modes against a local HTTP server.
+- Interactive `OrenAVMRuntimeConfig` now enables the live host-backed VNET provider
+  by default, while deterministic defaults stay fixture/replay oriented. OBC still
+  only sees `std:net/avm.try_get_text(url)` and the AVM NET domain; the SDK owns
+  real `URLSession` access. Apps can dynamically enable, restrict, or disable live
+  NET with `enableLiveNetworkWithAllowedHosts:timeoutSeconds:` and
+  `disableLiveNetworkWithError:`, so user permission prompts and settings changes
+  do not need hardcoded OBC builds. The SDK reuses its ephemeral `NSURLSession` for
+  prefetch and live fetches instead of constructing one per OBC-triggered request.
+  `make verify-libavm-ios` proves fixture, prefetch, explicit live, and interactive-
+  default live fetch modes against a local HTTP server, including dynamic disable
+  and re-enable through the SDK.
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. Future TCP/UDP/WebSocket
   support should use VNET session handles with capability checks, allowlists, byte

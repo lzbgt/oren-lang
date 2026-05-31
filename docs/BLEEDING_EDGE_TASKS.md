@@ -63,7 +63,9 @@ This file is the concise task view. Detailed implementation status lives in
      into VirtualFS, VFS export back to host files, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
-     allowlisted live NET callback for OBC `std:net/avm.try_get_text(url)`, plus binary
+     interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
+     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
+     session, plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics

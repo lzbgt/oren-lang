@@ -107,6 +107,9 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     cfg.fsBackend = OrenAVMVirtualBackendVirtual;
     cfg.netBackend = OrenAVMVirtualBackendVirtual;
     cfg.procBackend = OrenAVMVirtualBackendVirtual;
+    cfg.liveNetworkEnabled = NO;
+    cfg.liveNetworkAllowedHosts = nil;
+    cfg.liveNetworkTimeoutSeconds = 15.0;
     cfg.verifyStrict = YES;
     return cfg;
 }
@@ -114,6 +117,7 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 + (instancetype)interactiveAppDefaults {
     OrenAVMRuntimeConfig* cfg = [self deterministicDefaults];
     cfg.timeMode = OrenAVMTimeModeInteractiveWallClock;
+    cfg.liveNetworkEnabled = YES;
     return cfg;
 }
 
@@ -129,6 +133,9 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     cfg.fsBackend = self.fsBackend;
     cfg.netBackend = self.netBackend;
     cfg.procBackend = self.procBackend;
+    cfg.liveNetworkEnabled = self.liveNetworkEnabled;
+    cfg.liveNetworkAllowedHosts = [self.liveNetworkAllowedHosts copy];
+    cfg.liveNetworkTimeoutSeconds = self.liveNetworkTimeoutSeconds;
     cfg.verifyStrict = self.verifyStrict;
     return cfg;
 }
@@ -370,12 +377,14 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     uint64_t _ioLimitBytes;
     NSSet<NSString*>* _liveNetworkAllowedHosts;
     NSTimeInterval _liveNetworkTimeoutSeconds;
+    NSURLSession* _networkSession;
 }
 
 static BOOL OrenAVMRuntimeFetchURLData(NSURL* url,
                                        NSSet<NSString*>* allowedHosts,
                                        NSTimeInterval timeoutSeconds,
                                        uint64_t ioLimitBytes,
+                                       NSURLSession* reusableSession,
                                        NSData** outData,
                                        NSError** error) {
     NSString* scheme = url.scheme.lowercaseString;
@@ -399,11 +408,16 @@ static BOOL OrenAVMRuntimeFetchURLData(NSURL* url,
                                                        timeoutInterval:effectiveTimeout];
     request.HTTPMethod = @"GET";
 
-    NSURLSessionConfiguration* sessionConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
-    sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
-    sessionConfig.timeoutIntervalForRequest = effectiveTimeout;
-    sessionConfig.timeoutIntervalForResource = effectiveTimeout;
-    NSURLSession* session = [NSURLSession sessionWithConfiguration:sessionConfig];
+    NSURLSession* session = reusableSession;
+    BOOL ownsSession = NO;
+    if (!session) {
+        NSURLSessionConfiguration* sessionConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+        sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+        sessionConfig.timeoutIntervalForRequest = effectiveTimeout;
+        sessionConfig.timeoutIntervalForResource = effectiveTimeout;
+        session = [NSURLSession sessionWithConfiguration:sessionConfig];
+        ownsSession = YES;
+    }
 
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block NSData* responseData = nil;
@@ -423,11 +437,11 @@ static BOOL OrenAVMRuntimeFetchURLData(NSURL* url,
     long waitResult = dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, timeoutNanos));
     if (waitResult != 0) {
         [task cancel];
-        [session finishTasksAndInvalidate];
+        if (ownsSession) [session finishTasksAndInvalidate];
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
                                         @"network fetch timed out");
     }
-    [session finishTasksAndInvalidate];
+    if (ownsSession) [session finishTasksAndInvalidate];
 
     if (requestError) {
         if (error) *error = requestError;
@@ -459,6 +473,7 @@ static int OrenAVMRuntimeLiveNetFetch(void* userData, const char* url, uint8_t**
                                     runtime->_liveNetworkAllowedHosts,
                                     runtime->_liveNetworkTimeoutSeconds,
                                     runtime->_ioLimitBytes,
+                                    runtime->_networkSession,
                                     &data,
                                     &error)) {
         (void)error;
@@ -487,10 +502,23 @@ static int OrenAVMRuntimeLiveNetFetch(void* userData, const char* url, uint8_t**
     _handle = avm_embed_open(&embedConfig, &result);
     if (!_handle || result.status != AVM_EMBED_OK) return nil;
     avm_embed_set_output_capture(_handle, 1, &result);
+    NSURLSessionConfiguration* sessionConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+    _networkSession = [NSURLSession sessionWithConfiguration:sessionConfig];
+    if (effective.liveNetworkEnabled) {
+        _liveNetworkAllowedHosts = [effective.liveNetworkAllowedHosts copy];
+        _liveNetworkTimeoutSeconds = effective.liveNetworkTimeoutSeconds > 0.0 ? effective.liveNetworkTimeoutSeconds : 15.0;
+        if (avm_embed_set_net_fetch_callback(_handle, OrenAVMRuntimeLiveNetFetch, (__bridge void*)self, &result) != AVM_EMBED_OK) {
+            avm_embed_close(_handle);
+            _handle = NULL;
+            return nil;
+        }
+    }
     return self;
 }
 
 - (void)dealloc {
+    [_networkSession invalidateAndCancel];
     if (_handle) avm_embed_close(_handle);
 }
 
@@ -660,12 +688,21 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return YES;
 }
 
+- (BOOL)disableLiveNetworkWithError:(NSError**)error {
+    _liveNetworkAllowedHosts = nil;
+    _liveNetworkTimeoutSeconds = 15.0;
+    AvmEmbedResult result;
+    int rc = avm_embed_set_net_fetch_callback(_handle, NULL, NULL, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET callback", &result);
+    return YES;
+}
+
 - (BOOL)fetchURLIntoVirtualNet:(NSURL*)url
-	                  allowedHosts:(NSSet<NSString*>*)allowedHosts
-	                timeoutSeconds:(NSTimeInterval)timeoutSeconds
-	                          error:(NSError**)error {
+                  allowedHosts:(NSSet<NSString*>*)allowedHosts
+                timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                          error:(NSError**)error {
     NSData* responseData = nil;
-    if (!OrenAVMRuntimeFetchURLData(url, allowedHosts, timeoutSeconds, _ioLimitBytes, &responseData, error)) return NO;
+    if (!OrenAVMRuntimeFetchURLData(url, allowedHosts, timeoutSeconds, _ioLimitBytes, _networkSession, &responseData, error)) return NO;
     return [self putVirtualNetResponseForURL:url.absoluteString data:(responseData ?: [NSData data]) error:error];
 }
 

@@ -116,7 +116,9 @@
 <p>     into VirtualFS, VFS export back to host files, OBC run, stdout capture,</p>
 <p>     verifier proof that interactive <code>std:time.sleep_ms</code> blocks the AVM worker on</p>
 <p>     wall-clock time, an allowlisted <code>URLSession</code> prefetch bridge, and an</p>
-<p>     allowlisted live NET callback for OBC <code>std:net/avm.try_get_text(url)</code>, plus binary</p>
+<p>     interactive-default live NET callback for OBC <code>std:net/avm.try_get_text(url)</code></p>
+<p>     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK</p>
+<p>     session, plus binary</p>
 <p>     GFX frame and input mailboxes for OBC-published <code>std:ui</code> frames and</p>
 <p>     host-injected pointer/resize/key/text events with Oren-side decoded</p>
 <p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>

@@ -151,12 +151,18 @@
 <p>  <code>oren_net_get</code> intrinsic remains the AVM substrate, not the app-facing API.</p>
 <p>  AVM still does not expose raw host networking to bytecode.</p>
 <ul>
-<li>The SDK also exposes <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code>. This</li>
+<li>Interactive <code>OrenAVMRuntimeConfig</code> now enables the live host-backed VNET provider</li>
 </ul>
-<p>  installs an embedder NET callback so OBC can call <code>std:net/avm.try_get_text(url)</code></p>
-<p>  and have the iOS SDK synchronously perform an allowlisted <code>URLSession</code> fetch while</p>
-<p>  the AVM worker is running. <code>make verify-libavm-ios</code> proves both prefetch and live</p>
-<p>  fetch modes against a local HTTP server.</p>
+<p>  by default, while deterministic defaults stay fixture/replay oriented. OBC still</p>
+<p>  only sees <code>std:net/avm.try_get_text(url)</code> and the AVM NET domain; the SDK owns</p>
+<p>  real <code>URLSession</code> access. Apps can dynamically enable, restrict, or disable live</p>
+<p>  NET with <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code> and</p>
+<p>  <code>disableLiveNetworkWithError:</code>, so user permission prompts and settings changes</p>
+<p>  do not need hardcoded OBC builds. The SDK reuses its ephemeral <code>NSURLSession</code> for</p>
+<p>  prefetch and live fetches instead of constructing one per OBC-triggered request.</p>
+<p>  <code>make verify-libavm-ios</code> proves fixture, prefetch, explicit live, and interactive-</p>
+<p>  default live fetch modes against a local HTTP server, including dynamic disable</p>
+<p>  and re-enable through the SDK.</p>
 <ul>
 <li>Performance work for virtual resources should continue as host-backed virtual</li>
 </ul>

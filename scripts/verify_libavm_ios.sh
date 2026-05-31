@@ -328,16 +328,22 @@ int main(void) {
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
+        BOOL defaultLiveNetwork = env[@"OREN_AVM_SDK_NET_DEFAULT_LIVE"] != nil;
 
         OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
         if (cfg.timeMode != OrenAVMTimeModeInteractiveWallClock) return 31;
         if (cfg.fsBackend != OrenAVMVirtualBackendVirtual) return 32;
         if (cfg.netBackend != OrenAVMVirtualBackendVirtual) return 33;
         if (cfg.procBackend != OrenAVMVirtualBackendVirtual) return 34;
+        if (!cfg.liveNetworkEnabled) return 69;
 
         OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
         if (!runtime) return 35;
         NSError* error = nil;
+        if (defaultLiveNetwork) {
+            if (![runtime disableLiveNetworkWithError:&error]) return 70;
+            if (![runtime enableLiveNetworkWithAllowedHosts:nil timeoutSeconds:5.0 error:&error]) return 71;
+        }
         if (![runtime setArgv:@[@"oren", @"ios", netURL, @"probe"] error:&error]) return 36;
         NSData* input = [@"abc" dataUsingEncoding:NSUTF8StringEncoding];
         if (![runtime putVFSFileAtPath:@"input.txt" data:input error:&error]) return 37;
@@ -365,7 +371,7 @@ int main(void) {
             NSURL* url = [NSURL URLWithString:netURL];
             NSSet<NSString*>* allowedHosts = [NSSet setWithObject:allowedHost];
             if (![runtime fetchURLIntoVirtualNet:url allowedHosts:allowedHosts timeoutSeconds:5.0 error:&error]) return 38;
-        } else if (![runtime putVirtualNetResponseForURL:netURL data:body error:&error]) {
+        } else if (!defaultLiveNetwork && ![runtime putVirtualNetResponseForURL:netURL data:body error:&error]) {
             return 38;
         }
         if (![runtime putVirtualProcExitForCommand:@"probe-ok" exitCode:21 error:&error]) return 39;
@@ -427,6 +433,9 @@ cat > "$TMP_DIR/sdk_module_smoke.m" <<'SMOKE'
 int main(void) {
     OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
     if (!cfg || cfg.timeMode != OrenAVMTimeModeInteractiveWallClock) return 1;
+    if (!cfg.liveNetworkEnabled) return 2;
+    OrenAVMRuntimeConfig* det = [OrenAVMRuntimeConfig deterministicDefaults];
+    if (!det || det.liveNetworkEnabled) return 3;
     return 0;
 }
 SMOKE
@@ -598,6 +607,9 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
+  "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
+OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
   "$HOST_SDK_BIN"
 cleanup_net_server
 trap - EXIT

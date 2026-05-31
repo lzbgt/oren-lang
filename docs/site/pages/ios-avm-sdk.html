@@ -69,9 +69,10 @@
 </ul>
 <p>  and virtual FS/NET/PROC.</p>
 <ul>
-<li><code>OrenAVMRuntimeConfig interactiveAppDefaults</code> keeps virtual FS/NET/PROC but</li>
+<li><code>OrenAVMRuntimeConfig interactiveAppDefaults</code> keeps virtual FS/NET/PROC, switches</li>
 </ul>
-<p>  switches TIME to wall-clock mode so <code>std:time.sleep_ms</code> delays the AVM worker.</p>
+<p>  TIME to wall-clock mode so <code>std:time.sleep_ms</code> delays the AVM worker, and enables</p>
+<p>  the live host-backed VNET provider by default.</p>
 <ul>
 <li><code>OrenAVMRuntime</code> exposes argv, VirtualFS put/get, VirtualNET fixture put,</li>
 </ul>
@@ -98,10 +99,13 @@
 <ul>
 <li><code>OrenAVMRuntime enableLiveNetworkWithAllowedHosts:timeoutSeconds:error:</code> installs</li>
 </ul>
-<p>  an embedder NET callback. When OBC calls <code>std:net/avm.try_get_text(url)</code> for a</p>
-<p>  URL not already in VirtualNET, the SDK can synchronously perform an allowlisted</p>
-<p>  <code>URLSession</code> fetch on the AVM worker and return the body to bytecode. This is a</p>
-<p>  convenience bridge for app integration, not raw socket authority.</p>
+<p>  or updates the embedder NET callback, and <code>disableLiveNetworkWithError:</code> removes</p>
+<p>  it. This lets the host app prompt users, grant/restrict/deny network policy, and</p>
+<p>  change that policy later while the same OBC program remains portable. When OBC</p>
+<p>  calls <code>std:net/avm.try_get_text(url)</code> for a URL not already in VirtualNET, the SDK</p>
+<p>  can synchronously perform an allowlisted <code>URLSession</code> fetch on the AVM worker and</p>
+<p>  return the body to bytecode. This is a convenience bridge for app integration,</p>
+<p>  not raw socket authority.</p>
 <ul>
 <li>The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,</li>
 </ul>
@@ -197,11 +201,20 @@
 <p>  <code>std:net/avm.try_get_text(url)</code>. This preserves deterministic AVM execution and</p>
 <p>  keeps iOS networking policy in the host SDK.</p>
 <ul>
-<li>Live callback mode is available for interactive apps that need OBC-triggered</li>
+<li>Live callback mode is enabled by the interactive app defaults so useful OBC app</li>
 </ul>
-<p>  HTTP fetches during a run. It is synchronous and must run on an AVM worker queue,</p>
-<p>  not the UI thread. Raw TCP/UDP/socket authority remains intentionally unavailable</p>
-<p>  until a separate session protocol and policy gate exists.</p>
+<p>  programs can reach the network through VNET without extra boilerplate. It remains</p>
+<p>  synchronous and must run on an AVM worker queue, not the UI thread. Apps can</p>
+<p>  disable it by clearing <code>liveNetworkEnabled</code> before runtime creation or by calling</p>
+<p>  <code>disableLiveNetworkWithError:</code> at runtime; apps can restrict/re-enable it with</p>
+<p>  <code>liveNetworkAllowedHosts</code> or <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code>.</p>
+<p>  Raw TCP/UDP/socket authority remains intentionally unavailable until a separate</p>
+<p>  session protocol and policy gate exists.</p>
+<ul>
+<li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
+</ul>
+<p>  <code>OrenAVMRuntime</code> so capability-enabled prefetch/live fetches use the fast SDK</p>
+<p>  provider path by default instead of rebuilding a session for each OBC request.</p>
 <ul>
 <li>Performance mode should still be VNET, not raw host networking. The SDK may back</li>
 </ul>
@@ -275,11 +288,14 @@
 <p>the SDK owns the platform translation. TIME may use deterministic or wall-clock</p>
 <p>worker-thread mode. FS mounts concrete app-owned file URLs into VirtualFS and</p>
 <p>exports selected VFS outputs back to app-owned file URLs. NET may prefetch through</p>
-<p>allowlisted <code>URLSession</code> into VirtualNET or perform synchronous allowlisted live</p>
-<p>fetches on the AVM worker. High-performance networking should be implemented as a</p>
-<p>host-backed VNET provider with virtual session handles, not as bytecode-visible</p>
-<p>native sockets. Raw TCP/UDP requires an explicit reviewed session protocol before</p>
-<p>exposure. PROC on iOS should remain</p>
+<p>allowlisted <code>URLSession</code> into VirtualNET or perform synchronous live fetches on the</p>
+<p>AVM worker through the interactive default provider. Network permission is a</p>
+<p>runtime host policy: an OBC app can request network capability, the host app can</p>
+<p>raise UI, and the SDK can then enable/restrict/disable the live provider without</p>
+<p>changing OBC. High-performance networking should be implemented as a host-backed</p>
+<p>VNET provider with virtual session handles, not as bytecode-visible native sockets.</p>
+<p>Raw TCP/UDP requires an explicit reviewed session protocol before exposure. PROC on</p>
+<p>iOS should remain</p>
 <p>VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.</p>
 <p>UI/GFX follows the same policy: the SDK may use CoreGraphics, Metal, <code>MTKView</code>,</p>
 <p>retained GPU resources, and display-link pacing, but OBC sees only compact binary</p>
