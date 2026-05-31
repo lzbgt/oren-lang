@@ -170,9 +170,12 @@
 <p>     release/discovery/download pages backed by the same signed index/package</p>
 <p>     schema. The first Go service slice now exists as <code>cmd/obc-store-server</code> /</p>
 <p>     <code>internal/obcstore</code>, with publisher/package/release publish, list/search,</p>
-<p>     signed index, download, and yank APIs. <code>make verify-libavm-ios</code> now starts</p>
-<p>     the Go service, publishes a signed package through the HTTP API, and proves</p>
-<p>     iOS SDK install/run from that service. Deployment and auth hardening remain.</p>
+<p>     signed index, download, and yank APIs. Write endpoints now accept an</p>
+<p>     external-hash bearer token for deployment automation, while Basic Auth is</p>
+<p>     retained for local bring-up. <code>make verify-libavm-ios</code> starts the Go service,</p>
+<p>     publishes a signed package through the HTTP API, and proves iOS SDK</p>
+<p>     install/run from that service. Deployment and publisher-scoped auth</p>
+<p>     hardening remain.</p>
 <p>     Design note:</p>
 <p>     <code>project-doc/obc_store_distribution_design_20260529.md</code>.</p>
 <ul>

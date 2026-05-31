@@ -15,12 +15,13 @@ Optional:
   OBC_STORE_REMOTE_DIR=/opt/oren/obc-store
   OBC_STORE_REMOTE_DATA_DIR=/srv/oren/obc-store
   OBC_STORE_ADMIN_ENV=../oren-ca/obc-store-admin.env
+  OBC_STORE_ADMIN_TOKEN_SHA256_HEX=<sha256 hex of deploy bearer token>
   OBC_STORE_INDEX_SIGN_KEY_PEM=../oren-ca/private/store_oren-store-dev_p256.pem
   OBC_STORE_COPY_INDEX_SIGNING_KEY=1
   OBC_STORE_SSH_OPTS="-o BatchMode=yes"
 
-After deploy, configure Traefik to route store.hubstack.cn to the service
-listener chosen by the host operator.
+The cloud host Traefik layer owns DNS and HTTPS for store.hubstack.cn. Configure
+its route to the service listener chosen by the host operator after deployment.
 USAGE
 }
 
@@ -50,8 +51,11 @@ fi
 
 # shellcheck disable=SC1090
 source "$admin_env"
-: "${OBC_STORE_ADMIN_USERNAME:?missing OBC_STORE_ADMIN_USERNAME in admin env}"
-: "${OBC_STORE_ADMIN_PASSWORD:?missing OBC_STORE_ADMIN_PASSWORD in admin env}"
+: "${OBC_STORE_ADMIN_USERNAME:=admin}"
+if [[ -z "${OBC_STORE_ADMIN_PASSWORD:-}" && -z "${OBC_STORE_ADMIN_TOKEN_SHA256_HEX:-}" ]]; then
+  echo "ERROR: admin env must set OBC_STORE_ADMIN_PASSWORD or OBC_STORE_ADMIN_TOKEN_SHA256_HEX" >&2
+  exit 2
+fi
 
 remote_arch="$(ssh $ssh_opts "$ssh_target" 'uname -m')"
 case "$remote_arch" in
@@ -87,7 +91,12 @@ fi
 env_tmp="$tmp_dir/obc-store.env"
 {
   printf 'OBC_STORE_ADMIN_USERNAME=%q\n' "$OBC_STORE_ADMIN_USERNAME"
-  printf 'OBC_STORE_ADMIN_PASSWORD=%q\n' "$OBC_STORE_ADMIN_PASSWORD"
+  if [[ -n "${OBC_STORE_ADMIN_PASSWORD:-}" ]]; then
+    printf 'OBC_STORE_ADMIN_PASSWORD=%q\n' "$OBC_STORE_ADMIN_PASSWORD"
+  fi
+  if [[ -n "${OBC_STORE_ADMIN_TOKEN_SHA256_HEX:-}" ]]; then
+    printf 'OBC_STORE_ADMIN_TOKEN_SHA256_HEX=%q\n' "$OBC_STORE_ADMIN_TOKEN_SHA256_HEX"
+  fi
   if [[ -n "$remote_index_key" ]]; then
     printf 'OBC_STORE_INDEX_SIGN_KEY_PEM=%q\n' "$remote_index_key"
   fi

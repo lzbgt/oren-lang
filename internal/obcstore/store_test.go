@@ -186,7 +186,49 @@ func TestStoreSignsStableIndex(t *testing.T) {
 	}
 }
 
+func TestStoreAcceptsBearerAdminTokenHash(t *testing.T) {
+	sum := sha256.Sum256([]byte("deploy-token"))
+	svc, err := New(Config{
+		DataDir:             t.TempDir(),
+		AdminTokenSHA256Hex: hex.EncodeToString(sum[:]),
+		Now: func() time.Time {
+			return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(svc.Handler())
+	defer ts.Close()
+
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs"}, "bad-token"); got.Code != http.StatusUnauthorized {
+		t.Fatalf("bad bearer status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs"}, "deploy-token"); got.Code != http.StatusCreated {
+		t.Fatalf("bearer publisher status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "token-demo"}, true); got.Code != http.StatusUnauthorized {
+		t.Fatalf("basic auth should be unavailable without password, status=%d", got.Code)
+	}
+}
+
 func request(t *testing.T, ts *httptest.Server, method, path string, body any, auth bool) *httptest.ResponseRecorder {
+	t.Helper()
+	req := newJSONRequest(t, ts, method, path, body)
+	if auth {
+		req.SetBasicAuth("admin", "secret")
+	}
+	return doRequest(t, req)
+}
+
+func requestBearer(t *testing.T, ts *httptest.Server, method, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := newJSONRequest(t, ts, method, path, body)
+	req.Header.Set("Authorization", "Bearer "+token)
+	return doRequest(t, req)
+}
+
+func newJSONRequest(t *testing.T, ts *httptest.Server, method, path string, body any) *http.Request {
 	t.Helper()
 	var reader *bytes.Reader
 	if body == nil {
@@ -203,9 +245,11 @@ func request(t *testing.T, ts *httptest.Server, method, path string, body any, a
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if auth {
-		req.SetBasicAuth("admin", "secret")
-	}
+	return req
+}
+
+func doRequest(t *testing.T, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
 	rec := httptest.NewRecorder()
 	http.DefaultServeMux = http.NewServeMux()
 	resp, err := http.DefaultClient.Do(req)

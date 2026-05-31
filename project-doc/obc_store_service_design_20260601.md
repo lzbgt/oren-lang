@@ -29,6 +29,7 @@ Tracked docs must reference only these keys, not the secret value:
 OBC_STORE_ADMIN_HOST
 OBC_STORE_ADMIN_USERNAME
 OBC_STORE_ADMIN_PASSWORD
+OBC_STORE_ADMIN_TOKEN_SHA256_HEX
 ```
 
 Later sessions and sibling projects such as `../note` can read that external file
@@ -75,8 +76,10 @@ Implemented in this repo:
 
 - `cmd/obc-store-server`: stdlib-only Go HTTP server entry point.
 - `internal/obcstore`: file-backed registry implementation.
-- Admin write endpoints use HTTP Basic Auth from environment variables:
-  `OBC_STORE_ADMIN_USERNAME` and `OBC_STORE_ADMIN_PASSWORD`.
+- Admin write endpoints accept deploy-safe bearer tokens verified by
+  `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`; HTTP Basic Auth from
+  `OBC_STORE_ADMIN_USERNAME` / `OBC_STORE_ADMIN_PASSWORD` remains available for
+  local bring-up and compatibility.
 - Public endpoints expose health, package list/search, package/version metadata,
   `index.json`, package manifests, `program.obc`, assets, and hash-addressed
   artifact lookup.
@@ -93,7 +96,7 @@ Implemented in this repo:
 Remaining service work before deployment:
 
 - signed index rotation/key-id publication beyond the current single-key signer;
-- production auth model for publishers/API tokens;
+- publisher-scoped API tokens and rotation beyond the current admin bearer token;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script

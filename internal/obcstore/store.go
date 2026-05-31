@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -34,17 +35,19 @@ type Config struct {
 	DataDir                string
 	AdminUser              string
 	AdminPassword          string
+	AdminTokenSHA256Hex    string
 	IndexSigningKeyPEMPath string
 	Now                    func() time.Time
 }
 
 type Service struct {
-	dataDir       string
-	adminUser     string
-	adminPassword string
-	indexSigner   *ecdsa.PrivateKey
-	now           func() time.Time
-	mu            sync.Mutex
+	dataDir        string
+	adminUser      string
+	adminPassword  string
+	adminTokenHash []byte
+	indexSigner    *ecdsa.PrivateKey
+	now            func() time.Time
+	mu             sync.Mutex
 }
 
 type Publisher struct {
@@ -127,12 +130,21 @@ func New(cfg Config) (*Service, error) {
 		}
 		indexSigner = key
 	}
+	var adminTokenHash []byte
+	if cfg.AdminTokenSHA256Hex != "" {
+		body, err := hex.DecodeString(strings.TrimSpace(cfg.AdminTokenSHA256Hex))
+		if err != nil || len(body) != sha256.Size {
+			return nil, errors.New("admin token hash must be a SHA-256 hex digest")
+		}
+		adminTokenHash = body
+	}
 	return &Service{
-		dataDir:       cfg.DataDir,
-		adminUser:     cfg.AdminUser,
-		adminPassword: cfg.AdminPassword,
-		indexSigner:   indexSigner,
-		now:           now,
+		dataDir:        cfg.DataDir,
+		adminUser:      cfg.AdminUser,
+		adminPassword:  cfg.AdminPassword,
+		adminTokenHash: adminTokenHash,
+		indexSigner:    indexSigner,
+		now:            now,
 	}, nil
 }
 
@@ -761,17 +773,33 @@ func (s *Service) publishedReleases() ([]ReleaseMeta, error) {
 }
 
 func (s *Service) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if s.adminUser == "" || s.adminPassword == "" {
+	if s.adminPassword == "" && len(s.adminTokenHash) == 0 {
 		http.Error(w, "admin auth is not configured", http.StatusServiceUnavailable)
 		return false
 	}
+	if len(s.adminTokenHash) > 0 && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		sum := sha256.Sum256([]byte(token))
+		if subtle.ConstantTimeCompare(sum[:], s.adminTokenHash) == 1 {
+			return true
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
 	u, p, ok := r.BasicAuth()
-	if !ok || u != s.adminUser || p != s.adminPassword {
+	if !ok || s.adminUser == "" || s.adminPassword == "" || constantTimeStringEqual(u, s.adminUser) != 1 || constantTimeStringEqual(p, s.adminPassword) != 1 {
 		w.Header().Set("WWW-Authenticate", `Basic realm="obc-store"`)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return false
 	}
 	return true
+}
+
+func constantTimeStringEqual(a, b string) int {
+	if len(a) != len(b) {
+		return 0
+	}
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b))
 }
 
 func (s *Service) publisherPath(id string) string {

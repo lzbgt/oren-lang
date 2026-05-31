@@ -18,10 +18,12 @@ func main() {
 
 	adminUser := os.Getenv("OBC_STORE_ADMIN_USERNAME")
 	adminPassword := os.Getenv("OBC_STORE_ADMIN_PASSWORD")
+	adminTokenHash := os.Getenv("OBC_STORE_ADMIN_TOKEN_SHA256_HEX")
 	svc, err := obcstore.New(obcstore.Config{
 		DataDir:                *dataDir,
 		AdminUser:              adminUser,
 		AdminPassword:          adminPassword,
+		AdminTokenSHA256Hex:    adminTokenHash,
 		IndexSigningKeyPEMPath: *indexSigningKey,
 	})
 	if err != nil {
