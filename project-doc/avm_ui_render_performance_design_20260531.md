@@ -72,10 +72,11 @@ Implemented as of 2026-05-31:
   timing records.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
-  `image_rgba`, `draw_image`, `destroy_image`, and `draw_image_rect`.
+  `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
+  `destroy_image`, and `draw_image_rect`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native and retained text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -87,8 +88,9 @@ Implemented as of 2026-05-31:
   frame hot path. `image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect` is the first
   OBC-visible retained sprite resource lifetime and atlas sub-rect path. Oren-side
   validation can gate per-frame image upload bytes/count, and SDK renderers expose
-  retained image count/pixel limits and counters. Text atlas and richer resources
-  remain the next performance steps.
+  retained image count/pixel limits and counters. Retained text records avoid
+  resending repeated UTF-8 labels every frame; richer glyph atlas batching and
+  mesh resources remain the next performance steps.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on
@@ -192,6 +194,9 @@ High-volume 2D and 3D need retained resources:
 - explicit budgets: `std:ui/commands` accepts `max_image_bytes` and
   `max_image_count`, and iOS CoreGraphics/Metal renderers expose retained image
   count/pixel limits plus current counters;
+- retained text records: `text_resource {id,data,color}` uploads UTF-8 bytes once,
+  `draw_text {id,x,y}` draws the virtual text handle, and `destroy_text {id}`
+  releases the host-side retained label;
 - path/shape handles;
 - vertex/index buffers for plots and meshes;
 - transform, clip, layer, and canvas records;
@@ -282,6 +287,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     iOS verifier coverage.
 14. Done: add explicit retained image budgets: Oren-side image upload byte/count
     validation plus iOS SDK retained image count/pixel limits and counters.
-15. Add text atlas/sprite/mesh rendering on the Metal path.
-16. Add richer 2D and 3D command sets.
-17. Add game/app package smoke in the Note host or iOS SDK harness.
+15. Done: add first retained text resource records (`text_resource`,
+    `draw_text`, `destroy_text`) across validation, binary frames, AVM protocol
+    checks, deterministic raster, CoreGraphics fallback, Metal text cache, and
+    iOS verifier coverage.
+16. Add richer sprite/text atlas batching and mesh rendering on the Metal path.
+17. Add richer 2D and 3D command sets.
+18. Add game/app package smoke in the Note host or iOS SDK harness.

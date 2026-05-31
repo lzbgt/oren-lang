@@ -142,20 +142,22 @@
 <li>The first default iOS renderer is implemented as <code>OrenAVMGraphicsView</code>, a</li>
 </ul>
 <p>	  UIKit/CoreGraphics <code>UIView</code> that decodes the current <code>OGF0</code> binary frame subset</p>
-<p>	  (<code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>,</p>
-<p>	  <code>fill_triangle</code>, <code>image_rgba</code>, <code>draw_image</code>, <code>destroy_image</code>, and</p>
-<p>	  <code>draw_image_rect</code>) and enqueues pointer events back through the <code>OGE0</code> input</p>
+<p>		  (<code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>,</p>
+<p>		  <code>fill_triangle</code>, <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>,</p>
+<p>		  <code>image_rgba</code>, <code>draw_image</code>, <code>destroy_image</code>, and</p>
+<p>		  <code>draw_image_rect</code>) and enqueues pointer events back through the <code>OGE0</code> input</p>
 <p>  mailbox. This is the default 2D fallback.</p>
 <ul>
 <li>The first high-volume renderer is implemented as <code>OrenAVMMetalView</code>, an</li>
 </ul>
-<p>	  <code>MTKView</code> adapter that owns the Metal draw loop, publishes host screen/media</p>
-<p>	  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
-<p>	  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native text payloads through Metal</p>
-<p>	  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect</p>
+<p>		  <code>MTKView</code> adapter that owns the Metal draw loop, publishes host screen/media</p>
+<p>		  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
+<p>		  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native/retained text payloads through Metal</p>
+<p>		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect</p>
 <p>	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal</p>
 <p>	  renderers also expose retained image count/pixel limits and counters so host apps</p>
-<p>	  can bound sprite/atlas memory. Text atlas resources remain pending.</p>
+<p>		  can bound sprite/atlas memory. Retained text records now avoid resending</p>
+<p>		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.</p>
 <ul>
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>

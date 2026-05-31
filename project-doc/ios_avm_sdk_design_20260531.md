@@ -86,18 +86,20 @@ Retained SDK slices on 2026-05-31:
   binary pointer event through the SDK, and clears the frame.
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
 	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
-	  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`,
-	  `fill_triangle`, `image_rgba`, `draw_image`, `destroy_image`, and
-	  `draw_image_rect`) and enqueues pointer events back through the `OGE0` input
+		  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`,
+		  `fill_triangle`, `text_resource`, `draw_text`, `destroy_text`,
+		  `image_rgba`, `draw_image`, `destroy_image`, and
+		  `draw_image_rect`) and enqueues pointer events back through the `OGE0` input
   mailbox. This is the default 2D fallback.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
-	  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
-	  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-	  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native text payloads through Metal
-	  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
+		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
+		  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
+		  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native/retained text payloads through Metal
+		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
-	  can bound sprite/atlas memory. Text atlas resources remain pending.
+		  can bound sprite/atlas memory. Retained text records now avoid resending
+		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, and UTF-8 text-input events. These are still
   mailbox records, not UIKit objects.

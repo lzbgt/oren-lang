@@ -113,12 +113,13 @@
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
 <p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
-<p>  <code>image_rgba</code>, <code>draw_image</code>, <code>destroy_image</code>, and <code>draw_image_rect</code>.</p>
+<p>  <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
+<p>  <code>destroy_image</code>, and <code>draw_image_rect</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native and retained text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -130,8 +131,9 @@
 <p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code> is the first</p>
 <p>  OBC-visible retained sprite resource lifetime and atlas sub-rect path. Oren-side</p>
 <p>  validation can gate per-frame image upload bytes/count, and SDK renderers expose</p>
-<p>  retained image count/pixel limits and counters. Text atlas and richer resources</p>
-<p>  remain the next performance steps.</p>
+<p>  retained image count/pixel limits and counters. Retained text records avoid</p>
+<p>  resending repeated UTF-8 labels every frame; richer glyph atlas batching and</p>
+<p>  mesh resources remain the next performance steps.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
@@ -244,6 +246,11 @@
 </ul>
 <p>  <code>max_image_count</code>, and iOS CoreGraphics/Metal renderers expose retained image</p>
 <p>  count/pixel limits plus current counters;</p>
+<ul>
+<li>retained text records: <code>text_resource {id,data,color}</code> uploads UTF-8 bytes once,</li>
+</ul>
+<p>  <code>draw_text {id,x,y}</code> draws the virtual text handle, and <code>destroy_text {id}</code></p>
+<p>  releases the host-side retained label;</p>
 <ul>
 <li>path/shape handles;</li>
 <li>vertex/index buffers for plots and meshes;</li>
@@ -369,7 +376,13 @@
 </ol>
 <p>    validation plus iOS SDK retained image count/pixel limits and counters.</p>
 <ol>
-<li>Add text atlas/sprite/mesh rendering on the Metal path.</li>
+<li>Done: add first retained text resource records (<code>text_resource</code>,</li>
+</ol>
+<p>    <code>draw_text</code>, <code>destroy_text</code>) across validation, binary frames, AVM protocol</p>
+<p>    checks, deterministic raster, CoreGraphics fallback, Metal text cache, and</p>
+<p>    iOS verifier coverage.</p>
+<ol>
+<li>Add richer sprite/text atlas batching and mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
 <li>Add game/app package smoke in the Note host or iOS SDK harness.</li>
 </ol>

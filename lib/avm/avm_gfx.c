@@ -96,6 +96,26 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangle payload");
                 return 0;
             }
+        } else if (opcode == 68u) {
+            if (payload_len < 12u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text_resource payload");
+                return 0;
+            }
+            uint32_t text_len = avm_gfx_u32le(payload + 8);
+            if (text_len != (uint32_t)payload_len - 12u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: text_resource length mismatch");
+                return 0;
+            }
+        } else if (opcode == 69u) {
+            if (payload_len != 12u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_text payload");
+                return 0;
+            }
+        } else if (opcode == 70u) {
+            if (payload_len != 4u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad destroy_text payload");
+                return 0;
+            }
         } else if (opcode == 64u) {
             if (payload_len < 16u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad image_rgba payload");

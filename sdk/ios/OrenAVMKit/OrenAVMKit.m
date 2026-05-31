@@ -237,6 +237,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 @interface OrenAVMGraphicsView ()
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -250,6 +251,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     self.multipleTouchEnabled = YES;
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
+    if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
     if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
@@ -517,6 +519,33 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                     [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
                 }
             }
+        } else if (opcode == 68 && payloadLen >= 12) {
+            uint32_t textID = OrenAVMGfxReadU32LE(payload);
+            UIColor* color = OrenAVMGfxColor(payload + 4);
+            uint32_t textLen = OrenAVMGfxReadU32LE(payload + 8);
+            if (textLen == (uint32_t)payloadLen - 12u) {
+                NSString* text = [[NSString alloc] initWithBytes:payload + 12
+                                                          length:(NSUInteger)textLen
+                                                        encoding:NSUTF8StringEncoding];
+                if (text) self.orenTextResources[@(textID)] = @{@"text": text, @"color": color};
+            }
+        } else if (opcode == 69 && payloadLen == 12) {
+            uint32_t textID = OrenAVMGfxReadU32LE(payload);
+            uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
+            NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)];
+            NSString* text = resource[@"text"];
+            UIColor* color = resource[@"color"];
+            if (text && color) {
+                NSDictionary<NSAttributedStringKey, id>* attrs = @{
+                    NSForegroundColorAttributeName: color,
+                    NSFontAttributeName: [UIFont systemFontOfSize:14.0]
+                };
+                [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
+            }
+        } else if (opcode == 70 && payloadLen == 4) {
+            uint32_t textID = OrenAVMGfxReadU32LE(payload);
+            [self.orenTextResources removeObjectForKey:@(textID)];
         } else if (opcode == 64 && payloadLen >= 16) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
             uint32_t iw = OrenAVMGfxReadU32LE(payload + 4);

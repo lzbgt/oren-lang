@@ -33,6 +33,14 @@ typedef struct {
 @implementation OrenAVMMetalTextRun
 @end
 
+@interface OrenAVMMetalTextResource : NSObject
+@property(nonatomic, copy) NSString* text;
+@property(nonatomic, copy) NSData* rgba;
+@end
+
+@implementation OrenAVMMetalTextResource
+@end
+
 @interface OrenAVMMetalImageRun : NSObject
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic, strong) NSData* vertices;
@@ -272,6 +280,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong) NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
 @property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
 @property(nonatomic) NSUInteger orenTextCachePixels;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -319,6 +328,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
+    if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
     if (!self.orenImageTextures) self.orenImageTextures = [NSMutableDictionary dictionary];
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
@@ -800,9 +810,40 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                     y:(float)y
                                                                   rgba:payload + 8
                                                           logicalWidth:(float)logicalW
-                                                         logicalHeight:(float)logicalH];
+	                                                         logicalHeight:(float)logicalH];
                 if (run) [textRuns addObject:run];
             }
+        } else if (opcode == 68 && payloadLen >= 12) {
+            uint32_t textID = OrenAVMMetalReadU32LE(payload);
+            uint32_t textLen = OrenAVMMetalReadU32LE(payload + 8);
+            if (textLen == (uint32_t)payloadLen - 12u) {
+                NSString* text = [[NSString alloc] initWithBytes:payload + 12
+                                                          length:(NSUInteger)textLen
+                                                        encoding:NSUTF8StringEncoding];
+                if (text) {
+                    OrenAVMMetalTextResource* resource = [[OrenAVMMetalTextResource alloc] init];
+                    resource.text = text;
+                    resource.rgba = [NSData dataWithBytes:payload + 4 length:4];
+                    self.orenTextResources[@(textID)] = resource;
+                }
+            }
+        } else if (opcode == 69 && payloadLen == 12) {
+            uint32_t textID = OrenAVMMetalReadU32LE(payload);
+            uint32_t x = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
+            OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
+            if (resource.text && resource.rgba.length == 4) {
+                OrenAVMMetalTextRun* run = [self orenTextRunWithText:resource.text
+                                                                   x:(float)x
+                                                                   y:(float)y
+                                                                 rgba:resource.rgba.bytes
+                                                         logicalWidth:(float)logicalW
+                                                        logicalHeight:(float)logicalH];
+                if (run) [textRuns addObject:run];
+            }
+        } else if (opcode == 70 && payloadLen == 4) {
+            uint32_t textID = OrenAVMMetalReadU32LE(payload);
+            [self.orenTextResources removeObjectForKey:@(textID)];
         } else if (opcode == 64 && payloadLen >= 16) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t iw = OrenAVMMetalReadU32LE(payload + 4);

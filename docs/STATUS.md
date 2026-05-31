@@ -261,14 +261,14 @@ Facts from the 2026-05-28 implementation pass:
   publishes a binary frame, retrieves it through the SDK, injects a binary pointer
   event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
 		  UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
-		  `text_bytes`/`stroke_line`/`circle`/`fill_triangle`/`image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect` frame subset and can enqueue pointer, resize, key, and
+			  `text_bytes`/`text_resource`/`draw_text`/`destroy_text`/`stroke_line`/`circle`/`fill_triangle`/`image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
   events with logical size, native drawable size, device scale, target refresh,
   and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
   consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/stroke-line/
-		  circle/fill-triangle geometry, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native text payloads through Metal pipelines. Its `targetHzMilli` setting
+			  circle/fill-triangle geometry, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native/retained text payloads through Metal pipelines. Its `targetHzMilli` setting
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels, and host apps can clear that cache
   on memory pressure. The UI input stream now also carries validated `frame_tick`
@@ -276,7 +276,7 @@ Facts from the 2026-05-28 implementation pass:
   event path instead of polling raw platform clocks. Frame ticks are coalesced so
   stale timing records cannot fill the input FIFO and starve real input. The Metal
 	  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-		  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes, with Oren-side image upload budgets and SDK retained image count/pixel budgets; text atlas resources remain next. UIKit/CoreGraphics
+			  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes, with Oren-side image upload budgets and SDK retained image count/pixel budgets; retained text upload/draw/destroy records now avoid resending repeated UTF-8 labels every frame, while richer glyph atlas batching remains next. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual

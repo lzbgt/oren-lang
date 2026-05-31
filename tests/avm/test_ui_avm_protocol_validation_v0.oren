@@ -101,6 +101,17 @@ fn main() {
     assert_true(oren_is_err(r8))
     assert_true(oren_err_code(r8) == 4)
 
+    var bad_text_resource = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        68, 0, 14, 0,
+        1, 0, 0, 0, 255, 255, 255, 255, 3, 0, 0, 0, 65, 66
+    ])
+    var r9 = ui_avm.present_bytes(bad_text_resource)
+    assert_true(oren_is_err(r9))
+    assert_true(oren_err_code(r9) == 4)
+
     exit(0)
 }
 

@@ -147,6 +147,30 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, tn2)
         return _append_bytes(out, tb2)
     }
+    if op == "text_resource" {
+        var trb = c["data"]
+        var trn = bytes.try_len(trb)
+        if oren_is_err(trn) { return trn }
+        if trn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_resource too large") }
+        _push_op_header(out, 68, 12 + trn)
+        _push_u32_le(out, c["id"])
+        var trc = _push_color_rgba(out, c["color"])
+        if oren_is_err(trc) { return trc }
+        _push_u32_le(out, trn)
+        return _append_bytes(out, trb)
+    }
+    if op == "draw_text" {
+        _push_op_header(out, 69, 12)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        return 0
+    }
+    if op == "destroy_text" {
+        _push_op_header(out, 70, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
     if op == "image_rgba" {
         var ib = c["data"]
         var image_n = bytes.try_len(ib)

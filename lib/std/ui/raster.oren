@@ -21,6 +21,9 @@
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
 //     purely as a deterministic marker for tests.
+// - {"op":"text_resource","id":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"draw_text","id":int,"x":int,"y":int}
+// - {"op":"destroy_text","id":int}
 // - {"op":"image_rgba","id":int,"w":int,"h":int,"data":bytes}
 // - {"op":"draw_image","id":int,"x":int,"y":int,"w":int,"h":int}
 // - {"op":"destroy_image","id":int}
@@ -187,6 +190,7 @@ fn rasterize(cmds, w, h, opts) {
     if cmds == nil { return buf }
 
     var images = {}
+    var texts = {}
     var ci = 0
     while ci < oren_list_len(cmds) {
         var opm = cmds[ci]
@@ -252,6 +256,25 @@ fn rasterize(cmds, w, h, opts) {
                 _set_px_rgba(buf, w, h, bx + bj, by, c3["r"], c3["g"], c3["b"], c3["a"])
                 bj = bj + 1
             }
+        } else if op == "text_resource" {
+            texts[oren_int_to_string(opm["id"])] = opm
+        } else if op == "draw_text" {
+            var text_resource = texts[oren_int_to_string(opm["id"])]
+            if text_resource == nil { return oren_err(4, "rasterize: draw_text missing text") }
+            var tc = ui_color.try_parse_hex(text_resource["color"])
+            if oren_is_err(tc) { return result.with_context(tc, "rasterize: draw_text color") }
+            var tb = text_resource["data"]
+            var tn = bytes.try_len(tb)
+            if oren_is_err(tn) { return result.with_context(tn, "rasterize: draw_text data") }
+            var tx2 = opm["x"]
+            var ty2 = opm["y"]
+            var ti = 0
+            while ti < tn {
+                _set_px_rgba(buf, w, h, tx2 + ti, ty2, tc["r"], tc["g"], tc["b"], tc["a"])
+                ti = ti + 1
+            }
+        } else if op == "destroy_text" {
+            texts[oren_int_to_string(opm["id"])] = nil
         } else if op == "image_rgba" {
             images[oren_int_to_string(opm["id"])] = opm
         } else if op == "draw_image" {

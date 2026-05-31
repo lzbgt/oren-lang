@@ -134,6 +134,23 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if by < 0 || by >= h || bx < 0 || bx + blen > w { return oren_err(4, "ui.validate: text_bytes out of bounds") }
             }
+        } else if op == "text_resource" {
+            var tid = c["id"]; var td = c["data"]; var tcolr = c["color"]
+            if _is_int(tid) == false || tid < 1 { return oren_err(4, "ui.validate: text_resource invalid id") }
+            var tlen = bytes.try_len(td)
+            if oren_is_err(tlen) { return oren_err(4, "ui.validate: text_resource expects byte data") }
+            if tlen > 65519 { return oren_err(4, "ui.validate: text_resource data too large") }
+            if _hex_ok(tcolr) == false { return oren_err(4, "ui.validate: text_resource invalid color") }
+        } else if op == "draw_text" {
+            var dtid = c["id"]; var dtx = c["x"]; var dty = c["y"]
+            if _is_int(dtid) == false || dtid < 1 { return oren_err(4, "ui.validate: draw_text invalid id") }
+            if _is_int(dtx) == false || _is_int(dty) == false { return oren_err(4, "ui.validate: draw_text expects int x,y") }
+            if strict {
+                if dtx < 0 || dty < 0 || dtx >= w || dty >= h { return oren_err(4, "ui.validate: draw_text out of bounds") }
+            }
+        } else if op == "destroy_text" {
+            var xtid = c["id"]
+            if _is_int(xtid) == false || xtid < 1 { return oren_err(4, "ui.validate: destroy_text invalid id") }
         } else if op == "image_rgba" {
             var iid = c["id"]; var iw = c["w"]; var ih = c["h"]; var idata = c["data"]
             if _is_int(iid) == false || iid < 1 { return oren_err(4, "ui.validate: image_rgba invalid id") }

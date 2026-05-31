@@ -67,6 +67,23 @@ fn test_validate_text_bytes() {
     assert_true(oren_is_err(r2) == true)
 }
 
+fn test_validate_text_resource() {
+    var data = bytes.try_pack([65, 66])
+    assert_true(oren_is_err(data) == false)
+    var cmds = [
+        {"op": "text_resource", "id": 1, "data": data, "color": "#ffffff"},
+        {"op": "draw_text", "id": 1, "x": 0, "y": 0},
+        {"op": "destroy_text", "id": 1}
+    ]
+    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 1, {"strict_bounds": true})) == false)
+    var bad_upload = [{"op": "text_resource", "id": 0, "data": data, "color": "#ffffff"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_upload, 2, 1, nil)) == true)
+    var bad_draw = [{"op": "draw_text", "id": 1, "x": 2, "y": 0}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_draw, 2, 1, {"strict_bounds": true})) == true)
+    var bad_destroy = [{"op": "destroy_text", "id": 0}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_destroy, 2, 1, nil)) == true)
+}
+
 fn test_validate_image() {
     var px = bytes.try_pack([255, 0, 0, 255])
     assert_true(oren_is_err(px) == false)
@@ -97,6 +114,7 @@ fn main() {
     test_validate_bad_framebuffer_size_type()
     test_validate_triangle()
     test_validate_text_bytes()
+    test_validate_text_resource()
     test_validate_image()
     exit(0)
 }

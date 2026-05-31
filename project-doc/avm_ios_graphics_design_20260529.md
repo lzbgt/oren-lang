@@ -38,7 +38,8 @@ The first retained implementation slices exist as of 2026-05-31:
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `text`/`text_bytes`/`stroke_line`/`circle`/`fill_triangle`/`image_rgba`/
-  `draw_image`/`destroy_image`/`draw_image_rect` subset. It decodes frame bytes on the host side
+  `draw_image`/`destroy_image`/`draw_image_rect` plus retained
+  `text_resource`/`draw_text`/`destroy_text` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
   key, and UTF-8 text input events, plus host-populated persistent screen state.
@@ -171,7 +172,8 @@ logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
 cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
-`image_rgba`, `draw_image`, `destroy_image`, `draw_image_rect`, pointer, resize, media-query, key, and text
+`text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
+`destroy_image`, `draw_image_rect`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.
 
@@ -337,7 +339,8 @@ Required gates before Note integration should be called production-ready:
 11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
     Metal draw loop, publishes screen state, forwards touch input, and renders the
     current `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry records plus
-    retained image upload/draw/destroy/sub-rect atlas records.
+    retained image upload/draw/destroy/sub-rect atlas records and retained text
+    upload/draw/destroy records.
 12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
     `OrenAVMMetalView`, runs a bundled OBC, renders one frame, and injects one touch.
 13. Add IME/composition helpers.
