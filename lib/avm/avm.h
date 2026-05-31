@@ -217,6 +217,8 @@ typedef struct {
     // GFX frame mailbox (rolling): latest validated host-renderable frame payload.
     uint8_t* gfx_frame_data;
     size_t gfx_frame_len;
+    // GFX input mailbox (rolling): FIFO UTF-8 JSON event payloads from host adapters.
+    void* gfx_input_queue;
 
     // Embedder stdout capture (rolling): disabled for CLI by default, enabled by libavm embed.
     int stdout_capture_enabled;

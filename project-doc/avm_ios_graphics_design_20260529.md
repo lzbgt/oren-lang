@@ -22,20 +22,26 @@ The right split is:
 
 ## Current Implementation Slice
 
-The first retained implementation slice exists as of 2026-05-31:
+The first retained implementation slices exist as of 2026-05-31:
 
-- `lib/avm` has a GFX capability domain and a latest-frame mailbox.
+- `lib/avm` has a GFX capability domain, a latest-frame mailbox, and a FIFO
+  input-event mailbox.
 - `lib/avm/avm_embed.h` exposes `avm_embed_gfx_frame_get(...)` and
-  `avm_embed_gfx_frame_clear(...)`.
+  `avm_embed_gfx_frame_clear(...)` for host rendering, plus
+  `avm_embed_gfx_input_put(...)` for host-to-OBC input events.
 - `lib/std/ui/avm.oren` serializes validated `std:ui` v0 command buffers into
-  `oren.gfx.frame.v0` JSON and publishes them with `oren_gfx_present_frame(...)`.
+  compact `oren.gfx.frame.bin0` bytes and publishes them with
+  `oren_gfx_present_frame(...)`.
 - `sdk/ios/OrenAVMKit` exposes `getGraphicsFrameDataWithError:` and
-  `clearGraphicsFrameWithError:`.
+  `clearGraphicsFrameWithError:`, plus low-level input-byte enqueue and a binary
+  pointer-event helper.
 - `make verify-libavm-ios` proves the chain by running OBC that publishes a frame,
-  then retrieving and clearing that frame through the host SDK smoke.
+  retrieving/clearing that frame through the host SDK smoke, injecting a pointer
+  event, and consuming that event from OBC.
 
-Still pending: input-event mailbox, UIKit/CoreGraphics/Metal rendering adapter, 2D
-geometry expansion beyond the existing `std:ui` v0 command set, and 3D mesh commands.
+Still pending: UIKit/CoreGraphics/Metal rendering adapter, keyboard/resize/text input
+helpers, 2D geometry expansion beyond the existing `std:ui` v0 command set, and 3D
+mesh commands.
 
 ## Source Facts
 
@@ -48,8 +54,8 @@ geometry expansion beyond the existing `std:ui` v0 command set, and 3D mesh comm
   It describes `MTKView` as a Metal-aware view that creates, configures, and displays
   Metal objects, backed by `CAMetalLayer`.
 - Current AVM embed API: `lib/avm/avm_embed.h` exposes argv, VFS, VNET, VPROC,
-  stdout capture, OBC load/run helpers, and a GFX latest-frame mailbox. It does not
-  yet expose an input-event queue, texture/buffer handoff, or host renderer adapter.
+  stdout capture, OBC load/run helpers, and GFX frame/input mailboxes. It does not
+  yet expose texture/buffer handoff or a host renderer adapter.
 - Current Oren UI stdlib: `lib/std/ui/` already uses the right architectural pattern:
   headless node/render command buffers plus a deterministic software rasterizer and a
   separate host shim. That pattern should be generalized for AVM app graphics.
@@ -94,6 +100,25 @@ To make that practical, ship host conformance assets with the feature:
 - capability and budget tests for oversized frames, unsupported schema versions, and
   missing graphics permission.
 
+### 0.1. Authoring Format vs Runtime Transport
+
+UI layout and event semantics may be specified with a high-level declarative format
+later, including JSON-like documents or a QML-like layer. That format is for authoring,
+inspection, package manifests, and tooling.
+
+The AVM-host transport should not use JSON as its production protocol. High-frequency
+frames and input events must cross the bridge as compact binary streams:
+
+- versioned magic headers (`OGF0` for frame stream v0, `OGE0` for event stream v0);
+- little-endian fixed-width integers;
+- small opcodes plus payload lengths;
+- bounded byte payloads for future text, image, mesh, and shader/material records;
+- no host platform object pointers and no UIKit/Metal/OpenGL handles.
+
+This keeps the low-level bridge bit-level efficient and easy to validate. If a future
+`std:ui/layout` accepts JSON/QML-like source, its compiler/lowerer should produce the
+same binary `std:ui/avm` frame/event streams before calling `oren_gfx_present_frame`.
+
 Oren should also ship optional host-side extension SDK components, not just schemas.
 These SDKs are platform-specific packages maintained with the Oren/libavm contract:
 
@@ -125,20 +150,12 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
                             AvmEmbedResult* r);
 ```
 
-The first two functions are implemented. `avm_embed_gfx_input_put(...)` remains a
-planned input-event mailbox API.
-
-The payload should be a versioned binary or canonical JSON envelope in v0:
-
-```json
-{
-  "schema": "oren.gfx.frame.v0",
-  "w": 1179,
-  "h": 2556,
-  "scale": 3,
-  "ops": []
-}
-```
+All three functions are implemented. Current frame payloads use
+`oren.gfx.frame.bin0`: magic `OGF0`, version/flags/reserved, width, height, scale,
+op-count, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
+magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
+cover `fill_rect`, `text`, and pointer events; later geometry, keyboard, resize,
+mesh, image, and material opcodes should extend the same binary stream.
 
 The retained implementation uses the explicit graphics mailbox, not VFS or stdout.
 Frame publication is charged against AVM I/O budget so graphics output cannot grow
@@ -246,8 +263,8 @@ Frame publication should fail with an AVM graphics budget error, not crash or si
 
 Required gates before Note integration should be called production-ready:
 
-1. AVM bytecode fixture creates a 2D frame and host test reads it from the graphics mailbox. Done for frame get/clear.
-2. Host-side C embed smoke validates `avm_embed_gfx_frame_get`; input injection remains pending.
+1. AVM bytecode fixture creates a 2D binary frame and host test reads it from the graphics mailbox. Done for frame get/clear.
+2. Host-side C embed smoke validates `avm_embed_gfx_frame_get` and `avm_embed_gfx_input_put`.
 3. iOS simulator/device link smoke proves the new graphics API exports from
    `LibAVM.xcframework`.
 4. Note-side Swift smoke mounts `MTKView`, runs a bundled OBC, renders one 2D frame, and
@@ -257,12 +274,13 @@ Required gates before Note integration should be called production-ready:
 
 ## Implementation Order
 
-1. Done: define `oren.gfx.frame.v0` for existing `std:ui` v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.
-2. Done: add `std:ui/avm` and AVM/iOS verifier coverage that publishes a `fill_rect` frame.
+1. Done: define `oren.gfx.frame.bin0` for existing `std:ui` v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.
+2. Done: add `std:ui/avm` and AVM/iOS verifier coverage that publishes a binary `fill_rect` frame.
 3. Done: add iOS C/SDK smoke to `make verify-libavm-ios` for exported graphics symbols and frame retrieval.
-4. Next: add input-event mailbox.
+4. Done: add binary input-event mailbox and pointer-event SDK helper.
 5. Next: add Note Swift/ObjC bridge smoke using UIKit/CoreGraphics or `MTKView` and one frame.
-6. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` after the current `std:ui` frame path is proven in the app.
+6. Add keyboard/resize/text input helpers.
+7. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` after the current `std:ui` frame path is proven in the app.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
 right app boundary: AVM computes and describes frames; iOS renders them.

@@ -78,6 +78,8 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 - (nullable OrenAVMRunResult*)runOBCData:(NSData*)obcData error:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getGraphicsFrameDataWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsInputEventData:(NSData*)data error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError* _Nullable* _Nullable)error;
 
 @end
 

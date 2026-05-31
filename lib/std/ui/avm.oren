@@ -1,65 +1,134 @@
 // std:ui/avm (rolling)
 //
-// AVM graphics bridge for host-rendered UI frames. This module serializes the
-// current std:ui v0 command buffer into a stable frame envelope and publishes it
-// to the AVM GFX mailbox. The host app owns actual drawing.
+// AVM graphics bridge for host-rendered UI frames. The production mailbox payload
+// is a compact little-endian byte stream; host apps own actual drawing.
 
 import ui_cmds "std:ui/commands"
-import json "std:json"
+import ui_color "std:ui/color"
+import bytes "std:bytes"
 
-fn _jcmd(c) {
-    var op = c["op"]
-    if op == "fill_rect" {
-        return json.jobject({
-            "op": json.jstring("fill_rect"),
-            "x": json.jint(c["x"]),
-            "y": json.jint(c["y"]),
-            "w": json.jint(c["w"]),
-            "h": json.jint(c["h"]),
-            "color": json.jstring(c["color"])
-        })
-    }
-    if op == "text" {
-        return json.jobject({
-            "op": json.jstring("text"),
-            "x": json.jint(c["x"]),
-            "y": json.jint(c["y"]),
-            "text": json.jstring(c["text"]),
-            "color": json.jstring(c["color"])
-        })
-    }
-    return json.jobject({"op": json.jstring("unknown")})
+fn _push_u8(out, v) {
+    oren_list_push(out, v & 255)
 }
 
-fn frame_json(cmds, w, h, opts) {
+fn _push_u16_le(out, v) {
+    _push_u8(out, v)
+    _push_u8(out, v >> 8)
+}
+
+fn _u32_bits(v) {
+    if v < 0 { return 4294967296 + v }
+    return v
+}
+
+fn _push_u32_le(out, v) {
+    var x = _u32_bits(v)
+    _push_u8(out, x)
+    _push_u8(out, x >> 8)
+    _push_u8(out, x >> 16)
+    _push_u8(out, x >> 24)
+}
+
+fn _push_color_rgba(out, s) {
+    var c = ui_color.parse_hex(s)
+    if oren_is_err(c) { return c }
+    _push_u8(out, c["r"])
+    _push_u8(out, c["g"])
+    _push_u8(out, c["b"])
+    _push_u8(out, c["a"])
+    return 0
+}
+
+fn _append_bytes(out, bs) {
+    var n = bytes.try_len(bs)
+    if oren_is_err(n) { return n }
+    var i = 0
+    while i < n {
+        var b = bytes.try_get_u8(bs, i)
+        if oren_is_err(b) { return b }
+        _push_u8(out, b)
+        i = i + 1
+    }
+    return 0
+}
+
+fn _push_frame_header(out, w, h, scale, op_count) {
+    // Magic "OGF0", version=0, flags=0, reserved=0.
+    _push_u8(out, 79)
+    _push_u8(out, 71)
+    _push_u8(out, 70)
+    _push_u8(out, 48)
+    _push_u8(out, 0)
+    _push_u8(out, 0)
+    _push_u16_le(out, 0)
+    _push_u32_le(out, w)
+    _push_u32_le(out, h)
+    _push_u32_le(out, scale)
+    _push_u32_le(out, op_count)
+}
+
+fn _push_op_header(out, opcode, payload_len) {
+    _push_u8(out, opcode)
+    _push_u8(out, 0)
+    _push_u16_le(out, payload_len)
+}
+
+fn _push_cmd(out, c) {
+    var op = c["op"]
+    if op == "fill_rect" {
+        _push_op_header(out, 1, 20)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        return _push_color_rgba(out, c["color"])
+    }
+    if op == "text" {
+        var tb = bytes.try_from_string(c["text"])
+        if oren_is_err(tb) { return tb }
+        var tn = bytes.try_len(tb)
+        if oren_is_err(tn) { return tn }
+        if tn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text too large") }
+        _push_op_header(out, 2, 16 + tn)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        var rc = _push_color_rgba(out, c["color"])
+        if oren_is_err(rc) { return rc }
+        _push_u32_le(out, tn)
+        return _append_bytes(out, tb)
+    }
+    return oren_err(4, "ui.avm.frame_bytes: unsupported op")
+}
+
+fn frame_bytes(cmds, w, h, opts) {
     if opts == nil { opts = {} }
     var vr = ui_cmds.try_validate(cmds, w, h, opts)
     if oren_is_err(vr) { return vr }
 
-    var arr = []
-    var i = 0
-    while i < oren_list_len(cmds) {
-        oren_list_push(arr, _jcmd(cmds[i]))
-        i = i + 1
-    }
-
     var scale = opts["scale"]
     if scale == nil { scale = 1 }
-    return json.encode(json.jobject({
-        "schema": json.jstring("oren.gfx.frame.v0"),
-        "w": json.jint(w),
-        "h": json.jint(h),
-        "scale": json.jint(scale),
-        "ops": json.jarray(arr)
-    }))
+    var out = []
+    _push_frame_header(out, w, h, scale, oren_list_len(cmds))
+
+    var i = 0
+    while i < oren_list_len(cmds) {
+        var rc = _push_cmd(out, cmds[i])
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return bytes.try_pack(out)
 }
 
-fn present_json(frame) {
+fn present_bytes(frame) {
     return oren_gfx_present_frame(frame)
 }
 
 fn present_frame(cmds, w, h, opts) {
-    var frame = frame_json(cmds, w, h, opts)
+    var frame = frame_bytes(cmds, w, h, opts)
     if oren_is_err(frame) { return frame }
-    return present_json(frame)
+    return present_bytes(frame)
+}
+
+fn poll_event_bytes() {
+    return oren_gfx_poll_input()
 }

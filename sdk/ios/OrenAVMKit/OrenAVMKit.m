@@ -313,4 +313,29 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
     return YES;
 }
 
+- (BOOL)putGraphicsInputEventData:(NSData*)data error:(NSError**)error {
+    if (!data || data.length == 0) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"GFX input event data must be non-empty");
+    }
+    AvmEmbedResult result;
+    int rc = avm_embed_gfx_input_put(_handle, data.bytes, data.length, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to enqueue GFX input event", &result);
+    return YES;
+}
+
+- (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError**)error {
+    uint8_t buf[24];
+    buf[0] = 'O'; buf[1] = 'G'; buf[2] = 'E'; buf[3] = '0';
+    buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 0;
+    buf[8] = kind; buf[9] = 0; buf[10] = 12; buf[11] = 0;
+    uint32_t ux = (uint32_t)x;
+    uint32_t uy = (uint32_t)y;
+    buf[12] = (uint8_t)(ux & 255u); buf[13] = (uint8_t)((ux >> 8) & 255u); buf[14] = (uint8_t)((ux >> 16) & 255u); buf[15] = (uint8_t)((ux >> 24) & 255u);
+    buf[16] = (uint8_t)(uy & 255u); buf[17] = (uint8_t)((uy >> 8) & 255u); buf[18] = (uint8_t)((uy >> 16) & 255u); buf[19] = (uint8_t)((uy >> 24) & 255u);
+    buf[20] = (uint8_t)(pointerId & 255u); buf[21] = (uint8_t)((pointerId >> 8) & 255u); buf[22] = (uint8_t)((pointerId >> 16) & 255u); buf[23] = (uint8_t)((pointerId >> 24) & 255u);
+    NSData* data = [NSData dataWithBytes:buf length:sizeof(buf)];
+    return [self putGraphicsInputEventData:data error:error];
+}
+
 @end

@@ -86,8 +86,9 @@
 <p>  <code>avm_embed_output_get(...)</code> copies stdout bytes back to the app,</p>
 <p>  <code>avm_embed_output_clear(...)</code> clears the captured stdout buffer,</p>
 <p>  <code>avm_embed_gfx_frame_get(...)</code> copies the latest GFX frame mailbox payload,</p>
-<p>  <code>avm_embed_gfx_frame_clear(...)</code> clears that payload, and <code>avm_embed_free_bytes(...)</code></p>
-<p>  releases returned app-owned buffers.</p>
+<p>  <code>avm_embed_gfx_frame_clear(...)</code> clears that payload,</p>
+<p>  <code>avm_embed_gfx_input_put(...)</code> enqueues host input-event bytes for OBC polling,</p>
+<p>  and <code>avm_embed_free_bytes(...)</code> releases returned app-owned buffers.</p>
 <ul>
 <li>iOS SDK slice after 2026-05-31: <code>OrenAVMKit.xcframework</code> builds beside</li>
 </ul>
@@ -95,7 +96,8 @@
 <p>  deterministic AVM runs and interactive app runs. The verifier proves the SDK can</p>
 <p>  run OBC with VirtualFS, VirtualNET, VirtualPROC, stdout capture, wall-clock</p>
 <p>  <code>std:time.sleep_ms</code> in interactive mode, allowlisted URLSession prefetch into</p>
-<p>  VirtualNET, and GFX frame mailbox retrieval/clear.</p>
+<p>  VirtualNET, binary GFX frame mailbox retrieval/clear, and host-injected binary</p>
+<p>  pointer events consumed by OBC.</p>
 <ul>
 <li>OBC resource API after 2026-05-28: <code>avm_embed_run_obc_bytes(...)</code> parses,</li>
 </ul>
@@ -107,8 +109,8 @@
 <p>  iPhoneOS and simulator, and runs the same <code>.obc</code> through the host libavm embed</p>
 <p>  API with <code>exit_code=9</code>, argv injection, VFS input, VFS output extraction,</p>
 <p>  VFS snapshot verification, deterministic TIME, VirtualNET <code>oren_net_get(...)</code>,</p>
-<p>  VirtualPROC <code>oren_system(...)</code>, GFX frame publication/retrieval, and captured</p>
-<p>  stdout retrieval/clear.</p>
+<p>  VirtualPROC <code>oren_system(...)</code>, binary GFX frame publication/retrieval,</p>
+<p>  binary GFX input-event polling, and captured stdout retrieval/clear.</p>
 <ul>
 <li>Compiler-in-AVM chain after 2026-05-28: <code>make verify-libavm-ios</code> also calls</li>
 </ul>

@@ -282,6 +282,19 @@ typedef struct {
     uint32_t cap;
 } AvmVfs;
 
+// --- GFX input mailbox ---
+// UTF-8 JSON event payloads queued by host adapters and consumed by bytecode.
+typedef struct {
+    uint8_t* data;
+    uint32_t len;
+} AvmGfxInputEntry;
+
+typedef struct {
+    AvmGfxInputEntry* entries;
+    uint32_t count;
+    uint32_t cap;
+} AvmGfxInputQueue;
+
 // --- Heap release from snapshot module (internal wrapper) ---
 void avm_release_heap_all(AvmVM* vm);
 

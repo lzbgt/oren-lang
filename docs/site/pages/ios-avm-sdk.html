@@ -88,19 +88,28 @@
 <p>  and then runs the same <code>.obc</code> program against <code>oren_net_get(url)</code>, proving the</p>
 <p>  real host-fetch-to-OBC-read chain.</p>
 <ul>
-<li>The first GFX bridge slice is implemented. <code>std:ui/avm</code> serializes validated</li>
+<li>The first GFX bridge slices are implemented. <code>std:ui/avm</code> serializes validated</li>
 </ul>
-<p>  <code>std:ui</code> v0 command buffers into <code>oren.gfx.frame.v0</code>, bytecode publishes them</p>
-<p>  through <code>oren_gfx_present_frame</code>, <code>libavm</code> stores the latest frame in a GFX</p>
-<p>  mailbox, and <code>OrenAVMKit</code> exposes frame get/clear helpers.</p>
+<p>  <code>std:ui</code> v0 command buffers into compact <code>oren.gfx.frame.bin0</code> bytes,</p>
+<p>  bytecode publishes them through <code>oren_gfx_present_frame</code>, <code>libavm</code> stores the</p>
+<p>  latest frame in a GFX mailbox, and <code>OrenAVMKit</code> exposes frame get/clear</p>
+<p>  helpers.</p>
+<ul>
+<li>The low-level GUI transport is binary by design. JSON/QML-like documents may be</li>
+</ul>
+<p>  used later as a high-level declarative UI/layout authoring format, but they must</p>
+<p>  compile to the binary frame/event mailbox protocol before crossing the AVM-host</p>
+<p>  boundary. This avoids making high-frequency drawing and input depend on JSON</p>
+<p>  parsing or string allocation.</p>
 <ul>
 <li>The iOS verifier compiles device/simulator SDK smokes and runs a host SDK smoke</li>
 </ul>
 <p>  that executes OBC, publishes a frame, retrieves it with</p>
-<p>  <code>getGraphicsFrameDataWithError:</code>, validates the schema/op text, and clears it.</p>
+<p>  <code>getGraphicsFrameDataWithError:</code>, validates the binary magic/opcode, injects a</p>
+<p>  binary pointer event through the SDK, and clears the frame.</p>
 <p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
 <p>compiler helper Swift/Objective-C package, OBC store helper, UIKit/Metal rendering,</p>
-<p>and input-event injection.</p>
+<p>and broader keyboard/resize/text input helpers.</p>
 <h2 id="sdk-components">SDK Components</h2>
 <h3 id="orenavmkit">OrenAVMKit</h3>
 <p>Core Swift/Objective-C wrapper around <code>LibAVM.xcframework</code>.</p>
@@ -172,9 +181,10 @@
 <ul>
 <li>Encodes pointer/keyboard/resize/input events back into AVM.</li>
 <li>Does not expose UIKit or Metal objects directly to Oren code.</li>
-<li>Current SDK implementation retrieves and clears frame payloads only; host-side</li>
+<li>Current SDK implementation retrieves and clears binary frame payloads and can</li>
 </ul>
-<p>  rendering and input queues are the next slices.</p>
+<p>  enqueue binary pointer events; host-side rendering plus keyboard/resize/text</p>
+<p>  input helpers are the next slices.</p>
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>
@@ -190,8 +200,8 @@
 <tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch into VirtualNET with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
-<tr><td>GUI</td><td>GFX frame mailbox, no raw host access</td><td>UIKit/Metal renderer plus input event queue</td></tr>
-<tr><td>INPUT</td><td>No implicit input</td><td>Explicit event queue/mailbox</td></tr>
+<tr><td>GUI</td><td>Binary GFX frame/input mailboxes, no raw host access</td><td>UIKit/Metal renderer</td></tr>
+<tr><td>INPUT</td><td>Explicit binary event queue/mailbox</td><td>Keyboard/resize/text helper encoders</td></tr>
 <tr><td>STDOUT</td><td>Captured stdout</td><td>App-controlled log/result UI</td></tr>
 </table>
 <h2 id="app-integration-shape">App Integration Shape</h2>

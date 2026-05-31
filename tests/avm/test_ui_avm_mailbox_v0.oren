@@ -1,6 +1,7 @@
 // AVM headless UI test: std:ui/avm GFX mailbox v0
 
 import ui_avm "std:ui/avm"
+import bytes "std:bytes"
 
 fn fail() {
     var a = [1]
@@ -13,10 +14,26 @@ fn assert_eq(a, b) {
     fail()
 }
 
+fn assert_bytes_eq(bs, xs) {
+    assert_eq(bytes.try_len(bs), oren_list_len(xs))
+    var i = 0
+    while i < oren_list_len(xs) {
+        assert_eq(bytes.try_get_u8(bs, i), xs[i])
+        i = i + 1
+    }
+}
+
 fn main() {
     var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"}]
-    var frame = ui_avm.frame_json(cmds, 4, 2, {"strict_bounds": true})
-    assert_eq(frame, "{\"h\":2,\"ops\":[{\"color\":\"#102030\",\"h\":2,\"op\":\"fill_rect\",\"w\":4,\"x\":0,\"y\":0}],\"scale\":1,\"schema\":\"oren.gfx.frame.v0\",\"w\":4}")
+    var frame = ui_avm.frame_bytes(cmds, 4, 2, {"strict_bounds": true})
+    assert_bytes_eq(frame, [
+        79, 71, 70, 48, 0, 0, 0, 0,
+        4, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 20, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0,
+        16, 32, 48, 255
+    ])
+    assert_eq(ui_avm.poll_event_bytes(), nil)
     assert_eq(ui_avm.present_frame(cmds, 4, 2, {"strict_bounds": true}), 0)
     exit(0)
 }

@@ -74,7 +74,9 @@
 <p>  <code>avm_embed_vfs_put</code>, <code>avm_embed_vfs_get</code>,</p>
 <p>  <code>avm_embed_vfs_snapshot</code>, <code>avm_embed_vnet_put</code>, <code>avm_embed_vproc_put</code>,</p>
 <p>  <code>avm_embed_vproc_set_default_exit</code>, <code>avm_embed_set_output_capture</code>,</p>
-<p>  <code>avm_embed_output_get</code>, <code>avm_embed_output_clear</code>, and <code>avm_embed_free_bytes</code>.</p>
+<p>  <code>avm_embed_output_get</code>, <code>avm_embed_output_clear</code>, <code>avm_embed_gfx_frame_get</code>,</p>
+<p>  <code>avm_embed_gfx_frame_clear</code>, <code>avm_embed_gfx_input_put</code>, and</p>
+<p>  <code>avm_embed_free_bytes</code>.</p>
 <ul>
 <li>Default embed configs allow deterministic TIME alongside CORE/FS/NET/PROC/EXIT,</li>
 </ul>
@@ -131,14 +133,17 @@
 <p>  then runs OBC that reads it with <code>oren_net_get(url)</code>. This is the current</p>
 <p>  app-facing NET bridge; AVM still does not expose raw host networking to bytecode.</p>
 <ul>
-<li>The first GUI bridge slice now exists as a GFX frame mailbox. Bytecode can publish</li>
+<li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>
-<p>  a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> / <code>oren_gfx_present_frame</code>;</p>
-<p>  embedders can read and clear it with <code>avm_embed_gfx_frame_get</code> and</p>
-<p>  <code>avm_embed_gfx_frame_clear</code>; <code>OrenAVMKit</code> exposes matching Objective-C helpers.</p>
-<p>  The iOS verifier checks exported symbols, device/simulator SDK linkage, and a host</p>
-<p>  OBC run that publishes a frame and retrieves it through the SDK. Actual UIKit/Metal</p>
-<p>  rendering and input events remain pending.</p>
+<p>  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>
+<p>  <code>oren_gfx_present_frame</code>; embedders can read and clear it with</p>
+<p>  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. Hosts can enqueue</p>
+<p>  binary input events with <code>avm_embed_gfx_input_put</code>; OBC polls them through</p>
+<p>  <code>std:ui/avm.poll_event_bytes()</code>. <code>OrenAVMKit</code> exposes matching Objective-C</p>
+<p>  helpers including a convenience binary pointer-event encoder. The iOS verifier</p>
+<p>  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>
+<p>  publishes a binary frame, retrieves it through the SDK, injects a binary pointer</p>
+<p>  event, and consumes it from OBC. Actual UIKit/Metal rendering remains pending.</p>
 <ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>

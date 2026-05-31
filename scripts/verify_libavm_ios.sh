@@ -42,6 +42,7 @@ for sym in \
   _avm_embed_output_clear \
   _avm_embed_gfx_frame_get \
   _avm_embed_gfx_frame_clear \
+  _avm_embed_gfx_input_put \
   _avm_embed_free_bytes; do
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
@@ -71,6 +72,13 @@ fn main() {
     var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"}]
     var gr = ui_avm.present_frame(cmds, 4, 2, {"strict_bounds": true})
     if gr != 0 { oren_exit(19) }
+    var ev = ui_avm.poll_event_bytes()
+    if oren_bytes_len(ev) != 24 { oren_exit(33) }
+    if oren_bytes_get_u8(ev, 0) != 79 || oren_bytes_get_u8(ev, 1) != 71 || oren_bytes_get_u8(ev, 2) != 69 || oren_bytes_get_u8(ev, 3) != 48 { oren_exit(34) }
+    if oren_bytes_get_u8(ev, 8) != 1 { oren_exit(35) }
+    if oren_bytes_get_u32_le(ev, 12) != 1 { oren_exit(36) }
+    if oren_bytes_get_u32_le(ev, 16) != 2 { oren_exit(37) }
+    if oren_bytes_get_u32_le(ev, 20) != 7 { oren_exit(38) }
     var rc1 = oren_system("probe-ok")
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
@@ -118,18 +126,13 @@ static uint64_t host_now_ns(void) {
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
-static int contains_bytes(const uint8_t* hay, size_t hay_len, const char* needle) {
-    size_t needle_len = strlen(needle);
-    if (!hay || !needle || needle_len == 0 || hay_len < needle_len) return 0;
-    for (size_t i = 0; i + needle_len <= hay_len; i++) {
-        if (memcmp(hay + i, needle, needle_len) == 0) return 1;
-    }
-    return 0;
-}
-
 int main(void) {
     AvmEmbedConfig cfg;
     AvmEmbedResult result;
+    static const uint8_t input_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 1, 0, 12, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0
+    };
     avm_embed_config_default(&cfg);
     AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
     if (!handle || result.status != AVM_EMBED_OK) return 2;
@@ -141,6 +144,7 @@ int main(void) {
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 5;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
+    if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 8;
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 9;
@@ -162,8 +166,8 @@ int main(void) {
     uint8_t* frame = 0;
     size_t frame_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) != AVM_EMBED_OK) return 28;
-    if (!contains_bytes(frame, frame_len, "\"schema\":\"oren.gfx.frame.v0\"")) return 29;
-    if (!contains_bytes(frame, frame_len, "\"op\":\"fill_rect\"")) return 30;
+    if (frame_len != 48 || memcmp(frame, "OGF0", 4) != 0) return 29;
+    if (frame[24] != 1) return 30;
     avm_embed_free_bytes(frame);
     if (avm_embed_gfx_frame_clear(handle, &result) != AVM_EMBED_OK) return 31;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) == AVM_EMBED_OK) return 32;
@@ -184,6 +188,7 @@ int main(void) {
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 22;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 23;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 24;
+    if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
     uint64_t wall1 = host_now_ns();
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 26;
@@ -191,7 +196,7 @@ int main(void) {
     uint8_t* frame2 = 0;
     size_t frame2_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame2, &frame2_len, &result) != AVM_EMBED_OK) return 28;
-    if (!contains_bytes(frame2, frame2_len, "\"schema\":\"oren.gfx.frame.v0\"")) return 29;
+    if (frame2_len != 48 || memcmp(frame2, "OGF0", 4) != 0) return 29;
     avm_embed_free_bytes(frame2);
     avm_embed_close(handle);
     return 0;
@@ -242,6 +247,7 @@ int main(void) {
         }
         if (![runtime putVirtualProcExitForCommand:@"probe-ok" exitCode:21 error:&error]) return 39;
         if (![runtime setVirtualProcDefaultExitCode:44 error:&error]) return 40;
+        if (![runtime putGraphicsPointerEventWithKind:1 x:1 y:2 pointerId:7 error:&error]) return 51;
 
         NSData* obc = [NSData dataWithBytes:kEmbedChainObc length:kEmbedChainObcLen];
         uint64_t wall0 = host_now_ns();
@@ -255,9 +261,9 @@ int main(void) {
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
-        NSString* frameText = [[NSString alloc] initWithData:frame encoding:NSUTF8StringEncoding];
-        if (![frameText containsString:@"\"schema\":\"oren.gfx.frame.v0\""]) return 47;
-        if (![frameText containsString:@"\"op\":\"fill_rect\""]) return 48;
+        if (frame.length != 48) return 47;
+        const uint8_t* frameBytes = frame.bytes;
+        if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[24] != 1) return 48;
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
         if ([runtime getGraphicsFrameDataWithError:&error] != nil) return 50;
     }

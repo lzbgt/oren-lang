@@ -47,14 +47,16 @@ allocator/lifecycle hardening.
   `avm_embed_output_get(...)` copies stdout bytes back to the app,
   `avm_embed_output_clear(...)` clears the captured stdout buffer,
   `avm_embed_gfx_frame_get(...)` copies the latest GFX frame mailbox payload,
-  `avm_embed_gfx_frame_clear(...)` clears that payload, and `avm_embed_free_bytes(...)`
-  releases returned app-owned buffers.
+  `avm_embed_gfx_frame_clear(...)` clears that payload,
+  `avm_embed_gfx_input_put(...)` enqueues host input-event bytes for OBC polling,
+  and `avm_embed_free_bytes(...)` releases returned app-owned buffers.
 - iOS SDK slice after 2026-05-31: `OrenAVMKit.xcframework` builds beside
   `LibAVM.xcframework` and exposes Objective-C/Swift-callable defaults for
   deterministic AVM runs and interactive app runs. The verifier proves the SDK can
   run OBC with VirtualFS, VirtualNET, VirtualPROC, stdout capture, wall-clock
   `std:time.sleep_ms` in interactive mode, allowlisted URLSession prefetch into
-  VirtualNET, and GFX frame mailbox retrieval/clear.
+  VirtualNET, binary GFX frame mailbox retrieval/clear, and host-injected binary
+  pointer events consumed by OBC.
 - OBC resource API after 2026-05-28: `avm_embed_run_obc_bytes(...)` parses,
   verifies, loads, and runs `.obc` bytes owned by the embedder handle.
 - Compile/run chain after 2026-05-28: `make verify-libavm-ios` compiles a tiny
@@ -62,8 +64,8 @@ allocator/lifecycle hardening.
   iPhoneOS and simulator, and runs the same `.obc` through the host libavm embed
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction,
   VFS snapshot verification, deterministic TIME, VirtualNET `oren_net_get(...)`,
-  VirtualPROC `oren_system(...)`, GFX frame publication/retrieval, and captured
-  stdout retrieval/clear.
+  VirtualPROC `oren_system(...)`, binary GFX frame publication/retrieval,
+  binary GFX input-event polling, and captured stdout retrieval/clear.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls
   `scripts/verify_compiler_in_avm_ios_chain.sh`, which builds
   `build/plugins/stdlib_bundle.obc` and `build/plugins/oren.obc`, injects them

@@ -46,17 +46,24 @@ Retained SDK slices on 2026-05-31:
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
   and then runs the same `.obc` program against `oren_net_get(url)`, proving the
   real host-fetch-to-OBC-read chain.
-- The first GFX bridge slice is implemented. `std:ui/avm` serializes validated
-  `std:ui` v0 command buffers into `oren.gfx.frame.v0`, bytecode publishes them
-  through `oren_gfx_present_frame`, `libavm` stores the latest frame in a GFX
-  mailbox, and `OrenAVMKit` exposes frame get/clear helpers.
+- The first GFX bridge slices are implemented. `std:ui/avm` serializes validated
+  `std:ui` v0 command buffers into compact `oren.gfx.frame.bin0` bytes,
+  bytecode publishes them through `oren_gfx_present_frame`, `libavm` stores the
+  latest frame in a GFX mailbox, and `OrenAVMKit` exposes frame get/clear
+  helpers.
+- The low-level GUI transport is binary by design. JSON/QML-like documents may be
+  used later as a high-level declarative UI/layout authoring format, but they must
+  compile to the binary frame/event mailbox protocol before crossing the AVM-host
+  boundary. This avoids making high-frequency drawing and input depend on JSON
+  parsing or string allocation.
 - The iOS verifier compiles device/simulator SDK smokes and runs a host SDK smoke
   that executes OBC, publishes a frame, retrieves it with
-  `getGraphicsFrameDataWithError:`, validates the schema/op text, and clears it.
+  `getGraphicsFrameDataWithError:`, validates the binary magic/opcode, injects a
+  binary pointer event through the SDK, and clears the frame.
 
 Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
 compiler helper Swift/Objective-C package, OBC store helper, UIKit/Metal rendering,
-and input-event injection.
+and broader keyboard/resize/text input helpers.
 
 ## SDK Components
 
@@ -133,8 +140,9 @@ Current GUI adapter boundary.
   paths.
 - Encodes pointer/keyboard/resize/input events back into AVM.
 - Does not expose UIKit or Metal objects directly to Oren code.
-- Current SDK implementation retrieves and clears frame payloads only; host-side
-  rendering and input queues are the next slices.
+- Current SDK implementation retrieves and clears binary frame payloads and can
+  enqueue binary pointer events; host-side rendering plus keyboard/resize/text
+  input helpers are the next slices.
 
 ### OrenAVMPackageStore
 
@@ -153,8 +161,8 @@ Public OBC store helper.
 | NET | VirtualNET/no host network | SDK `URLSession` prefetch into VirtualNET with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
-| GUI | GFX frame mailbox, no raw host access | UIKit/Metal renderer plus input event queue |
-| INPUT | No implicit input | Explicit event queue/mailbox |
+| GUI | Binary GFX frame/input mailboxes, no raw host access | UIKit/Metal renderer |
+| INPUT | Explicit binary event queue/mailbox | Keyboard/resize/text helper encoders |
 | STDOUT | Captured stdout | App-controlled log/result UI |
 
 ## App Integration Shape

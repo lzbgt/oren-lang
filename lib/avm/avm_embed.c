@@ -636,6 +636,42 @@ int avm_embed_gfx_frame_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
     return result ? result->status : AVM_EMBED_OK;
 }
 
+int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, size_t event_len, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !event_data || event_len == 0 || event_len > (size_t)UINT32_MAX) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX input put argument");
+    }
+
+    AvmGfxInputQueue* q = (AvmGfxInputQueue*)handle->vm->gfx_input_queue;
+    if (!q) {
+        q = (AvmGfxInputQueue*)calloc(1, sizeof(AvmGfxInputQueue));
+        if (!q) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM GFX input queue");
+        handle->vm->gfx_input_queue = q;
+    }
+    if (q->count >= 1024u) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_VM, AVM_ERR_BUDGET, "AVM GFX input queue is full");
+    }
+    if (q->count >= q->cap) {
+        uint32_t next_cap = q->cap ? q->cap * 2u : 8u;
+        if (next_cap < q->count + 1u) next_cap = q->count + 1u;
+        AvmGfxInputEntry* next = (AvmGfxInputEntry*)realloc(q->entries, sizeof(AvmGfxInputEntry) * (size_t)next_cap);
+        if (!next) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to grow AVM GFX input queue");
+        for (uint32_t i = q->cap; i < next_cap; i++) {
+            next[i].data = NULL;
+            next[i].len = 0;
+        }
+        q->entries = next;
+        q->cap = next_cap;
+    }
+    uint8_t* copy = (uint8_t*)malloc(event_len);
+    if (!copy) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM GFX input event");
+    memcpy(copy, event_data, event_len);
+    q->entries[q->count].data = copy;
+    q->entries[q->count].len = (uint32_t)event_len;
+    q->count++;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
 int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* body, size_t len, AvmEmbedResult* result) {
     if (!avm_embed_valid_handle(handle) || !url || (len > 0 && !body) || len > (size_t)UINT32_MAX) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VNET put argument");

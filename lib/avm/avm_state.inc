@@ -985,6 +985,23 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
         sha_u32_le(&h, 0);
     }
 
+    // GFX frame and input mailboxes are observable through embedder APIs and GFX poll ops.
+    {
+        uint32_t fl = (vm->gfx_frame_data && vm->gfx_frame_len <= (size_t)UINT32_MAX) ? (uint32_t)vm->gfx_frame_len : 0u;
+        sha_u32_le(&h, fl);
+        if (fl > 0) avm_sha256_update(&h, vm->gfx_frame_data, fl);
+    }
+    {
+        AvmGfxInputQueue* q = vm->gfx_input_queue ? (AvmGfxInputQueue*)vm->gfx_input_queue : NULL;
+        uint32_t cnt = (q && q->entries) ? q->count : 0u;
+        sha_u32_le(&h, cnt);
+        for (uint32_t i = 0; i < cnt; i++) {
+            uint32_t len = q->entries[i].len;
+            sha_u32_le(&h, len);
+            if (len > 0 && q->entries[i].data) avm_sha256_update(&h, q->entries[i].data, len);
+        }
+    }
+
     avm_sha256_final(&h, out);
     objtable_free(&objs);
     return 1;

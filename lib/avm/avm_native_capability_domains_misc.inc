@@ -232,23 +232,60 @@
     // Oren owns portable command-frame data; the host app owns rendering devices.
     if (domain == 9) {
         switch (op) {
-            case 0: { // present_frame(frame_json: string) -> INT
-                if (nargs < 1 || args[0].type != AVM_VAL_STRING || !args[0].as.p) {
-                    return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.present_frame expects frame JSON string", domain, op);
+            case 0: { // present_frame(frame_bytes: bytes|string) -> INT
+                const uint8_t* data = NULL;
+                size_t len = 0;
+                if (nargs >= 1 && args[0].type == AVM_VAL_BYTES && args[0].as.b) {
+                    AvmBytes* b = args[0].as.b;
+                    data = b->data;
+                    len = (size_t)b->len;
+                } else if (nargs >= 1 && args[0].type == AVM_VAL_STRING && args[0].as.p) {
+                    const char* s = (const char*)args[0].as.p;
+                    data = (const uint8_t*)s;
+                    len = strlen(s);
+                } else {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.present_frame expects frame bytes", domain, op);
                 }
-                const char* s = (const char*)args[0].as.p;
-                size_t len = strlen(s);
-                if (len == 0 || len > (size_t)UINT32_MAX) {
+                if (!data || len == 0 || len > (size_t)UINT32_MAX) {
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.present_frame invalid frame size", domain, op);
                 }
                 if (!avm_io_charge(vm, (uint64_t)len, domain, op)) return vm->last_error;
                 uint8_t* copy = (uint8_t*)malloc(len);
                 if (!copy) return avm_err_domop(AVM_ERR_BUDGET, "gfx.present_frame allocation failed", domain, op);
-                memcpy(copy, s, len);
+                memcpy(copy, data, len);
                 if (vm->gfx_frame_data) free(vm->gfx_frame_data);
                 vm->gfx_frame_data = copy;
                 vm->gfx_frame_len = len;
                 AvmValue ret = avm_int(0);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            case 1: { // poll_input() -> BYTES|NIL
+                if (vm->replay_log_bytes) {
+                    return rr_replay_entry_mem(vm, vm->replay_log_bytes, &vm->replay_log_pos, domain, op, args, nargs);
+                }
+                if (vm->replay_log) {
+                    return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
+                }
+                AvmValue ret = avm_nil();
+                AvmGfxInputQueue* q = vm ? (AvmGfxInputQueue*)vm->gfx_input_queue : NULL;
+                if (q && q->count > 0 && q->entries) {
+                    AvmGfxInputEntry entry = q->entries[0];
+                    if (!avm_io_charge(vm, (uint64_t)entry.len, domain, op)) return vm->last_error;
+                    ret = avm_bytes_new((int)entry.len);
+                    if (ret.type != AVM_VAL_BYTES || !ret.as.b) { avm_abort(vm, ret); return ret; }
+                    if (entry.len > 0 && entry.data) memcpy(ret.as.b->data, entry.data, entry.len);
+                    if (entry.data) free(entry.data);
+                    if (q->count > 1u) {
+                        memmove(q->entries, q->entries + 1, sizeof(AvmGfxInputEntry) * (size_t)(q->count - 1u));
+                    }
+                    q->count--;
+                    if (q->entries) {
+                        q->entries[q->count].data = NULL;
+                        q->entries[q->count].len = 0;
+                    }
+                }
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
