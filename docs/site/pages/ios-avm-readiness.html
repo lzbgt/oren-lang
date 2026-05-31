@@ -201,10 +201,12 @@
 </ul>
 <p>  <code>make verify-libavm-ios</code> through <code>scripts/verify_compiler_in_avm_ios_chain.sh</code>.</p>
 <ul>
-<li>P1/W4: Expand compiler-in-AVM from smoke to app packaging. Required proof:</li>
+<li>Done 2026-06-01: Expand compiler-in-AVM from smoke to app packaging through</li>
 </ul>
-<p>  Swift/ObjC host loads bundled <code>oren.obc</code> and <code>stdlib_bundle.obc</code>, feeds VFS</p>
-<p>  resources through the embedder API, and surfaces deterministic result/error data.</p>
+<p>  <code>OrenAVMCompilerKit</code>. The SDK helper loads bundled <code>oren.obc</code> and</p>
+<p>  <code>stdlib_bundle.obc</code>, feeds source/stdlib resources through VirtualFS, runs the</p>
+<p>  compiler with deterministic stdlib-OBC argv, and returns output OBC plus</p>
+<p>  compiler diagnostics/result data to the host app.</p>
 <ul>
 <li>P1/W4: Finish embedder lifecycle. Make allocator ownership reentrant or explicitly single-VM guarded, document the app failure model, and keep host-only paths unavailable in iOS builds.</li>
 <li>P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.</li>

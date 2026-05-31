@@ -191,10 +191,19 @@
 <h3 id="orenavmcompilerkit">OrenAVMCompilerKit</h3>
 <p>Compiler-in-AVM helper package.</p>
 <ul>
-<li>Bundles <code>oren.obc</code> and <code>stdlib_bundle.obc</code> as app resources.</li>
-<li>Mounts source and stdlib resources into VirtualFS.</li>
-<li>Runs the compiler OBC to produce output OBC.</li>
-<li>Returns compile diagnostics and <code>out.obc</code> bytes to the app.</li>
+<li><code>OrenAVMCompilerKit</code> accepts the app-bundled <code>oren.obc</code> and</li>
+</ul>
+<p>  <code>stdlib_bundle.obc</code> resources as <code>NSData</code> or file URLs.</p>
+<ul>
+<li>It mounts source and stdlib resources into an AVM VirtualFS runtime, sets the</li>
+</ul>
+<p>  compiler argv (<code>build</code>, bytecode backend, deterministic, stdlib OBC mode), and</p>
+<p>  runs the compiler OBC without exposing host files to bytecode.</p>
+<ul>
+<li>It returns <code>OrenAVMCompileResult</code> with output OBC bytes, compiler stdout</li>
+</ul>
+<p>  diagnostics, and the underlying <code>OrenAVMRunResult</code>.</p>
+<ul>
 <li>Keeps the host app from manually recreating the current compiler-in-AVM harness.</li>
 </ul>
 <h3 id="orenavmfileprovider">OrenAVMFileProvider</h3>

@@ -442,11 +442,10 @@
 <p>  <code>--no-cache</code>) for embedded compiler runs.</p>
 <p>Missing for production:</p>
 <ul>
-<li>Swift/Objective-C app-host smoke that loads bundled <code>oren.obc</code> and</li>
+<li>Note-side Swift integration of <code>OrenAVMCompilerKit</code> and the package-store</li>
 </ul>
-<p>  <code>stdlib_bundle.obc</code> resources from an app bundle and uses the public virtual</p>
-<p>  backend helpers to feed source/resources, extract <code>out.obc</code>, and provide</p>
-<p>  deterministic network/process fixtures plus captured stdout/stderr UI data;</p>
+<p>  install/run APIs into the app UX, including diagnostics display and permission</p>
+<p>  prompts;</p>
 <ul>
 <li>allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;</li>
 <li>broader manifest coverage for non-curated AVM fixtures;</li>

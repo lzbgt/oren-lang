@@ -338,10 +338,9 @@ Working evidence:
 
 Missing for production:
 
-- Swift/Objective-C app-host smoke that loads bundled `oren.obc` and
-  `stdlib_bundle.obc` resources from an app bundle and uses the public virtual
-  backend helpers to feed source/resources, extract `out.obc`, and provide
-  deterministic network/process fixtures plus captured stdout/stderr UI data;
+- Note-side Swift integration of `OrenAVMCompilerKit` and the package-store
+  install/run APIs into the app UX, including diagnostics display and permission
+  prompts;
 - allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
 - broader manifest coverage for non-curated AVM fixtures;
 - broader stdlib/compiler surface coverage beyond the current smoke program.

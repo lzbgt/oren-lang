@@ -134,10 +134,13 @@ Core Swift/Objective-C wrapper around `LibAVM.xcframework`.
 
 Compiler-in-AVM helper package.
 
-- Bundles `oren.obc` and `stdlib_bundle.obc` as app resources.
-- Mounts source and stdlib resources into VirtualFS.
-- Runs the compiler OBC to produce output OBC.
-- Returns compile diagnostics and `out.obc` bytes to the app.
+- `OrenAVMCompilerKit` accepts the app-bundled `oren.obc` and
+  `stdlib_bundle.obc` resources as `NSData` or file URLs.
+- It mounts source and stdlib resources into an AVM VirtualFS runtime, sets the
+  compiler argv (`build`, bytecode backend, deterministic, stdlib OBC mode), and
+  runs the compiler OBC without exposing host files to bytecode.
+- It returns `OrenAVMCompileResult` with output OBC bytes, compiler stdout
+  diagnostics, and the underlying `OrenAVMRunResult`.
 - Keeps the host app from manually recreating the current compiler-in-AVM harness.
 
 ### OrenAVMFileProvider

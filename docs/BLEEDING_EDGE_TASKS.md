@@ -39,27 +39,25 @@ This file is the concise task view. Detailed implementation status lives in
      helpers required by app-host compile/run bridges. `make verify-libavm-ios`
      now proves host compile-to-OBC, iOS C smoke linkage, host embedder
      argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a
-     nested compiler-in-AVM stdlib-OBC compile/run smoke.
+     nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public
+     `OrenAVMCompilerKit` SDK helper that compiles source to OBC through AVM
+     VirtualFS/argv.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.
-   - Remaining required work: Swift/Objective-C smoke host, allocator ownership or
-     explicit single-VM guard, app-bundle resource loading coverage, stderr or
-     structured diagnostic capture if the Note UI needs it, manifest AVM release
-     gate, broader compiler/stdlib surface coverage, and CI coverage.
+   - Remaining required work: Note-side Swift UX integration, allocator ownership
+     or explicit single-VM guard, stderr or richer structured diagnostic capture
+     if the Note UI needs it, broader compiler/stdlib surface coverage, and CI
+     coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
    - Stdlib OBC gate: `make verify-libavm-ios` now also runs
-     `scripts/verify_avm_stdlib_obc_surface.sh`, compiling a representative app
-     fixture against `build/plugins/stdlib_bundle.obc` and running it in AVM. The
-     smoke imports `std:avm/events`, `std:avm/permission`, `std:buffer`, `std:bytes`, `std:cbor`,
-     `std:encoding/base64`, `std:crypto/pem`, `std:crypto/sha1`,
-     `std:crypto/sha256`, `std:crypto/x509`, `std:json`, `std:linalg`,
-     `std:math`, `std:net/avm`, `std:net/avm/tcp`, `std:net/avm/udp`,
-     `std:net/avm/ws`,
-     `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
-     `std:yaml`, preventing missing app-facing exports such as
-     `STD_linalg_dot_f64` from reaching the iOS app.
+     `scripts/verify_avm_stdlib_obc_surface.sh`, which checks
+     `tests/fixtures/avm_stdlib_obc_surface_manifest.json` against every import
+     in `lib/std/stdlib_avm.oren`, rejects host-only exclusion leaks, generates
+     the Oren smoke, and runs it against `build/plugins/stdlib_bundle.obc`.
+     This prevents missing app-facing exports such as `STD_linalg_dot_f64` from
+     reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
      interactive configs, virtual FS/NET/PROC helpers, app file/directory mounts
      into VirtualFS, VFS export back to host files, live host-backed FS directory

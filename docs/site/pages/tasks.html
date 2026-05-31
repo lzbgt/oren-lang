@@ -87,33 +87,31 @@
 <p>     helpers required by app-host compile/run bridges. <code>make verify-libavm-ios</code></p>
 <p>     now proves host compile-to-OBC, iOS C smoke linkage, host embedder</p>
 <p>     argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a</p>
-<p>     nested compiler-in-AVM stdlib-OBC compile/run smoke.</p>
+<p>     nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public</p>
+<p>     <code>OrenAVMCompilerKit</code> SDK helper that compiles source to OBC through AVM</p>
+<p>     VirtualFS/argv.</p>
 <ul>
 <li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
 </ul>
 <p>     by default, but expand through a manifest/size gate so bundle build time remains</p>
 <p>     acceptable; keep host-only modules out until AVM shims exist.</p>
 <ul>
-<li>Remaining required work: Swift/Objective-C smoke host, allocator ownership or</li>
+<li>Remaining required work: Note-side Swift UX integration, allocator ownership</li>
 </ul>
-<p>     explicit single-VM guard, app-bundle resource loading coverage, stderr or</p>
-<p>     structured diagnostic capture if the Note UI needs it, manifest AVM release</p>
-<p>     gate, broader compiler/stdlib surface coverage, and CI coverage.</p>
+<p>     or explicit single-VM guard, stderr or richer structured diagnostic capture</p>
+<p>     if the Note UI needs it, broader compiler/stdlib surface coverage, and CI</p>
+<p>     coverage.</p>
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
 <li>Stdlib OBC gate: <code>make verify-libavm-ios</code> now also runs</li>
 </ul>
-<p>     <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, compiling a representative app</p>
-<p>     fixture against <code>build/plugins/stdlib_bundle.obc</code> and running it in AVM. The</p>
-<p>     smoke imports <code>std:avm/events</code>, <code>std:avm/permission</code>, <code>std:buffer</code>, <code>std:bytes</code>, <code>std:cbor</code>,</p>
-<p>     <code>std:encoding/base64</code>, <code>std:crypto/pem</code>, <code>std:crypto/sha1</code>,</p>
-<p>     <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>, <code>std:linalg</code>,</p>
-<p>     <code>std:math</code>, <code>std:net/avm</code>, <code>std:net/avm/tcp</code>, <code>std:net/avm/udp</code>,</p>
-<p>     <code>std:net/avm/ws</code>,</p>
-<p>     <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and</p>
-<p>     <code>std:yaml</code>, preventing missing app-facing exports such as</p>
-<p>     <code>STD_linalg_dot_f64</code> from reaching the iOS app.</p>
+<p>     <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which checks</p>
+<p>     <code>tests/fixtures/avm_stdlib_obc_surface_manifest.json</code> against every import</p>
+<p>     in <code>lib/std/stdlib_avm.oren</code>, rejects host-only exclusion leaks, generates</p>
+<p>     the Oren smoke, and runs it against <code>build/plugins/stdlib_bundle.obc</code>.</p>
+<p>     This prevents missing app-facing exports such as <code>STD_linalg_dot_f64</code> from</p>
+<p>     reaching the iOS app.</p>
 <ul>
 <li>SDK slices retained: <code>OrenAVMKit.xcframework</code> now provides deterministic and</li>
 </ul>

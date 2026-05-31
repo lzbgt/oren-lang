@@ -131,9 +131,11 @@ allocator/lifecycle hardening.
 - P1/W4: Add an AVM fixture manifest runner. Required fields: fixture path, expected return code/error, required env budgets, backend policy, deterministic mode, host-effect expectations, and release-gate inclusion.
 - Done 2026-05-28: Promote compiler-in-AVM smoke packaging into
   `make verify-libavm-ios` through `scripts/verify_compiler_in_avm_ios_chain.sh`.
-- P1/W4: Expand compiler-in-AVM from smoke to app packaging. Required proof:
-  Swift/ObjC host loads bundled `oren.obc` and `stdlib_bundle.obc`, feeds VFS
-  resources through the embedder API, and surfaces deterministic result/error data.
+- Done 2026-06-01: Expand compiler-in-AVM from smoke to app packaging through
+  `OrenAVMCompilerKit`. The SDK helper loads bundled `oren.obc` and
+  `stdlib_bundle.obc`, feeds source/stdlib resources through VirtualFS, runs the
+  compiler with deterministic stdlib-OBC argv, and returns output OBC plus
+  compiler diagnostics/result data to the host app.
 - P1/W4: Finish embedder lifecycle. Make allocator ownership reentrant or explicitly single-VM guarded, document the app failure model, and keep host-only paths unavailable in iOS builds.
 - P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.
 

@@ -77,6 +77,35 @@ typedef NS_ENUM(NSInteger, OrenAVMPackageInstallPolicy) {
 
 @end
 
+@interface OrenAVMCompileResult : NSObject
+
+@property(nonatomic, readonly, copy) NSData* obcData;
+@property(nonatomic, readonly, copy) NSData* diagnosticsData;
+@property(nonatomic, readonly, strong) OrenAVMRunResult* compilerRunResult;
+
+@end
+
+@interface OrenAVMCompilerKit : NSObject
+
+- (instancetype)initWithCompilerOBCData:(NSData*)compilerOBCData
+                         stdlibOBCData:(NSData*)stdlibOBCData NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+
++ (nullable instancetype)compilerKitWithCompilerOBCURL:(NSURL*)compilerOBCURL
+                                          stdlibOBCURL:(NSURL*)stdlibOBCURL
+                                                error:(NSError* _Nullable* _Nullable)error;
+
+- (nullable OrenAVMCompileResult*)compileSource:(NSString*)source
+                                       platform:(nullable NSString*)platform
+                                          error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMCompileResult*)compileSourceData:(NSData*)sourceData
+                                         sourcePath:(NSString*)sourcePath
+                                         outputPath:(NSString*)outputPath
+                                           platform:(nullable NSString*)platform
+                                              error:(NSError* _Nullable* _Nullable)error;
+
+@end
+
 @interface OrenAVMRuntime : NSObject
 
 - (instancetype)initWithConfig:(OrenAVMRuntimeConfig*)config NS_DESIGNATED_INITIALIZER;

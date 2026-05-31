@@ -34,6 +34,7 @@ done < <(
 )
 
 OREN_AVM_KIT_SOURCES=(
+  sdk/ios/OrenAVMKit/OrenAVMCompilerKit.m
   sdk/ios/OrenAVMKit/OrenAVMKit.m
   sdk/ios/OrenAVMKit/OrenAVMMetalView.m
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m
