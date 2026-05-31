@@ -62,9 +62,9 @@ Retained SDK slices on 2026-05-31:
   binary pointer event through the SDK, and clears the frame.
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
   UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
-  (`fill_rect` and `text`) and enqueues pointer events back through the `OGE0`
-  input mailbox. This is the default 2D fallback; it is not the future high-volume
-  Metal path.
+  (`fill_rect`, `text`, `stroke_line`, and `circle`) and enqueues pointer events
+  back through the `OGE0` input mailbox. This is the default 2D fallback; it is
+  not the future high-volume Metal path.
 
 Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
 compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,
@@ -147,9 +147,9 @@ Current GUI adapter boundary.
 - Encodes pointer/keyboard/resize/input events back into AVM.
 - Does not expose UIKit or Metal objects directly to Oren code.
 - Current SDK implementation retrieves and clears binary frame payloads, enqueues
-  binary pointer events, and renders the current `fill_rect`/`text` subset.
-  Keyboard/resize/text input helpers, richer drawing ops, and Metal are the next
-  slices.
+  binary pointer events, and renders the current `fill_rect`/`text`/
+  `stroke_line`/`circle` subset. Keyboard/resize/text input helpers, richer
+  drawing ops, and Metal are the next slices.
 
 ### OrenAVMPackageStore
 

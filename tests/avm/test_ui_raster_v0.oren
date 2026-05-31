@@ -92,8 +92,22 @@ fn test_raster_err_context() {
     assert_eq(oren_err_msg(bad_bg), "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA")
 }
 
+fn test_raster_shapes() {
+    var cmds = [
+        {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 4, "y2": 0, "width": 1, "color": "#0000ff"},
+        {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#00ff00"}
+    ]
+    var buf = ui_raster.try_rasterize(cmds, 5, 5, {"strict_bounds": true})
+    assert_true(oren_is_err(buf) == false)
+    assert_eq(_px(buf, 5, 3, 0, 2), 255)
+    assert_eq(_px(buf, 5, 3, 0, 3), 255)
+    assert_eq(_px(buf, 5, 2, 2, 1), 255)
+    assert_eq(_px(buf, 5, 2, 2, 3), 255)
+}
+
 fn main() {
     test_raster_simple()
     test_raster_err_context()
+    test_raster_shapes()
     exit(0)
 }

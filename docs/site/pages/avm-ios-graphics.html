@@ -76,9 +76,9 @@
 <ul>
 <li><code>sdk/ios/OrenAVMKit</code> also exposes <code>OrenAVMGraphicsView</code>, a default</li>
 </ul>
-<p>  UIKit/CoreGraphics <code>UIView</code> renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code></p>
-<p>  subset. It decodes frame bytes on the host side and enqueues pointer events back</p>
-<p>  into AVM.</p>
+<p>  UIKit/CoreGraphics <code>UIView</code> renderer for the current <code>OGF0</code> <code>fill_rect</code>/</p>
+<p>  <code>text</code>/<code>stroke_line</code>/<code>circle</code> subset. It decodes frame bytes on the host side</p>
+<p>  and enqueues pointer events back into AVM.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> proves the chain by running OBC that publishes a frame,</li>
 </ul>
@@ -86,7 +86,7 @@
 <p>  event, consuming that event from OBC, and compiling the UIKit renderer adapter for</p>
 <p>  device/simulator targets.</p>
 <p>Still pending: Metal rendering adapter, keyboard/resize/text input helpers, 2D</p>
-<p>geometry expansion beyond the existing <code>std:ui</code> v0 command set, and 3D mesh commands.</p>
+<p>geometry expansion beyond the retained v0 shape subset, and 3D mesh commands.</p>
 <h2 id="source-facts">Source Facts</h2>
 <ul>
 <li>Apple OpenGL ES archive: <code>project-doc/web/apple-ios-graphics-20260529/apple-opengles-introduction.html</code>.</li>
@@ -265,7 +265,7 @@ fn main() {
 <li><code>stroke_line {x1,y1,x2,y2,color,width}</code></li>
 <li><code>polyline {points,color,width}</code></li>
 <li><code>path {verbs,coords,fill,stroke,width}</code></li>
-<li><code>circle {cx,cy,r,fill,stroke,width}</code></li>
+<li><code>circle {cx,cy,r,fill,color}</code></li>
 <li><code>text {x,y,text,color,size,align}</code> with host-font caveat</li>
 <li><code>image {id,x,y,w,h}</code> where image bytes are supplied through VFS or a future asset API</li>
 </ul>
@@ -323,6 +323,7 @@ fn main() {
 <li>Done: add iOS C/SDK smoke to <code>make verify-libavm-ios</code> for exported graphics symbols and frame retrieval.</li>
 <li>Done: add binary input-event mailbox and pointer-event SDK helper.</li>
 <li>Done: add default UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> for the current <code>fill_rect</code>/<code>text</code> subset and compile it in the iOS verifier.</li>
+<li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code> and <code>circle</code>.</li>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
 <li>Add keyboard/resize/text input helpers.</li>
 <li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> and Metal rendering after the current <code>std:ui</code> frame path is proven in the app.</li>

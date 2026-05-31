@@ -71,8 +71,12 @@ fn main() {
     var body = oren_net_get(args[2])
     if body != "net-ok" { oren_exit(14) }
     print("stdout:" + body)
-    var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"}]
-    var gr = ui_avm.present_frame(cmds, 4, 2, {"strict_bounds": true})
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
+        {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},
+        {"op": "circle", "cx": 2, "cy": 1, "r": 1, "fill": true, "color": "#00ff00"}
+    ]
+    var gr = ui_avm.present_frame(cmds, 4, 3, {"strict_bounds": true})
     if gr != 0 { oren_exit(19) }
     var ev = ui_avm.poll_event_bytes()
     if oren_bytes_len(ev) != 24 { oren_exit(33) }
@@ -168,7 +172,8 @@ int main(void) {
     uint8_t* frame = 0;
     size_t frame_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) != AVM_EMBED_OK) return 28;
-    if (frame_len != 48 || memcmp(frame, "OGF0", 4) != 0) return 29;
+    if (frame_len != 100 || memcmp(frame, "OGF0", 4) != 0) return 29;
+    if (frame[24] != 1 || frame[48] != 3 || frame[76] != 4) return 30;
     if (frame[24] != 1) return 30;
     avm_embed_free_bytes(frame);
     if (avm_embed_gfx_frame_clear(handle, &result) != AVM_EMBED_OK) return 31;
@@ -198,7 +203,8 @@ int main(void) {
     uint8_t* frame2 = 0;
     size_t frame2_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame2, &frame2_len, &result) != AVM_EMBED_OK) return 28;
-    if (frame2_len != 48 || memcmp(frame2, "OGF0", 4) != 0) return 29;
+    if (frame2_len != 100 || memcmp(frame2, "OGF0", 4) != 0) return 29;
+    if (frame2[24] != 1 || frame2[48] != 3 || frame2[76] != 4) return 30;
     avm_embed_free_bytes(frame2);
     avm_embed_close(handle);
     return 0;
@@ -267,15 +273,15 @@ int main(void) {
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
-        if (frame.length != 48) return 47;
+        if (frame.length != 100) return 47;
         const uint8_t* frameBytes = frame.bytes;
-        if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[24] != 1) return 48;
+        if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[24] != 1 || frameBytes[48] != 3 || frameBytes[76] != 4) return 48;
 #if TARGET_OS_IPHONE
         OrenAVMGraphicsView* graphicsView = [[OrenAVMGraphicsView alloc] initWithRuntime:runtime];
         if (!graphicsView) return 52;
         graphicsView.frameData = frame;
-        UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 2.0), NO, 1.0);
-        [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 2.0)];
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 3.0), NO, 1.0);
+        [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 3.0)];
         UIGraphicsEndImageContext();
         if (![graphicsView sendPointerEventWithKind:2 point:CGPointMake(2.0, 1.0) pointerId:8 error:&error]) return 53;
 #endif

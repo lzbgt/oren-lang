@@ -83,6 +83,29 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["h"])
         return _push_color_rgba(out, c["color"])
     }
+    if op == "stroke_line" {
+        var lw = c["width"]
+        if lw == nil { lw = 1 }
+        _push_op_header(out, 3, 24)
+        _push_u32_le(out, c["x1"])
+        _push_u32_le(out, c["y1"])
+        _push_u32_le(out, c["x2"])
+        _push_u32_le(out, c["y2"])
+        _push_u32_le(out, lw)
+        return _push_color_rgba(out, c["color"])
+    }
+    if op == "circle" {
+        var fill = c["fill"]
+        if fill == nil { fill = true }
+        var flags = 0
+        if fill != 0 { flags = flags | 1 }
+        _push_op_header(out, 4, 20)
+        _push_u32_le(out, c["cx"])
+        _push_u32_le(out, c["cy"])
+        _push_u32_le(out, c["r"])
+        _push_u32_le(out, flags)
+        return _push_color_rgba(out, c["color"])
+    }
     if op == "text" {
         var tb = bytes.try_from_string(c["text"])
         if oren_is_err(tb) { return tb }

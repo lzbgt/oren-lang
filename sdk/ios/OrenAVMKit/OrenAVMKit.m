@@ -206,6 +206,37 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
             UIColor* color = OrenAVMGfxColor(payload + 16);
             CGContextSetFillColorWithColor(ctx, color.CGColor);
             CGContextFillRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
+        } else if (opcode == 3 && payloadLen == 24) {
+            uint32_t x1 = OrenAVMGfxReadU32LE(payload);
+            uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t x2 = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t y2 = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
+            UIColor* color = OrenAVMGfxColor(payload + 20);
+            CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+            CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
+            CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
+            CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
+            CGContextStrokePath(ctx);
+        } else if (opcode == 4 && payloadLen == 20) {
+            uint32_t cx = OrenAVMGfxReadU32LE(payload);
+            uint32_t cy = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t radius = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t flags = OrenAVMGfxReadU32LE(payload + 12);
+            UIColor* color = OrenAVMGfxColor(payload + 16);
+            int32_t ox = (int32_t)cx - (int32_t)radius;
+            int32_t oy = (int32_t)cy - (int32_t)radius;
+            CGRect oval = CGRectMake((CGFloat)ox,
+                                     (CGFloat)oy,
+                                     (CGFloat)(radius * 2u),
+                                     (CGFloat)(radius * 2u));
+            if ((flags & 1u) != 0) {
+                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                CGContextFillEllipseInRect(ctx, oval);
+            } else {
+                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                CGContextStrokeEllipseInRect(ctx, oval);
+            }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);

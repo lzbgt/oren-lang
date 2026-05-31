@@ -111,9 +111,9 @@
 <li>The first default iOS renderer is implemented as <code>OrenAVMGraphicsView</code>, a</li>
 </ul>
 <p>  UIKit/CoreGraphics <code>UIView</code> that decodes the current <code>OGF0</code> binary frame subset</p>
-<p>  (<code>fill_rect</code> and <code>text</code>) and enqueues pointer events back through the <code>OGE0</code></p>
-<p>  input mailbox. This is the default 2D fallback; it is not the future high-volume</p>
-<p>  Metal path.</p>
+<p>  (<code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>) and enqueues pointer events</p>
+<p>  back through the <code>OGE0</code> input mailbox. This is the default 2D fallback; it is</p>
+<p>  not the future high-volume Metal path.</p>
 <p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
 <p>compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,</p>
 <p>richer 2D drawing ops, and broader keyboard/resize/text input helpers.</p>
@@ -191,9 +191,9 @@
 <li>Does not expose UIKit or Metal objects directly to Oren code.</li>
 <li>Current SDK implementation retrieves and clears binary frame payloads, enqueues</li>
 </ul>
-<p>  binary pointer events, and renders the current <code>fill_rect</code>/<code>text</code> subset.</p>
-<p>  Keyboard/resize/text input helpers, richer drawing ops, and Metal are the next</p>
-<p>  slices.</p>
+<p>  binary pointer events, and renders the current <code>fill_rect</code>/<code>text</code>/</p>
+<p>  <code>stroke_line</code>/<code>circle</code> subset. Keyboard/resize/text input helpers, richer</p>
+<p>  drawing ops, and Metal are the next slices.</p>
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>

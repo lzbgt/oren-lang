@@ -56,7 +56,8 @@ This file is the concise task view. Detailed implementation status lives in
      host-fetched bytes into VirtualNET for OBC `oren_net_get(url)`, plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
      host-injected pointer events, and a default UIKit/CoreGraphics
-     `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text` subset.
+     `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
+     `stroke_line`/`circle` subset.
      Remaining SDK work: app-sandbox FileProvider, live/asynchronous network
      sessions if required, compiler helper package, package store helper, iOS
      Metal frame rendering, richer drawing ops, and broader keyboard/resize/text

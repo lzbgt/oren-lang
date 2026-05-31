@@ -24,16 +24,26 @@ fn assert_bytes_eq(bs, xs) {
 }
 
 fn main() {
-    var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"}]
-    var frame = ui_avm.frame_bytes(cmds, 4, 2, {"strict_bounds": true})
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
+        {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},
+        {"op": "circle", "cx": 2, "cy": 1, "r": 1, "fill": true, "color": "#00ff00"}
+    ]
+    var frame = ui_avm.frame_bytes(cmds, 4, 3, {"strict_bounds": true})
     assert_bytes_eq(frame, [
         79, 71, 70, 48, 0, 0, 0, 0,
-        4, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0,
         1, 0, 20, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0,
-        16, 32, 48, 255
+        16, 32, 48, 255,
+        3, 0, 24, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0,
+        1, 0, 0, 0, 255, 0, 0, 255,
+        4, 0, 20, 0,
+        2, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        0, 255, 0, 255
     ])
     assert_eq(ui_avm.poll_event_bytes(), nil)
-    assert_eq(ui_avm.present_frame(cmds, 4, 2, {"strict_bounds": true}), 0)
+    assert_eq(ui_avm.present_frame(cmds, 4, 3, {"strict_bounds": true}), 0)
     exit(0)
 }
