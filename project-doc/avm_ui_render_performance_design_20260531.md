@@ -67,11 +67,11 @@ Implemented as of 2026-05-31:
   `fill_rect`, `text`, `stroke_line`, and `circle`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line` geometry through a Metal
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle` geometry through a Metal
   pipeline. Its `targetHzMilli` setting drives `MTKView.preferredFramesPerSecond`
   so hosts can request 60/90/120 Hz pacing without exposing UIKit/Metal objects to
-  OBC. CoreGraphics remains the complete fallback for text/circle until text atlas
-  and richer retained resources exist.
+  OBC. CoreGraphics remains the complete fallback for text until text atlas and
+  richer retained resources exist.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - Host helpers can publish persistent screen/media state and can enqueue
   media-query change events so OBC can adapt to logical size, native drawable
@@ -230,8 +230,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 5. Done: add latest-frame replacement/clear, high-resolution resize scale, and
    FIFO pointer down/move/up ordering gates in the iOS embed verifier.
 6. Done: add first SDK Metal/`MTKView` adapter for the current low-level
-   `OGF0` fill-rect/stroke-line geometry, touch forwarding, host screen state, and
-   target-refresh pacing through `MTKView.preferredFramesPerSecond`.
+   `OGF0` fill-rect/stroke-line/circle geometry, touch forwarding, host screen
+   state, and target-refresh pacing through `MTKView.preferredFramesPerSecond`.
 7. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
 8. Add retained resources, batching, and resource lifetime records.
 9. Add text atlas/sprite/mesh rendering on the Metal path.

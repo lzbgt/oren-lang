@@ -109,6 +109,52 @@ static void OrenAVMMetalAppendLine(NSMutableData* vertices,
     [vertices appendBytes:out length:sizeof(out)];
 }
 
+static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
+                                     float cx,
+                                     float cy,
+                                     float radius,
+                                     BOOL filled,
+                                     float logicalWidth,
+                                     float logicalHeight,
+                                     const uint8_t* rgba) {
+    if (radius <= 0.0f) return;
+    const int segments = 32;
+    const float pi = acosf(-1.0f);
+    if (filled) {
+        for (int i = 0; i < segments; i++) {
+            float a0 = ((float)i / (float)segments) * 2.0f * pi;
+            float a1 = ((float)(i + 1) / (float)segments) * 2.0f * pi;
+            OrenAVMMetalVertex out[3];
+            out[0] = OrenAVMMetalMakeVertex(cx, cy, logicalWidth, logicalHeight, rgba);
+            out[1] = OrenAVMMetalMakeVertex(cx + cosf(a0) * radius,
+                                            cy + sinf(a0) * radius,
+                                            logicalWidth,
+                                            logicalHeight,
+                                            rgba);
+            out[2] = OrenAVMMetalMakeVertex(cx + cosf(a1) * radius,
+                                            cy + sinf(a1) * radius,
+                                            logicalWidth,
+                                            logicalHeight,
+                                            rgba);
+            [vertices appendBytes:out length:sizeof(out)];
+        }
+        return;
+    }
+    for (int i = 0; i < segments; i++) {
+        float a0 = ((float)i / (float)segments) * 2.0f * pi;
+        float a1 = ((float)(i + 1) / (float)segments) * 2.0f * pi;
+        OrenAVMMetalAppendLine(vertices,
+                               cx + cosf(a0) * radius,
+                               cy + sinf(a0) * radius,
+                               cx + cosf(a1) * radius,
+                               cy + sinf(a1) * radius,
+                               1.0f,
+                               logicalWidth,
+                               logicalHeight,
+                               rgba);
+    }
+}
+
 @interface OrenAVMMetalView () <MTKViewDelegate>
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
@@ -303,6 +349,19 @@ static void OrenAVMMetalAppendLine(NSMutableData* vertices,
             OrenAVMMetalAppendLine(vertices, (float)x1, (float)y1, (float)x2, (float)y2,
                                    (float)(width == 0 ? 1u : width),
                                    (float)logicalW, (float)logicalH, payload + 20);
+        } else if (opcode == 4 && payloadLen == 20) {
+            uint32_t cx = OrenAVMMetalReadU32LE(payload);
+            uint32_t cy = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t radius = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t flags = OrenAVMMetalReadU32LE(payload + 12);
+            OrenAVMMetalAppendCircle(vertices,
+                                     (float)cx,
+                                     (float)cy,
+                                     (float)radius,
+                                     (flags & 1u) != 0,
+                                     (float)logicalW,
+                                     (float)logicalH,
+                                     payload + 16);
         }
         off += payloadLen;
     }
