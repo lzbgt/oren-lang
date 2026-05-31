@@ -225,14 +225,15 @@
 </ul>
 <p>  host network responses into VirtualNET. <code>make verify-libavm-ios</code> starts a local</p>
 <p>  HTTP server, fetches it through the SDK, injects the body under the requested URL,</p>
-<p>  then runs OBC that reads it with <code>std:net/avm.try_get_text(url)</code>. The raw</p>
-<p>  <code>oren_net_get</code> intrinsic remains the AVM substrate, not the app-facing API.</p>
+<p>  then runs OBC that reads it with byte-native <code>std:net/avm.try_get_bytes(url)</code>.</p>
+<p>  The raw <code>oren_net_get*</code> intrinsics remain the AVM substrate, not the app-facing API.</p>
 <p>  AVM still does not expose raw host networking to bytecode.</p>
 <ul>
 <li>Interactive <code>OrenAVMRuntimeConfig</code> now enables the live host-backed VNET provider</li>
 </ul>
 <p>  by default, while deterministic defaults stay fixture/replay oriented. OBC still</p>
-<p>  only sees <code>std:net/avm.try_get_text(url)</code> and the AVM NET domain; the SDK owns</p>
+<p>  only sees <code>std:net/avm.try_get_bytes(url)</code> or explicit text-boundary helpers and</p>
+<p>  the AVM NET domain; the SDK owns</p>
 <p>  real <code>URLSession</code> access. Apps can dynamically enable, restrict, or disable live</p>
 <p>  NET with <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code> and</p>
 <p>  <code>disableLiveNetworkWithError:</code>, so user permission prompts and settings changes</p>

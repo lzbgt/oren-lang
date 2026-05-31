@@ -163,12 +163,13 @@ Facts from the 2026-05-28 implementation pass:
 - The SDK now includes an allowlisted `URLSession` prefetch helper that maps real
   host network responses into VirtualNET. `make verify-libavm-ios` starts a local
   HTTP server, fetches it through the SDK, injects the body under the requested URL,
-  then runs OBC that reads it with `std:net/avm.try_get_text(url)`. The raw
-  `oren_net_get` intrinsic remains the AVM substrate, not the app-facing API.
+  then runs OBC that reads it with byte-native `std:net/avm.try_get_bytes(url)`.
+  The raw `oren_net_get*` intrinsics remain the AVM substrate, not the app-facing API.
   AVM still does not expose raw host networking to bytecode.
 - Interactive `OrenAVMRuntimeConfig` now enables the live host-backed VNET provider
   by default, while deterministic defaults stay fixture/replay oriented. OBC still
-  only sees `std:net/avm.try_get_text(url)` and the AVM NET domain; the SDK owns
+  only sees `std:net/avm.try_get_bytes(url)` or explicit text-boundary helpers and
+  the AVM NET domain; the SDK owns
   real `URLSession` access. Apps can dynamically enable, restrict, or disable live
   NET with `enableLiveNetworkWithAllowedHosts:timeoutSeconds:` and
   `disableLiveNetworkWithError:`, so user permission prompts and settings changes

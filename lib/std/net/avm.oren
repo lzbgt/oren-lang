@@ -23,6 +23,19 @@ fn get_text(url) {
     return {"ok": 1, "v": body}
 }
 
+fn get_bytes(url) {
+    if url == nil { return {"ok": 0, "code": 4, "err": "std:net/avm.get_bytes: url is nil"} }
+    var body = oren_net_get_bytes(url)
+    if oren_is_err(body) {
+        return {
+            "ok": 0,
+            "code": oren_err_code(body),
+            "err": _err_msg(body, "std:net/avm.get_bytes failed")
+        }
+    }
+    return {"ok": 1, "v": body}
+}
+
 fn try_get_text(url) {
     var r = get_text(url)
     if r["ok"] == 1 { return r["v"] }
@@ -30,6 +43,16 @@ fn try_get_text(url) {
     if oren_type_tag(code) != 1 { code = 4 }
     var msg = r["err"]
     if msg == nil || msg == "" { msg = "std:net/avm.try_get_text failed" }
+    return oren_err(code, msg)
+}
+
+fn try_get_bytes(url) {
+    var r = get_bytes(url)
+    if r["ok"] == 1 { return r["v"] }
+    var code = r["code"]
+    if oren_type_tag(code) != 1 { code = 4 }
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = "std:net/avm.try_get_bytes failed" }
     return oren_err(code, msg)
 }
 

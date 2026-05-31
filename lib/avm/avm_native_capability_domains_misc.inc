@@ -198,7 +198,8 @@
         }
 
         switch (op) {
-            case 0: { // http_get(url) -> STRING
+            case 0: // http_get(url) -> STRING
+            case 8: { // http_get_bytes(url) -> BYTES
                 if (nargs < 1 || args[0].type != AVM_VAL_STRING) {
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "net.get expects (url: string)", domain, op);
                 }
@@ -230,18 +231,30 @@
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "host net backend not implemented", domain, op);
                 }
 
-                // For now, treat body as a byte string and return STRING.
                 AvmValue ret;
-                char* s = (char*)avm_heap_malloc_k((size_t)body_len + 1, AVM_ALLOC_KIND_STRING);
-                if (!s) {
-                    if (callback_body) free(callback_body);
-                    ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret;
+                if (op == 8) {
+                    if (body_len > (uint32_t)INT32_MAX) {
+                        if (callback_body) free(callback_body);
+                        return avm_err_domop(AVM_ERR_BUDGET, "net host fetch response too large", domain, op);
+                    }
+                    ret = avm_bytes_new((int)body_len);
+                    if (ret.type != AVM_VAL_BYTES || !ret.as.b) {
+                        if (callback_body) free(callback_body);
+                        ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret;
+                    }
+                    if (body_len > 0 && body) memcpy(ret.as.b->data, body, body_len);
+                } else {
+                    char* s = (char*)avm_heap_malloc_k((size_t)body_len + 1, AVM_ALLOC_KIND_STRING);
+                    if (!s) {
+                        if (callback_body) free(callback_body);
+                        ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret;
+                    }
+                    if (body_len > 0 && body) memcpy(s, body, body_len);
+                    s[body_len] = 0;
+                    ret.type = AVM_VAL_STRING;
+                    ret.as.p = s;
                 }
-                if (body_len > 0 && body) memcpy(s, body, body_len);
-                s[body_len] = 0;
                 if (callback_body) free(callback_body);
-                ret.type = AVM_VAL_STRING;
-                ret.as.p = s;
 
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);

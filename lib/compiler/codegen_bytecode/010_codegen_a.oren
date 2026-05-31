@@ -976,6 +976,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_vnet_session_poll" { native_domain = AVM_DOMAIN_NET; native_op = 5 }
         if name == "oren_vnet_resolve_host" { native_domain = AVM_DOMAIN_NET; native_op = 6 }
         if name == "oren_vnet_session_accept" { native_domain = AVM_DOMAIN_NET; native_op = 7 }
+        if name == "oren_net_get_bytes" { native_domain = AVM_DOMAIN_NET; native_op = 8 }
         if name == "oren_read_file" { native_domain = AVM_DOMAIN_FS; native_op = 0 }
         if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
         if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }

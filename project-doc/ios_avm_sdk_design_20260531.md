@@ -55,18 +55,19 @@ Retained SDK slices on 2026-05-31:
   provides the first app-usable NetworkProvider slice. The SDK owns the host
   `URLSession` request, enforces an allowlisted host and timeout, then injects
   the response bytes into VirtualNET under the original URL. OBC code uses the
-  portable `std:net/avm.try_get_text(url)` facade; raw `oren_net_get(url)` is only
-  the AVM substrate and never grants host networking authority.
+  portable `std:net/avm.try_get_bytes(url)` or boundary-only
+  `try_get_text(url)` facades; raw `oren_net_get*` calls are only the AVM substrate
+  and never grant host networking authority.
 - `OrenAVMRuntime enableLiveNetworkWithAllowedHosts:timeoutSeconds:error:` installs
   or updates the embedder NET callback, and `disableLiveNetworkWithError:` removes
   it. This lets the host app prompt users, grant/restrict/deny network policy, and
   change that policy later while the same OBC program remains portable. When OBC
-  calls `std:net/avm.try_get_text(url)` for a URL not already in VirtualNET, the SDK
+  calls `std:net/avm.try_get_bytes(url)` for a URL not already in VirtualNET, the SDK
   can synchronously perform an allowlisted `URLSession` fetch on the AVM worker and
   return the body to bytecode. This is a convenience bridge for app integration,
   not raw socket authority.
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
-  and then runs the same `.obc` program against `std:net/avm.try_get_text(url)`,
+  and then runs the same `.obc` program against `std:net/avm.try_get_bytes(url)`,
   proving the real host-fetch-to-OBC-read chain. It also runs live callback mode
   against the same local server.
 - The first GFX bridge slices are implemented. `std:ui/avm` serializes validated

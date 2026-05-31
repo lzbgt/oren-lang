@@ -99,22 +99,23 @@
 <p>  provides the first app-usable NetworkProvider slice. The SDK owns the host</p>
 <p>  <code>URLSession</code> request, enforces an allowlisted host and timeout, then injects</p>
 <p>  the response bytes into VirtualNET under the original URL. OBC code uses the</p>
-<p>  portable <code>std:net/avm.try_get_text(url)</code> facade; raw <code>oren_net_get(url)</code> is only</p>
-<p>  the AVM substrate and never grants host networking authority.</p>
+<p>  portable <code>std:net/avm.try_get_bytes(url)</code> or boundary-only</p>
+<p>  <code>try_get_text(url)</code> facades; raw <code>oren_net_get*</code> calls are only the AVM substrate</p>
+<p>  and never grant host networking authority.</p>
 <ul>
 <li><code>OrenAVMRuntime enableLiveNetworkWithAllowedHosts:timeoutSeconds:error:</code> installs</li>
 </ul>
 <p>  or updates the embedder NET callback, and <code>disableLiveNetworkWithError:</code> removes</p>
 <p>  it. This lets the host app prompt users, grant/restrict/deny network policy, and</p>
 <p>  change that policy later while the same OBC program remains portable. When OBC</p>
-<p>  calls <code>std:net/avm.try_get_text(url)</code> for a URL not already in VirtualNET, the SDK</p>
+<p>  calls <code>std:net/avm.try_get_bytes(url)</code> for a URL not already in VirtualNET, the SDK</p>
 <p>  can synchronously perform an allowlisted <code>URLSession</code> fetch on the AVM worker and</p>
 <p>  return the body to bytecode. This is a convenience bridge for app integration,</p>
 <p>  not raw socket authority.</p>
 <ul>
 <li>The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,</li>
 </ul>
-<p>  and then runs the same <code>.obc</code> program against <code>std:net/avm.try_get_text(url)</code>,</p>
+<p>  and then runs the same <code>.obc</code> program against <code>std:net/avm.try_get_bytes(url)</code>,</p>
 <p>  proving the real host-fetch-to-OBC-read chain. It also runs live callback mode</p>
 <p>  against the same local server.</p>
 <ul>

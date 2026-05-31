@@ -139,7 +139,9 @@
       "probes": [
         "var net_r = net_avm.get_text(\"u\")",
         "if net_r[\"ok\"] != 1 || net_r[\"v\"] != \"ok\" { fail(55) }",
-        "if net_avm.try_get_text(\"u\") != \"ok\" { fail(56) }"
+        "if net_avm.try_get_text(\"u\") != \"ok\" { fail(56) }",
+        "var net_b = net_avm.try_get_bytes(\"u\")",
+        "if oren_is_err(net_b) || bytes.len(net_b) != 2 || bytes.get_u8(net_b, 0) != 111 || bytes.get_u8(net_b, 1) != 107 { fail(57) }"
       ]
     },
     {

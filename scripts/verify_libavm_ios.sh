@@ -112,9 +112,10 @@ fn main() {
     var w = oren_write_file("out.txt", args[1] + ":" + s)
     if oren_is_err(w) { oren_exit(13) }
     if oren_is_err(oren_write_file("export.txt", "export:" + mounted)) { oren_exit(56) }
-    var body = net_avm.try_get_text(args[2])
+    var body = net_avm.try_get_bytes(args[2])
     if oren_is_err(body) { oren_exit(14) }
-    if body != "net-ok" { oren_exit(14) }
+    if bytes.len(body) != 6 { oren_exit(14) }
+    if bytes.get_u8(body, 0) != 110 || bytes.get_u8(body, 5) != 107 { oren_exit(14) }
     if args[3] != "session-none" {
         var is_udp = false
         if oren_string_len(args[3]) >= 6 && oren_string_slice(args[3], 0, 6) == "udp://" { is_udp = true }
@@ -180,7 +181,7 @@ fn main() {
         if net_tcp.close(child) != 0 { oren_exit(94) }
         if net_tcp.close(listener) != 0 { oren_exit(95) }
     }
-    print("stdout:" + body)
+    print("stdout:" + bytes.to_string(body))
     var sprite = bytes.pack([255, 0, 0, 255])
     var label = bytes.pack([72, 105])
     var sprite_batch = bytes.pack([
