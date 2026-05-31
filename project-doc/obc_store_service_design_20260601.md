@@ -85,6 +85,9 @@ Implemented in this repo:
   SHA-256 DER signatures over the exact stable `index.json` bytes.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
+- `make verify-libavm-ios` starts this service locally, publishes a signed OBC
+  package through the HTTP API, then verifies `OrenAVMPackageStore` can download,
+  install, and run that package from the service endpoint.
 - Verification target: `make verify-obc-store-service`.
 
 Remaining service work before deployment:
@@ -99,7 +102,6 @@ Remaining service work before deployment:
 - deployment unit/Traefik route config and health smoke on `store.hubstack.cn`;
   the cloud host Traefik layer owns automatic DNS and HTTPS certificate handling,
   so this repo should not manage TLS cert material;
-- SDK end-to-end install smoke against the service endpoint.
 
 ## Registry Model
 

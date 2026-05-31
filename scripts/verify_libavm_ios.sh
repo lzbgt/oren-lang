@@ -649,7 +649,9 @@ int main(void) {
         NSString* tcpListenURL = env[@"OREN_AVM_SDK_TCP_LISTEN_URL"] ?: @"listen-none";
         NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
         NSString* packageIndexURL = env[@"OREN_AVM_SDK_PACKAGE_INDEX_URL"];
+        NSString* servicePackageIndexURL = env[@"OREN_AVM_SDK_SERVICE_PACKAGE_INDEX_URL"];
         NSString* packageDownloadDir = env[@"OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR"];
+        NSString* servicePackageDownloadDir = env[@"OREN_AVM_SDK_SERVICE_PACKAGE_DOWNLOAD_DIR"];
         NSString* storeIndexKeyB64 = env[@"OREN_AVM_SDK_STORE_INDEX_KEY_B64"];
         NSString* badStoreIndexKeyB64 = env[@"OREN_AVM_SDK_BAD_STORE_INDEX_KEY_B64"];
         NSString* packagePublisherKeyB64 = env[@"OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64"];
@@ -929,6 +931,31 @@ int main(void) {
             if ([afterRemove containsObject:@"oren-labs/sdk-package-remote/0.1.0"]) return 104;
             if ([afterRemove containsObject:@"oren-labs/sdk-package-remote/0.2.0"]) return 111;
         }
+        if (servicePackageIndexURL.length > 0 && servicePackageDownloadDir.length > 0) {
+            OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
+            OrenAVMOBCTrustBundle* trustBundle = trustBundlePath.length > 0
+                ? [OrenAVMOBCTrustBundle loadTrustBundleAtURL:[NSURL fileURLWithPath:trustBundlePath isDirectory:NO] error:&error]
+                : nil;
+            if (!trustBundle) return 116;
+            OrenAVMPackage* package = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:servicePackageIndexURL]
+                                                                      packageID:@"oren-labs/sdk-package-service"
+                                                                        version:@"0.1.0"
+                                                        destinationDirectoryURL:[NSURL fileURLWithPath:servicePackageDownloadDir isDirectory:YES]
+                                                                   allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                 timeoutSeconds:5.0
+                                                                   trustBundle:trustBundle
+                                                                          error:&error];
+            if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-service/0.1.0"]) return 117;
+            OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
+            if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 118;
+            OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
+            if (!packageRuntime) return 119;
+            OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
+            if (!packageResult || packageResult.exitCode != 9) return 120;
+            if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 121;
+            NSArray<NSString*>* installed = [store listInstalledPackageIDsInDirectoryURL:[NSURL fileURLWithPath:servicePackageDownloadDir isDirectory:YES] error:&error];
+            if (![installed containsObject:@"oren-labs/sdk-package-service/0.1.0"]) return 122;
+        }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
@@ -1153,13 +1180,23 @@ print(s.getsockname()[1])
 s.close()
 PY
 )"
+GO_STORE_PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
 PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
 REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
+GO_STORE_DIR="$TMP_DIR/go_obc_store"
 REMOTE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.1.0"
 REMOTE_PACKAGE_V2_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.2.0"
 REMOTE_BAD_ASSET_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-asset/0.1.0"
 REMOTE_BAD_SIGNATURE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-signature/0.1.0"
-rm -rf "$TMP_DIR/package_store" "$TMP_DIR/downloaded_packages" "$REMOTE_STORE_DIR"
+rm -rf "$TMP_DIR/package_store" "$TMP_DIR/downloaded_packages" "$TMP_DIR/downloaded_service_packages" "$REMOTE_STORE_DIR" "$GO_STORE_DIR"
 mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_PACKAGE_V2_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets"
 cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
@@ -1350,6 +1387,8 @@ REMOTE_SIGNATURE_V2_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest_v2.sig" | tr 
 REMOTE_BAD_ASSET_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_bad_asset_manifest.sig" | tr -d '\n')"
 PACKAGE_PUBLISHER_KEY_B64="$(extract_p256_pubkey_b64 "$PACKAGE_SIGN_KEY")"
 BAD_STORE_INDEX_KEY_B64="$(extract_p256_pubkey_b64 "$BAD_STORE_INDEX_KEY")"
+GO_STORE_SERVER_BIN="$TMP_DIR/obc-store-server"
+go build -o "$GO_STORE_SERVER_BIN" ./cmd/obc-store-server
 TRUST_BUNDLE_JSON="$TMP_DIR/obc_store_trust.json"
 cat > "$TRUST_BUNDLE_JSON" <<JSON
 {
@@ -1572,6 +1611,107 @@ with socketserver.TCPServer(("127.0.0.1", port), handler) as srv:
     srv.serve_forever()
 PY
 PKG_SERVER_PID=$!
+OBC_STORE_ADMIN_USERNAME=admin \
+OBC_STORE_ADMIN_PASSWORD=secret \
+OBC_STORE_INDEX_SIGN_KEY_PEM="$PACKAGE_SIGN_KEY" \
+  "$GO_STORE_SERVER_BIN" -addr "127.0.0.1:${GO_STORE_PORT}" -data-dir "$GO_STORE_DIR" > "$LOG_DIR/libavm_ios_sdk_obc_store_server.log" 2>&1 &
+GO_STORE_PID=$!
+python3 - "$GO_STORE_PORT" "$GO_STORE_DIR" "$PACKAGE_OBC_OUT" "$PACKAGE_SIGN_KEY" > "$LOG_DIR/libavm_ios_sdk_obc_store_publish.log" 2>&1 <<'PY'
+import base64
+import http.client
+import json
+import pathlib
+import subprocess
+import sys
+import time
+import urllib.request
+
+port = int(sys.argv[1])
+data_dir = pathlib.Path(sys.argv[2])
+obc_path = pathlib.Path(sys.argv[3])
+sign_key = pathlib.Path(sys.argv[4])
+base = f"http://127.0.0.1:{port}"
+
+for _ in range(100):
+    try:
+        with urllib.request.urlopen(base + "/api/v0/health", timeout=0.2) as resp:
+            if resp.status == 200:
+                break
+    except Exception:
+        time.sleep(0.05)
+else:
+    raise SystemExit("obc-store service did not become ready")
+
+def post(path, payload):
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(base + path, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    token = base64.b64encode(b"admin:secret").decode("ascii")
+    req.add_header("Authorization", "Basic " + token)
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+pub = subprocess.check_output(
+    [
+        "python3",
+        "-",
+        str(sign_key),
+    ],
+    input=b"""import base64, subprocess, sys
+der = subprocess.check_output(["openssl", "ec", "-in", sys.argv[1], "-pubout", "-outform", "DER"], stderr=subprocess.DEVNULL)
+idx = der.rfind(b"\\x03\\x42\\x00\\x04")
+pub = der[idx + 3:idx + 68]
+print(base64.b64encode(pub).decode("ascii"))
+""",
+).decode("ascii").strip()
+
+post("/api/v0/publishers", {"id": "oren-labs", "display_name": "Oren Labs", "public_keys": [pub]})
+post("/api/v0/packages", {"publisher": "oren-labs", "name": "sdk-package-service", "title": "SDK Service Package Smoke", "summary": "Verifies SDK install from obc-store-server", "tags": ["sdk", "service"]})
+release = post(
+    "/api/v0/packages/oren-labs/sdk-package-service/versions",
+    {
+        "version": "0.1.0",
+        "program_obc_base64": base64.b64encode(obc_path.read_bytes()).decode("ascii"),
+        "tags": ["sdk", "service"],
+        "min_app": "0.1.0",
+        "manifest": {
+            "title": "SDK Service Package Smoke",
+            "summary": "Verifies SDK install from obc-store-server",
+            "oren_min": "0.0.rolling",
+            "avm_abi_min": 8,
+            "capabilities": ["CORE", "FS", "EXIT"],
+            "time_mode": "deterministic",
+            "budgets": {
+                "gas": 5000000,
+                "heap_bytes": 33554432,
+                "io_bytes": 1048576,
+                "frame_commands": 1024,
+            },
+            "vfs_mounts": [
+                {"virtual": "assets", "package_path": "assets", "read_only": True}
+            ],
+        },
+        "assets": [
+            {
+                "path": "assets/config.txt",
+                "media_type": "text/plain",
+                "content_base64": base64.b64encode(b"pkg-asset").decode("ascii"),
+            }
+        ],
+    },
+)
+msg = data_dir / "manifest_hash.txt"
+sig = data_dir / "manifest_hash.sig"
+msg.write_text(release["manifest_sha256"], encoding="utf-8")
+subprocess.check_call(["openssl", "dgst", "-sha256", "-sign", str(sign_key), "-out", str(sig), str(msg)], stdout=subprocess.DEVNULL)
+post(
+    "/api/v0/packages/oren-labs/sdk-package-service/versions/0.1.0/publish",
+    {
+        "signature_alg": "p256-sha256-der",
+        "signature_p256_sha256_der_hex": sig.read_bytes().hex(),
+    },
+)
+PY
 cleanup_net_server() {
   if kill -0 "$NET_SERVER_PID" >/dev/null 2>&1; then
     kill "$NET_SERVER_PID" >/dev/null 2>&1 || true
@@ -1593,6 +1733,10 @@ cleanup_net_server() {
     kill "$PKG_SERVER_PID" >/dev/null 2>&1 || true
     wait "$PKG_SERVER_PID" >/dev/null 2>&1 || true
   fi
+  if [[ -n "${GO_STORE_PID:-}" ]] && kill -0 "$GO_STORE_PID" >/dev/null 2>&1; then
+    kill "$GO_STORE_PID" >/dev/null 2>&1 || true
+    wait "$GO_STORE_PID" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup_net_server EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -1607,6 +1751,8 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
 OREN_AVM_SDK_PACKAGE_INDEX_URL="http://127.0.0.1:${PKG_PORT}/index.json" \
 OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_packages" \
+OREN_AVM_SDK_SERVICE_PACKAGE_INDEX_URL="http://127.0.0.1:${GO_STORE_PORT}/api/v0/index.json" \
+OREN_AVM_SDK_SERVICE_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_service_packages" \
 OREN_AVM_SDK_STORE_INDEX_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \
 OREN_AVM_SDK_BAD_STORE_INDEX_KEY_B64="$BAD_STORE_INDEX_KEY_B64" \
 OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \

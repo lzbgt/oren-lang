@@ -116,8 +116,9 @@ Facts from the 2026-05-28 implementation pass:
   `cmd/obc-store-server` and `internal/obcstore`. It supports admin-authenticated
   publisher/package/release publish, public list/search/index/download endpoints,
   asset serving, yanking, and dynamic `index.json.sig` generation from an external
-  P-256 key path. It is not deployed yet; use `make verify-obc-store-service` for
-  the current service gate.
+  P-256 key path. `make verify-libavm-ios` now starts this Go service, publishes
+  a signed package via the service API, and proves iOS SDK signed-index install
+  and package run from that endpoint. It is not deployed yet.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key
