@@ -112,8 +112,9 @@
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
-<p>  SDK-side LRU texture cache for repeated labels; OBC-visible retained text atlas</p>
-<p>  and richer resources remain the next performance step.</p>
+<p>  SDK-side LRU texture cache for repeated labels; host apps can clear the cache on</p>
+<p>  memory pressure. OBC-visible retained text atlas and richer resources remain the</p>
+<p>  next performance step.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>Host helpers can publish persistent screen/media state and can enqueue</li>

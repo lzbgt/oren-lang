@@ -1016,6 +1016,7 @@ int main(void) {
         metalView.targetHzMilli = 90000;
         if (metalView.preferredFramesPerSecond != 90) return 130;
         metalView.targetHzMilli = 120000;
+        [metalView clearTextTextureCache];
         if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;

@@ -335,6 +335,12 @@ static NSData* OrenAVMMetalTextQuad(float x,
     return YES;
 }
 
+- (void)clearTextTextureCache {
+    [self.orenTextCache removeAllObjects];
+    [self.orenTextCacheOrder removeAllObjects];
+    self.orenTextCachePixels = 0;
+}
+
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind point:(CGPoint)point pointerId:(uint32_t)pointerId error:(NSError**)error {
     if (!self.runtime) {
         return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
