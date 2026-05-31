@@ -555,6 +555,10 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 			return
 		}
 	}
+	if err := validateManifestPermissionDefaults(upload.Manifest); err != nil {
+		http.Error(w, "invalid manifest permission_defaults: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := os.Stat(s.packageMetaPath(pub, name)); err != nil {
@@ -1231,6 +1235,45 @@ func marshalJSON(v any) ([]byte, error) {
 		return nil, err
 	}
 	return append(body, '\n'), nil
+}
+
+func validateManifestPermissionDefaults(manifest map[string]any) error {
+	if manifest == nil {
+		return nil
+	}
+	raw, ok := manifest["permission_defaults"]
+	if !ok || raw == nil {
+		return nil
+	}
+	defaults, ok := raw.([]any)
+	if !ok {
+		return errors.New("must be an array")
+	}
+	for i, item := range defaults {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			return fmt.Errorf("entry %d must be an object", i)
+		}
+		domain, ok := entry["domain"].(string)
+		if !ok || domain == "" {
+			return fmt.Errorf("entry %d requires non-empty string domain", i)
+		}
+		action, ok := entry["action"].(string)
+		if !ok || action == "" {
+			return fmt.Errorf("entry %d requires non-empty string action", i)
+		}
+		if detail, ok := entry["detail"]; ok && detail != nil {
+			if _, ok := detail.(string); !ok {
+				return fmt.Errorf("entry %d detail must be a string", i)
+			}
+		}
+		if granted, ok := entry["granted"]; ok && granted != nil {
+			if _, ok := granted.(bool); !ok {
+				return fmt.Errorf("entry %d granted must be boolean", i)
+			}
+		}
+	}
+	return nil
 }
 
 func sha256Hex(body []byte) string {

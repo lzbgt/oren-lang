@@ -56,6 +56,18 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages", pkg, true); got.Code != http.StatusCreated {
 		t.Fatalf("package status=%d body=%s", got.Code, got.Body.String())
 	}
+	badUpload := map[string]any{
+		"version":            "0.0.1",
+		"program_obc_base64": base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e, 0x00, 0x01}),
+		"manifest": map[string]any{
+			"permission_defaults": []any{
+				map[string]any{"domain": "NET", "action": "connect", "detail": 443},
+			},
+		},
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/versions", badUpload, true); got.Code != http.StatusBadRequest {
+		t.Fatalf("bad permission_defaults status=%d body=%s", got.Code, got.Body.String())
+	}
 	upload := map[string]any{
 		"version":               "0.1.0",
 		"program_obc_base64":    base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e, 0x00, 0x01}),
@@ -66,6 +78,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 			"title":        "Plot Demo",
 			"summary":      "Interactive plot",
 			"capabilities": []string{"CORE", "GFX", "NET"},
+			"permission_defaults": []any{
+				map[string]any{"domain": "NET", "action": "connect", "detail": "https://api.example.invalid", "granted": false, "reason": "optional sync"},
+			},
 		},
 		"assets": []map[string]any{
 			{
@@ -97,6 +112,15 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 	if entry["bundle_media_type"] != releaseBundleMediaType || !strings.HasSuffix(entry["bundle"].(string), "/bundle.obc.zip") {
 		t.Fatalf("bad bundle index entry=%v", entry)
+	}
+	manifest := getJSON[map[string]any](t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/package.json")
+	defaults := manifest["permission_defaults"].([]any)
+	if len(defaults) != 1 {
+		t.Fatalf("permission_defaults=%v", defaults)
+	}
+	perm := defaults[0].(map[string]any)
+	if perm["domain"] != "NET" || perm["action"] != "connect" || perm["detail"] != "https://api.example.invalid" || perm["granted"] != false {
+		t.Fatalf("bad permission default=%v", perm)
 	}
 
 	home := string(rawGet(t, ts, "/"))

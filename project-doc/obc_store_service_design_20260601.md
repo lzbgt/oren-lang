@@ -104,6 +104,10 @@ Implemented in this repo:
   SHA-256 DER signatures over the exact stable `index.json` bytes.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
+- Version uploads validate manifest `permission_defaults` shape before accepting a
+  draft release: entries must be objects with non-empty string `domain` and
+  `action`, optional string `detail`, and optional boolean `granted`. The service
+  stores this metadata for host apps; it does not grant runtime permissions.
 - `make verify-libavm-ios` starts this service locally, publishes a signed OBC
   package through the HTTP API, then verifies `OrenAVMPackageStore` can download,
   install, and run that package from the service endpoint.
@@ -222,7 +226,8 @@ Publish flow:
    admin performs the publish operation.
 2. Publisher uploads manifest, OBC, and assets.
 3. Service verifies manifest schema, semantic version, hashes, size limits,
-   capability declarations, and AVM ABI compatibility.
+   capability declarations, permission-default metadata shape, and AVM ABI
+   compatibility.
 4. Service stores immutable artifacts by SHA-256.
 5. Publisher reads the returned `manifest_sha256`, signs that lowercase hex string
    outside the service, then calls `publish` with:
