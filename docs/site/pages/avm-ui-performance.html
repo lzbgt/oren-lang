@@ -52,6 +52,12 @@
 <p>small game/app experiences, not only static forms. That implies bounded low-latency</p>
 <p>input, predictable frame pacing, retained GPU resources, high-resolution drawable</p>
 <p>mapping, and conformance tests that catch regressions before app integration.</p>
+<p>Bidirectional UI is a hard requirement, not an optional add-on. The OBC program</p>
+<p>must be able to publish render intent every frame and consume host-originated</p>
+<p>input/events in the same virtual UI contract. The host SDK may use UIKit,</p>
+<p>CoreGraphics, Metal, keyboard/touch/game-controller APIs, or platform event loops,</p>
+<p>but OBC must only see portable virtual frame/event records with sequence numbers,</p>
+<p>timestamps, capabilities, and budgets.</p>
 <h2 id="source-facts">Source Facts</h2>
 <ul>
 <li>Apple <code>CADisplayLink.preferredFrameRateRange</code> reference was captured at</li>
@@ -112,6 +118,10 @@
 <p>  that imports buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/</p>
 <p>  linalg/math/strings/time/UI AVM modules, so GUI app dependencies fail in the</p>
 <p>  repo gate instead of later in app integration.</p>
+<p>This baseline proves bidirectional transport for the current 2D subset. It is not</p>
+<p>yet game-complete: richer input such as multitouch gestures, focus, IME composition,</p>
+<p>gamepad/controller events, and high-rate motion data still need compact event</p>
+<p>records and iOS SDK helpers before game OBC packages should rely on them.</p>
 <p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
 <h2 id="high-refresh-contract">High-Refresh Contract</h2>
 <p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>

@@ -288,7 +288,10 @@
 <p>  event, and consumes it from OBC. <code>OrenAVMGraphicsView</code> is now the default</p>
 <p>  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code>/</p>
 <p>  <code>stroke_line</code>/<code>circle</code> frame subset and can enqueue pointer, resize, key, and</p>
-<p>  text events. Metal rendering, IME/composition helpers, and richer 2D/3D command</p>
+<p>  text events. Bidirectional UI is a hard requirement for game-level OBC packages:</p>
+<p>  OBC must publish frames and consume host-originated input through the same virtual</p>
+<p>  protocol, while the host owns platform event APIs and rendering devices. Metal</p>
+<p>  rendering, multitouch/gamepad/motion input, IME/composition helpers, and richer 2D/3D command</p>
 <p>  sets remain pending. The next GUI contract is game-grade rather than widget-only:</p>
 <p>  display-link pacing, latest-frame/drop-stale behavior, retained resource handles,</p>
 <p>  strict budgets, low-latency input ordering, and Metal/<code>MTKView</code></p>

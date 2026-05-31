@@ -27,6 +27,13 @@ small game/app experiences, not only static forms. That implies bounded low-late
 input, predictable frame pacing, retained GPU resources, high-resolution drawable
 mapping, and conformance tests that catch regressions before app integration.
 
+Bidirectional UI is a hard requirement, not an optional add-on. The OBC program
+must be able to publish render intent every frame and consume host-originated
+input/events in the same virtual UI contract. The host SDK may use UIKit,
+CoreGraphics, Metal, keyboard/touch/game-controller APIs, or platform event loops,
+but OBC must only see portable virtual frame/event records with sequence numbers,
+timestamps, capabilities, and budgets.
+
 ## Source Facts
 
 - Apple `CADisplayLink.preferredFrameRateRange` reference was captured at
@@ -69,6 +76,11 @@ Implemented as of 2026-05-31:
   that imports buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/
   linalg/math/strings/time/UI AVM modules, so GUI app dependencies fail in the
   repo gate instead of later in app integration.
+
+This baseline proves bidirectional transport for the current 2D subset. It is not
+yet game-complete: richer input such as multitouch gestures, focus, IME composition,
+gamepad/controller events, and high-rate motion data still need compact event
+records and iOS SDK helpers before game OBC packages should rely on them.
 
 This is a correct bootstrap, not the final game-grade renderer contract.
 
