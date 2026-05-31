@@ -123,8 +123,10 @@ Facts from the 2026-05-28 implementation pass:
 - The first `store.hubstack.cn` Go service slice is implemented in
   `cmd/obc-store-server` and `internal/obcstore`. It supports admin-authenticated
   publisher/package/release publish, public list/search/index/download endpoints,
-  browser browse/detail/operator pages, asset serving, yanking, and dynamic
-  `index.json.sig` generation from an external
+  browser browse/detail/operator pages, asset serving, deterministic `.obc.zip`
+  bundle upload/download/index metadata, public-by-default package visibility with
+  publisher/admin private toggle, yanking, and dynamic `index.json.sig` generation
+  from an external
   P-256 key path. Write endpoints now accept a deploy-safe admin bearer token
   verified by external `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`, while Basic Auth
   remains for local bring-up. Publisher package/version/release writes also
@@ -133,8 +135,8 @@ Facts from the 2026-05-28 implementation pass:
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
   install and package run from that endpoint. The release bundle format is
-  specified as deterministic `.obc.zip`; service/SDK bundle upload/download support
-  is still pending. It is not deployed yet.
+  specified as deterministic `.obc.zip`; SDK bundle-preferred install support is
+  still pending. It is not deployed yet.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key

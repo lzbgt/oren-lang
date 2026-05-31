@@ -132,9 +132,9 @@ Index shape:
     {
       "id": "oren-labs/plot-demo",
       "version": "0.1.0",
-      "manifest": "packages/oren-labs/plot-demo/0.1.0/package.json",
+      "manifest": "packages/oren-labs/plot-demo/versions/0.1.0/package.json",
       "manifest_sha256": "<hex>",
-      "bundle": "bundles/oren-labs__plot-demo__0.1.0.obc.zip",
+      "bundle": "packages/oren-labs/plot-demo/versions/0.1.0/bundle.obc.zip",
       "bundle_sha256": "<hex>",
       "bundle_media_type": "application/vnd.oren.obc.release+zip",
       "tags": ["science", "plot", "gfx"],
@@ -160,10 +160,15 @@ the store site.
   versions, hashes, signatures, and compatibility metadata;
 - serve signed machine-readable indexes such as `/obc/index.json` and
   `/obc/index.json.sig`;
-- serve immutable package manifests, `program.obc`, assets, and per-release
-  signatures by content-hashed or versioned paths;
+- serve immutable package manifests, `program.obc`, deterministic `.obc.zip`
+  release bundles, assets, and per-release signatures by content-hashed or
+  versioned paths;
 - expose a publisher upload/release workflow that signs metadata outside the web
   server and never stores private signing keys in this repo;
+- make packages public by default, while allowing publishers/admins to mark a
+  package private; private packages are excluded from public browse/search/index
+  and unauthenticated downloads, but remain available to authenticated owner/admin
+  APIs;
 - keep all package execution decisions in the host app: trust policy, untrusted
   run confirmation, permissions, budgets, and install/update/remove lifecycle.
 

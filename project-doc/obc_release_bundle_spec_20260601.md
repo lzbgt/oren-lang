@@ -84,9 +84,9 @@ index contains hashes for externally fetched metadata and bundle artifacts:
 {
   "id": "oren-labs/ui-card-demo",
   "version": "0.1.0",
-  "manifest": "packages/oren-labs/ui-card-demo/0.1.0/package.json",
+  "manifest": "packages/oren-labs/ui-card-demo/versions/0.1.0/package.json",
   "manifest_sha256": "<hex>",
-  "bundle": "bundles/oren-labs__ui-card-demo__0.1.0.obc.zip",
+  "bundle": "packages/oren-labs/ui-card-demo/versions/0.1.0/bundle.obc.zip",
   "bundle_sha256": "<hex>",
   "bundle_media_type": "application/vnd.oren.obc.release+zip"
 }
@@ -119,6 +119,17 @@ build/obc-store-demos/packages/
 build/obc-store-demos/bundles/
 ```
 
-The initial iOS SDK package store path installs expanded packages from the store
-index. ZIP upload/download support can be added to the Go service and SDK later
-without changing the package manifest contract.
+The Go store service accepts `release_bundle_base64` during version creation,
+validates that the ZIP is rootless and contains `package.json` plus `program.obc`,
+serves it at:
+
+```text
+/api/v0/packages/{publisher}/{name}/versions/{version}/bundle.obc.zip
+```
+
+and advertises `bundle`, `bundle_sha256`, and `bundle_media_type` in
+`index.json`.
+
+The initial iOS SDK package store path still installs expanded packages from the
+store index. A follow-up SDK slice should prefer the ZIP bundle when present and
+fall back to expanded `package.json`/`program.obc`/assets otherwise.

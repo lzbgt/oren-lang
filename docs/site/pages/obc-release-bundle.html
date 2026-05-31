@@ -96,9 +96,9 @@ assets/
 <pre><code>{
   &quot;id&quot;: &quot;oren-labs/ui-card-demo&quot;,
   &quot;version&quot;: &quot;0.1.0&quot;,
-  &quot;manifest&quot;: &quot;packages/oren-labs/ui-card-demo/0.1.0/package.json&quot;,
+  &quot;manifest&quot;: &quot;packages/oren-labs/ui-card-demo/versions/0.1.0/package.json&quot;,
   &quot;manifest_sha256&quot;: &quot;&lt;hex&gt;&quot;,
-  &quot;bundle&quot;: &quot;bundles/oren-labs__ui-card-demo__0.1.0.obc.zip&quot;,
+  &quot;bundle&quot;: &quot;packages/oren-labs/ui-card-demo/versions/0.1.0/bundle.obc.zip&quot;,
   &quot;bundle_sha256&quot;: &quot;&lt;hex&gt;&quot;,
   &quot;bundle_media_type&quot;: &quot;application/vnd.oren.obc.release+zip&quot;
 }</code></pre>
@@ -121,9 +121,15 @@ assets/
 <p>expanded directories and deterministic ZIP bundles under:</p>
 <pre><code>build/obc-store-demos/packages/
 build/obc-store-demos/bundles/</code></pre>
-<p>The initial iOS SDK package store path installs expanded packages from the store</p>
-<p>index. ZIP upload/download support can be added to the Go service and SDK later</p>
-<p>without changing the package manifest contract.</p>
+<p>The Go store service accepts <code>release_bundle_base64</code> during version creation,</p>
+<p>validates that the ZIP is rootless and contains <code>package.json</code> plus <code>program.obc</code>,</p>
+<p>serves it at:</p>
+<pre><code>/api/v0/packages/{publisher}/{name}/versions/{version}/bundle.obc.zip</code></pre>
+<p>and advertises <code>bundle</code>, <code>bundle_sha256</code>, and <code>bundle_media_type</code> in</p>
+<p><code>index.json</code>.</p>
+<p>The initial iOS SDK package store path still installs expanded packages from the</p>
+<p>store index. A follow-up SDK slice should prefer the ZIP bundle when present and</p>
+<p>fall back to expanded <code>package.json</code>/<code>program.obc</code>/assets otherwise.</p>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>

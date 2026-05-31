@@ -120,13 +120,18 @@ This file is the concise task view. Detailed implementation status lives in
      Write endpoints now accept an
      external-hash bearer token for deployment automation, while Basic Auth is
      retained for local bring-up. Publisher package/version/release writes now
-     accept publisher-scoped bearer tokens limited to that publisher id, with
-     JSON APIs for token rotation and revocation.
-     `make verify-libavm-ios` starts the Go service, publishes a signed package
-     through the HTTP API with publisher-scoped auth, and proves iOS SDK
-     install/run from that service. The deterministic `.obc.zip` release bundle
-     format is now specified and emitted by demo tooling; service/SDK bundle
-     upload/download support, live deployment, and richer operator/browser UX remain.
+	     accept publisher-scoped bearer tokens limited to that publisher id, with
+	     JSON APIs for token rotation and revocation. Packages are public by default;
+	     publisher/admin visibility changes can make a package private, which removes
+	     it from public browse/search/index/download surfaces while retaining
+	     authenticated owner/admin access.
+	     `make verify-libavm-ios` starts the Go service, publishes a signed package
+	     through the HTTP API with publisher-scoped auth, and proves iOS SDK
+	     install/run from that service. The deterministic `.obc.zip` release bundle
+	     format is now specified, emitted by demo tooling, accepted by the service,
+	     served by release download APIs, and advertised in `index.json`; SDK
+	     bundle-preferred install support, live deployment, and richer
+	     operator/browser UX remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
      Curated demo package sources now live under `examples/obc_store_demos/`;

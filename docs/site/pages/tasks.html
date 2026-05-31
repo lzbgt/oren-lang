@@ -180,13 +180,18 @@
 <p>     Write endpoints now accept an</p>
 <p>     external-hash bearer token for deployment automation, while Basic Auth is</p>
 <p>     retained for local bring-up. Publisher package/version/release writes now</p>
-<p>     accept publisher-scoped bearer tokens limited to that publisher id, with</p>
-<p>     JSON APIs for token rotation and revocation.</p>
-<p>     <code>make verify-libavm-ios</code> starts the Go service, publishes a signed package</p>
-<p>     through the HTTP API with publisher-scoped auth, and proves iOS SDK</p>
-<p>     install/run from that service. The deterministic <code>.obc.zip</code> release bundle</p>
-<p>     format is now specified and emitted by demo tooling; service/SDK bundle</p>
-<p>     upload/download support, live deployment, and richer operator/browser UX remain.</p>
+<p>	     accept publisher-scoped bearer tokens limited to that publisher id, with</p>
+<p>	     JSON APIs for token rotation and revocation. Packages are public by default;</p>
+<p>	     publisher/admin visibility changes can make a package private, which removes</p>
+<p>	     it from public browse/search/index/download surfaces while retaining</p>
+<p>	     authenticated owner/admin access.</p>
+<p>	     <code>make verify-libavm-ios</code> starts the Go service, publishes a signed package</p>
+<p>	     through the HTTP API with publisher-scoped auth, and proves iOS SDK</p>
+<p>	     install/run from that service. The deterministic <code>.obc.zip</code> release bundle</p>
+<p>	     format is now specified, emitted by demo tooling, accepted by the service,</p>
+<p>	     served by release download APIs, and advertised in <code>index.json</code>; SDK</p>
+<p>	     bundle-preferred install support, live deployment, and richer</p>
+<p>	     operator/browser UX remain.</p>
 <p>     Design note:</p>
 <p>     <code>project-doc/obc_store_distribution_design_20260529.md</code>.</p>
 <p>     Curated demo package sources now live under <code>examples/obc_store_demos/</code>;</p>

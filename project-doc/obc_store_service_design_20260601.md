@@ -88,8 +88,13 @@ Implemented in this repo:
   `POST`/`DELETE /api/v0/publishers/{publisher}/token` using either admin auth or
   the current publisher token.
 - Public endpoints expose health, package list/search, package/version metadata,
-  `index.json`, package manifests, `program.obc`, assets, and hash-addressed
-  artifact lookup.
+  `index.json`, package manifests, `program.obc`, deterministic `.obc.zip`
+  release bundles, assets, and hash-addressed artifact lookup.
+- Packages are public by default. Publishers or admins can set package visibility
+  to `private`; private packages are omitted from the public browser, search,
+  signed index, unauthenticated downloads, and hash-addressed artifact lookup.
+  Authenticated publisher/admin API access can still read private package metadata
+  and artifacts.
 - Browser endpoints expose a server-rendered package store surface: `/` for
   search/browse, `/packages/{publisher}/{name}` for release download links, and
   `/ops` for operator API/token lifecycle reference. The machine APIs remain the
@@ -109,6 +114,8 @@ Remaining service work before deployment:
 - signed index rotation/key-id publication beyond the current single-key signer;
 - richer browser/operator UX beyond the current browse/detail/operator reference
   pages;
+- SDK bundle install preference so host apps can choose the ZIP artifact when it is
+  present and fall back to expanded manifest/OBC/assets otherwise;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
@@ -179,9 +186,13 @@ execution should still verify the release manifest and hashes.
 ```http
 GET /api/v0/packages/{publisher}/{name}/versions/{version}/package.json
 GET /api/v0/packages/{publisher}/{name}/versions/{version}/program.obc
+GET /api/v0/packages/{publisher}/{name}/versions/{version}/bundle.obc.zip
 GET /api/v0/packages/{publisher}/{name}/versions/{version}/assets/{path...}
 GET /api/v0/artifacts/sha256/{hex}
 ```
+
+Only public packages are exposed through unauthenticated download endpoints.
+Publisher/admin-authenticated requests may read private package artifacts.
 
 The iOS SDK install flow should use:
 
@@ -200,6 +211,7 @@ GET  /api/v0/me
 POST /api/v0/publishers/{publisher}/token
 DELETE /api/v0/publishers/{publisher}/token
 POST /api/v0/packages
+POST /api/v0/packages/{publisher}/{name}/visibility
 POST /api/v0/packages/{publisher}/{name}/versions
 POST /api/v0/packages/{publisher}/{name}/versions/{version}/artifacts
 POST /api/v0/packages/{publisher}/{name}/versions/{version}/publish
@@ -218,15 +230,25 @@ Publish flow:
    outside the service, then calls `publish` with:
 
    ```json
-   {
-     "signature_alg": "p256-sha256-der",
-     "signature_p256_sha256_der_hex": "<DER signature hex>"
-   }
-   ```
-
-   If the publisher has registered public keys, the service verifies the detached
-   publisher signature before moving the release to `published`.
+	 {
+	   "signature_alg": "p256-sha256-der",
+	   "signature_p256_sha256_der_hex": "<DER signature hex>"
+	 }
+	 ```
+	   If the publisher has registered public keys, the service verifies the detached
+	   publisher signature before moving the release to `published`.
 6. Release becomes visible only after validation and index regeneration.
+
+Package visibility update:
+
+```json
+{
+  "visibility": "public"
+}
+```
+
+Allowed values are `public` and `private`. Omitted visibility at package creation
+means `public`.
 
 The service should not hold publisher private keys by default. If a future hosted
 signing mode exists, it must use a dedicated key-management design and audit log.

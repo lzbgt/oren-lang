@@ -159,9 +159,9 @@ packages/...</code></pre>
     {
       &quot;id&quot;: &quot;oren-labs/plot-demo&quot;,
       &quot;version&quot;: &quot;0.1.0&quot;,
-      &quot;manifest&quot;: &quot;packages/oren-labs/plot-demo/0.1.0/package.json&quot;,
+      &quot;manifest&quot;: &quot;packages/oren-labs/plot-demo/versions/0.1.0/package.json&quot;,
       &quot;manifest_sha256&quot;: &quot;&lt;hex&gt;&quot;,
-      &quot;bundle&quot;: &quot;bundles/oren-labs__plot-demo__0.1.0.obc.zip&quot;,
+      &quot;bundle&quot;: &quot;packages/oren-labs/plot-demo/versions/0.1.0/bundle.obc.zip&quot;,
       &quot;bundle_sha256&quot;: &quot;&lt;hex&gt;&quot;,
       &quot;bundle_media_type&quot;: &quot;application/vnd.oren.obc.release+zip&quot;,
       &quot;tags&quot;: [&quot;science&quot;, &quot;plot&quot;, &quot;gfx&quot;],
@@ -187,13 +187,20 @@ packages/...</code></pre>
 </ul>
 <p>  <code>/obc/index.json.sig</code>;</p>
 <ul>
-<li>serve immutable package manifests, <code>program.obc</code>, assets, and per-release</li>
+<li>serve immutable package manifests, <code>program.obc</code>, deterministic <code>.obc.zip</code></li>
 </ul>
-<p>  signatures by content-hashed or versioned paths;</p>
+<p>  release bundles, assets, and per-release signatures by content-hashed or</p>
+<p>  versioned paths;</p>
 <ul>
 <li>expose a publisher upload/release workflow that signs metadata outside the web</li>
 </ul>
 <p>  server and never stores private signing keys in this repo;</p>
+<ul>
+<li>make packages public by default, while allowing publishers/admins to mark a</li>
+</ul>
+<p>  package private; private packages are excluded from public browse/search/index</p>
+<p>  and unauthenticated downloads, but remain available to authenticated owner/admin</p>
+<p>  APIs;</p>
 <ul>
 <li>keep all package execution decisions in the host app: trust policy, untrusted</li>
 </ul>

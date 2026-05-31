@@ -1,6 +1,7 @@
 package obcstore
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -15,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -55,10 +57,11 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("package status=%d body=%s", got.Code, got.Body.String())
 	}
 	upload := map[string]any{
-		"version":            "0.1.0",
-		"program_obc_base64": base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e, 0x00, 0x01}),
-		"tags":               []string{"science", "gfx"},
-		"min_app":            "0.1.0",
+		"version":               "0.1.0",
+		"program_obc_base64":    base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e, 0x00, 0x01}),
+		"release_bundle_base64": base64.StdEncoding.EncodeToString(testBundleZip(t, map[string][]byte{"package.json": []byte(`{"schema":"oren.obc.package.v0"}`), "program.obc": []byte{0xcd, 0x0e, 0x00, 0x01}, "assets/source/main.oren": []byte("print(\"demo\")\n")})),
+		"tags":                  []string{"science", "gfx"},
+		"min_app":               "0.1.0",
 		"manifest": map[string]any{
 			"title":        "Plot Demo",
 			"summary":      "Interactive plot",
@@ -92,13 +95,16 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if !strings.HasSuffix(manifestPath, "/package.json") {
 		t.Fatalf("bad manifest path=%q", manifestPath)
 	}
+	if entry["bundle_media_type"] != releaseBundleMediaType || !strings.HasSuffix(entry["bundle"].(string), "/bundle.obc.zip") {
+		t.Fatalf("bad bundle index entry=%v", entry)
+	}
 
 	home := string(rawGet(t, ts, "/"))
 	if !strings.Contains(home, "Plot Demo") || !strings.Contains(home, "/packages/oren-labs/plot-demo") {
 		t.Fatalf("home page missing package: %s", home)
 	}
 	detail := string(rawGet(t, ts, "/packages/oren-labs/plot-demo"))
-	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") {
+	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") || !strings.Contains(detail, "bundle.obc.zip") {
 		t.Fatalf("detail page missing release links: %s", detail)
 	}
 	ops := string(rawGet(t, ts, "/ops"))
@@ -114,8 +120,35 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if got := rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/program.obc"); !bytes.Equal(got, []byte{0xcd, 0x0e, 0x00, 0x01}) {
 		t.Fatalf("program bytes=%x", got)
 	}
+	if got := rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/bundle.obc.zip"); len(got) == 0 {
+		t.Fatalf("empty release bundle")
+	}
 	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/readme.txt")); got != "asset-ok" {
 		t.Fatalf("asset=%q", got)
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/visibility", map[string]any{"visibility": "private"}, true); got.Code != http.StatusOK {
+		t.Fatalf("private visibility status=%d body=%s", got.Code, got.Body.String())
+	}
+	index = getJSON[map[string]any](t, ts, "/api/v0/index.json")
+	if got := len(index["packages"].([]any)); got != 0 {
+		t.Fatalf("private package still indexed: %d", got)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/packages?query=plot", nil, false); got.Code != http.StatusOK {
+		t.Fatalf("private search status=%d body=%s", got.Code, got.Body.String())
+	} else if found := getPackagesFromBody(t, got.Body.Bytes()); len(found) != 0 {
+		t.Fatalf("private package still searchable: %v", found)
+	}
+	if got := request(t, ts, http.MethodGet, "/packages/oren-labs/plot-demo", nil, false); got.Code != http.StatusNotFound {
+		t.Fatalf("private browser package status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/program.obc", nil, false); got.Code != http.StatusNotFound {
+		t.Fatalf("private unauthenticated download status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/program.obc", nil, true); got.Code != http.StatusOK || !bytes.Equal(got.Body.Bytes(), []byte{0xcd, 0x0e, 0x00, 0x01}) {
+		t.Fatalf("private authenticated download status=%d body=%x", got.Code, got.Body.Bytes())
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/visibility", map[string]any{"visibility": "public"}, true); got.Code != http.StatusOK {
+		t.Fatalf("public visibility status=%d body=%s", got.Code, got.Body.String())
 	}
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/yank", map[string]any{}, true); got.Code != http.StatusOK {
 		t.Fatalf("yank status=%d body=%s", got.Code, got.Body.String())
@@ -405,5 +438,39 @@ func rawGet(t *testing.T, ts *httptest.Server, path string) []byte {
 	}
 	var buf bytes.Buffer
 	_, _ = buf.ReadFrom(resp.Body)
+	return buf.Bytes()
+}
+
+func getPackagesFromBody(t *testing.T, body []byte) []any {
+	t.Helper()
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("decode packages body: %v body=%s", err, string(body))
+	}
+	items, _ := out["packages"].([]any)
+	return items
+}
+
+func testBundleZip(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(files[name]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return buf.Bytes()
 }

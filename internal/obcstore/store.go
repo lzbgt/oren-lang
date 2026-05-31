@@ -1,6 +1,7 @@
 package obcstore
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -28,8 +29,9 @@ import (
 )
 
 const (
-	indexSchema    = "oren.obc.store.index.v0"
-	manifestSchema = "oren.obc.package.v0"
+	indexSchema            = "oren.obc.store.index.v0"
+	manifestSchema         = "oren.obc.package.v0"
+	releaseBundleMediaType = "application/vnd.oren.obc.release+zip"
 )
 
 var (
@@ -66,12 +68,13 @@ type Publisher struct {
 }
 
 type PackageMeta struct {
-	Publisher string   `json:"publisher"`
-	Name      string   `json:"name"`
-	Title     string   `json:"title,omitempty"`
-	Summary   string   `json:"summary,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
-	Status    string   `json:"status,omitempty"`
+	Publisher  string   `json:"publisher"`
+	Name       string   `json:"name"`
+	Title      string   `json:"title,omitempty"`
+	Summary    string   `json:"summary,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
+	Status     string   `json:"status,omitempty"`
+	Visibility string   `json:"visibility,omitempty"`
 }
 
 type PackageListItem struct {
@@ -94,6 +97,7 @@ type ReleaseUpload struct {
 	Version                   string                 `json:"version"`
 	Manifest                  map[string]any         `json:"manifest,omitempty"`
 	ProgramOBCBase64          string                 `json:"program_obc_base64"`
+	ReleaseBundleBase64       string                 `json:"release_bundle_base64,omitempty"`
 	Assets                    []AssetUpload          `json:"assets,omitempty"`
 	Tags                      []string               `json:"tags,omitempty"`
 	MinApp                    string                 `json:"min_app,omitempty"`
@@ -112,6 +116,10 @@ type PublisherTokenUpdate struct {
 	TokenSHA256Hex string `json:"token_sha256_hex"`
 }
 
+type PackageVisibilityUpdate struct {
+	Visibility string `json:"visibility"`
+}
+
 type ReleaseMeta struct {
 	Publisher                 string    `json:"publisher"`
 	Name                      string    `json:"name"`
@@ -120,6 +128,9 @@ type ReleaseMeta struct {
 	ManifestPath              string    `json:"manifest"`
 	ManifestSHA256            string    `json:"manifest_sha256"`
 	OBCSHA256                 string    `json:"obc_sha256"`
+	BundlePath                string    `json:"bundle,omitempty"`
+	BundleSHA256              string    `json:"bundle_sha256,omitempty"`
+	BundleMediaType           string    `json:"bundle_media_type,omitempty"`
 	SignatureAlg              string    `json:"signature_alg,omitempty"`
 	SignatureP256SHA256DERHex string    `json:"signature_p256_sha256_der_hex,omitempty"`
 	Tags                      []string  `json:"tags,omitempty"`
@@ -228,6 +239,10 @@ func (s *Service) handleSitePackage(w http.ResponseWriter, r *http.Request) {
 	pub, name := parts[0], parts[1]
 	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
 	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !packageIsPublic(meta) {
 		http.NotFound(w, r)
 		return
 	}
@@ -341,7 +356,22 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		s.getPackage(w, pub, name)
+		s.getPackage(w, r, pub, name)
+		return
+	}
+	if parts[2] == "visibility" {
+		if len(parts) != 3 {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method != http.MethodPost && r.Method != http.MethodPut {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !s.requirePublisher(w, r, pub) {
+			return
+		}
+		s.setPackageVisibility(w, r, pub, name)
 		return
 	}
 	if parts[2] != "versions" {
@@ -350,7 +380,7 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 3 {
 		if r.Method == http.MethodGet {
-			s.listVersions(w, pub, name)
+			s.listVersions(w, r, pub, name)
 			return
 		}
 		if r.Method == http.MethodPost {
@@ -369,7 +399,7 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 4 && r.Method == http.MethodGet {
-		s.getRelease(w, pub, name, version)
+		s.getRelease(w, r, pub, name, version)
 		return
 	}
 	if len(parts) == 5 && r.Method == http.MethodPost {
@@ -410,6 +440,11 @@ func (s *Service) createPackage(w http.ResponseWriter, r *http.Request) {
 	if p.Status == "" {
 		p.Status = "active"
 	}
+	p.Visibility = normalizeVisibility(p.Visibility)
+	if !validVisibility(p.Visibility) {
+		http.Error(w, "invalid package visibility", http.StatusBadRequest)
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := os.Stat(s.publisherPath(p.Publisher)); err != nil {
@@ -421,6 +456,32 @@ func (s *Service) createPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, p)
+}
+
+func (s *Service) setPackageVisibility(w http.ResponseWriter, r *http.Request, pub, name string) {
+	var update PackageVisibilityUpdate
+	if !decodeJSON(w, r, &update) {
+		return
+	}
+	visibility := normalizeVisibility(update.Visibility)
+	if !validVisibility(visibility) {
+		http.Error(w, "invalid package visibility", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := s.packageMetaPath(pub, name)
+	meta, err := readJSONFile[PackageMeta](path)
+	if err != nil {
+		http.Error(w, "package not found", http.StatusNotFound)
+		return
+	}
+	meta.Visibility = visibility
+	if err := writeJSONFile(path, meta); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, meta)
 }
 
 func (s *Service) rotatePublisherToken(w http.ResponseWriter, r *http.Request, publisherID string) {
@@ -482,6 +543,18 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 		http.Error(w, "invalid program_obc_base64", http.StatusBadRequest)
 		return
 	}
+	var bundle []byte
+	if upload.ReleaseBundleBase64 != "" {
+		bundle, err = base64.StdEncoding.DecodeString(upload.ReleaseBundleBase64)
+		if err != nil {
+			http.Error(w, "invalid release_bundle_base64", http.StatusBadRequest)
+			return
+		}
+		if err := validateReleaseBundleZIP(bundle); err != nil {
+			http.Error(w, "invalid release bundle: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := os.Stat(s.packageMetaPath(pub, name)); err != nil {
@@ -500,6 +573,14 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 	if err := os.WriteFile(filepath.Join(dir, "program.obc"), program, 0o644); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	var bundleHash string
+	if len(bundle) > 0 {
+		if err := os.WriteFile(filepath.Join(dir, "bundle.obc.zip"), bundle, 0o644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bundleHash = sha256Hex(bundle)
 	}
 	assetEntries, ok := s.writeAssets(w, dir, upload.Assets)
 	if !ok {
@@ -543,6 +624,11 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 		MinApp:                    upload.MinApp,
 		CreatedAt:                 now,
 		UpdatedAt:                 now,
+	}
+	if bundleHash != "" {
+		rel.BundlePath = fmt.Sprintf("packages/%s/%s/versions/%s/bundle.obc.zip", pub, name, upload.Version)
+		rel.BundleSHA256 = bundleHash
+		rel.BundleMediaType = releaseBundleMediaType
 	}
 	if err := writeJSONFile(filepath.Join(dir, "release.json"), rel); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -758,16 +844,29 @@ func (s *Service) packageSearchItems(r *http.Request) ([]PackageListItem, error)
 	return items, nil
 }
 
-func (s *Service) getPackage(w http.ResponseWriter, pub, name string) {
+func (s *Service) getPackage(w http.ResponseWriter, r *http.Request, pub, name string) {
 	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
 	if err != nil {
 		http.NotFound(w, nil)
 		return
 	}
+	if !s.packageVisibleToRequest(meta, r) {
+		http.NotFound(w, r)
+		return
+	}
 	writeJSON(w, http.StatusOK, meta)
 }
 
-func (s *Service) listVersions(w http.ResponseWriter, pub, name string) {
+func (s *Service) listVersions(w http.ResponseWriter, r *http.Request, pub, name string) {
+	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
+	if err != nil {
+		http.NotFound(w, nil)
+		return
+	}
+	if !s.packageVisibleToRequest(meta, r) {
+		http.NotFound(w, r)
+		return
+	}
 	releases, err := s.packageReleases(pub, name)
 	if err != nil {
 		http.NotFound(w, nil)
@@ -796,7 +895,16 @@ func (s *Service) packageReleases(pub, name string) ([]ReleaseMeta, error) {
 	return releases, nil
 }
 
-func (s *Service) getRelease(w http.ResponseWriter, pub, name, version string) {
+func (s *Service) getRelease(w http.ResponseWriter, r *http.Request, pub, name, version string) {
+	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
+	if err != nil {
+		http.NotFound(w, nil)
+		return
+	}
+	if !s.packageVisibleToRequest(meta, r) {
+		http.NotFound(w, r)
+		return
+	}
 	rel, err := readJSONFile[ReleaseMeta](filepath.Join(s.releaseDir(pub, name, version), "release.json"))
 	if err != nil {
 		http.NotFound(w, nil)
@@ -806,12 +914,23 @@ func (s *Service) getRelease(w http.ResponseWriter, pub, name, version string) {
 }
 
 func (s *Service) downloadReleaseFile(w http.ResponseWriter, r *http.Request, pub, name, version string, tail []string) {
+	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !s.packageVisibleToRequest(meta, r) {
+		http.NotFound(w, r)
+		return
+	}
 	var rel string
 	switch tail[0] {
 	case "package.json":
 		rel = "package.json"
 	case "program.obc":
 		rel = "program.obc"
+	case "bundle.obc.zip":
+		rel = "bundle.obc.zip"
 	case "assets":
 		if len(tail) < 2 {
 			http.NotFound(w, r)
@@ -863,6 +982,11 @@ func (s *Service) indexJSON() ([]byte, error) {
 		if rel.SignatureAlg != "" {
 			item["signature_alg"] = rel.SignatureAlg
 			item["signature_p256_sha256_der_hex"] = rel.SignatureP256SHA256DERHex
+		}
+		if rel.BundlePath != "" {
+			item["bundle"] = rel.BundlePath
+			item["bundle_sha256"] = rel.BundleSHA256
+			item["bundle_media_type"] = rel.BundleMediaType
 		}
 		items = append(items, item)
 	}
@@ -940,6 +1064,10 @@ func (s *Service) publishedReleases() ([]ReleaseMeta, error) {
 		}
 		rel, err := readJSONFile[ReleaseMeta](path)
 		if err == nil && rel.Status == "published" {
+			meta, metaErr := readJSONFile[PackageMeta](s.packageMetaPath(rel.Publisher, rel.Name))
+			if metaErr != nil || !packageIsPublic(meta) {
+				return nil
+			}
 			out = append(out, rel)
 		}
 		return nil
@@ -1007,6 +1135,27 @@ func (s *Service) publisherAuthorized(publisherID string, r *http.Request) bool 
 	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 	sum := sha256.Sum256([]byte(token))
 	return subtle.ConstantTimeCompare(sum[:], want) == 1
+}
+
+func (s *Service) packageVisibleToRequest(meta PackageMeta, r *http.Request) bool {
+	return packageIsPublic(meta) || s.adminAuthorized(r) || s.publisherAuthorized(meta.Publisher, r)
+}
+
+func packageIsPublic(meta PackageMeta) bool {
+	return normalizeVisibility(meta.Visibility) == "public"
+}
+
+func normalizeVisibility(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if raw == "" {
+		return "public"
+	}
+	return raw
+}
+
+func validVisibility(raw string) bool {
+	v := normalizeVisibility(raw)
+	return v == "public" || v == "private"
 }
 
 func constantTimeStringEqual(a, b string) int {
@@ -1180,6 +1329,44 @@ func safeRelPath(p string) bool {
 	return clean == p && clean != "." && !strings.HasPrefix(clean, "../") && !strings.Contains(clean, "/../")
 }
 
+func validateReleaseBundleZIP(body []byte) error {
+	if len(body) == 0 {
+		return errors.New("empty bundle")
+	}
+	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		return err
+	}
+	seenManifest := false
+	seenProgram := false
+	for _, file := range reader.File {
+		name := filepath.ToSlash(file.Name)
+		if strings.HasSuffix(name, "/") {
+			dirName := strings.TrimSuffix(name, "/")
+			if !safeRelPath(dirName) {
+				return fmt.Errorf("unsafe path %q", file.Name)
+			}
+			continue
+		}
+		if !safeRelPath(name) {
+			return fmt.Errorf("unsafe path %q", file.Name)
+		}
+		if file.FileInfo().Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlink path %q", file.Name)
+		}
+		switch name {
+		case "package.json":
+			seenManifest = true
+		case "program.obc":
+			seenProgram = true
+		}
+	}
+	if !seenManifest || !seenProgram {
+		return errors.New("bundle must contain package.json and program.obc")
+	}
+	return nil
+}
+
 func parseLimit(raw string, def int) int {
 	if raw == "" {
 		return def
@@ -1221,7 +1408,7 @@ table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e2d7c3;
 const siteHomeHTML = `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OBC Store</title><style>` + siteCSS + `</style></head>
-<body><header><h1 class="brand">OBC Store</h1><p>Signed Oren bytecode packages for AVM host apps.</p></header>
+	<body><header><h1 class="brand">OBC Store</h1><p>Public Oren bytecode packages for AVM host apps.</p></header>
 <main>
 <form class="card" action="/" method="get">
   <input name="query" placeholder="Search packages" value="{{.Query}}">
@@ -1248,13 +1435,14 @@ const sitePackageHTML = `<!doctype html>
 <p><a href="/">Browse packages</a></p>
 <section class="card">
   <h2>Releases</h2>
-  {{if .Releases}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Status</th></tr>
-  {{range .Releases}}<tr>
-    <td>{{.Version}}</td>
-    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/package.json">package.json</a></td>
-    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/program.obc">program.obc</a></td>
-    <td>{{.Status}}</td>
-  </tr>{{end}}</table>{{else}}No published releases.{{end}}
+	  {{if .Releases}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Bundle</th><th>Status</th></tr>
+	  {{range .Releases}}<tr>
+	    <td>{{.Version}}</td>
+	    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/package.json">package.json</a></td>
+	    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/program.obc">program.obc</a></td>
+	    <td>{{if .BundlePath}}<a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/bundle.obc.zip">bundle.obc.zip</a>{{else}}-{{end}}</td>
+	    <td>{{.Status}}</td>
+	  </tr>{{end}}</table>{{else}}No published releases.{{end}}
 </section>
 <section class="card"><h2>Install Metadata</h2><pre>package={{.Meta.Publisher}}/{{.Meta.Name}}
 index=https://store.hubstack.cn/api/v0/index.json</pre></section>
@@ -1267,15 +1455,19 @@ const siteOpsHTML = `<!doctype html>
 <main>
 <section class="card"><h2>Public endpoints</h2><pre>GET /api/v0/health
 GET /api/v0/index.json
-GET /api/v0/index.json.sig
-GET /api/v0/packages?query=plot&amp;capability=GFX</pre></section>
+	GET /api/v0/index.json.sig
+	GET /api/v0/packages?query=plot&amp;capability=GFX</pre>
+	<p>Packages are public by default. Private packages are omitted from public browse/search/index/download surfaces.</p></section>
 <section class="card"><h2>Publisher token lifecycle</h2><pre>POST   /api/v0/publishers/{publisher}/token
 DELETE /api/v0/publishers/{publisher}/token
 Authorization: Bearer &lt;current publisher token or admin token&gt;
 Body: {"token_sha256_hex":"&lt;sha256 hex of new token&gt;"}</pre></section>
-<section class="card"><h2>Publish flow</h2><pre>POST /api/v0/packages
-POST /api/v0/packages/{publisher}/{name}/versions
-POST /api/v0/packages/{publisher}/{name}/versions/{version}/publish</pre></section>
+	<section class="card"><h2>Publish flow</h2><pre>POST /api/v0/packages
+	POST /api/v0/packages/{publisher}/{name}/versions
+	POST /api/v0/packages/{publisher}/{name}/versions/{version}/publish
+	POST /api/v0/packages/{publisher}/{name}/visibility
+	Body: {"visibility":"public|private"}</pre>
+	<p>Release uploads may include release_bundle_base64 for deterministic .obc.zip bundles.</p></section>
 </main></body></html>`
 
 func manifestHasCapability(dir, want string) bool {
