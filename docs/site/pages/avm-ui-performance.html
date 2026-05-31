@@ -114,12 +114,12 @@
 </ul>
 <p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
 <p>  <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
-<p>  <code>destroy_image</code>, and <code>draw_image_rect</code>.</p>
+<p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native and retained text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -128,8 +128,8 @@
 <p>  encode time, target frame budget, budget-usage permille, over-budget status,</p>
 <p>  geometry vertex count, and text-run count so host apps and verifiers can observe</p>
 <p>  and gate pacing cost. <code>text_bytes</code> lets OBC publish UTF-8 bytes directly on the</p>
-<p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code> is the first</p>
-<p>  OBC-visible retained sprite resource lifetime and atlas sub-rect path. Oren-side</p>
+<p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code>/<code>draw_image_rects</code> is the first</p>
+<p>  OBC-visible retained sprite resource lifetime, atlas sub-rect, and packed batch path. Oren-side</p>
 <p>  validation can gate per-frame image upload bytes/count, and SDK renderers expose</p>
 <p>  retained image count/pixel limits and counters. Retained text records avoid</p>
 <p>  resending repeated UTF-8 labels every frame; richer glyph atlas batching and</p>
@@ -241,6 +241,11 @@
 <li>atlas sub-rect record: <code>draw_image_rect {id,sx,sy,sw,sh,x,y,w,h}</code> draws part of a</li>
 </ul>
 <p>  retained image into a destination rect for sprite-atlas use;</p>
+<ul>
+<li>batched atlas record: <code>draw_image_rects {id,rects}</code> draws many atlas sub-rects</li>
+</ul>
+<p>  from one retained image using packed little-endian <code>sx,sy,sw,sh,x,y,w,h</code></p>
+<p>  records, reducing per-sprite opcode/header overhead;</p>
 <ul>
 <li>explicit budgets: <code>std:ui/commands</code> accepts <code>max_image_bytes</code> and</li>
 </ul>
@@ -382,7 +387,12 @@
 <p>    checks, deterministic raster, CoreGraphics fallback, Metal text cache, and</p>
 <p>    iOS verifier coverage.</p>
 <ol>
-<li>Add richer sprite/text atlas batching and mesh rendering on the Metal path.</li>
+<li>Done: add batched sprite-atlas draw records (<code>draw_image_rects</code>) across</li>
+</ol>
+<p>    validation, binary frames, AVM protocol checks, deterministic raster,</p>
+<p>    CoreGraphics fallback, Metal texture draws, and iOS verifier coverage.</p>
+<ol>
+<li>Add richer text atlas batching and mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
 <li>Add game/app package smoke in the Note host or iOS SDK harness.</li>
 </ol>

@@ -28,6 +28,8 @@
 // - {"op":"draw_image","id":int,"x":int,"y":int,"w":int,"h":int}
 // - {"op":"destroy_image","id":int}
 // - {"op":"draw_image_rect","id":int,"sx":int,"sy":int,"sw":int,"sh":int,"x":int,"y":int,"w":int,"h":int}
+// - {"op":"draw_image_rects","id":int,"rects":bytes} where each rect is
+//   sx,sy,sw,sh,x,y,w,h as little-endian u32.
 
 import ui_cmds "std:ui/commands"
 import ui_color "std:ui/color"
@@ -335,6 +337,44 @@ fn rasterize(cmds, w, h, opts) {
                     rxx = rxx + 1
                 }
                 ryy = ryy + 1
+            }
+        } else if op == "draw_image_rects" {
+            var bimage = images[oren_int_to_string(opm["id"])]
+            if bimage == nil { return oren_err(4, "rasterize: draw_image_rects missing image") }
+            var bdata = bimage["data"]
+            var biw = bimage["w"]
+            var bih = bimage["h"]
+            var rects = opm["rects"]
+            var rect_len = bytes.try_len(rects)
+            if oren_is_err(rect_len) { return result.with_context(rect_len, "rasterize: draw_image_rects rects") }
+            var roff = 0
+            while roff < rect_len {
+                var bsx = bytes.try_get_u32_le(rects, roff)
+                var bsy = bytes.try_get_u32_le(rects, roff + 4)
+                var bsw = bytes.try_get_u32_le(rects, roff + 8)
+                var bsh = bytes.try_get_u32_le(rects, roff + 12)
+                var bdx = bytes.try_get_u32_le(rects, roff + 16)
+                var bdy = bytes.try_get_u32_le(rects, roff + 20)
+                var bdw = bytes.try_get_u32_le(rects, roff + 24)
+                var bdh = bytes.try_get_u32_le(rects, roff + 28)
+                if bsx + bsw > biw || bsy + bsh > bih { return oren_err(4, "rasterize: draw_image_rects source out of bounds") }
+                var byy = 0
+                while byy < bdh {
+                    var bxx = 0
+                    while bxx < bdw {
+                        var bsrcx = bsx + (bxx * bsw) / bdw
+                        var bsrcy = bsy + (byy * bsh) / bdh
+                        var bsi = (bsrcy * biw + bsrcx) * 4
+                        _set_px_rgba(buf, w, h, bdx + bxx, bdy + byy,
+                            bytes.try_get_u8(bdata, bsi),
+                            bytes.try_get_u8(bdata, bsi + 1),
+                            bytes.try_get_u8(bdata, bsi + 2),
+                            bytes.try_get_u8(bdata, bsi + 3))
+                        bxx = bxx + 1
+                    }
+                    byy = byy + 1
+                }
+                roff = roff + 32
             }
         }
         ci = ci + 1

@@ -87,10 +87,16 @@ fn test_validate_text_resource() {
 fn test_validate_image() {
     var px = bytes.try_pack([255, 0, 0, 255])
     assert_true(oren_is_err(px) == false)
+    var rects = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
+    ])
+    assert_true(oren_is_err(rects) == false)
     var cmds = [
         {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": px},
         {"op": "draw_image", "id": 1, "x": 0, "y": 0, "w": 2, "h": 2},
         {"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 1, "sh": 1, "x": 0, "y": 0, "w": 2, "h": 2},
+        {"op": "draw_image_rects", "id": 1, "rects": rects},
         {"op": "destroy_image", "id": 1}
     ]
     assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"strict_bounds": true})) == false)
@@ -104,6 +110,12 @@ fn test_validate_image() {
     assert_true(oren_is_err(ui_cmds.try_validate(bad_rect, 2, 2, nil)) == true)
     var bad_rect_bounds = [{"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 1, "sh": 1, "x": 1, "y": 1, "w": 2, "h": 2}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_rect_bounds, 2, 2, {"strict_bounds": true})) == true)
+    var bad_batch = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
+    ])
+    assert_true(oren_is_err(bad_batch) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_image_rects", "id": 1, "rects": bad_batch}], 2, 2, nil)) == true)
     var bad_destroy = [{"op": "destroy_image", "id": 0}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_destroy, 2, 2, nil)) == true)
 }

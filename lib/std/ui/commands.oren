@@ -187,6 +187,35 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if rx < 0 || ry < 0 || rx + rw > w || ry + rh > h { return oren_err(4, "ui.validate: draw_image_rect out of bounds") }
             }
+        } else if op == "draw_image_rects" {
+            var bid = c["id"]; var rects = c["rects"]
+            if _is_int(bid) == false || bid < 1 { return oren_err(4, "ui.validate: draw_image_rects invalid id") }
+            var rect_len = bytes.try_len(rects)
+            if oren_is_err(rect_len) { return oren_err(4, "ui.validate: draw_image_rects expects byte rects") }
+            if rect_len == 0 || rect_len > 65504 || rect_len % 32 != 0 {
+                return oren_err(4, "ui.validate: draw_image_rects invalid rect bytes")
+            }
+            var roff = 0
+            while roff < rect_len {
+                var bsx = bytes.try_get_u32_le(rects, roff)
+                var bsy = bytes.try_get_u32_le(rects, roff + 4)
+                var bsw = bytes.try_get_u32_le(rects, roff + 8)
+                var bsh = bytes.try_get_u32_le(rects, roff + 12)
+                var bx = bytes.try_get_u32_le(rects, roff + 16)
+                var by = bytes.try_get_u32_le(rects, roff + 20)
+                var bw = bytes.try_get_u32_le(rects, roff + 24)
+                var bh = bytes.try_get_u32_le(rects, roff + 28)
+                if oren_is_err(bsx) || oren_is_err(bsy) || oren_is_err(bsw) || oren_is_err(bsh) || oren_is_err(bx) || oren_is_err(by) || oren_is_err(bw) || oren_is_err(bh) {
+                    return oren_err(4, "ui.validate: draw_image_rects malformed rect")
+                }
+                if bsw < 1 || bsh < 1 || bw < 1 || bh < 1 {
+                    return oren_err(4, "ui.validate: draw_image_rects invalid rect")
+                }
+                if strict {
+                    if bx + bw > w || by + bh > h { return oren_err(4, "ui.validate: draw_image_rects out of bounds") }
+                }
+                roff = roff + 32
+            }
         } else if op == "destroy_image" {
             var xid = c["id"]
             if _is_int(xid) == false || xid < 1 { return oren_err(4, "ui.validate: destroy_image invalid id") }

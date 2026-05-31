@@ -149,6 +149,24 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_image_rect dimensions");
                 return 0;
             }
+        } else if (opcode == 71u) {
+            if (payload_len < 40u || ((payload_len - 8u) % 32u) != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_image_rects payload");
+                return 0;
+            }
+            uint32_t rect_count = avm_gfx_u32le(payload + 4);
+            if (rect_count == 0u || rect_count != ((uint32_t)payload_len - 8u) / 32u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_image_rects count");
+                return 0;
+            }
+            for (uint32_t ri = 0; ri < rect_count; ri++) {
+                const uint8_t* r = payload + 8u + ((size_t)ri * 32u);
+                if (avm_gfx_u32le(r + 8) == 0u || avm_gfx_u32le(r + 12) == 0u ||
+                    avm_gfx_u32le(r + 24) == 0u || avm_gfx_u32le(r + 28) == 0u) {
+                    avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_image_rects dimensions");
+                    return 0;
+                }
+            }
         } else {
             avm_gfx_err(err, err_cap, "invalid OGF0 frame: unsupported opcode");
             return 0;

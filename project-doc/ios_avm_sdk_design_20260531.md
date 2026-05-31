@@ -89,12 +89,12 @@ Retained SDK slices on 2026-05-31:
 		  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`,
 		  `fill_triangle`, `text_resource`, `draw_text`, `destroy_text`,
 		  `image_rgba`, `draw_image`, `destroy_image`, and
-		  `draw_image_rect`) and enqueues pointer events back through the `OGE0` input
+		  `draw_image_rect`/`draw_image_rects`) and enqueues pointer events back through the `OGE0` input
   mailbox. This is the default 2D fallback.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
 		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
 		  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-		  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native/retained text payloads through Metal
+		  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps

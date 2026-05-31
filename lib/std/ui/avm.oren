@@ -210,6 +210,16 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["h"])
         return 0
     }
+    if op == "draw_image_rects" {
+        var rects = c["rects"]
+        var rn = bytes.try_len(rects)
+        if oren_is_err(rn) { return rn }
+        if rn == 0 || rn > 65504 || rn % 32 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_image_rects invalid rect bytes") }
+        _push_op_header(out, 71, 8 + rn)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, rn / 32)
+        return _append_bytes(out, rects)
+    }
     return oren_err(4, "ui.avm.frame_bytes: unsupported op")
 }
 

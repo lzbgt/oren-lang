@@ -73,10 +73,10 @@ Implemented as of 2026-05-31:
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
   `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
-  `destroy_image`, and `draw_image_rect`.
+  `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native and retained text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -85,8 +85,8 @@ Implemented as of 2026-05-31:
   encode time, target frame budget, budget-usage permille, over-budget status,
   geometry vertex count, and text-run count so host apps and verifiers can observe
   and gate pacing cost. `text_bytes` lets OBC publish UTF-8 bytes directly on the
-  frame hot path. `image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect` is the first
-  OBC-visible retained sprite resource lifetime and atlas sub-rect path. Oren-side
+  frame hot path. `image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` is the first
+  OBC-visible retained sprite resource lifetime, atlas sub-rect, and packed batch path. Oren-side
   validation can gate per-frame image upload bytes/count, and SDK renderers expose
   retained image count/pixel limits and counters. Retained text records avoid
   resending repeated UTF-8 labels every frame; richer glyph atlas batching and
@@ -191,6 +191,9 @@ High-volume 2D and 3D need retained resources:
   cached resource for the virtual image handle;
 - atlas sub-rect record: `draw_image_rect {id,sx,sy,sw,sh,x,y,w,h}` draws part of a
   retained image into a destination rect for sprite-atlas use;
+- batched atlas record: `draw_image_rects {id,rects}` draws many atlas sub-rects
+  from one retained image using packed little-endian `sx,sy,sw,sh,x,y,w,h`
+  records, reducing per-sprite opcode/header overhead;
 - explicit budgets: `std:ui/commands` accepts `max_image_bytes` and
   `max_image_count`, and iOS CoreGraphics/Metal renderers expose retained image
   count/pixel limits plus current counters;
@@ -291,6 +294,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     `draw_text`, `destroy_text`) across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal text cache, and
     iOS verifier coverage.
-16. Add richer sprite/text atlas batching and mesh rendering on the Metal path.
-17. Add richer 2D and 3D command sets.
-18. Add game/app package smoke in the Note host or iOS SDK harness.
+16. Done: add batched sprite-atlas draw records (`draw_image_rects`) across
+    validation, binary frames, AVM protocol checks, deterministic raster,
+    CoreGraphics fallback, Metal texture draws, and iOS verifier coverage.
+17. Add richer text atlas batching and mesh rendering on the Metal path.
+18. Add richer 2D and 3D command sets.
+19. Add game/app package smoke in the Note host or iOS SDK harness.

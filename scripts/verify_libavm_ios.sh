@@ -181,6 +181,10 @@ fn main() {
     print("stdout:" + body)
     var sprite = bytes.pack([255, 0, 0, 255])
     var label = bytes.pack([72, 105])
+    var sprite_batch = bytes.pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
+    ])
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},
@@ -192,6 +196,7 @@ fn main() {
         {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": sprite},
         {"op": "draw_image", "id": 1, "x": 3, "y": 0, "w": 1, "h": 1},
         {"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 1, "sh": 1, "x": 2, "y": 0, "w": 1, "h": 1},
+        {"op": "draw_image_rects", "id": 1, "rects": sprite_batch},
         {"op": "destroy_image", "id": 1}
     ]
     var gr = ui_avm.present_frame(cmds, 4, 3, {
@@ -623,10 +628,10 @@ int main(void) {
     uint8_t* frame = 0;
     size_t frame_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) != AVM_EMBED_OK) return 28;
-    if (frame_len != 286 || memcmp(frame, "OGF0", 4) != 0) return 29;
-    if (frame[4] != 1 || frame[6] != 40 || frame[16] != 160 || frame[17] != 15 || frame[20] != 11) return 30;
+    if (frame_len != 330 || memcmp(frame, "OGF0", 4) != 0) return 29;
+    if (frame[4] != 1 || frame[6] != 40 || frame[16] != 160 || frame[17] != 15 || frame[20] != 12) return 30;
     if (frame[24] != 8 || frame[28] != 16 || frame[32] != 12 || frame[36] != 144 || frame[37] != 95 || frame[38] != 1) return 30;
-    if (frame[40] != 1 || frame[64] != 3 || frame[92] != 4 || frame[116] != 5 || frame[148] != 68 || frame[166] != 69 || frame[182] != 70 || frame[190] != 64 || frame[214] != 65 || frame[238] != 67 || frame[278] != 66) return 30;
+    if (frame[40] != 1 || frame[64] != 3 || frame[92] != 4 || frame[116] != 5 || frame[148] != 68 || frame[166] != 69 || frame[182] != 70 || frame[190] != 64 || frame[214] != 65 || frame[238] != 67 || frame[278] != 71 || frame[322] != 66) return 30;
     avm_embed_free_bytes(frame);
     if (avm_embed_gfx_frame_clear(handle, &result) != AVM_EMBED_OK) return 31;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) == AVM_EMBED_OK) return 32;
@@ -666,10 +671,10 @@ int main(void) {
     uint8_t* frame2 = 0;
     size_t frame2_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame2, &frame2_len, &result) != AVM_EMBED_OK) return 28;
-    if (frame2_len != 286 || memcmp(frame2, "OGF0", 4) != 0) return 29;
-    if (frame2[4] != 1 || frame2[6] != 40 || frame2[16] != 160 || frame2[17] != 15 || frame2[20] != 11) return 30;
+    if (frame2_len != 330 || memcmp(frame2, "OGF0", 4) != 0) return 29;
+    if (frame2[4] != 1 || frame2[6] != 40 || frame2[16] != 160 || frame2[17] != 15 || frame2[20] != 12) return 30;
     if (frame2[24] != 8 || frame2[28] != 16 || frame2[32] != 12 || frame2[36] != 144 || frame2[37] != 95 || frame2[38] != 1) return 30;
-    if (frame2[40] != 1 || frame2[64] != 3 || frame2[92] != 4 || frame2[116] != 5 || frame2[148] != 68 || frame2[166] != 69 || frame2[182] != 70 || frame2[190] != 64 || frame2[214] != 65 || frame2[238] != 67 || frame2[278] != 66) return 30;
+    if (frame2[40] != 1 || frame2[64] != 3 || frame2[92] != 4 || frame2[116] != 5 || frame2[148] != 68 || frame2[166] != 69 || frame2[182] != 70 || frame2[190] != 64 || frame2[214] != 65 || frame2[238] != 67 || frame2[278] != 71 || frame2[322] != 66) return 30;
     avm_embed_free_bytes(frame2);
     avm_embed_close(handle);
     return 0;
@@ -1025,11 +1030,11 @@ int main(void) {
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
-        if (frame.length != 286) return 47;
+        if (frame.length != 330) return 47;
         const uint8_t* frameBytes = frame.bytes;
         if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[4] != 1 || frameBytes[6] != 40) return 48;
-        if (frameBytes[20] != 11 || frameBytes[24] != 8 || frameBytes[28] != 16 || frameBytes[32] != 12) return 48;
-        if (frameBytes[40] != 1 || frameBytes[64] != 3 || frameBytes[92] != 4 || frameBytes[116] != 5 || frameBytes[148] != 68 || frameBytes[166] != 69 || frameBytes[182] != 70 || frameBytes[190] != 64 || frameBytes[214] != 65 || frameBytes[238] != 67 || frameBytes[278] != 66) return 48;
+        if (frameBytes[20] != 12 || frameBytes[24] != 8 || frameBytes[28] != 16 || frameBytes[32] != 12) return 48;
+        if (frameBytes[40] != 1 || frameBytes[64] != 3 || frameBytes[92] != 4 || frameBytes[116] != 5 || frameBytes[148] != 68 || frameBytes[166] != 69 || frameBytes[182] != 70 || frameBytes[190] != 64 || frameBytes[214] != 65 || frameBytes[238] != 67 || frameBytes[278] != 71 || frameBytes[322] != 66) return 48;
 #if TARGET_OS_IPHONE
         OrenAVMGraphicsView* graphicsView = [[OrenAVMGraphicsView alloc] initWithRuntime:runtime];
         if (!graphicsView) return 52;

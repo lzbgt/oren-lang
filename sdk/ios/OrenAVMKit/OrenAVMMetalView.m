@@ -904,8 +904,28 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                w:(float)w
                                                                h:(float)h
                                                     logicalWidth:(float)logicalW
-                                                   logicalHeight:(float)logicalH];
+	                                                    logicalHeight:(float)logicalH];
             if (run) [imageRuns addObject:run];
+        } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
+            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
+            uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
+            if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                for (uint32_t ri = 0; ri < rectCount; ri++) {
+                    const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
+                    OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
+                                                                      sx:OrenAVMMetalReadU32LE(r)
+                                                                      sy:OrenAVMMetalReadU32LE(r + 4)
+                                                                      sw:OrenAVMMetalReadU32LE(r + 8)
+                                                                      sh:OrenAVMMetalReadU32LE(r + 12)
+                                                                       x:(float)OrenAVMMetalReadU32LE(r + 16)
+                                                                       y:(float)OrenAVMMetalReadU32LE(r + 20)
+                                                                       w:(float)OrenAVMMetalReadU32LE(r + 24)
+                                                                       h:(float)OrenAVMMetalReadU32LE(r + 28)
+                                                            logicalWidth:(float)logicalW
+                                                           logicalHeight:(float)logicalH];
+                    if (run) [imageRuns addObject:run];
+                }
+            }
         }
         off += payloadLen;
     }
