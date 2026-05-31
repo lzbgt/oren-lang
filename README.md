@@ -12,11 +12,6 @@ compiler‑in‑AVM for sandboxed compilation.
 For the concise product thesis and mainstream-language differentiation line, see `docs/OREN_THESIS.md`.
 For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
-## Support
-
-If Oren helps your work, you can make an optional PayPal contribution to support public project maintenance and experiments: https://x2.brucelu.top/products/support/checkout/?source=github-oren-lang-readme
-
-
 ## Quick start
 
 ```bash
