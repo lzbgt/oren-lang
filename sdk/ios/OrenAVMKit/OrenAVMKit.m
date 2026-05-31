@@ -205,30 +205,40 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 
 #if TARGET_OS_IPHONE
 
+@interface OrenAVMGraphicsView ()
+@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
+@property(nonatomic) uint32_t orenNextTouchID;
+@end
+
 @implementation OrenAVMGraphicsView
+
+- (void)orenConfigureGraphicsView {
+    self.opaque = NO;
+    self.contentMode = UIViewContentModeRedraw;
+    self.multipleTouchEnabled = YES;
+    if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
+    if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
+}
 
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime {
     self = [super initWithFrame:CGRectZero];
     if (!self) return nil;
     _runtime = runtime;
-    self.opaque = NO;
-    self.contentMode = UIViewContentModeRedraw;
+    [self orenConfigureGraphicsView];
     return self;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (!self) return nil;
-    self.opaque = NO;
-    self.contentMode = UIViewContentModeRedraw;
+    [self orenConfigureGraphicsView];
     return self;
 }
 
 - (instancetype)initWithCoder:(NSCoder*)coder {
     self = [super initWithCoder:coder];
     if (!self) return nil;
-    self.opaque = NO;
-    self.contentMode = UIViewContentModeRedraw;
+    [self orenConfigureGraphicsView];
     return self;
 }
 
@@ -427,35 +437,47 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     }
 }
 
-- (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind {
+- (uint32_t)orenPointerIDForTouch:(UITouch*)touch {
+    NSNumber* existing = [self.orenTouchIDs objectForKey:touch];
+    if (existing) return existing.unsignedIntValue;
+    uint32_t pointerID = self.orenNextTouchID == 0 ? 1u : self.orenNextTouchID;
+    self.orenNextTouchID = pointerID + 1u;
+    if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
+    [self.orenTouchIDs setObject:@(pointerID) forKey:touch];
+    return pointerID;
+}
+
+- (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind releaseAfterSend:(BOOL)releaseAfterSend {
     for (UITouch* touch in touches) {
         CGPoint p = [touch locationInView:self];
+        uint32_t pointerID = [self orenPointerIDForTouch:touch];
         NSError* error = nil;
         (void)[self sendPointerEventWithKind:kind
                                        point:p
-                                   pointerId:(uint32_t)touch.hash
+                                   pointerId:pointerID
                                        error:&error];
+        if (releaseAfterSend) [self.orenTouchIDs removeObjectForKey:touch];
     }
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:1];
+    [self orenSendTouches:touches kind:1 releaseAfterSend:NO];
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:2];
+    [self orenSendTouches:touches kind:2 releaseAfterSend:NO];
 }
 
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:3];
+    [self orenSendTouches:touches kind:3 releaseAfterSend:YES];
 }
 
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:4];
+    [self orenSendTouches:touches kind:4 releaseAfterSend:YES];
 }
 
 @end

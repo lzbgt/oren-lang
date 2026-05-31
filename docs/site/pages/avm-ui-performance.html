@@ -130,8 +130,9 @@
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
 </ul>
-<p>  set and expose batch pointer-event helpers, so multi-finger input maps to</p>
-<p>  multiple virtual pointer events rather than a single selected touch.</p>
+<p>  set, assign stable compact pointer IDs for active touches, release IDs on</p>
+<p>  end/cancel, and expose batch pointer-event helpers, so multi-finger input maps</p>
+<p>  to multiple virtual pointer events rather than a single selected touch.</p>
 <ul>
 <li>Host helpers can enqueue frame-tick events for display-paced game loops.</li>
 <li>Host helpers can publish persistent screen/media state and can enqueue</li>
@@ -320,9 +321,9 @@
 </ol>
 <p>   target budget, geometry vertices, and text-run count.</p>
 <ol>
-<li>Done: forward multi-touch sets and expose SDK batch pointer-event helpers for</li>
+<li>Done: forward multi-touch sets with stable compact pointer IDs and expose SDK</li>
 </ol>
-<p>   UIKit/CoreGraphics and Metal views.</p>
+<p>   batch pointer-event helpers for UIKit/CoreGraphics and Metal views.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>

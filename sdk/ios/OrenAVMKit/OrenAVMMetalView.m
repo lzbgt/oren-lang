@@ -239,6 +239,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, readwrite) uint64_t lastFrameTargetBudgetNs;
 @property(nonatomic, readwrite) uint32_t lastFrameVertexCount;
 @property(nonatomic, readwrite) uint32_t lastFrameTextRunCount;
+@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
+@property(nonatomic) uint32_t orenNextTouchID;
 @end
 
 @implementation OrenAVMMetalView
@@ -274,6 +276,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
+    if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
+    if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     [self orenApplyFrameRate];
@@ -718,35 +722,47 @@ static NSData* OrenAVMMetalTextQuad(float x,
     (void)[self publishScreenStateWithError:nil];
 }
 
-- (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind {
+- (uint32_t)orenPointerIDForTouch:(UITouch*)touch {
+    NSNumber* existing = [self.orenTouchIDs objectForKey:touch];
+    if (existing) return existing.unsignedIntValue;
+    uint32_t pointerID = self.orenNextTouchID == 0 ? 1u : self.orenNextTouchID;
+    self.orenNextTouchID = pointerID + 1u;
+    if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
+    [self.orenTouchIDs setObject:@(pointerID) forKey:touch];
+    return pointerID;
+}
+
+- (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind releaseAfterSend:(BOOL)releaseAfterSend {
     for (UITouch* touch in touches) {
         CGPoint p = [touch locationInView:self];
+        uint32_t pointerID = [self orenPointerIDForTouch:touch];
         NSError* error = nil;
         (void)[self sendPointerEventWithKind:kind
                                        point:p
-                                   pointerId:(uint32_t)touch.hash
+                                   pointerId:pointerID
                                        error:&error];
+        if (releaseAfterSend) [self.orenTouchIDs removeObjectForKey:touch];
     }
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:1];
+    [self orenSendTouches:touches kind:1 releaseAfterSend:NO];
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:2];
+    [self orenSendTouches:touches kind:2 releaseAfterSend:NO];
 }
 
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:3];
+    [self orenSendTouches:touches kind:3 releaseAfterSend:YES];
 }
 
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:4];
+    [self orenSendTouches:touches kind:4 releaseAfterSend:YES];
 }
 
 @end

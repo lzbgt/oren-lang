@@ -278,7 +278,8 @@ Facts from the 2026-05-28 implementation pass:
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
   target frame budget, geometry vertex count, and text-run count; OBC-visible
   retained text atlas resources remain the next performance step. UIKit/CoreGraphics
-  and Metal views now forward every touch in a UIKit touch set and expose batch
+  and Metal views now forward every touch in a UIKit touch set, assign stable compact
+  pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
   pointer events instead of dropping all but one touch.
   Bidirectional UI is a hard requirement for
