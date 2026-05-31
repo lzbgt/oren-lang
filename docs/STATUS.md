@@ -71,15 +71,14 @@ Facts from the 2026-05-28 implementation pass:
   `build/plugins/oren.obc`, runs the compiler `.obc` inside a child AVM universe
   with VirtualFS stdlib resources, extracts `out.obc`, and runs that bytecode.
 - `make verify-libavm-ios` now also runs
-  `scripts/verify_avm_stdlib_obc_surface.sh`: it compiles a representative app
-  fixture with `--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc`
-  and runs the result in AVM. The smoke imports `std:avm/events`, `std:avm/permission`, `std:buffer`, `std:bytes`,
-  `std:cbor`, `std:encoding/base64`, `std:crypto/pem`,
-  `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:json`,
-  `std:linalg`, `std:math`, `std:net/avm`, `std:net/avm/tcp`,
-  `std:net/avm/udp`, `std:net/avm/ws`, `std:regex`, `std:strings`, `std:time`, `std:ui/avm`,
-  and `std:yaml`, proving common app-facing exports including
-  `STD_linalg_dot_f64` are actually linkable from the bundled stdlib OBC.
+  `scripts/verify_avm_stdlib_obc_surface.sh`: it rebuilds
+  `build/plugins/stdlib_bundle.obc`, checks
+  `tests/fixtures/avm_stdlib_obc_surface_manifest.json` against every import in
+  `lib/std/stdlib_avm.oren`, rejects listed host-only modules if they leak into
+  the AVM bundle, generates an Oren smoke from the manifest, compiles it with
+  `--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc`, and runs the
+  result in AVM. This makes bundle drift and missing app-facing exports such as
+  `STD_linalg_dot_f64` fail in the repo gate.
 - OBC distribution design is documented in
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
   release gate, `store.hubstack.cn` should act as the public PyPI-like OBC

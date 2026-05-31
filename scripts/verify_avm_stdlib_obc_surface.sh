@@ -19,33 +19,8 @@ fi
 stdlib_obc="build/plugins/stdlib_bundle.obc"
 OREN_COMPILER="$COMPILER" ./scripts/build_avm_plugins.sh
 
-tag="$(date +%Y%m%d_%H%M%S)"
-src="tests/fixtures/avm_stdlib_obc_surface_smoke.oren"
-obc="build/tmp/avm_stdlib_obc_surface_${tag}.obc"
-build_log="build/logs/build_avm_stdlib_obc_surface_${tag}.log"
-run_log="build/logs/run_avm_stdlib_obc_surface_${tag}.log"
-
-"$COMPILER" build "$src" --backend bytecode --stdlib-mode obc --stdlib-obc "$stdlib_obc" -o "$obc" >"$build_log" 2>&1
-test -f "$obc" || {
-  echo "FAIL: did not produce $obc" >&2
-  tail -n 120 "$build_log" >&2 || true
-  exit 3
-}
-
-set +e
-./avm --net-backend vnet --net-fixtures-hex 41564d4e45543031010000000100000075020000006f6b "$obc" >"$run_log" 2>&1
-rc=$?
-set -e
-if [[ "$rc" -ne 0 ]]; then
-  echo "FAIL: stdlib OBC surface smoke rc=$rc" >&2
-  tail -n 160 "$run_log" >&2 || true
-  exit "$rc"
-fi
-
-grep -F "avm stdlib obc surface OK" "$run_log" >/dev/null || {
-  echo "FAIL: missing stdlib OBC surface marker" >&2
-  tail -n 160 "$run_log" >&2 || true
-  exit 4
-}
-
-echo "OK: AVM stdlib OBC surface smoke passed" >&2
+python3 ./scripts/verify_avm_stdlib_obc_surface.py \
+  --compiler "$COMPILER" \
+  --avm ./avm \
+  --manifest tests/fixtures/avm_stdlib_obc_surface_manifest.json \
+  --stdlib-obc "$stdlib_obc"

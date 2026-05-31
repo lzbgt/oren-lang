@@ -159,11 +159,12 @@
 <p>  propagation, latest-frame replacement/clear semantics, and FIFO pointer</p>
 <p>  down/move/up ordering before mixed key/text events.</p>
 <ul>
-<li>The iOS verification chain now also compiles and runs a stdlib OBC surface smoke</li>
+<li>The iOS verification chain now also runs a manifest-driven stdlib OBC surface</li>
 </ul>
-<p>  that imports buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/</p>
-<p>  linalg/math/strings/time/UI AVM modules, so GUI app dependencies fail in the</p>
-<p>  repo gate instead of later in app integration.</p>
+<p>  gate. It checks every module imported by <code>lib/std/stdlib_avm.oren</code>, rejects</p>
+<p>  host-only exclusion leaks, generates an OBC smoke from the manifest, and runs</p>
+<p>  it in AVM, so GUI app dependencies fail in the repo gate instead of later in</p>
+<p>  app integration.</p>
 <p>This baseline proves bidirectional transport for the current 2D subset. It is not</p>
 <p>yet game-complete: richer input such as multitouch gestures, focus, IME composition,</p>
 <p>gamepad/controller events, and high-rate motion data still need compact event</p>

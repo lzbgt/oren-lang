@@ -1,0 +1,338 @@
+{
+  "schema": "oren.avm.stdlib_surface.v0",
+  "stdlib_root": "lib/std/stdlib_avm.oren",
+  "success_marker": "avm stdlib obc surface OK",
+  "net_fixtures_hex": "41564d4e45543031010000000100000075020000006f6b",
+  "modules": [
+    {
+      "module": "std:buffer",
+      "alias": "buffer",
+      "probes": [
+        "var ib = buffer.i32_new(3)",
+        "if oren_is_err(ib) { fail(10) }",
+        "if oren_is_err(buffer.try_store_i32(ib, 0, 7)) { fail(11) }",
+        "if oren_is_err(buffer.try_store_i32(ib, 1, 11)) { fail(12) }",
+        "if buffer.try_load_i32(ib, 0) != 7 { fail(13) }",
+        "if buffer.try_load_i32(ib, 1) != 11 { fail(14) }"
+      ]
+    },
+    {
+      "module": "std:bytes",
+      "alias": "bytes",
+      "probes": [
+        "var bs = bytes.pack([104, 105])",
+        "if bytes.to_hex(bs) != \"6869\" { fail(20) }",
+        "if bytes.to_string(bs) != \"hi\" { fail(21) }"
+      ]
+    },
+    {
+      "module": "std:cbor",
+      "alias": "cbor",
+      "probes": [
+        "var cb = cbor.try_encode(cbor.cint(7))",
+        "if oren_is_err(cb) { fail(36) }",
+        "var cbr = cbor.try_decode(cb)",
+        "if oren_is_err(cbr) { fail(37) }",
+        "if cbr[\"i\"] != 7 { fail(38) }"
+      ]
+    },
+    {
+      "module": "std:casts",
+      "alias": "casts",
+      "probes": [
+        "if casts.u8(257) != 1 { fail(80) }",
+        "if casts.i8(255) != -1 { fail(81) }",
+        "if casts.bool(0) != false || casts.bool(2) != true { fail(82) }",
+        "assert_close(casts.f64(3), 3.0, 1e-12, 83)"
+      ]
+    },
+    {
+      "module": "std:ints",
+      "alias": "ints",
+      "probes": [
+        "if ints.u16(65537) != 1 { fail(84) }",
+        "if ints.i16(65535) != -1 { fail(85) }",
+        "if oren_is_err(ints.try_u8(300)) != true { fail(86) }"
+      ]
+    },
+    {
+      "module": "std:iter",
+      "alias": "iter",
+      "probes": [
+        "var rr_sum = 0",
+        "for rv in iter.range3(1, 6, 2) { rr_sum = rr_sum + rv }",
+        "if rr_sum != 9 { fail(87) }"
+      ]
+    },
+    {
+      "module": "std:linalg",
+      "alias": "linalg",
+      "probes": [
+        "assert_close(linalg.dot_f64([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]), 32.0, 1e-12, 45)"
+      ]
+    },
+    {
+      "module": "std:list",
+      "alias": "list",
+      "probes": [
+        "var lx = [1]",
+        "list.push(lx, 2)",
+        "if list.len(lx) != 2 || list.last(lx) != 2 { fail(88) }"
+      ]
+    },
+    {
+      "module": "std:math",
+      "alias": "math",
+      "probes": [
+        "assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 50)",
+        "assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 51)",
+        "assert_close(math.log10(1000.0), 3.0, 1e-10, 52)",
+        "assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 53)"
+      ]
+    },
+    {
+      "module": "std:assert",
+      "alias": "assert_mod",
+      "probes": [
+        "assert_mod.assert(true, \"manifest assert\")",
+        "assert_mod.assert_eq(7, 7, \"manifest assert_eq\")"
+      ]
+    },
+    {
+      "module": "std:regex",
+      "alias": "regex",
+      "probes": [
+        "if regex.try_is_match(\"h.llo\", \"hello\") != true { fail(39) }"
+      ]
+    },
+    {
+      "module": "std:result",
+      "alias": "result",
+      "probes": [
+        "var rerr = result.err(4, \"x\")",
+        "if result.is_err(rerr) != true || result.unwrap_or(rerr, 9) != 9 { fail(89) }",
+        "if result.from_ok_map({\"ok\": 1, \"v\": 12}) != 12 { fail(90) }"
+      ]
+    },
+    {
+      "module": "std:strings",
+      "alias": "strings",
+      "probes": [
+        "if strings.starts_with(\"hello\", \"he\") != true { fail(50) }",
+        "if strings.ends_with(\"hello\", \"lo\") != true { fail(51) }"
+      ]
+    },
+    {
+      "module": "std:json",
+      "alias": "json",
+      "probes": [
+        "var jv = json.try_decode(\"{\\\"a\\\":1,\\\"b\\\":\\\"x\\\"}\")",
+        "if oren_is_err(jv) { fail(30) }",
+        "if jv[\"t\"] != \"object\" { fail(31) }",
+        "if jv[\"o\"][\"a\"][\"i\"] != 1 { fail(32) }",
+        "if json.encode(json.jarray([json.jint(1), json.jstring(\"x\")])) != \"[1,\\\"x\\\"]\" { fail(33) }"
+      ]
+    },
+    {
+      "module": "std:net/avm",
+      "alias": "net_avm",
+      "probes": [
+        "var net_r = net_avm.get_text(\"u\")",
+        "if net_r[\"ok\"] != 1 || net_r[\"v\"] != \"ok\" { fail(55) }",
+        "if net_avm.try_get_text(\"u\") != \"ok\" { fail(56) }"
+      ]
+    },
+    {
+      "module": "std:net/avm/dns",
+      "alias": "net_avm_dns",
+      "probes": [
+        "if net_avm_dns.available() != 1 { fail(63) }"
+      ]
+    },
+    {
+      "module": "std:net/avm/tcp",
+      "alias": "net_avm_tcp",
+      "probes": [
+        "if net_avm_tcp.event_read_write() != 3 { fail(59) }"
+      ]
+    },
+    {
+      "module": "std:net/avm/udp",
+      "alias": "net_avm_udp",
+      "probes": [
+        "if net_avm_udp.event_write() != 2 { fail(62) }"
+      ]
+    },
+    {
+      "module": "std:net/avm/ws",
+      "alias": "net_avm_ws",
+      "probes": [
+        "if net_avm_ws.event_read_write() != 3 { fail(65) }"
+      ]
+    },
+    {
+      "module": "std:yaml",
+      "alias": "yaml",
+      "probes": [
+        "var yv = yaml.try_decode(\"a: 1\\nb: x\\n\")",
+        "if oren_is_err(yv) { fail(34) }",
+        "if yv[\"o\"][\"a\"][\"i\"] != 1 || yv[\"o\"][\"b\"][\"s\"] != \"x\" { fail(35) }"
+      ]
+    },
+    {
+      "module": "std:time",
+      "alias": "time",
+      "probes": [
+        "var t0 = time.now_ns()",
+        "if time.sleep_ms(1) != 0 { fail(60) }",
+        "if time.now_ns() < t0 { fail(61) }"
+      ]
+    },
+    {
+      "module": "std:argparse",
+      "alias": "argparse",
+      "probes": [
+        "var parser = argparse.new_parser(\"probe\", \"probe parser\")",
+        "argparse.cmd_flag(argparse.root(parser), \"--verbose\", \"-v\", \"verbose\")",
+        "var parsed = argparse.try_parse(parser, [\"--verbose\"])",
+        "if oren_is_err(parsed) || parsed[\"ok\"] != true || parsed[\"all_opts\"][\"verbose\"] != true { fail(91) }"
+      ]
+    },
+    {
+      "module": "std:avm/events",
+      "alias": "avm_events",
+      "probes": [
+        "if avm_events.event_read_write() != 3 { fail(58) }",
+        "if avm_events.watch_cancel(\"stop\")[\"kind\"] != \"cancel\" { fail(64) }"
+      ]
+    },
+    {
+      "module": "std:avm/permission",
+      "alias": "avm_permission",
+      "probes": [
+        "var perm_seq = avm_permission.request_net(\"connect\", \"tcp://127.0.0.1:7\")",
+        "if oren_is_err(perm_seq) || perm_seq <= 0 { fail(57) }"
+      ]
+    },
+    {
+      "module": "std:encoding/base64",
+      "alias": "base64",
+      "probes": [
+        "if base64.try_encode_bytes([77, 97, 110]) != \"TWFu\" { fail(22) }",
+        "var b64 = base64.try_decode_bytes_strict(\"TQ==\")",
+        "if oren_is_err(b64) { fail(23) }",
+        "if bytes.try_len(b64) != 1 || bytes.try_get_u8(b64, 0) != 77 { fail(24) }"
+      ]
+    },
+    {
+      "module": "std:crypto/pem",
+      "alias": "pem",
+      "probes": [
+        "var pem_blocks = pem.try_decode_blocks_strict(\"-----BEGIN CERT-----\\nTQ==\\n-----END CERT-----\\n\")",
+        "if oren_is_err(pem_blocks) { fail(44) }",
+        "if pem_blocks[0][\"type\"] != \"CERT\" { fail(45) }",
+        "if bytes.try_len(pem_blocks[0][\"bytes\"]) != 1 || bytes.try_get_u8(pem_blocks[0][\"bytes\"], 0) != 77 { fail(48) }"
+      ]
+    },
+    {
+      "module": "std:crypto/sha1",
+      "alias": "sha1",
+      "probes": [
+        "if sha1.sha1_hex(bytes.pack([97, 98, 99])) != \"a9993e364706816aba3e25717850c26c9cd0d89d\" { fail(46) }"
+      ]
+    },
+    {
+      "module": "std:crypto/sha256",
+      "alias": "sha256",
+      "probes": [
+        "if sha256.sha256_hex(bytes.pack([97, 98, 99])) != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { fail(47) }"
+      ]
+    },
+    {
+      "module": "std:crypto/x509",
+      "alias": "x509",
+      "probes": [
+        "if x509.sha256_hex_der(bytes.pack([97, 98, 99])) != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { fail(49) }"
+      ]
+    },
+    {
+      "module": "std:ui/color",
+      "alias": "ui_color",
+      "probes": [
+        "var c = ui_color.parse_hex(\"#010203\")",
+        "if c[\"r\"] != 1 || c[\"g\"] != 2 || c[\"b\"] != 3 { fail(92) }"
+      ]
+    },
+    {
+      "module": "std:ui/commands",
+      "alias": "ui_commands",
+      "probes": [
+        "var cmds0 = [{\"op\": \"fill_rect\", \"x\": 0, \"y\": 0, \"w\": 2, \"h\": 2, \"color\": \"#010203\"}]",
+        "if ui_commands.try_validate(cmds0, 2, 2, {\"strict_bounds\": true}) != 0 { fail(93) }"
+      ]
+    },
+    {
+      "module": "std:ui/core",
+      "alias": "ui_core",
+      "probes": [
+        "var ui_root = ui_core.column(\"root\", [ui_core.box(\"box\", 2, 2), ui_core.text(\"txt\", \"hi\", 2, 1)])",
+        "if ui_core.tag(ui_root) != \"Column\" { fail(94) }"
+      ]
+    },
+    {
+      "module": "std:ui/layout",
+      "alias": "ui_layout",
+      "probes": [
+        "var laid = ui_layout.layout(ui_root, {})",
+        "if laid[\"w\"] != 2 || laid[\"h\"] != 3 { fail(95) }"
+      ]
+    },
+    {
+      "module": "std:ui/render",
+      "alias": "ui_render",
+      "probes": [
+        "var rendered = ui_render.render(ui_root, {\"clear_color\": \"#000000\"})",
+        "if oren_list_len(rendered) < 2 { fail(96) }"
+      ]
+    },
+    {
+      "module": "std:ui/avm",
+      "alias": "ui_avm",
+      "probes": [
+        "var cmds = [{\"op\": \"fill_rect\", \"x\": 0, \"y\": 0, \"w\": 2, \"h\": 2, \"color\": \"#010203\"}]",
+        "if ui_avm.screen_available(0) != false { fail(71) }",
+        "if ui_avm.present_frame(cmds, 2, 2, {\"strict_bounds\": true, \"sequence\": 1}) != 0 { fail(70) }"
+      ]
+    }
+  ],
+  "host_only_exclusions": [
+    {
+      "module": "std:net/host",
+      "reason": "raw host network access is replaced by std:net/avm virtual providers"
+    },
+    {
+      "module": "std:net/tcp",
+      "reason": "raw sockets are replaced by std:net/avm/tcp virtual sessions"
+    },
+    {
+      "module": "std:net/udp",
+      "reason": "raw sockets are replaced by std:net/avm/udp virtual sessions"
+    },
+    {
+      "module": "std:net/tls",
+      "reason": "TLS must be mediated by host-backed virtual providers"
+    },
+    {
+      "module": "std:crypto/rand",
+      "reason": "host entropy must use an explicit AVM capability-domain shim"
+    },
+    {
+      "module": "std:ffi/libc",
+      "reason": "native FFI is outside the sandboxed OBC app surface"
+    },
+    {
+      "module": "std:ui/host",
+      "reason": "platform UI access is replaced by std:ui/avm frame/input protocols"
+    }
+  ]
+}

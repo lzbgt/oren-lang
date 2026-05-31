@@ -302,10 +302,11 @@ depth cap. The iOS verifier also covers non-1000 resize scale propagation,
 persistent screen-state reads, runtime media-query propagation, latest-frame
 replacement/clear semantics, and FIFO pointer down/move/up ordering before mixed
 key/text events.
-The same iOS verification chain now includes a stdlib OBC surface smoke for
-buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/linalg/math/
-strings/time/UI AVM modules, so graphics apps do not reach Note with missing
-bundle exports such as `STD_linalg_dot_f64`.
+The same iOS verification chain now includes a manifest-driven stdlib OBC
+surface gate. It checks every module imported by `lib/std/stdlib_avm.oren`,
+rejects host-only exclusion leaks, generates an OBC smoke from the manifest, and
+runs it through AVM so graphics apps do not reach Note with missing bundle
+exports such as `STD_linalg_dot_f64`.
 
 ### 7. Verification Plan
 

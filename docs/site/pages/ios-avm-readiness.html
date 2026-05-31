@@ -73,17 +73,18 @@
 <p>  defaults but makes <code>std:time.sleep_ms</code> block the AVM worker; do not run it on</p>
 <p>  the iOS main thread.</p>
 <ul>
-<li>AVM stdlib bundle after 2026-05-31: the bundle root includes <code>std:time</code>,</li>
+<li>AVM stdlib bundle after 2026-06-01: the bundle root includes <code>std:time</code>,</li>
 </ul>
 <p>  <code>std:ui/avm</code>, <code>std:linalg</code>, codec modules (<code>std:cbor</code>, <code>std:yaml</code>,</p>
 <p>  <code>std:regex</code>, <code>std:encoding/base64</code>), crypto helper modules (<code>std:crypto/pem</code>,</p>
 <p>  <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>), and the existing</p>
 <p>  compiler/app-critical portable subset.</p>
 <p>  The iOS verifier now runs <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which</p>
-<p>  rebuilds <code>stdlib_bundle.obc</code>, compiles a representative app fixture against it,</p>
-<p>  and runs that app in AVM. The fixture catches missing bundled exports such as</p>
-<p>  <code>STD_linalg_dot_f64</code>. Broader pure-stdlib expansion should be manifest-gated so</p>
-<p>  bundle build time remains acceptable.</p>
+<p>  rebuilds <code>stdlib_bundle.obc</code>, validates</p>
+<p>  <code>tests/fixtures/avm_stdlib_obc_surface_manifest.json</code> against every import in</p>
+<p>  <code>lib/std/stdlib_avm.oren</code>, rejects host-only exclusion leaks, generates the</p>
+<p>  app-facing OBC smoke, and runs it in AVM. The gate catches missing bundled</p>
+<p>  exports such as <code>STD_linalg_dot_f64</code> while keeping bundle expansion explicit.</p>
 <ul>
 <li>App bridge API after 2026-05-28: <code>avm_embed_set_argv(...)</code> copies program argv</li>
 </ul>
@@ -132,12 +133,12 @@
 <p>  into a nested VirtualFS harness, compiles a small <code>std:list</code> program inside AVM,</p>
 <p>  extracts <code>out.obc</code>, and runs that output with <code>exit_code=7</code>.</p>
 <ul>
-<li>Stdlib-OBC app surface after 2026-05-31: <code>make verify-libavm-ios</code> also calls</li>
+<li>Stdlib-OBC app surface after 2026-06-01: <code>make verify-libavm-ios</code> also calls</li>
 </ul>
-<p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which compiles</p>
-<p>  <code>tests/fixtures/avm_stdlib_obc_surface_smoke.oren</code> with <code>--stdlib-mode obc</code> and</p>
-<p>  proves buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/linalg/</p>
-<p>  math/strings/time/UI AVM APIs link and run from the bundled stdlib OBC.</p>
+<p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which generates its smoke from</p>
+<p>  <code>tests/fixtures/avm_stdlib_obc_surface_manifest.json</code> and proves every current</p>
+<p>  <code>lib/std/stdlib_avm.oren</code> module is represented, linked, and runnable from the</p>
+<p>  bundled stdlib OBC.</p>
 <ul>
 <li>AVM fixes retained for the chain: child-owned OBC string/bytes constants for</li>
 </ul>

@@ -107,10 +107,11 @@ Implemented as of 2026-05-31:
   I/O-budget rejection, the host input queue depth cap, non-1000 resize scale
   propagation, latest-frame replacement/clear semantics, and FIFO pointer
   down/move/up ordering before mixed key/text events.
-- The iOS verification chain now also compiles and runs a stdlib OBC surface smoke
-  that imports buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/
-  linalg/math/strings/time/UI AVM modules, so GUI app dependencies fail in the
-  repo gate instead of later in app integration.
+- The iOS verification chain now also runs a manifest-driven stdlib OBC surface
+  gate. It checks every module imported by `lib/std/stdlib_avm.oren`, rejects
+  host-only exclusion leaks, generates an OBC smoke from the manifest, and runs
+  it in AVM, so GUI app dependencies fail in the repo gate instead of later in
+  app integration.
 
 This baseline proves bidirectional transport for the current 2D subset. It is not
 yet game-complete: richer input such as multitouch gestures, focus, IME composition,

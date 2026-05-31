@@ -115,15 +115,14 @@
 <ul>
 <li><code>make verify-libavm-ios</code> now also runs</li>
 </ul>
-<p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>: it compiles a representative app</p>
-<p>  fixture with <code>--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc</code></p>
-<p>  and runs the result in AVM. The smoke imports <code>std:avm/events</code>, <code>std:avm/permission</code>, <code>std:buffer</code>, <code>std:bytes</code>,</p>
-<p>  <code>std:cbor</code>, <code>std:encoding/base64</code>, <code>std:crypto/pem</code>,</p>
-<p>  <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>,</p>
-<p>  <code>std:linalg</code>, <code>std:math</code>, <code>std:net/avm</code>, <code>std:net/avm/tcp</code>,</p>
-<p>  <code>std:net/avm/udp</code>, <code>std:net/avm/ws</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>,</p>
-<p>  and <code>std:yaml</code>, proving common app-facing exports including</p>
-<p>  <code>STD_linalg_dot_f64</code> are actually linkable from the bundled stdlib OBC.</p>
+<p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>: it rebuilds</p>
+<p>  <code>build/plugins/stdlib_bundle.obc</code>, checks</p>
+<p>  <code>tests/fixtures/avm_stdlib_obc_surface_manifest.json</code> against every import in</p>
+<p>  <code>lib/std/stdlib_avm.oren</code>, rejects listed host-only modules if they leak into</p>
+<p>  the AVM bundle, generates an Oren smoke from the manifest, compiles it with</p>
+<p>  <code>--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc</code>, and runs the</p>
+<p>  result in AVM. This makes bundle drift and missing app-facing exports such as</p>
+<p>  <code>STD_linalg_dot_f64</code> fail in the repo gate.</p>
 <ul>
 <li>OBC distribution design is documented in</li>
 </ul>
