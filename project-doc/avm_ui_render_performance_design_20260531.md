@@ -61,6 +61,8 @@ Implemented as of 2026-05-31:
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - AVM validates `OGF0` frame headers/op records and `OGE0` input event
   headers/payload lengths at the mailbox boundary before accepting them.
+- Curated gates cover malformed-frame rejection, op-count cap rejection, frame
+  I/O-budget rejection, and the host input queue depth cap.
 
 This is a correct bootstrap, not the final game-grade renderer contract.
 
@@ -168,7 +170,7 @@ This keeps UIKit/Metal thread rules outside AVM and avoids reentrant VM executio
 Before expanding to Metal/3D or a much larger command set, add gates for:
 
 1. high-resolution resize frame smoke with non-1000 `scale_milli`;
-2. frame byte/op-count budget rejection;
+2. frame byte budget rejection and op-count cap rejection;
 3. latest-frame replacement and clear semantics;
 4. event queue depth and ordering;
 5. 60/90/120 Hz host pacing smoke in the iOS SDK or Note app;
@@ -186,9 +188,11 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
    refresh hint while rolling compatibility is cheap.
 3. Done: add mailbox-boundary protocol validation for malformed `OGF0` frames and
    `OGE0` host input events.
-4. Add budget fixtures for oversized frames and event queues.
-5. Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.
-6. Add retained resources, batching, and resource lifetime records.
-7. Add Metal/`MTKView` renderer as the game-grade iOS path.
-8. Add richer 2D and 3D command sets.
-9. Add game/app package smoke in the Note host or iOS SDK harness.
+4. Done: add budget/depth fixtures for oversized frames, op-count caps, and
+   input queue depth.
+5. Add low-latency ordering fixtures across multiple input events.
+6. Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.
+7. Add retained resources, batching, and resource lifetime records.
+8. Add Metal/`MTKView` renderer as the game-grade iOS path.
+9. Add richer 2D and 3D command sets.
+10. Add game/app package smoke in the Note host or iOS SDK harness.

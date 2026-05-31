@@ -325,6 +325,9 @@ fn main() {
 <li>allowed graphics schema versions.</li>
 </ul>
 <p>Frame publication should fail with an AVM graphics budget error, not crash or silently drop.</p>
+<p>Curated AVM/iOS gates now cover malformed <code>OGF0</code> rejection, op-count cap rejection,</p>
+<p>frame I/O-budget rejection, malformed <code>OGE0</code> rejection, and the host input queue</p>
+<p>depth cap.</p>
 <h3 id="7-verification-plan">7. Verification Plan</h3>
 <p>Required gates before Note integration should be called production-ready:</p>
 <ol>
@@ -355,6 +358,10 @@ fn main() {
 <li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code> and <code>circle</code>.</li>
 <li>Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.</li>
 <li>Done: add frame sequence, native drawable-size metadata, and target refresh hint to the <code>OGF0</code> header for high-refresh/high-resolution hosts.</li>
+<li>Done: add protocol/budget gates for malformed frames/events, op-count caps,</li>
+</ol>
+<p>   frame I/O budget, and host input queue depth.</p>
+<ol>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
 <li>Add IME/composition helpers.</li>
 <li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> and Metal rendering after the current <code>std:ui</code> frame path is proven in the app.</li>

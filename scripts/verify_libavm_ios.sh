@@ -177,6 +177,16 @@ int main(void) {
         1, 0, 0, 0, 2, 0, 0, 0
     };
     avm_embed_config_default(&cfg);
+
+    AvmEmbedHandle* queue_handle = avm_embed_open(&cfg, &result);
+    if (!queue_handle || result.status != AVM_EMBED_OK) return 38;
+    for (int qi = 0; qi < 1024; qi++) {
+        if (avm_embed_gfx_input_put(queue_handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 39;
+    }
+    if (avm_embed_gfx_input_put(queue_handle, input_event, sizeof(input_event), &result) == AVM_EMBED_OK) return 40;
+    if (result.avm_error_code != 9) return 41;
+    avm_embed_close(queue_handle);
+
     AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
     if (!handle || result.status != AVM_EMBED_OK) return 2;
     const char* argv[] = {"oren", "ios", "https://note.local/probe", "probe"};

@@ -266,6 +266,7 @@ endif
 		tests/avm/test_ui_avm_mailbox_v0.oren \
 		tests/avm/test_ui_avm_event_decode_v0.oren \
 		tests/avm/test_ui_avm_protocol_validation_v0.oren \
+		tests/avm/test_ui_avm_frame_budget_v0.oren \
 		tests/avm/test_yield_stmt_v0.oren \
 		tests/avm/test_yield_value_v0.oren \
 		tests/avm/test_yield_exchange_v0.oren \
@@ -1601,6 +1602,7 @@ test-avm: oren avm
 					post_absent="build/avm_vproc_should_not_touch.txt" ;; \
 				test_vnet_no_host_net) \
 					avm_args="--deny-by-default --allow-domains 0,4,6 --net-backend vnet --net-fixtures-hex 41564d4e45543031010000000100000075020000006f6b --print-run-json" ;; \
+				test_ui_avm_frame_budget_v0) expect_rc=1; expect_err="AVM error: code=9"; avm_env="AVM_IO_BYTES=80" ;; \
 				test_vproc_fixtures) \
 					avm_args="--deny-by-default --allow-domains 0,5,6 --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex 41564d505243303101000000070000006563686f20686900000000 --print-run-json" ;; \
 				test_list_freelist_env) avm_env="AVM_LIST_FREELIST=1 AVM_LIST_FREELIST_BYTES=1048576 AVM_LIST_FREELIST_MAX_BLOCK_BYTES=65536" ;; \

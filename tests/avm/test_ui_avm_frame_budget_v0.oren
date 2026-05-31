@@ -1,0 +1,16 @@
+// AVM headless UI test: GFX frame bytes charge against the IO budget.
+//
+// The Makefile runs this fixture with AVM_IO_BYTES=80 and expects AVM_ERR_BUDGET.
+
+import ui_avm "std:ui/avm"
+
+fn main() {
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
+        {"op": "fill_rect", "x": 1, "y": 1, "w": 2, "h": 1, "color": "#203040"}
+    ]
+    ui_avm.present_frame(cmds, 4, 3, {"strict_bounds": true})
+    exit(0)
+}
+
+main()

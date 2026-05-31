@@ -44,6 +44,15 @@ fn main() {
     assert_true(oren_is_err(r3))
     assert_true(oren_err_code(r3) == 4)
 
+    var too_many_ops = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 161, 134, 1, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0
+    ])
+    var r4 = ui_avm.present_bytes(too_many_ops)
+    assert_true(oren_is_err(r4))
+    assert_true(oren_err_code(r4) == 4)
+
     exit(0)
 }
 

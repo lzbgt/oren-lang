@@ -100,6 +100,10 @@
 <li>AVM validates <code>OGF0</code> frame headers/op records and <code>OGE0</code> input event</li>
 </ul>
 <p>  headers/payload lengths at the mailbox boundary before accepting them.</p>
+<ul>
+<li>Curated gates cover malformed-frame rejection, op-count cap rejection, frame</li>
+</ul>
+<p>  I/O-budget rejection, and the host input queue depth cap.</p>
 <p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
 <h2 id="high-refresh-contract">High-Refresh Contract</h2>
 <p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>
@@ -209,7 +213,7 @@
 <p>Before expanding to Metal/3D or a much larger command set, add gates for:</p>
 <ol>
 <li>high-resolution resize frame smoke with non-1000 <code>scale_milli</code>;</li>
-<li>frame byte/op-count budget rejection;</li>
+<li>frame byte budget rejection and op-count cap rejection;</li>
 <li>latest-frame replacement and clear semantics;</li>
 <li>event queue depth and ordering;</li>
 <li>60/90/120 Hz host pacing smoke in the iOS SDK or Note app;</li>
@@ -233,7 +237,11 @@
 </ol>
 <p>   <code>OGE0</code> host input events.</p>
 <ol>
-<li>Add budget fixtures for oversized frames and event queues.</li>
+<li>Done: add budget/depth fixtures for oversized frames, op-count caps, and</li>
+</ol>
+<p>   input queue depth.</p>
+<ol>
+<li>Add low-latency ordering fixtures across multiple input events.</li>
 <li>Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>
 <li>Add Metal/<code>MTKView</code> renderer as the game-grade iOS path.</li>

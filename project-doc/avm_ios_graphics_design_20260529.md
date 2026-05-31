@@ -288,6 +288,9 @@ Add explicit limits:
 - allowed graphics schema versions.
 
 Frame publication should fail with an AVM graphics budget error, not crash or silently drop.
+Curated AVM/iOS gates now cover malformed `OGF0` rejection, op-count cap rejection,
+frame I/O-budget rejection, malformed `OGE0` rejection, and the host input queue
+depth cap.
 
 ### 7. Verification Plan
 
@@ -314,9 +317,11 @@ Required gates before Note integration should be called production-ready:
 6. Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to `stroke_line` and `circle`.
 7. Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.
 8. Done: add frame sequence, native drawable-size metadata, and target refresh hint to the `OGF0` header for high-refresh/high-resolution hosts.
-9. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
-9. Add IME/composition helpers.
-10. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
+9. Done: add protocol/budget gates for malformed frames/events, op-count caps,
+   frame I/O budget, and host input queue depth.
+10. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
+11. Add IME/composition helpers.
+12. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
 right app boundary: AVM computes and describes frames; iOS renders them.

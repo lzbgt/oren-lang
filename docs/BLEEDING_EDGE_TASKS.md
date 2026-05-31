@@ -65,7 +65,9 @@ This file is the concise task view. Detailed implementation status lives in
      gates, low-latency input ordering, Metal/`MTKView`, richer drawing ops, and
      richer IME/composition input helpers. The `OGF0` frame header now includes
      sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
-     frames plus `OGE0` host input events before accepting them.
+     frames plus `OGE0` host input events before accepting them. Curated gates now
+     cover malformed-frame rejection, op-count cap rejection, frame I/O-budget
+     rejection, and the host input queue depth cap.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated

@@ -96,7 +96,9 @@ Facts from the 2026-05-28 implementation pass:
   binary input events with `avm_embed_gfx_input_put`; AVM validates `OGE0` event
   headers/payload lengths before queuing them, and OBC pulls raw bytes through
   `std:ui/avm.pull_event_bytes()` or structured maps through
-  `std:ui/avm.next_event()`. `poll_event_bytes()` remains a thin alias.
+  `std:ui/avm.next_event()`. `poll_event_bytes()` remains a thin alias. Curated
+  gates now cover malformed-frame rejection, op-count cap rejection, frame
+  I/O-budget rejection, and the host input queue depth cap.
   `OrenAVMKit` exposes matching Objective-C
   helpers including a convenience binary pointer-event encoder. The iOS verifier
   checks exported symbols, device/simulator SDK linkage, and a host OBC run that
