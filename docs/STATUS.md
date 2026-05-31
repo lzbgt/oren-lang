@@ -89,9 +89,10 @@ Facts from the 2026-05-28 implementation pass:
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with
-  `avm_embed_gfx_frame_get` and `avm_embed_gfx_frame_clear`. Hosts can enqueue
-  binary input events with `avm_embed_gfx_input_put`; OBC polls them through
-  `std:ui/avm.poll_event_bytes()`. `OrenAVMKit` exposes matching Objective-C
+  `avm_embed_gfx_frame_get` and `avm_embed_gfx_frame_clear`. Hosts enqueue
+  binary input events with `avm_embed_gfx_input_put`; OBC pulls them through
+  `std:ui/avm.pull_event_bytes()`. `poll_event_bytes()` remains a thin alias.
+  `OrenAVMKit` exposes matching Objective-C
   helpers including a convenience binary pointer-event encoder. The iOS verifier
   checks exported symbols, device/simulator SDK linkage, and a host OBC run that
   publishes a binary frame, retrieves it through the SDK, injects a binary pointer
@@ -99,7 +100,11 @@ Facts from the 2026-05-28 implementation pass:
   UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
   `stroke_line`/`circle` frame subset and can enqueue pointer, resize, key, and
   text events. Metal rendering, IME/composition helpers, and richer 2D/3D command
-  sets remain pending.
+  sets remain pending. The next GUI contract is game-grade rather than widget-only:
+  high-refresh/high-resolution pacing, latest-frame/drop-stale behavior, retained
+  resource handles, strict budgets, low-latency input ordering, and Metal/`MTKView`
+  conformance gates are documented in
+  `project-doc/avm_ui_render_performance_design_20260531.md`.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

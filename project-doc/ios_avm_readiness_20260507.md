@@ -48,7 +48,7 @@ allocator/lifecycle hardening.
   `avm_embed_output_clear(...)` clears the captured stdout buffer,
   `avm_embed_gfx_frame_get(...)` copies the latest GFX frame mailbox payload,
   `avm_embed_gfx_frame_clear(...)` clears that payload,
-  `avm_embed_gfx_input_put(...)` enqueues host input-event bytes for OBC polling,
+  `avm_embed_gfx_input_put(...)` enqueues host input-event bytes for OBC pull,
   and `avm_embed_free_bytes(...)` releases returned app-owned buffers.
 - iOS SDK slice after 2026-05-31: `OrenAVMKit.xcframework` builds beside
   `LibAVM.xcframework` and exposes Objective-C/Swift-callable defaults for
@@ -65,7 +65,7 @@ allocator/lifecycle hardening.
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction,
   VFS snapshot verification, deterministic TIME, VirtualNET `oren_net_get(...)`,
   VirtualPROC `oren_system(...)`, binary GFX frame publication/retrieval,
-  binary GFX input-event polling, and captured stdout retrieval/clear.
+  binary GFX input-event pull, and captured stdout retrieval/clear.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls
   `scripts/verify_compiler_in_avm_ios_chain.sh`, which builds
   `build/plugins/stdlib_bundle.obc` and `build/plugins/oren.obc`, injects them

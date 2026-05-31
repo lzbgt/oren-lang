@@ -41,14 +41,17 @@ The first retained implementation slices exist as of 2026-05-31:
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, key, and
   UTF-8 text input events. The Oren side still receives raw `OGE0` bytes via
-  `std:ui/avm.poll_event_bytes()`.
+  `std:ui/avm.pull_event_bytes()`.
 - `make verify-libavm-ios` proves the chain by running OBC that publishes a frame,
   retrieving/clearing that frame through the host SDK smoke, injecting a pointer
   event, consuming that event from OBC, and compiling the UIKit renderer adapter for
   device/simulator targets.
 
-Still pending: Metal rendering adapter, IME/composition helpers, 2D geometry
-expansion beyond the retained v0 shape subset, and 3D mesh commands.
+Still pending: game-grade render protocol hardening, Metal rendering adapter,
+IME/composition helpers, 2D geometry expansion beyond the retained v0 shape
+subset, and 3D mesh commands. The high-refresh/high-resolution contract is now
+tracked in `project-doc/avm_ui_render_performance_design_20260531.md`; follow it
+before growing the command set.
 
 ## Source Facts
 
@@ -170,6 +173,14 @@ should extend the same binary stream.
 The retained implementation uses the explicit graphics mailbox, not VFS or stdout.
 Frame publication is charged against AVM I/O budget so graphics output cannot grow
 unbounded.
+
+Input direction is deliberately asymmetric:
+
+- Host adapters enqueue binary events with `avm_embed_gfx_input_put(...)` or
+  `OrenAVMKit` convenience helpers.
+- Oren/OBC pulls one event at a time with `std:ui/avm.pull_event_bytes()`.
+- The VM does not callback into Oren from the host UI thread; this keeps device
+  lifecycles, threading, and permissions owned by the host app.
 
 ### 2. Oren Stdlib Surface
 

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVM UI Performance - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="ios-avm-sdk.html">iOS AVM SDK</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="avm-ui-render-performance-contract">AVM UI Render Performance Contract</h1>
+<p><strong>Date:</strong> 2026-05-31</p>
+<h2 id="decision">Decision</h2>
+<p>The Oren UI stack must be designed for high-refresh, high-resolution hosts and</p>
+<p>game-like interactive workloads before the command set grows. JSON/QML-like</p>
+<p>documents may be useful as an authoring and layout format, but the AVM-host</p>
+<p>runtime boundary must remain compact binary, frame-paced, and resource-oriented.</p>
+<p>The production contract is:</p>
+<pre><code>Oren UI/layout source
+  -&gt; validated std:ui/std:gfx scene or command buffer
+  -&gt; compact binary frame/event streams
+  -&gt; libavm capability and budget checks
+  -&gt; host renderer adapter driven by the platform display loop</code></pre>
+<p>Oren owns portable UI/game semantics. The host owns display links, drawable</p>
+<p>sizes, threads, GPU resources, OS lifecycle, and presentation.</p>
+<p>Release target: an iOS app should be able to run OBC packages that behave like</p>
+<p>small game/app experiences, not only static forms. That implies bounded low-latency</p>
+<p>input, predictable frame pacing, retained GPU resources, high-resolution drawable</p>
+<p>mapping, and conformance tests that catch regressions before app integration.</p>
+<h2 id="source-facts">Source Facts</h2>
+<ul>
+<li>Apple <code>CADisplayLink.preferredFrameRateRange</code> reference was captured at</li>
+</ul>
+<p>  <code>project-doc/web/apple-ios-display-20260531/apple-cadisplaylink-preferredframeraterange.html</code>.</p>
+<p>  It defines the API as a range of callback frequencies and notes that the system</p>
+<p>  also accounts for hardware, policy, and workload.</p>
+<ul>
+<li>Apple ProMotion guidance was captured at</li>
+</ul>
+<p>  <code>project-doc/web/apple-ios-display-20260531/apple-promotion-displays.html</code>.</p>
+<p>  It says custom content should provide frame-rate hints and should be prepared to</p>
+<p>  operate at any refresh rate the system provides.</p>
+<ul>
+<li>Apple <code>MTKView.drawableSize</code> reference was captured at</li>
+</ul>
+<p>  <code>project-doc/web/apple-ios-display-20260531/apple-mtkview-drawablesize.html</code>.</p>
+<p>  It describes drawable textures in native pixels and automatic resize behavior.</p>
+<ul>
+<li>Apple <code>MTKView.preferredFramesPerSecond</code> reference was captured at</li>
+</ul>
+<p>  <code>project-doc/web/apple-ios-display-20260531/apple-mtkview-preferredframespersecond.html</code>.</p>
+<p>  It describes view redraw rate selection based on screen capability.</p>
+<h2 id="current-baseline">Current Baseline</h2>
+<p>Implemented as of 2026-05-31:</p>
+<ul>
+<li><code>OGF0</code> binary frame mailbox with latest-frame semantics.</li>
+<li><code>OGE0</code> binary input-event mailbox.</li>
+<li><code>std:ui/avm.present_frame(...)</code> publishes current <code>std:ui</code> command buffers.</li>
+<li><code>std:ui/avm.pull_event_bytes()</code> pulls host-injected input; <code>poll_event_bytes()</code></li>
+</ul>
+<p>  remains only as a compatibility alias during rolling development.</p>
+<ul>
+<li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
+</ul>
+<p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>.</p>
+<ul>
+<li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
+</ul>
+<p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
+<h2 id="high-refresh-contract">High-Refresh Contract</h2>
+<p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>
+<p>8.33 ms frame interval, and a 60 Hz screen gives 16.67 ms. AVM execution, layout,</p>
+<p>network, and scientific calculation cannot be allowed to block the host display</p>
+<p>loop.</p>
+<p>Required behavior:</p>
+<ul>
+<li>Host renderer owns <code>CADisplayLink</code>/<code>MTKView</code> timing and presents on the UI/render</li>
+</ul>
+<p>  thread.</p>
+<ul>
+<li>AVM runs on a worker thread or queue and publishes the latest complete frame.</li>
+<li>The host may re-present the previous frame when AVM has not produced a new one.</li>
+<li>The host may drop stale frames rather than queue unbounded frame history.</li>
+<li>Frame metadata should add a monotonically increasing sequence number before the</li>
+</ul>
+<p>  protocol becomes release-stable.</p>
+<ul>
+<li>Future frame metadata should also carry producer time and optional desired</li>
+</ul>
+<p>  presentation hints, but the host remains authoritative because system refresh</p>
+<p>  rates can change.</p>
+<p>For game OBC packages, simulation and rendering must be separable. Oren should be</p>
+<p>able to run a fixed-step simulation loop, emit a render snapshot, and let the host</p>
+<p>present at the display&#x27;s available cadence. The renderer must tolerate 30/60/90/120</p>
+<p>Hz presentation without changing game logic.</p>
+<h2 id="high-resolution-contract">High-Resolution Contract</h2>
+<p>The Oren UI API should use logical coordinates. The frame header must carry enough</p>
+<p>host data for correct mapping to physical pixels:</p>
+<ul>
+<li>logical width and height;</li>
+<li>scale in milli-units, already present as <code>scale_milli</code>;</li>
+<li>future native drawable width and height for GPU-backed render targets;</li>
+<li>resize events from host to Oren whenever the logical size or scale changes.</li>
+</ul>
+<p>Do not hard-code iPhone sizes. The same OBC package must tolerate compact iPhone,</p>
+<p>large iPhone, iPad, external display, macOS, and headless test surfaces.</p>
+<h2 id="binary-protocol-rules">Binary Protocol Rules</h2>
+<p>The low-level frame loop must avoid JSON parsing and string-heavy allocation:</p>
+<ul>
+<li>fixed magic headers: <code>OGF0</code> and <code>OGE0</code>;</li>
+<li>little-endian fixed-width integers;</li>
+<li>opcode plus payload length for forward parsing;</li>
+<li>bounded frame byte length, op count, text bytes, and event queue depth;</li>
+<li>resource handles for future fonts, images, paths, meshes, buffers, and materials;</li>
+<li>no UIKit, Metal, OpenGL, CoreGraphics, or host pointers in bytecode-visible data.</li>
+</ul>
+<p>The high-level declarative layer can compile to this binary form. It must not cross</p>
+<p>the AVM-host boundary directly as JSON in the render loop.</p>
+<h2 id="resource-and-batching-model">Resource and Batching Model</h2>
+<p>The current immediate-mode frame is acceptable for the v0 CoreGraphics fallback.</p>
+<p>High-volume 2D and 3D need retained resources:</p>
+<ul>
+<li>font and text-atlas resources for repeated labels;</li>
+<li>image/texture handles;</li>
+<li>path/shape handles;</li>
+<li>vertex/index buffers for plots and meshes;</li>
+<li>transform, clip, layer, and canvas records;</li>
+<li>dirty-region or damage metadata for partial redraw when applicable.</li>
+</ul>
+<p>This keeps large static content from being serialized every frame.</p>
+<h2 id="game-grade-capability-set">Game-Grade Capability Set</h2>
+<p>The GUI path is not release-complete until it can support interactive game/app</p>
+<p>packages. Required capability families:</p>
+<ul>
+<li>frame timing: display tick events, fixed-step simulation helpers, frame sequence,</li>
+</ul>
+<p>  producer timestamp, and host target-time hints;</p>
+<ul>
+<li>input: pointer/touch, multitouch, key, text, resize, focus, gamepad-like controls</li>
+</ul>
+<p>  when the host supports them, and bounded event latency;</p>
+<ul>
+<li>2D rendering: sprites/images, texture atlas handles, clipping, transforms,</li>
+</ul>
+<p>  paths, text atlas/glyph handles, layers, alpha/blend modes, and damage metadata;</p>
+<ul>
+<li>3D rendering: mesh buffers, vertex/index handles, camera/projection, materials,</li>
+</ul>
+<p>  textures, draw calls, depth/stencil mode, and basic lighting data;</p>
+<ul>
+<li>resources: upload/update/destroy records for buffers, images, fonts, shaders or</li>
+</ul>
+<p>  material variants, all behind explicit budgets;</p>
+<ul>
+<li>audio later: a separate audio mailbox is likely needed for games, but it should</li>
+</ul>
+<p>  not be mixed into the graphics frame protocol.</p>
+<p>The CoreGraphics fallback can stay as a conformance/debug renderer. It is not the</p>
+<p>performance target for games. The game-grade iOS target should be Metal/<code>MTKView</code></p>
+<p>with retained resources and small per-frame command buffers.</p>
+<h2 id="event-direction">Event Direction</h2>
+<p>UI input should be a pull API from Oren&#x27;s perspective:</p>
+<ul>
+<li>host adapters enqueue events into AVM with <code>avm_embed_gfx_input_put(...)</code> or SDK</li>
+</ul>
+<p>  helpers;</p>
+<ul>
+<li>Oren pulls events at safe points with <code>std:ui/avm.pull_event_bytes()</code>;</li>
+<li>the host UI thread never calls back into Oren bytecode synchronously.</li>
+</ul>
+<p>This keeps UIKit/Metal thread rules outside AVM and avoids reentrant VM execution.</p>
+<h2 id="required-next-gates">Required Next Gates</h2>
+<p>Before expanding to Metal/3D or a much larger command set, add gates for:</p>
+<ol>
+<li>high-resolution resize frame smoke with non-1000 <code>scale_milli</code>;</li>
+<li>frame byte/op-count budget rejection;</li>
+<li>latest-frame replacement and clear semantics;</li>
+<li>event queue depth and ordering;</li>
+<li>60/90/120 Hz host pacing smoke in the iOS SDK or Note app;</li>
+<li>large text/geometry frames that stay within budget and render without JSON;</li>
+<li>retained resource upload/update/destroy smoke;</li>
+<li>low-latency input ordering smoke across multiple pointer events;</li>
+<li>Metal/<code>MTKView</code> renderer smoke for at least one sprite/mesh-like retained</li>
+</ol>
+<p>   resource once the resource protocol exists;</p>
+<ol>
+<li>docs-site page and conformance fixtures for the binary protocol.</li>
+</ol>
+<h2 id="reweighted-implementation-order">Reweighted Implementation Order</h2>
+<ol>
+<li>Freeze the performance contract and keep docs/tests aligned.</li>
+<li>Add frame sequence and native drawable-size metadata while rolling compatibility</li>
+</ol>
+<p>   is still cheap.</p>
+<ol>
+<li>Add budget fixtures for oversized frames and event queues.</li>
+<li>Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.</li>
+<li>Add retained resources, batching, and resource lifetime records.</li>
+<li>Add Metal/<code>MTKView</code> renderer as the game-grade iOS path.</li>
+<li>Add richer 2D and 3D command sets.</li>
+<li>Add game/app package smoke in the Note host or iOS SDK harness.</li>
+</ol>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#avm-ui-render-performance-contract">AVM UI Render Performance Contract</a>
+<a class="toc-l2" href="#decision">Decision</a>
+<a class="toc-l2" href="#source-facts">Source Facts</a>
+<a class="toc-l2" href="#current-baseline">Current Baseline</a>
+<a class="toc-l2" href="#high-refresh-contract">High-Refresh Contract</a>
+<a class="toc-l2" href="#high-resolution-contract">High-Resolution Contract</a>
+<a class="toc-l2" href="#binary-protocol-rules">Binary Protocol Rules</a>
+<a class="toc-l2" href="#resource-and-batching-model">Resource and Batching Model</a>
+<a class="toc-l2" href="#game-grade-capability-set">Game-Grade Capability Set</a>
+<a class="toc-l2" href="#event-direction">Event Direction</a>
+<a class="toc-l2" href="#required-next-gates">Required Next Gates</a>
+<a class="toc-l2" href="#reweighted-implementation-order">Reweighted Implementation Order</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

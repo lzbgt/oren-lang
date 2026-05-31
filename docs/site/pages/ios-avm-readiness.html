@@ -28,6 +28,7 @@
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
 <a href="ios-avm-sdk.html">iOS AVM SDK</a>
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -87,7 +88,7 @@
 <p>  <code>avm_embed_output_clear(...)</code> clears the captured stdout buffer,</p>
 <p>  <code>avm_embed_gfx_frame_get(...)</code> copies the latest GFX frame mailbox payload,</p>
 <p>  <code>avm_embed_gfx_frame_clear(...)</code> clears that payload,</p>
-<p>  <code>avm_embed_gfx_input_put(...)</code> enqueues host input-event bytes for OBC polling,</p>
+<p>  <code>avm_embed_gfx_input_put(...)</code> enqueues host input-event bytes for OBC pull,</p>
 <p>  and <code>avm_embed_free_bytes(...)</code> releases returned app-owned buffers.</p>
 <ul>
 <li>iOS SDK slice after 2026-05-31: <code>OrenAVMKit.xcframework</code> builds beside</li>
@@ -110,7 +111,7 @@
 <p>  API with <code>exit_code=9</code>, argv injection, VFS input, VFS output extraction,</p>
 <p>  VFS snapshot verification, deterministic TIME, VirtualNET <code>oren_net_get(...)</code>,</p>
 <p>  VirtualPROC <code>oren_system(...)</code>, binary GFX frame publication/retrieval,</p>
-<p>  binary GFX input-event polling, and captured stdout retrieval/clear.</p>
+<p>  binary GFX input-event pull, and captured stdout retrieval/clear.</p>
 <ul>
 <li>Compiler-in-AVM chain after 2026-05-28: <code>make verify-libavm-ios</code> also calls</li>
 </ul>

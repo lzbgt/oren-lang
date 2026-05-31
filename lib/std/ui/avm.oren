@@ -152,6 +152,10 @@ fn present_frame(cmds, w, h, opts) {
     return present_bytes(frame)
 }
 
-fn poll_event_bytes() {
+fn pull_event_bytes() {
     return oren_gfx_poll_input()
+}
+
+fn poll_event_bytes() {
+    return pull_event_bytes()
 }

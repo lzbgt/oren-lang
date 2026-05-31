@@ -28,6 +28,7 @@
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
 <a href="ios-avm-sdk.html">iOS AVM SDK</a>
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -118,9 +119,15 @@
 <li>The binary input helper set now covers pointer events, resize events, key events,</li>
 </ul>
 <p>  and UTF-8 text-input events. These are still mailbox records, not UIKit objects.</p>
+<p>  Host code enqueues them; Oren/OBC pulls them with</p>
+<p>  <code>std:ui/avm.pull_event_bytes()</code>.</p>
 <p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
 <p>compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,</p>
-<p>richer 2D drawing ops, and IME/composition input helpers.</p>
+<p>richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be</p>
+<p>game-grade, not widget-only: the next protocol work is high-refresh/high-resolution</p>
+<p>pacing, retained resource handles, strict budgets, low-latency input ordering, and</p>
+<p>Metal/<code>MTKView</code> gates as defined in</p>
+<p><code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
 <h2 id="sdk-components">SDK Components</h2>
 <h3 id="orenavmkit">OrenAVMKit</h3>
 <p>Core Swift/Objective-C wrapper around <code>LibAVM.xcframework</code>.</p>

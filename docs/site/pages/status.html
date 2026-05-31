@@ -28,6 +28,7 @@
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
 <a href="ios-avm-sdk.html">iOS AVM SDK</a>
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -137,9 +138,10 @@
 </ul>
 <p>  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>
 <p>  <code>oren_gfx_present_frame</code>; embedders can read and clear it with</p>
-<p>  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. Hosts can enqueue</p>
-<p>  binary input events with <code>avm_embed_gfx_input_put</code>; OBC polls them through</p>
-<p>  <code>std:ui/avm.poll_event_bytes()</code>. <code>OrenAVMKit</code> exposes matching Objective-C</p>
+<p>  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. Hosts enqueue</p>
+<p>  binary input events with <code>avm_embed_gfx_input_put</code>; OBC pulls them through</p>
+<p>  <code>std:ui/avm.pull_event_bytes()</code>. <code>poll_event_bytes()</code> remains a thin alias.</p>
+<p>  <code>OrenAVMKit</code> exposes matching Objective-C</p>
 <p>  helpers including a convenience binary pointer-event encoder. The iOS verifier</p>
 <p>  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>
 <p>  publishes a binary frame, retrieves it through the SDK, injects a binary pointer</p>
@@ -147,7 +149,11 @@
 <p>  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code>/</p>
 <p>  <code>stroke_line</code>/<code>circle</code> frame subset and can enqueue pointer, resize, key, and</p>
 <p>  text events. Metal rendering, IME/composition helpers, and richer 2D/3D command</p>
-<p>  sets remain pending.</p>
+<p>  sets remain pending. The next GUI contract is game-grade rather than widget-only:</p>
+<p>  high-refresh/high-resolution pacing, latest-frame/drop-stale behavior, retained</p>
+<p>  resource handles, strict budgets, low-latency input ordering, and Metal/<code>MTKView</code></p>
+<p>  conformance gates are documented in</p>
+<p>  <code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
 <ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>

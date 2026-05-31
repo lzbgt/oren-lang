@@ -28,6 +28,7 @@
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
 <a href="ios-avm-sdk.html">iOS AVM SDK</a>
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -83,15 +84,18 @@
 <li><code>OrenAVMKit</code> now has binary helper encoders for pointer, resize, key, and</li>
 </ul>
 <p>  UTF-8 text input events. The Oren side still receives raw <code>OGE0</code> bytes via</p>
-<p>  <code>std:ui/avm.poll_event_bytes()</code>.</p>
+<p>  <code>std:ui/avm.pull_event_bytes()</code>.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> proves the chain by running OBC that publishes a frame,</li>
 </ul>
 <p>  retrieving/clearing that frame through the host SDK smoke, injecting a pointer</p>
 <p>  event, consuming that event from OBC, and compiling the UIKit renderer adapter for</p>
 <p>  device/simulator targets.</p>
-<p>Still pending: Metal rendering adapter, IME/composition helpers, 2D geometry</p>
-<p>expansion beyond the retained v0 shape subset, and 3D mesh commands.</p>
+<p>Still pending: game-grade render protocol hardening, Metal rendering adapter,</p>
+<p>IME/composition helpers, 2D geometry expansion beyond the retained v0 shape</p>
+<p>subset, and 3D mesh commands. The high-refresh/high-resolution contract is now</p>
+<p>tracked in <code>project-doc/avm_ui_render_performance_design_20260531.md</code>; follow it</p>
+<p>before growing the command set.</p>
 <h2 id="source-facts">Source Facts</h2>
 <ul>
 <li>Apple OpenGL ES archive: <code>project-doc/web/apple-ios-graphics-20260529/apple-opengles-introduction.html</code>.</li>
@@ -209,6 +213,16 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>The retained implementation uses the explicit graphics mailbox, not VFS or stdout.</p>
 <p>Frame publication is charged against AVM I/O budget so graphics output cannot grow</p>
 <p>unbounded.</p>
+<p>Input direction is deliberately asymmetric:</p>
+<ul>
+<li>Host adapters enqueue binary events with <code>avm_embed_gfx_input_put(...)</code> or</li>
+</ul>
+<p>  <code>OrenAVMKit</code> convenience helpers.</p>
+<ul>
+<li>Oren/OBC pulls one event at a time with <code>std:ui/avm.pull_event_bytes()</code>.</li>
+<li>The VM does not callback into Oren from the host UI thread; this keeps device</li>
+</ul>
+<p>  lifecycles, threading, and permissions owned by the host app.</p>
 <h3 id="2-oren-stdlib-surface">2. Oren Stdlib Surface</h3>
 <p>Add <code>std:gfx</code> as data-first APIs. It should not expose platform objects.</p>
 <p>Initial modules:</p>

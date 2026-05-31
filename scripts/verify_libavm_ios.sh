@@ -78,30 +78,30 @@ fn main() {
     ]
     var gr = ui_avm.present_frame(cmds, 4, 3, {"strict_bounds": true})
     if gr != 0 { oren_exit(19) }
-    var ev = ui_avm.poll_event_bytes()
+    var ev = ui_avm.pull_event_bytes()
     if oren_bytes_len(ev) != 24 { oren_exit(33) }
     if oren_bytes_get_u8(ev, 0) != 79 || oren_bytes_get_u8(ev, 1) != 71 || oren_bytes_get_u8(ev, 2) != 69 || oren_bytes_get_u8(ev, 3) != 48 { oren_exit(34) }
     if oren_bytes_get_u8(ev, 8) != 1 { oren_exit(35) }
     if oren_bytes_get_u32_le(ev, 12) != 1 { oren_exit(36) }
     if oren_bytes_get_u32_le(ev, 16) != 2 { oren_exit(37) }
     if oren_bytes_get_u32_le(ev, 20) != 7 { oren_exit(38) }
-    var ev2 = ui_avm.poll_event_bytes()
+    var ev2 = ui_avm.pull_event_bytes()
     if oren_bytes_len(ev2) != 24 { oren_exit(39) }
     if oren_bytes_get_u8(ev2, 8) != 16 { oren_exit(40) }
     if oren_bytes_get_u32_le(ev2, 12) != 4 { oren_exit(41) }
     if oren_bytes_get_u32_le(ev2, 16) != 3 { oren_exit(42) }
     if oren_bytes_get_u32_le(ev2, 20) != 1000 { oren_exit(43) }
-    var ev3 = ui_avm.poll_event_bytes()
+    var ev3 = ui_avm.pull_event_bytes()
     if oren_bytes_len(ev3) != 20 { oren_exit(44) }
     if oren_bytes_get_u8(ev3, 8) != 32 { oren_exit(45) }
     if oren_bytes_get_u32_le(ev3, 12) != 65 { oren_exit(46) }
     if oren_bytes_get_u32_le(ev3, 16) != 1 { oren_exit(47) }
-    var ev4 = ui_avm.poll_event_bytes()
+    var ev4 = ui_avm.pull_event_bytes()
     if oren_bytes_len(ev4) != 18 { oren_exit(48) }
     if oren_bytes_get_u8(ev4, 8) != 48 { oren_exit(49) }
     if oren_bytes_get_u32_le(ev4, 12) != 2 { oren_exit(50) }
     if oren_bytes_get_u8(ev4, 16) != 104 || oren_bytes_get_u8(ev4, 17) != 105 { oren_exit(51) }
-    if ui_avm.poll_event_bytes() != nil { oren_exit(52) }
+    if ui_avm.pull_event_bytes() != nil { oren_exit(52) }
     var rc1 = oren_system("probe-ok")
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
