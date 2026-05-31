@@ -85,8 +85,12 @@ fn main() {
     if args[3] != "session-none" {
         var sid = net_avm.session_open(args[3], 5000)
         if oren_is_err(sid) { oren_exit(57) }
+        var pw = net_avm.session_poll_write(sid, 5000)
+        if oren_is_err(pw) || (pw & 2) == 0 { oren_exit(63) }
         var wn = net_avm.session_write(sid, "ping", 5000)
         if oren_is_err(wn) || wn != 4 { oren_exit(58) }
+        var pr = net_avm.session_poll_read(sid, 5000)
+        if oren_is_err(pr) || (pr & 1) == 0 { oren_exit(64) }
         var rb = net_avm.session_read(sid, 4, 5000)
         if oren_is_err(rb) { oren_exit(59) }
         if bytes.to_string(rb) != "pong" { oren_exit(60) }

@@ -216,11 +216,12 @@
 <li>The first VNET session protocol is implemented for TCP client streams:</li>
 </ul>
 <p>  <code>std:net/avm.session_open(&quot;tcp://host:port&quot;, timeout_ms)</code>,</p>
-<p>  <code>session_write</code>, <code>session_read</code>, and <code>session_close</code> map to AVM NET ops and</p>
-<p>  embedder callbacks. The iOS SDK backs those virtual session IDs with host-owned</p>
-<p>  POSIX sockets under the live-NET allowlist and runtime enable/disable controls.</p>
-<p>  OBC sees only integer virtual session IDs and byte buffers, never native sockets</p>
-<p>  or descriptors.</p>
+<p>  <code>session_write</code>, <code>session_read</code>, <code>session_poll</code>, and <code>session_close</code> map to AVM</p>
+<p>  NET ops and embedder callbacks. The iOS SDK backs those virtual session IDs</p>
+<p>  with host-owned POSIX sockets and <code>select()</code> readiness polling under the</p>
+<p>  live-NET allowlist and runtime enable/disable controls. OBC sees only integer</p>
+<p>  virtual session IDs, readiness masks, and byte buffers, never native sockets or</p>
+<p>  descriptors.</p>
 <ul>
 <li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
 </ul>
@@ -235,8 +236,8 @@
 <ul>
 <li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
-<p>  UDP, WebSocket, listen/accept where app policy allows, DNS policy, readiness or</p>
-<p>  async polling, cancellation, stronger per-session byte budgets, lifecycle</p>
+<p>  UDP, WebSocket, listen/accept where app policy allows, DNS policy,</p>
+<p>  cancellation, stronger per-session byte budgets, lifecycle</p>
 <p>  handling, and deterministic fixture/replay support. <code>std:net/tcp</code> and</p>
 <p>  <code>std:net/udp</code> should route through the AVM protocol when running under</p>
 <p>  libavm/iOS.</p>

@@ -8,6 +8,7 @@
 #include <math.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <string.h>
@@ -612,6 +613,41 @@ static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size
     return 0;
 }
 
+static int OrenAVMRuntimeNetSessionPoll(void* userData, uint32_t sessionId, uint32_t events, uint32_t timeoutMs, uint32_t* outReady) {
+    if (!userData || !outReady || events == 0 || (events & ~3u) != 0) return -1;
+    *outReady = 0;
+    OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
+    int fd = OrenAVMRuntimeSocketForSession(runtime, sessionId);
+    if (fd < 0) return -1;
+
+    fd_set rfds;
+    fd_set wfds;
+    fd_set* rp = NULL;
+    fd_set* wp = NULL;
+    if ((events & 1u) != 0) {
+        FD_ZERO(&rfds);
+        FD_SET(fd, &rfds);
+        rp = &rfds;
+    }
+    if ((events & 2u) != 0) {
+        FD_ZERO(&wfds);
+        FD_SET(fd, &wfds);
+        wp = &wfds;
+    }
+    struct timeval tv;
+    tv.tv_sec = (time_t)(timeoutMs / 1000u);
+    tv.tv_usec = (suseconds_t)((timeoutMs % 1000u) * 1000u);
+    int rc = select(fd + 1, rp, wp, NULL, &tv);
+    if (rc < 0) return -1;
+    uint32_t ready = 0;
+    if (rc > 0) {
+        if (rp && FD_ISSET(fd, rp)) ready |= 1u;
+        if (wp && FD_ISSET(fd, wp)) ready |= 2u;
+    }
+    *outReady = ready & events;
+    return 0;
+}
+
 static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     if (!userData) return -1;
     OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
@@ -652,7 +688,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
             _handle = NULL;
             return nil;
         }
-        if (avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result) != AVM_EMBED_OK) {
+        if (avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result) != AVM_EMBED_OK) {
             avm_embed_close(_handle);
             _handle = NULL;
             return nil;
@@ -833,7 +869,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     AvmEmbedResult result;
     int rc = avm_embed_set_net_fetch_callback(_handle, OrenAVMRuntimeLiveNetFetch, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET callback", &result);
-    rc = avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result);
+    rc = avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET session callbacks", &result);
     return YES;
 }
@@ -844,7 +880,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     AvmEmbedResult result;
     int rc = avm_embed_set_net_fetch_callback(_handle, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET callback", &result);
-    rc = avm_embed_set_net_session_callbacks(_handle, NULL, NULL, NULL, NULL, NULL, &result);
+    rc = avm_embed_set_net_session_callbacks(_handle, NULL, NULL, NULL, NULL, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET session callbacks", &result);
     @synchronized (self) {
         for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);

@@ -65,8 +65,8 @@ This file is the concise task view. Detailed implementation status lives in
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
-     session, plus first `std:net/avm.session_open/write/read/close` TCP virtual
-     session handles over host-owned iOS sockets, plus the `std:avm/permission`
+     session, plus first `std:net/avm.session_open/write/read/poll/close` TCP virtual
+     session handles over host-owned iOS sockets with readiness polling, plus the `std:avm/permission`
      facade and OPR0 permission mailbox for host-visible OBC permission intent,
      plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
@@ -75,7 +75,7 @@ This file is the concise task view. Detailed implementation status lives in
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
-     UDP/WebSocket/listen/accept/async readiness on the VNET
+     UDP/WebSocket/listen/accept/DNS/cancellation on the VNET
      session protocol without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency

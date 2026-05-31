@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define AVM_EMBED_ABI_VERSION 4u
+#define AVM_EMBED_ABI_VERSION 5u
 
 enum {
     AVM_EMBED_OK = 0,
@@ -62,7 +62,7 @@ int avm_embed_vfs_get(AvmEmbedHandle* handle, const char* path, uint8_t** out_da
 int avm_embed_vfs_snapshot(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* body, size_t len, AvmEmbedResult* result);
 int avm_embed_set_net_fetch_callback(AvmEmbedHandle* handle, AvmNetFetchFn fetch_fn, void* user_data, AvmEmbedResult* result);
-int avm_embed_set_net_session_callbacks(AvmEmbedHandle* handle, AvmNetSessionOpenFn open_fn, AvmNetSessionWriteFn write_fn, AvmNetSessionReadFn read_fn, AvmNetSessionCloseFn close_fn, void* user_data, AvmEmbedResult* result);
+int avm_embed_set_net_session_callbacks(AvmEmbedHandle* handle, AvmNetSessionOpenFn open_fn, AvmNetSessionWriteFn write_fn, AvmNetSessionReadFn read_fn, AvmNetSessionPollFn poll_fn, AvmNetSessionCloseFn close_fn, void* user_data, AvmEmbedResult* result);
 int avm_embed_vproc_put(AvmEmbedHandle* handle, const char* command, int exit_code, AvmEmbedResult* result);
 int avm_embed_vproc_set_default_exit(AvmEmbedHandle* handle, int exit_code, AvmEmbedResult* result);
 int avm_embed_set_output_capture(AvmEmbedHandle* handle, int enabled, AvmEmbedResult* result);

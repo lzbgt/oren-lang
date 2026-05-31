@@ -52,6 +52,18 @@ fn session_read(session_id, max_len, timeout_ms) {
     return oren_vnet_session_read(session_id, max_len, timeout_ms)
 }
 
+fn session_poll(session_id, events, timeout_ms) {
+    return oren_vnet_session_poll(session_id, events, timeout_ms)
+}
+
+fn session_poll_read(session_id, timeout_ms) {
+    return session_poll(session_id, 1, timeout_ms)
+}
+
+fn session_poll_write(session_id, timeout_ms) {
+    return session_poll(session_id, 2, timeout_ms)
+}
+
 fn session_close(session_id) {
     return oren_vnet_session_close(session_id)
 }

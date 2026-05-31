@@ -351,6 +351,29 @@
                 return ret;
             }
 
+            case 5: { // session_poll(session_id, events, timeout_ms) -> INT ready mask
+                if (nargs < 2 || args[0].type != AVM_VAL_INT || args[1].type != AVM_VAL_INT) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_poll expects (session_id: int, events: int, timeout_ms?: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_poll_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session poll not implemented", domain, op);
+                }
+                uint32_t events = (uint32_t)avm_value_u64(args[1], 0);
+                if ((events & ~3u) != 0 || events == 0) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_poll events must use read=1/write=2", domain, op);
+                }
+                uint32_t timeout_ms = 0;
+                if (nargs >= 3) timeout_ms = (uint32_t)avm_value_u64(args[2], 0);
+                uint32_t ready = 0;
+                if (vm->net_session_poll_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), events, timeout_ms, &ready) != 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session poll failed", domain, op);
+                }
+                AvmValue ret = avm_int((int64_t)(ready & events));
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
             default:
                 return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
         }

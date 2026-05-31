@@ -157,11 +157,12 @@ Default NET adapter.
   OBC still has no raw host network authority.
 - The first VNET session protocol is implemented for TCP client streams:
   `std:net/avm.session_open("tcp://host:port", timeout_ms)`,
-  `session_write`, `session_read`, and `session_close` map to AVM NET ops and
-  embedder callbacks. The iOS SDK backs those virtual session IDs with host-owned
-  POSIX sockets under the live-NET allowlist and runtime enable/disable controls.
-  OBC sees only integer virtual session IDs and byte buffers, never native sockets
-  or descriptors.
+  `session_write`, `session_read`, `session_poll`, and `session_close` map to AVM
+  NET ops and embedder callbacks. The iOS SDK backs those virtual session IDs
+  with host-owned POSIX sockets and `select()` readiness polling under the
+  live-NET allowlist and runtime enable/disable controls. OBC sees only integer
+  virtual session IDs, readiness masks, and byte buffers, never native sockets or
+  descriptors.
 - The current HTTP body provider keeps a reusable ephemeral `NSURLSession` per
   `OrenAVMRuntime` so capability-enabled prefetch/live fetches use the fast SDK
   provider path by default instead of rebuilding a session for each OBC request.
@@ -170,8 +171,8 @@ Default NET adapter.
   see virtual responses or virtual session handles that AVM can budget, close,
   snapshot/test, and deny by capability.
 - Full OBC network capability is still the target. The next NET layers should add
-  UDP, WebSocket, listen/accept where app policy allows, DNS policy, readiness or
-  async polling, cancellation, stronger per-session byte budgets, lifecycle
+  UDP, WebSocket, listen/accept where app policy allows, DNS policy,
+  cancellation, stronger per-session byte budgets, lifecycle
   handling, and deterministic fixture/replay support. `std:net/tcp` and
   `std:net/udp` should route through the AVM protocol when running under
   libavm/iOS.
