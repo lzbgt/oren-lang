@@ -307,9 +307,12 @@ Facts from the 2026-05-28 implementation pass:
   capability/budget fields.
 - `lib/avm/avm_alloc.c` uses global allocation-owner state, which is not a polished
   reentrant embedder story.
-- Curated `make avm && make test-avm` passes.
-- Wildcard `AVM_TESTS="tests/avm/*.oren"` is not a valid release gate today because
-  fixture-specific env/expected-error policy is encoded only in selected Makefile cases.
+- Curated `make avm && make test-avm` passes through
+  `tests/avm/release_manifest.json`, not Makefile case arms.
+- The manifest records fixture path, release-gate inclusion, expected exit/error,
+  environment budgets, backend policy, deterministic mode, and host-effect checks.
+  `AVM_TESTS="..."` overrides still work; paths not present in the manifest run with
+  default zero-exit virtual-backend policy.
 - A direct `AVM_IO_BYTES=128` run of `test_budget_io_fs` returns the expected
   `AVM_ERR_BUDGET`, proving that specific runtime behavior while exposing harness debt.
 
@@ -341,7 +344,7 @@ Missing for production:
   backend helpers to feed source/resources, extract `out.obc`, and provide
   deterministic network/process fixtures plus captured stdout/stderr UI data;
 - allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
-- manifest-driven AVM fixture release runner;
+- broader manifest coverage for non-curated AVM fixtures;
 - broader stdlib/compiler surface coverage beyond the current smoke program.
 
 ## Scientific Stdlib Math
@@ -388,9 +391,10 @@ Working evidence:
      loading, and app-level failure policy.
    - Expand compiler/stdlib OBC smoke coverage beyond the current release gate.
 
-2. **AVM fixture manifest runner**
-   - Replace wildcard `AVM_TESTS` release expectations with manifest-driven per-fixture
-     policy: env, expected rc/error, capabilities, deterministic mode, and gate inclusion.
+2. **AVM fixture manifest coverage**
+   - Keep expanding `tests/avm/release_manifest.json` beyond the curated release-gate
+     set so full-suite AVM fixtures carry explicit env, expected rc/error, backend
+     policy, deterministic mode, and host-effect assertions.
 
 3. **Cross-backend parity**
    - Expand only around real gaps; keep C/native/OBC fixtures aligned.

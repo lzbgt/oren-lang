@@ -1,0 +1,151 @@
+{
+  "schema": "oren.avm.release_manifest.v0",
+  "defaults": {
+    "release_gate": true,
+    "expected": {
+      "exit_code": 0,
+      "error_contains": ""
+    },
+    "env": {},
+    "avm_args": [
+      "--print-run-json"
+    ],
+    "deterministic": true,
+    "backend_policy": "default-virtual",
+    "budgets": {},
+    "host_effects": []
+  },
+  "cases": [
+    {"path": "tests/avm/test_smoke_suite.oren"},
+    {"path": "tests/avm/test_closure_fn_values.oren"},
+    {"path": "tests/avm/test_policy_scan.oren"},
+    {"path": "tests/avm/test_job_scan.oren"},
+    {"path": "tests/avm/test_snapshot_resume.oren"},
+    {"path": "tests/avm/test_multiverse_invalid_obc.oren"},
+    {"path": "tests/avm/test_std_time_avm.oren"},
+    {"path": "tests/avm/test_time_rng_deterministic.oren"},
+    {"path": "tests/avm/test_time_rng_record_replay_mem.oren"},
+    {
+      "path": "tests/avm/test_budget_gas.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=9"},
+      "env": {"AVM_GAS": "20000"},
+      "budgets": {"gas": 20000}
+    },
+    {
+      "path": "tests/avm/test_budget_timeout.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=5"},
+      "avm_args": ["--timeout-ms", "5", "--print-run-json"],
+      "budgets": {"timeout_ms": 5}
+    },
+    {"path": "tests/avm/test_call_depth_limit.oren"},
+    {
+      "path": "tests/avm/test_arith_invalid.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=4"}
+    },
+    {
+      "path": "tests/avm/test_vfs_no_host_fs.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6",
+        "--fs-backend",
+        "vfs",
+        "--fs-allow-prefixes",
+        "build/",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-vfs",
+      "host_effects": [
+        {"path": "build/avm_vfs_should_not_write.bin", "expect": "absent"}
+      ]
+    },
+    {
+      "path": "tests/avm/test_vproc_no_host_proc.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,5,6",
+        "--proc-backend",
+        "vproc",
+        "--proc-exit-code",
+        "0",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-vproc",
+      "host_effects": [
+        {"path": "build/avm_vproc_should_not_touch.txt", "expect": "absent"}
+      ]
+    },
+    {
+      "path": "tests/avm/test_vnet_no_host_net.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,4,6",
+        "--net-backend",
+        "vnet",
+        "--net-fixtures-hex",
+        "41564d4e45543031010000000100000075020000006f6b",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-vnet"
+    },
+    {"path": "tests/avm/test_avm_permission_request_v0.oren"},
+    {"path": "tests/avm/test_avm_events_v0.oren"},
+    {"path": "tests/avm/test_switch.oren"},
+    {"path": "tests/avm/test_list_sum_opcodes.oren"},
+    {"path": "tests/avm/test_list_dot_opcodes.oren"},
+    {"path": "tests/avm/test_list_int_basic.oren"},
+    {"path": "tests/avm/test_std_math_pow.oren"},
+    {
+      "path": "tests/avm/test_list_freelist_env.oren",
+      "env": {
+        "AVM_LIST_FREELIST": "1",
+        "AVM_LIST_FREELIST_BYTES": "1048576",
+        "AVM_LIST_FREELIST_MAX_BLOCK_BYTES": "65536"
+      },
+      "budgets": {
+        "list_freelist_bytes": 1048576,
+        "list_freelist_max_block_bytes": 65536
+      }
+    },
+    {"path": "tests/avm/test_ui_color_v0.oren"},
+    {"path": "tests/avm/test_ui_layout_v0.oren"},
+    {"path": "tests/avm/test_ui_patch_v0.oren"},
+    {"path": "tests/avm/test_ui_render_v0.oren"},
+    {"path": "tests/avm/test_ui_raster_v0.oren"},
+    {"path": "tests/avm/test_ui_avm_mailbox_v0.oren"},
+    {"path": "tests/avm/test_ui_avm_event_decode_v0.oren"},
+    {"path": "tests/avm/test_ui_avm_protocol_validation_v0.oren"},
+    {
+      "path": "tests/avm/test_ui_avm_frame_budget_v0.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=9"},
+      "env": {"AVM_IO_BYTES": "80"},
+      "budgets": {"io_bytes": 80}
+    },
+    {"path": "tests/avm/test_yield_stmt_v0.oren"},
+    {"path": "tests/avm/test_yield_value_v0.oren"},
+    {"path": "tests/avm/test_yield_exchange_v0.oren"},
+    {"path": "tests/avm/test_generator_v0.oren"},
+    {"path": "tests/avm/test_coroutine_v0.oren"},
+    {"path": "tests/avm/test_ui_ppm_v0.oren"},
+    {"path": "tests/avm/test_ui_cmds_validate_v0.oren"},
+    {
+      "path": "tests/avm/test_vproc_fixtures.oren",
+      "release_gate": false,
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,5,6",
+        "--proc-backend",
+        "vproc",
+        "--proc-exit-code",
+        "7",
+        "--proc-fixtures-hex",
+        "41564d505243303101000000070000006563686f20686900000000",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-vproc-fixture"
+    }
+  ]
+}

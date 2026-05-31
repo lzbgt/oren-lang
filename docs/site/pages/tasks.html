@@ -225,17 +225,17 @@
 <p>     remain outside this repo. <code>OrenAVMOBCTrustBundle</code> now loads the generated</p>
 <p>     JSON and feeds signed-index package downloads directly.</p>
 <ol>
-<li><strong>AVM full-suite manifest runner</strong></li>
+<li><strong>AVM full-suite manifest coverage</strong></li>
 </ol>
 <ul>
-<li>Current <code>make test-avm</code> curated list passes, but wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code></li>
+<li><code>make test-avm</code> now runs through <code>tests/avm/release_manifest.json</code>, which records</li>
 </ul>
-<p>     is not a valid release gate because some fixtures require specific env budgets,</p>
-<p>     expected errors, or backend policy.</p>
+<p>     fixture path, expected rc/error, env budgets, backend policy, deterministic mode,</p>
+<p>     host-effect checks, and release-gate inclusion.</p>
 <ul>
-<li>Add a manifest with fixture path, expected rc/error, env, capability policy,</li>
+<li>Keep expanding manifest entries beyond the curated release-gate set before</li>
 </ul>
-<p>     deterministic mode, and release-gate inclusion.</p>
+<p>     treating wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> as release-grade.</p>
 <ol>
 <li><strong>Cross-backend parity gates</strong></li>
 </ol>

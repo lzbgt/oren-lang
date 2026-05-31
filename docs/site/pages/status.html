@@ -404,10 +404,15 @@
 </ul>
 <p>  reentrant embedder story.</p>
 <ul>
-<li>Curated <code>make avm &amp;&amp; make test-avm</code> passes.</li>
-<li>Wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> is not a valid release gate today because</li>
+<li>Curated <code>make avm &amp;&amp; make test-avm</code> passes through</li>
 </ul>
-<p>  fixture-specific env/expected-error policy is encoded only in selected Makefile cases.</p>
+<p>  <code>tests/avm/release_manifest.json</code>, not Makefile case arms.</p>
+<ul>
+<li>The manifest records fixture path, release-gate inclusion, expected exit/error,</li>
+</ul>
+<p>  environment budgets, backend policy, deterministic mode, and host-effect checks.</p>
+<p>  <code>AVM_TESTS=&quot;...&quot;</code> overrides still work; paths not present in the manifest run with</p>
+<p>  default zero-exit virtual-backend policy.</p>
 <ul>
 <li>A direct <code>AVM_IO_BYTES=128</code> run of <code>test_budget_io_fs</code> returns the expected</li>
 </ul>
@@ -445,7 +450,7 @@
 <p>  deterministic network/process fixtures plus captured stdout/stderr UI data;</p>
 <ul>
 <li>allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;</li>
-<li>manifest-driven AVM fixture release runner;</li>
+<li>broader manifest coverage for non-curated AVM fixtures;</li>
 <li>broader stdlib/compiler surface coverage beyond the current smoke program.</li>
 </ul>
 <h2 id="scientific-stdlib-math">Scientific Stdlib Math</h2>
@@ -509,12 +514,13 @@
 <li>Expand compiler/stdlib OBC smoke coverage beyond the current release gate.</li>
 </ul>
 <ol>
-<li><strong>AVM fixture manifest runner</strong></li>
+<li><strong>AVM fixture manifest coverage</strong></li>
 </ol>
 <ul>
-<li>Replace wildcard <code>AVM_TESTS</code> release expectations with manifest-driven per-fixture</li>
+<li>Keep expanding <code>tests/avm/release_manifest.json</code> beyond the curated release-gate</li>
 </ul>
-<p>     policy: env, expected rc/error, capabilities, deterministic mode, and gate inclusion.</p>
+<p>     set so full-suite AVM fixtures carry explicit env, expected rc/error, backend</p>
+<p>     policy, deterministic mode, and host-effect assertions.</p>
 <ol>
 <li><strong>Cross-backend parity</strong></li>
 </ol>

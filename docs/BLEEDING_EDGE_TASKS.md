@@ -161,12 +161,12 @@ This file is the concise task view. Detailed implementation status lives in
      remain outside this repo. `OrenAVMOBCTrustBundle` now loads the generated
      JSON and feeds signed-index package downloads directly.
 
-2. **AVM full-suite manifest runner**
-   - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`
-     is not a valid release gate because some fixtures require specific env budgets,
-     expected errors, or backend policy.
-   - Add a manifest with fixture path, expected rc/error, env, capability policy,
-     deterministic mode, and release-gate inclusion.
+2. **AVM full-suite manifest coverage**
+   - `make test-avm` now runs through `tests/avm/release_manifest.json`, which records
+     fixture path, expected rc/error, env budgets, backend policy, deterministic mode,
+     host-effect checks, and release-gate inclusion.
+   - Keep expanding manifest entries beyond the curated release-gate set before
+     treating wildcard `AVM_TESTS="tests/avm/*.oren"` as release-grade.
 
 3. **Cross-backend parity gates**
    - Expand only where current fixtures expose gaps.
