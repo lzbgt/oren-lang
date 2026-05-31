@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define AVM_EMBED_ABI_VERSION 7u
+#define AVM_EMBED_ABI_VERSION 8u
 
 enum {
     AVM_EMBED_OK = 0,
@@ -60,6 +60,9 @@ int avm_embed_set_argv(AvmEmbedHandle* handle, int argc, const char* const* argv
 int avm_embed_vfs_put(AvmEmbedHandle* handle, const char* path, const uint8_t* data, size_t len, AvmEmbedResult* result);
 int avm_embed_vfs_get(AvmEmbedHandle* handle, const char* path, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_vfs_snapshot(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
+int avm_embed_fs_mount_read(AvmEmbedHandle* handle, const char* virtual_prefix, const char* host_prefix, AvmEmbedResult* result);
+int avm_embed_fs_mount_write(AvmEmbedHandle* handle, const char* virtual_prefix, const char* host_prefix, AvmEmbedResult* result);
+int avm_embed_fs_mount(AvmEmbedHandle* handle, const char* virtual_prefix, const char* host_prefix, AvmEmbedResult* result);
 int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* body, size_t len, AvmEmbedResult* result);
 int avm_embed_set_net_fetch_callback(AvmEmbedHandle* handle, AvmNetFetchFn fetch_fn, void* user_data, AvmEmbedResult* result);
 int avm_embed_set_net_session_callbacks(AvmEmbedHandle* handle, AvmNetSessionOpenFn open_fn, AvmNetSessionWriteFn write_fn, AvmNetSessionReadFn read_fn, AvmNetSessionPollFn poll_fn, AvmNetSessionSelectFn select_fn, AvmNetSessionCloseFn close_fn, void* user_data, AvmEmbedResult* result);
@@ -80,6 +83,8 @@ void avm_embed_program_free(AvmEmbedProgram* program);
 AvmProgram* avm_embed_program_view(AvmEmbedProgram* program);
 int avm_embed_load_program(AvmEmbedHandle* handle, AvmProgram* program, AvmEmbedResult* result);
 int avm_embed_load_obc_bytes(AvmEmbedHandle* handle, const uint8_t* data, size_t len, AvmEmbedResult* result);
+int avm_embed_cancel(AvmEmbedHandle* handle, AvmEmbedResult* result);
+int avm_embed_clear_cancel(AvmEmbedHandle* handle, AvmEmbedResult* result);
 int avm_embed_run_loaded(AvmEmbedHandle* handle, AvmEmbedResult* result);
 int avm_embed_run_program(AvmEmbedHandle* handle, AvmProgram* program, AvmEmbedResult* result);
 int avm_embed_run_obc_bytes(AvmEmbedHandle* handle, const uint8_t* data, size_t len, AvmEmbedResult* result);

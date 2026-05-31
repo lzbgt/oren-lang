@@ -998,6 +998,39 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     return YES;
 }
 
+- (BOOL)mountHostDirectoryURL:(NSURL*)directoryURL
+                    atVFSRoot:(NSString*)vfsRoot
+                     readable:(BOOL)readable
+                     writable:(BOOL)writable
+                        error:(NSError**)error {
+    if (!directoryURL.isFileURL || vfsRoot.length == 0 || (!readable && !writable)) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"mountHostDirectoryURL requires a file URL, non-empty VFS root, and at least one access mode");
+    }
+    NSNumber* isDirectory = nil;
+    NSError* localError = nil;
+    if (![directoryURL getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&localError]) {
+        if (error) *error = localError;
+        return NO;
+    }
+    if (!isDirectory.boolValue) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"mountHostDirectoryURL requires a directory");
+    }
+    NSString* hostRoot = directoryURL.path.stringByStandardizingPath;
+    AvmEmbedResult result;
+    int rc = AVM_EMBED_OK;
+    if (readable && writable) {
+        rc = avm_embed_fs_mount(_handle, vfsRoot.UTF8String, hostRoot.UTF8String, &result);
+    } else if (readable) {
+        rc = avm_embed_fs_mount_read(_handle, vfsRoot.UTF8String, hostRoot.UTF8String, &result);
+    } else {
+        rc = avm_embed_fs_mount_write(_handle, vfsRoot.UTF8String, hostRoot.UTF8String, &result);
+    }
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to mount host directory into AVM FS", &result);
+    return YES;
+}
+
 - (BOOL)exportVFSFileAtPath:(NSString*)vfsPath
                   toFileURL:(NSURL*)fileURL
 createIntermediateDirectories:(BOOL)createIntermediateDirectories
@@ -1129,6 +1162,20 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
         avm_embed_free_bytes(stdoutBytes);
     }
     return [[OrenAVMRunResult alloc] initWithResult:&result stdoutData:stdoutData];
+}
+
+- (BOOL)requestCancelWithError:(NSError**)error {
+    AvmEmbedResult result;
+    int rc = avm_embed_cancel(_handle, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to request AVM cancel", &result);
+    return YES;
+}
+
+- (BOOL)clearCancelWithError:(NSError**)error {
+    AvmEmbedResult result;
+    int rc = avm_embed_clear_cancel(_handle, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear AVM cancel", &result);
+    return YES;
 }
 
 - (NSData*)getGraphicsFrameDataWithError:(NSError**)error {

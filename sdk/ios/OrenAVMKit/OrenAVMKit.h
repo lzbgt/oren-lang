@@ -80,6 +80,11 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 - (nullable NSData*)getVFSFileAtPath:(NSString*)path error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)mountFileURL:(NSURL*)fileURL atVFSPath:(NSString*)vfsPath error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)mountDirectoryURL:(NSURL*)directoryURL atVFSRoot:(NSString*)vfsRoot error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)mountHostDirectoryURL:(NSURL*)directoryURL
+                    atVFSRoot:(NSString*)vfsRoot
+                     readable:(BOOL)readable
+                     writable:(BOOL)writable
+                        error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)exportVFSFileAtPath:(NSString*)vfsPath
                   toFileURL:(NSURL*)fileURL
 createIntermediateDirectories:(BOOL)createIntermediateDirectories
@@ -99,6 +104,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (BOOL)putVirtualProcExitForCommand:(NSString*)command exitCode:(int)exitCode error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)setVirtualProcDefaultExitCode:(int)exitCode error:(NSError* _Nullable* _Nullable)error;
 - (nullable OrenAVMRunResult*)runOBCData:(NSData*)obcData error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)requestCancelWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)clearCancelWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getGraphicsFrameDataWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getPermissionRequestDataWithError:(NSError* _Nullable* _Nullable)error;

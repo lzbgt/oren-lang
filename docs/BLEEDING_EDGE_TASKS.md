@@ -61,7 +61,8 @@ This file is the concise task view. Detailed implementation status lives in
      `STD_linalg_dot_f64` from reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
      interactive configs, virtual FS/NET/PROC helpers, app file/directory mounts
-     into VirtualFS, VFS export back to host files, OBC run, stdout capture,
+     into VirtualFS, VFS export back to host files, live host-backed FS directory
+     mounts for real app-owned file reads/writes during OBC execution, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
@@ -78,9 +79,10 @@ This file is the concise task view. Detailed implementation status lives in
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset, plus OBC-safe virtual DNS through
      `std:net/avm/dns` and the iOS live-NET resolver callback, and SDK-enforced
-     live VNET session-count/per-session-byte limits.
+     live VNET session-count/per-session-byte limits, plus host-requested VM
+     cancellation through the embed/iOS SDK APIs.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
-     WebSocket/listen/accept/cancellation on the VNET
+     WebSocket/listen/accept and explicit cancellation watches on the VNET/event
      session protocol, event-bus cancellation/FS/package events without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency

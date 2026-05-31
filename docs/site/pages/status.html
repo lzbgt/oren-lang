@@ -138,11 +138,13 @@
 </ul>
 <p>  <code>OrenAVMKit.xcframework</code>. The Objective-C API provides deterministic defaults,</p>
 <p>  interactive app defaults for wall-clock <code>time.sleep_ms</code>, VirtualFS file helpers,</p>
-<p>  explicit app file/directory mount and export helpers, VirtualNET fixtures,</p>
-<p>  VirtualPROC fixtures/defaults, OBC run, stdout capture, and a module map for app</p>
-<p>  imports. <code>make verify-libavm-ios</code> compiles iOS device/simulator SDK smokes and</p>
-<p>  runs a host SDK smoke that proves interactive sleep has real elapsed-time effect</p>
-<p>  and that host files can flow into/out of OBC through VirtualFS.</p>
+<p>  explicit app file/directory mount and export helpers, live host-backed FS</p>
+<p>  directory mounts, VirtualNET fixtures, VirtualPROC fixtures/defaults, OBC run,</p>
+<p>  stdout capture, and a module map for app imports. <code>make verify-libavm-ios</code></p>
+<p>  compiles iOS device/simulator SDK smokes and runs a host SDK smoke that proves</p>
+<p>  interactive sleep has real elapsed-time effect, host files can flow into/out of</p>
+<p>  OBC through VirtualFS, and OBC can read/write real app-owned host files during</p>
+<p>  execution through virtual FS mount paths.</p>
 <ul>
 <li>The SDK now includes an allowlisted <code>URLSession</code> prefetch helper that maps real</li>
 </ul>
@@ -197,6 +199,13 @@
 <p>  <code>configureLiveNetworkSessionLimitsWithMaxSessions:byteLimitBytes:error:</code>.</p>
 <p>  The iOS verifier proves an intentional byte-budget failure path.</p>
 <ul>
+<li>Embedders can now request or clear VM cancellation through</li>
+</ul>
+<p>  <code>avm_embed_cancel</code> / <code>avm_embed_clear_cancel</code>, and iOS exposes the same</p>
+<p>  through <code>requestCancelWithError:</code> / <code>clearCancelWithError:</code>. The iOS verifier</p>
+<p>  proves a host thread cancels a spinning OBC program and observes AVM cancelled</p>
+<p>  error code <code>6</code>.</p>
+<ul>
 <li>OBC packages can now publish runtime permission intent through</li>
 </ul>
 <p>  <code>std:avm/permission.request*</code>, which maps to a separate <code>PERMISSION</code> capability</p>
@@ -208,12 +217,13 @@
 <ul>
 <li>Performance work for virtual resources should continue as host-backed virtual</li>
 </ul>
-<p>  providers, not raw OS object access from bytecode. Remaining WebSocket,</p>
-<p>  listen/accept, cancellation, and richer lifecycle</p>
-<p>  support should extend the VNET session protocol while the iOS SDK owns</p>
-<p>  Network.framework or socket backends. UI/GFX follows the same rule: the SDK may</p>
-<p>  use UIKit/CoreGraphics/Metal/<code>MTKView</code>, but OBC sees binary frame/event mailboxes</p>
-<p>  and virtual resource handles only.</p>
+<p>  providers, not raw OS object access from bytecode. FS follows this rule through</p>
+<p>  host-backed directory mounts: the SDK owns app <code>file://</code> URLs and OBC sees only</p>
+<p>  virtual paths. Remaining WebSocket, listen/accept, explicit cancellation watches,</p>
+<p>  and richer lifecycle support should extend the VNET session protocol while the</p>
+<p>  iOS SDK owns Network.framework or socket backends. UI/GFX follows the same rule:</p>
+<p>  the SDK may use UIKit/CoreGraphics/Metal/<code>MTKView</code>, but OBC sees binary</p>
+<p>  frame/event mailboxes and virtual resource handles only.</p>
 <ul>
 <li>The longer-term virtual-resource model should be an AVM event bus, similar in</li>
 </ul>
@@ -227,7 +237,7 @@
 <p>  watches, GFX input watches, and VNET session readiness. The iOS SDK backs VNET</p>
 <p>  multi-watch selection with one host <code>select()</code> over app-owned sockets, while</p>
 <p>  OBC still sees only virtual watch maps and event maps. Remaining event-bus work</p>
-<p>  is cancellation, FS/package events, and richer lifecycle integration.</p>
+<p>  is explicit cancellation watches, FS/package events, and richer lifecycle integration.</p>
 <ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>

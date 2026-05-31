@@ -91,11 +91,13 @@ Facts from the 2026-05-28 implementation pass:
 - First SDK implementation slice: `scripts/build_libavm_ios.sh` now also builds
   `OrenAVMKit.xcframework`. The Objective-C API provides deterministic defaults,
   interactive app defaults for wall-clock `time.sleep_ms`, VirtualFS file helpers,
-  explicit app file/directory mount and export helpers, VirtualNET fixtures,
-  VirtualPROC fixtures/defaults, OBC run, stdout capture, and a module map for app
-  imports. `make verify-libavm-ios` compiles iOS device/simulator SDK smokes and
-  runs a host SDK smoke that proves interactive sleep has real elapsed-time effect
-  and that host files can flow into/out of OBC through VirtualFS.
+  explicit app file/directory mount and export helpers, live host-backed FS
+  directory mounts, VirtualNET fixtures, VirtualPROC fixtures/defaults, OBC run,
+  stdout capture, and a module map for app imports. `make verify-libavm-ios`
+  compiles iOS device/simulator SDK smokes and runs a host SDK smoke that proves
+  interactive sleep has real elapsed-time effect, host files can flow into/out of
+  OBC through VirtualFS, and OBC can read/write real app-owned host files during
+  execution through virtual FS mount paths.
 - The SDK now includes an allowlisted `URLSession` prefetch helper that maps real
   host network responses into VirtualNET. `make verify-libavm-ios` starts a local
   HTTP server, fetches it through the SDK, injects the body under the requested URL,
@@ -137,6 +139,11 @@ Facts from the 2026-05-28 implementation pass:
   Apps can update those limits at runtime with
   `configureLiveNetworkSessionLimitsWithMaxSessions:byteLimitBytes:error:`.
   The iOS verifier proves an intentional byte-budget failure path.
+- Embedders can now request or clear VM cancellation through
+  `avm_embed_cancel` / `avm_embed_clear_cancel`, and iOS exposes the same
+  through `requestCancelWithError:` / `clearCancelWithError:`. The iOS verifier
+  proves a host thread cancels a spinning OBC program and observes AVM cancelled
+  error code `6`.
 - OBC packages can now publish runtime permission intent through
   `std:avm/permission.request*`, which maps to a separate `PERMISSION` capability
   domain rather than the broader nested-AVM domain. AVM stores the latest request
@@ -145,12 +152,13 @@ Facts from the 2026-05-28 implementation pass:
   decoded helpers. This lets host apps show user permission UI and then update
   provider policy with existing SDK controls without recompiling OBC.
 - Performance work for virtual resources should continue as host-backed virtual
-  providers, not raw OS object access from bytecode. Remaining WebSocket,
-  listen/accept, cancellation, and richer lifecycle
-  support should extend the VNET session protocol while the iOS SDK owns
-  Network.framework or socket backends. UI/GFX follows the same rule: the SDK may
-  use UIKit/CoreGraphics/Metal/`MTKView`, but OBC sees binary frame/event mailboxes
-  and virtual resource handles only.
+  providers, not raw OS object access from bytecode. FS follows this rule through
+  host-backed directory mounts: the SDK owns app `file://` URLs and OBC sees only
+  virtual paths. Remaining WebSocket, listen/accept, explicit cancellation watches,
+  and richer lifecycle support should extend the VNET session protocol while the
+  iOS SDK owns Network.framework or socket backends. UI/GFX follows the same rule:
+  the SDK may use UIKit/CoreGraphics/Metal/`MTKView`, but OBC sees binary
+  frame/event mailboxes and virtual resource handles only.
 - The longer-term virtual-resource model should be an AVM event bus, similar in
   purpose to `select`/`kqueue`/`epoll` but over virtual handles and mailbox events:
   VNET readiness, GFX/input events, timers, cancellation, and future FS/package
@@ -160,7 +168,7 @@ Facts from the 2026-05-28 implementation pass:
   watches, GFX input watches, and VNET session readiness. The iOS SDK backs VNET
   multi-watch selection with one host `select()` over app-owned sockets, while
   OBC still sees only virtual watch maps and event maps. Remaining event-bus work
-  is cancellation, FS/package events, and richer lifecycle integration.
+  is explicit cancellation watches, FS/package events, and richer lifecycle integration.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

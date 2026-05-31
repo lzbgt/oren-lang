@@ -34,6 +34,9 @@ for sym in \
   _avm_embed_vfs_put \
   _avm_embed_vfs_get \
   _avm_embed_vfs_snapshot \
+  _avm_embed_fs_mount_read \
+  _avm_embed_fs_mount_write \
+  _avm_embed_fs_mount \
   _avm_embed_vnet_put \
   _avm_embed_set_net_fetch_callback \
   _avm_embed_set_net_session_callbacks \
@@ -48,6 +51,8 @@ for sym in \
   _avm_embed_gfx_input_put \
   _avm_embed_permission_request_get \
   _avm_embed_permission_request_clear \
+  _avm_embed_cancel \
+  _avm_embed_clear_cancel \
   _avm_embed_free_bytes; do
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
@@ -61,6 +66,12 @@ nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_
 OREN_SRC="$TMP_DIR/embed_chain.oren"
 OBC_OUT="$TMP_DIR/embed_chain.obc"
 OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
+CANCEL_SRC="$TMP_DIR/cancel_spin.oren"
+CANCEL_OBC_OUT="$TMP_DIR/cancel_spin.obc"
+CANCEL_OBC_HEADER="$TMP_DIR/cancel_spin_obc.h"
+HOST_FS_SRC="$TMP_DIR/host_fs_chain.oren"
+HOST_FS_OBC_OUT="$TMP_DIR/host_fs_chain.obc"
+HOST_FS_OBC_HEADER="$TMP_DIR/host_fs_chain_obc.h"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
@@ -184,6 +195,33 @@ main()
 OREN
 "$OREN_COMPILER" build "$OREN_SRC" --backend bytecode -o "$OBC_OUT" > "$LOG_DIR/libavm_ios_embed_chain_obc_build.log" 2>&1
 
+cat > "$CANCEL_SRC" <<'OREN'
+fn main() {
+    var x = 0
+    while true {
+        x = x + 1
+        if x > 1000000 { x = 0 }
+    }
+}
+main()
+OREN
+"$OREN_COMPILER" build "$CANCEL_SRC" --backend bytecode -o "$CANCEL_OBC_OUT" > "$LOG_DIR/libavm_ios_cancel_spin_obc_build.log" 2>&1
+
+cat > "$HOST_FS_SRC" <<'OREN'
+fn main() {
+    var s = oren_read_file("host/input.txt")
+    if oren_is_err(s) { oren_exit(70) }
+    if s != "host-in" { oren_exit(71) }
+    var w = oren_write_file("host/out.txt", "host-out:" + s)
+    if oren_is_err(w) { oren_exit(72) }
+    var b = oren_read_bytes("host/input.txt")
+    if oren_is_err(b) || oren_list_len(b) != 7 { oren_exit(73) }
+    oren_exit(9)
+}
+main()
+OREN
+"$OREN_COMPILER" build "$HOST_FS_SRC" --backend bytecode -o "$HOST_FS_OBC_OUT" > "$LOG_DIR/libavm_ios_host_fs_chain_obc_build.log" 2>&1
+
 python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
 import pathlib
 import sys
@@ -203,13 +241,54 @@ out.write_text(
 )
 PY
 
+python3 - "$CANCEL_OBC_OUT" "$CANCEL_OBC_HEADER" <<'PY'
+import pathlib
+import sys
+
+data = pathlib.Path(sys.argv[1]).read_bytes()
+out = pathlib.Path(sys.argv[2])
+chunks = []
+for i in range(0, len(data), 12):
+    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
+out.write_text(
+    "#include <stddef.h>\n"
+    "static const unsigned char kCancelSpinObc[] = {\n"
+    + ",\n".join("    " + chunk for chunk in chunks)
+    + "\n};\n"
+    + f"static const size_t kCancelSpinObcLen = {len(data)}u;\n",
+    encoding="utf-8",
+)
+PY
+
+python3 - "$HOST_FS_OBC_OUT" "$HOST_FS_OBC_HEADER" <<'PY'
+import pathlib
+import sys
+
+data = pathlib.Path(sys.argv[1]).read_bytes()
+out = pathlib.Path(sys.argv[2])
+chunks = []
+for i in range(0, len(data), 12):
+    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
+out.write_text(
+    "#include <stddef.h>\n"
+    "static const unsigned char kHostFSChainObc[] = {\n"
+    + ",\n".join("    " + chunk for chunk in chunks)
+    + "\n};\n"
+    + f"static const size_t kHostFSChainObcLen = {len(data)}u;\n",
+    encoding="utf-8",
+)
+PY
+
 cat > "$TMP_DIR/embed_smoke.c" <<'SMOKE'
 #include "avm_embed.h"
 #include "embed_chain_obc.h"
+#include "cancel_spin_obc.h"
 
+#include <pthread.h>
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static uint64_t host_now_ns(void) {
     struct timespec ts;
@@ -226,6 +305,42 @@ static uint32_t read_u32_le(const uint8_t* p) {
         ((uint32_t)p[1] << 8) |
         ((uint32_t)p[2] << 16) |
         ((uint32_t)p[3] << 24);
+}
+
+typedef struct {
+    AvmEmbedHandle* handle;
+    AvmEmbedResult result;
+    int rc;
+} CancelRunCtx;
+
+static void* cancel_run_main(void* arg) {
+    CancelRunCtx* ctx = (CancelRunCtx*)arg;
+    ctx->rc = avm_embed_run_obc_bytes(ctx->handle, kCancelSpinObc, kCancelSpinObcLen, &ctx->result);
+    return NULL;
+}
+
+static int run_cancel_smoke(void) {
+    AvmEmbedConfig cfg;
+    AvmEmbedResult result;
+    avm_embed_config_default(&cfg);
+    cfg.gas_limit = 0;
+    AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
+    if (!handle || result.status != AVM_EMBED_OK) return 80;
+    CancelRunCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.handle = handle;
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, cancel_run_main, &ctx) != 0) {
+        avm_embed_close(handle);
+        return 81;
+    }
+    usleep(10000);
+    if (avm_embed_cancel(handle, &result) != AVM_EMBED_OK) return 82;
+    if (pthread_join(thread, NULL) != 0) return 83;
+    if (ctx.rc != AVM_EMBED_ERR_VM || ctx.result.avm_error_code != 6) return 84;
+    if (avm_embed_clear_cancel(handle, &result) != AVM_EMBED_OK) return 85;
+    avm_embed_close(handle);
+    return 0;
 }
 
 int main(void) {
@@ -259,6 +374,8 @@ int main(void) {
         79, 71, 69, 48, 0, 0, 0, 0, 1, 0, 8, 0,
         1, 0, 0, 0, 2, 0, 0, 0
     };
+    int cancel_rc = run_cancel_smoke();
+    if (cancel_rc != 0) return cancel_rc;
     avm_embed_config_default(&cfg);
 
     AvmEmbedHandle* queue_handle = avm_embed_open(&cfg, &result);
@@ -382,6 +499,7 @@ cat > "$TMP_DIR/sdk_smoke.m" <<'SMOKE'
 #endif
 #import "OrenAVMKit/OrenAVMKit.h"
 #include "embed_chain_obc.h"
+#include "host_fs_chain_obc.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -493,6 +611,23 @@ int main(void) {
                                     error:&error]) return 66;
         NSData* exported = [NSData dataWithContentsOfURL:exportURL options:0 error:&error];
         if (![exported isEqualToData:[@"export:mount-ok" dataUsingEncoding:NSUTF8StringEncoding]]) return 67;
+        NSURL* liveDir = [tempRoot URLByAppendingPathComponent:@"live-host" isDirectory:YES];
+        if (![[NSFileManager defaultManager] createDirectoryAtURL:liveDir
+                                      withIntermediateDirectories:YES
+                                                       attributes:nil
+                                                            error:&error]) return 83;
+        NSURL* liveInputURL = [liveDir URLByAppendingPathComponent:@"input.txt" isDirectory:NO];
+        if (![[@"host-in" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:liveInputURL options:NSDataWritingAtomic error:&error]) return 84;
+        OrenAVMRuntime* hostFSRuntime = [[OrenAVMRuntime alloc] initWithConfig:[OrenAVMRuntimeConfig interactiveAppDefaults]];
+        if (!hostFSRuntime) return 85;
+        if (![hostFSRuntime mountHostDirectoryURL:liveDir atVFSRoot:@"host" readable:YES writable:YES error:&error]) return 86;
+        NSData* hostFSObc = [NSData dataWithBytes:kHostFSChainObc length:kHostFSChainObcLen];
+        OrenAVMRunResult* hostFSResult = [hostFSRuntime runOBCData:hostFSObc error:&error];
+        if (!hostFSResult || hostFSResult.exitCode != 9) return 87;
+        NSData* liveOut = [NSData dataWithContentsOfURL:[liveDir URLByAppendingPathComponent:@"out.txt" isDirectory:NO]
+                                                options:0
+                                                  error:&error];
+        if (![liveOut isEqualToData:[@"host-out:host-in" dataUsingEncoding:NSUTF8StringEncoding]]) return 88;
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
@@ -528,6 +663,15 @@ int main(void) {
     if (!cfg.liveNetworkEnabled) return 2;
     OrenAVMRuntimeConfig* det = [OrenAVMRuntimeConfig deterministicDefaults];
     if (!det || det.liveNetworkEnabled) return 3;
+    OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:det];
+    if (!runtime) return 4;
+    NSError* error = nil;
+    if (![runtime requestCancelWithError:&error]) return 5;
+    if (![runtime clearCancelWithError:&error]) return 6;
+    NSURL* tmp = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"oren-avmkit-module-hostfs"]
+                            isDirectory:YES];
+    [[NSFileManager defaultManager] createDirectoryAtURL:tmp withIntermediateDirectories:YES attributes:nil error:nil];
+    if (![runtime mountHostDirectoryURL:tmp atVFSRoot:@"host" readable:YES writable:NO error:&error]) return 7;
     return 0;
 }
 SMOKE

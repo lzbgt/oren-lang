@@ -140,6 +140,51 @@ static int avm_embed_vfs_ensure_cap(AvmVfs* v, uint32_t need) {
     return 1;
 }
 
+static char* avm_embed_strdup_heap(const char* s) {
+    if (!s) return NULL;
+    size_t n = strlen(s);
+    char* out = (char*)malloc(n + 1);
+    if (!out) return NULL;
+    memcpy(out, s, n + 1);
+    return out;
+}
+
+static int avm_embed_fs_mount_append(char*** virt_arr,
+                                     char*** host_arr,
+                                     int* count,
+                                     const char* virtual_prefix,
+                                     const char* host_prefix) {
+    if (!virt_arr || !host_arr || !count || !virtual_prefix || !host_prefix) return 0;
+    if (*count < 0) return 0;
+    size_t next_count = (size_t)*count + 1u;
+    if (next_count > (size_t)INT32_MAX) return 0;
+    char* virt_copy = avm_embed_strdup_heap(virtual_prefix);
+    char* host_copy = avm_embed_strdup_heap(host_prefix);
+    if (!virt_copy || !host_copy) {
+        free(virt_copy);
+        free(host_copy);
+        return 0;
+    }
+    char** next_virt = (char**)realloc(*virt_arr, sizeof(char*) * next_count);
+    if (!next_virt) {
+        free(virt_copy);
+        free(host_copy);
+        return 0;
+    }
+    *virt_arr = next_virt;
+    char** next_host = (char**)realloc(*host_arr, sizeof(char*) * next_count);
+    if (!next_host) {
+        free(virt_copy);
+        free(host_copy);
+        return 0;
+    }
+    *host_arr = next_host;
+    (*virt_arr)[*count] = virt_copy;
+    (*host_arr)[*count] = host_copy;
+    *count = (int)next_count;
+    return 1;
+}
+
 static AvmVnet* avm_embed_vnet_get_or_create_vm(AvmVM* vm) {
     if (!vm) return NULL;
     if (vm->vnet) return (AvmVnet*)vm->vnet;
@@ -710,6 +755,48 @@ int avm_embed_permission_request_clear(AvmEmbedHandle* handle, AvmEmbedResult* r
     return result ? result->status : AVM_EMBED_OK;
 }
 
+int avm_embed_fs_mount_read(AvmEmbedHandle* handle, const char* virtual_prefix, const char* host_prefix, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !virtual_prefix || !host_prefix ||
+        virtual_prefix[0] == 0 || host_prefix[0] == 0) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed FS read mount argument");
+    }
+    if (!avm_embed_fs_mount_append(&handle->vm->fs_mounts_read_virt,
+                                   &handle->vm->fs_mounts_read_host,
+                                   &handle->vm->fs_mounts_read_count,
+                                   virtual_prefix,
+                                   host_prefix)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to add AVM FS read mount");
+    }
+    handle->vm->fs_backend_kind = 0;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_fs_mount_write(AvmEmbedHandle* handle, const char* virtual_prefix, const char* host_prefix, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !virtual_prefix || !host_prefix ||
+        virtual_prefix[0] == 0 || host_prefix[0] == 0) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed FS write mount argument");
+    }
+    if (!avm_embed_fs_mount_append(&handle->vm->fs_mounts_write_virt,
+                                   &handle->vm->fs_mounts_write_host,
+                                   &handle->vm->fs_mounts_write_count,
+                                   virtual_prefix,
+                                   host_prefix)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to add AVM FS write mount");
+    }
+    handle->vm->fs_backend_kind = 0;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_fs_mount(AvmEmbedHandle* handle, const char* virtual_prefix, const char* host_prefix, AvmEmbedResult* result) {
+    AvmEmbedResult local;
+    AvmEmbedResult* r = result ? result : &local;
+    if (avm_embed_fs_mount_read(handle, virtual_prefix, host_prefix, r) != AVM_EMBED_OK) return r->status;
+    if (avm_embed_fs_mount_write(handle, virtual_prefix, host_prefix, r) != AVM_EMBED_OK) return r->status;
+    return r->status;
+}
+
 int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* body, size_t len, AvmEmbedResult* result) {
     if (!avm_embed_valid_handle(handle) || !url || (len > 0 && !body) || len > (size_t)UINT32_MAX) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VNET put argument");
@@ -986,6 +1073,25 @@ int avm_embed_load_obc_bytes(AvmEmbedHandle* handle, const uint8_t* data, size_t
     handle->owned_program = program;
     program->loaded_into_vm = 1;
     avm_load(handle->vm, &program->program);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_cancel(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed cancel argument");
+    }
+    handle->vm->cancelled = 1;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_clear_cancel(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed clear-cancel argument");
+    }
+    handle->vm->cancelled = 0;
+    handle->vm->last_error = avm_nil();
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }

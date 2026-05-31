@@ -78,11 +78,13 @@
 </ul>
 <p>  VirtualPROC fixture/default puts, OBC byte execution, and stdout capture.</p>
 <ul>
-<li><code>OrenAVMRuntime</code> also exposes app file/directory mount helpers and VFS export</li>
+<li><code>OrenAVMRuntime</code> also exposes app file/directory mount helpers, VFS export</li>
 </ul>
-<p>  back to a host file URL. The verifier mounts a host asset directory into</p>
-<p>  VirtualFS, OBC reads it, writes an output file, and the SDK exports that VFS</p>
-<p>  output back to the host filesystem.</p>
+<p>  back to a host file URL, and live host-backed directory mounts. The verifier</p>
+<p>  mounts a host asset directory into VirtualFS, exports a VFS output back to the</p>
+<p>  host filesystem, and separately mounts a real app-owned directory so OBC</p>
+<p>  <code>oren_read_file</code>/<code>oren_write_file</code> access host files during execution through</p>
+<p>  virtual paths.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> compiles iOS device/simulator SDK smokes and runs a</li>
 </ul>
@@ -176,7 +178,7 @@
 <h3 id="orenavmfileprovider">OrenAVMFileProvider</h3>
 <p>Default FS adapter.</p>
 <ul>
-<li>Default mode: VirtualFS with explicit host file/directory mount and export</li>
+<li>Default mode: VirtualFS with explicit host file/directory copy-in and export</li>
 </ul>
 <p>  helpers.</p>
 <ul>
@@ -184,6 +186,13 @@
 </ul>
 <p>  container or bundle, and the SDK copies bytes into VirtualFS. OBC never sees</p>
 <p>  arbitrary host paths.</p>
+<ul>
+<li>Live host-backed mode: host code passes an app-owned directory URL and VFS root</li>
+</ul>
+<p>  to <code>mountHostDirectoryURL:atVFSRoot:readable:writable:error:</code>. The SDK enrolls</p>
+<p>  read/write mount policy through <code>avm_embed_fs_mount*</code>; OBC uses normal virtual</p>
+<p>  paths such as <code>host/out.txt</code>, and AVM maps only matching virtual paths to the</p>
+<p>  host directory.</p>
 <ul>
 <li>Asset/package mounts should be treated as read-only by policy; writable</li>
 </ul>
@@ -246,6 +255,13 @@
 <p>  so user settings or package permissions can tighten policy without rebuilding</p>
 <p>  OBC.</p>
 <ul>
+<li>Embedder-level cancellation is exposed as <code>avm_embed_cancel</code> /</li>
+</ul>
+<p>  <code>avm_embed_clear_cancel</code>, with iOS wrappers <code>requestCancelWithError:</code> and</p>
+<p>  <code>clearCancelWithError:</code>. This lets a host app stop long-running OBC work from</p>
+<p>  UI lifecycle, user action, or package policy without exposing thread handles</p>
+<p>  or native cancellation primitives to OBC.</p>
+<ul>
 <li>Naming note: Oren native/runtime code already has raw <code>sys_select</code> for OS file</li>
 </ul>
 <p>  descriptors. AVM uses virtual-session readiness; <code>session_select*</code> is the</p>
@@ -283,7 +299,7 @@
 <ul>
 <li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
-<p>  WebSocket, listen/accept where app policy allows, cancellation,</p>
+<p>  WebSocket, listen/accept where app policy allows, explicit cancellation watches,</p>
 <p>  broader lifecycle handling, deterministic</p>
 <p>  fixture/replay support, and any compatibility aliases needed for non-AVM</p>
 <p>  <code>std:net/tcp</code> / <code>std:net/udp</code> callers.</p>
@@ -332,7 +348,7 @@
 <h2 id="default-policy">Default Policy</h2>
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>
-<tr><td>FS</td><td>VirtualFS plus explicit app file/directory mount and export helpers</td><td>Richer mount policy/manifest wiring</td></tr>
+<tr><td>FS</td><td>VirtualFS copy/export plus live host-backed app-directory mounts</td><td>Richer mount policy/manifest wiring</td></tr>
 <tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch/live fetch plus TCP virtual sessions with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
@@ -343,8 +359,9 @@
 <p>Default iOS providers are intended to do real app work, not only test fixtures.</p>
 <p>The boundary is that OBC uses portable stdlib APIs and AVM capability domains;</p>
 <p>the SDK owns the platform translation. TIME may use deterministic or wall-clock</p>
-<p>worker-thread mode. FS mounts concrete app-owned file URLs into VirtualFS and</p>
-<p>exports selected VFS outputs back to app-owned file URLs. NET may prefetch through</p>
+<p>worker-thread mode. FS can copy concrete app-owned file URLs into VirtualFS,</p>
+<p>export selected VFS outputs back to app-owned file URLs, or use live host-backed</p>
+<p>directory mounts for app-owned read/write paths. NET may prefetch through</p>
 <p>allowlisted <code>URLSession</code> into VirtualNET or perform synchronous live fetches on the</p>
 <p>AVM worker through the interactive default provider. Network permission is a</p>
 <p>runtime host policy: an OBC app can request network capability, the host app can</p>
