@@ -37,7 +37,7 @@ The first retained implementation slices exist as of 2026-05-31:
   pointer-event helper.
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
-  `text`/`stroke_line`/`circle` subset. It decodes frame bytes on the host side
+  `text`/`stroke_line`/`circle`/`fill_triangle` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
   key, and UTF-8 text input events, plus host-populated persistent screen state.
@@ -169,7 +169,7 @@ All three functions are implemented. Current frame payloads use
 logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
-cover `fill_rect`, `text`, `stroke_line`, `circle`, pointer, resize, media-query, key, and text
+cover `fill_rect`, `text`, `stroke_line`, `circle`, `fill_triangle`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.
 
@@ -254,6 +254,7 @@ Keep v0 small and deterministic:
 - `clear {color}`
 - `fill_rect {x,y,w,h,color}`
 - `stroke_line {x1,y1,x2,y2,color,width}`
+- `fill_triangle {x1,y1,x2,y2,x3,y3,color}`
 - `polyline {points,color,width}`
 - `path {verbs,coords,fill,stroke,width}`
 - `circle {cx,cy,r,fill,color}`
@@ -324,7 +325,7 @@ Required gates before Note integration should be called production-ready:
 3. Done: add iOS C/SDK smoke to `make verify-libavm-ios` for exported graphics symbols and frame retrieval.
 4. Done: add binary input-event mailbox and pointer-event SDK helper.
 5. Done: add default UIKit/CoreGraphics `OrenAVMGraphicsView` for the current `fill_rect`/`text` subset and compile it in the iOS verifier.
-6. Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to `stroke_line` and `circle`.
+6. Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to `stroke_line`, `circle`, and `fill_triangle`.
 7. Done: add SDK binary helper encoders for resize, media-query, key, and UTF-8 text input events and verifier coverage that OBC consumes them.
 8. Done: add frame sequence, native drawable-size metadata, and target refresh hint to the `OGF0` header for high-refresh/high-resolution hosts.
 9. Done: add protocol/budget gates for malformed frames/events, op-count caps,
@@ -333,7 +334,7 @@ Required gates before Note integration should be called production-ready:
     FIFO pointer down/move/up ordering gates.
 11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
     Metal draw loop, publishes screen state, forwards touch input, and renders the
-    current `fill_rect`/`stroke_line` geometry records.
+    current `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry records.
 12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
     `OrenAVMMetalView`, runs a bundled OBC, renders one frame, and injects one touch.
 13. Add IME/composition helpers.

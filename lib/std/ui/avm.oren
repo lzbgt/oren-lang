@@ -110,6 +110,16 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, flags)
         return _push_color_rgba(out, c["color"])
     }
+    if op == "fill_triangle" {
+        _push_op_header(out, 5, 28)
+        _push_u32_le(out, c["x1"])
+        _push_u32_le(out, c["y1"])
+        _push_u32_le(out, c["x2"])
+        _push_u32_le(out, c["y2"])
+        _push_u32_le(out, c["x3"])
+        _push_u32_le(out, c["y3"])
+        return _push_color_rgba(out, c["color"])
+    }
     if op == "text" {
         var tb = bytes.try_from_string(c["text"])
         if oren_is_err(tb) { return tb }

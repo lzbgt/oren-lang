@@ -112,12 +112,12 @@
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
-<p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>.</p>
+<p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, and <code>fill_triangle</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code> geometry plus text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry plus text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -324,6 +324,11 @@
 <li>Done: forward multi-touch sets with stable compact pointer IDs and expose SDK</li>
 </ol>
 <p>   batch pointer-event helpers for UIKit/CoreGraphics and Metal views.</p>
+<ol>
+<li>Done: add <code>fill_triangle</code> as a compact 2D geometry record across validation,</li>
+</ol>
+<p>    binary frames, AVM protocol checks, deterministic raster, CoreGraphics fallback,</p>
+<p>    Metal, and iOS verifier coverage.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>

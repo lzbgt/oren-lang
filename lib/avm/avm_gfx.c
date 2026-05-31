@@ -91,6 +91,11 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad circle payload");
                 return 0;
             }
+        } else if (opcode == 5u) {
+            if (payload_len != 28u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangle payload");
+                return 0;
+            }
         } else {
             avm_gfx_err(err, err_cap, "invalid OGF0 frame: unsupported opcode");
             return 0;

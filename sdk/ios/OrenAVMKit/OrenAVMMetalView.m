@@ -145,6 +145,23 @@ static void OrenAVMMetalAppendLine(NSMutableData* vertices,
     [vertices appendBytes:out length:sizeof(out)];
 }
 
+static void OrenAVMMetalAppendTriangle(NSMutableData* vertices,
+                                       float x1,
+                                       float y1,
+                                       float x2,
+                                       float y2,
+                                       float x3,
+                                       float y3,
+                                       float logicalWidth,
+                                       float logicalHeight,
+                                       const uint8_t* rgba) {
+    OrenAVMMetalVertex out[3];
+    out[0] = OrenAVMMetalMakeVertex(x1, y1, logicalWidth, logicalHeight, rgba);
+    out[1] = OrenAVMMetalMakeVertex(x2, y2, logicalWidth, logicalHeight, rgba);
+    out[2] = OrenAVMMetalMakeVertex(x3, y3, logicalWidth, logicalHeight, rgba);
+    [vertices appendBytes:out length:sizeof(out)];
+}
+
 static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
                                      float cx,
                                      float cy,
@@ -636,6 +653,23 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                      (float)logicalW,
                                      (float)logicalH,
                                      payload + 16);
+        } else if (opcode == 5 && payloadLen == 28) {
+            uint32_t x1 = OrenAVMMetalReadU32LE(payload);
+            uint32_t y1 = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t x2 = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t y2 = OrenAVMMetalReadU32LE(payload + 12);
+            uint32_t x3 = OrenAVMMetalReadU32LE(payload + 16);
+            uint32_t y3 = OrenAVMMetalReadU32LE(payload + 20);
+            OrenAVMMetalAppendTriangle(vertices,
+                                       (float)x1,
+                                       (float)y1,
+                                       (float)x2,
+                                       (float)y2,
+                                       (float)x3,
+                                       (float)y3,
+                                       (float)logicalW,
+                                       (float)logicalH,
+                                       payload + 24);
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMMetalReadU32LE(payload);
             uint32_t y = OrenAVMMetalReadU32LE(payload + 4);

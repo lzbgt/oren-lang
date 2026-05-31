@@ -95,7 +95,8 @@ fn test_raster_err_context() {
 fn test_raster_shapes() {
     var cmds = [
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 4, "y2": 0, "width": 1, "color": "#0000ff"},
-        {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#00ff00"}
+        {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#00ff00"},
+        {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 1, "y2": 4, "x3": 0, "y3": 3, "color": "#ff0000"}
     ]
     var buf = ui_raster.try_rasterize(cmds, 5, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
@@ -103,6 +104,8 @@ fn test_raster_shapes() {
     assert_eq(_px(buf, 5, 3, 0, 3), 255)
     assert_eq(_px(buf, 5, 2, 2, 1), 255)
     assert_eq(_px(buf, 5, 2, 2, 3), 255)
+    assert_eq(_px(buf, 5, 0, 4, 0), 255)
+    assert_eq(_px(buf, 5, 0, 4, 3), 255)
 }
 
 fn main() {

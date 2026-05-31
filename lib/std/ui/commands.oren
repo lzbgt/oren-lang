@@ -91,6 +91,17 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if cx - cr < 0 || cy - cr < 0 || cx + cr >= w || cy + cr >= h { return oren_err(4, "ui.validate: circle out of bounds") }
             }
+        } else if op == "fill_triangle" {
+            var tx1 = c["x1"]; var ty1 = c["y1"]; var tx2 = c["x2"]; var ty2 = c["y2"]; var tx3 = c["x3"]; var ty3 = c["y3"]; var tcol = c["color"]
+            if _is_int(tx1) == false || _is_int(ty1) == false || _is_int(tx2) == false || _is_int(ty2) == false || _is_int(tx3) == false || _is_int(ty3) == false {
+                return oren_err(4, "ui.validate: fill_triangle expects int x1,y1,x2,y2,x3,y3")
+            }
+            if _hex_ok(tcol) == false { return oren_err(4, "ui.validate: fill_triangle invalid color") }
+            if strict {
+                if tx1 < 0 || ty1 < 0 || tx1 >= w || ty1 >= h || tx2 < 0 || ty2 < 0 || tx2 >= w || ty2 >= h || tx3 < 0 || ty3 < 0 || tx3 >= w || ty3 >= h {
+                    return oren_err(4, "ui.validate: fill_triangle out of bounds")
+                }
+            }
         } else if op == "text" {
             var x2 = c["x"]; var y2 = c["y"]; var s = c["text"]; var col2 = c["color"]
             if _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: text expects int x,y") }

@@ -81,7 +81,7 @@
 <li><code>sdk/ios/OrenAVMKit</code> also exposes <code>OrenAVMGraphicsView</code>, a default</li>
 </ul>
 <p>  UIKit/CoreGraphics <code>UIView</code> renderer for the current <code>OGF0</code> <code>fill_rect</code>/</p>
-<p>  <code>text</code>/<code>stroke_line</code>/<code>circle</code> subset. It decodes frame bytes on the host side</p>
+<p>  <code>text</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> subset. It decodes frame bytes on the host side</p>
 <p>  and enqueues pointer events back into AVM.</p>
 <ul>
 <li><code>OrenAVMKit</code> now has binary helper encoders for pointer, resize, media-query,</li>
@@ -213,7 +213,7 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>logical height, <code>scale_milli</code>, op-count, sequence, native drawable width, native</p>
 <p>drawable height, target refresh milli-Hz, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
 <p>magic <code>OGE0</code>, version/flags/reserved, then opcode records. The retained v0 opcodes</p>
-<p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, pointer, resize, media-query, key, and text</p>
+<p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>, pointer, resize, media-query, key, and text</p>
 <p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
 <p>should extend the same binary stream.</p>
 <p>AVM validates <code>OGF0</code> headers/op records before accepting OBC-published frames and</p>
@@ -300,6 +300,7 @@ fn main() {
 <li><code>clear {color}</code></li>
 <li><code>fill_rect {x,y,w,h,color}</code></li>
 <li><code>stroke_line {x1,y1,x2,y2,color,width}</code></li>
+<li><code>fill_triangle {x1,y1,x2,y2,x3,y3,color}</code></li>
 <li><code>polyline {points,color,width}</code></li>
 <li><code>path {verbs,coords,fill,stroke,width}</code></li>
 <li><code>circle {cx,cy,r,fill,color}</code></li>
@@ -370,7 +371,7 @@ fn main() {
 <li>Done: add iOS C/SDK smoke to <code>make verify-libavm-ios</code> for exported graphics symbols and frame retrieval.</li>
 <li>Done: add binary input-event mailbox and pointer-event SDK helper.</li>
 <li>Done: add default UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> for the current <code>fill_rect</code>/<code>text</code> subset and compile it in the iOS verifier.</li>
-<li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code> and <code>circle</code>.</li>
+<li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code>, <code>circle</code>, and <code>fill_triangle</code>.</li>
 <li>Done: add SDK binary helper encoders for resize, media-query, key, and UTF-8 text input events and verifier coverage that OBC consumes them.</li>
 <li>Done: add frame sequence, native drawable-size metadata, and target refresh hint to the <code>OGF0</code> header for high-refresh/high-resolution hosts.</li>
 <li>Done: add protocol/budget gates for malformed frames/events, op-count caps,</li>
@@ -384,7 +385,7 @@ fn main() {
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>
 <p>    Metal draw loop, publishes screen state, forwards touch input, and renders the</p>
-<p>    current <code>fill_rect</code>/<code>stroke_line</code> geometry records.</p>
+<p>    current <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry records.</p>
 <ol>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code> or</li>
 </ol>

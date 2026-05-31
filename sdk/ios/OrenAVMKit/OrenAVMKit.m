@@ -414,6 +414,21 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                 CGContextSetStrokeColorWithColor(ctx, color.CGColor);
                 CGContextStrokeEllipseInRect(ctx, oval);
             }
+        } else if (opcode == 5 && payloadLen == 28) {
+            uint32_t x1 = OrenAVMGfxReadU32LE(payload);
+            uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t x2 = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t y2 = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t x3 = OrenAVMGfxReadU32LE(payload + 16);
+            uint32_t y3 = OrenAVMGfxReadU32LE(payload + 20);
+            UIColor* color = OrenAVMGfxColor(payload + 24);
+            CGContextSetFillColorWithColor(ctx, color.CGColor);
+            CGContextBeginPath(ctx);
+            CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
+            CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
+            CGContextAddLineToPoint(ctx, (CGFloat)x3, (CGFloat)y3);
+            CGContextClosePath(ctx);
+            CGContextFillPath(ctx);
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);

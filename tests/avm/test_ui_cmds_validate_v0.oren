@@ -46,9 +46,19 @@ fn test_validate_bad_framebuffer_size_type() {
     assert_true(oren_is_err(r) == true)
 }
 
+fn test_validate_triangle() {
+    var cmds = [{"op": "fill_triangle", "x1": 0, "y1": 0, "x2": 3, "y2": 0, "x3": 1, "y3": 2, "color": "#00ffff"}]
+    var r = ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})
+    assert_true(oren_is_err(r) == false)
+    var bad = [{"op": "fill_triangle", "x1": 0, "y1": 0, "x2": 4, "y2": 0, "x3": 1, "y3": 2, "color": "#00ffff"}]
+    var r2 = ui_cmds.try_validate(bad, 4, 3, {"strict_bounds": true})
+    assert_true(oren_is_err(r2) == true)
+}
+
 fn main() {
     test_validate_ok()
     test_validate_bad_color()
     test_validate_bad_framebuffer_size_type()
+    test_validate_triangle()
     exit(0)
 }

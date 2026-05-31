@@ -16,6 +16,7 @@
 // - {"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"stroke_line","x1":int,"y1":int,"x2":int,"y2":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"fill_triangle","x1":int,"y1":int,"x2":int,"y2":int,"x3":int,"y3":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes "text" as a simple 1px-high run of pixels (one per character),
 //     purely as a deterministic marker for tests.
@@ -82,6 +83,54 @@ fn _draw_circle(buf, w, h, cx, cy, r, fill, c) {
                 if d2 <= r2 { _set_px_rgba(buf, w, h, xx, yy, c["r"], c["g"], c["b"], c["a"]) }
             } else {
                 if d2 <= r2 && d2 >= inner2 { _set_px_rgba(buf, w, h, xx, yy, c["r"], c["g"], c["b"], c["a"]) }
+            }
+            xx = xx + 1
+        }
+        yy = yy + 1
+    }
+    return 0
+}
+
+fn _min3(a, b, c) {
+    var out = a
+    if b < out { out = b }
+    if c < out { out = c }
+    return out
+}
+
+fn _max3(a, b, c) {
+    var out = a
+    if b > out { out = b }
+    if c > out { out = c }
+    return out
+}
+
+fn _edge(ax, ay, bx, by, px, py) {
+    return (px - ax) * (by - ay) - (py - ay) * (bx - ax)
+}
+
+fn _draw_fill_triangle(buf, w, h, x1, y1, x2, y2, x3, y3, c) {
+    var min_x = _min3(x1, x2, x3)
+    var max_x = _max3(x1, x2, x3)
+    var min_y = _min3(y1, y2, y3)
+    var max_y = _max3(y1, y2, y3)
+    if min_x < 0 { min_x = 0 }
+    if min_y < 0 { min_y = 0 }
+    if max_x >= w { max_x = w - 1 }
+    if max_y >= h { max_y = h - 1 }
+    var area = _edge(x1, y1, x2, y2, x3, y3)
+    if area == 0 { return 0 }
+    var yy = min_y
+    while yy <= max_y {
+        var xx = min_x
+        while xx <= max_x {
+            var e1 = _edge(x1, y1, x2, y2, xx, yy)
+            var e2 = _edge(x2, y2, x3, y3, xx, yy)
+            var e3 = _edge(x3, y3, x1, y1, xx, yy)
+            if area > 0 {
+                if e1 >= 0 && e2 >= 0 && e3 >= 0 { _set_px_rgba(buf, w, h, xx, yy, c["r"], c["g"], c["b"], c["a"]) }
+            } else {
+                if e1 <= 0 && e2 <= 0 && e3 <= 0 { _set_px_rgba(buf, w, h, xx, yy, c["r"], c["g"], c["b"], c["a"]) }
             }
             xx = xx + 1
         }
@@ -164,6 +213,10 @@ fn rasterize(cmds, w, h, opts) {
             var fill = opm["fill"]
             if fill == nil { fill = true }
             _draw_circle(buf, w, h, opm["cx"], opm["cy"], opm["r"], fill, cc)
+        } else if op == "fill_triangle" {
+            var tc = ui_color.try_parse_hex(opm["color"])
+            if oren_is_err(tc) { return result.with_context(tc, "rasterize: fill_triangle color") }
+            _draw_fill_triangle(buf, w, h, opm["x1"], opm["y1"], opm["x2"], opm["y2"], opm["x3"], opm["y3"], tc)
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
             var c2 = ui_color.try_parse_hex(opm["color"])

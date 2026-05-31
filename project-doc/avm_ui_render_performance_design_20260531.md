@@ -71,10 +71,10 @@ Implemented as of 2026-05-31:
   tick and cannot starve pointer/key/text events by filling the FIFO with stale
   timing records.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
-  `fill_rect`, `text`, `stroke_line`, and `circle`.
+  `fill_rect`, `text`, `stroke_line`, `circle`, and `fill_triangle`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle` geometry plus text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry plus text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -254,8 +254,11 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
    target budget, geometry vertices, and text-run count.
 9. Done: forward multi-touch sets with stable compact pointer IDs and expose SDK
    batch pointer-event helpers for UIKit/CoreGraphics and Metal views.
-10. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
-11. Add retained resources, batching, and resource lifetime records.
-12. Add text atlas/sprite/mesh rendering on the Metal path.
-13. Add richer 2D and 3D command sets.
-14. Add game/app package smoke in the Note host or iOS SDK harness.
+10. Done: add `fill_triangle` as a compact 2D geometry record across validation,
+    binary frames, AVM protocol checks, deterministic raster, CoreGraphics fallback,
+    Metal, and iOS verifier coverage.
+11. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
+12. Add retained resources, batching, and resource lifetime records.
+13. Add text atlas/sprite/mesh rendering on the Metal path.
+14. Add richer 2D and 3D command sets.
+15. Add game/app package smoke in the Note host or iOS SDK harness.
