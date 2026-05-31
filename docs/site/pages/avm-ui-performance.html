@@ -97,9 +97,9 @@
 </ul>
 <p>  remains only as a compatibility alias during rolling development.</p>
 <ul>
-<li><code>std:ui/avm.next_event()</code> decodes <code>OGE0</code> pointer/resize/key/text records into</li>
+<li><code>std:ui/avm.next_event()</code> decodes <code>OGE0</code> pointer/resize/key/text/gamepad records</li>
 </ul>
-<p>  Oren maps so OBC programs do not have to parse bytes manually.</p>
+<p>  into Oren maps so OBC programs do not have to parse bytes manually.</p>
 <ul>
 <li><code>OGE0</code> also carries <code>frame_tick</code> records with sequence, host tick time,</li>
 </ul>
@@ -135,7 +135,10 @@
 <p>  resending repeated UTF-8 labels every frame; richer glyph atlas batching and</p>
 <p>  mesh resources remain the next performance steps.</p>
 <ul>
-<li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
+<li>Host helpers can enqueue pointer, resize, key, UTF-8 text, and compact</li>
+</ul>
+<p>  gamepad/controller state input events.</p>
+<ul>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
 </ul>
 <p>  set, assign stable compact pointer IDs for active touches, release IDs on</p>
@@ -167,8 +170,8 @@
 <p>  app integration.</p>
 <p>This baseline proves bidirectional transport for the current 2D subset. It is not</p>
 <p>yet game-complete: richer input such as multitouch gestures, focus, IME composition,</p>
-<p>gamepad/controller events, and high-rate motion data still need compact event</p>
-<p>records and iOS SDK helpers before game OBC packages should rely on them.</p>
+<p>and high-rate motion data still need compact event records and iOS SDK helpers</p>
+<p>before game OBC packages should rely on them.</p>
 <p>Runtime media query must be host-populated state, not a consumed event only.</p>
 <p>OBC should not query <code>UIScreen</code>, <code>MTKView</code>, or any host object directly. The host</p>
 <p>publishes persistent screen state with logical width/height, <code>scale_milli</code>,</p>

@@ -283,12 +283,14 @@ Facts from the 2026-05-28 implementation pass:
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
-  pointer events instead of dropping all but one touch.
+  pointer events instead of dropping all but one touch. The `OGE0` stream also has
+  a compact gamepad/controller state record, with an iOS SDK helper for controller
+  id, button bitmask, and signed milli-normalized analog axes.
   Bidirectional UI is a hard requirement for
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and
 		  rendering devices. Remaining game-grade work is text atlas/sprite/mesh
-		  records, gamepad/motion input, IME/composition helpers,
+			  records, motion input, IME/composition helpers,
 	  and richer 2D/3D command sets. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,

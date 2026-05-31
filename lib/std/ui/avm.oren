@@ -302,6 +302,11 @@ fn _read_u64_le(bs, off, ctx) {
     return v
 }
 
+fn _signed_u32(v) {
+    if v >= 2147483648 { return v - 4294967296 }
+    return v
+}
+
 fn _pointer_phase(opcode) {
     if opcode == 1 { return "down" }
     if opcode == 2 { return "move" }
@@ -423,6 +428,32 @@ fn decode_event_bytes(ev) {
         var text = bytes.try_to_string(text_bytes)
         if oren_is_err(text) { return text }
         return {"kind": "text", "opcode": opcode, "text": text}
+    }
+
+    if opcode == 64 {
+        if payload_len != 24 { return oren_err(4, "ui.avm.decode_event_bytes: bad gamepad payload") }
+        var controller_id = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var buttons = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        var lx = _read_u32_le(ev, 20, "ui.avm.decode_event_bytes")
+        var ly = _read_u32_le(ev, 24, "ui.avm.decode_event_bytes")
+        var rx = _read_u32_le(ev, 28, "ui.avm.decode_event_bytes")
+        var ry = _read_u32_le(ev, 32, "ui.avm.decode_event_bytes")
+        if oren_is_err(controller_id) { return controller_id }
+        if oren_is_err(buttons) { return buttons }
+        if oren_is_err(lx) { return lx }
+        if oren_is_err(ly) { return ly }
+        if oren_is_err(rx) { return rx }
+        if oren_is_err(ry) { return ry }
+        return {
+            "kind": "gamepad",
+            "opcode": opcode,
+            "controller_id": controller_id,
+            "buttons": buttons,
+            "lx_milli": _signed_u32(lx),
+            "ly_milli": _signed_u32(ly),
+            "rx_milli": _signed_u32(rx),
+            "ry_milli": _signed_u32(ry)
+        }
     }
 
     return {"kind": "unknown", "opcode": opcode, "payload_len": payload_len}

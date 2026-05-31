@@ -242,6 +242,9 @@ fn main() {
     if ev6["key_code"] != 65 || ev6["modifiers"] != 1 { oren_exit(45) }
     var ev7 = ui_avm.next_event()
     if ev7["kind"] != "text" || ev7["text"] != "hi" { oren_exit(48) }
+    var ev8 = ui_avm.next_event()
+    if ev8["kind"] != "gamepad" || ev8["controller_id"] != 3 || ev8["buttons"] != 5 { oren_exit(99) }
+    if ev8["lx_milli"] != -1000 || ev8["ly_milli"] != 1000 || ev8["rx_milli"] != 0 || ev8["ry_milli"] != -250 { oren_exit(100) }
     if ui_avm.next_event() != nil { oren_exit(52) }
     var fs_ev = avm_events.select_once([avm_events.watch_fs("fs0")])
     if fs_ev == nil || fs_ev["kind"] != "fs" || fs_ev["id"] != "fs0" || fs_ev["action"] != "write" || fs_ev["detail"] != "host/out.txt" || fs_ev["flags"] != 7 || fs_ev["source"] != "host" { oren_exit(96) }
@@ -558,6 +561,12 @@ int main(void) {
         79, 71, 69, 48, 0, 0, 0, 0, 48, 0, 6, 0,
         2, 0, 0, 0, 104, 105
     };
+    static const uint8_t gamepad_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 64, 0, 24, 0,
+        3, 0, 0, 0, 5, 0, 0, 0,
+        24, 252, 255, 255, 232, 3, 0, 0,
+        0, 0, 0, 0, 6, 255, 255, 255
+    };
     static const uint8_t bad_event[] = {
         79, 71, 69, 48, 0, 0, 0, 0, 1, 0, 8, 0,
         1, 0, 0, 0, 2, 0, 0, 0
@@ -600,6 +609,7 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, frame_tick_event, sizeof(frame_tick_event), &result) != AVM_EMBED_OK) return 45;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
+    if (avm_embed_gfx_input_put(handle, gamepad_event, sizeof(gamepad_event), &result) != AVM_EMBED_OK) return 70;
     if (avm_embed_event_put(handle, "fs", "write", "host/out.txt", 7, &result) != AVM_EMBED_OK) return 68;
     if (avm_embed_event_put(handle, "package", "installed", "oren-labs/sdk-package-smoke/0.1.0", 0, &result) != AVM_EMBED_OK) return 69;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
@@ -674,6 +684,7 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, frame_tick_event, sizeof(frame_tick_event), &result) != AVM_EMBED_OK) return 45;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
+    if (avm_embed_gfx_input_put(handle, gamepad_event, sizeof(gamepad_event), &result) != AVM_EMBED_OK) return 70;
     if (avm_embed_event_put(handle, "fs", "write", "host/out.txt", 7, &result) != AVM_EMBED_OK) return 68;
     if (avm_embed_event_put(handle, "package", "installed", "oren-labs/sdk-package-smoke/0.1.0", 0, &result) != AVM_EMBED_OK) return 69;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
@@ -796,6 +807,7 @@ int main(void) {
         if (![runtime putGraphicsFrameTickEventWithSequence:9 nowNs:1000 deltaNs:16 targetHzMilli:120000 flags:5 error:&error]) return 67;
         if (![runtime putGraphicsKeyEventWithKind:32 keyCode:65 modifiers:1 error:&error]) return 55;
         if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
+        if (![runtime putGraphicsGamepadEventWithControllerID:3 buttons:5 lxMilli:-1000 lyMilli:1000 rxMilli:0 ryMilli:-250 error:&error]) return 153;
         if (![runtime putVirtualEventWithKind:@"fs" action:@"write" detail:@"host/out.txt" flags:7 error:&error]) return 151;
         if (![runtime putVirtualEventWithKind:@"package" action:@"installed" detail:@"oren-labs/sdk-package-smoke/0.1.0" flags:0 error:&error]) return 152;
 

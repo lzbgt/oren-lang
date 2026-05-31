@@ -61,8 +61,8 @@ Implemented as of 2026-05-31:
 - `std:ui/avm.present_frame(...)` publishes current `std:ui` command buffers.
 - `std:ui/avm.pull_event_bytes()` pulls host-injected input; `poll_event_bytes()`
   remains only as a compatibility alias during rolling development.
-- `std:ui/avm.next_event()` decodes `OGE0` pointer/resize/key/text records into
-  Oren maps so OBC programs do not have to parse bytes manually.
+- `std:ui/avm.next_event()` decodes `OGE0` pointer/resize/key/text/gamepad records
+  into Oren maps so OBC programs do not have to parse bytes manually.
 - `OGE0` also carries `frame_tick` records with sequence, host tick time,
   delta time, target refresh, and flags. Host renderers such as `OrenAVMMetalView`
   emit these records from the display draw loop so OBC game loops can pace
@@ -91,7 +91,8 @@ Implemented as of 2026-05-31:
   retained image count/pixel limits and counters. Retained text records avoid
   resending repeated UTF-8 labels every frame; richer glyph atlas batching and
   mesh resources remain the next performance steps.
-- Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
+- Host helpers can enqueue pointer, resize, key, UTF-8 text, and compact
+  gamepad/controller state input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on
   end/cancel, and expose batch pointer-event helpers, so multi-finger input maps
@@ -115,8 +116,8 @@ Implemented as of 2026-05-31:
 
 This baseline proves bidirectional transport for the current 2D subset. It is not
 yet game-complete: richer input such as multitouch gestures, focus, IME composition,
-gamepad/controller events, and high-rate motion data still need compact event
-records and iOS SDK helpers before game OBC packages should rely on them.
+and high-rate motion data still need compact event records and iOS SDK helpers
+before game OBC packages should rely on them.
 
 Runtime media query must be host-populated state, not a consumed event only.
 OBC should not query `UIScreen`, `MTKView`, or any host object directly. The host

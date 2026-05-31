@@ -178,6 +178,13 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                         error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsKeyEventWithKind:(uint8_t)kind keyCode:(uint32_t)keyCode modifiers:(uint32_t)modifiers error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsTextInputString:(NSString*)text error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsGamepadEventWithControllerID:(uint32_t)controllerID
+                                        buttons:(uint32_t)buttons
+                                        lxMilli:(int32_t)lxMilli
+                                        lyMilli:(int32_t)lyMilli
+                                        rxMilli:(int32_t)rxMilli
+                                        ryMilli:(int32_t)ryMilli
+                                          error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putVirtualEventWithKind:(NSString*)kind
                          action:(NSString*)action
                          detail:(NSString*)detail

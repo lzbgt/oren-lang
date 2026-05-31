@@ -1888,6 +1888,24 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return [self putGraphicsInputEventData:data error:error];
 }
 
+- (BOOL)putGraphicsGamepadEventWithControllerID:(uint32_t)controllerID
+                                        buttons:(uint32_t)buttons
+                                        lxMilli:(int32_t)lxMilli
+                                        lyMilli:(int32_t)lyMilli
+                                        rxMilli:(int32_t)rxMilli
+                                        ryMilli:(int32_t)ryMilli
+                                          error:(NSError**)error {
+    uint8_t payload[24];
+    OrenAVMKitPutU32LE(payload, controllerID);
+    OrenAVMKitPutU32LE(payload + 4, buttons);
+    OrenAVMKitPutU32LE(payload + 8, (uint32_t)lxMilli);
+    OrenAVMKitPutU32LE(payload + 12, (uint32_t)lyMilli);
+    OrenAVMKitPutU32LE(payload + 16, (uint32_t)rxMilli);
+    OrenAVMKitPutU32LE(payload + 20, (uint32_t)ryMilli);
+    NSData* data = OrenAVMKitMakeGFXEvent(64, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
 - (BOOL)putVirtualEventWithKind:(NSString*)kind action:(NSString*)action detail:(NSString*)detail flags:(uint32_t)flags error:(NSError**)error {
     if (kind.length == 0 || action.length == 0) {
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,

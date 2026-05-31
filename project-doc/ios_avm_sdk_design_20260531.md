@@ -102,8 +102,9 @@ Retained SDK slices on 2026-05-31:
 		  can bound sprite/atlas memory. Retained text records now avoid resending
 		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.
 - The binary input helper set now covers pointer events, resize events,
-  media-query events, key events, and UTF-8 text-input events. These are still
-  mailbox records, not UIKit objects.
+  media-query events, key events, UTF-8 text-input events, and compact
+  gamepad/controller state events. These are still mailbox records, not UIKit
+  or GameController objects.
 - The SDK also exposes host-populated persistent screen state. `OrenAVMGraphicsView`
   updates screen `0` during layout, and OBC reads it through `std:ui/avm.screen(0)`
   without consuming an input event.
