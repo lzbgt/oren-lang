@@ -136,6 +136,13 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 - (nullable OrenAVMPackage*)loadPackageAtDirectoryURL:(NSURL*)directoryURL
                                                error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackage*)downloadPackageFromIndexURL:(NSURL*)indexURL
+                                              packageID:(NSString*)packageID
+                                                version:(nullable NSString*)version
+                                destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                           allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                         timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                  error:(NSError* _Nullable* _Nullable)error;
 - (nullable OrenAVMRuntimeConfig*)runtimeConfigForPackage:(OrenAVMPackage*)package
                                                     error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)mountPackageAssetsForPackage:(OrenAVMPackage*)package

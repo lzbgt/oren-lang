@@ -192,6 +192,14 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 
 @end
 
+static BOOL OrenAVMRuntimeFetchURLData(NSURL* url,
+                                       NSSet<NSString*>* allowedHosts,
+                                       NSTimeInterval timeoutSeconds,
+                                       uint64_t ioLimitBytes,
+                                       NSURLSession* reusableSession,
+                                       NSData** outData,
+                                       NSError** error);
+
 @interface OrenAVMPackage ()
 - (instancetype)initWithDirectoryURL:(NSURL*)directoryURL
                             manifest:(NSDictionary<NSString*, id>*)manifest
@@ -254,6 +262,27 @@ static BOOL OrenAVMPackagePathIsSafe(NSString* path) {
         if ([part isEqualToString:@".."]) return NO;
     }
     return YES;
+}
+
+static NSURL* OrenAVMPackageAppendSafeRelativePath(NSURL* root, NSString* path, BOOL isDirectory) {
+    if (!OrenAVMPackagePathIsSafe(path)) return nil;
+    NSURL* out = root;
+    NSArray<NSString*>* parts = [path pathComponents];
+    for (NSUInteger i = 0; i < parts.count; i++) {
+        NSString* part = parts[i];
+        if (part.length == 0 || [part isEqualToString:@"."]) continue;
+        BOOL last = i + 1u == parts.count;
+        out = [out URLByAppendingPathComponent:part isDirectory:(last ? isDirectory : YES)];
+    }
+    return out;
+}
+
+static NSURL* OrenAVMPackageResolveStoreURL(NSURL* baseURL, NSString* path) {
+    if (path.length == 0) return nil;
+    NSURL* url = [NSURL URLWithString:path];
+    if (url.scheme.length > 0) return url;
+    if (!OrenAVMPackagePathIsSafe(path)) return nil;
+    return [[NSURL URLWithString:path relativeToURL:baseURL] absoluteURL];
 }
 
 static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
@@ -326,6 +355,94 @@ static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
                                              publisher:publisher
                                                version:version
                                           capabilities:capabilities];
+}
+
+- (OrenAVMPackage*)downloadPackageFromIndexURL:(NSURL*)indexURL
+                                     packageID:(NSString*)packageID
+                                       version:(NSString*)version
+                       destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                  allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                         error:(NSError**)error {
+    if (!indexURL || packageID.length == 0 || !destinationDirectoryURL.isFileURL) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"index URL, package id, and destination directory are required");
+        return nil;
+    }
+    NSData* indexData = nil;
+    if (!OrenAVMRuntimeFetchURLData(indexURL, allowedHosts, timeoutSeconds, 0, nil, &indexData, error)) return nil;
+    id indexJSON = [NSJSONSerialization JSONObjectWithData:indexData options:0 error:error];
+    if (![indexJSON isKindOfClass:[NSDictionary class]]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC store index must be a JSON object");
+        return nil;
+    }
+    NSDictionary* index = (NSDictionary*)indexJSON;
+    if (![OrenAVMPackageString(index, @"schema") isEqualToString:@"oren.obc.store.index.v0"]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"unsupported OBC store index schema");
+        return nil;
+    }
+    NSArray* packages = [index[@"packages"] isKindOfClass:[NSArray class]] ? index[@"packages"] : nil;
+    NSDictionary* entry = nil;
+    for (id item in packages) {
+        if (![item isKindOfClass:[NSDictionary class]]) continue;
+        NSDictionary* candidate = (NSDictionary*)item;
+        NSString* eid = OrenAVMPackageString(candidate, @"id");
+        NSString* eversion = OrenAVMPackageString(candidate, @"version");
+        if ([eid isEqualToString:packageID] && (version.length == 0 || [eversion isEqualToString:version])) {
+            entry = candidate;
+            break;
+        }
+    }
+    if (!entry) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"package not found in OBC store index");
+        return nil;
+    }
+    NSString* manifestPath = OrenAVMPackageString(entry, @"manifest");
+    NSString* manifestHash = OrenAVMPackageString(entry, @"manifest_sha256");
+    NSURL* manifestURL = OrenAVMPackageResolveStoreURL(indexURL, manifestPath);
+    if (!manifestURL || manifestHash.length != 64) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC store index package entry is invalid");
+        return nil;
+    }
+    NSData* manifestData = nil;
+    if (!OrenAVMRuntimeFetchURLData(manifestURL, allowedHosts, timeoutSeconds, 0, nil, &manifestData, error)) return nil;
+    if (![[OrenAVMPackageStore sha256HexForData:manifestData] isEqualToString:manifestHash.lowercaseString]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest hash mismatch");
+        return nil;
+    }
+    id manifestJSON = [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:error];
+    if (![manifestJSON isKindOfClass:[NSDictionary class]]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest must be a JSON object");
+        return nil;
+    }
+    NSDictionary* manifest = (NSDictionary*)manifestJSON;
+    NSString* publisher = OrenAVMPackageString(manifest, @"publisher");
+    NSString* name = OrenAVMPackageString(manifest, @"name");
+    NSString* manifestVersion = OrenAVMPackageString(manifest, @"version");
+    NSString* entryObc = OrenAVMPackageString(manifest, @"entry_obc");
+    if (publisher.length == 0 || name.length == 0 || manifestVersion.length == 0 ||
+        !OrenAVMPackagePathIsSafe(entryObc) || ![[NSString stringWithFormat:@"%@/%@", publisher, name] isEqualToString:packageID]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest identity is invalid");
+        return nil;
+    }
+    NSURL* obcURL = OrenAVMPackageResolveStoreURL(manifestURL, entryObc);
+    NSData* obcData = nil;
+    if (!OrenAVMRuntimeFetchURLData(obcURL, allowedHosts, timeoutSeconds, 0, nil, &obcData, error)) return nil;
+
+    NSURL* packageRoot = OrenAVMPackageAppendSafeRelativePath(destinationDirectoryURL, packageID, YES);
+    packageRoot = OrenAVMPackageAppendSafeRelativePath(packageRoot, manifestVersion, YES);
+    NSURL* obcOutURL = OrenAVMPackageAppendSafeRelativePath(packageRoot, entryObc, NO);
+    if (!packageRoot || !obcOutURL) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package destination path is invalid");
+        return nil;
+    }
+    NSFileManager* fm = [NSFileManager defaultManager];
+    (void)[fm removeItemAtURL:packageRoot error:nil];
+    if (![fm createDirectoryAtURL:[obcOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
+    if (![manifestData writeToURL:[packageRoot URLByAppendingPathComponent:@"package.json" isDirectory:NO]
+                           options:NSDataWritingAtomic
+                             error:error]) return nil;
+    if (![obcData writeToURL:obcOutURL options:NSDataWritingAtomic error:error]) return nil;
+    return [self loadPackageAtDirectoryURL:packageRoot error:error];
 }
 
 - (OrenAVMRuntimeConfig*)runtimeConfigForPackage:(OrenAVMPackage*)package error:(NSError**)error {

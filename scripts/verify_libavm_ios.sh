@@ -79,6 +79,8 @@ HOST_FS_OBC_OUT="$TMP_DIR/host_fs_chain.obc"
 HOST_FS_OBC_HEADER="$TMP_DIR/host_fs_chain_obc.h"
 PACKAGE_SRC="$TMP_DIR/package_chain.oren"
 PACKAGE_OBC_OUT="$TMP_DIR/package_chain.obc"
+REMOTE_PACKAGE_SRC="$TMP_DIR/remote_package_chain.oren"
+REMOTE_PACKAGE_OBC_OUT="$TMP_DIR/remote_package_chain.obc"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
@@ -269,6 +271,15 @@ fn main() {
 main()
 OREN
 "$OREN_COMPILER" build "$PACKAGE_SRC" --backend bytecode -o "$PACKAGE_OBC_OUT" > "$LOG_DIR/libavm_ios_package_chain_obc_build.log" 2>&1
+
+cat > "$REMOTE_PACKAGE_SRC" <<'OREN'
+fn main() {
+    print("remote-pkg")
+    oren_exit(9)
+}
+main()
+OREN
+"$OREN_COMPILER" build "$REMOTE_PACKAGE_SRC" --backend bytecode -o "$REMOTE_PACKAGE_OBC_OUT" > "$LOG_DIR/libavm_ios_remote_package_chain_obc_build.log" 2>&1
 
 python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
 import pathlib
@@ -617,6 +628,8 @@ int main(void) {
         NSString* netURL = env[@"OREN_AVM_SDK_NET_URL"] ?: @"https://note.local/probe";
         NSString* tcpURL = env[@"OREN_AVM_SDK_TCP_URL"] ?: @"session-none";
         NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
+        NSString* packageIndexURL = env[@"OREN_AVM_SDK_PACKAGE_INDEX_URL"];
+        NSString* packageDownloadDir = env[@"OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR"];
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
@@ -748,6 +761,24 @@ int main(void) {
             OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
             if (!packageResult || packageResult.exitCode != 9) return 92;
             if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 93;
+        }
+        if (packageIndexURL.length > 0 && packageDownloadDir.length > 0) {
+            OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
+            OrenAVMPackage* package = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                               packageID:@"oren-labs/sdk-package-remote"
+                                                                 version:@"0.1.0"
+                                                 destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                            allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                          timeoutSeconds:5.0
+                                                                   error:&error];
+            if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 94;
+            OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
+            if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 95;
+            OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
+            if (!packageRuntime) return 96;
+            OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
+            if (!packageResult || packageResult.exitCode != 9) return 97;
+            if (![packageResult.stdoutData isEqualToData:[@"remote-pkg\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 98;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -947,6 +978,92 @@ print(s.getsockname()[1])
 s.close()
 PY
 )"
+PKG_READY="$TMP_DIR/package_http.ready"
+rm -f "$PKG_READY"
+PKG_PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
+PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
+REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
+REMOTE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.1.0"
+rm -rf "$TMP_DIR/package_store" "$REMOTE_STORE_DIR"
+mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets"
+cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
+cp "$REMOTE_PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
+printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
+printf 'pkg-asset' > "$REMOTE_PACKAGE_DIR/assets/config.txt"
+PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
+REMOTE_PACKAGE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/program.obc" | awk '{print $1}')"
+cat > "$PACKAGE_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-package-smoke",
+  "publisher": "oren-labs",
+  "version": "0.1.0",
+  "title": "SDK Package Smoke",
+  "summary": "Verifies OrenAVMPackageStore local package loading.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$PACKAGE_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
+}
+JSON
+cat > "$REMOTE_PACKAGE_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-package-remote",
+  "publisher": "oren-labs",
+  "version": "0.1.0",
+  "title": "SDK Remote Package Smoke",
+  "summary": "Verifies OrenAVMPackageStore index download.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$REMOTE_PACKAGE_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  }
+}
+JSON
+REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '{print $1}')"
+cat > "$REMOTE_STORE_DIR/index.json" <<JSON
+{
+  "schema": "oren.obc.store.index.v0",
+  "generated_at": "2026-06-01T00:00:00Z",
+  "packages": [
+    {
+      "id": "oren-labs/sdk-package-remote",
+      "version": "0.1.0",
+      "manifest": "packages/oren-labs/sdk-package-remote/0.1.0/package.json",
+      "manifest_sha256": "$REMOTE_MANIFEST_HASH",
+      "tags": ["sdk", "smoke"],
+      "min_app": "0.1.0"
+    }
+  ]
+}
+JSON
 python3 - "$NET_PORT" "$NET_DIR/net.txt" "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 <<'PY' &
 import pathlib
 import socket
@@ -1084,6 +1201,22 @@ finally:
     srv.close()
 PY
 WS_SERVER_PID=$!
+python3 - "$PKG_PORT" "$REMOTE_STORE_DIR" "$PKG_READY" > "$LOG_DIR/libavm_ios_sdk_package_http_server.log" 2>&1 <<'PY' &
+import functools
+import http.server
+import pathlib
+import socketserver
+import sys
+
+port = int(sys.argv[1])
+root = pathlib.Path(sys.argv[2])
+ready = pathlib.Path(sys.argv[3])
+handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
+with socketserver.TCPServer(("127.0.0.1", port), handler) as srv:
+    ready.write_text("ready\n", encoding="utf-8")
+    srv.serve_forever()
+PY
+PKG_SERVER_PID=$!
 cleanup_net_server() {
   if kill -0 "$NET_SERVER_PID" >/dev/null 2>&1; then
     kill "$NET_SERVER_PID" >/dev/null 2>&1 || true
@@ -1101,49 +1234,24 @@ cleanup_net_server() {
     kill "$WS_SERVER_PID" >/dev/null 2>&1 || true
     wait "$WS_SERVER_PID" >/dev/null 2>&1 || true
   fi
+  if kill -0 "$PKG_SERVER_PID" >/dev/null 2>&1; then
+    kill "$PKG_SERVER_PID" >/dev/null 2>&1 || true
+    wait "$PKG_SERVER_PID" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup_net_server EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if [[ -f "$NET_READY" && -f "$TCP_READY" && -f "$UDP_READY" && -f "$WS_READY" ]]; then
+  if [[ -f "$NET_READY" && -f "$TCP_READY" && -f "$UDP_READY" && -f "$WS_READY" && -f "$PKG_READY" ]]; then
     break
   fi
   sleep 0.1
 done
-PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
-rm -rf "$PACKAGE_DIR"
-mkdir -p "$PACKAGE_DIR/assets"
-cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
-printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
-PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
-cat > "$PACKAGE_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-package-smoke",
-  "publisher": "oren-labs",
-  "version": "0.1.0",
-  "title": "SDK Package Smoke",
-  "summary": "Verifies OrenAVMPackageStore local package loading.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$PACKAGE_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 5000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
 OREN_AVM_SDK_NET_PREFETCH=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
+OREN_AVM_SDK_PACKAGE_INDEX_URL="http://127.0.0.1:${PKG_PORT}/index.json" \
+OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_packages" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \

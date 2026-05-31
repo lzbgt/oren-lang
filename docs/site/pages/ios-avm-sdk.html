@@ -356,14 +356,19 @@
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>
-<li>Current implemented slice loads local package directories with</li>
+<li>Current implemented slices load local package directories with</li>
 </ul>
 <p>  <code>package.json</code> + <code>program.obc</code>, validates <code>oren.obc.package.v0</code>, rejects</p>
 <p>  unsupported AVM ABI floors, verifies the OBC SHA-256, derives an</p>
 <p>  <code>OrenAVMRuntimeConfig</code> from capabilities/budgets/time mode, mounts read-only</p>
 <p>  package assets into VirtualFS, and runs the OBC through <code>OrenAVMRuntime</code>.</p>
 <ul>
-<li>Next slices should download signed store indexes and package manifests.</li>
+<li>The SDK can also download a store <code>index.json</code>, find a package/version, verify</li>
+</ul>
+<p>  the indexed manifest SHA-256, fetch the manifest and OBC, install them into an</p>
+<p>  app-owned directory, and then run through the same local verifier path.</p>
+<ul>
+<li>Next slices should add signed store indexes and package manifests.</li>
 <li>Signature verification is still pending; hash verification is implemented.</li>
 <li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
 </ul>

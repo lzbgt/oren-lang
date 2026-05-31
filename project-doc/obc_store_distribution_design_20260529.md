@@ -192,12 +192,14 @@ Before publishing an official public OBC store:
 5. The stdlib bundle manifest records which modules are available to store
    packages and why excluded modules are excluded.
 
-Current implementation status: the iOS SDK now has the first local
-`OrenAVMPackageStore` verifier/runner slice. It validates package schema,
-required manifest fields, AVM ABI floor, `program.obc` SHA-256, package
-capabilities, budget/time-mode runtime config, and read-only package asset mounts
-before running the OBC. Signature validation, signed store indexes, network
-download, install/update/remove lifecycle, and Note app smoke remain required
+Current implementation status: the iOS SDK now has local and HTTP-index
+`OrenAVMPackageStore` verifier/runner slices. It validates package schema,
+required manifest fields, AVM ABI floor, indexed manifest SHA-256, `program.obc`
+SHA-256, package capabilities, budget/time-mode runtime config, and read-only
+package asset mounts before running the OBC. It can fetch `index.json`, download
+the selected manifest/OBC into an app-owned install directory, and run the package
+through the same local verifier path. Signature validation, asset download,
+persisted install/update/remove lifecycle, and Note app smoke remain required
 before a public store is release-ready.
 
 ## Initial Public Repo Shape

@@ -274,12 +274,15 @@ Current GUI adapter boundary.
 
 Public OBC store helper.
 
-- Current implemented slice loads local package directories with
+- Current implemented slices load local package directories with
   `package.json` + `program.obc`, validates `oren.obc.package.v0`, rejects
   unsupported AVM ABI floors, verifies the OBC SHA-256, derives an
   `OrenAVMRuntimeConfig` from capabilities/budgets/time mode, mounts read-only
   package assets into VirtualFS, and runs the OBC through `OrenAVMRuntime`.
-- Next slices should download signed store indexes and package manifests.
+- The SDK can also download a store `index.json`, find a package/version, verify
+  the indexed manifest SHA-256, fetch the manifest and OBC, install them into an
+  app-owned directory, and then run through the same local verifier path.
+- Next slices should add signed store indexes and package manifests.
 - Signature verification is still pending; hash verification is implemented.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.

@@ -139,7 +139,7 @@
 <p>     Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,</p>
 <p>     listen/accept on the VNET/session protocol, event-bus FS/package</p>
 <p>     events without exposing raw sockets to OBC, compiler helper</p>
-<p>     package, signed index/download package-store support, and the game-grade GUI path:</p>
+<p>     package, signed package-store support, and the game-grade GUI path:</p>
 <p>     display-link pacing, retained resource handles, budget gates, low-latency</p>
 <p>     input ordering, Metal/<code>MTKView</code>, richer drawing ops, and richer</p>
 <p>     IME/composition input helpers. The <code>OGF0</code> frame header now includes</p>
@@ -163,12 +163,13 @@
 <p>     and iOS download/verify/run flow. Design note:</p>
 <p>     <code>project-doc/obc_store_distribution_design_20260529.md</code>.</p>
 <ul>
-<li>2026-06-01: first local <code>OrenAVMPackageStore</code> slice exists and is verified:</li>
+<li>2026-06-01: first <code>OrenAVMPackageStore</code> slices exist and are verified:</li>
 </ul>
 <p>     manifest schema/ABI/hash validation, capability/budget/time config derivation,</p>
-<p>     read-only package asset mounting into VirtualFS, and package OBC run. Remaining</p>
-<p>     package-store work is signed store index/package download, signature validation,</p>
-<p>     persisted install/update/remove flows, and Note app smoke.</p>
+<p>     read-only package asset mounting into VirtualFS, package OBC run, HTTP</p>
+<p>     <code>index.json</code> fetch, manifest hash verification, OBC download, install, and run.</p>
+<p>     Remaining package-store work is signature validation, asset download, persisted</p>
+<p>     install/update/remove flows, and Note app smoke.</p>
 <ol>
 <li><strong>AVM full-suite manifest runner</strong></li>
 </ol>
