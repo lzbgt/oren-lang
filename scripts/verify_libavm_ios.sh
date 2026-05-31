@@ -37,6 +37,7 @@ for sym in \
   _avm_embed_vnet_put \
   _avm_embed_set_net_fetch_callback \
   _avm_embed_set_net_session_callbacks \
+  _avm_embed_set_net_resolve_callback \
   _avm_embed_vproc_put \
   _avm_embed_vproc_set_default_exit \
   _avm_embed_set_output_capture \
@@ -63,6 +64,7 @@ OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
+import net_dns "std:net/avm/dns"
 import net_tcp "std:net/avm/tcp"
 import net_udp "std:net/avm/udp"
 import avm_events "std:avm/events"
@@ -95,6 +97,8 @@ fn main() {
             sid = net_tcp.connect_spec(args[3], 5000)
         }
         if oren_is_err(sid) { oren_exit(57) }
+        var first_ip = net_dns.resolve_first("localhost", 5000)
+        if oren_is_err(first_ip) || oren_string_len(first_ip) <= 0 { oren_exit(65) }
         var pw = nil
         if is_udp {
             pw = net_udp.select(sid, net_udp.event_write(), 5000)

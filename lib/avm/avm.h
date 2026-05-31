@@ -70,6 +70,7 @@ typedef int (*AvmNetSessionReadFn)(void* user_data, uint32_t session_id, size_t 
 typedef int (*AvmNetSessionPollFn)(void* user_data, uint32_t session_id, uint32_t events, uint32_t timeout_ms, uint32_t* out_ready);
 typedef int (*AvmNetSessionSelectFn)(void* user_data, const uint32_t* session_ids, const uint32_t* events, size_t count, uint32_t timeout_ms, size_t* out_index, uint32_t* out_ready);
 typedef int (*AvmNetSessionCloseFn)(void* user_data, uint32_t session_id);
+typedef int (*AvmNetResolveFn)(void* user_data, const char* host, uint32_t timeout_ms, char*** out_ips, size_t* out_count);
 
 typedef struct AvmFunc {
     // Code address inside AvmProgram->code (rolling: currently u16 addresses in opcodes).
@@ -231,6 +232,8 @@ typedef struct {
     AvmNetSessionSelectFn net_session_select_fn;
     AvmNetSessionCloseFn net_session_close_fn;
     void* net_session_user_data;
+    AvmNetResolveFn net_resolve_fn;
+    void* net_resolve_user_data;
 
     // GFX frame mailbox (rolling): latest validated host-renderable frame payload.
     uint8_t* gfx_frame_data;

@@ -5,6 +5,7 @@
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
 #endif
+#include <arpa/inet.h>
 #include <math.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -535,6 +536,71 @@ static int OrenAVMRuntimeLiveNetFetch(void* userData, const char* url, uint8_t**
     return 0;
 }
 
+static int OrenAVMRuntimeNetResolve(void* userData, const char* host, uint32_t timeoutMs, char*** outIPs, size_t* outCount) {
+    (void)timeoutMs;
+    if (!userData || !host || !outIPs || !outCount) return -1;
+    *outIPs = NULL;
+    *outCount = 0;
+    OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
+    NSString* hostString = [NSString stringWithUTF8String:host] ?: @"";
+    if (hostString.length == 0) return -1;
+    if (runtime->_liveNetworkAllowedHosts.count > 0 && ![runtime->_liveNetworkAllowedHosts containsObject:hostString]) return -1;
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    struct addrinfo* result = NULL;
+    if (getaddrinfo(host, NULL, &hints, &result) != 0) return -1;
+
+    const size_t cap = 16u;
+    char** ips = (char**)calloc(cap, sizeof(char*));
+    if (!ips) {
+        freeaddrinfo(result);
+        return -1;
+    }
+    size_t count = 0;
+    for (struct addrinfo* ai = result; ai && count < cap; ai = ai->ai_next) {
+        char buf[INET6_ADDRSTRLEN];
+        const void* addr = NULL;
+        if (ai->ai_family == AF_INET) {
+            addr = &((struct sockaddr_in*)ai->ai_addr)->sin_addr;
+        } else if (ai->ai_family == AF_INET6) {
+            addr = &((struct sockaddr_in6*)ai->ai_addr)->sin6_addr;
+        } else {
+            continue;
+        }
+        if (!inet_ntop(ai->ai_family, addr, buf, sizeof(buf))) continue;
+        BOOL duplicate = NO;
+        for (size_t i = 0; i < count; i++) {
+            if (strcmp(ips[i], buf) == 0) {
+                duplicate = YES;
+                break;
+            }
+        }
+        if (duplicate) continue;
+        size_t len = strlen(buf);
+        ips[count] = (char*)malloc(len + 1u);
+        if (!ips[count]) {
+            for (size_t i = 0; i < count; i++) free(ips[i]);
+            free(ips);
+            freeaddrinfo(result);
+            return -1;
+        }
+        memcpy(ips[count], buf, len + 1u);
+        count++;
+    }
+    freeaddrinfo(result);
+    if (count == 0) {
+        free(ips);
+        return -1;
+    }
+    *outIPs = ips;
+    *outCount = count;
+    return 0;
+}
+
 static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32_t timeoutMs, uint32_t* outSessionId) {
     if (!userData || !spec || !outSessionId) return -1;
     OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
@@ -742,6 +808,11 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
             _handle = NULL;
             return nil;
         }
+        if (avm_embed_set_net_resolve_callback(_handle, OrenAVMRuntimeNetResolve, (__bridge void*)self, &result) != AVM_EMBED_OK) {
+            avm_embed_close(_handle);
+            _handle = NULL;
+            return nil;
+        }
     }
     return self;
 }
@@ -920,6 +991,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET callback", &result);
     rc = avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionSelect, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET session callbacks", &result);
+    rc = avm_embed_set_net_resolve_callback(_handle, OrenAVMRuntimeNetResolve, (__bridge void*)self, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET resolve callback", &result);
     return YES;
 }
 
@@ -931,6 +1004,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET callback", &result);
     rc = avm_embed_set_net_session_callbacks(_handle, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET session callbacks", &result);
+    rc = avm_embed_set_net_resolve_callback(_handle, NULL, NULL, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET resolve callback", &result);
     @synchronized (self) {
         for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
         [_networkSockets removeAllObjects];

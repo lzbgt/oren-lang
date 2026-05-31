@@ -138,6 +138,8 @@ AvmVM* avm_new() {
     vm->net_session_select_fn = NULL;
     vm->net_session_close_fn = NULL;
     vm->net_session_user_data = NULL;
+    vm->net_resolve_fn = NULL;
+    vm->net_resolve_user_data = NULL;
     vm->gfx_frame_data = NULL;
     vm->gfx_frame_len = 0;
     vm->gfx_input_queue = NULL;

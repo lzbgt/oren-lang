@@ -230,6 +230,13 @@
 <p>  <code>stdlib_bundle.obc</code>, covered by the AVM stdlib OBC surface gate, and exercised</p>
 <p>  in the iOS verifier through live host-backed TCP and UDP virtual sockets.</p>
 <ul>
+<li><code>std:net/avm/dns</code> provides explicit OBC-safe virtual DNS. It maps to AVM NET</li>
+</ul>
+<p>  op 6 and <code>avm_embed_set_net_resolve_callback</code>; the iOS SDK backs it with</p>
+<p>  <code>getaddrinfo</code> under the same dynamic live-NET allowlist and timeout policy.</p>
+<p>  OBC receives a bounded list of address strings only, never native resolver</p>
+<p>  handles, sockets, or OS descriptors.</p>
+<ul>
 <li>Naming note: Oren native/runtime code already has raw <code>sys_select</code> for OS file</li>
 </ul>
 <p>  descriptors. AVM uses virtual-session readiness; <code>session_select*</code> is the</p>
@@ -267,7 +274,7 @@
 <ul>
 <li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
-<p>  WebSocket, listen/accept where app policy allows, DNS policy, cancellation,</p>
+<p>  WebSocket, listen/accept where app policy allows, cancellation,</p>
 <p>  stronger per-session byte budgets, lifecycle handling, deterministic</p>
 <p>  fixture/replay support, and any compatibility aliases needed for non-AVM</p>
 <p>  <code>std:net/tcp</code> / <code>std:net/udp</code> callers.</p>

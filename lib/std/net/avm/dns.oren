@@ -1,0 +1,22 @@
+// AVM-safe DNS facade over virtual network host providers.
+//
+// OBC programs see resolved address strings only. The host SDK owns real DNS,
+// allowlist policy, timeouts, and platform resolver details.
+
+fn resolve(host, timeout_ms) {
+    if host == nil { return oren_err(4, "std:net/avm/dns.resolve: host is nil") }
+    return oren_vnet_resolve_host(host, timeout_ms)
+}
+
+fn resolve_first(host, timeout_ms) {
+    var ips = resolve(host, timeout_ms)
+    if oren_is_err(ips) { return ips }
+    if oren_list_len(ips) <= 0 {
+        return oren_err(2, "std:net/avm/dns.resolve_first: no address")
+    }
+    return ips[0]
+}
+
+fn available() {
+    return 1
+}

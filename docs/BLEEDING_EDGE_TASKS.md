@@ -76,9 +76,10 @@ This file is the concise task view. Detailed implementation status lives in
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
-     `stroke_line`/`circle` subset.
+     `stroke_line`/`circle` subset, plus OBC-safe virtual DNS through
+     `std:net/avm/dns` and the iOS live-NET resolver callback.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
-     WebSocket/listen/accept/DNS/cancellation on the VNET
+     WebSocket/listen/accept/cancellation on the VNET
      session protocol, event-bus cancellation/FS/package events without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency

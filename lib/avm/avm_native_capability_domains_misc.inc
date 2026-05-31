@@ -374,6 +374,80 @@
                 return ret;
             }
 
+            case 6: { // resolve_host(host, timeout_ms) -> LIST<STRING>
+                if (nargs < 1 || args[0].type != AVM_VAL_STRING) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.resolve_host expects (host: string, timeout_ms?: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_resolve_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet host resolve not implemented", domain, op);
+                }
+                uint32_t timeout_ms = 0;
+                if (nargs >= 2) timeout_ms = (uint32_t)avm_value_u64(args[1], 0);
+                char** ips = NULL;
+                size_t ip_count = 0;
+                if (vm->net_resolve_fn(vm->net_resolve_user_data, (const char*)args[0].as.p, timeout_ms, &ips, &ip_count) != 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet host resolve failed", domain, op);
+                }
+                if (ip_count > 64 || (ip_count > 0 && !ips)) {
+                    if (ips) {
+                        for (size_t i = 0; i < ip_count; i++) free(ips[i]);
+                        free(ips);
+                    }
+                    return avm_err_domop(AVM_ERR_BUDGET, "vnet host resolve response too large", domain, op);
+                }
+                uint64_t total_len = 0;
+                for (size_t i = 0; i < ip_count; i++) {
+                    if (!ips[i]) {
+                        for (size_t j = 0; j < ip_count; j++) free(ips[j]);
+                        free(ips);
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "vnet host resolve returned nil IP", domain, op);
+                    }
+                    total_len += (uint64_t)strlen(ips[i]);
+                }
+                if (!avm_io_charge(vm, total_len, domain, op)) {
+                    for (size_t i = 0; i < ip_count; i++) free(ips[i]);
+                    free(ips);
+                    return vm->last_error;
+                }
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                if (!list) {
+                    for (size_t i = 0; i < ip_count; i++) free(ips[i]);
+                    free(ips);
+                    AvmValue err = avm_alloc_fail_value(); avm_abort(vm, err); return err;
+                }
+                list->count = (int)ip_count;
+                list->capacity = (int)ip_count;
+                list->all_int = 0;
+                list->items = NULL;
+                if (ip_count > 0) {
+                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * ip_count, AVM_ALLOC_KIND_LIST);
+                    if (!list->items) {
+                        for (size_t i = 0; i < ip_count; i++) free(ips[i]);
+                        free(ips);
+                        AvmValue err = avm_alloc_fail_value(); avm_abort(vm, err); return err;
+                    }
+                    for (size_t i = 0; i < ip_count; i++) {
+                        char* copy = (char*)avm_heap_malloc_k(strlen(ips[i]) + 1u, AVM_ALLOC_KIND_STRING);
+                        if (!copy) {
+                            for (size_t j = 0; j < ip_count; j++) free(ips[j]);
+                            free(ips);
+                            AvmValue err = avm_alloc_fail_value(); avm_abort(vm, err); return err;
+                        }
+                        strcpy(copy, ips[i]);
+                        list->items[i].type = AVM_VAL_STRING;
+                        list->items[i].as.p = copy;
+                    }
+                }
+                for (size_t i = 0; i < ip_count; i++) free(ips[i]);
+                free(ips);
+                AvmValue ret;
+                ret.type = AVM_VAL_LIST;
+                ret.as.l = list;
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
             default:
                 return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
         }

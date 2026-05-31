@@ -168,6 +168,11 @@ Default NET adapter.
   over those virtual sessions for common client flows. They are included in
   `stdlib_bundle.obc`, covered by the AVM stdlib OBC surface gate, and exercised
   in the iOS verifier through live host-backed TCP and UDP virtual sockets.
+- `std:net/avm/dns` provides explicit OBC-safe virtual DNS. It maps to AVM NET
+  op 6 and `avm_embed_set_net_resolve_callback`; the iOS SDK backs it with
+  `getaddrinfo` under the same dynamic live-NET allowlist and timeout policy.
+  OBC receives a bounded list of address strings only, never native resolver
+  handles, sockets, or OS descriptors.
 - Naming note: Oren native/runtime code already has raw `sys_select` for OS file
   descriptors. AVM uses virtual-session readiness; `session_select*` is the
   preferred app-facing name and `session_poll*` remains the low-level alias for
@@ -194,7 +199,7 @@ Default NET adapter.
   see virtual responses or virtual session handles that AVM can budget, close,
   snapshot/test, and deny by capability.
 - Full OBC network capability is still the target. The next NET layers should add
-  WebSocket, listen/accept where app policy allows, DNS policy, cancellation,
+  WebSocket, listen/accept where app policy allows, cancellation,
   stronger per-session byte budgets, lifecycle handling, deterministic
   fixture/replay support, and any compatibility aliases needed for non-AVM
   `std:net/tcp` / `std:net/udp` callers.

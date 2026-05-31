@@ -126,6 +126,11 @@ Facts from the 2026-05-28 implementation pass:
   convenience wrappers over virtual sessions. The iOS verifier exercises both
   modules through live host-backed virtual sockets, so app code does not need to
   call the lowest-level `session_*` functions directly for common client flows.
+- `std:net/avm/dns` now provides an OBC-safe DNS facade over AVM NET op 6.
+  Embedders install `avm_embed_set_net_resolve_callback`; the iOS SDK maps that
+  virtual DNS request to `getaddrinfo` under the same dynamic live-NET allowlist
+  and timeout policy. OBC receives only address strings, not resolver handles or
+  native socket descriptors.
 - OBC packages can now publish runtime permission intent through
   `std:avm/permission.request*`, which maps to a separate `PERMISSION` capability
   domain rather than the broader nested-AVM domain. AVM stores the latest request
@@ -135,7 +140,7 @@ Facts from the 2026-05-28 implementation pass:
   provider policy with existing SDK controls without recompiling OBC.
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. Remaining WebSocket,
-  listen/accept, DNS policy, cancellation, and richer lifecycle
+  listen/accept, cancellation, and richer lifecycle
   support should extend the VNET session protocol while the iOS SDK owns
   Network.framework or socket backends. UI/GFX follows the same rule: the SDK may
   use UIKit/CoreGraphics/Metal/`MTKView`, but OBC sees binary frame/event mailboxes
