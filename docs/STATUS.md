@@ -112,15 +112,15 @@ Facts from the 2026-05-28 implementation pass:
   `make verify-libavm-ios` proves fixture, prefetch, explicit live, and interactive-
   default live fetch modes against a local HTTP server, including dynamic disable
   and re-enable through the SDK.
-- AVM NET now also has virtual session handles for performance-oriented stream
+- AVM NET now also has virtual session handles for performance-oriented TCP/UDP
   networking: `std:net/avm.session_open/write/read/close` map to AVM NET ops 1-4,
-  while `std:net/avm.session_poll*` maps to NET op 5 for read/write readiness,
+  while `std:net/avm.session_select*` / `session_poll*` maps to NET op 5 for read/write readiness,
   and embedders can install host callbacks with
   `avm_embed_set_net_session_callbacks`. The iOS SDK implements the first reviewed
-  provider for `tcp://host:port` using host-owned sockets plus `select()` behind the same
+  provider for `tcp://host:port` and `udp://host:port` using host-owned sockets plus `select()` behind the same
   allowlist/dynamic live-NET controls. OBC receives only integer virtual session
   IDs and bytes; it never receives a socket or file descriptor. `make
-  verify-libavm-ios` proves local TCP ping/pong and poll-before-write/read through this path.
+  verify-libavm-ios` proves local TCP and UDP ping/pong plus select-before-write/read through this path.
 - OBC packages can now publish runtime permission intent through
   `std:avm/permission.request*`, which maps to a separate `PERMISSION` capability
   domain rather than the broader nested-AVM domain. AVM stores the latest request
@@ -129,12 +129,17 @@ Facts from the 2026-05-28 implementation pass:
   decoded helpers. This lets host apps show user permission UI and then update
   provider policy with existing SDK controls without recompiling OBC.
 - Performance work for virtual resources should continue as host-backed virtual
-  providers, not raw OS object access from bytecode. Remaining UDP/WebSocket,
+  providers, not raw OS object access from bytecode. Remaining WebSocket,
   listen/accept, DNS policy, cancellation, and richer lifecycle
   support should extend the VNET session protocol while the iOS SDK owns
   Network.framework or socket backends. UI/GFX follows the same rule: the SDK may
   use UIKit/CoreGraphics/Metal/`MTKView`, but OBC sees binary frame/event mailboxes
   and virtual resource handles only.
+- The longer-term virtual-resource model should be an AVM event bus, similar in
+  purpose to `select`/`kqueue`/`epoll` but over virtual handles and mailbox events:
+  VNET readiness, GFX/input events, timers, cancellation, and future FS/package
+  events. Host SDKs may implement that bus with platform reactors, but OBC must
+  not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

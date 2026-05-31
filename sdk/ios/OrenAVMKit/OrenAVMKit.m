@@ -539,7 +539,10 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     if (!userData || !spec || !outSessionId) return -1;
     OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
     NSURL* url = [NSURL URLWithString:[NSString stringWithUTF8String:spec] ?: @""];
-    if (!url || ![url.scheme.lowercaseString isEqualToString:@"tcp"] || url.host.length == 0 || !url.port) return -1;
+    NSString* scheme = url.scheme.lowercaseString;
+    BOOL isTCP = [scheme isEqualToString:@"tcp"];
+    BOOL isUDP = [scheme isEqualToString:@"udp"];
+    if (!url || (!isTCP && !isUDP) || url.host.length == 0 || !url.port) return -1;
     if (runtime->_liveNetworkAllowedHosts.count > 0 && ![runtime->_liveNetworkAllowedHosts containsObject:url.host]) return -1;
 
     char service[16];
@@ -547,7 +550,8 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_socktype = isUDP ? SOCK_DGRAM : SOCK_STREAM;
+    hints.ai_protocol = isUDP ? IPPROTO_UDP : IPPROTO_TCP;
     struct addrinfo* result = NULL;
     if (getaddrinfo(url.host.UTF8String, service, &hints, &result) != 0) return -1;
 

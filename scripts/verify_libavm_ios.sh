@@ -85,11 +85,11 @@ fn main() {
     if args[3] != "session-none" {
         var sid = net_avm.session_open(args[3], 5000)
         if oren_is_err(sid) { oren_exit(57) }
-        var pw = net_avm.session_poll_write(sid, 5000)
+        var pw = net_avm.session_select_write(sid, 5000)
         if oren_is_err(pw) || (pw & 2) == 0 { oren_exit(63) }
         var wn = net_avm.session_write(sid, "ping", 5000)
         if oren_is_err(wn) || wn != 4 { oren_exit(58) }
-        var pr = net_avm.session_poll_read(sid, 5000)
+        var pr = net_avm.session_select_read(sid, 5000)
         if oren_is_err(pr) || (pr & 1) == 0 { oren_exit(64) }
         var rb = net_avm.session_read(sid, 4, 5000)
         if oren_is_err(rb) { oren_exit(59) }
@@ -622,6 +622,17 @@ print(s.getsockname()[1])
 s.close()
 PY
 )"
+UDP_READY="$TMP_DIR/udp_server.ready"
+rm -f "$UDP_READY"
+UDP_PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
 python3 - "$NET_PORT" "$NET_DIR/net.txt" "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 <<'PY' &
 import pathlib
 import socket
@@ -674,6 +685,23 @@ finally:
     srv.close()
 PY
 TCP_SERVER_PID=$!
+python3 - "$UDP_PORT" "$UDP_READY" > "$LOG_DIR/libavm_ios_sdk_udp_server.log" 2>&1 <<'PY' &
+import pathlib
+import socket
+import sys
+
+port = int(sys.argv[1])
+ready = pathlib.Path(sys.argv[2])
+srv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("127.0.0.1", port))
+ready.write_text("ready\n", encoding="utf-8")
+data, addr = srv.recvfrom(16)
+if data == b"ping":
+    srv.sendto(b"pong", addr)
+srv.close()
+PY
+UDP_SERVER_PID=$!
 cleanup_net_server() {
   if kill -0 "$NET_SERVER_PID" >/dev/null 2>&1; then
     kill "$NET_SERVER_PID" >/dev/null 2>&1 || true
@@ -683,10 +711,14 @@ cleanup_net_server() {
     kill "$TCP_SERVER_PID" >/dev/null 2>&1 || true
     wait "$TCP_SERVER_PID" >/dev/null 2>&1 || true
   fi
+  if kill -0 "$UDP_SERVER_PID" >/dev/null 2>&1; then
+    kill "$UDP_SERVER_PID" >/dev/null 2>&1 || true
+    wait "$UDP_SERVER_PID" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup_net_server EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if [[ -f "$NET_READY" && -f "$TCP_READY" ]]; then
+  if [[ -f "$NET_READY" && -f "$TCP_READY" && -f "$UDP_READY" ]]; then
     break
   fi
   sleep 0.1
@@ -702,6 +734,10 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" \
+  "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
+OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_TCP_URL="udp://127.0.0.1:${UDP_PORT}" \
   "$HOST_SDK_BIN"
 cleanup_net_server
 trap - EXIT

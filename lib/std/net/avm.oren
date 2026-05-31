@@ -44,6 +44,16 @@ fn session_open(spec, timeout_ms) {
     return oren_vnet_session_open(spec, timeout_ms)
 }
 
+fn session_open_tcp(host, port, timeout_ms) {
+    if host == nil { return oren_err(4, "std:net/avm.session_open_tcp: host is nil") }
+    return session_open("tcp://" + host + ":" + oren_int_to_string(port), timeout_ms)
+}
+
+fn session_open_udp(host, port, timeout_ms) {
+    if host == nil { return oren_err(4, "std:net/avm.session_open_udp: host is nil") }
+    return session_open("udp://" + host + ":" + oren_int_to_string(port), timeout_ms)
+}
+
 fn session_write(session_id, data, timeout_ms) {
     return oren_vnet_session_write(session_id, data, timeout_ms)
 }
@@ -56,12 +66,24 @@ fn session_poll(session_id, events, timeout_ms) {
     return oren_vnet_session_poll(session_id, events, timeout_ms)
 }
 
+fn session_select(session_id, events, timeout_ms) {
+    return session_poll(session_id, events, timeout_ms)
+}
+
 fn session_poll_read(session_id, timeout_ms) {
     return session_poll(session_id, 1, timeout_ms)
 }
 
 fn session_poll_write(session_id, timeout_ms) {
     return session_poll(session_id, 2, timeout_ms)
+}
+
+fn session_select_read(session_id, timeout_ms) {
+    return session_select(session_id, 1, timeout_ms)
+}
+
+fn session_select_write(session_id, timeout_ms) {
+    return session_select(session_id, 2, timeout_ms)
 }
 
 fn session_close(session_id) {
