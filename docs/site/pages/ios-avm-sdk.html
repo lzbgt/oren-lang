@@ -223,12 +223,14 @@
 <p>  <code>liveNetworkAllowedHosts</code> or <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code>.</p>
 <p>  OBC still has no raw host network authority.</p>
 <ul>
-<li>The first VNET session protocol is implemented for TCP, UDP, and WebSocket client flows:</li>
+<li>The first VNET session protocol is implemented for TCP, UDP, WebSocket client</li>
 </ul>
+<p>  flows, and TCP listener/accept server flows:</p>
 <p>  <code>std:net/avm.session_open(&quot;tcp://host:port&quot;, timeout_ms)</code>,</p>
+<p>  <code>std:net/avm.session_open(&quot;tcp-listen://host:port&quot;, timeout_ms)</code>,</p>
 <p>  <code>std:net/avm.session_open(&quot;udp://host:port&quot;, timeout_ms)</code>,</p>
 <p>  <code>std:net/avm.session_open(&quot;ws://host:port/path&quot;, timeout_ms)</code>, <code>session_write</code>,</p>
-<p>  <code>session_read</code>, <code>session_select</code> / <code>session_poll</code>, and <code>session_close</code> map to AVM</p>
+<p>  <code>session_read</code>, <code>session_select</code> / <code>session_poll</code>, <code>session_accept</code>, and <code>session_close</code> map to AVM</p>
 <p>  NET ops and embedder callbacks. The iOS SDK backs those virtual session IDs</p>
 <p>  with host-owned POSIX sockets and <code>select()</code> readiness polling under the</p>
 <p>  live-NET allowlist and runtime enable/disable controls. For <code>ws://</code>, the SDK</p>
@@ -241,7 +243,8 @@
 </ul>
 <p>  over those virtual sessions for common client flows. They are included in</p>
 <p>  <code>stdlib_bundle.obc</code>, covered by the AVM stdlib OBC surface gate, and exercised</p>
-<p>  in the iOS verifier through live host-backed TCP, UDP, and WebSocket virtual sockets.</p>
+<p>  in the iOS verifier through live host-backed TCP, UDP, WebSocket, and TCP</p>
+<p>  listen/accept virtual sockets.</p>
 <ul>
 <li><code>std:net/avm/dns</code> provides explicit OBC-safe virtual DNS. It maps to AVM NET</li>
 </ul>
@@ -306,7 +309,7 @@
 <ul>
 <li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
-<p>  listen/accept where app policy allows, WebSocket fixture/replay, broader lifecycle handling, deterministic</p>
+<p>  WebSocket fixture/replay, broader lifecycle handling, deterministic</p>
 <p>  fixture/replay support, and any compatibility aliases needed for non-AVM</p>
 <p>  <code>std:net/tcp</code> / <code>std:net/udp</code> callers.</p>
 <ul>
@@ -430,7 +433,7 @@
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>
 <tr><td>FS</td><td>VirtualFS copy/export plus live host-backed app-directory mounts</td><td>Richer mount policy/manifest wiring</td></tr>
-<tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch/live fetch plus TCP/UDP/WebSocket virtual sessions with allowlist</td></tr>
+<tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch/live fetch plus TCP/UDP/WebSocket/listen-accept virtual sessions with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands or future virtual jobs only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
 <tr><td>GUI</td><td>Binary GFX mailboxes plus UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> fallback</td><td>Metal/3D renderer</td></tr>
@@ -456,8 +459,8 @@
 <p>revocations to a runtime by updating live VNET allowed hosts. High-performance networking should be implemented</p>
 <p>as a host-backed VNET provider with virtual session handles, not as</p>
 <p>bytecode-visible native sockets. TCP client streams, UDP connected datagrams, and</p>
-<p>WebSocket client sessions now use that reviewed session protocol; listen/accept</p>
-<p>still need explicit reviewed extensions. PROC on iOS should remain VirtualPROC,</p>
+<p>WebSocket client sessions and TCP listener/accept server flows now use that</p>
+<p>reviewed session protocol. PROC on iOS should remain VirtualPROC,</p>
 <p>reviewed app-command dispatch, or a future virtual job provider, not arbitrary</p>
 <p>host subprocess/thread creation.</p>
 <p>UI/GFX follows the same policy: the SDK may use CoreGraphics, Metal, <code>MTKView</code>,</p>

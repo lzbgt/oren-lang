@@ -97,7 +97,7 @@ import bytes "std:bytes"
 
 fn main() {
     var args = oren_args()
-    if oren_list_len(args) != 4 { oren_exit(10) }
+    if oren_list_len(args) != 5 { oren_exit(10) }
     var s = oren_read_file("input.txt")
     if oren_is_err(s) { oren_exit(11) }
     if s != "abc" { oren_exit(12) }
@@ -160,6 +160,20 @@ fn main() {
         var cr = nil
         if is_ws { cr = net_ws.close(sid) } else if is_udp { cr = net_udp.close(sid) } else { cr = net_tcp.close(sid) }
         if oren_is_err(cr) || cr != 0 { oren_exit(61) }
+    }
+    if args[4] != "listen-none" {
+        var listener = net_tcp.listen_spec(args[4], 5000)
+        if oren_is_err(listener) { oren_exit(89) }
+        var lr = net_tcp.select(listener, net_tcp.event_read(), 5000)
+        if oren_is_err(lr) || lr == nil || lr["kind"] != "net" || (lr["ready"] & 1) == 0 { oren_exit(90) }
+        var child = net_tcp.accept(listener, 5000)
+        if oren_is_err(child) { oren_exit(91) }
+        var inb = net_tcp.read(child, 4, 5000)
+        if oren_is_err(inb) || bytes.to_string(inb) != "ping" { oren_exit(92) }
+        var outn = net_tcp.write(child, "pong", 5000)
+        if oren_is_err(outn) || outn != 4 { oren_exit(93) }
+        if net_tcp.close(child) != 0 { oren_exit(94) }
+        if net_tcp.close(listener) != 0 { oren_exit(95) }
     }
     print("stdout:" + body)
     var cmds = [
@@ -505,8 +519,8 @@ int main(void) {
 
     AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
     if (!handle || result.status != AVM_EMBED_OK) return 2;
-    const char* argv[] = {"oren", "ios", "https://note.local/probe", "session-none"};
-    if (avm_embed_set_argv(handle, 4, argv, &result) != AVM_EMBED_OK) return 3;
+    const char* argv[] = {"oren", "ios", "https://note.local/probe", "session-none", "listen-none"};
+    if (avm_embed_set_argv(handle, 5, argv, &result) != AVM_EMBED_OK) return 3;
     static const uint8_t input[] = {'a', 'b', 'c'};
     if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 4;
     static const uint8_t mounted_input[] = {'m', 'o', 'u', 'n', 't', '-', 'o', 'k'};
@@ -577,7 +591,7 @@ int main(void) {
     uint64_t wall0 = host_now_ns();
     handle = avm_embed_open(&cfg, &result);
     if (!handle || result.status != AVM_EMBED_OK) return 19;
-    if (avm_embed_set_argv(handle, 4, argv, &result) != AVM_EMBED_OK) return 20;
+    if (avm_embed_set_argv(handle, 5, argv, &result) != AVM_EMBED_OK) return 20;
     if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 21;
     if (avm_embed_vfs_put(handle, "assets/config.txt", mounted_input, sizeof(mounted_input), &result) != AVM_EMBED_OK) return 60;
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 22;
@@ -632,6 +646,7 @@ int main(void) {
         NSDictionary<NSString*, NSString*>* env = [[NSProcessInfo processInfo] environment];
         NSString* netURL = env[@"OREN_AVM_SDK_NET_URL"] ?: @"https://note.local/probe";
         NSString* tcpURL = env[@"OREN_AVM_SDK_TCP_URL"] ?: @"session-none";
+        NSString* tcpListenURL = env[@"OREN_AVM_SDK_TCP_LISTEN_URL"] ?: @"listen-none";
         NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
         NSString* packageIndexURL = env[@"OREN_AVM_SDK_PACKAGE_INDEX_URL"];
         NSString* packageDownloadDir = env[@"OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR"];
@@ -666,7 +681,7 @@ int main(void) {
         if (![runtime configureLiveNetworkSessionLimitsWithMaxSessions:cfg.liveNetworkMaxSessions
                                                         byteLimitBytes:cfg.liveNetworkSessionByteLimitBytes
                                                                  error:&error]) return 82;
-        if (![runtime setArgv:@[@"oren", @"ios", netURL, tcpURL] error:&error]) return 36;
+        if (![runtime setArgv:@[@"oren", @"ios", netURL, tcpURL, tcpListenURL] error:&error]) return 36;
         NSData* input = [@"abc" dataUsingEncoding:NSUTF8StringEncoding];
         if (![runtime putVFSFileAtPath:@"input.txt" data:input error:&error]) return 37;
         NSURL* tempRoot = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
@@ -1096,6 +1111,15 @@ print(s.getsockname()[1])
 s.close()
 PY
 )"
+TCP_LISTEN_PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
 UDP_READY="$TMP_DIR/udp_server.ready"
 rm -f "$UDP_READY"
 UDP_PORT="$(
@@ -1408,7 +1432,7 @@ srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 srv.bind(("127.0.0.1", port))
 srv.listen(5)
 ready.write_text("ready\n", encoding="utf-8")
-for _ in range(6):
+for _ in range(7):
     conn, _addr = srv.accept()
     try:
         conn.recv(4096)
@@ -1610,6 +1634,32 @@ OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_TCP_URL="ws://127.0.0.1:${WS_PORT}/echo" \
   "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
+OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_TCP_LISTEN_URL="tcp-listen://127.0.0.1:${TCP_LISTEN_PORT}" \
+  "$HOST_SDK_BIN" > "$LOG_DIR/libavm_ios_sdk_tcp_listen_host.log" 2>&1 &
+TCP_LISTEN_HOST_PID=$!
+python3 - "$TCP_LISTEN_PORT" > "$LOG_DIR/libavm_ios_sdk_tcp_listen_client.log" 2>&1 <<'PY'
+import socket
+import sys
+import time
+
+port = int(sys.argv[1])
+last = None
+for _ in range(100):
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2) as s:
+            s.sendall(b"ping")
+            data = s.recv(4)
+            if data != b"pong":
+                raise RuntimeError(f"unexpected response: {data!r}")
+            sys.exit(0)
+    except Exception as exc:
+        last = exc
+        time.sleep(0.05)
+raise SystemExit(f"tcp listen verifier client failed: {last}")
+PY
+wait "$TCP_LISTEN_HOST_PID"
 cleanup_net_server
 trap - EXIT
 

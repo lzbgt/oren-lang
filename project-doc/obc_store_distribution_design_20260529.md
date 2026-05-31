@@ -13,7 +13,9 @@ capability declaration, compatibility constraints, hashes, and optional assets.
 ## Product Model
 
 - **Oren program author** publishes source and release artifacts.
-- **OBC store repo** stores immutable package releases and a signed index.
+- **OBC store site** should be `store.hubstack.cn`, a PyPI-like public service
+  for release, discovery, metadata, and download of curated OBC packages.
+- **OBC store repo/storage** stores immutable package releases and a signed index.
 - **iOS Note app** fetches the index, filters compatible packages, downloads a
   selected package, verifies signatures/hashes, and runs it through `libavm`.
 - **libavm** enforces package capabilities, budgets, deterministic or interactive
@@ -125,14 +127,41 @@ Index shape:
 }
 ```
 
-The app downloads `index.json`, verifies `index.minisig`, then downloads package
-manifests and OBC files by hash. A normal public GitHub repo is enough for the
-first curated store because package count is small and immutable releases are
-easy to audit. Later, the same schema can be served through CDN mirrors.
+The app downloads `index.json`, verifies `index.json.sig`, then downloads package
+manifests and OBC files by hash. The canonical store host should be
+`store.hubstack.cn`. It should serve the same signed index/package schema as a
+real package registry, while static Git storage or CDN mirrors can back immutable
+artifacts behind that store site. A normal public Git repository can still be used
+for early fixture development, but the product endpoint for host apps should be
+the store site.
+
+## Store Site Contract
+
+`store.hubstack.cn` should act like a small PyPI-style registry for OBC packages:
+
+- publish package pages with title, summary, screenshots, capabilities, publisher,
+  versions, hashes, signatures, and compatibility metadata;
+- serve signed machine-readable indexes such as `/obc/index.json` and
+  `/obc/index.json.sig`;
+- serve immutable package manifests, `program.obc`, assets, and per-release
+  signatures by content-hashed or versioned paths;
+- expose a publisher upload/release workflow that signs metadata outside the web
+  server and never stores private signing keys in this repo;
+- keep all package execution decisions in the host app: trust policy, untrusted
+  run confirmation, permissions, budgets, and install/update/remove lifecycle.
+
+The store site must not be a raw code-execution authority. It distributes signed data;
+AVM and the host SDK enforce capabilities and runtime limits.
+
+Deployment note: the host is expected to be reachable by SSH with trusted certs
+and fronted by Traefik for domain routing. Deployment automation should still
+treat private signing keys/root CA material as external to this repo.
+
+API/service detail lives in `project-doc/obc_store_service_design_20260601.md`.
 
 ## iOS App Flow
 
-1. Fetch signed `index.json`.
+1. Fetch signed `index.json` from `store.hubstack.cn` or a configured mirror.
 2. Filter packages by `avm_abi_min`, required capabilities, app version, and GUI
    support.
 3. Download `package.json`, `program.obc`, and selected assets.
@@ -232,10 +261,10 @@ directory; see `project-doc/obc_store_trust_tooling_20260601.md`.
 Suggested public repository:
 
 ```text
-oren-obc-store/
+store.hubstack.cn backing store or mirror repo:
   README.md
   index.json
-  index.minisig
+  index.json.sig
   schemas/
     package.v0.schema.json
     index.v0.schema.json

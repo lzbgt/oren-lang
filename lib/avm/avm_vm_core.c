@@ -136,6 +136,7 @@ AvmVM* avm_new() {
     vm->net_session_read_fn = NULL;
     vm->net_session_poll_fn = NULL;
     vm->net_session_select_fn = NULL;
+    vm->net_session_accept_fn = NULL;
     vm->net_session_close_fn = NULL;
     vm->net_session_user_data = NULL;
     vm->net_resolve_fn = NULL;

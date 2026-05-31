@@ -1,0 +1,199 @@
+# OBC Store Service Design
+
+**Date:** 2026-06-01
+
+## Decision
+
+`store.hubstack.cn` should be the public OBC package store site and API service.
+It should behave like a small PyPI-style registry for Oren bytecode packages:
+publishers upload releases, users browse/search packages, and host apps download
+signed package metadata and immutable artifacts for AVM execution.
+
+The service should be implemented as a Go web service behind the existing Traefik
+domain proxy on the host. The host is SSH reachable with trusted certs, but
+deployment automation and private signing keys must stay outside this repo unless
+explicitly requested later.
+
+## External Admin Credential Reference
+
+The initial `store.hubstack.cn` admin credential is intentionally stored outside
+this repository:
+
+```text
+../oren-ca/obc-store-admin.env
+```
+
+Tracked docs must reference only these keys, not the secret value:
+
+```text
+OBC_STORE_ADMIN_HOST
+OBC_STORE_ADMIN_USERNAME
+OBC_STORE_ADMIN_PASSWORD
+```
+
+Later sessions and sibling projects such as `../note` can read that external file
+when they need to administer or smoke-test the store service.
+
+## Boundary
+
+The store service distributes data. It must not become a native execution service.
+
+- OBC packages remain untrusted until the host app verifies hashes/signatures or
+  the user explicitly accepts untrusted risk.
+- The iOS/macOS/desktop host app decides install/run policy, capabilities,
+  permission prompts, budgets, and runtime revocation.
+- Private root/store/publisher keys stay outside this repo, recommended under
+  `../oren-ca/` for local development.
+- `store.hubstack.cn` may store public trust bundles, package metadata, indexes,
+  screenshots, manifests, OBC blobs, and assets.
+
+## Service Components
+
+```text
+store.hubstack.cn
+  -> Traefik TLS/domain routing
+  -> Go API service
+  -> metadata database
+  -> artifact object storage or filesystem
+  -> background index/signature builder
+```
+
+Recommended Go service modules:
+
+- `cmd/obc-store-server`: HTTP server entry point.
+- `internal/auth`: publisher auth, API tokens, optional WebAuthn/OIDC later.
+- `internal/packages`: package, version, manifest, and capability validation.
+- `internal/artifacts`: immutable artifact storage and hash verification.
+- `internal/indexer`: signed index generation and cache invalidation.
+- `internal/search`: text/tag/capability search.
+- `internal/trust`: public key/trust bundle publication and rotation metadata.
+- `internal/audit`: append-only publish/remove/admin audit log.
+
+## Registry Model
+
+Core records:
+
+- `publisher`: id, display name, public keys, status.
+- `package`: publisher, name, title, summary, tags, visibility, status.
+- `release`: package id, version, manifest hash, OBC hash, signature metadata,
+  compatibility, capabilities, budgets, created time.
+- `asset`: release id, path, media type, size, sha256.
+- `artifact`: content hash, size, storage path, immutable flag.
+- `audit_event`: actor, action, target, timestamp, request id.
+
+Package identity should be stable:
+
+```text
+<publisher>/<name>@<version>
+```
+
+Example:
+
+```text
+oren-labs/plot-demo@0.1.0
+```
+
+## Public APIs
+
+All public machine APIs should be stable JSON over HTTPS.
+
+### Store Metadata
+
+```http
+GET /api/v0/health
+GET /api/v0/trust/bundle.json
+GET /api/v0/index.json
+GET /api/v0/index.json.sig
+```
+
+`index.json` should remain compatible with `OrenAVMPackageStore` signed-index
+download flow. The API can add richer endpoints, but host apps should still be
+able to bootstrap from the signed index alone.
+
+### Browse and Search
+
+```http
+GET /api/v0/packages?query=plot&tag=science&capability=GFX&limit=50&cursor=...
+GET /api/v0/packages/{publisher}/{name}
+GET /api/v0/packages/{publisher}/{name}/versions
+GET /api/v0/packages/{publisher}/{name}/versions/{version}
+```
+
+Search response should include only metadata needed for browsing. Download and
+execution should still verify the release manifest and hashes.
+
+### Download and Install
+
+```http
+GET /api/v0/packages/{publisher}/{name}/versions/{version}/package.json
+GET /api/v0/packages/{publisher}/{name}/versions/{version}/program.obc
+GET /api/v0/packages/{publisher}/{name}/versions/{version}/assets/{path...}
+GET /api/v0/artifacts/sha256/{hex}
+```
+
+The iOS SDK install flow should use:
+
+1. fetch `index.json` and `index.json.sig`;
+2. find package/version;
+3. download `package.json`, `program.obc`, and assets;
+4. verify hashes/signatures locally;
+5. install into app-owned storage;
+6. run through `OrenAVMPackageStore`.
+
+### Publisher APIs
+
+```http
+POST /api/v0/publishers
+GET  /api/v0/me
+POST /api/v0/packages
+POST /api/v0/packages/{publisher}/{name}/versions
+POST /api/v0/packages/{publisher}/{name}/versions/{version}/artifacts
+POST /api/v0/packages/{publisher}/{name}/versions/{version}/publish
+POST /api/v0/packages/{publisher}/{name}/versions/{version}/yank
+```
+
+Publish flow:
+
+1. Publisher authenticates.
+2. Publisher uploads manifest, OBC, and assets.
+3. Service verifies manifest schema, semantic version, hashes, size limits,
+   capability declarations, and AVM ABI compatibility.
+4. Service stores immutable artifacts by SHA-256.
+5. Publisher provides metadata signature, or the service verifies a detached
+   publisher signature generated outside the service.
+6. Release becomes visible only after validation and index regeneration.
+
+The service should not hold publisher private keys by default. If a future hosted
+signing mode exists, it must use a dedicated key-management design and audit log.
+
+## Host-App Policy
+
+Host apps such as Note should treat the service as an untrusted network source
+until package metadata is verified:
+
+- trusted path: require signed index and publisher signatures;
+- user-risk path: allow explicit user-confirmed unsigned/untrusted package install;
+- all paths: enforce AVM capabilities, budgets, VFS/VNET/VPROC/TIME/GFX policy,
+  and permission prompts.
+
+The service may provide UI warnings, but runtime safety belongs to AVM and the
+host SDK.
+
+## Operational Gates
+
+Before deployment:
+
+1. Go service unit tests for manifest validation, artifact hashing, index output,
+   and search filters.
+2. End-to-end fixture that publishes a package, fetches signed index, installs via
+   `OrenAVMPackageStore`, and runs in AVM.
+3. Traefik route smoke for `https://store.hubstack.cn/api/v0/health`.
+4. Private key scan proving no private key material is committed.
+5. Backup/restore smoke for metadata DB and artifact storage.
+6. Rate limits and max upload/package sizes.
+7. Audit log append/read smoke.
+
+## TODO Registration
+
+Implementation is intentionally separate from the current AVM SDK turn. Track it
+as `OBC-STORE-SERVICE` in `TODOS.md`.

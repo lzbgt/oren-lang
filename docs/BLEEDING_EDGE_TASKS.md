@@ -68,7 +68,7 @@ This file is the concise task view. Detailed implementation status lives in
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
-     session, plus first `std:net/avm.session_open/write/read/select/close` TCP/UDP/WebSocket virtual
+     session, plus first `std:net/avm.session_open/write/read/select/accept/close` TCP/UDP/WebSocket virtual
      session handles and `std:net/avm/tcp` / `std:net/avm/udp` convenience facades
      plus `std:net/avm/ws` over host-owned iOS sockets with readiness selection,
      plus the native `std:avm/events`
@@ -84,9 +84,9 @@ This file is the concise task view. Detailed implementation status lives in
      live VNET session-count/per-session-byte limits, plus host-requested VM
      cancellation through the embed/iOS SDK APIs, plus an
      `OrenAVMPermissionGrantStore` that persists decoded permission decisions and
-     reapplies live VNET allowed-host grants/revocations at runtime.
-     Remaining SDK work: visible permission prompt UX, listen/accept on the
-     VNET/session protocol, event-bus FS/package
+     reapplies live VNET allowed-host grants/revocations at runtime, plus reviewed
+     TCP listener/accept virtual sessions for OBC server flows.
+     Remaining SDK work: visible permission prompt UX, event-bus FS/package
      events without exposing raw sockets to OBC, compiler helper
      package, signed package-store support, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
@@ -106,7 +106,12 @@ This file is the concise task view. Detailed implementation status lives in
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated
      signed OBC store repo with package manifests, hashes, capability declarations,
-     and iOS download/verify/run flow. Design note:
+     and iOS download/verify/run flow. Register demo OBC packages there so the
+     iOS app has useful downloadable examples once GUI/network gates are ready.
+     The intended public store site is `store.hubstack.cn`, with PyPI-like
+     release/discovery/download pages backed by the same signed index/package
+     schema.
+     Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
      manifest schema/ABI/hash validation, capability/budget/time config derivation,

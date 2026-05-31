@@ -874,7 +874,7 @@ int avm_embed_set_net_fetch_callback(AvmEmbedHandle* handle, AvmNetFetchFn fetch
     return result ? result->status : AVM_EMBED_OK;
 }
 
-int avm_embed_set_net_session_callbacks(AvmEmbedHandle* handle, AvmNetSessionOpenFn open_fn, AvmNetSessionWriteFn write_fn, AvmNetSessionReadFn read_fn, AvmNetSessionPollFn poll_fn, AvmNetSessionSelectFn select_fn, AvmNetSessionCloseFn close_fn, void* user_data, AvmEmbedResult* result) {
+int avm_embed_set_net_session_callbacks(AvmEmbedHandle* handle, AvmNetSessionOpenFn open_fn, AvmNetSessionWriteFn write_fn, AvmNetSessionReadFn read_fn, AvmNetSessionPollFn poll_fn, AvmNetSessionSelectFn select_fn, AvmNetSessionAcceptFn accept_fn, AvmNetSessionCloseFn close_fn, void* user_data, AvmEmbedResult* result) {
     if (!avm_embed_valid_handle(handle)) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed NET session callback handle");
     }
@@ -883,6 +883,7 @@ int avm_embed_set_net_session_callbacks(AvmEmbedHandle* handle, AvmNetSessionOpe
     handle->vm->net_session_read_fn = read_fn;
     handle->vm->net_session_poll_fn = poll_fn;
     handle->vm->net_session_select_fn = select_fn;
+    handle->vm->net_session_accept_fn = accept_fn;
     handle->vm->net_session_close_fn = close_fn;
     handle->vm->net_session_user_data = user_data;
     avm_embed_fill_from_vm(handle->vm, result);

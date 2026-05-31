@@ -19,6 +19,19 @@ fn connect_spec(spec, timeout_ms) {
     return net.session_open(spec, timeout_ms)
 }
 
+fn listen(host, port, timeout_ms) {
+    return net.session_listen_tcp(host, port, timeout_ms)
+}
+
+fn listen_spec(spec, timeout_ms) {
+    if spec == nil { return oren_err(4, "std:net/avm/tcp.listen_spec: spec is nil") }
+    return net.session_open(spec, timeout_ms)
+}
+
+fn accept(listener_session_id, timeout_ms) {
+    return net.session_accept(listener_session_id, timeout_ms)
+}
+
 fn write(session_id, data, timeout_ms) {
     return net.session_write(session_id, data, timeout_ms)
 }

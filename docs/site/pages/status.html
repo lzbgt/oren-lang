@@ -126,8 +126,9 @@
 <li>OBC distribution design is documented in</li>
 </ul>
 <p>  <code>project-doc/obc_store_distribution_design_20260529.md</code>: after the GUI bridge</p>
-<p>  release gate, a public signed OBC store repo can distribute app experiences</p>
-<p>  that the iOS app downloads, verifies, and runs through <code>libavm</code>.</p>
+<p>  release gate, <code>store.hubstack.cn</code> should act as the public PyPI-like OBC</p>
+<p>  store site for app experiences that the iOS app downloads, verifies, and runs</p>
+<p>  through <code>libavm</code>.</p>
 <ul>
 <li>The first <code>OrenAVMPackageStore</code> SDK slices are implemented. It loads a local</li>
 </ul>
@@ -213,18 +214,21 @@
 </ul>
 <p>  networking: <code>std:net/avm.session_open/write/read/close</code> map to AVM NET ops 1-4,</p>
 <p>  while <code>std:net/avm.session_select*</code> / <code>session_poll*</code> maps to NET op 5 for read/write readiness,</p>
+<p>  virtual DNS maps to NET op 6, and <code>session_accept</code> maps to NET op 7,</p>
 <p>  and embedders can install host callbacks with</p>
 <p>  <code>avm_embed_set_net_session_callbacks</code>. The iOS SDK implements the first reviewed</p>
-<p>  provider for <code>tcp://host:port</code>, <code>udp://host:port</code>, and <code>ws://host:port/path</code> using host-owned sockets plus <code>select()</code> behind the same</p>
+<p>  provider for <code>tcp://host:port</code>, <code>tcp-listen://host:port</code>,</p>
+<p>  <code>udp://host:port</code>, and <code>ws://host:port/path</code> using host-owned sockets plus <code>select()</code> behind the same</p>
 <p>  allowlist/dynamic live-NET controls. OBC receives only integer virtual session</p>
 <p>  IDs and bytes; it never receives a socket or file descriptor. `make</p>
-<p>  verify-libavm-ios` proves local TCP, UDP, and WebSocket ping/pong plus select-before-write/read through this path.</p>
+<p>  verify-libavm-ios` proves local TCP, UDP, WebSocket, and TCP listen/accept</p>
+<p>  ping/pong plus select-before-write/read through this path.</p>
 <ul>
 <li><code>std:net/avm/tcp</code>, <code>std:net/avm/udp</code>, and <code>std:net/avm/ws</code> now provide OBC-safe app-facing TCP/UDP/WebSocket</li>
 </ul>
 <p>  convenience wrappers over virtual sessions. The iOS verifier exercises all</p>
 <p>  three modules through live host-backed virtual sockets, so app code does not need to</p>
-<p>  call the lowest-level <code>session_*</code> functions directly for common client flows.</p>
+<p>  call the lowest-level <code>session_*</code> functions directly for common client/server flows.</p>
 <ul>
 <li><code>std:net/avm/dns</code> now provides an OBC-safe DNS facade over AVM NET op 6.</li>
 </ul>
@@ -263,7 +267,7 @@
 </ul>
 <p>  providers, not raw OS object access from bytecode. FS follows this rule through</p>
 <p>  host-backed directory mounts: the SDK owns app <code>file://</code> URLs and OBC sees only</p>
-<p>  virtual paths. Remaining listen/accept, WebSocket fixture/replay, explicit cancellation watches,</p>
+<p>  virtual paths. Remaining WebSocket fixture/replay, richer cancellation lifecycle,</p>
 <p>  and richer lifecycle support should extend the VNET session protocol while the</p>
 <p>  iOS SDK owns Network.framework or socket backends. UI/GFX follows the same rule:</p>
 <p>  the SDK may use UIKit/CoreGraphics/Metal/<code>MTKView</code>, but OBC sees binary</p>

@@ -69,6 +69,7 @@ typedef int (*AvmNetSessionWriteFn)(void* user_data, uint32_t session_id, const 
 typedef int (*AvmNetSessionReadFn)(void* user_data, uint32_t session_id, size_t max_len, uint32_t timeout_ms, uint8_t** out_data, size_t* out_len);
 typedef int (*AvmNetSessionPollFn)(void* user_data, uint32_t session_id, uint32_t events, uint32_t timeout_ms, uint32_t* out_ready);
 typedef int (*AvmNetSessionSelectFn)(void* user_data, const uint32_t* session_ids, const uint32_t* events, size_t count, uint32_t timeout_ms, size_t* out_index, uint32_t* out_ready);
+typedef int (*AvmNetSessionAcceptFn)(void* user_data, uint32_t listener_session_id, uint32_t timeout_ms, uint32_t* out_session_id);
 typedef int (*AvmNetSessionCloseFn)(void* user_data, uint32_t session_id);
 typedef int (*AvmNetResolveFn)(void* user_data, const char* host, uint32_t timeout_ms, char*** out_ips, size_t* out_count);
 
@@ -230,6 +231,7 @@ typedef struct {
     AvmNetSessionReadFn net_session_read_fn;
     AvmNetSessionPollFn net_session_poll_fn;
     AvmNetSessionSelectFn net_session_select_fn;
+    AvmNetSessionAcceptFn net_session_accept_fn;
     AvmNetSessionCloseFn net_session_close_fn;
     void* net_session_user_data;
     AvmNetResolveFn net_resolve_fn;

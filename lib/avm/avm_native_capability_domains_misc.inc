@@ -448,6 +448,25 @@
                 return ret;
             }
 
+            case 7: { // session_accept(listener_session_id, timeout_ms) -> INT virtual session id
+                if (nargs < 1 || args[0].type != AVM_VAL_INT) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_accept expects (listener_session_id: int, timeout_ms?: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_accept_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session accept not implemented", domain, op);
+                }
+                uint32_t timeout_ms = 0;
+                if (nargs >= 2) timeout_ms = (uint32_t)avm_value_u64(args[1], 0);
+                uint32_t session_id = 0;
+                if (vm->net_session_accept_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), timeout_ms, &session_id) != 0 || session_id == 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session accept failed", domain, op);
+                }
+                AvmValue ret = avm_int((int64_t)session_id);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
             default:
                 return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
         }

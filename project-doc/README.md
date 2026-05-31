@@ -12,6 +12,7 @@ Canonical current docs live in `docs/`.
 - `avm_ios_graphics_design_20260529.md` - AVM-to-iOS graphics command-buffer and Metal host design.
 - `avm_ui_render_performance_design_20260531.md` - high-refresh/high-resolution UI render contract for the AVM-host boundary.
 - `obc_store_distribution_design_20260529.md` - public signed OBC package/store design for iOS app experiences.
+- `obc_store_service_design_20260601.md` - `store.hubstack.cn` Go registry/API service design for OBC publishing, search, download, and install flows.
 - `obc_store_trust_tooling_20260601.md` - external trust/key tooling for OBC store host apps.
 - `ios_avm_readiness_20260507.md` - AVM/iOS production readiness inspection.
 - `yield_coroutine_lowering_20260422.md` - current yield/generator/coroutine boundary.

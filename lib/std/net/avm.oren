@@ -49,6 +49,11 @@ fn session_open_tcp(host, port, timeout_ms) {
     return session_open("tcp://" + host + ":" + oren_int_to_string(port), timeout_ms)
 }
 
+fn session_listen_tcp(host, port, timeout_ms) {
+    if host == nil { return oren_err(4, "std:net/avm.session_listen_tcp: host is nil") }
+    return session_open("tcp-listen://" + host + ":" + oren_int_to_string(port), timeout_ms)
+}
+
 fn session_open_udp(host, port, timeout_ms) {
     if host == nil { return oren_err(4, "std:net/avm.session_open_udp: host is nil") }
     return session_open("udp://" + host + ":" + oren_int_to_string(port), timeout_ms)
@@ -84,6 +89,10 @@ fn session_select_read(session_id, timeout_ms) {
 
 fn session_select_write(session_id, timeout_ms) {
     return session_select(session_id, 2, timeout_ms)
+}
+
+fn session_accept(listener_session_id, timeout_ms) {
+    return oren_vnet_session_accept(listener_session_id, timeout_ms)
 }
 
 fn session_close(session_id) {

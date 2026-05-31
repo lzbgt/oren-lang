@@ -416,6 +416,22 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     uint32_t _nextNetworkSessionId;
 }
 
+static uint32_t OrenAVMRuntimeRegisterNetworkSession(OrenAVMRuntime* runtime, int fd, NSString* kind) {
+    if (!runtime || fd < 0 || kind.length == 0) return 0;
+    @synchronized (runtime) {
+        if (runtime->_liveNetworkMaxSessions > 0 && runtime->_networkSockets.count >= runtime->_liveNetworkMaxSessions) {
+            return 0;
+        }
+        runtime->_nextNetworkSessionId += 1u;
+        if (runtime->_nextNetworkSessionId == 0) runtime->_nextNetworkSessionId = 1u;
+        uint32_t sid = runtime->_nextNetworkSessionId;
+        runtime->_networkSockets[@(sid)] = @(fd);
+        runtime->_networkSessionKinds[@(sid)] = kind;
+        runtime->_networkSessionByteCounts[@(sid)] = @0;
+        return sid;
+    }
+}
+
 static void OrenAVMRuntimeSetSocketTimeout(int fd, uint32_t timeoutMs) {
     if (fd < 0 || timeoutMs == 0) return;
     struct timeval tv;
@@ -804,9 +820,10 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     NSURL* url = [NSURL URLWithString:[NSString stringWithUTF8String:spec] ?: @""];
     NSString* scheme = url.scheme.lowercaseString;
     BOOL isTCP = [scheme isEqualToString:@"tcp"];
+    BOOL isTCPListen = [scheme isEqualToString:@"tcp-listen"];
     BOOL isUDP = [scheme isEqualToString:@"udp"];
     BOOL isWS = [scheme isEqualToString:@"ws"];
-    if (!url || (!isTCP && !isUDP && !isWS) || url.host.length == 0 || !url.port) return -1;
+    if (!url || (!isTCP && !isTCPListen && !isUDP && !isWS) || url.host.length == 0 || !url.port) return -1;
     if (runtime->_liveNetworkAllowedHosts.count > 0 && ![runtime->_liveNetworkAllowedHosts containsObject:url.host]) return -1;
 
     char service[16];
@@ -816,6 +833,7 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = isUDP ? SOCK_DGRAM : SOCK_STREAM;
     hints.ai_protocol = isUDP ? IPPROTO_UDP : IPPROTO_TCP;
+    if (isTCPListen) hints.ai_flags = AI_PASSIVE;
     struct addrinfo* result = NULL;
     if (getaddrinfo(url.host.UTF8String, service, &hints, &result) != 0) return -1;
 
@@ -824,7 +842,13 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
         fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd < 0) continue;
         OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
-        if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) break;
+        if (isTCPListen) {
+            int yes = 1;
+            (void)setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+            if (bind(fd, ai->ai_addr, ai->ai_addrlen) == 0 && listen(fd, 16) == 0) break;
+        } else if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+            break;
+        }
         close(fd);
         fd = -1;
     }
@@ -835,18 +859,13 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
         return -1;
     }
 
-    @synchronized (runtime) {
-        if (runtime->_liveNetworkMaxSessions > 0 && runtime->_networkSockets.count >= runtime->_liveNetworkMaxSessions) {
-            close(fd);
-            return -1;
-        }
-        runtime->_nextNetworkSessionId += 1u;
-        if (runtime->_nextNetworkSessionId == 0) runtime->_nextNetworkSessionId = 1u;
-        *outSessionId = runtime->_nextNetworkSessionId;
-        runtime->_networkSockets[@(*outSessionId)] = @(fd);
-        runtime->_networkSessionKinds[@(*outSessionId)] = isWS ? @"ws" : (isUDP ? @"udp" : @"tcp");
-        runtime->_networkSessionByteCounts[@(*outSessionId)] = @0;
+    NSString* kind = isTCPListen ? @"tcp-listen" : (isWS ? @"ws" : (isUDP ? @"udp" : @"tcp"));
+    uint32_t sid = OrenAVMRuntimeRegisterNetworkSession(runtime, fd, kind);
+    if (sid == 0) {
+        close(fd);
+        return -1;
     }
+    *outSessionId = sid;
     return 0;
 }
 
@@ -905,6 +924,36 @@ static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size
     OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)n);
     *outData = buf;
     *outLen = (size_t)n;
+    return 0;
+}
+
+static int OrenAVMRuntimeNetSessionAccept(void* userData, uint32_t listenerSessionId, uint32_t timeoutMs, uint32_t* outSessionId) {
+    if (!userData || !outSessionId) return -1;
+    *outSessionId = 0;
+    OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
+    int fd = OrenAVMRuntimeSocketForSession(runtime, listenerSessionId);
+    if (fd < 0) return -1;
+    NSString* kind = OrenAVMRuntimeKindForSession(runtime, listenerSessionId);
+    if (![kind isEqualToString:@"tcp-listen"]) return -1;
+
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+    struct timeval tv;
+    tv.tv_sec = (time_t)(timeoutMs / 1000u);
+    tv.tv_usec = (suseconds_t)((timeoutMs % 1000u) * 1000u);
+    int rc = select(fd + 1, &rfds, NULL, NULL, &tv);
+    if (rc <= 0) return -1;
+
+    int child = accept(fd, NULL, NULL);
+    if (child < 0) return -1;
+    OrenAVMRuntimeSetSocketTimeout(child, timeoutMs);
+    uint32_t sid = OrenAVMRuntimeRegisterNetworkSession(runtime, child, @"tcp");
+    if (sid == 0) {
+        close(child);
+        return -1;
+    }
+    *outSessionId = sid;
     return 0;
 }
 
@@ -1034,7 +1083,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
             _handle = NULL;
             return nil;
         }
-        if (avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionSelect, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result) != AVM_EMBED_OK) {
+        if (avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionSelect, OrenAVMRuntimeNetSessionAccept, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result) != AVM_EMBED_OK) {
             avm_embed_close(_handle);
             _handle = NULL;
             return nil;
@@ -1255,7 +1304,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     AvmEmbedResult result;
     int rc = avm_embed_set_net_fetch_callback(_handle, OrenAVMRuntimeLiveNetFetch, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET callback", &result);
-    rc = avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionSelect, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result);
+    rc = avm_embed_set_net_session_callbacks(_handle, OrenAVMRuntimeNetSessionOpen, OrenAVMRuntimeNetSessionWrite, OrenAVMRuntimeNetSessionRead, OrenAVMRuntimeNetSessionPoll, OrenAVMRuntimeNetSessionSelect, OrenAVMRuntimeNetSessionAccept, OrenAVMRuntimeNetSessionClose, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET session callbacks", &result);
     rc = avm_embed_set_net_resolve_callback(_handle, OrenAVMRuntimeNetResolve, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET resolve callback", &result);
@@ -1290,13 +1339,14 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     AvmEmbedResult result;
     int rc = avm_embed_set_net_fetch_callback(_handle, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET callback", &result);
-    rc = avm_embed_set_net_session_callbacks(_handle, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &result);
+    rc = avm_embed_set_net_session_callbacks(_handle, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET session callbacks", &result);
     rc = avm_embed_set_net_resolve_callback(_handle, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET resolve callback", &result);
     @synchronized (self) {
         for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
         [_networkSockets removeAllObjects];
+        [_networkSessionKinds removeAllObjects];
         [_networkSessionByteCounts removeAllObjects];
     }
     return YES;

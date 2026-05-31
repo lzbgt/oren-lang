@@ -46,7 +46,11 @@
 <h2 id="product-model">Product Model</h2>
 <ul>
 <li><strong>Oren program author</strong> publishes source and release artifacts.</li>
-<li><strong>OBC store repo</strong> stores immutable package releases and a signed index.</li>
+<li><strong>OBC store site</strong> should be <code>store.hubstack.cn</code>, a PyPI-like public service</li>
+</ul>
+<p>  for release, discovery, metadata, and download of curated OBC packages.</p>
+<ul>
+<li><strong>OBC store repo/storage</strong> stores immutable package releases and a signed index.</li>
 <li><strong>iOS Note app</strong> fetches the index, filters compatible packages, downloads a</li>
 </ul>
 <p>  selected package, verifies signatures/hashes, and runs it through <code>libavm</code>.</p>
@@ -147,13 +151,44 @@ packages/...</code></pre>
     }
   ]
 }</code></pre>
-<p>The app downloads <code>index.json</code>, verifies <code>index.minisig</code>, then downloads package</p>
-<p>manifests and OBC files by hash. A normal public GitHub repo is enough for the</p>
-<p>first curated store because package count is small and immutable releases are</p>
-<p>easy to audit. Later, the same schema can be served through CDN mirrors.</p>
+<p>The app downloads <code>index.json</code>, verifies <code>index.json.sig</code>, then downloads package</p>
+<p>manifests and OBC files by hash. The canonical store host should be</p>
+<p><code>store.hubstack.cn</code>. It should serve the same signed index/package schema as a</p>
+<p>real package registry, while static Git storage or CDN mirrors can back immutable</p>
+<p>artifacts behind that store site. A normal public Git repository can still be used</p>
+<p>for early fixture development, but the product endpoint for host apps should be</p>
+<p>the store site.</p>
+<h2 id="store-site-contract">Store Site Contract</h2>
+<p><code>store.hubstack.cn</code> should act like a small PyPI-style registry for OBC packages:</p>
+<ul>
+<li>publish package pages with title, summary, screenshots, capabilities, publisher,</li>
+</ul>
+<p>  versions, hashes, signatures, and compatibility metadata;</p>
+<ul>
+<li>serve signed machine-readable indexes such as <code>/obc/index.json</code> and</li>
+</ul>
+<p>  <code>/obc/index.json.sig</code>;</p>
+<ul>
+<li>serve immutable package manifests, <code>program.obc</code>, assets, and per-release</li>
+</ul>
+<p>  signatures by content-hashed or versioned paths;</p>
+<ul>
+<li>expose a publisher upload/release workflow that signs metadata outside the web</li>
+</ul>
+<p>  server and never stores private signing keys in this repo;</p>
+<ul>
+<li>keep all package execution decisions in the host app: trust policy, untrusted</li>
+</ul>
+<p>  run confirmation, permissions, budgets, and install/update/remove lifecycle.</p>
+<p>The store site must not be a raw code-execution authority. It distributes signed data;</p>
+<p>AVM and the host SDK enforce capabilities and runtime limits.</p>
+<p>Deployment note: the host is expected to be reachable by SSH with trusted certs</p>
+<p>and fronted by Traefik for domain routing. Deployment automation should still</p>
+<p>treat private signing keys/root CA material as external to this repo.</p>
+<p>API/service detail lives in <code>project-doc/obc_store_service_design_20260601.md</code>.</p>
 <h2 id="ios-app-flow">iOS App Flow</h2>
 <ol>
-<li>Fetch signed <code>index.json</code>.</li>
+<li>Fetch signed <code>index.json</code> from <code>store.hubstack.cn</code> or a configured mirror.</li>
 <li>Filter packages by <code>avm_abi_min</code>, required capabilities, app version, and GUI</li>
 </ol>
 <p>   support.</p>
@@ -260,10 +295,10 @@ packages/...</code></pre>
 <p>directory; see <code>project-doc/obc_store_trust_tooling_20260601.md</code>.</p>
 <h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
 <p>Suggested public repository:</p>
-<pre><code>oren-obc-store/
+<pre><code>store.hubstack.cn backing store or mirror repo:
   README.md
   index.json
-  index.minisig
+  index.json.sig
   schemas/
     package.v0.schema.json
     index.v0.schema.json
@@ -289,6 +324,7 @@ packages/...</code></pre>
 <a class="toc-l2" href="#package-layout">Package Layout</a>
 <a class="toc-l2" href="#manifest-contract">Manifest Contract</a>
 <a class="toc-l2" href="#store-index">Store Index</a>
+<a class="toc-l2" href="#store-site-contract">Store Site Contract</a>
 <a class="toc-l2" href="#ios-app-flow">iOS App Flow</a>
 <a class="toc-l2" href="#gui-dependency">GUI Dependency</a>
 <a class="toc-l2" href="#security-boundary">Security Boundary</a>

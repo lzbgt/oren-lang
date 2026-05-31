@@ -82,8 +82,9 @@ Facts from the 2026-05-28 implementation pass:
   `STD_linalg_dot_f64` are actually linkable from the bundled stdlib OBC.
 - OBC distribution design is documented in
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
-  release gate, a public signed OBC store repo can distribute app experiences
-  that the iOS app downloads, verifies, and runs through `libavm`.
+  release gate, `store.hubstack.cn` should act as the public PyPI-like OBC
+  store site for app experiences that the iOS app downloads, verifies, and runs
+  through `libavm`.
 - The first `OrenAVMPackageStore` SDK slices are implemented. It loads a local
   `oren.obc.package.v0` directory, validates manifest shape and AVM ABI floor,
   verifies `program.obc` SHA-256, derives runtime capabilities/budgets/time mode,
@@ -153,16 +154,19 @@ Facts from the 2026-05-28 implementation pass:
 - AVM NET now also has virtual session handles for performance-oriented TCP/UDP/WebSocket
   networking: `std:net/avm.session_open/write/read/close` map to AVM NET ops 1-4,
   while `std:net/avm.session_select*` / `session_poll*` maps to NET op 5 for read/write readiness,
+  virtual DNS maps to NET op 6, and `session_accept` maps to NET op 7,
   and embedders can install host callbacks with
   `avm_embed_set_net_session_callbacks`. The iOS SDK implements the first reviewed
-  provider for `tcp://host:port`, `udp://host:port`, and `ws://host:port/path` using host-owned sockets plus `select()` behind the same
+  provider for `tcp://host:port`, `tcp-listen://host:port`,
+  `udp://host:port`, and `ws://host:port/path` using host-owned sockets plus `select()` behind the same
   allowlist/dynamic live-NET controls. OBC receives only integer virtual session
   IDs and bytes; it never receives a socket or file descriptor. `make
-  verify-libavm-ios` proves local TCP, UDP, and WebSocket ping/pong plus select-before-write/read through this path.
+  verify-libavm-ios` proves local TCP, UDP, WebSocket, and TCP listen/accept
+  ping/pong plus select-before-write/read through this path.
 - `std:net/avm/tcp`, `std:net/avm/udp`, and `std:net/avm/ws` now provide OBC-safe app-facing TCP/UDP/WebSocket
   convenience wrappers over virtual sessions. The iOS verifier exercises all
   three modules through live host-backed virtual sockets, so app code does not need to
-  call the lowest-level `session_*` functions directly for common client flows.
+  call the lowest-level `session_*` functions directly for common client/server flows.
 - `std:net/avm/dns` now provides an OBC-safe DNS facade over AVM NET op 6.
   Embedders install `avm_embed_set_net_resolve_callback`; the iOS SDK maps that
   virtual DNS request to `getaddrinfo` under the same dynamic live-NET allowlist
@@ -191,7 +195,7 @@ Facts from the 2026-05-28 implementation pass:
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. FS follows this rule through
   host-backed directory mounts: the SDK owns app `file://` URLs and OBC sees only
-  virtual paths. Remaining listen/accept, WebSocket fixture/replay, explicit cancellation watches,
+  virtual paths. Remaining WebSocket fixture/replay, richer cancellation lifecycle,
   and richer lifecycle support should extend the VNET session protocol while the
   iOS SDK owns Network.framework or socket backends. UI/GFX follows the same rule:
   the SDK may use UIKit/CoreGraphics/Metal/`MTKView`, but OBC sees binary
