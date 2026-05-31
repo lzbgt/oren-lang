@@ -269,8 +269,9 @@ Facts from the 2026-05-28 implementation pass:
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/stroke-line/
   circle geometry plus text through Metal pipelines. Its `targetHzMilli` setting
-  drives `MTKView.preferredFramesPerSecond`. Current text rendering builds transient
-  per-frame textures; retained text atlas resources remain the next performance step.
+  drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
+  SDK-side LRU texture cache for repeated labels; OBC-visible retained text atlas
+  resources remain the next performance step.
   Bidirectional UI is a hard requirement for
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and

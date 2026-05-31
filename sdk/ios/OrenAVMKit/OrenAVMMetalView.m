@@ -33,6 +33,18 @@ typedef struct {
 @implementation OrenAVMMetalTextRun
 @end
 
+@interface OrenAVMMetalTextCacheEntry : NSObject
+@property(nonatomic, strong) id<MTLTexture> texture;
+@property(nonatomic) CGSize logicalSize;
+@property(nonatomic) NSUInteger pixelCount;
+@end
+
+@implementation OrenAVMMetalTextCacheEntry
+@end
+
+static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
+static const NSUInteger OrenAVMMetalTextCacheEntryLimit = 256u;
+
 static uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -208,6 +220,9 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenTextPipelineState;
+@property(nonatomic, strong) NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
+@property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
+@property(nonatomic) NSUInteger orenTextCachePixels;
 @end
 
 @implementation OrenAVMMetalView
@@ -241,6 +256,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.paused = NO;
     self.enableSetNeedsDisplay = NO;
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+    if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
+    if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
     [self orenApplyFrameRate];
     if (self.device) {
@@ -376,12 +393,39 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                   error:error];
 }
 
-- (OrenAVMMetalTextRun*)orenTextRunWithText:(NSString*)text
-                                          x:(float)x
-                                          y:(float)y
-                                        rgba:(const uint8_t*)rgba
-                                logicalWidth:(float)logicalWidth
-                               logicalHeight:(float)logicalHeight {
+- (NSString*)orenTextCacheKeyWithText:(NSString*)text rgba:(const uint8_t*)rgba scaleMilli:(uint32_t)scaleMilli {
+    return [NSString stringWithFormat:@"%u:%u:%u:%u:%u:%@",
+            scaleMilli,
+            (unsigned)rgba[0],
+            (unsigned)rgba[1],
+            (unsigned)rgba[2],
+            (unsigned)rgba[3],
+            text ?: @""];
+}
+
+- (void)orenTouchTextCacheKey:(NSString*)key {
+    if (!key) return;
+    [self.orenTextCacheOrder removeObject:key];
+    [self.orenTextCacheOrder addObject:key];
+}
+
+- (void)orenTrimTextCache {
+    while ((self.orenTextCachePixels > OrenAVMMetalTextCachePixelLimit ||
+            self.orenTextCacheOrder.count > OrenAVMMetalTextCacheEntryLimit) &&
+           self.orenTextCacheOrder.count > 0) {
+        NSString* key = self.orenTextCacheOrder.firstObject;
+        [self.orenTextCacheOrder removeObjectAtIndex:0];
+        OrenAVMMetalTextCacheEntry* entry = self.orenTextCache[key];
+        if (entry) {
+            self.orenTextCachePixels = self.orenTextCachePixels > entry.pixelCount
+                ? self.orenTextCachePixels - entry.pixelCount
+                : 0;
+            [self.orenTextCache removeObjectForKey:key];
+        }
+    }
+}
+
+- (OrenAVMMetalTextCacheEntry*)orenTextCacheEntryWithText:(NSString*)text rgba:(const uint8_t*)rgba {
     if (!text || text.length == 0 || !self.device) return nil;
     UIFont* font = [UIFont systemFontOfSize:14.0];
     UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
@@ -397,6 +441,14 @@ static NSData* OrenAVMMetalTextQuad(float x,
     CGFloat scale = self.window.screen.scale;
     if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
     if (scale <= 0.0) scale = 1.0;
+    uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
+    NSString* cacheKey = [self orenTextCacheKeyWithText:text rgba:rgba scaleMilli:scaleMilli];
+    OrenAVMMetalTextCacheEntry* cached = self.orenTextCache[cacheKey];
+    if (cached) {
+        [self orenTouchTextCacheKey:cacheKey];
+        return cached;
+    }
+
     NSUInteger pixelWidth = (NSUInteger)ceil(textSize.width * scale);
     NSUInteger pixelHeight = (NSUInteger)ceil(textSize.height * scale);
     if (pixelWidth == 0 || pixelHeight == 0 || pixelWidth > 4096u || pixelHeight > 4096u) return nil;
@@ -431,12 +483,31 @@ static NSData* OrenAVMMetalTextQuad(float x,
                  withBytes:pixels.bytes
                bytesPerRow:pixelWidth * 4u];
 
+    OrenAVMMetalTextCacheEntry* entry = [[OrenAVMMetalTextCacheEntry alloc] init];
+    entry.texture = texture;
+    entry.logicalSize = textSize;
+    entry.pixelCount = pixelWidth * pixelHeight;
+    self.orenTextCache[cacheKey] = entry;
+    self.orenTextCachePixels += entry.pixelCount;
+    [self orenTouchTextCacheKey:cacheKey];
+    [self orenTrimTextCache];
+    return entry;
+}
+
+- (OrenAVMMetalTextRun*)orenTextRunWithText:(NSString*)text
+                                          x:(float)x
+                                          y:(float)y
+                                        rgba:(const uint8_t*)rgba
+                                logicalWidth:(float)logicalWidth
+                               logicalHeight:(float)logicalHeight {
+    OrenAVMMetalTextCacheEntry* entry = [self orenTextCacheEntryWithText:text rgba:rgba];
+    if (!entry) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
-    run.texture = texture;
+    run.texture = entry.texture;
     run.vertices = OrenAVMMetalTextQuad(x,
                                         y,
-                                        (float)textSize.width,
-                                        (float)textSize.height,
+                                        (float)entry.logicalSize.width,
+                                        (float)entry.logicalSize.height,
                                         logicalWidth,
                                         logicalHeight);
     return run;
