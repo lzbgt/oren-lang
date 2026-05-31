@@ -312,12 +312,18 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 @property(nonatomic, copy, nullable) NSData* frameData;
 @property(nonatomic) uint32_t targetHzMilli;
 @property(nonatomic) uint32_t mediaFlags;
+@property(nonatomic, readonly) uint64_t renderedFrameCount;
+@property(nonatomic, readonly) uint64_t lastFrameCPUNs;
+@property(nonatomic, readonly) uint64_t lastFrameTargetBudgetNs;
+@property(nonatomic, readonly) uint32_t lastFrameVertexCount;
+@property(nonatomic, readonly) uint32_t lastFrameTextRunCount;
 
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFrame:(CGRect)frame device:(nullable id<MTLDevice>)device NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithCoder:(NSCoder*)coder NS_DESIGNATED_INITIALIZER;
 - (BOOL)reloadFrameWithError:(NSError* _Nullable* _Nullable)error;
 - (void)clearTextTextureCache;
+- (void)resetFrameMetrics;
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind
                            point:(CGPoint)point
                        pointerId:(uint32_t)pointerId

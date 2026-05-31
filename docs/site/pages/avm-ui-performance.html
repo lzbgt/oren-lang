@@ -122,8 +122,10 @@
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
 <p>  SDK-side LRU texture cache for repeated labels; host apps can clear the cache on</p>
-<p>  memory pressure. OBC-visible retained text atlas and richer resources remain the</p>
-<p>  next performance step.</p>
+<p>  memory pressure. The view exposes frame metrics for rendered frame count, CPU</p>
+<p>  encode time, target frame budget, geometry vertex count, and text-run count so</p>
+<p>  host apps and verifiers can observe pacing cost. OBC-visible retained text atlas</p>
+<p>  and richer resources remain the next performance step.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>Host helpers can enqueue frame-tick events for display-paced game loops.</li>
@@ -271,7 +273,7 @@
 <li>frame byte budget rejection and op-count cap rejection;</li>
 <li>latest-frame replacement and clear semantics;</li>
 <li>event queue depth and ordering;</li>
-<li>60/90/120 Hz host pacing smoke in the iOS SDK or Note app;</li>
+<li>60/90/120 Hz host pacing and frame-metrics smoke in the iOS SDK or Note app;</li>
 <li>large text/geometry frames that stay within budget and render without JSON;</li>
 <li>retained resource upload/update/destroy smoke;</li>
 <li>low-latency input ordering smoke across multiple pointer events;</li>
@@ -308,6 +310,10 @@
 <li>Done: add compact coalesced <code>OGE0</code> <code>frame_tick</code> events and OBC decoding so</li>
 </ol>
 <p>   display-paced loops can consume host timing through the virtual event stream.</p>
+<ol>
+<li>Done: expose SDK-side Metal frame metrics for frame count, CPU encode time,</li>
+</ol>
+<p>   target budget, geometry vertices, and text-run count.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>

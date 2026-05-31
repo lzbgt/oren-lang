@@ -51,9 +51,18 @@ static uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
 
 static uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
     return (uint32_t)p[0] |
-        ((uint32_t)p[1] << 8) |
-        ((uint32_t)p[2] << 16) |
-        ((uint32_t)p[3] << 24);
+           ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
+}
+
+static uint64_t OrenAVMMetalNowNs(void) {
+    return (uint64_t)llround(CACurrentMediaTime() * 1000000000.0);
+}
+
+static uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli) {
+    uint64_t effectiveHzMilli = hzMilli == 0 ? 60000ull : (uint64_t)hzMilli;
+    return 1000000000000ull / effectiveHzMilli;
 }
 
 static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* message) {
@@ -225,6 +234,11 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic) uint32_t orenFrameTickSequence;
 @property(nonatomic) uint64_t orenLastFrameTickNs;
+@property(nonatomic, readwrite) uint64_t renderedFrameCount;
+@property(nonatomic, readwrite) uint64_t lastFrameCPUNs;
+@property(nonatomic, readwrite) uint64_t lastFrameTargetBudgetNs;
+@property(nonatomic, readwrite) uint32_t lastFrameVertexCount;
+@property(nonatomic, readwrite) uint32_t lastFrameTextRunCount;
 @end
 
 @implementation OrenAVMMetalView
@@ -261,6 +275,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
+    self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     [self orenApplyFrameRate];
     if (self.device) {
         self.orenCommandQueue = [self.device newCommandQueue];
@@ -271,6 +286,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 
 - (void)setTargetHzMilli:(uint32_t)targetHzMilli {
     _targetHzMilli = targetHzMilli;
+    self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(targetHzMilli);
     [self orenApplyFrameRate];
 }
 
@@ -343,9 +359,17 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.orenTextCachePixels = 0;
 }
 
+- (void)resetFrameMetrics {
+    self.renderedFrameCount = 0;
+    self.lastFrameCPUNs = 0;
+    self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
+    self.lastFrameVertexCount = 0;
+    self.lastFrameTextRunCount = 0;
+}
+
 - (void)orenEmitFrameTick {
     if (!self.runtime) return;
-    uint64_t nowNs = (uint64_t)llround(CACurrentMediaTime() * 1000000000.0);
+    uint64_t nowNs = OrenAVMMetalNowNs();
     uint64_t deltaNs = self.orenLastFrameTickNs == 0 ? 0 : nowNs - self.orenLastFrameTickNs;
     self.orenLastFrameTickNs = nowNs;
     self.orenFrameTickSequence += 1u;
@@ -617,6 +641,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 - (void)drawInMTKView:(MTKView*)view {
     (void)view;
     if (!self.device || !self.orenCommandQueue) return;
+    uint64_t cpuStartNs = OrenAVMMetalNowNs();
     (void)[self publishScreenStateWithError:nil];
     [self orenEmitFrameTick];
     (void)[self reloadFrameWithError:nil];
@@ -630,12 +655,16 @@ static NSData* OrenAVMMetalTextQuad(float x,
     NSMutableData* vertices = [self orenVerticesForFrame:self.frameData
                                               clearColor:&clearColor
                                                 textRuns:textRuns];
+    self.lastFrameVertexCount = (uint32_t)(vertices.length / sizeof(OrenAVMMetalVertex));
+    self.lastFrameTextRunCount = (uint32_t)textRuns.count;
     pass.colorAttachments[0].clearColor = clearColor;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
 
     id<MTLCommandBuffer> commandBuffer = [self.orenCommandQueue commandBuffer];
+    if (!commandBuffer) return;
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+    if (!encoder) return;
     if (encoder && self.orenPipelineState && vertices.length > 0) {
         [encoder setRenderPipelineState:self.orenPipelineState];
         [encoder setVertexBytes:vertices.bytes length:vertices.length atIndex:0];
@@ -657,6 +686,9 @@ static NSData* OrenAVMMetalTextQuad(float x,
     [encoder endEncoding];
     [commandBuffer presentDrawable:drawable];
     [commandBuffer commit];
+    self.renderedFrameCount += 1u;
+    self.lastFrameCPUNs = OrenAVMMetalNowNs() - cpuStartNs;
+    self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
 }
 
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {

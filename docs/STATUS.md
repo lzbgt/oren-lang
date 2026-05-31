@@ -274,14 +274,16 @@ Facts from the 2026-05-28 implementation pass:
   on memory pressure. The UI input stream now also carries validated `frame_tick`
   records so OBC game loops can receive host display timing through the same virtual
   event path instead of polling raw platform clocks. Frame ticks are coalesced so
-  stale timing records cannot fill the input FIFO and starve real input;
-  OBC-visible retained text atlas resources remain the next performance step.
+  stale timing records cannot fill the input FIFO and starve real input. The Metal
+  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
+  target frame budget, geometry vertex count, and text-run count; OBC-visible
+  retained text atlas resources remain the next performance step.
   Bidirectional UI is a hard requirement for
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and
   rendering devices. Remaining game-grade work is retained resources, text atlas/
   sprite/mesh records, multitouch/gamepad/motion input, IME/composition helpers,
-  frame timing budgets, and richer 2D/3D command sets. The next GUI contract is
+  measured frame-budget gates, and richer 2D/3D command sets. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in

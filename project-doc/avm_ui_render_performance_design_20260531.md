@@ -79,8 +79,10 @@ Implemented as of 2026-05-31:
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels; host apps can clear the cache on
-  memory pressure. OBC-visible retained text atlas and richer resources remain the
-  next performance step.
+  memory pressure. The view exposes frame metrics for rendered frame count, CPU
+  encode time, target frame budget, geometry vertex count, and text-run count so
+  host apps and verifiers can observe pacing cost. OBC-visible retained text atlas
+  and richer resources remain the next performance step.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - Host helpers can enqueue frame-tick events for display-paced game loops.
 - Host helpers can publish persistent screen/media state and can enqueue
@@ -220,7 +222,7 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 2. frame byte budget rejection and op-count cap rejection;
 3. latest-frame replacement and clear semantics;
 4. event queue depth and ordering;
-5. 60/90/120 Hz host pacing smoke in the iOS SDK or Note app;
+5. 60/90/120 Hz host pacing and frame-metrics smoke in the iOS SDK or Note app;
 6. large text/geometry frames that stay within budget and render without JSON;
 7. retained resource upload/update/destroy smoke;
 8. low-latency input ordering smoke across multiple pointer events;
@@ -244,8 +246,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
    state, and target-refresh pacing through `MTKView.preferredFramesPerSecond`.
 7. Done: add compact coalesced `OGE0` `frame_tick` events and OBC decoding so
    display-paced loops can consume host timing through the virtual event stream.
-8. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
-9. Add retained resources, batching, and resource lifetime records.
-10. Add text atlas/sprite/mesh rendering on the Metal path.
-11. Add richer 2D and 3D command sets.
-12. Add game/app package smoke in the Note host or iOS SDK harness.
+8. Done: expose SDK-side Metal frame metrics for frame count, CPU encode time,
+   target budget, geometry vertices, and text-run count.
+9. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
+10. Add retained resources, batching, and resource lifetime records.
+11. Add text atlas/sprite/mesh rendering on the Metal path.
+12. Add richer 2D and 3D command sets.
+13. Add game/app package smoke in the Note host or iOS SDK harness.

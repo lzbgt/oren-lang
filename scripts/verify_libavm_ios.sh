@@ -1037,9 +1037,13 @@ int main(void) {
         metalView.targetHzMilli = 120000;
         metalView.mediaFlags = 5;
         if (metalView.preferredFramesPerSecond != 120) return 129;
+        if (metalView.lastFrameTargetBudgetNs != 8333333ull) return 131;
         metalView.targetHzMilli = 90000;
         if (metalView.preferredFramesPerSecond != 90) return 130;
+        if (metalView.lastFrameTargetBudgetNs != 11111111ull) return 132;
         metalView.targetHzMilli = 120000;
+        [metalView resetFrameMetrics];
+        if (metalView.renderedFrameCount != 0 || metalView.lastFrameCPUNs != 0) return 133;
         [metalView clearTextTextureCache];
         if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif
