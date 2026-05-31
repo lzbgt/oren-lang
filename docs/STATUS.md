@@ -115,7 +115,8 @@ Facts from the 2026-05-28 implementation pass:
 - The first `store.hubstack.cn` Go service slice is implemented in
   `cmd/obc-store-server` and `internal/obcstore`. It supports admin-authenticated
   publisher/package/release publish, public list/search/index/download endpoints,
-  asset serving, yanking, and dynamic `index.json.sig` generation from an external
+  browser browse/detail/operator pages, asset serving, yanking, and dynamic
+  `index.json.sig` generation from an external
   P-256 key path. Write endpoints now accept a deploy-safe admin bearer token
   verified by external `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`, while Basic Auth
   remains for local bring-up. Publisher package/version/release writes also

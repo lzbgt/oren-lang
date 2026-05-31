@@ -112,15 +112,16 @@ This file is the concise task view. Detailed implementation status lives in
      release/discovery/download pages backed by the same signed index/package
      schema. The first Go service slice now exists as `cmd/obc-store-server` /
      `internal/obcstore`, with publisher/package/release publish, list/search,
-     signed index, download, and yank APIs. Write endpoints now accept an
+     signed index, browser browse/detail/operator pages, download, and yank APIs.
+     Write endpoints now accept an
      external-hash bearer token for deployment automation, while Basic Auth is
      retained for local bring-up. Publisher package/version/release writes now
      accept publisher-scoped bearer tokens limited to that publisher id, with
      JSON APIs for token rotation and revocation.
      `make verify-libavm-ios` starts the Go service, publishes a signed package
      through the HTTP API with publisher-scoped auth, and proves iOS SDK
-     install/run from that service. Live deployment and operator/browser UX
-     remain.
+     install/run from that service. Live deployment and richer operator/browser
+     UX remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:

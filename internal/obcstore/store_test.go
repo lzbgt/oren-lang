@@ -93,6 +93,19 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("bad manifest path=%q", manifestPath)
 	}
 
+	home := string(rawGet(t, ts, "/"))
+	if !strings.Contains(home, "Plot Demo") || !strings.Contains(home, "/packages/oren-labs/plot-demo") {
+		t.Fatalf("home page missing package: %s", home)
+	}
+	detail := string(rawGet(t, ts, "/packages/oren-labs/plot-demo"))
+	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") {
+		t.Fatalf("detail page missing release links: %s", detail)
+	}
+	ops := string(rawGet(t, ts, "/ops"))
+	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") {
+		t.Fatalf("ops page missing operator endpoints: %s", ops)
+	}
+
 	search := getJSON[map[string]any](t, ts, "/api/v0/packages?query=plot&capability=GFX")
 	found := search["packages"].([]any)
 	if len(found) != 1 {

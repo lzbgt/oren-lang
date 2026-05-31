@@ -90,6 +90,10 @@ Implemented in this repo:
 - Public endpoints expose health, package list/search, package/version metadata,
   `index.json`, package manifests, `program.obc`, assets, and hash-addressed
   artifact lookup.
+- Browser endpoints expose a server-rendered package store surface: `/` for
+  search/browse, `/packages/{publisher}/{name}` for release download links, and
+  `/ops` for operator API/token lifecycle reference. The machine APIs remain the
+  source of truth.
 - `index.json.sig` is generated dynamically when the service is configured with
   `--index-signing-key` or `OBC_STORE_INDEX_SIGN_KEY_PEM`, using P-256
   SHA-256 DER signatures over the exact stable `index.json` bytes.
@@ -103,7 +107,8 @@ Implemented in this repo:
 Remaining service work before deployment:
 
 - signed index rotation/key-id publication beyond the current single-key signer;
-- browser/operator UX for token lifecycle beyond the current JSON API;
+- richer browser/operator UX beyond the current browse/detail/operator reference
+  pages;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
@@ -144,6 +149,9 @@ All public machine APIs should be stable JSON over HTTPS.
 ### Store Metadata
 
 ```http
+GET /
+GET /packages/{publisher}/{name}
+GET /ops
 GET /api/v0/health
 GET /api/v0/trust/bundle.json
 GET /api/v0/index.json
