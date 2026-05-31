@@ -37,6 +37,14 @@ static NSData* OrenAVMPackageDecodeHex(NSString* hex) {
     return out;
 }
 
+static NSData* OrenAVMPackageDecodeP256PublicKey(NSString* b64) {
+    if (![b64 isKindOfClass:[NSString class]] || b64.length == 0) return nil;
+    NSData* data = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
+    const uint8_t* bytes = data.bytes;
+    if (data.length != 65u || bytes[0] != 4u) return nil;
+    return data;
+}
+
 static BOOL OrenAVMPackageVerifyP256Signature(NSData* publicKeyX963, NSData* message, NSData* signatureDER) {
     if (publicKeyX963.length != 65u || signatureDER.length == 0 || message.length == 0) return NO;
     NSDictionary* attrs = @{
@@ -60,6 +68,116 @@ static BOOL OrenAVMPackageVerifyP256Signature(NSData* publicKeyX963, NSData* mes
     CFRelease(key);
     return ok;
 }
+
+@interface OrenAVMOBCTrustBundle ()
+
+- (instancetype)initWithStorePublicKeys:(NSDictionary<NSString*, NSData*>*)storePublicKeys
+                    publisherPublicKeys:(NSDictionary<NSString*, NSData*>*)publisherPublicKeys
+                      defaultStoreKeyID:(NSString*)defaultStoreKeyID
+                  defaultStorePublicKey:(NSData*)defaultStorePublicKey NS_DESIGNATED_INITIALIZER;
+
+@end
+
+@implementation OrenAVMOBCTrustBundle
+
+- (instancetype)initWithStorePublicKeys:(NSDictionary<NSString*, NSData*>*)storePublicKeys
+                    publisherPublicKeys:(NSDictionary<NSString*, NSData*>*)publisherPublicKeys
+                      defaultStoreKeyID:(NSString*)defaultStoreKeyID
+                  defaultStorePublicKey:(NSData*)defaultStorePublicKey {
+    self = [super init];
+    if (self) {
+        _storePublicKeys = [storePublicKeys copy];
+        _publisherPublicKeys = [publisherPublicKeys copy];
+        _defaultStoreKeyID = [defaultStoreKeyID copy];
+        _defaultStorePublicKey = [defaultStorePublicKey copy];
+    }
+    return self;
+}
+
+- (instancetype)init {
+    return [self initWithStorePublicKeys:@{}
+                     publisherPublicKeys:@{}
+                       defaultStoreKeyID:@""
+                   defaultStorePublicKey:[NSData data]];
+}
+
++ (instancetype)loadTrustBundleAtURL:(NSURL*)url error:(NSError**)error {
+    if (!url.isFileURL) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle URL must be a file URL");
+        return nil;
+    }
+    NSData* data = [NSData dataWithContentsOfURL:url options:0 error:error];
+    if (!data) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle must be a JSON object");
+        return nil;
+    }
+    NSDictionary<NSString*, id>* bundle = (NSDictionary<NSString*, id>*)json;
+    if (![OrenAVMPackageString(bundle, @"schema") isEqualToString:@"oren.obc.trust.v0"]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle schema is unsupported");
+        return nil;
+    }
+    id storeKeysRaw = bundle[@"store_keys"];
+    if (![storeKeysRaw isKindOfClass:[NSArray class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle store_keys must be an array");
+        return nil;
+    }
+    NSMutableDictionary<NSString*, NSData*>* storeKeys = [NSMutableDictionary dictionary];
+    NSString* defaultStoreKeyID = nil;
+    NSData* defaultStorePublicKey = nil;
+    for (id entryRaw in (NSArray*)storeKeysRaw) {
+        if (![entryRaw isKindOfClass:[NSDictionary class]]) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle store key entries must be objects");
+            return nil;
+        }
+        NSDictionary<NSString*, id>* entry = (NSDictionary<NSString*, id>*)entryRaw;
+        NSString* keyID = OrenAVMPackageString(entry, @"id");
+        NSString* alg = OrenAVMPackageString(entry, @"alg");
+        NSData* publicKey = OrenAVMPackageDecodeP256PublicKey(OrenAVMPackageString(entry, @"public_key_x963_b64"));
+        if (keyID.length == 0 || ![alg isEqualToString:@"p256-sha256-der"] || !publicKey) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle store key entry is invalid");
+            return nil;
+        }
+        storeKeys[keyID] = publicKey;
+        if (!defaultStoreKeyID) {
+            defaultStoreKeyID = keyID;
+            defaultStorePublicKey = publicKey;
+        }
+    }
+    if (!defaultStoreKeyID || !defaultStorePublicKey) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle must include at least one store key");
+        return nil;
+    }
+    id publisherKeysRaw = bundle[@"publisher_keys"];
+    if (![publisherKeysRaw isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle publisher_keys must be an object");
+        return nil;
+    }
+    NSMutableDictionary<NSString*, NSData*>* publisherKeys = [NSMutableDictionary dictionary];
+    for (NSString* publisherID in (NSDictionary*)publisherKeysRaw) {
+        id entryRaw = ((NSDictionary*)publisherKeysRaw)[publisherID];
+        if (![publisherID isKindOfClass:[NSString class]] || publisherID.length == 0 ||
+            ![entryRaw isKindOfClass:[NSDictionary class]]) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle publisher key entry is invalid");
+            return nil;
+        }
+        NSDictionary<NSString*, id>* entry = (NSDictionary<NSString*, id>*)entryRaw;
+        NSString* alg = OrenAVMPackageString(entry, @"alg");
+        NSData* publicKey = OrenAVMPackageDecodeP256PublicKey(OrenAVMPackageString(entry, @"public_key_x963_b64"));
+        if (![alg isEqualToString:@"p256-sha256-der"] || !publicKey) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle publisher key entry is invalid");
+            return nil;
+        }
+        publisherKeys[publisherID] = publicKey;
+    }
+    return [[OrenAVMOBCTrustBundle alloc] initWithStorePublicKeys:storeKeys
+                                             publisherPublicKeys:publisherKeys
+                                               defaultStoreKeyID:defaultStoreKeyID
+                                           defaultStorePublicKey:defaultStorePublicKey];
+}
+
+@end
 
 static BOOL OrenAVMPackagePathIsSafe(NSString* path) {
     if (path.length == 0 || [path hasPrefix:@"/"] || [path containsString:@"\0"]) return NO;
@@ -298,6 +416,50 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
                                     timeoutSeconds:timeoutSeconds
                              trustedIndexPublicKey:nil
                         trustedPublisherPublicKeys:trustedPublisherPublicKeys
+                                             error:error];
+}
+
+- (OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                           packageID:(NSString*)packageID
+                                             version:(NSString*)version
+                             destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                        allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                      timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                          trustBundle:(OrenAVMOBCTrustBundle*)trustBundle
+                                               error:(NSError**)error {
+    return [self downloadPackageFromSignedIndexURL:indexURL
+                                         packageID:packageID
+                                           version:version
+                           destinationDirectoryURL:destinationDirectoryURL
+                                      allowedHosts:allowedHosts
+                                    timeoutSeconds:timeoutSeconds
+                                       trustBundle:trustBundle
+                                     installPolicy:OrenAVMPackageInstallPolicyReplace
+                                             error:error];
+}
+
+- (OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                           packageID:(NSString*)packageID
+                                             version:(NSString*)version
+                             destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                        allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                      timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                         trustBundle:(OrenAVMOBCTrustBundle*)trustBundle
+                                       installPolicy:(OrenAVMPackageInstallPolicy)installPolicy
+                                               error:(NSError**)error {
+    if (!trustBundle || trustBundle.defaultStorePublicKey.length == 0) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC trust bundle is required");
+        return nil;
+    }
+    return [self downloadPackageFromSignedIndexURL:indexURL
+                                         packageID:packageID
+                                           version:version
+                           destinationDirectoryURL:destinationDirectoryURL
+                                      allowedHosts:allowedHosts
+                                    timeoutSeconds:timeoutSeconds
+                             trustedIndexPublicKey:trustBundle.defaultStorePublicKey
+                        trustedPublisherPublicKeys:trustBundle.publisherPublicKeys
+                                     installPolicy:installPolicy
                                              error:error];
 }
 

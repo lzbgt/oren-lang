@@ -124,7 +124,8 @@ This file is the concise task view. Detailed implementation status lives in
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys
-     remain outside this repo.
+     remain outside this repo. `OrenAVMOBCTrustBundle` now loads the generated
+     JSON and feeds signed-index package downloads directly.
 
 2. **AVM full-suite manifest runner**
    - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`

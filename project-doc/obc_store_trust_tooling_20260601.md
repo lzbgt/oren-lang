@@ -40,9 +40,14 @@ They should read a public trust bundle or a local config path, for example:
 OREN_OBC_TRUST_BUNDLE=../oren-ca/trust/obc_store_trust.json
 ```
 
-The Note app can then load the store public key as the `trustedIndexPublicKey` and
-publisher public keys as `trustedPublisherPublicKeys` when calling
-`OrenAVMPackageStore`.
+The iOS SDK now exposes `OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)` for
+this file. Host apps can pass the loaded bundle directly to
+`OrenAVMPackageStore.downloadPackageFromSignedIndexURL(... trustBundle: ...)`
+instead of hand-parsing key bytes.
+
+Manual consumption is still possible: use `defaultStorePublicKey` as
+`trustedIndexPublicKey` and `publisherPublicKeys` as
+`trustedPublisherPublicKeys`.
 
 ## Policy
 

@@ -60,9 +60,13 @@
 <p>Sibling host apps such as <code>../note</code> should not infer trust material from this repo.</p>
 <p>They should read a public trust bundle or a local config path, for example:</p>
 <pre><code>OREN_OBC_TRUST_BUNDLE=../oren-ca/trust/obc_store_trust.json</code></pre>
-<p>The Note app can then load the store public key as the <code>trustedIndexPublicKey</code> and</p>
-<p>publisher public keys as <code>trustedPublisherPublicKeys</code> when calling</p>
-<p><code>OrenAVMPackageStore</code>.</p>
+<p>The iOS SDK now exposes <code>OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)</code> for</p>
+<p>this file. Host apps can pass the loaded bundle directly to</p>
+<p><code>OrenAVMPackageStore.downloadPackageFromSignedIndexURL(... trustBundle: ...)</code></p>
+<p>instead of hand-parsing key bytes.</p>
+<p>Manual consumption is still possible: use <code>defaultStorePublicKey</code> as</p>
+<p><code>trustedIndexPublicKey</code> and <code>publisherPublicKeys</code> as</p>
+<p><code>trustedPublisherPublicKeys</code>.</p>
 <h2 id="policy">Policy</h2>
 <p>Signature enforcement remains host policy. A host app may require trusted index and</p>
 <p>publisher signatures by default, or expose an explicit user-confirmed path for</p>

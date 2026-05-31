@@ -636,6 +636,7 @@ int main(void) {
         NSString* storeIndexKeyB64 = env[@"OREN_AVM_SDK_STORE_INDEX_KEY_B64"];
         NSString* badStoreIndexKeyB64 = env[@"OREN_AVM_SDK_BAD_STORE_INDEX_KEY_B64"];
         NSString* packagePublisherKeyB64 = env[@"OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64"];
+        NSString* trustBundlePath = env[@"OREN_AVM_SDK_TRUST_BUNDLE_PATH"];
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
@@ -774,14 +775,20 @@ int main(void) {
             NSData* badIndexKey = [[NSData alloc] initWithBase64EncodedString:(badStoreIndexKeyB64 ?: @"") options:0];
             NSData* publisherKey = [[NSData alloc] initWithBase64EncodedString:(packagePublisherKeyB64 ?: @"") options:0];
             NSDictionary<NSString*, NSData*>* trustedKeys = publisherKey ? @{@"oren-labs": publisherKey} : nil;
+            OrenAVMOBCTrustBundle* trustBundle = trustBundlePath.length > 0
+                ? [OrenAVMOBCTrustBundle loadTrustBundleAtURL:[NSURL fileURLWithPath:trustBundlePath isDirectory:NO] error:&error]
+                : nil;
+            if (!trustBundle) return 112;
+            if (![trustBundle.defaultStoreKeyID isEqual:@"oren-store-dev"]) return 113;
+            if (![trustBundle.defaultStorePublicKey isEqualToData:indexKey]) return 114;
+            if (![trustBundle.publisherPublicKeys[@"oren-labs"] isEqualToData:publisherKey]) return 115;
             OrenAVMPackage* package = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
                                                                       packageID:@"oren-labs/sdk-package-remote"
                                                                         version:@"0.1.0"
                                                         destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
                                                                    allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
                                                                  timeoutSeconds:5.0
-                                                          trustedIndexPublicKey:indexKey
-                                                     trustedPublisherPublicKeys:trustedKeys
+                                                                   trustBundle:trustBundle
                                                                           error:&error];
             if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 94;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
@@ -1296,6 +1303,26 @@ REMOTE_SIGNATURE_V2_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest_v2.sig" | tr 
 REMOTE_BAD_ASSET_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_bad_asset_manifest.sig" | tr -d '\n')"
 PACKAGE_PUBLISHER_KEY_B64="$(extract_p256_pubkey_b64 "$PACKAGE_SIGN_KEY")"
 BAD_STORE_INDEX_KEY_B64="$(extract_p256_pubkey_b64 "$BAD_STORE_INDEX_KEY")"
+TRUST_BUNDLE_JSON="$TMP_DIR/obc_store_trust.json"
+cat > "$TRUST_BUNDLE_JSON" <<JSON
+{
+  "schema": "oren.obc.trust.v0",
+  "generated_at": "2026-06-01T00:00:00Z",
+  "store_keys": [
+    {
+      "id": "oren-store-dev",
+      "alg": "p256-sha256-der",
+      "public_key_x963_b64": "$PACKAGE_PUBLISHER_KEY_B64"
+    }
+  ],
+  "publisher_keys": {
+    "oren-labs": {
+      "alg": "p256-sha256-der",
+      "public_key_x963_b64": "$PACKAGE_PUBLISHER_KEY_B64"
+    }
+  }
+}
+JSON
 cat > "$REMOTE_STORE_DIR/index.json" <<JSON
 {
   "schema": "oren.obc.store.index.v0",
@@ -1536,6 +1563,7 @@ OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_packages" \
 OREN_AVM_SDK_STORE_INDEX_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \
 OREN_AVM_SDK_BAD_STORE_INDEX_KEY_B64="$BAD_STORE_INDEX_KEY_B64" \
 OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \
+OREN_AVM_SDK_TRUST_BUNDLE_PATH="$TRUST_BUNDLE_JSON" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \

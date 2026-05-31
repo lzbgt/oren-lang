@@ -156,6 +156,9 @@
 <p>  and <code>make issue-obc-store-trust</code>. It writes private P-256 keys outside the repo</p>
 <p>  by default under <code>../oren-ca/private</code>, exports SDK-ready public key bytes and</p>
 <p>  <code>trust/obc_store_trust.json</code>, and self-checks signing/verification.</p>
+<p>  <code>OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)</code> now loads that JSON into</p>
+<p>  validated SDK key material, and the package store has signed-index overloads</p>
+<p>  that accept the bundle directly.</p>
 <ul>
 <li>The sibling Note repo handoff/verifier has been updated to consume this SDK</li>
 </ul>

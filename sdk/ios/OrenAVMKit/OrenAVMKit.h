@@ -138,6 +138,18 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @end
 
+@interface OrenAVMOBCTrustBundle : NSObject
+
+@property(nonatomic, readonly, copy) NSDictionary<NSString*, NSData*>* storePublicKeys;
+@property(nonatomic, readonly, copy) NSDictionary<NSString*, NSData*>* publisherPublicKeys;
+@property(nonatomic, readonly, copy) NSString* defaultStoreKeyID;
+@property(nonatomic, readonly, copy) NSData* defaultStorePublicKey;
+
++ (nullable instancetype)loadTrustBundleAtURL:(NSURL*)url
+                                        error:(NSError* _Nullable* _Nullable)error;
+
+@end
+
 @interface OrenAVMPackageStore : NSObject
 
 - (nullable OrenAVMPackage*)loadPackageAtDirectoryURL:(NSURL*)directoryURL
@@ -157,6 +169,23 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                          timeoutSeconds:(NSTimeInterval)timeoutSeconds
                              trustedPublisherPublicKeys:(nullable NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
                                                   error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                                    packageID:(NSString*)packageID
+                                                      version:(nullable NSString*)version
+                                      destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                                 allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                               timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                  trustBundle:(OrenAVMOBCTrustBundle*)trustBundle
+                                                        error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                                    packageID:(NSString*)packageID
+                                                      version:(nullable NSString*)version
+                                      destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                                 allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                               timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                  trustBundle:(OrenAVMOBCTrustBundle*)trustBundle
+                                                installPolicy:(OrenAVMPackageInstallPolicy)installPolicy
+                                                        error:(NSError* _Nullable* _Nullable)error;
 - (nullable OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
                                                     packageID:(NSString*)packageID
                                                       version:(nullable NSString*)version

@@ -301,6 +301,11 @@ Public OBC store helper.
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting
   users run non-store software while owning the risk.
+- `OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)` loads the external
+  `obc_store_trust.json` generated under `../oren-ca/trust/`, validates the
+  `oren.obc.trust.v0` schema and P-256 X9.63 public keys, and feeds signed-index
+  package downloads through `trustBundle:` overloads. This keeps trust parsing in
+  the SDK instead of duplicating it in every host app.
 - The sibling Note repo now has a handoff/verifier update at commit `35995ee`
   that checks the staged SDK for signed-index package downloads, install policies,
   trusted key inputs, and the external trust issue tool. Further Note app

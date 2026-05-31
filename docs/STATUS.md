@@ -108,6 +108,9 @@ Facts from the 2026-05-28 implementation pass:
   and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
   by default under `../oren-ca/private`, exports SDK-ready public key bytes and
   `trust/obc_store_trust.json`, and self-checks signing/verification.
+  `OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)` now loads that JSON into
+  validated SDK key material, and the package store has signed-index overloads
+  that accept the bundle directly.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key
