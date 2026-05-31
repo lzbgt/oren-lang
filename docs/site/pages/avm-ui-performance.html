@@ -112,12 +112,13 @@
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
-<p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, and <code>fill_triangle</code>.</p>
+<p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
+<p>  <code>image_rgba</code>, and <code>draw_image</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry plus byte-native text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws, plus byte-native text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -126,8 +127,9 @@
 <p>  encode time, target frame budget, budget-usage permille, over-budget status,</p>
 <p>  geometry vertex count, and text-run count so host apps and verifiers can observe</p>
 <p>  and gate pacing cost. <code>text_bytes</code> lets OBC publish UTF-8 bytes directly on the</p>
-<p>  frame hot path; OBC-visible retained text atlas and richer resources remain the</p>
-<p>  next performance step.</p>
+<p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code> is the first OBC-visible retained</p>
+<p>  sprite resource path; retained destruction/lifetime, atlas batching, text atlas,</p>
+<p>  and richer resources remain the next performance steps.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
@@ -224,6 +226,10 @@
 <ul>
 <li>font and text-atlas resources for repeated labels;</li>
 <li>image/texture handles;</li>
+<li>first retained image records: <code>image_rgba {id,w,h,data}</code> uploads RGBA bytes and</li>
+</ul>
+<p>  <code>draw_image {id,x,y,w,h}</code> draws the retained resource;</p>
+<ul>
 <li>path/shape handles;</li>
 <li>vertex/index buffers for plots and meshes;</li>
 <li>transform, clip, layer, and canvas records;</li>
@@ -338,7 +344,16 @@
 <p>    verifier coverage for 60/90/120 Hz budget math.</p>
 <ol>
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
-<li>Add retained resources, batching, and resource lifetime records.</li>
+<li>Done: add first retained RGBA image resource records (<code>image_rgba</code>,</li>
+</ol>
+<p>    <code>draw_image</code>) across validation, binary frames, AVM protocol checks,</p>
+<p>    deterministic raster, CoreGraphics fallback, Metal texture cache, and iOS</p>
+<p>    verifier coverage.</p>
+<ol>
+<li>Add retained resource destruction/lifetime records, sub-rect atlas draws, and</li>
+</ol>
+<p>    explicit resource budgets.</p>
+<ol>
 <li>Add text atlas/sprite/mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
 <li>Add game/app package smoke in the Note host or iOS SDK harness.</li>

@@ -126,6 +126,32 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                             blue:(CGFloat)rgba[2] / 255.0
                            alpha:(CGFloat)rgba[3] / 255.0];
 }
+
+static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount) {
+    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
+    if (!rgba || width == 0 || height == 0 || expected != (uint64_t)byteCount) return nil;
+    NSData* imageData = [NSData dataWithBytes:rgba length:(NSUInteger)byteCount];
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)imageData);
+    if (!provider) return nil;
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGImageRef image = CGImageCreate((size_t)width,
+                                     (size_t)height,
+                                     8,
+                                     32,
+                                     (size_t)width * 4u,
+                                     colorSpace,
+                                     kCGBitmapByteOrder32Big | kCGImageAlphaLast,
+                                     provider,
+                                     NULL,
+                                     false,
+                                     kCGRenderingIntentDefault);
+    CGColorSpaceRelease(colorSpace);
+    CGDataProviderRelease(provider);
+    if (!image) return nil;
+    UIImage* out = [UIImage imageWithCGImage:image];
+    CGImageRelease(image);
+    return out;
+}
 #endif
 
 @implementation OrenAVMRuntimeConfig
@@ -208,6 +234,7 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 @interface OrenAVMGraphicsView ()
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
 @end
 
 @implementation OrenAVMGraphicsView
@@ -218,6 +245,7 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     self.multipleTouchEnabled = YES;
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
+    if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
 }
 
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime {
@@ -446,6 +474,23 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                     [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
                 }
             }
+        } else if (opcode == 64 && payloadLen >= 16) {
+            uint32_t imageID = OrenAVMGfxReadU32LE(payload);
+            uint32_t iw = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t ih = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t imageLen = OrenAVMGfxReadU32LE(payload + 12);
+            if (imageLen == (uint32_t)payloadLen - 16u) {
+                UIImage* image = OrenAVMGfxImageRGBA(payload + 16, iw, ih, imageLen);
+                if (image) self.orenImages[@(imageID)] = image;
+            }
+        } else if (opcode == 65 && payloadLen == 20) {
+            uint32_t imageID = OrenAVMGfxReadU32LE(payload);
+            uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 16);
+            UIImage* image = self.orenImages[@(imageID)];
+            if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
         }
 
         off += payloadLen;

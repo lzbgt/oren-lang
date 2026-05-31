@@ -21,6 +21,8 @@
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
 //     purely as a deterministic marker for tests.
+// - {"op":"image_rgba","id":int,"w":int,"h":int,"data":bytes}
+// - {"op":"draw_image","id":int,"x":int,"y":int,"w":int,"h":int}
 
 import ui_cmds "std:ui/commands"
 import ui_color "std:ui/color"
@@ -182,6 +184,7 @@ fn rasterize(cmds, w, h, opts) {
 
     if cmds == nil { return buf }
 
+    var images = {}
     var ci = 0
     while ci < oren_list_len(cmds) {
         var opm = cmds[ci]
@@ -246,6 +249,34 @@ fn rasterize(cmds, w, h, opts) {
             while bj < bn {
                 _set_px_rgba(buf, w, h, bx + bj, by, c3["r"], c3["g"], c3["b"], c3["a"])
                 bj = bj + 1
+            }
+        } else if op == "image_rgba" {
+            images[oren_int_to_string(opm["id"])] = opm
+        } else if op == "draw_image" {
+            var image = images[oren_int_to_string(opm["id"])]
+            if image == nil { return oren_err(4, "rasterize: draw_image missing image") }
+            var data = image["data"]
+            var sx_w = image["w"]
+            var sx_h = image["h"]
+            var dx = opm["x"]
+            var dy = opm["y"]
+            var dw = opm["w"]
+            var dh = opm["h"]
+            var yy2 = 0
+            while yy2 < dh {
+                var xx2 = 0
+                while xx2 < dw {
+                    var sx = (xx2 * sx_w) / dw
+                    var sy = (yy2 * sx_h) / dh
+                    var si = (sy * sx_w + sx) * 4
+                    _set_px_rgba(buf, w, h, dx + xx2, dy + yy2,
+                        bytes.try_get_u8(data, si),
+                        bytes.try_get_u8(data, si + 1),
+                        bytes.try_get_u8(data, si + 2),
+                        bytes.try_get_u8(data, si + 3))
+                    xx2 = xx2 + 1
+                }
+                yy2 = yy2 + 1
             }
         }
         ci = ci + 1

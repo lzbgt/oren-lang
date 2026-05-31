@@ -122,6 +122,24 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if by < 0 || by >= h || bx < 0 || bx + blen > w { return oren_err(4, "ui.validate: text_bytes out of bounds") }
             }
+        } else if op == "image_rgba" {
+            var iid = c["id"]; var iw = c["w"]; var ih = c["h"]; var idata = c["data"]
+            if _is_int(iid) == false || iid < 1 { return oren_err(4, "ui.validate: image_rgba invalid id") }
+            if _is_int(iw) == false || _is_int(ih) == false || iw < 1 || ih < 1 { return oren_err(4, "ui.validate: image_rgba invalid size") }
+            var ilen = bytes.try_len(idata)
+            if oren_is_err(ilen) { return oren_err(4, "ui.validate: image_rgba expects byte data") }
+            if ilen != iw * ih * 4 { return oren_err(4, "ui.validate: image_rgba data length mismatch") }
+            if ilen > 65519 { return oren_err(4, "ui.validate: image_rgba data too large") }
+        } else if op == "draw_image" {
+            var did = c["id"]; var dx = c["x"]; var dy = c["y"]; var dw = c["w"]; var dh = c["h"]
+            if _is_int(did) == false || did < 1 { return oren_err(4, "ui.validate: draw_image invalid id") }
+            if _is_int(dx) == false || _is_int(dy) == false || _is_int(dw) == false || _is_int(dh) == false {
+                return oren_err(4, "ui.validate: draw_image expects int x,y,w,h")
+            }
+            if dw < 1 || dh < 1 { return oren_err(4, "ui.validate: draw_image invalid size") }
+            if strict {
+                if dx < 0 || dy < 0 || dx + dw > w || dy + dh > h { return oren_err(4, "ui.validate: draw_image out of bounds") }
+            }
         } else {
             return oren_err(4, "ui.validate: unknown op")
         }

@@ -33,6 +33,14 @@ typedef struct {
 @implementation OrenAVMMetalTextRun
 @end
 
+@interface OrenAVMMetalImageRun : NSObject
+@property(nonatomic, strong) id<MTLTexture> texture;
+@property(nonatomic, strong) NSData* vertices;
+@end
+
+@implementation OrenAVMMetalImageRun
+@end
+
 @interface OrenAVMMetalTextCacheEntry : NSObject
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic) CGSize logicalSize;
@@ -249,6 +257,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong) NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
 @property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
 @property(nonatomic) NSUInteger orenTextCachePixels;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures;
 @property(nonatomic) uint32_t orenFrameTickSequence;
 @property(nonatomic) uint64_t orenLastFrameTickNs;
 @property(nonatomic, readwrite) uint64_t renderedFrameCount;
@@ -293,6 +302,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
+    if (!self.orenImageTextures) self.orenImageTextures = [NSMutableDictionary dictionary];
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
@@ -379,6 +389,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
     [self.orenTextCache removeAllObjects];
     [self.orenTextCacheOrder removeAllObjects];
     self.orenTextCachePixels = 0;
+}
+
+- (void)clearImageTextureCache {
+    [self.orenImageTextures removeAllObjects];
 }
 
 - (void)resetFrameMetrics {
@@ -616,9 +630,47 @@ static NSData* OrenAVMMetalTextQuad(float x,
     return run;
 }
 
+- (void)orenPutImageTextureWithID:(uint32_t)imageID
+                            width:(uint32_t)width
+                           height:(uint32_t)height
+                             rgba:(const uint8_t*)rgba
+                        byteCount:(uint32_t)byteCount {
+    if (!self.device || imageID == 0 || width == 0 || height == 0 || !rgba) return;
+    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
+    if (expected != (uint64_t)byteCount) return;
+    MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                          width:(NSUInteger)width
+                                                                                         height:(NSUInteger)height
+                                                                                      mipmapped:NO];
+    descriptor.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> texture = [self.device newTextureWithDescriptor:descriptor];
+    if (!texture) return;
+    [texture replaceRegion:MTLRegionMake2D(0, 0, (NSUInteger)width, (NSUInteger)height)
+               mipmapLevel:0
+                 withBytes:rgba
+               bytesPerRow:(NSUInteger)width * 4u];
+    self.orenImageTextures[@(imageID)] = texture;
+}
+
+- (OrenAVMMetalImageRun*)orenImageRunWithID:(uint32_t)imageID
+                                          x:(float)x
+                                          y:(float)y
+                                          w:(float)w
+                                          h:(float)h
+                               logicalWidth:(float)logicalWidth
+                              logicalHeight:(float)logicalHeight {
+    id<MTLTexture> texture = self.orenImageTextures[@(imageID)];
+    if (!texture || w <= 0.0f || h <= 0.0f) return nil;
+    OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
+    run.texture = texture;
+    run.vertices = OrenAVMMetalTextQuad(x, y, w, h, logicalWidth, logicalHeight);
+    return run;
+}
+
 - (NSMutableData*)orenVerticesForFrame:(NSData*)frame
                             clearColor:(MTLClearColor*)clearColor
-                              textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns {
+                              textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns
+                             imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>*)imageRuns {
     NSMutableData* vertices = [NSMutableData data];
     if (frame.length < 40) return vertices;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -706,6 +758,32 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                          logicalHeight:(float)logicalH];
                 if (run) [textRuns addObject:run];
             }
+        } else if (opcode == 64 && payloadLen >= 16) {
+            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
+            uint32_t iw = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t ih = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t imageLen = OrenAVMMetalReadU32LE(payload + 12);
+            if (imageLen == (uint32_t)payloadLen - 16u) {
+                [self orenPutImageTextureWithID:imageID
+                                          width:iw
+                                         height:ih
+                                           rgba:payload + 16
+                                      byteCount:imageLen];
+            }
+        } else if (opcode == 65 && payloadLen == 20) {
+            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
+            uint32_t x = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t w = OrenAVMMetalReadU32LE(payload + 12);
+            uint32_t h = OrenAVMMetalReadU32LE(payload + 16);
+            OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
+                                                               x:(float)x
+                                                               y:(float)y
+                                                               w:(float)w
+                                                               h:(float)h
+                                                    logicalWidth:(float)logicalW
+                                                   logicalHeight:(float)logicalH];
+            if (run) [imageRuns addObject:run];
         }
         off += payloadLen;
     }
@@ -726,9 +804,11 @@ static NSData* OrenAVMMetalTextQuad(float x,
 
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
     NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
+    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray array];
     NSMutableData* vertices = [self orenVerticesForFrame:self.frameData
                                               clearColor:&clearColor
-                                                textRuns:textRuns];
+                                                textRuns:textRuns
+                                               imageRuns:imageRuns];
     self.lastFrameVertexCount = (uint32_t)(vertices.length / sizeof(OrenAVMMetalVertex));
     self.lastFrameTextRunCount = (uint32_t)textRuns.count;
     pass.colorAttachments[0].clearColor = clearColor;
@@ -748,6 +828,14 @@ static NSData* OrenAVMMetalTextQuad(float x,
     }
     if (encoder && self.orenTextPipelineState) {
         [encoder setRenderPipelineState:self.orenTextPipelineState];
+        for (OrenAVMMetalImageRun* run in imageRuns) {
+            if (!run.texture || run.vertices.length == 0) continue;
+            [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
+            [encoder setFragmentTexture:run.texture atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                         vertexStart:0
+                         vertexCount:run.vertices.length / sizeof(OrenAVMMetalTextVertex)];
+        }
         for (OrenAVMMetalTextRun* run in textRuns) {
             if (!run.texture || run.vertices.length == 0) continue;
             [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];

@@ -65,6 +65,18 @@ fn main() {
     assert_true(oren_is_err(r5))
     assert_true(oren_err_code(r5) == 4)
 
+    var bad_image = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        64, 0, 20, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0,
+        255, 0, 0, 255
+    ])
+    var r6 = ui_avm.present_bytes(bad_image)
+    assert_true(oren_is_err(r6))
+    assert_true(oren_err_code(r6) == 4)
+
     exit(0)
 }
 

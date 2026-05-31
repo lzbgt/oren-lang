@@ -330,6 +330,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (instancetype)initWithCoder:(NSCoder*)coder NS_DESIGNATED_INITIALIZER;
 - (BOOL)reloadFrameWithError:(NSError* _Nullable* _Nullable)error;
 - (void)clearTextTextureCache;
+- (void)clearImageTextureCache;
 - (void)resetFrameMetrics;
 - (BOOL)frameCPUNsExceedsBudget:(uint64_t)cpuNs;
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind

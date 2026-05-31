@@ -96,6 +96,24 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangle payload");
                 return 0;
             }
+        } else if (opcode == 64u) {
+            if (payload_len < 16u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad image_rgba payload");
+                return 0;
+            }
+            uint32_t image_w = avm_gfx_u32le(payload + 4);
+            uint32_t image_h = avm_gfx_u32le(payload + 8);
+            uint32_t image_len = avm_gfx_u32le(payload + 12);
+            uint64_t expected_len = (uint64_t)image_w * (uint64_t)image_h * 4u;
+            if (image_w == 0u || image_h == 0u || image_len != (uint32_t)payload_len - 16u || expected_len != (uint64_t)image_len) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad image_rgba dimensions");
+                return 0;
+            }
+        } else if (opcode == 65u) {
+            if (payload_len != 20u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_image payload");
+                return 0;
+            }
         } else {
             avm_gfx_err(err, err_cap, "invalid OGF0 frame: unsupported opcode");
             return 0;

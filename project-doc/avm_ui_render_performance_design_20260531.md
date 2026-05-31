@@ -71,10 +71,11 @@ Implemented as of 2026-05-31:
   tick and cannot starve pointer/key/text events by filling the FIFO with stale
   timing records.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
-  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, and `fill_triangle`.
+  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
+  `image_rgba`, and `draw_image`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry plus byte-native text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry, retained RGBA image draws, plus byte-native text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -83,8 +84,9 @@ Implemented as of 2026-05-31:
   encode time, target frame budget, budget-usage permille, over-budget status,
   geometry vertex count, and text-run count so host apps and verifiers can observe
   and gate pacing cost. `text_bytes` lets OBC publish UTF-8 bytes directly on the
-  frame hot path; OBC-visible retained text atlas and richer resources remain the
-  next performance step.
+  frame hot path. `image_rgba`/`draw_image` is the first OBC-visible retained
+  sprite resource path; retained destruction/lifetime, atlas batching, text atlas,
+  and richer resources remain the next performance steps.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on
@@ -179,6 +181,8 @@ High-volume 2D and 3D need retained resources:
 
 - font and text-atlas resources for repeated labels;
 - image/texture handles;
+- first retained image records: `image_rgba {id,w,h,data}` uploads RGBA bytes and
+  `draw_image {id,x,y,w,h}` draws the retained resource;
 - path/shape handles;
 - vertex/index buffers for plots and meshes;
 - transform, clip, layer, and canvas records;
@@ -263,7 +267,12 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     configurable warning threshold, budget usage permille, over-budget status, and
     verifier coverage for 60/90/120 Hz budget math.
 12. Add Note/iOS display-link smoke for measured high-refresh pacing behavior.
-13. Add retained resources, batching, and resource lifetime records.
-14. Add text atlas/sprite/mesh rendering on the Metal path.
-15. Add richer 2D and 3D command sets.
-16. Add game/app package smoke in the Note host or iOS SDK harness.
+13. Done: add first retained RGBA image resource records (`image_rgba`,
+    `draw_image`) across validation, binary frames, AVM protocol checks,
+    deterministic raster, CoreGraphics fallback, Metal texture cache, and iOS
+    verifier coverage.
+14. Add retained resource destruction/lifetime records, sub-rect atlas draws, and
+    explicit resource budgets.
+15. Add text atlas/sprite/mesh rendering on the Metal path.
+16. Add richer 2D and 3D command sets.
+17. Add game/app package smoke in the Note host or iOS SDK harness.

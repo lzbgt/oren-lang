@@ -147,6 +147,27 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, tn2)
         return _append_bytes(out, tb2)
     }
+    if op == "image_rgba" {
+        var ib = c["data"]
+        var image_n = bytes.try_len(ib)
+        if oren_is_err(image_n) { return image_n }
+        if image_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: image_rgba too large") }
+        _push_op_header(out, 64, 16 + image_n)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        _push_u32_le(out, image_n)
+        return _append_bytes(out, ib)
+    }
+    if op == "draw_image" {
+        _push_op_header(out, 65, 20)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        return 0
+    }
     return oren_err(4, "ui.avm.frame_bytes: unsupported op")
 }
 
