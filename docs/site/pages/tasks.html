@@ -122,10 +122,12 @@
 <p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>
 <p>     <code>OrenAVMGraphicsView</code> renderer for the current <code>fill_rect</code>/<code>text</code>/</p>
 <p>     <code>stroke_line</code>/<code>circle</code> subset.</p>
-<p>     Remaining SDK work: compiler helper package, package store helper, and the</p>
-<p>     game-grade GUI path: display-link pacing, retained resource handles, budget</p>
-<p>     gates, low-latency input ordering, Metal/<code>MTKView</code>, richer drawing ops, and</p>
-<p>     richer IME/composition input helpers. The <code>OGF0</code> frame header now includes</p>
+<p>     Remaining SDK work: host-backed VNET session handles for high-performance</p>
+<p>     TCP/UDP/WebSocket-style networking without exposing raw sockets to OBC,</p>
+<p>     compiler helper package, package store helper, and the game-grade GUI path:</p>
+<p>     display-link pacing, retained resource handles, budget gates, low-latency</p>
+<p>     input ordering, Metal/<code>MTKView</code>, richer drawing ops, and richer</p>
+<p>     IME/composition input helpers. The <code>OGF0</code> frame header now includes</p>
 <p>     sequence/native-drawable/target-refresh metadata, and AVM validates <code>OGF0</code></p>
 <p>     frames plus <code>OGE0</code> host input events before accepting them. Curated gates now</p>
 <p>     cover malformed-frame rejection, op-count cap rejection, frame I/O-budget</p>

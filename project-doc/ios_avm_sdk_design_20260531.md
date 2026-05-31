@@ -12,6 +12,13 @@ The SDK must not make OBC programs native iOS plugins. OBC remains untrusted dat
 executed by AVM. The SDK supplies default iOS implementations for approved host
 surfaces.
 
+All platform effects follow the same rule: the host implementation may be real
+and high-performance, but OBC only sees AVM virtual protocols. That means virtual
+paths for FS, virtual responses/session handles for NET, virtual app commands for
+PROC, virtual clocks/sleeps for TIME, and binary frame/input mailboxes or resource
+handles for UI/GFX. No UIKit/Metal object, native socket, file descriptor, process
+handle, or raw host pointer should become bytecode-visible state.
+
 ```text
 Oren source / OBC
   -> std:fs / std:net / std:proc / std:time / future std:gfx/std:input
@@ -140,6 +147,10 @@ Default NET adapter.
   HTTP fetches during a run. It is synchronous and must run on an AVM worker queue,
   not the UI thread. Raw TCP/UDP/socket authority remains intentionally unavailable
   until a separate session protocol and policy gate exists.
+- Performance mode should still be VNET, not raw host networking. The SDK may back
+  VNET with `URLSession`, Network.framework, or platform sockets, but OBC must only
+  see virtual responses or virtual session handles that AVM can budget, close,
+  snapshot/test, and deny by capability.
 - Full OBC network capability is still the target. The next NET layer should not
   hand native sockets to bytecode; it should expose small AVM session handles for
   TCP/UDP-style operations. Required protocol pieces: connect/listen/send/recv/close,
@@ -210,10 +221,15 @@ the SDK owns the platform translation. TIME may use deterministic or wall-clock
 worker-thread mode. FS mounts concrete app-owned file URLs into VirtualFS and
 exports selected VFS outputs back to app-owned file URLs. NET may prefetch through
 allowlisted `URLSession` into VirtualNET or perform synchronous allowlisted live
-fetches on the AVM worker. Raw TCP/UDP requires an explicit reviewed session
-protocol before exposure. PROC on iOS should remain
+fetches on the AVM worker. High-performance networking should be implemented as a
+host-backed VNET provider with virtual session handles, not as bytecode-visible
+native sockets. Raw TCP/UDP requires an explicit reviewed session protocol before
+exposure. PROC on iOS should remain
 VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.
-UI/GFX should remain mailbox-based so UIKit/Metal objects never enter OBC memory.
+UI/GFX follows the same policy: the SDK may use CoreGraphics, Metal, `MTKView`,
+retained GPU resources, and display-link pacing, but OBC sees only compact binary
+frames/events and virtual resource handles. UIKit/Metal objects never enter OBC
+memory.
 
 ## App Integration Shape
 

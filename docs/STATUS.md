@@ -106,6 +106,13 @@ Facts from the 2026-05-28 implementation pass:
   and have the iOS SDK synchronously perform an allowlisted `URLSession` fetch while
   the AVM worker is running. `make verify-libavm-ios` proves both prefetch and live
   fetch modes against a local HTTP server.
+- Performance work for virtual resources should continue as host-backed virtual
+  providers, not raw OS object access from bytecode. Future TCP/UDP/WebSocket
+  support should use VNET session handles with capability checks, allowlists, byte
+  budgets, cancellation, and host lifecycle cleanup while the iOS SDK owns
+  Network.framework or socket backends. UI/GFX follows the same rule: the SDK may
+  use UIKit/CoreGraphics/Metal/`MTKView`, but OBC sees binary frame/event mailboxes
+  and virtual resource handles only.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

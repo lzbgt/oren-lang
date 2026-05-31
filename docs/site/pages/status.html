@@ -158,6 +158,15 @@
 <p>  the AVM worker is running. <code>make verify-libavm-ios</code> proves both prefetch and live</p>
 <p>  fetch modes against a local HTTP server.</p>
 <ul>
+<li>Performance work for virtual resources should continue as host-backed virtual</li>
+</ul>
+<p>  providers, not raw OS object access from bytecode. Future TCP/UDP/WebSocket</p>
+<p>  support should use VNET session handles with capability checks, allowlists, byte</p>
+<p>  budgets, cancellation, and host lifecycle cleanup while the iOS SDK owns</p>
+<p>  Network.framework or socket backends. UI/GFX follows the same rule: the SDK may</p>
+<p>  use UIKit/CoreGraphics/Metal/<code>MTKView</code>, but OBC sees binary frame/event mailboxes</p>
+<p>  and virtual resource handles only.</p>
+<ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>
 <p>  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>

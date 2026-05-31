@@ -69,10 +69,12 @@ This file is the concise task view. Detailed implementation status lives in
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
-     Remaining SDK work: compiler helper package, package store helper, and the
-     game-grade GUI path: display-link pacing, retained resource handles, budget
-     gates, low-latency input ordering, Metal/`MTKView`, richer drawing ops, and
-     richer IME/composition input helpers. The `OGF0` frame header now includes
+     Remaining SDK work: host-backed VNET session handles for high-performance
+     TCP/UDP/WebSocket-style networking without exposing raw sockets to OBC,
+     compiler helper package, package store helper, and the game-grade GUI path:
+     display-link pacing, retained resource handles, budget gates, low-latency
+     input ordering, Metal/`MTKView`, richer drawing ops, and richer
+     IME/composition input helpers. The `OGF0` frame header now includes
      sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
      frames plus `OGE0` host input events before accepting them. Curated gates now
      cover malformed-frame rejection, op-count cap rejection, frame I/O-budget
