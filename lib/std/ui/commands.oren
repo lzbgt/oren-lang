@@ -140,6 +140,20 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if dx < 0 || dy < 0 || dx + dw > w || dy + dh > h { return oren_err(4, "ui.validate: draw_image out of bounds") }
             }
+        } else if op == "draw_image_rect" {
+            var rid = c["id"]; var rsx = c["sx"]; var rsy = c["sy"]; var rsw = c["sw"]; var rsh = c["sh"]
+            var rx = c["x"]; var ry = c["y"]; var rw = c["w"]; var rh = c["h"]
+            if _is_int(rid) == false || rid < 1 { return oren_err(4, "ui.validate: draw_image_rect invalid id") }
+            if _is_int(rsx) == false || _is_int(rsy) == false || _is_int(rsw) == false || _is_int(rsh) == false ||
+                    _is_int(rx) == false || _is_int(ry) == false || _is_int(rw) == false || _is_int(rh) == false {
+                return oren_err(4, "ui.validate: draw_image_rect expects int source and destination rects")
+            }
+            if rsx < 0 || rsy < 0 || rsw < 1 || rsh < 1 || rw < 1 || rh < 1 {
+                return oren_err(4, "ui.validate: draw_image_rect invalid rect")
+            }
+            if strict {
+                if rx < 0 || ry < 0 || rx + rw > w || ry + rh > h { return oren_err(4, "ui.validate: draw_image_rect out of bounds") }
+            }
         } else if op == "destroy_image" {
             var xid = c["id"]
             if _is_int(xid) == false || xid < 1 { return oren_err(4, "ui.validate: destroy_image invalid id") }

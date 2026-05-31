@@ -494,6 +494,26 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
             [self.orenImages removeObjectForKey:@(imageID)];
+        } else if (opcode == 67 && payloadLen == 36) {
+            uint32_t imageID = OrenAVMGfxReadU32LE(payload);
+            uint32_t sx = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t sy = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t sw = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t sh = OrenAVMGfxReadU32LE(payload + 16);
+            uint32_t x = OrenAVMGfxReadU32LE(payload + 20);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 24);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 28);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 32);
+            UIImage* image = self.orenImages[@(imageID)];
+            CGImageRef cgImage = image.CGImage;
+            if (cgImage && sx + sw <= CGImageGetWidth(cgImage) && sy + sh <= CGImageGetHeight(cgImage)) {
+                CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
+                if (subImage) {
+                    UIImage* cropped = [UIImage imageWithCGImage:subImage];
+                    [cropped drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
+                    CGImageRelease(subImage);
+                }
+            }
         }
 
         off += payloadLen;

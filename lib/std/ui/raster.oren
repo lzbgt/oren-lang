@@ -24,6 +24,7 @@
 // - {"op":"image_rgba","id":int,"w":int,"h":int,"data":bytes}
 // - {"op":"draw_image","id":int,"x":int,"y":int,"w":int,"h":int}
 // - {"op":"destroy_image","id":int}
+// - {"op":"draw_image_rect","id":int,"sx":int,"sy":int,"sw":int,"sh":int,"x":int,"y":int,"w":int,"h":int}
 
 import ui_cmds "std:ui/commands"
 import ui_color "std:ui/color"
@@ -281,6 +282,37 @@ fn rasterize(cmds, w, h, opts) {
             }
         } else if op == "destroy_image" {
             images[oren_int_to_string(opm["id"])] = nil
+        } else if op == "draw_image_rect" {
+            var rimage = images[oren_int_to_string(opm["id"])]
+            if rimage == nil { return oren_err(4, "rasterize: draw_image_rect missing image") }
+            var rdata = rimage["data"]
+            var riw = rimage["w"]
+            var rih = rimage["h"]
+            var rsx = opm["sx"]
+            var rsy = opm["sy"]
+            var rsw = opm["sw"]
+            var rsh = opm["sh"]
+            if rsx + rsw > riw || rsy + rsh > rih { return oren_err(4, "rasterize: draw_image_rect source out of bounds") }
+            var rdx = opm["x"]
+            var rdy = opm["y"]
+            var rdw = opm["w"]
+            var rdh = opm["h"]
+            var ryy = 0
+            while ryy < rdh {
+                var rxx = 0
+                while rxx < rdw {
+                    var srcx = rsx + (rxx * rsw) / rdw
+                    var srcy = rsy + (ryy * rsh) / rdh
+                    var rsi = (srcy * riw + srcx) * 4
+                    _set_px_rgba(buf, w, h, rdx + rxx, rdy + ryy,
+                        bytes.try_get_u8(rdata, rsi),
+                        bytes.try_get_u8(rdata, rsi + 1),
+                        bytes.try_get_u8(rdata, rsi + 2),
+                        bytes.try_get_u8(rdata, rsi + 3))
+                    rxx = rxx + 1
+                }
+                ryy = ryy + 1
+            }
         }
         ci = ci + 1
     }

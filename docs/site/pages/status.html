@@ -344,15 +344,15 @@
 <p>  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>
 <p>  publishes a binary frame, retrieves it through the SDK, injects a binary pointer</p>
 <p>  event, and consumes it from OBC. <code>OrenAVMGraphicsView</code> is now the default</p>
-<p>	  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code>/</p>
-<p>	  <code>text_bytes</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code>/<code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code> frame subset and can enqueue pointer, resize, key, and</p>
+<p>		  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code>/</p>
+<p>		  <code>text_bytes</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code>/<code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code> frame subset and can enqueue pointer, resize, key, and</p>
 <p>  text events plus host-populated persistent screen state and runtime media-query</p>
 <p>  events with logical size, native drawable size, device scale, target refresh,</p>
 <p>  and host flags. OBC reads screen attributes with <code>std:ui/avm.screen(0)</code> without</p>
 <p>  consuming an input event. <code>OrenAVMMetalView</code> is now the first Metal/<code>MTKView</code></p>
 <p>  adapter: it owns the Metal draw loop, publishes host screen state, forwards touch</p>
 <p>  events into the <code>OGE0</code> mailbox, and renders current <code>OGF0</code> fill-rect/stroke-line/</p>
-<p>	  circle/fill-triangle geometry, retained RGBA image upload/draw/destroy records, and byte-native text payloads through Metal pipelines. Its <code>targetHzMilli</code> setting</p>
+<p>		  circle/fill-triangle geometry, retained RGBA image upload/draw/destroy/sub-rect atlas records, and byte-native text payloads through Metal pipelines. Its <code>targetHzMilli</code> setting</p>
 <p>  drives <code>MTKView.preferredFramesPerSecond</code>. Current text rendering uses a bounded</p>
 <p>  SDK-side LRU texture cache for repeated labels, and host apps can clear that cache</p>
 <p>  on memory pressure. The UI input stream now also carries validated <code>frame_tick</code></p>
@@ -360,7 +360,7 @@
 <p>  event path instead of polling raw platform clocks. Frame ticks are coalesced so</p>
 <p>  stale timing records cannot fill the input FIFO and starve real input. The Metal</p>
 <p>	  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,</p>
-<p>	  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy lifetimes; atlas batching and text atlas resources remain next. UIKit/CoreGraphics</p>
+<p>		  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect atlas lifetimes; explicit resource budgets and text atlas resources remain next. UIKit/CoreGraphics</p>
 <p>  and Metal views now forward every touch in a UIKit touch set, assign stable compact</p>
 <p>  pointer IDs for each active touch, release IDs on end/cancel, and expose batch</p>
 <p>  pointer-event helpers, so multi-finger input reaches OBC as multiple virtual</p>
@@ -368,8 +368,8 @@
 <p>  Bidirectional UI is a hard requirement for</p>
 <p>  game-level OBC packages: OBC must publish frames and consume host-originated input</p>
 <p>  through the same virtual protocol, while the host owns platform event APIs and</p>
-<p>	  rendering devices. Remaining game-grade work is atlas/sub-rect drawing,</p>
-<p>	  text atlas/sprite/mesh records, gamepad/motion input, IME/composition helpers,</p>
+<p>		  rendering devices. Remaining game-grade work is explicit resource budgets,</p>
+<p>		  text atlas/sprite/mesh records, gamepad/motion input, IME/composition helpers,</p>
 <p>	  and richer 2D/3D command sets. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>

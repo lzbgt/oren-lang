@@ -173,6 +173,19 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["id"])
         return 0
     }
+    if op == "draw_image_rect" {
+        _push_op_header(out, 67, 36)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["sx"])
+        _push_u32_le(out, c["sy"])
+        _push_u32_le(out, c["sw"])
+        _push_u32_le(out, c["sh"])
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        return 0
+    }
     return oren_err(4, "ui.avm.frame_bytes: unsupported op")
 }
 

@@ -38,7 +38,7 @@ The first retained implementation slices exist as of 2026-05-31:
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `text`/`text_bytes`/`stroke_line`/`circle`/`fill_triangle`/`image_rgba`/
-  `draw_image`/`destroy_image` subset. It decodes frame bytes on the host side
+  `draw_image`/`destroy_image`/`draw_image_rect` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
   key, and UTF-8 text input events, plus host-populated persistent screen state.
@@ -51,7 +51,7 @@ The first retained implementation slices exist as of 2026-05-31:
   device/simulator targets.
 
 Still pending: game-grade render protocol hardening beyond the current Metal adapter,
-IME/composition helpers, atlas/sub-rect drawing, 2D geometry expansion beyond the retained v0 shape
+IME/composition helpers, explicit resource budgets, 2D geometry expansion beyond the retained v0 shape
 subset, and 3D mesh commands. The high-refresh/high-resolution contract is now
 tracked in `project-doc/avm_ui_render_performance_design_20260531.md`; follow it
 before growing the command set.
@@ -171,7 +171,7 @@ logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
 cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
-`image_rgba`, `draw_image`, `destroy_image`, pointer, resize, media-query, key, and text
+`image_rgba`, `draw_image`, `destroy_image`, `draw_image_rect`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.
 
@@ -337,11 +337,11 @@ Required gates before Note integration should be called production-ready:
 11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
     Metal draw loop, publishes screen state, forwards touch input, and renders the
     current `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry records plus
-    retained image upload/draw/destroy records.
+    retained image upload/draw/destroy/sub-rect atlas records.
 12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
     `OrenAVMMetalView`, runs a bundled OBC, renders one frame, and injects one touch.
 13. Add IME/composition helpers.
-14. Add atlas/sub-rect resources plus `std:gfx/canvas2d` / `std:gfx/mesh3d`
+14. Add explicit resource budgets plus `std:gfx/canvas2d` / `std:gfx/mesh3d`
     records for sprite/text/mesh rendering on the Metal path.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the

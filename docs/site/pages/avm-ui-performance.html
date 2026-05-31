@@ -113,12 +113,12 @@
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
 <p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
-<p>  <code>image_rgba</code>, <code>draw_image</code>, and <code>destroy_image</code>.</p>
+<p>  <code>image_rgba</code>, <code>draw_image</code>, <code>destroy_image</code>, and <code>draw_image_rect</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws, plus byte-native text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect atlas draws, plus byte-native text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -127,8 +127,8 @@
 <p>  encode time, target frame budget, budget-usage permille, over-budget status,</p>
 <p>  geometry vertex count, and text-run count so host apps and verifiers can observe</p>
 <p>  and gate pacing cost. <code>text_bytes</code> lets OBC publish UTF-8 bytes directly on the</p>
-<p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code> is the first</p>
-<p>  OBC-visible retained sprite resource lifetime path; atlas batching, text atlas,</p>
+<p>  frame hot path. <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code> is the first</p>
+<p>  OBC-visible retained sprite resource lifetime and atlas sub-rect path; text atlas,</p>
 <p>  and richer resources remain the next performance steps.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
@@ -233,6 +233,10 @@
 <li>retained image lifetime record: <code>destroy_image {id}</code> releases the host-side</li>
 </ul>
 <p>  cached resource for the virtual image handle;</p>
+<ul>
+<li>atlas sub-rect record: <code>draw_image_rect {id,sx,sy,sw,sh,x,y,w,h}</code> draws part of a</li>
+</ul>
+<p>  retained image into a destination rect for sprite-atlas use;</p>
 <ul>
 <li>path/shape handles;</li>
 <li>vertex/index buffers for plots and meshes;</li>
@@ -350,11 +354,11 @@
 <li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Done: add first retained RGBA image resource records (<code>image_rgba</code>,</li>
 </ol>
-<p>    <code>draw_image</code>, <code>destroy_image</code>) across validation, binary frames, AVM protocol</p>
+<p>    <code>draw_image</code>, <code>destroy_image</code>, <code>draw_image_rect</code>) across validation, binary frames, AVM protocol</p>
 <p>    checks, deterministic raster, CoreGraphics fallback, Metal texture cache, and</p>
 <p>    iOS verifier coverage.</p>
 <ol>
-<li>Add sub-rect atlas draws and explicit resource budgets.</li>
+<li>Add explicit resource budgets for retained images/textures.</li>
 <li>Add text atlas/sprite/mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
 <li>Add game/app package smoke in the Note host or iOS SDK harness.</li>

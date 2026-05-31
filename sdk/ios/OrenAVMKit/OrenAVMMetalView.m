@@ -216,38 +216,51 @@ static void OrenAVMMetalAppendCircle(NSMutableData* vertices,
     }
 }
 
+static NSData* OrenAVMMetalTextureQuad(float x,
+                                       float y,
+                                       float w,
+                                       float h,
+                                       float logicalWidth,
+                                       float logicalHeight,
+                                       float u0,
+                                       float v0,
+                                       float u1,
+                                       float v1) {
+    OrenAVMMetalTextVertex out[6];
+    out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
+                                      OrenAVMMetalClipY(y, logicalHeight),
+                                      u0,
+                                      v0};
+    out[1] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
+                                      OrenAVMMetalClipY(y, logicalHeight),
+                                      u1,
+                                      v0};
+    out[2] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
+                                      OrenAVMMetalClipY(y + h, logicalHeight),
+                                      u0,
+                                      v1};
+    out[3] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
+                                      OrenAVMMetalClipY(y, logicalHeight),
+                                      u1,
+                                      v0};
+    out[4] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
+                                      OrenAVMMetalClipY(y + h, logicalHeight),
+                                      u1,
+                                      v1};
+    out[5] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
+                                      OrenAVMMetalClipY(y + h, logicalHeight),
+                                      u0,
+                                      v1};
+    return [NSData dataWithBytes:out length:sizeof(out)];
+}
+
 static NSData* OrenAVMMetalTextQuad(float x,
                                     float y,
                                     float w,
                                     float h,
                                     float logicalWidth,
                                     float logicalHeight) {
-    OrenAVMMetalTextVertex out[6];
-    out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      0.0f,
-                                      0.0f};
-    out[1] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      1.0f,
-                                      0.0f};
-    out[2] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      0.0f,
-                                      1.0f};
-    out[3] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      1.0f,
-                                      0.0f};
-    out[4] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      1.0f,
-                                      1.0f};
-    out[5] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      0.0f,
-                                      1.0f};
-    return [NSData dataWithBytes:out length:sizeof(out)];
+    return OrenAVMMetalTextureQuad(x, y, w, h, logicalWidth, logicalHeight, 0.0f, 0.0f, 1.0f, 1.0f);
 }
 
 @interface OrenAVMMetalView () <MTKViewDelegate>
@@ -653,6 +666,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
 }
 
 - (OrenAVMMetalImageRun*)orenImageRunWithID:(uint32_t)imageID
+                                         sx:(uint32_t)sx
+                                         sy:(uint32_t)sy
+                                         sw:(uint32_t)sw
+                                         sh:(uint32_t)sh
                                           x:(float)x
                                           y:(float)y
                                           w:(float)w
@@ -660,10 +677,15 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                logicalWidth:(float)logicalWidth
                               logicalHeight:(float)logicalHeight {
     id<MTLTexture> texture = self.orenImageTextures[@(imageID)];
-    if (!texture || w <= 0.0f || h <= 0.0f) return nil;
+    if (!texture || w <= 0.0f || h <= 0.0f || sw == 0 || sh == 0) return nil;
+    if ((NSUInteger)sx + (NSUInteger)sw > texture.width || (NSUInteger)sy + (NSUInteger)sh > texture.height) return nil;
+    float u0 = (float)sx / (float)texture.width;
+    float v0 = (float)sy / (float)texture.height;
+    float u1 = (float)(sx + sw) / (float)texture.width;
+    float v1 = (float)(sy + sh) / (float)texture.height;
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
-    run.vertices = OrenAVMMetalTextQuad(x, y, w, h, logicalWidth, logicalHeight);
+    run.vertices = OrenAVMMetalTextureQuad(x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
     return run;
 }
 
@@ -777,6 +799,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
             uint32_t w = OrenAVMMetalReadU32LE(payload + 12);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 16);
             OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
+                                                              sx:0
+                                                              sy:0
+                                                              sw:(uint32_t)self.orenImageTextures[@(imageID)].width
+                                                              sh:(uint32_t)self.orenImageTextures[@(imageID)].height
                                                                x:(float)x
                                                                y:(float)y
                                                                w:(float)w
@@ -787,6 +813,28 @@ static NSData* OrenAVMMetalTextQuad(float x,
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             [self.orenImageTextures removeObjectForKey:@(imageID)];
+        } else if (opcode == 67 && payloadLen == 36) {
+            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
+            uint32_t sx = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t sy = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t sw = OrenAVMMetalReadU32LE(payload + 12);
+            uint32_t sh = OrenAVMMetalReadU32LE(payload + 16);
+            uint32_t x = OrenAVMMetalReadU32LE(payload + 20);
+            uint32_t y = OrenAVMMetalReadU32LE(payload + 24);
+            uint32_t w = OrenAVMMetalReadU32LE(payload + 28);
+            uint32_t h = OrenAVMMetalReadU32LE(payload + 32);
+            OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
+                                                              sx:sx
+                                                              sy:sy
+                                                              sw:sw
+                                                              sh:sh
+                                                               x:(float)x
+                                                               y:(float)y
+                                                               w:(float)w
+                                                               h:(float)h
+                                                    logicalWidth:(float)logicalW
+                                                   logicalHeight:(float)logicalH];
+            if (run) [imageRuns addObject:run];
         }
         off += payloadLen;
     }

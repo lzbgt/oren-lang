@@ -123,18 +123,20 @@ fn test_raster_text_bytes() {
 }
 
 fn test_raster_image() {
-    var px = bytes.try_pack([255, 0, 0, 255])
+    var px = bytes.try_pack([255, 0, 0, 255, 0, 255, 0, 255])
     assert_true(oren_is_err(px) == false)
     var cmds = [
-        {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": px},
+        {"op": "image_rgba", "id": 1, "w": 2, "h": 1, "data": px},
         {"op": "draw_image", "id": 1, "x": 0, "y": 0, "w": 2, "h": 2},
+        {"op": "draw_image_rect", "id": 1, "sx": 1, "sy": 0, "sw": 1, "sh": 1, "x": 2, "y": 2, "w": 1, "h": 1},
         {"op": "destroy_image", "id": 1}
     ]
     var buf = ui_raster.try_rasterize(cmds, 3, 3, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     assert_eq(_px(buf, 3, 0, 0, 0), 255)
-    assert_eq(_px(buf, 3, 1, 1, 0), 255)
-    assert_eq(_px(buf, 3, 2, 2, 3), 0)
+    assert_eq(_px(buf, 3, 1, 1, 1), 255)
+    assert_eq(_px(buf, 3, 2, 2, 0), 0)
+    assert_eq(_px(buf, 3, 2, 2, 1), 255)
 }
 
 fn main() {
