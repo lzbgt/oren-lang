@@ -259,6 +259,10 @@ typedef struct {
     size_t permission_request_len;
     uint32_t permission_request_sequence;
 
+    // Host virtual event queue (rolling): FS/package lifecycle events from host adapters.
+    void* host_event_queue;
+    uint32_t host_event_sequence;
+
     // Embedder stdout capture (rolling): disabled for CLI by default, enabled by libavm embed.
     int stdout_capture_enabled;
     char* stdout_capture;

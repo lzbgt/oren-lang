@@ -83,9 +83,9 @@ This file is the concise task view. Detailed implementation status lives in
      cancellation through the embed/iOS SDK APIs, plus an
      `OrenAVMPermissionGrantStore` that persists decoded permission decisions and
      reapplies live VNET allowed-host grants/revocations at runtime, plus reviewed
-     TCP listener/accept virtual sessions for OBC server flows.
-     Remaining SDK work: visible permission prompt UX, event-bus FS/package
-     events without exposing raw sockets to OBC, compiler helper
+	     TCP listener/accept virtual sessions for OBC server flows, plus
+	     host-enqueued FS/package lifecycle events through the AVM `EVENT` bus.
+	     Remaining SDK work: visible permission prompt UX, compiler helper
      package, signed package-store support, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
      input ordering, Metal/`MTKView`, richer drawing ops, and richer bidirectional

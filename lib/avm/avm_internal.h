@@ -296,6 +296,22 @@ typedef struct {
     uint32_t cap;
 } AvmGfxInputQueue;
 
+// --- Host virtual event queue ---
+// Small virtual-resource events queued by embedders and consumed by EVENT select.
+typedef struct {
+    char* kind;
+    char* action;
+    char* detail;
+    uint32_t flags;
+    uint32_t sequence;
+} AvmHostEventEntry;
+
+typedef struct {
+    AvmHostEventEntry* entries;
+    uint32_t count;
+    uint32_t cap;
+} AvmHostEventQueue;
+
 int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t err_cap);
 int avm_gfx_validate_event(const uint8_t* data, size_t len, char* err, size_t err_cap);
 

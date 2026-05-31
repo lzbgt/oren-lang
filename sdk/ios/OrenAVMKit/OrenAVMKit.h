@@ -27,7 +27,8 @@ typedef NS_OPTIONS(uint64_t, OrenAVMDomain) {
     OrenAVMDomainProc = UINT64_C(1) << 5,
     OrenAVMDomainExit = UINT64_C(1) << 6,
     OrenAVMDomainGFX = UINT64_C(1) << 9,
-    OrenAVMDomainPermission = UINT64_C(1) << 10
+    OrenAVMDomainPermission = UINT64_C(1) << 10,
+    OrenAVMDomainEvent = UINT64_C(1) << 11
 };
 
 typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
@@ -177,6 +178,11 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                         error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsKeyEventWithKind:(uint8_t)kind keyCode:(uint32_t)keyCode modifiers:(uint32_t)modifiers error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsTextInputString:(NSString*)text error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putVirtualEventWithKind:(NSString*)kind
+                         action:(NSString*)action
+                         detail:(NSString*)detail
+                          flags:(uint32_t)flags
+                          error:(NSError* _Nullable* _Nullable)error;
 
 @end
 

@@ -205,7 +205,9 @@
       "alias": "avm_events",
       "probes": [
         "if avm_events.event_read_write() != 3 { fail(58) }",
-        "if avm_events.watch_cancel(\"stop\")[\"kind\"] != \"cancel\" { fail(64) }"
+        "if avm_events.watch_cancel(\"stop\")[\"kind\"] != \"cancel\" { fail(64) }",
+        "if avm_events.watch_fs(\"fs0\")[\"kind\"] != \"fs\" { fail(65) }",
+        "if avm_events.watch_package(\"pkg0\")[\"kind\"] != \"package\" { fail(66) }"
       ]
     },
     {

@@ -1024,6 +1024,28 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
         sha_u32_le(&h, len);
         if (len > 0) avm_sha256_update(&h, vm->permission_request_data, len);
     }
+    {
+        sha_u32_le(&h, vm->host_event_sequence);
+        AvmHostEventQueue* q = vm->host_event_queue ? (AvmHostEventQueue*)vm->host_event_queue : NULL;
+        uint32_t cnt = (q && q->entries) ? q->count : 0u;
+        sha_u32_le(&h, cnt);
+        for (uint32_t i = 0; i < cnt; i++) {
+            const char* kind = q->entries[i].kind ? q->entries[i].kind : "";
+            const char* action = q->entries[i].action ? q->entries[i].action : "";
+            const char* detail = q->entries[i].detail ? q->entries[i].detail : "";
+            uint32_t kind_len = (uint32_t)strlen(kind);
+            uint32_t action_len = (uint32_t)strlen(action);
+            uint32_t detail_len = (uint32_t)strlen(detail);
+            sha_u32_le(&h, q->entries[i].sequence);
+            sha_u32_le(&h, q->entries[i].flags);
+            sha_u32_le(&h, kind_len);
+            if (kind_len > 0) avm_sha256_update(&h, (const uint8_t*)kind, kind_len);
+            sha_u32_le(&h, action_len);
+            if (action_len > 0) avm_sha256_update(&h, (const uint8_t*)action, action_len);
+            sha_u32_le(&h, detail_len);
+            if (detail_len > 0) avm_sha256_update(&h, (const uint8_t*)detail, detail_len);
+        }
+    }
 
     avm_sha256_final(&h, out);
     objtable_free(&objs);

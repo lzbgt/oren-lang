@@ -317,13 +317,14 @@
 <ul>
 <li><code>std:avm/events</code> now uses a native AVM <code>EVENT</code> capability domain for timer</li>
 </ul>
-<p>  watches, GFX input watches, VNET session readiness, and cooperative host-cancel</p>
-<p>  watches. If OBC includes a <code>cancel</code> watch, a host <code>avm_embed_cancel</code> request wakes</p>
-<p>  the event loop as a <code>{kind:&quot;cancel&quot;}</code> event and is consumed; without a cancel</p>
-<p>  watch, the same request remains a hard VM cancellation. The iOS SDK backs VNET</p>
-<p>  multi-watch selection with one host <code>select()</code> over app-owned sockets, while</p>
-<p>  OBC still sees only virtual watch maps and event maps. Remaining event-bus work</p>
-<p>  is FS/package events and richer lifecycle integration.</p>
+<p>  watches, GFX input watches, VNET session readiness, cooperative host-cancel</p>
+<p>  watches, and host-enqueued FS/package lifecycle events. If OBC includes a</p>
+<p>  <code>cancel</code> watch, a host <code>avm_embed_cancel</code> request wakes the event loop as a</p>
+<p>  <code>{kind:&quot;cancel&quot;}</code> event and is consumed; without a cancel watch, the same</p>
+<p>  request remains a hard VM cancellation. The iOS SDK backs VNET multi-watch</p>
+<p>  selection with one host <code>select()</code> over app-owned sockets and exposes</p>
+<p>  <code>putVirtualEventWithKind:action:detail:flags:</code> for FS/package events, while OBC</p>
+<p>  still sees only virtual watch maps and event maps.</p>
 <ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>

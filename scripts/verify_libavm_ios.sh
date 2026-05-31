@@ -243,6 +243,11 @@ fn main() {
     var ev7 = ui_avm.next_event()
     if ev7["kind"] != "text" || ev7["text"] != "hi" { oren_exit(48) }
     if ui_avm.next_event() != nil { oren_exit(52) }
+    var fs_ev = avm_events.select_once([avm_events.watch_fs("fs0")])
+    if fs_ev == nil || fs_ev["kind"] != "fs" || fs_ev["id"] != "fs0" || fs_ev["action"] != "write" || fs_ev["detail"] != "host/out.txt" || fs_ev["flags"] != 7 || fs_ev["source"] != "host" { oren_exit(96) }
+    var pkg_ev = avm_events.select_once([avm_events.watch_package("pkg0")])
+    if pkg_ev == nil || pkg_ev["kind"] != "package" || pkg_ev["id"] != "pkg0" || pkg_ev["action"] != "installed" || pkg_ev["detail"] != "oren-labs/sdk-package-smoke/0.1.0" { oren_exit(97) }
+    if avm_events.select_once([{"kind": "package", "action": "installed"}]) != nil { oren_exit(98) }
     var gr2 = ui_avm.present_frame(cmds, 4, 3, {
         "strict_bounds": true,
         "scale_milli": 4000,
@@ -595,6 +600,8 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, frame_tick_event, sizeof(frame_tick_event), &result) != AVM_EMBED_OK) return 45;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
+    if (avm_embed_event_put(handle, "fs", "write", "host/out.txt", 7, &result) != AVM_EMBED_OK) return 68;
+    if (avm_embed_event_put(handle, "package", "installed", "oren-labs/sdk-package-smoke/0.1.0", 0, &result) != AVM_EMBED_OK) return 69;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 8;
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 9;
@@ -667,6 +674,8 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, frame_tick_event, sizeof(frame_tick_event), &result) != AVM_EMBED_OK) return 45;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
+    if (avm_embed_event_put(handle, "fs", "write", "host/out.txt", 7, &result) != AVM_EMBED_OK) return 68;
+    if (avm_embed_event_put(handle, "package", "installed", "oren-labs/sdk-package-smoke/0.1.0", 0, &result) != AVM_EMBED_OK) return 69;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
     uint64_t wall1 = host_now_ns();
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 26;
@@ -787,6 +796,8 @@ int main(void) {
         if (![runtime putGraphicsFrameTickEventWithSequence:9 nowNs:1000 deltaNs:16 targetHzMilli:120000 flags:5 error:&error]) return 67;
         if (![runtime putGraphicsKeyEventWithKind:32 keyCode:65 modifiers:1 error:&error]) return 55;
         if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
+        if (![runtime putVirtualEventWithKind:@"fs" action:@"write" detail:@"host/out.txt" flags:7 error:&error]) return 151;
+        if (![runtime putVirtualEventWithKind:@"package" action:@"installed" detail:@"oren-labs/sdk-package-smoke/0.1.0" flags:0 error:&error]) return 152;
 
         NSData* obc = [NSData dataWithBytes:kEmbedChainObc length:kEmbedChainObcLen];
         uint64_t wall0 = host_now_ns();

@@ -6,6 +6,8 @@ fn main() {
     if events.event_write() != 2 { exit(2) }
     if events.event_read_write() != 3 { exit(3) }
     if events.watch_cancel("c0")["kind"] != "cancel" { exit(10) }
+    if events.watch_fs("fs0")["kind"] != "fs" { exit(12) }
+    if events.watch_package("pkg0")["kind"] != "package" { exit(13) }
 
     var now = time.now_ns()
     var ev = events.select_once([{"kind": "timer", "id": "t0", "deadline_ns": now}])
@@ -17,6 +19,10 @@ fn main() {
 
     var no_cancel = events.select_once([events.watch_cancel("c0")])
     if oren_is_err(no_cancel) || no_cancel != nil { exit(11) }
+    var no_fs = events.select_once([events.watch_fs("fs0")])
+    if oren_is_err(no_fs) || no_fs != nil { exit(14) }
+    var no_pkg = events.select_once([events.watch_package("pkg0")])
+    if oren_is_err(no_pkg) || no_pkg != nil { exit(15) }
 
     var waited = events.select([{"kind": "timer", "id": "late", "deadline_ns": time.now_ns() + 1000000}], 10)
     if oren_is_err(waited) { exit(7) }

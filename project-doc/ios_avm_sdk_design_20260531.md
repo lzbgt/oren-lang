@@ -227,17 +227,18 @@ Default NET adapter.
   sockets to OBC.
 - The broader target is an AVM virtual-resource event bus: a `select`/`kqueue`-
   like reactor over virtual handles and mailboxes, not over OS descriptors. The
-  bus should eventually multiplex VNET sessions, GFX/input events, timers,
-  cancellation, and future FS/package events. iOS can implement the provider side
+  bus multiplexes VNET sessions, GFX/input events, timers, cancellation, and
+  host-enqueued FS/package lifecycle events. iOS can implement the provider side
   with `select()`, `kqueue`, dispatch sources, Network.framework callbacks, and
   display-link ticks, while OBC sees only stable virtual handles, event masks,
   sequence numbers, and bounded event payloads.
 - `std:avm/events` now offers `select`/`select_once` over timer, UI/GFX input,
-  VNET session-readiness, and cooperative host-cancel watches through a native
-  AVM `EVENT` capability domain. The iOS SDK backs VNET multi-watch selection
-  with one host `select()` over app-owned sockets, so high-volume app/game code
-  does not pay an Oren-level polling loop for network readiness. OBC still sees
-  only stable virtual watch maps, event masks, and bounded event maps.
+  VNET session-readiness, cooperative host-cancel watches, and FS/package watches
+  through a native AVM `EVENT` capability domain. The iOS SDK backs VNET
+  multi-watch selection with one host `select()` over app-owned sockets and can
+  enqueue FS/package lifecycle events with
+  `putVirtualEventWithKind:action:detail:flags:`. OBC still sees only stable
+  virtual watch maps, event masks, and bounded event maps.
 - The current HTTP body provider keeps a reusable ephemeral `NSURLSession` per
   `OrenAVMRuntime` so capability-enabled prefetch/live fetches use the fast SDK
   provider path by default instead of rebuilding a session for each OBC request.

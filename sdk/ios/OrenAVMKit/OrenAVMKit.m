@@ -164,7 +164,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     cfg.timeMode = OrenAVMTimeModeDeterministic;
     cfg.allowedDomains = OrenAVMDomainCore | OrenAVMDomainFS | OrenAVMDomainTime |
         OrenAVMDomainNet | OrenAVMDomainProc | OrenAVMDomainExit | OrenAVMDomainGFX |
-        OrenAVMDomainPermission;
+        OrenAVMDomainPermission | OrenAVMDomainEvent;
     cfg.gasLimit = 5000000ull;
     cfg.heapLimitBytes = 32ull * 1024ull * 1024ull;
     cfg.ioLimitBytes = 1024ull * 1024ull;
@@ -1886,6 +1886,22 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     if (utf8.length > 0) memcpy(out + 4, utf8.bytes, utf8.length);
     NSData* data = OrenAVMKitMakeGFXEvent(48, payload.bytes, (uint16_t)payload.length);
     return [self putGraphicsInputEventData:data error:error];
+}
+
+- (BOOL)putVirtualEventWithKind:(NSString*)kind action:(NSString*)action detail:(NSString*)detail flags:(uint32_t)flags error:(NSError**)error {
+    if (kind.length == 0 || action.length == 0) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"virtual event kind and action are required");
+    }
+    AvmEmbedResult result;
+    int rc = avm_embed_event_put(_handle,
+                                 kind.UTF8String,
+                                 action.UTF8String,
+                                 (detail ?: @"").UTF8String,
+                                 flags,
+                                 &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to enqueue virtual event", &result);
+    return YES;
 }
 
 @end

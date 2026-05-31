@@ -1164,9 +1164,9 @@
                             net_count++;
                             continue;
                         }
-                        if (strcmp(kind, "cancel") == 0 || strcmp(kind, "cancellation") == 0) {
-                            has_cancel_watch = 1;
-                            if (vm && vm->cancelled) {
+	                        if (strcmp(kind, "cancel") == 0 || strcmp(kind, "cancellation") == 0) {
+	                            has_cancel_watch = 1;
+	                            if (vm && vm->cancelled) {
                                 AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
                                 if (!out) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
                                 memset(out, 0, sizeof(*out));
@@ -1184,11 +1184,49 @@
                                 if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
                                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                                 return ret;
-                            }
-                            continue;
-                        }
-                        return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select unsupported watch kind", domain, op);
-                    }
+	                            }
+	                            continue;
+	                        }
+	                        if (strcmp(kind, "fs") == 0 || strcmp(kind, "package") == 0) {
+	                            AvmHostEventQueue* q = vm ? (AvmHostEventQueue*)vm->host_event_queue : NULL;
+	                            if (q && q->count > 0 && q->entries) {
+	                                AvmValue action_filter;
+	                                int has_action_filter = avm_map_get_key(wv, "action", &action_filter) && action_filter.type == AVM_VAL_STRING && action_filter.as.p;
+	                                for (uint32_t ei = 0; ei < q->count; ei++) {
+	                                    AvmHostEventEntry entry = q->entries[ei];
+	                                    if (!entry.kind || strcmp(entry.kind, kind) != 0) continue;
+	                                    if (has_action_filter && (!entry.action || strcmp(entry.action, (const char*)action_filter.as.p) != 0)) continue;
+	                                    AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+	                                    if (!out) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+	                                    memset(out, 0, sizeof(*out));
+	                                    AvmValue idv;
+	                                    if (!avm_map_get_key(wv, "id", &idv)) idv = avm_int(i);
+	                                    int ok = 1;
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("kind"), avm_string(kind));
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("id"), idv);
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("index"), avm_int(i));
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("action"), avm_string(entry.action ? entry.action : ""));
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("detail"), avm_string(entry.detail ? entry.detail : ""));
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("flags"), avm_int((int64_t)entry.flags));
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("sequence"), avm_int((int64_t)entry.sequence));
+	                                    ok = ok && avm_map_set_sorted(out, avm_string("source"), avm_string("host"));
+	                                    if (!ok) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+	                                    free(entry.kind);
+	                                    free(entry.action);
+	                                    free(entry.detail);
+	                                    if (ei + 1u < q->count) memmove(q->entries + ei, q->entries + ei + 1u, sizeof(AvmHostEventEntry) * (size_t)(q->count - ei - 1u));
+	                                    q->count--;
+	                                    memset(&q->entries[q->count], 0, sizeof(q->entries[q->count]));
+	                                    AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+	                                    if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+	                                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+	                                    return ret;
+	                                }
+	                            }
+	                            continue;
+	                        }
+	                        return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select unsupported watch kind", domain, op);
+	                    }
 
                     uint32_t wait_ms = timeout_ms;
                     if (timeout_ms > 0) {

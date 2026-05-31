@@ -313,19 +313,20 @@
 <li>The broader target is an AVM virtual-resource event bus: a <code>select</code>/<code>kqueue</code>-</li>
 </ul>
 <p>  like reactor over virtual handles and mailboxes, not over OS descriptors. The</p>
-<p>  bus should eventually multiplex VNET sessions, GFX/input events, timers,</p>
-<p>  cancellation, and future FS/package events. iOS can implement the provider side</p>
+<p>  bus multiplexes VNET sessions, GFX/input events, timers, cancellation, and</p>
+<p>  host-enqueued FS/package lifecycle events. iOS can implement the provider side</p>
 <p>  with <code>select()</code>, <code>kqueue</code>, dispatch sources, Network.framework callbacks, and</p>
 <p>  display-link ticks, while OBC sees only stable virtual handles, event masks,</p>
 <p>  sequence numbers, and bounded event payloads.</p>
 <ul>
 <li><code>std:avm/events</code> now offers <code>select</code>/<code>select_once</code> over timer, UI/GFX input,</li>
 </ul>
-<p>  VNET session-readiness, and cooperative host-cancel watches through a native</p>
-<p>  AVM <code>EVENT</code> capability domain. The iOS SDK backs VNET multi-watch selection</p>
-<p>  with one host <code>select()</code> over app-owned sockets, so high-volume app/game code</p>
-<p>  does not pay an Oren-level polling loop for network readiness. OBC still sees</p>
-<p>  only stable virtual watch maps, event masks, and bounded event maps.</p>
+<p>  VNET session-readiness, cooperative host-cancel watches, and FS/package watches</p>
+<p>  through a native AVM <code>EVENT</code> capability domain. The iOS SDK backs VNET</p>
+<p>  multi-watch selection with one host <code>select()</code> over app-owned sockets and can</p>
+<p>  enqueue FS/package lifecycle events with</p>
+<p>  <code>putVirtualEventWithKind:action:detail:flags:</code>. OBC still sees only stable</p>
+<p>  virtual watch maps, event masks, and bounded event maps.</p>
 <ul>
 <li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
 </ul>

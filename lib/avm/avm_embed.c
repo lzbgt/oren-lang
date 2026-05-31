@@ -766,6 +766,63 @@ int avm_embed_gfx_screen_set(AvmEmbedHandle* handle,
     return result ? result->status : AVM_EMBED_OK;
 }
 
+static char* avm_embed_strdup_limit(const char* s, size_t limit) {
+    if (!s) s = "";
+    size_t n = strlen(s);
+    if (n > limit) return NULL;
+    char* out = (char*)malloc(n + 1);
+    if (!out) return NULL;
+    memcpy(out, s, n + 1);
+    return out;
+}
+
+int avm_embed_event_put(AvmEmbedHandle* handle, const char* kind, const char* action, const char* detail, uint32_t flags, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !kind || !action || kind[0] == '\0' || action[0] == '\0') {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM host event put argument");
+    }
+    if ((strcmp(kind, "fs") != 0 && strcmp(kind, "package") != 0) || strlen(kind) > 32 || strlen(action) > 64 || (detail && strlen(detail) > 4096)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM host event kind/action/detail");
+    }
+    AvmHostEventQueue* q = (AvmHostEventQueue*)handle->vm->host_event_queue;
+    if (!q) {
+        q = (AvmHostEventQueue*)calloc(1, sizeof(AvmHostEventQueue));
+        if (!q) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM host event queue");
+        handle->vm->host_event_queue = q;
+    }
+    if (q->count >= 1024u) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_VM, AVM_ERR_BUDGET, "AVM host event queue is full");
+    }
+    if (q->count >= q->cap) {
+        uint32_t next_cap = q->cap ? q->cap * 2u : 8u;
+        if (next_cap < q->count + 1u) next_cap = q->count + 1u;
+        AvmHostEventEntry* next = (AvmHostEventEntry*)realloc(q->entries, sizeof(AvmHostEventEntry) * (size_t)next_cap);
+        if (!next) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to grow AVM host event queue");
+        for (uint32_t i = q->cap; i < next_cap; i++) memset(&next[i], 0, sizeof(next[i]));
+        q->entries = next;
+        q->cap = next_cap;
+    }
+    char* kind_copy = avm_embed_strdup_limit(kind, 32);
+    char* action_copy = avm_embed_strdup_limit(action, 64);
+    char* detail_copy = avm_embed_strdup_limit(detail ? detail : "", 4096);
+    if (!kind_copy || !action_copy || !detail_copy) {
+        free(kind_copy);
+        free(action_copy);
+        free(detail_copy);
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM host event");
+    }
+    uint32_t seq = handle->vm->host_event_sequence + 1u;
+    if (seq == 0) seq = 1u;
+    handle->vm->host_event_sequence = seq;
+    AvmHostEventEntry* entry = &q->entries[q->count++];
+    entry->kind = kind_copy;
+    entry->action = action_copy;
+    entry->detail = detail_copy;
+    entry->flags = flags;
+    entry->sequence = seq;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
 int avm_embed_permission_request_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
     if (out_data) *out_data = NULL;
     if (out_len) *out_len = 0;

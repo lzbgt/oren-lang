@@ -156,6 +156,8 @@ AvmVM* avm_new() {
     vm->permission_request_data = NULL;
     vm->permission_request_len = 0;
     vm->permission_request_sequence = 0;
+    vm->host_event_queue = NULL;
+    vm->host_event_sequence = 0;
     vm->stdout_capture_enabled = 0;
     vm->stdout_capture = NULL;
     vm->stdout_capture_len = 0;
@@ -265,6 +267,18 @@ void avm_free(AvmVM* vm) {
     if (vm->stdout_capture) free(vm->stdout_capture);
     if (vm->gfx_frame_data) free(vm->gfx_frame_data);
     if (vm->permission_request_data) free(vm->permission_request_data);
+    if (vm->host_event_queue) {
+        AvmHostEventQueue* q = (AvmHostEventQueue*)vm->host_event_queue;
+        if (q->entries) {
+            for (uint32_t i = 0; i < q->count; i++) {
+                free(q->entries[i].kind);
+                free(q->entries[i].action);
+                free(q->entries[i].detail);
+            }
+            free(q->entries);
+        }
+        free(q);
+    }
     if (vm->gfx_input_queue) {
         AvmGfxInputQueue* q = (AvmGfxInputQueue*)vm->gfx_input_queue;
         if (q->entries) {

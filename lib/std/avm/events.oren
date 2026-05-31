@@ -12,6 +12,8 @@ fn event_read() { return 1 }
 fn event_write() { return 2 }
 fn event_read_write() { return 3 }
 fn watch_cancel(id) { return {"kind": "cancel", "id": id} }
+fn watch_fs(id) { return {"kind": "fs", "id": id} }
+fn watch_package(id) { return {"kind": "package", "id": id} }
 
 fn _watch_id(w, i) {
     var id = w["id"]
@@ -67,6 +69,10 @@ fn _check_one(w, i) {
     }
 
     if kind == "cancel" || kind == "cancellation" {
+        return nil
+    }
+
+    if kind == "fs" || kind == "package" {
         return nil
     }
 
