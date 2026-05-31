@@ -1028,6 +1028,10 @@ int main(void) {
         [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 3.0)];
         UIGraphicsEndImageContext();
         if (![graphicsView sendPointerEventWithKind:2 point:CGPointMake(2.0, 1.0) pointerId:8 error:&error]) return 53;
+        if (![graphicsView sendPointerEventsWithKind:2 points:@[[NSValue valueWithCGPoint:CGPointMake(1.0, 1.0)],
+                                                                 [NSValue valueWithCGPoint:CGPointMake(3.0, 2.0)]]
+                                           pointerIDs:@[@(8u), @(9u)]
+                                                error:&error]) return 134;
         if (![graphicsView sendResizeEventWithScaleMilli:1000 error:&error]) return 57;
         if (![graphicsView publishScreenStateWithTargetHzMilli:120000 flags:5 error:&error]) return 123;
         if (![graphicsView sendMediaEventWithTargetHzMilli:120000 flags:5 error:&error]) return 124;
@@ -1044,6 +1048,10 @@ int main(void) {
         metalView.targetHzMilli = 120000;
         [metalView resetFrameMetrics];
         if (metalView.renderedFrameCount != 0 || metalView.lastFrameCPUNs != 0) return 133;
+        if (![metalView sendPointerEventsWithKind:2 points:@[[NSValue valueWithCGPoint:CGPointMake(1.0, 1.0)],
+                                                             [NSValue valueWithCGPoint:CGPointMake(3.0, 2.0)]]
+                                       pointerIDs:@[@(10u), @(11u)]
+                                            error:&error]) return 135;
         [metalView clearTextTextureCache];
         if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif

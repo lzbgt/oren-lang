@@ -256,6 +256,22 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                                                    error:error];
 }
 
+- (BOOL)sendPointerEventsWithKind:(uint8_t)kind points:(NSArray<NSValue*>*)points pointerIDs:(NSArray<NSNumber*>*)pointerIDs error:(NSError**)error {
+    if (points.count != pointerIDs.count) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics pointer batch point/id count mismatch");
+    }
+    for (NSUInteger i = 0; i < points.count; i++) {
+        if (![self sendPointerEventWithKind:kind
+                                      point:points[i].CGPointValue
+                                  pointerId:pointerIDs[i].unsignedIntValue
+                                      error:error]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 - (BOOL)sendResizeEventWithScaleMilli:(uint32_t)scaleMilli error:(NSError**)error {
     if (!self.runtime) {
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
@@ -412,14 +428,14 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 }
 
 - (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind {
-    UITouch* touch = touches.anyObject;
-    if (!touch) return;
-    CGPoint p = [touch locationInView:self];
-    NSError* error = nil;
-    (void)[self sendPointerEventWithKind:kind
-                                   point:p
-                               pointerId:(uint32_t)touch.hash
-                                   error:&error];
+    for (UITouch* touch in touches) {
+        CGPoint p = [touch locationInView:self];
+        NSError* error = nil;
+        (void)[self sendPointerEventWithKind:kind
+                                       point:p
+                                   pointerId:(uint32_t)touch.hash
+                                       error:&error];
+    }
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {

@@ -296,6 +296,10 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                            point:(CGPoint)point
                        pointerId:(uint32_t)pointerId
                            error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendPointerEventsWithKind:(uint8_t)kind
+                            points:(NSArray<NSValue*>*)points
+                        pointerIDs:(NSArray<NSNumber*>*)pointerIDs
+                             error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)sendResizeEventWithScaleMilli:(uint32_t)scaleMilli error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)sendMediaEventWithTargetHzMilli:(uint32_t)targetHzMilli
                                   flags:(uint32_t)flags
@@ -328,6 +332,10 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                            point:(CGPoint)point
                        pointerId:(uint32_t)pointerId
                            error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendPointerEventsWithKind:(uint8_t)kind
+                            points:(NSArray<NSValue*>*)points
+                        pointerIDs:(NSArray<NSNumber*>*)pointerIDs
+                             error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)publishScreenStateWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)sendMediaEventWithError:(NSError* _Nullable* _Nullable)error;
 
