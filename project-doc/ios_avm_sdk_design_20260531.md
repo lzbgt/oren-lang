@@ -164,6 +164,10 @@ Default NET adapter.
   live-NET allowlist and runtime enable/disable controls. OBC sees only integer
   virtual session IDs, readiness masks, and byte buffers, never native sockets or
   descriptors.
+- `std:net/avm/tcp` and `std:net/avm/udp` provide app-facing convenience wrappers
+  over those virtual sessions for common client flows. They are included in
+  `stdlib_bundle.obc`, covered by the AVM stdlib OBC surface gate, and exercised
+  in the iOS verifier through live host-backed TCP and UDP virtual sockets.
 - Naming note: Oren native/runtime code already has raw `sys_select` for OS file
   descriptors. AVM uses virtual-session readiness; `session_select*` is the
   preferred app-facing name and `session_poll*` remains the low-level alias for
@@ -190,11 +194,10 @@ Default NET adapter.
   see virtual responses or virtual session handles that AVM can budget, close,
   snapshot/test, and deny by capability.
 - Full OBC network capability is still the target. The next NET layers should add
-  WebSocket, listen/accept where app policy allows, DNS policy,
-  cancellation, stronger per-session byte budgets, lifecycle
-  handling, and deterministic fixture/replay support. `std:net/tcp` and
-  `std:net/udp` should route through the AVM protocol when running under
-  libavm/iOS.
+  WebSocket, listen/accept where app policy allows, DNS policy, cancellation,
+  stronger per-session byte budgets, lifecycle handling, deterministic
+  fixture/replay support, and any compatibility aliases needed for non-AVM
+  `std:net/tcp` / `std:net/udp` callers.
 
 ### OrenAVMProcessProvider
 

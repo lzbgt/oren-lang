@@ -63,6 +63,8 @@ OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
+import net_tcp "std:net/avm/tcp"
+import net_udp "std:net/avm/udp"
 import avm_events "std:avm/events"
 import ui_avm "std:ui/avm"
 import perm "std:avm/permission"
@@ -84,18 +86,38 @@ fn main() {
     if oren_is_err(body) { oren_exit(14) }
     if body != "net-ok" { oren_exit(14) }
     if args[3] != "session-none" {
-        var sid = net_avm.session_open(args[3], 5000)
+        var is_udp = false
+        if oren_string_len(args[3]) >= 6 && oren_string_slice(args[3], 0, 6) == "udp://" { is_udp = true }
+        var sid = nil
+        if is_udp {
+            sid = net_udp.connect_spec(args[3], 5000)
+        } else {
+            sid = net_tcp.connect_spec(args[3], 5000)
+        }
         if oren_is_err(sid) { oren_exit(57) }
-        var pw = avm_events.select([{"kind": "net", "session_id": sid, "events": avm_events.event_write(), "id": "tcp-write"}], 5000)
-        if oren_is_err(pw) || pw == nil || pw["kind"] != "net" || pw["id"] != "tcp-write" || (pw["ready"] & 2) == 0 { oren_exit(63) }
-        var wn = net_avm.session_write(sid, "ping", 5000)
+        var pw = nil
+        if is_udp {
+            pw = net_udp.select(sid, net_udp.event_write(), 5000)
+        } else {
+            pw = net_tcp.select(sid, net_tcp.event_write(), 5000)
+        }
+        if oren_is_err(pw) || pw == nil || pw["kind"] != "net" || (pw["ready"] & 2) == 0 { oren_exit(63) }
+        var wn = nil
+        if is_udp { wn = net_udp.send(sid, "ping", 5000) } else { wn = net_tcp.write(sid, "ping", 5000) }
         if oren_is_err(wn) || wn != 4 { oren_exit(58) }
-        var pr = avm_events.select([{"kind": "net", "session_id": sid, "events": avm_events.event_read(), "id": "tcp-read"}], 5000)
-        if oren_is_err(pr) || pr == nil || pr["kind"] != "net" || pr["id"] != "tcp-read" || (pr["ready"] & 1) == 0 { oren_exit(64) }
-        var rb = net_avm.session_read(sid, 4, 5000)
+        var pr = nil
+        if is_udp {
+            pr = net_udp.select(sid, net_udp.event_read(), 5000)
+        } else {
+            pr = net_tcp.select(sid, net_tcp.event_read(), 5000)
+        }
+        if oren_is_err(pr) || pr == nil || pr["kind"] != "net" || (pr["ready"] & 1) == 0 { oren_exit(64) }
+        var rb = nil
+        if is_udp { rb = net_udp.recv(sid, 4, 5000) } else { rb = net_tcp.read(sid, 4, 5000) }
         if oren_is_err(rb) { oren_exit(59) }
         if bytes.to_string(rb) != "pong" { oren_exit(60) }
-        var cr = net_avm.session_close(sid)
+        var cr = nil
+        if is_udp { cr = net_udp.close(sid) } else { cr = net_tcp.close(sid) }
         if oren_is_err(cr) || cr != 0 { oren_exit(61) }
     }
     print("stdout:" + body)

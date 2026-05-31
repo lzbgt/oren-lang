@@ -55,7 +55,8 @@ This file is the concise task view. Detailed implementation status lives in
      smoke imports `std:avm/events`, `std:avm/permission`, `std:buffer`, `std:bytes`, `std:cbor`,
      `std:encoding/base64`, `std:crypto/pem`, `std:crypto/sha1`,
      `std:crypto/sha256`, `std:crypto/x509`, `std:json`, `std:linalg`,
-     `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
+     `std:math`, `std:net/avm`, `std:net/avm/tcp`, `std:net/avm/udp`,
+     `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
      `std:yaml`, preventing missing app-facing exports such as
      `STD_linalg_dot_f64` from reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
@@ -66,7 +67,8 @@ This file is the concise task view. Detailed implementation status lives in
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
      session, plus first `std:net/avm.session_open/write/read/select/close` TCP/UDP virtual
-     session handles over host-owned iOS sockets with readiness selection, plus the native `std:avm/events`
+     session handles and `std:net/avm/tcp` / `std:net/avm/udp` convenience facades
+     over host-owned iOS sockets with readiness selection, plus the native `std:avm/events`
      virtual event-bus facade over AVM `EVENT` domain and `std:avm/permission`
      facade and OPR0 permission mailbox for host-visible OBC permission intent,
      plus binary

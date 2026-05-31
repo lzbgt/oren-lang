@@ -1,0 +1,56 @@
+// AVM-safe TCP facade over virtual network sessions.
+//
+// OBC sees virtual session ids only. The host SDK owns the real socket provider,
+// allowlist policy, readiness reactor, and lifecycle.
+
+import events "std:avm/events"
+import net "std:net/avm"
+
+fn event_read() { return events.event_read() }
+fn event_write() { return events.event_write() }
+fn event_read_write() { return events.event_read_write() }
+
+fn connect(host, port, timeout_ms) {
+    return net.session_open_tcp(host, port, timeout_ms)
+}
+
+fn connect_spec(spec, timeout_ms) {
+    if spec == nil { return oren_err(4, "std:net/avm/tcp.connect_spec: spec is nil") }
+    return net.session_open(spec, timeout_ms)
+}
+
+fn write(session_id, data, timeout_ms) {
+    return net.session_write(session_id, data, timeout_ms)
+}
+
+fn read(session_id, max_len, timeout_ms) {
+    return net.session_read(session_id, max_len, timeout_ms)
+}
+
+fn close(session_id) {
+    return net.session_close(session_id)
+}
+
+fn select(session_id, event_mask, timeout_ms) {
+    return events.select([{
+        "kind": "net",
+        "session_id": session_id,
+        "events": event_mask
+    }], timeout_ms)
+}
+
+fn wait_readable(session_id, timeout_ms) {
+    var ev = select(session_id, events.event_read(), timeout_ms)
+    if oren_is_err(ev) { return ev }
+    if ev == nil { return 0 }
+    if (ev["ready"] & events.event_read()) != 0 { return 1 }
+    return 0
+}
+
+fn wait_writable(session_id, timeout_ms) {
+    var ev = select(session_id, events.event_write(), timeout_ms)
+    if oren_is_err(ev) { return ev }
+    if ev == nil { return 0 }
+    if (ev["ready"] & events.event_write()) != 0 { return 1 }
+    return 0
+}

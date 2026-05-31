@@ -76,8 +76,9 @@ Facts from the 2026-05-28 implementation pass:
   and runs the result in AVM. The smoke imports `std:avm/events`, `std:avm/permission`, `std:buffer`, `std:bytes`,
   `std:cbor`, `std:encoding/base64`, `std:crypto/pem`,
   `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:json`,
-  `std:linalg`, `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`,
-  `std:ui/avm`, and `std:yaml`, proving common app-facing exports including
+  `std:linalg`, `std:math`, `std:net/avm`, `std:net/avm/tcp`,
+  `std:net/avm/udp`, `std:regex`, `std:strings`, `std:time`, `std:ui/avm`,
+  and `std:yaml`, proving common app-facing exports including
   `STD_linalg_dot_f64` are actually linkable from the bundled stdlib OBC.
 - OBC distribution design is documented in
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
@@ -121,6 +122,10 @@ Facts from the 2026-05-28 implementation pass:
   allowlist/dynamic live-NET controls. OBC receives only integer virtual session
   IDs and bytes; it never receives a socket or file descriptor. `make
   verify-libavm-ios` proves local TCP and UDP ping/pong plus select-before-write/read through this path.
+- `std:net/avm/tcp` and `std:net/avm/udp` now provide OBC-safe app-facing TCP/UDP
+  convenience wrappers over virtual sessions. The iOS verifier exercises both
+  modules through live host-backed virtual sockets, so app code does not need to
+  call the lowest-level `session_*` functions directly for common client flows.
 - OBC packages can now publish runtime permission intent through
   `std:avm/permission.request*`, which maps to a separate `PERMISSION` capability
   domain rather than the broader nested-AVM domain. AVM stores the latest request

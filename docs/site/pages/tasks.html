@@ -106,7 +106,8 @@
 <p>     smoke imports <code>std:avm/events</code>, <code>std:avm/permission</code>, <code>std:buffer</code>, <code>std:bytes</code>, <code>std:cbor</code>,</p>
 <p>     <code>std:encoding/base64</code>, <code>std:crypto/pem</code>, <code>std:crypto/sha1</code>,</p>
 <p>     <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>, <code>std:linalg</code>,</p>
-<p>     <code>std:math</code>, <code>std:net/avm</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and</p>
+<p>     <code>std:math</code>, <code>std:net/avm</code>, <code>std:net/avm/tcp</code>, <code>std:net/avm/udp</code>,</p>
+<p>     <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and</p>
 <p>     <code>std:yaml</code>, preventing missing app-facing exports such as</p>
 <p>     <code>STD_linalg_dot_f64</code> from reaching the iOS app.</p>
 <ul>
@@ -119,7 +120,8 @@
 <p>     interactive-default live NET callback for OBC <code>std:net/avm.try_get_text(url)</code></p>
 <p>     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK</p>
 <p>     session, plus first <code>std:net/avm.session_open/write/read/select/close</code> TCP/UDP virtual</p>
-<p>     session handles over host-owned iOS sockets with readiness selection, plus the native <code>std:avm/events</code></p>
+<p>     session handles and <code>std:net/avm/tcp</code> / <code>std:net/avm/udp</code> convenience facades</p>
+<p>     over host-owned iOS sockets with readiness selection, plus the native <code>std:avm/events</code></p>
 <p>     virtual event-bus facade over AVM <code>EVENT</code> domain and <code>std:avm/permission</code></p>
 <p>     facade and OPR0 permission mailbox for host-visible OBC permission intent,</p>
 <p>     plus binary</p>
