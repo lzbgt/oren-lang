@@ -1012,6 +1012,10 @@ int main(void) {
         metalView.frameData = frame;
         metalView.targetHzMilli = 120000;
         metalView.mediaFlags = 5;
+        if (metalView.preferredFramesPerSecond != 120) return 129;
+        metalView.targetHzMilli = 90000;
+        if (metalView.preferredFramesPerSecond != 90) return 130;
+        metalView.targetHzMilli = 120000;
         if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
