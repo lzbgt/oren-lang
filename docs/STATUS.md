@@ -1,6 +1,6 @@
 # Oren Status
 
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-01
 
 This is the current implementation status. It replaces the former rolling log with a
 small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.
@@ -89,9 +89,10 @@ Facts from the 2026-05-28 implementation pass:
   verifies `program.obc` SHA-256, derives runtime capabilities/budgets/time mode,
   mounts read-only package assets into VirtualFS, and runs the package OBC. It can
   also fetch a store `index.json`, verify the indexed manifest SHA-256, download
-  the manifest and OBC into an app-owned install directory, then reuse the local
+  the manifest, OBC, and declared assets into an app-owned install directory,
+  verify asset SHA-256 values, then reuse the local
   verifier/runner path. The iOS verifier now proves local package install/asset/run
-  plus HTTP index download/install/run. Signature validation is still pending.
+  plus HTTP index download/install/asset/run. Signature validation is still pending.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

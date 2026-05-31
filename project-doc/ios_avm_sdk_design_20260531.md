@@ -280,8 +280,9 @@ Public OBC store helper.
   `OrenAVMRuntimeConfig` from capabilities/budgets/time mode, mounts read-only
   package assets into VirtualFS, and runs the OBC through `OrenAVMRuntime`.
 - The SDK can also download a store `index.json`, find a package/version, verify
-  the indexed manifest SHA-256, fetch the manifest and OBC, install them into an
-  app-owned directory, and then run through the same local verifier path.
+  the indexed manifest SHA-256, fetch the manifest, OBC, and declared assets,
+  verify asset SHA-256 values, install them into an app-owned directory, and then
+  run through the same local verifier path.
 - Next slices should add signed store indexes and package manifests.
 - Signature verification is still pending; hash verification is implemented.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements

@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals and Current Tasks
 
-**Last updated:** 2026-05-31
+**Last updated:** 2026-06-01
 
 This file is the concise task view. Detailed implementation status lives in
 `docs/STATUS.md`; dated investigation notes live in `project-doc/`.
@@ -108,9 +108,10 @@ This file is the concise task view. Detailed implementation status lives in
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
      manifest schema/ABI/hash validation, capability/budget/time config derivation,
      read-only package asset mounting into VirtualFS, package OBC run, HTTP
-     `index.json` fetch, manifest hash verification, OBC download, install, and run.
-     Remaining package-store work is signature validation, asset download, persisted
-     install/update/remove flows, and Note app smoke.
+     `index.json` fetch, manifest hash verification, OBC download, declared asset
+     download with SHA-256 verification, install, and run. Remaining package-store
+     work is signature validation, persisted install/update/remove flows, and Note
+     app smoke.
 
 2. **AVM full-suite manifest runner**
    - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`

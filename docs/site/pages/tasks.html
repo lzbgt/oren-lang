@@ -34,7 +34,7 @@
     </nav>
     <main class="content">
       <h1 id="bleeding-edge-goals-and-current-tasks">Bleeding-Edge Goals and Current Tasks</h1>
-<p><strong>Last updated:</strong> 2026-05-31</p>
+<p><strong>Last updated:</strong> 2026-06-01</p>
 <p>This file is the concise task view. Detailed implementation status lives in</p>
 <p><code>docs/STATUS.md</code>; dated investigation notes live in <code>project-doc/</code>.</p>
 <h2 id="goals">Goals</h2>
@@ -167,9 +167,10 @@
 </ul>
 <p>     manifest schema/ABI/hash validation, capability/budget/time config derivation,</p>
 <p>     read-only package asset mounting into VirtualFS, package OBC run, HTTP</p>
-<p>     <code>index.json</code> fetch, manifest hash verification, OBC download, install, and run.</p>
-<p>     Remaining package-store work is signature validation, asset download, persisted</p>
-<p>     install/update/remove flows, and Note app smoke.</p>
+<p>     <code>index.json</code> fetch, manifest hash verification, OBC download, declared asset</p>
+<p>     download with SHA-256 verification, install, and run. Remaining package-store</p>
+<p>     work is signature validation, persisted install/update/remove flows, and Note</p>
+<p>     app smoke.</p>
 <ol>
 <li><strong>AVM full-suite manifest runner</strong></li>
 </ol>

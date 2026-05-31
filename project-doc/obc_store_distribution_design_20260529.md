@@ -197,10 +197,10 @@ Current implementation status: the iOS SDK now has local and HTTP-index
 required manifest fields, AVM ABI floor, indexed manifest SHA-256, `program.obc`
 SHA-256, package capabilities, budget/time-mode runtime config, and read-only
 package asset mounts before running the OBC. It can fetch `index.json`, download
-the selected manifest/OBC into an app-owned install directory, and run the package
-through the same local verifier path. Signature validation, asset download,
-persisted install/update/remove lifecycle, and Note app smoke remain required
-before a public store is release-ready.
+the selected manifest/OBC plus declared assets into an app-owned install directory,
+verify each asset SHA-256, and run the package through the same local verifier
+path. Signature validation, persisted install/update/remove lifecycle, and Note
+app smoke remain required before a public store is release-ready.
 
 ## Initial Public Repo Shape
 

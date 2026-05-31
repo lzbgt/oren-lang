@@ -79,8 +79,6 @@ HOST_FS_OBC_OUT="$TMP_DIR/host_fs_chain.obc"
 HOST_FS_OBC_HEADER="$TMP_DIR/host_fs_chain_obc.h"
 PACKAGE_SRC="$TMP_DIR/package_chain.oren"
 PACKAGE_OBC_OUT="$TMP_DIR/package_chain.obc"
-REMOTE_PACKAGE_SRC="$TMP_DIR/remote_package_chain.oren"
-REMOTE_PACKAGE_OBC_OUT="$TMP_DIR/remote_package_chain.obc"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
@@ -271,15 +269,6 @@ fn main() {
 main()
 OREN
 "$OREN_COMPILER" build "$PACKAGE_SRC" --backend bytecode -o "$PACKAGE_OBC_OUT" > "$LOG_DIR/libavm_ios_package_chain_obc_build.log" 2>&1
-
-cat > "$REMOTE_PACKAGE_SRC" <<'OREN'
-fn main() {
-    print("remote-pkg")
-    oren_exit(9)
-}
-main()
-OREN
-"$OREN_COMPILER" build "$REMOTE_PACKAGE_SRC" --backend bytecode -o "$REMOTE_PACKAGE_OBC_OUT" > "$LOG_DIR/libavm_ios_remote_package_chain_obc_build.log" 2>&1
 
 python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
 import pathlib
@@ -778,7 +767,16 @@ int main(void) {
             if (!packageRuntime) return 96;
             OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
             if (!packageResult || packageResult.exitCode != 9) return 97;
-            if (![packageResult.stdoutData isEqualToData:[@"remote-pkg\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 98;
+            if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 98;
+            error = nil;
+            OrenAVMPackage* badAssetPackage = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                       packageID:@"oren-labs/sdk-package-bad-asset"
+                                                                         version:@"0.1.0"
+                                                         destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                                    allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                  timeoutSeconds:5.0
+                                                                           error:&error];
+            if (badAssetPackage || !error) return 99;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -992,14 +990,18 @@ PY
 PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
 REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
 REMOTE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.1.0"
+REMOTE_BAD_ASSET_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-asset/0.1.0"
 rm -rf "$TMP_DIR/package_store" "$REMOTE_STORE_DIR"
-mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets"
+mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets"
 cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
-cp "$REMOTE_PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
+cp "$PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
+cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_ASSET_PACKAGE_DIR/program.obc"
 printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_PACKAGE_DIR/assets/config.txt"
+printf 'pkg-asset' > "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets/config.txt"
 PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
 REMOTE_PACKAGE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/program.obc" | awk '{print $1}')"
+REMOTE_ASSET_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/assets/config.txt" | awk '{print $1}')"
 cat > "$PACKAGE_DIR/package.json" <<JSON
 {
   "schema": "oren.obc.package.v0",
@@ -1038,16 +1040,51 @@ cat > "$REMOTE_PACKAGE_DIR/package.json" <<JSON
   "oren_min": "0.0.rolling",
   "avm_abi_min": 8,
   "capabilities": ["CORE", "FS", "EXIT"],
+  "assets": [
+    { "path": "assets/config.txt", "sha256": "$REMOTE_ASSET_HASH" }
+  ],
   "time_mode": "deterministic",
   "budgets": {
     "gas": 5000000,
     "heap_bytes": 33554432,
     "io_bytes": 1048576,
     "frame_commands": 1024
-  }
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
+}
+JSON
+cat > "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-package-bad-asset",
+  "publisher": "oren-labs",
+  "version": "0.1.0",
+  "title": "SDK Bad Asset Package Smoke",
+  "summary": "Verifies asset hash mismatch rejection.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$REMOTE_PACKAGE_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "assets": [
+    { "path": "assets/config.txt", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" }
+  ],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
 }
 JSON
 REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '{print $1}')"
+REMOTE_BAD_ASSET_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" | awk '{print $1}')"
 cat > "$REMOTE_STORE_DIR/index.json" <<JSON
 {
   "schema": "oren.obc.store.index.v0",
@@ -1059,6 +1096,14 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
       "manifest": "packages/oren-labs/sdk-package-remote/0.1.0/package.json",
       "manifest_sha256": "$REMOTE_MANIFEST_HASH",
       "tags": ["sdk", "smoke"],
+      "min_app": "0.1.0"
+    },
+    {
+      "id": "oren-labs/sdk-package-bad-asset",
+      "version": "0.1.0",
+      "manifest": "packages/oren-labs/sdk-package-bad-asset/0.1.0/package.json",
+      "manifest_sha256": "$REMOTE_BAD_ASSET_MANIFEST_HASH",
+      "tags": ["sdk", "negative"],
       "min_app": "0.1.0"
     }
   ]

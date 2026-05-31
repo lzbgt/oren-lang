@@ -442,6 +442,36 @@ static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
                            options:NSDataWritingAtomic
                              error:error]) return nil;
     if (![obcData writeToURL:obcOutURL options:NSDataWritingAtomic error:error]) return nil;
+    id assets = manifest[@"assets"];
+    if ([assets isKindOfClass:[NSArray class]]) {
+        for (id item in (NSArray*)assets) {
+            if (![item isKindOfClass:[NSDictionary class]]) {
+                OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset entries must be objects");
+                return nil;
+            }
+            NSDictionary* asset = (NSDictionary*)item;
+            NSString* assetPath = OrenAVMPackageString(asset, @"path");
+            NSString* assetHash = OrenAVMPackageString(asset, @"sha256");
+            if (!OrenAVMPackagePathIsSafe(assetPath) || assetHash.length != 64) {
+                OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset entry is invalid");
+                return nil;
+            }
+            NSURL* assetURL = OrenAVMPackageResolveStoreURL(manifestURL, assetPath);
+            NSURL* assetOutURL = OrenAVMPackageAppendSafeRelativePath(packageRoot, assetPath, NO);
+            if (!assetURL || !assetOutURL) {
+                OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset path is invalid");
+                return nil;
+            }
+            NSData* assetData = nil;
+            if (!OrenAVMRuntimeFetchURLData(assetURL, allowedHosts, timeoutSeconds, 0, nil, &assetData, error)) return nil;
+            if (![[OrenAVMPackageStore sha256HexForData:assetData] isEqualToString:assetHash.lowercaseString]) {
+                OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset hash mismatch");
+                return nil;
+            }
+            if (![fm createDirectoryAtURL:[assetOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
+            if (![assetData writeToURL:assetOutURL options:NSDataWritingAtomic error:error]) return nil;
+        }
+    }
     return [self loadPackageAtDirectoryURL:packageRoot error:error];
 }
 

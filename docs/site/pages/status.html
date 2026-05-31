@@ -34,7 +34,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-05-31</p>
+<p><strong>Last updated:</strong> 2026-06-01</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -134,9 +134,10 @@
 <p>  verifies <code>program.obc</code> SHA-256, derives runtime capabilities/budgets/time mode,</p>
 <p>  mounts read-only package assets into VirtualFS, and runs the package OBC. It can</p>
 <p>  also fetch a store <code>index.json</code>, verify the indexed manifest SHA-256, download</p>
-<p>  the manifest and OBC into an app-owned install directory, then reuse the local</p>
+<p>  the manifest, OBC, and declared assets into an app-owned install directory,</p>
+<p>  verify asset SHA-256 values, then reuse the local</p>
 <p>  verifier/runner path. The iOS verifier now proves local package install/asset/run</p>
-<p>  plus HTTP index download/install/run. Signature validation is still pending.</p>
+<p>  plus HTTP index download/install/asset/run. Signature validation is still pending.</p>
 <ul>
 <li>iOS SDK design is documented in <code>project-doc/ios_avm_sdk_design_20260531.md</code>:</li>
 </ul>

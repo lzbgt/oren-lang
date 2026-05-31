@@ -229,10 +229,10 @@ packages/...</code></pre>
 <p>required manifest fields, AVM ABI floor, indexed manifest SHA-256, <code>program.obc</code></p>
 <p>SHA-256, package capabilities, budget/time-mode runtime config, and read-only</p>
 <p>package asset mounts before running the OBC. It can fetch <code>index.json</code>, download</p>
-<p>the selected manifest/OBC into an app-owned install directory, and run the package</p>
-<p>through the same local verifier path. Signature validation, asset download,</p>
-<p>persisted install/update/remove lifecycle, and Note app smoke remain required</p>
-<p>before a public store is release-ready.</p>
+<p>the selected manifest/OBC plus declared assets into an app-owned install directory,</p>
+<p>verify each asset SHA-256, and run the package through the same local verifier</p>
+<p>path. Signature validation, persisted install/update/remove lifecycle, and Note</p>
+<p>app smoke remain required before a public store is release-ready.</p>
 <h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
 <p>Suggested public repository:</p>
 <pre><code>oren-obc-store/
