@@ -192,6 +192,200 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 
 @end
 
+@interface OrenAVMPackage ()
+- (instancetype)initWithDirectoryURL:(NSURL*)directoryURL
+                            manifest:(NSDictionary<NSString*, id>*)manifest
+                             obcData:(NSData*)obcData
+                           packageID:(NSString*)packageID
+                                name:(NSString*)name
+                           publisher:(NSString*)publisher
+                             version:(NSString*)version
+                        capabilities:(NSArray<NSString*>*)capabilities;
+@end
+
+@implementation OrenAVMPackage
+
+- (instancetype)initWithDirectoryURL:(NSURL*)directoryURL
+                            manifest:(NSDictionary<NSString*, id>*)manifest
+                             obcData:(NSData*)obcData
+                           packageID:(NSString*)packageID
+                                name:(NSString*)name
+                           publisher:(NSString*)publisher
+                             version:(NSString*)version
+                        capabilities:(NSArray<NSString*>*)capabilities {
+    self = [super init];
+    if (!self) return nil;
+    _directoryURL = [directoryURL copy];
+    _manifest = [manifest copy];
+    _obcData = [obcData copy];
+    _packageID = [packageID copy];
+    _name = [name copy];
+    _publisher = [publisher copy];
+    _version = [version copy];
+    _capabilities = [capabilities copy];
+    return self;
+}
+
+@end
+
+@implementation OrenAVMPackageStore
+
++ (NSString*)sha256HexForData:(NSData*)data {
+    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
+    NSMutableString* out = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2u];
+    for (NSUInteger i = 0; i < sizeof(digest); i++) [out appendFormat:@"%02x", digest[i]];
+    return out;
+}
+
+static NSString* OrenAVMPackageString(NSDictionary<NSString*, id>* manifest, NSString* key) {
+    id v = manifest[key];
+    return [v isKindOfClass:[NSString class]] ? (NSString*)v : nil;
+}
+
+static NSNumber* OrenAVMPackageNumber(NSDictionary<NSString*, id>* manifest, NSString* key) {
+    id v = manifest[key];
+    return [v isKindOfClass:[NSNumber class]] ? (NSNumber*)v : nil;
+}
+
+static BOOL OrenAVMPackagePathIsSafe(NSString* path) {
+    if (path.length == 0 || [path hasPrefix:@"/"] || [path containsString:@"\0"]) return NO;
+    for (NSString* part in [path pathComponents]) {
+        if ([part isEqualToString:@".."]) return NO;
+    }
+    return YES;
+}
+
+static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
+    NSString* c = cap.uppercaseString;
+    if ([c isEqualToString:@"CORE"]) return OrenAVMDomainCore;
+    if ([c isEqualToString:@"FS"] || [c isEqualToString:@"VFS"]) return OrenAVMDomainFS;
+    if ([c isEqualToString:@"TIME"]) return OrenAVMDomainTime;
+    if ([c isEqualToString:@"NET"] || [c isEqualToString:@"VNET"]) return OrenAVMDomainNet;
+    if ([c isEqualToString:@"PROC"] || [c isEqualToString:@"VPROC"]) return OrenAVMDomainProc;
+    if ([c isEqualToString:@"EXIT"]) return OrenAVMDomainExit;
+    if ([c isEqualToString:@"GFX"] || [c isEqualToString:@"INPUT"] || [c isEqualToString:@"UI"]) return OrenAVMDomainGFX;
+    if ([c isEqualToString:@"PERMISSION"]) return OrenAVMDomainPermission;
+    return 0;
+}
+
+- (OrenAVMPackage*)loadPackageAtDirectoryURL:(NSURL*)directoryURL error:(NSError**)error {
+    if (!directoryURL.isFileURL) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package directory must be a file URL");
+        return nil;
+    }
+    NSURL* manifestURL = [directoryURL URLByAppendingPathComponent:@"package.json" isDirectory:NO];
+    NSData* manifestData = [NSData dataWithContentsOfURL:manifestURL options:0 error:error];
+    if (!manifestData) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:error];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest must be a JSON object");
+        return nil;
+    }
+    NSDictionary<NSString*, id>* manifest = (NSDictionary<NSString*, id>*)json;
+    NSString* schema = OrenAVMPackageString(manifest, @"schema");
+    NSString* name = OrenAVMPackageString(manifest, @"name");
+    NSString* publisher = OrenAVMPackageString(manifest, @"publisher");
+    NSString* version = OrenAVMPackageString(manifest, @"version");
+    NSString* entry = OrenAVMPackageString(manifest, @"entry_obc");
+    NSString* wantHash = OrenAVMPackageString(manifest, @"obc_sha256");
+    NSNumber* abiMin = OrenAVMPackageNumber(manifest, @"avm_abi_min");
+    if (![schema isEqualToString:@"oren.obc.package.v0"] || name.length == 0 ||
+        publisher.length == 0 || version.length == 0 || entry.length == 0 || wantHash.length != 64 ||
+        !abiMin || abiMin.unsignedIntValue > AVM_EMBED_ABI_VERSION || !OrenAVMPackagePathIsSafe(entry)) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest is invalid or unsupported");
+        return nil;
+    }
+    NSURL* obcURL = [directoryURL URLByAppendingPathComponent:entry isDirectory:NO];
+    NSData* obcData = [NSData dataWithContentsOfURL:obcURL options:0 error:error];
+    if (!obcData) return nil;
+    NSString* gotHash = [OrenAVMPackageStore sha256HexForData:obcData];
+    if (![gotHash isEqualToString:wantHash.lowercaseString]) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package bytecode hash mismatch");
+        return nil;
+    }
+    NSArray<NSString*>* capabilities = @[];
+    id caps = manifest[@"capabilities"];
+    if ([caps isKindOfClass:[NSArray class]]) {
+        NSMutableArray<NSString*>* clean = [NSMutableArray array];
+        for (id cap in (NSArray*)caps) {
+            if (![cap isKindOfClass:[NSString class]] || OrenAVMPackageDomainForCapability(cap) == 0) {
+                OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package has unsupported capability");
+                return nil;
+            }
+            [clean addObject:[cap uppercaseString]];
+        }
+        capabilities = clean;
+    }
+    NSString* packageID = [NSString stringWithFormat:@"%@/%@/%@", publisher, name, version];
+    return [[OrenAVMPackage alloc] initWithDirectoryURL:directoryURL
+                                              manifest:manifest
+                                               obcData:obcData
+                                             packageID:packageID
+                                                  name:name
+                                             publisher:publisher
+                                               version:version
+                                          capabilities:capabilities];
+}
+
+- (OrenAVMRuntimeConfig*)runtimeConfigForPackage:(OrenAVMPackage*)package error:(NSError**)error {
+    if (!package) {
+        OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package is nil");
+        return nil;
+    }
+    NSString* timeMode = OrenAVMPackageString(package.manifest, @"time_mode") ?: @"deterministic";
+    OrenAVMRuntimeConfig* cfg = [timeMode isEqualToString:@"interactive"] ?
+        [OrenAVMRuntimeConfig interactiveAppDefaults] : [OrenAVMRuntimeConfig deterministicDefaults];
+    uint64_t domains = 0;
+    for (NSString* cap in package.capabilities) domains |= OrenAVMPackageDomainForCapability(cap);
+    if (domains == 0) domains = OrenAVMDomainCore | OrenAVMDomainExit;
+    cfg.allowedDomains = domains;
+    id budgets = package.manifest[@"budgets"];
+    if ([budgets isKindOfClass:[NSDictionary class]]) {
+        NSNumber* gas = [(NSDictionary*)budgets objectForKey:@"gas"];
+        NSNumber* heap = [(NSDictionary*)budgets objectForKey:@"heap_bytes"];
+        NSNumber* io = [(NSDictionary*)budgets objectForKey:@"io_bytes"];
+        NSNumber* frames = [(NSDictionary*)budgets objectForKey:@"frame_commands"];
+        if ([gas isKindOfClass:[NSNumber class]] && gas.unsignedLongLongValue > 0) cfg.gasLimit = gas.unsignedLongLongValue;
+        if ([heap isKindOfClass:[NSNumber class]] && heap.unsignedLongLongValue > 0) cfg.heapLimitBytes = heap.unsignedLongLongValue;
+        if ([io isKindOfClass:[NSNumber class]] && io.unsignedLongLongValue > 0) cfg.ioLimitBytes = io.unsignedLongLongValue;
+        if ([frames isKindOfClass:[NSNumber class]] && frames.unsignedIntValue > 0) cfg.frameLimit = frames.unsignedIntValue;
+    }
+    return cfg;
+}
+
+- (BOOL)mountPackageAssetsForPackage:(OrenAVMPackage*)package runtime:(OrenAVMRuntime*)runtime error:(NSError**)error {
+    if (!package || !runtime) return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"package and runtime are required");
+    id mounts = package.manifest[@"vfs_mounts"];
+    if (![mounts isKindOfClass:[NSArray class]]) return YES;
+    for (id item in (NSArray*)mounts) {
+        if (![item isKindOfClass:[NSDictionary class]]) return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"vfs_mounts entries must be objects");
+        NSDictionary* m = (NSDictionary*)item;
+        NSString* virtualPath = [m[@"virtual"] isKindOfClass:[NSString class]] ? m[@"virtual"] : nil;
+        NSString* packagePath = [m[@"package_path"] isKindOfClass:[NSString class]] ? m[@"package_path"] : nil;
+        BOOL readOnly = ![m[@"read_only"] isKindOfClass:[NSNumber class]] || [m[@"read_only"] boolValue];
+        if (virtualPath.length == 0 || packagePath.length == 0 || !readOnly || !OrenAVMPackagePathIsSafe(packagePath)) {
+            return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"unsupported or unsafe package VFS mount");
+        }
+        NSURL* source = [package.directoryURL URLByAppendingPathComponent:packagePath isDirectory:NO];
+        NSNumber* isDir = nil;
+        if (![source getResourceValue:&isDir forKey:NSURLIsDirectoryKey error:error]) return NO;
+        if (isDir.boolValue) {
+            if (![runtime mountDirectoryURL:source atVFSRoot:virtualPath error:error]) return NO;
+        } else {
+            if (![runtime mountFileURL:source atVFSPath:virtualPath error:error]) return NO;
+        }
+    }
+    return YES;
+}
+
+- (OrenAVMRunResult*)runPackage:(OrenAVMPackage*)package runtime:(OrenAVMRuntime*)runtime error:(NSError**)error {
+    if (![self mountPackageAssetsForPackage:package runtime:runtime error:error]) return nil;
+    return [runtime runOBCData:package.obcData error:error];
+}
+
+@end
+
 #if TARGET_OS_IPHONE
 
 @implementation OrenAVMGraphicsView
@@ -1052,6 +1246,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     @synchronized (self) {
         for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
         [_networkSockets removeAllObjects];
+        [_networkSessionKinds removeAllObjects];
         [_networkSessionByteCounts removeAllObjects];
     }
     [_networkSession invalidateAndCancel];

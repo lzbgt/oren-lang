@@ -119,6 +119,36 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @end
 
+@interface OrenAVMPackage : NSObject
+
+@property(nonatomic, readonly, copy) NSURL* directoryURL;
+@property(nonatomic, readonly, copy) NSDictionary<NSString*, id>* manifest;
+@property(nonatomic, readonly, copy) NSData* obcData;
+@property(nonatomic, readonly, copy) NSString* packageID;
+@property(nonatomic, readonly, copy) NSString* name;
+@property(nonatomic, readonly, copy) NSString* publisher;
+@property(nonatomic, readonly, copy) NSString* version;
+@property(nonatomic, readonly, copy) NSArray<NSString*>* capabilities;
+
+@end
+
+@interface OrenAVMPackageStore : NSObject
+
+- (nullable OrenAVMPackage*)loadPackageAtDirectoryURL:(NSURL*)directoryURL
+                                               error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMRuntimeConfig*)runtimeConfigForPackage:(OrenAVMPackage*)package
+                                                    error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)mountPackageAssetsForPackage:(OrenAVMPackage*)package
+                             runtime:(OrenAVMRuntime*)runtime
+                               error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMRunResult*)runPackage:(OrenAVMPackage*)package
+                                 runtime:(OrenAVMRuntime*)runtime
+                                   error:(NSError* _Nullable* _Nullable)error;
+
++ (NSString*)sha256HexForData:(NSData*)data;
+
+@end
+
 #if TARGET_OS_IPHONE
 
 @interface OrenAVMGraphicsView : UIView

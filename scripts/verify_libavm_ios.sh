@@ -60,6 +60,8 @@ done
 
 nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
+nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPackageStore'
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPackageStore'
 nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
 
@@ -75,6 +77,8 @@ CANCEL_WATCH_OBC_HEADER="$TMP_DIR/cancel_watch_obc.h"
 HOST_FS_SRC="$TMP_DIR/host_fs_chain.oren"
 HOST_FS_OBC_OUT="$TMP_DIR/host_fs_chain.obc"
 HOST_FS_OBC_HEADER="$TMP_DIR/host_fs_chain_obc.h"
+PACKAGE_SRC="$TMP_DIR/package_chain.oren"
+PACKAGE_OBC_OUT="$TMP_DIR/package_chain.obc"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
@@ -253,6 +257,18 @@ fn main() {
 main()
 OREN
 "$OREN_COMPILER" build "$HOST_FS_SRC" --backend bytecode -o "$HOST_FS_OBC_OUT" > "$LOG_DIR/libavm_ios_host_fs_chain_obc_build.log" 2>&1
+
+cat > "$PACKAGE_SRC" <<'OREN'
+fn main() {
+    var s = oren_read_file("assets/config.txt")
+    if oren_is_err(s) { oren_exit(95) }
+    if s != "pkg-asset" { oren_exit(96) }
+    print("pkg:" + s)
+    oren_exit(9)
+}
+main()
+OREN
+"$OREN_COMPILER" build "$PACKAGE_SRC" --backend bytecode -o "$PACKAGE_OBC_OUT" > "$LOG_DIR/libavm_ios_package_chain_obc_build.log" 2>&1
 
 python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
 import pathlib
@@ -600,6 +616,7 @@ int main(void) {
         NSDictionary<NSString*, NSString*>* env = [[NSProcessInfo processInfo] environment];
         NSString* netURL = env[@"OREN_AVM_SDK_NET_URL"] ?: @"https://note.local/probe";
         NSString* tcpURL = env[@"OREN_AVM_SDK_TCP_URL"] ?: @"session-none";
+        NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
@@ -719,6 +736,19 @@ int main(void) {
                                                 options:0
                                                   error:&error];
         if (![liveOut isEqualToData:[@"host-out:host-in" dataUsingEncoding:NSUTF8StringEncoding]]) return 88;
+        if (packageDir.length > 0) {
+            OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
+            OrenAVMPackage* package = [store loadPackageAtDirectoryURL:[NSURL fileURLWithPath:packageDir isDirectory:YES]
+                                                                  error:&error];
+            if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-smoke/0.1.0"]) return 89;
+            OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
+            if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 90;
+            OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
+            if (!packageRuntime) return 91;
+            OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
+            if (!packageResult || packageResult.exitCode != 9) return 92;
+            if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 93;
+        }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
@@ -1079,9 +1109,41 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
   fi
   sleep 0.1
 done
+PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
+rm -rf "$PACKAGE_DIR"
+mkdir -p "$PACKAGE_DIR/assets"
+cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
+printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
+PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
+cat > "$PACKAGE_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-package-smoke",
+  "publisher": "oren-labs",
+  "version": "0.1.0",
+  "title": "SDK Package Smoke",
+  "summary": "Verifies OrenAVMPackageStore local package loading.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$PACKAGE_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
+}
+JSON
 OREN_AVM_SDK_NET_PREFETCH=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
+OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \

@@ -356,11 +356,18 @@
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>
-<li>Downloads signed store indexes and package manifests.</li>
-<li>Verifies hashes/signatures before execution.</li>
-<li>Applies package capabilities, budgets, assets, time mode, and GUI requirements.</li>
-<li>Rejects unknown schema versions or unsupported AVM ABI requirements.</li>
+<li>Current implemented slice loads local package directories with</li>
 </ul>
+<p>  <code>package.json</code> + <code>program.obc</code>, validates <code>oren.obc.package.v0</code>, rejects</p>
+<p>  unsupported AVM ABI floors, verifies the OBC SHA-256, derives an</p>
+<p>  <code>OrenAVMRuntimeConfig</code> from capabilities/budgets/time mode, mounts read-only</p>
+<p>  package assets into VirtualFS, and runs the OBC through <code>OrenAVMRuntime</code>.</p>
+<ul>
+<li>Next slices should download signed store indexes and package manifests.</li>
+<li>Signature verification is still pending; hash verification is implemented.</li>
+<li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
+</ul>
+<p>  remain host/app policy until the Metal/GFX release gate is stronger.</p>
 <h2 id="default-policy">Default Policy</h2>
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>

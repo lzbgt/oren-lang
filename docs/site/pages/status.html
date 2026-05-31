@@ -128,6 +128,14 @@
 <p>  release gate, a public signed OBC store repo can distribute app experiences</p>
 <p>  that the iOS app downloads, verifies, and runs through <code>libavm</code>.</p>
 <ul>
+<li>The first <code>OrenAVMPackageStore</code> SDK slice is implemented. It loads a local</li>
+</ul>
+<p>  <code>oren.obc.package.v0</code> directory, validates manifest shape and AVM ABI floor,</p>
+<p>  verifies <code>program.obc</code> SHA-256, derives runtime capabilities/budgets/time mode,</p>
+<p>  mounts read-only package assets into VirtualFS, and runs the package OBC. The</p>
+<p>  iOS verifier now creates a fixture package and proves install/verify/asset/run.</p>
+<p>  Signature/index download support is still pending.</p>
+<ul>
 <li>iOS SDK design is documented in <code>project-doc/ios_avm_sdk_design_20260531.md</code>:</li>
 </ul>
 <p>  Oren should ship host-adapter SDK components so Note can use default</p>

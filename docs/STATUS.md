@@ -84,6 +84,12 @@ Facts from the 2026-05-28 implementation pass:
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
   release gate, a public signed OBC store repo can distribute app experiences
   that the iOS app downloads, verifies, and runs through `libavm`.
+- The first `OrenAVMPackageStore` SDK slice is implemented. It loads a local
+  `oren.obc.package.v0` directory, validates manifest shape and AVM ABI floor,
+  verifies `program.obc` SHA-256, derives runtime capabilities/budgets/time mode,
+  mounts read-only package assets into VirtualFS, and runs the package OBC. The
+  iOS verifier now creates a fixture package and proves install/verify/asset/run.
+  Signature/index download support is still pending.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

@@ -224,6 +224,13 @@ packages/...</code></pre>
 <li>The stdlib bundle manifest records which modules are available to store</li>
 </ol>
 <p>   packages and why excluded modules are excluded.</p>
+<p>Current implementation status: the iOS SDK now has the first local</p>
+<p><code>OrenAVMPackageStore</code> verifier/runner slice. It validates package schema,</p>
+<p>required manifest fields, AVM ABI floor, <code>program.obc</code> SHA-256, package</p>
+<p>capabilities, budget/time-mode runtime config, and read-only package asset mounts</p>
+<p>before running the OBC. Signature validation, signed store indexes, network</p>
+<p>download, install/update/remove lifecycle, and Note app smoke remain required</p>
+<p>before a public store is release-ready.</p>
 <h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
 <p>Suggested public repository:</p>
 <pre><code>oren-obc-store/

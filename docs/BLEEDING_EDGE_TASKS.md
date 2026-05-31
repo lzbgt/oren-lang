@@ -86,7 +86,7 @@ This file is the concise task view. Detailed implementation status lives in
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
      listen/accept on the VNET/session protocol, event-bus FS/package
      events without exposing raw sockets to OBC, compiler helper
-     package, package store helper, and the game-grade GUI path:
+     package, signed index/download package-store support, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
      input ordering, Metal/`MTKView`, richer drawing ops, and richer
      IME/composition input helpers. The `OGF0` frame header now includes
@@ -105,6 +105,11 @@ This file is the concise task view. Detailed implementation status lives in
      signed OBC store repo with package manifests, hashes, capability declarations,
      and iOS download/verify/run flow. Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
+   - 2026-06-01: first local `OrenAVMPackageStore` slice exists and is verified:
+     manifest schema/ABI/hash validation, capability/budget/time config derivation,
+     read-only package asset mounting into VirtualFS, and package OBC run. Remaining
+     package-store work is signed store index/package download, signature validation,
+     persisted install/update/remove flows, and Note app smoke.
 
 2. **AVM full-suite manifest runner**
    - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`
