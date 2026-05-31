@@ -80,6 +80,10 @@ Implemented in this repo:
   `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`; HTTP Basic Auth from
   `OBC_STORE_ADMIN_USERNAME` / `OBC_STORE_ADMIN_PASSWORD` remains available for
   local bring-up and compatibility.
+- Publisher package/version/release write endpoints accept publisher-scoped bearer
+  tokens verified against the publisher's stored `token_sha256_hex`. A publisher
+  token can only write under that publisher id; admin auth still controls
+  publisher creation and global operations.
 - Public endpoints expose health, package list/search, package/version metadata,
   `index.json`, package manifests, `program.obc`, assets, and hash-addressed
   artifact lookup.
@@ -96,7 +100,8 @@ Implemented in this repo:
 Remaining service work before deployment:
 
 - signed index rotation/key-id publication beyond the current single-key signer;
-- publisher-scoped API tokens and rotation beyond the current admin bearer token;
+- token rotation/revocation UX beyond replacing the stored publisher/admin token
+  hash;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
@@ -191,7 +196,8 @@ POST /api/v0/packages/{publisher}/{name}/versions/{version}/yank
 
 Publish flow:
 
-1. Publisher authenticates.
+1. Publisher authenticates with a bearer token scoped to its publisher id, or an
+   admin performs the publish operation.
 2. Publisher uploads manifest, OBC, and assets.
 3. Service verifies manifest schema, semantic version, hashes, size limits,
    capability declarations, and AVM ABI compatibility.

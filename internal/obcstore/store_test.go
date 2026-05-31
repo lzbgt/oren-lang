@@ -212,6 +212,63 @@ func TestStoreAcceptsBearerAdminTokenHash(t *testing.T) {
 	}
 }
 
+func TestStoreAcceptsPublisherScopedBearerToken(t *testing.T) {
+	tokenHash := sha256.Sum256([]byte("oren-labs-token"))
+	otherHash := sha256.Sum256([]byte("other-token"))
+	svc, err := New(Config{
+		DataDir:       t.TempDir(),
+		AdminUser:     "admin",
+		AdminPassword: "secret",
+		Now: func() time.Time {
+			return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(svc.Handler())
+	defer ts.Close()
+
+	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{
+		"id":               "oren-labs",
+		"token_sha256_hex": hex.EncodeToString(tokenHash[:]),
+		"display_name":     "Oren Labs",
+	}, true); got.Code != http.StatusCreated {
+		t.Fatalf("publisher status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{
+		"id":               "other-labs",
+		"token_sha256_hex": hex.EncodeToString(otherHash[:]),
+	}, true); got.Code != http.StatusCreated {
+		t.Fatalf("other publisher status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "scoped-demo"}, "wrong-token"); got.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong publisher token status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "other-labs", "name": "cross-demo"}, "oren-labs-token"); got.Code != http.StatusUnauthorized {
+		t.Fatalf("cross publisher token status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "scoped-demo"}, "oren-labs-token"); got.Code != http.StatusCreated {
+		t.Fatalf("scoped package status=%d body=%s", got.Code, got.Body.String())
+	}
+	upload := map[string]any{
+		"version":            "0.1.0",
+		"program_obc_base64": base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e}),
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/scoped-demo/versions", upload, "oren-labs-token"); got.Code != http.StatusCreated {
+		t.Fatalf("scoped version status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/scoped-demo/versions/0.1.0/publish", map[string]any{}, "oren-labs-token"); got.Code != http.StatusOK {
+		t.Fatalf("scoped publish status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/scoped-demo/versions/0.1.0/yank", map[string]any{}, "other-token"); got.Code != http.StatusUnauthorized {
+		t.Fatalf("cross yank status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/scoped-demo/versions/0.1.0/yank", map[string]any{}, "oren-labs-token"); got.Code != http.StatusOK {
+		t.Fatalf("scoped yank status=%d body=%s", got.Code, got.Body.String())
+	}
+}
+
 func request(t *testing.T, ts *httptest.Server, method, path string, body any, auth bool) *httptest.ResponseRecorder {
 	t.Helper()
 	req := newJSONRequest(t, ts, method, path, body)

@@ -1618,6 +1618,7 @@ OBC_STORE_INDEX_SIGN_KEY_PEM="$PACKAGE_SIGN_KEY" \
 GO_STORE_PID=$!
 python3 - "$GO_STORE_PORT" "$GO_STORE_DIR" "$PACKAGE_OBC_OUT" "$PACKAGE_SIGN_KEY" > "$LOG_DIR/libavm_ios_sdk_obc_store_publish.log" 2>&1 <<'PY'
 import base64
+import hashlib
 import http.client
 import json
 import pathlib
@@ -1642,14 +1643,17 @@ for _ in range(100):
 else:
     raise SystemExit("obc-store service did not become ready")
 
-def post(path, payload):
+def post(path, payload, authorization):
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(base + path, data=body, method="POST")
     req.add_header("Content-Type", "application/json")
-    token = base64.b64encode(b"admin:secret").decode("ascii")
-    req.add_header("Authorization", "Basic " + token)
+    req.add_header("Authorization", authorization)
     with urllib.request.urlopen(req, timeout=5) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+admin_auth = "Basic " + base64.b64encode(b"admin:secret").decode("ascii")
+publisher_token = "sdk-service-publisher-token"
+publisher_auth = "Bearer " + publisher_token
 
 pub = subprocess.check_output(
     [
@@ -1665,8 +1669,8 @@ print(base64.b64encode(pub).decode("ascii"))
 """,
 ).decode("ascii").strip()
 
-post("/api/v0/publishers", {"id": "oren-labs", "display_name": "Oren Labs", "public_keys": [pub]})
-post("/api/v0/packages", {"publisher": "oren-labs", "name": "sdk-package-service", "title": "SDK Service Package Smoke", "summary": "Verifies SDK install from obc-store-server", "tags": ["sdk", "service"]})
+post("/api/v0/publishers", {"id": "oren-labs", "display_name": "Oren Labs", "public_keys": [pub], "token_sha256_hex": hashlib.sha256(publisher_token.encode("utf-8")).hexdigest()}, admin_auth)
+post("/api/v0/packages", {"publisher": "oren-labs", "name": "sdk-package-service", "title": "SDK Service Package Smoke", "summary": "Verifies SDK install from obc-store-server", "tags": ["sdk", "service"]}, publisher_auth)
 release = post(
     "/api/v0/packages/oren-labs/sdk-package-service/versions",
     {
@@ -1699,6 +1703,7 @@ release = post(
             }
         ],
     },
+    publisher_auth,
 )
 msg = data_dir / "manifest_hash.txt"
 sig = data_dir / "manifest_hash.sig"
@@ -1710,6 +1715,7 @@ post(
         "signature_alg": "p256-sha256-der",
         "signature_p256_sha256_der_hex": sig.read_bytes().hex(),
     },
+    publisher_auth,
 )
 PY
 cleanup_net_server() {

@@ -51,10 +51,11 @@ type Service struct {
 }
 
 type Publisher struct {
-	ID          string   `json:"id"`
-	DisplayName string   `json:"display_name,omitempty"`
-	PublicKeys  []string `json:"public_keys,omitempty"`
-	Status      string   `json:"status,omitempty"`
+	ID             string   `json:"id"`
+	DisplayName    string   `json:"display_name,omitempty"`
+	PublicKeys     []string `json:"public_keys,omitempty"`
+	TokenSHA256Hex string   `json:"token_sha256_hex,omitempty"`
+	Status         string   `json:"status,omitempty"`
 }
 
 type PackageMeta struct {
@@ -189,6 +190,10 @@ func (s *Service) handlePublishers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid publisher id", http.StatusBadRequest)
 		return
 	}
+	if p.TokenSHA256Hex != "" && !validSHA256Hex(p.TokenSHA256Hex) {
+		http.Error(w, "invalid publisher token hash", http.StatusBadRequest)
+		return
+	}
 	if p.Status == "" {
 		p.Status = "active"
 	}
@@ -206,9 +211,6 @@ func (s *Service) handlePackagesRoot(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		s.listPackages(w, r)
 	case http.MethodPost:
-		if !s.requireAdmin(w, r) {
-			return
-		}
 		s.createPackage(w, r)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -240,7 +242,10 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 			s.listVersions(w, pub, name)
 			return
 		}
-		if r.Method == http.MethodPost && s.requireAdmin(w, r) {
+		if r.Method == http.MethodPost {
+			if !s.requirePublisher(w, r, pub) {
+				return
+			}
 			s.createVersion(w, r, pub, name)
 			return
 		}
@@ -256,7 +261,10 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 		s.getRelease(w, pub, name, version)
 		return
 	}
-	if len(parts) == 5 && r.Method == http.MethodPost && s.requireAdmin(w, r) {
+	if len(parts) == 5 && r.Method == http.MethodPost {
+		if !s.requirePublisher(w, r, pub) {
+			return
+		}
 		switch parts[4] {
 		case "publish":
 			s.publishRelease(w, r, pub, name, version)
@@ -283,6 +291,9 @@ func (s *Service) createPackage(w http.ResponseWriter, r *http.Request) {
 	}
 	if !safeID(p.Publisher) || !safeID(p.Name) {
 		http.Error(w, "invalid package identity", http.StatusBadRequest)
+		return
+	}
+	if !s.requirePublisher(w, r, p.Publisher) {
 		return
 	}
 	if p.Status == "" {
@@ -777,22 +788,53 @@ func (s *Service) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 		http.Error(w, "admin auth is not configured", http.StatusServiceUnavailable)
 		return false
 	}
+	if s.adminAuthorized(r) {
+		return true
+	}
+	w.Header().Set("WWW-Authenticate", `Basic realm="obc-store"`)
+	http.Error(w, "unauthorized", http.StatusUnauthorized)
+	return false
+}
+
+func (s *Service) requirePublisher(w http.ResponseWriter, r *http.Request, publisherID string) bool {
+	if s.adminAuthorized(r) || s.publisherAuthorized(publisherID, r) {
+		return true
+	}
+	http.Error(w, "unauthorized", http.StatusUnauthorized)
+	return false
+}
+
+func (s *Service) adminAuthorized(r *http.Request) bool {
 	if len(s.adminTokenHash) > 0 && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
 		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 		sum := sha256.Sum256([]byte(token))
 		if subtle.ConstantTimeCompare(sum[:], s.adminTokenHash) == 1 {
 			return true
 		}
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return false
 	}
 	u, p, ok := r.BasicAuth()
 	if !ok || s.adminUser == "" || s.adminPassword == "" || constantTimeStringEqual(u, s.adminUser) != 1 || constantTimeStringEqual(p, s.adminPassword) != 1 {
-		w.Header().Set("WWW-Authenticate", `Basic realm="obc-store"`)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return false
 	}
 	return true
+}
+
+func (s *Service) publisherAuthorized(publisherID string, r *http.Request) bool {
+	if !safeID(publisherID) || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		return false
+	}
+	publisher, err := readJSONFile[Publisher](s.publisherPath(publisherID))
+	if err != nil || publisher.TokenSHA256Hex == "" {
+		return false
+	}
+	want, err := hex.DecodeString(strings.TrimSpace(publisher.TokenSHA256Hex))
+	if err != nil || len(want) != sha256.Size {
+		return false
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	sum := sha256.Sum256([]byte(token))
+	return subtle.ConstantTimeCompare(sum[:], want) == 1
 }
 
 func constantTimeStringEqual(a, b string) int {
@@ -919,6 +961,11 @@ func decodeHex(raw string) []byte {
 		return nil
 	}
 	return body
+}
+
+func validSHA256Hex(raw string) bool {
+	body, err := hex.DecodeString(strings.TrimSpace(raw))
+	return err == nil && len(body) == sha256.Size
 }
 
 func safeID(s string) bool {

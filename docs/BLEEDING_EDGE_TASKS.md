@@ -114,10 +114,12 @@ This file is the concise task view. Detailed implementation status lives in
      `internal/obcstore`, with publisher/package/release publish, list/search,
      signed index, download, and yank APIs. Write endpoints now accept an
      external-hash bearer token for deployment automation, while Basic Auth is
-     retained for local bring-up. `make verify-libavm-ios` starts the Go service,
-     publishes a signed package through the HTTP API, and proves iOS SDK
-     install/run from that service. Deployment and publisher-scoped auth
-     hardening remain.
+     retained for local bring-up. Publisher package/version/release writes now
+     accept publisher-scoped bearer tokens limited to that publisher id.
+     `make verify-libavm-ios` starts the Go service, publishes a signed package
+     through the HTTP API with publisher-scoped auth, and proves iOS SDK
+     install/run from that service. Deployment and token rotation hardening
+     remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:

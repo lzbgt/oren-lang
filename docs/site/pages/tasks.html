@@ -172,10 +172,12 @@
 <p>     <code>internal/obcstore</code>, with publisher/package/release publish, list/search,</p>
 <p>     signed index, download, and yank APIs. Write endpoints now accept an</p>
 <p>     external-hash bearer token for deployment automation, while Basic Auth is</p>
-<p>     retained for local bring-up. <code>make verify-libavm-ios</code> starts the Go service,</p>
-<p>     publishes a signed package through the HTTP API, and proves iOS SDK</p>
-<p>     install/run from that service. Deployment and publisher-scoped auth</p>
-<p>     hardening remain.</p>
+<p>     retained for local bring-up. Publisher package/version/release writes now</p>
+<p>     accept publisher-scoped bearer tokens limited to that publisher id.</p>
+<p>     <code>make verify-libavm-ios</code> starts the Go service, publishes a signed package</p>
+<p>     through the HTTP API with publisher-scoped auth, and proves iOS SDK</p>
+<p>     install/run from that service. Deployment and token rotation hardening</p>
+<p>     remain.</p>
 <p>     Design note:</p>
 <p>     <code>project-doc/obc_store_distribution_design_20260529.md</code>.</p>
 <ul>
