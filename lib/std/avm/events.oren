@@ -1,0 +1,103 @@
+// AVM virtual-resource event bus facade.
+//
+// This is intentionally over AVM virtual handles/mailboxes, not OS fds. Host
+// adapters may use select/kqueue/epoll/dispatch internally, but OBC sees only
+// stable watch maps and bounded event maps.
+
+import net_avm "std:net/avm"
+import time "std:time"
+import ui_avm "std:ui/avm"
+
+fn event_read() { return 1 }
+fn event_write() { return 2 }
+fn event_read_write() { return 3 }
+
+fn _watch_id(w, i) {
+    var id = w["id"]
+    if id == nil { return i }
+    return id
+}
+
+fn _timeout_sleep_ms(remaining_ms) {
+    if remaining_ms <= 0 { return 0 }
+    if remaining_ms > 8 { return 8 }
+    return remaining_ms
+}
+
+fn _timer_ready(w) {
+    var deadline = w["deadline_ns"]
+    if deadline == nil { return false }
+    return time.now_ns() >= deadline
+}
+
+fn _check_one(w, i) {
+    if w == nil { return oren_err(4, "std:avm/events.select: nil watch") }
+    var kind = w["kind"]
+    if kind == nil { return oren_err(4, "std:avm/events.select: watch missing kind") }
+    var id = _watch_id(w, i)
+
+    if kind == "timer" {
+        if _timer_ready(w) {
+            return {"kind": "timer", "id": id, "index": i, "deadline_ns": w["deadline_ns"]}
+        }
+        return nil
+    }
+
+    if kind == "ui" || kind == "gfx" || kind == "input" {
+        var ev = ui_avm.next_event()
+        if oren_is_err(ev) { return ev }
+        if ev != nil {
+            return {"kind": "ui", "id": id, "index": i, "event": ev}
+        }
+        return nil
+    }
+
+    if kind == "net" || kind == "vnet" {
+        var sid = w["session_id"]
+        if sid == nil { return oren_err(4, "std:avm/events.select: net watch missing session_id") }
+        var events = w["events"]
+        if events == nil { events = event_read() }
+        var ready = net_avm.session_select(sid, events, 0)
+        if oren_is_err(ready) { return ready }
+        if ready != 0 {
+            return {"kind": "net", "id": id, "index": i, "session_id": sid, "events": events, "ready": ready}
+        }
+        return nil
+    }
+
+    return oren_err(4, "std:avm/events.select: unsupported watch kind")
+}
+
+fn select_once(watches) {
+    if watches == nil { return oren_err(4, "std:avm/events.select_once: watches is nil") }
+    var n = oren_list_len(watches)
+    var i = 0
+    while i < n {
+        var ev = _check_one(watches[i], i)
+        if oren_is_err(ev) { return ev }
+        if ev != nil { return ev }
+        i = i + 1
+    }
+    return nil
+}
+
+fn select(watches, timeout_ms) {
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 0 }
+    if timeout_ms < 0 { return oren_err(4, "std:avm/events.select: negative timeout_ms") }
+    var start = time.now_ns()
+    var deadline = start + timeout_ms * 1000000
+    while true {
+        var ev = select_once(watches)
+        if oren_is_err(ev) { return ev }
+        if ev != nil { return ev }
+        if timeout_ms == 0 { return nil }
+        var now = time.now_ns()
+        if now >= deadline { return nil }
+        var remaining_ms = (deadline - now) / 1000000
+        var sleep_for = _timeout_sleep_ms(remaining_ms)
+        if sleep_for <= 0 { sleep_for = 1 }
+        var sr = time.sleep_ms(sleep_for)
+        if oren_is_err(sr) { return sr }
+    }
+    return nil
+}

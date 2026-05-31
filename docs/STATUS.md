@@ -73,7 +73,7 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-libavm-ios` now also runs
   `scripts/verify_avm_stdlib_obc_surface.sh`: it compiles a representative app
   fixture with `--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc`
-  and runs the result in AVM. The smoke imports `std:avm/permission`, `std:buffer`, `std:bytes`,
+  and runs the result in AVM. The smoke imports `std:avm/events`, `std:avm/permission`, `std:buffer`, `std:bytes`,
   `std:cbor`, `std:encoding/base64`, `std:crypto/pem`,
   `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:json`,
   `std:linalg`, `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`,
@@ -140,6 +140,11 @@ Facts from the 2026-05-28 implementation pass:
   VNET readiness, GFX/input events, timers, cancellation, and future FS/package
   events. Host SDKs may implement that bus with platform reactors, but OBC must
   not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
+- The first OBC-facing event-bus facade is implemented as `std:avm/events`.
+  It multiplexes timer watches, GFX input watches, and VNET session readiness
+  over current AVM-safe primitives. This is a correctness/API slice; the next
+  performance slice should replace the facade loop with a native multi-watch AVM
+  op and host-backed provider integration.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

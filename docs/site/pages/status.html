@@ -114,7 +114,7 @@
 </ul>
 <p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>: it compiles a representative app</p>
 <p>  fixture with <code>--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc</code></p>
-<p>  and runs the result in AVM. The smoke imports <code>std:avm/permission</code>, <code>std:buffer</code>, <code>std:bytes</code>,</p>
+<p>  and runs the result in AVM. The smoke imports <code>std:avm/events</code>, <code>std:avm/permission</code>, <code>std:buffer</code>, <code>std:bytes</code>,</p>
 <p>  <code>std:cbor</code>, <code>std:encoding/base64</code>, <code>std:crypto/pem</code>,</p>
 <p>  <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>,</p>
 <p>  <code>std:linalg</code>, <code>std:math</code>, <code>std:net/avm</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>,</p>
@@ -199,6 +199,13 @@
 <p>  VNET readiness, GFX/input events, timers, cancellation, and future FS/package</p>
 <p>  events. Host SDKs may implement that bus with platform reactors, but OBC must</p>
 <p>  not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.</p>
+<ul>
+<li>The first OBC-facing event-bus facade is implemented as <code>std:avm/events</code>.</li>
+</ul>
+<p>  It multiplexes timer watches, GFX input watches, and VNET session readiness</p>
+<p>  over current AVM-safe primitives. This is a correctness/API slice; the next</p>
+<p>  performance slice should replace the facade loop with a native multi-watch AVM</p>
+<p>  op and host-backed provider integration.</p>
 <ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>

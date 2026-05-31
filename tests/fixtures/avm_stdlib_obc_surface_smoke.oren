@@ -16,6 +16,7 @@ import json "std:json"
 import linalg "std:linalg"
 import math "std:math"
 import net_avm "std:net/avm"
+import avm_events "std:avm/events"
 import avm_permission "std:avm/permission"
 import strings "std:strings"
 import time "std:time"
@@ -97,6 +98,7 @@ fn main() {
     if net_avm.try_get_text("u") != "ok" { fail(56) }
     var perm_seq = avm_permission.request_net("connect", "tcp://127.0.0.1:7")
     if oren_is_err(perm_seq) || perm_seq <= 0 { fail(57) }
+    if avm_events.event_read_write() != 3 { fail(58) }
 
     var t0 = time.now_ns()
     if time.sleep_ms(1) != 0 { fail(60) }

@@ -240,6 +240,13 @@
 <p>  display-link ticks, while OBC sees only stable virtual handles, event masks,</p>
 <p>  sequence numbers, and bounded event payloads.</p>
 <ul>
+<li>The first OBC-facing event-bus facade is <code>std:avm/events</code>. It offers</li>
+</ul>
+<p>  <code>select</code>/<code>select_once</code> over timer, UI/GFX input, and VNET session-readiness</p>
+<p>  watches by composing existing AVM-safe primitives. This establishes the app API</p>
+<p>  shape; a later native AVM multi-watch op should replace the facade loop for</p>
+<p>  high-volume game/app workloads.</p>
+<ul>
 <li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
 </ul>
 <p>  <code>OrenAVMRuntime</code> so capability-enabled prefetch/live fetches use the fast SDK</p>
