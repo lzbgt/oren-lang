@@ -2,10 +2,18 @@ package obcstore
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +112,53 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 }
 
+func TestStoreSignsStableIndex(t *testing.T) {
+	dir := t.TempDir()
+	key, keyPath := writeTestP256Key(t, dir)
+	svc, err := New(Config{
+		DataDir:                dir,
+		AdminUser:              "admin",
+		AdminPassword:          "secret",
+		IndexSigningKeyPEMPath: keyPath,
+		Now: func() time.Time {
+			return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(svc.Handler())
+	defer ts.Close()
+
+	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs"}, true); got.Code != http.StatusCreated {
+		t.Fatalf("publisher status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "signed-demo"}, true); got.Code != http.StatusCreated {
+		t.Fatalf("package status=%d body=%s", got.Code, got.Body.String())
+	}
+	upload := map[string]any{
+		"version":            "0.1.0",
+		"program_obc_base64": base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e}),
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/signed-demo/versions", upload, true); got.Code != http.StatusCreated {
+		t.Fatalf("version status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/signed-demo/versions/0.1.0/publish", map[string]any{}, true); got.Code != http.StatusOK {
+		t.Fatalf("publish status=%d body=%s", got.Code, got.Body.String())
+	}
+
+	indexA := rawGet(t, ts, "/api/v0/index.json")
+	indexB := rawGet(t, ts, "/api/v0/index.json")
+	if !bytes.Equal(indexA, indexB) {
+		t.Fatalf("index bytes are not stable")
+	}
+	sig := rawGet(t, ts, "/api/v0/index.json.sig")
+	sum := sha256.Sum256(indexA)
+	if !ecdsa.VerifyASN1(&key.PublicKey, sum[:], sig) {
+		t.Fatalf("index signature did not verify")
+	}
+}
+
 func request(t *testing.T, ts *httptest.Server, method, path string, body any, auth bool) *httptest.ResponseRecorder {
 	t.Helper()
 	var reader *bytes.Reader
@@ -134,6 +189,24 @@ func request(t *testing.T, ts *httptest.Server, method, path string, body any, a
 	rec.Code = resp.StatusCode
 	_, _ = rec.Body.ReadFrom(resp.Body)
 	return rec
+}
+
+func writeTestP256Key(t *testing.T, dir string) (*ecdsa.PrivateKey, string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "store-key.pem")
+	body := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return key, path
 }
 
 func getJSON[T any](t *testing.T, ts *httptest.Server, path string) T {

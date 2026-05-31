@@ -165,8 +165,9 @@
 </ul>
 <p>  <code>cmd/obc-store-server</code> and <code>internal/obcstore</code>. It supports admin-authenticated</p>
 <p>  publisher/package/release publish, public list/search/index/download endpoints,</p>
-<p>  asset serving, and yanking. It is not deployed yet and does not yet generate</p>
-<p>  signed indexes; use <code>make verify-obc-store-service</code> for the current service gate.</p>
+<p>  asset serving, yanking, and dynamic <code>index.json.sig</code> generation from an external</p>
+<p>  P-256 key path. It is not deployed yet; use <code>make verify-obc-store-service</code> for</p>
+<p>  the current service gate.</p>
 <ul>
 <li>The sibling Note repo handoff/verifier has been updated to consume this SDK</li>
 </ul>

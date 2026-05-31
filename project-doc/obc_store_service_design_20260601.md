@@ -80,13 +80,16 @@ Implemented in this repo:
 - Public endpoints expose health, package list/search, package/version metadata,
   `index.json`, package manifests, `program.obc`, assets, and hash-addressed
   artifact lookup.
+- `index.json.sig` is generated dynamically when the service is configured with
+  `--index-signing-key` or `OBC_STORE_INDEX_SIGN_KEY_PEM`, using P-256
+  SHA-256 DER signatures over the exact stable `index.json` bytes.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
 - Verification target: `make verify-obc-store-service`.
 
 Remaining service work before deployment:
 
-- signed index generation/rotation instead of only serving unsigned `index.json`;
+- signed index rotation/key-id publication beyond the current single-key signer;
 - production auth model for publishers/API tokens;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - deployment unit/Traefik config and health smoke on `store.hubstack.cn`;
@@ -207,7 +210,7 @@ host SDK.
 Before deployment:
 
 1. Go service unit tests for manifest validation, artifact hashing, index output,
-   and search filters.
+   signed index output, and search filters.
 2. End-to-end fixture that publishes a package, fetches signed index, installs via
    `OrenAVMPackageStore`, and runs in AVM.
 3. Traefik route smoke for `https://store.hubstack.cn/api/v0/health`.

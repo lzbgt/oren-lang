@@ -1,10 +1,15 @@
 package obcstore
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -24,16 +29,18 @@ const (
 )
 
 type Config struct {
-	DataDir       string
-	AdminUser     string
-	AdminPassword string
-	Now           func() time.Time
+	DataDir                string
+	AdminUser              string
+	AdminPassword          string
+	IndexSigningKeyPEMPath string
+	Now                    func() time.Time
 }
 
 type Service struct {
 	dataDir       string
 	adminUser     string
 	adminPassword string
+	indexSigner   *ecdsa.PrivateKey
 	now           func() time.Time
 	mu            sync.Mutex
 }
@@ -105,10 +112,19 @@ func New(cfg Config) (*Service, error) {
 	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
 		return nil, err
 	}
+	var indexSigner *ecdsa.PrivateKey
+	if cfg.IndexSigningKeyPEMPath != "" {
+		key, err := loadP256PrivateKey(cfg.IndexSigningKeyPEMPath)
+		if err != nil {
+			return nil, err
+		}
+		indexSigner = key
+	}
 	return &Service{
 		dataDir:       cfg.DataDir,
 		adminUser:     cfg.AdminUser,
 		adminPassword: cfg.AdminPassword,
+		indexSigner:   indexSigner,
 		now:           now,
 	}, nil
 }
@@ -540,13 +556,27 @@ func (s *Service) downloadReleaseFile(w http.ResponseWriter, r *http.Request, pu
 }
 
 func (s *Service) handleIndex(w http.ResponseWriter, _ *http.Request) {
-	releases, err := s.publishedReleases()
+	body, err := s.indexJSON()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+func (s *Service) indexJSON() ([]byte, error) {
+	releases, err := s.publishedReleases()
+	if err != nil {
+		return nil, err
+	}
 	items := make([]map[string]any, 0, len(releases))
+	generatedAt := time.Unix(0, 0).UTC()
 	for _, rel := range releases {
+		if rel.UpdatedAt.After(generatedAt) {
+			generatedAt = rel.UpdatedAt
+		}
 		item := map[string]any{
 			"id":              rel.Publisher + "/" + rel.Name,
 			"version":         rel.Version,
@@ -561,15 +591,33 @@ func (s *Service) handleIndex(w http.ResponseWriter, _ *http.Request) {
 		}
 		items = append(items, item)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	return marshalJSON(map[string]any{
 		"schema":       indexSchema,
-		"generated_at": s.now().UTC().Format(time.RFC3339),
+		"generated_at": generatedAt.UTC().Format(time.RFC3339),
 		"packages":     items,
 	})
 }
 
 func (s *Service) handleIndexSignature(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, filepath.Join(s.dataDir, "index.json.sig"))
+	if s.indexSigner == nil {
+		http.ServeFile(w, r, filepath.Join(s.dataDir, "index.json.sig"))
+		return
+	}
+	indexBody, err := s.indexJSON()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	sum := sha256.Sum256(indexBody)
+	sig, err := ecdsa.SignASN1(rand.Reader, s.indexSigner, sum[:])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(sig)
 }
 
 func (s *Service) handleTrustBundle(w http.ResponseWriter, r *http.Request) {
@@ -711,6 +759,30 @@ func marshalJSON(v any) ([]byte, error) {
 func sha256Hex(body []byte) string {
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:])
+}
+
+func loadP256PrivateKey(path string) (*ecdsa.PrivateKey, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(body)
+	if block == nil {
+		return nil, fmt.Errorf("missing PEM private key in %s", path)
+	}
+	var key any
+	if parsed, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
+		key = parsed
+	} else if parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+		key = parsed
+	} else {
+		return nil, fmt.Errorf("failed to parse P-256 private key %s", path)
+	}
+	ec, ok := key.(*ecdsa.PrivateKey)
+	if !ok || ec.Curve == nil || ec.Curve.Params().Name != elliptic.P256().Params().Name {
+		return nil, fmt.Errorf("index signing key must be ECDSA P-256: %s", path)
+	}
+	return ec, nil
 }
 
 func safeID(s string) bool {

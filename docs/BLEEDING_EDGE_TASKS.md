@@ -112,8 +112,8 @@ This file is the concise task view. Detailed implementation status lives in
      release/discovery/download pages backed by the same signed index/package
      schema. The first Go service slice now exists as `cmd/obc-store-server` /
      `internal/obcstore`, with publisher/package/release publish, list/search,
-     index, download, and yank APIs; deployment, signed-index generation, and
-     SDK endpoint smoke remain.
+     signed index, download, and yank APIs; deployment, auth hardening, and SDK
+     endpoint smoke remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
