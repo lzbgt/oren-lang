@@ -1,6 +1,12 @@
 #import "OrenAVMKit.h"
 
 #import <dispatch/dispatch.h>
+#import <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+#endif
+#include <math.h>
+#include <string.h>
 
 NSString* const OrenAVMKitErrorDomain = @"org.oren.avmkit";
 
@@ -32,6 +38,26 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
     }
     return NO;
 }
+
+#if TARGET_OS_IPHONE
+static uint16_t OrenAVMGfxReadU16LE(const uint8_t* p) {
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t OrenAVMGfxReadU32LE(const uint8_t* p) {
+    return (uint32_t)p[0] |
+        ((uint32_t)p[1] << 8) |
+        ((uint32_t)p[2] << 16) |
+        ((uint32_t)p[3] << 24);
+}
+
+static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
+    return [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
+                           green:(CGFloat)rgba[1] / 255.0
+                            blue:(CGFloat)rgba[2] / 255.0
+                           alpha:(CGFloat)rgba[3] / 255.0];
+}
+#endif
 
 @implementation OrenAVMRuntimeConfig
 
@@ -95,6 +121,148 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
 }
 
 @end
+
+#if TARGET_OS_IPHONE
+
+@implementation OrenAVMGraphicsView
+
+- (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime {
+    self = [super initWithFrame:CGRectZero];
+    if (!self) return nil;
+    _runtime = runtime;
+    self.opaque = NO;
+    self.contentMode = UIViewContentModeRedraw;
+    return self;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (!self) return nil;
+    self.opaque = NO;
+    self.contentMode = UIViewContentModeRedraw;
+    return self;
+}
+
+- (instancetype)initWithCoder:(NSCoder*)coder {
+    self = [super initWithCoder:coder];
+    if (!self) return nil;
+    self.opaque = NO;
+    self.contentMode = UIViewContentModeRedraw;
+    return self;
+}
+
+- (BOOL)reloadFrameWithError:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics view has no AVM runtime");
+    }
+    NSData* frame = [self.runtime getGraphicsFrameDataWithError:error];
+    if (!frame) return NO;
+    self.frameData = frame;
+    [self setNeedsDisplay];
+    return YES;
+}
+
+- (BOOL)sendPointerEventWithKind:(uint8_t)kind point:(CGPoint)point pointerId:(uint32_t)pointerId error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics view has no AVM runtime");
+    }
+    return [self.runtime putGraphicsPointerEventWithKind:kind
+                                                       x:(int32_t)llround((double)point.x)
+                                                       y:(int32_t)llround((double)point.y)
+                                               pointerId:pointerId
+                                                   error:error];
+}
+
+- (void)drawRect:(CGRect)rect {
+    (void)rect;
+    NSData* frame = self.frameData;
+    if (frame.length < 24) return;
+    const uint8_t* data = (const uint8_t*)frame.bytes;
+    if (memcmp(data, "OGF0", 4) != 0) return;
+    uint32_t width = OrenAVMGfxReadU32LE(data + 8);
+    uint32_t height = OrenAVMGfxReadU32LE(data + 12);
+    uint32_t opCount = OrenAVMGfxReadU32LE(data + 20);
+    if (width == 0 || height == 0) return;
+
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!ctx) return;
+
+    size_t off = 24;
+    size_t len = frame.length;
+    for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
+        uint8_t opcode = data[off];
+        uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
+        off += 4;
+        if (off + (size_t)payloadLen > len) return;
+        const uint8_t* payload = data + off;
+
+        if (opcode == 1 && payloadLen == 20) {
+            uint32_t x = OrenAVMGfxReadU32LE(payload);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
+            UIColor* color = OrenAVMGfxColor(payload + 16);
+            CGContextSetFillColorWithColor(ctx, color.CGColor);
+            CGContextFillRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
+        } else if (opcode == 2 && payloadLen >= 16) {
+            uint32_t x = OrenAVMGfxReadU32LE(payload);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
+            UIColor* color = OrenAVMGfxColor(payload + 8);
+            uint32_t textLen = OrenAVMGfxReadU32LE(payload + 12);
+            if (textLen <= (uint32_t)payloadLen - 16u) {
+                NSString* text = [[NSString alloc] initWithBytes:payload + 16
+                                                          length:(NSUInteger)textLen
+                                                        encoding:NSUTF8StringEncoding];
+                if (text) {
+                    NSDictionary<NSAttributedStringKey, id>* attrs = @{
+                        NSForegroundColorAttributeName: color,
+                        NSFontAttributeName: [UIFont systemFontOfSize:14.0]
+                    };
+                    [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
+                }
+            }
+        }
+
+        off += payloadLen;
+    }
+}
+
+- (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind {
+    UITouch* touch = touches.anyObject;
+    if (!touch) return;
+    CGPoint p = [touch locationInView:self];
+    NSError* error = nil;
+    (void)[self sendPointerEventWithKind:kind
+                                   point:p
+                               pointerId:(uint32_t)touch.hash
+                                   error:&error];
+}
+
+- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+    (void)event;
+    [self orenSendTouches:touches kind:1];
+}
+
+- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+    (void)event;
+    [self orenSendTouches:touches kind:2];
+}
+
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+    (void)event;
+    [self orenSendTouches:touches kind:3];
+}
+
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+    (void)event;
+    [self orenSendTouches:touches kind:4];
+}
+
+@end
+
+#endif
 
 @implementation OrenAVMRunResult
 

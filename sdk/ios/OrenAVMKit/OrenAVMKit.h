@@ -2,6 +2,10 @@
 #define OREN_AVM_KIT_H
 
 #import <Foundation/Foundation.h>
+#import <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+#endif
 
 #include "avm_embed.h"
 
@@ -82,6 +86,26 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 - (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError* _Nullable* _Nullable)error;
 
 @end
+
+#if TARGET_OS_IPHONE
+
+@interface OrenAVMGraphicsView : UIView
+
+@property(nonatomic, strong, nullable) OrenAVMRuntime* runtime;
+@property(nonatomic, copy, nullable) NSData* frameData;
+
+- (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithFrame:(CGRect)frame NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initWithCoder:(NSCoder*)coder NS_DESIGNATED_INITIALIZER;
+- (BOOL)reloadFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendPointerEventWithKind:(uint8_t)kind
+                           point:(CGPoint)point
+                       pointerId:(uint32_t)pointerId
+                           error:(NSError* _Nullable* _Nullable)error;
+
+@end
+
+#endif
 
 FOUNDATION_EXPORT NSString* const OrenAVMKitErrorDomain;
 

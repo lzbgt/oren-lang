@@ -50,6 +50,8 @@ done
 
 nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
+nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
 
 OREN_SRC="$TMP_DIR/embed_chain.oren"
 OBC_OUT="$TMP_DIR/embed_chain.obc"
@@ -205,6 +207,10 @@ SMOKE
 
 cat > "$TMP_DIR/sdk_smoke.m" <<'SMOKE'
 #import <Foundation/Foundation.h>
+#import <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+#endif
 #import "OrenAVMKit/OrenAVMKit.h"
 #include "embed_chain_obc.h"
 
@@ -264,6 +270,15 @@ int main(void) {
         if (frame.length != 48) return 47;
         const uint8_t* frameBytes = frame.bytes;
         if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[24] != 1) return 48;
+#if TARGET_OS_IPHONE
+        OrenAVMGraphicsView* graphicsView = [[OrenAVMGraphicsView alloc] initWithRuntime:runtime];
+        if (!graphicsView) return 52;
+        graphicsView.frameData = frame;
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 2.0), NO, 1.0);
+        [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 2.0)];
+        UIGraphicsEndImageContext();
+        if (![graphicsView sendPointerEventWithKind:2 point:CGPointMake(2.0, 1.0) pointerId:8 error:&error]) return 53;
+#endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
         if ([runtime getGraphicsFrameDataWithError:&error] != nil) return 50;
     }
@@ -304,6 +319,8 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
   -framework Foundation \
+  -framework UIKit \
+  -framework CoreGraphics \
   -o "$TMP_DIR/sdk_smoke_sim"
 "$SIM_CC" \
   -target arm64-apple-ios13.0-simulator \
@@ -315,6 +332,8 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
   -framework Foundation \
+  -framework UIKit \
+  -framework CoreGraphics \
   -o "$TMP_DIR/sdk_module_smoke_sim"
 
 DEV_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
@@ -339,6 +358,8 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphoneos-arm64/libavm.a" \
   -framework Foundation \
+  -framework UIKit \
+  -framework CoreGraphics \
   -o "$TMP_DIR/sdk_smoke_device"
 "$DEV_CC" \
   -target arm64-apple-ios13.0 \
@@ -350,6 +371,8 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphoneos-arm64/libavm.a" \
   -framework Foundation \
+  -framework UIKit \
+  -framework CoreGraphics \
   -o "$TMP_DIR/sdk_module_smoke_device"
 
 HOST_BIN="$TMP_DIR/embed_smoke_host"

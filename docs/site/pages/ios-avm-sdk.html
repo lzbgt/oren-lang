@@ -107,9 +107,16 @@
 <p>  that executes OBC, publishes a frame, retrieves it with</p>
 <p>  <code>getGraphicsFrameDataWithError:</code>, validates the binary magic/opcode, injects a</p>
 <p>  binary pointer event through the SDK, and clears the frame.</p>
+<ul>
+<li>The first default iOS renderer is implemented as <code>OrenAVMGraphicsView</code>, a</li>
+</ul>
+<p>  UIKit/CoreGraphics <code>UIView</code> that decodes the current <code>OGF0</code> binary frame subset</p>
+<p>  (<code>fill_rect</code> and <code>text</code>) and enqueues pointer events back through the <code>OGE0</code></p>
+<p>  input mailbox. This is the default 2D fallback; it is not the future high-volume</p>
+<p>  Metal path.</p>
 <p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
-<p>compiler helper Swift/Objective-C package, OBC store helper, UIKit/Metal rendering,</p>
-<p>and broader keyboard/resize/text input helpers.</p>
+<p>compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,</p>
+<p>richer 2D drawing ops, and broader keyboard/resize/text input helpers.</p>
 <h2 id="sdk-components">SDK Components</h2>
 <h3 id="orenavmkit">OrenAVMKit</h3>
 <p>Core Swift/Objective-C wrapper around <code>LibAVM.xcframework</code>.</p>
@@ -175,16 +182,18 @@
 <p>Current GUI adapter boundary.</p>
 <ul>
 <li>Receives validated frame command buffers from the AVM graphics mailbox.</li>
-<li>Renders through UIKit/CoreGraphics for simple 2D or Metal/<code>MTKView</code> for GPU</li>
+<li>Renders the current 2D fallback through <code>OrenAVMGraphicsView</code> using</li>
 </ul>
-<p>  paths.</p>
+<p>  UIKit/CoreGraphics.</p>
 <ul>
+<li>Future high-volume 2D/3D paths should use Metal/<code>MTKView</code>.</li>
 <li>Encodes pointer/keyboard/resize/input events back into AVM.</li>
 <li>Does not expose UIKit or Metal objects directly to Oren code.</li>
-<li>Current SDK implementation retrieves and clears binary frame payloads and can</li>
+<li>Current SDK implementation retrieves and clears binary frame payloads, enqueues</li>
 </ul>
-<p>  enqueue binary pointer events; host-side rendering plus keyboard/resize/text</p>
-<p>  input helpers are the next slices.</p>
+<p>  binary pointer events, and renders the current <code>fill_rect</code>/<code>text</code> subset.</p>
+<p>  Keyboard/resize/text input helpers, richer drawing ops, and Metal are the next</p>
+<p>  slices.</p>
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>
@@ -200,8 +209,8 @@
 <tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch into VirtualNET with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
-<tr><td>GUI</td><td>Binary GFX frame/input mailboxes, no raw host access</td><td>UIKit/Metal renderer</td></tr>
-<tr><td>INPUT</td><td>Explicit binary event queue/mailbox</td><td>Keyboard/resize/text helper encoders</td></tr>
+<tr><td>GUI</td><td>Binary GFX mailboxes plus UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> fallback</td><td>Metal/3D renderer</td></tr>
+<tr><td>INPUT</td><td>Explicit binary event queue/mailbox plus pointer events</td><td>Keyboard/resize/text helper encoders</td></tr>
 <tr><td>STDOUT</td><td>Captured stdout</td><td>App-controlled log/result UI</td></tr>
 </table>
 <h2 id="app-integration-shape">App Integration Shape</h2>

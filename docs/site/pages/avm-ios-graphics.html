@@ -74,13 +74,19 @@
 <p>  <code>clearGraphicsFrameWithError:</code>, plus low-level input-byte enqueue and a binary</p>
 <p>  pointer-event helper.</p>
 <ul>
+<li><code>sdk/ios/OrenAVMKit</code> also exposes <code>OrenAVMGraphicsView</code>, a default</li>
+</ul>
+<p>  UIKit/CoreGraphics <code>UIView</code> renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code></p>
+<p>  subset. It decodes frame bytes on the host side and enqueues pointer events back</p>
+<p>  into AVM.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> proves the chain by running OBC that publishes a frame,</li>
 </ul>
 <p>  retrieving/clearing that frame through the host SDK smoke, injecting a pointer</p>
-<p>  event, and consuming that event from OBC.</p>
-<p>Still pending: UIKit/CoreGraphics/Metal rendering adapter, keyboard/resize/text input</p>
-<p>helpers, 2D geometry expansion beyond the existing <code>std:ui</code> v0 command set, and 3D</p>
-<p>mesh commands.</p>
+<p>  event, consuming that event from OBC, and compiling the UIKit renderer adapter for</p>
+<p>  device/simulator targets.</p>
+<p>Still pending: Metal rendering adapter, keyboard/resize/text input helpers, 2D</p>
+<p>geometry expansion beyond the existing <code>std:ui</code> v0 command set, and 3D mesh commands.</p>
 <h2 id="source-facts">Source Facts</h2>
 <ul>
 <li>Apple OpenGL ES archive: <code>project-doc/web/apple-ios-graphics-20260529/apple-opengles-introduction.html</code>.</li>
@@ -99,8 +105,9 @@
 <ul>
 <li>Current AVM embed API: <code>lib/avm/avm_embed.h</code> exposes argv, VFS, VNET, VPROC,</li>
 </ul>
-<p>  stdout capture, OBC load/run helpers, and GFX frame/input mailboxes. It does not</p>
-<p>  yet expose texture/buffer handoff or a host renderer adapter.</p>
+<p>  stdout capture, OBC load/run helpers, and GFX frame/input mailboxes. The iOS SDK</p>
+<p>  now includes a UIKit/CoreGraphics renderer fallback; texture/buffer handoff and</p>
+<p>  Metal adapter APIs remain future work.</p>
 <ul>
 <li>Current Oren UI stdlib: <code>lib/std/ui/</code> already uses the right architectural pattern:</li>
 </ul>
@@ -163,8 +170,9 @@
 <ul>
 <li><code>OrenAVMGraphicsKit</code> for iOS/macOS: Swift/Objective-C wrapper around <code>libavm</code>,</li>
 </ul>
-<p>  an <code>MTKView</code> renderer, frame mailbox polling, input-event encoding, lifecycle hooks,</p>
-<p>  and fixture-driven conformance tests.</p>
+<p>  the retained UIKit/CoreGraphics fallback renderer, a future <code>MTKView</code> renderer,</p>
+<p>  frame mailbox polling, input-event encoding, lifecycle hooks, and fixture-driven</p>
+<p>  conformance tests.</p>
 <ul>
 <li><code>oren-avm-gfx-win</code> for Windows: C/C++ wrapper around <code>libavm</code>, a Direct3D or CPU</li>
 </ul>
@@ -226,9 +234,9 @@ fn main() {
 </ul>
 <p>  or animated charts.</p>
 <ul>
-<li>Use CoreGraphics/UIKit image presentation only for a simple v0 fallback where AVM emits</li>
+<li>Use the retained <code>OrenAVMGraphicsView</code> UIKit/CoreGraphics path as the simple v0</li>
 </ul>
-<p>  a software RGBA buffer or the host rasterizes a small 2D command list.</p>
+<p>  fallback where the host rasterizes a small 2D command list.</p>
 <ul>
 <li>Keep all UIKit view mutation on the main actor/main dispatch queue.</li>
 <li>Run AVM compute/tick work off the main thread, then hand frame payloads back to the main</li>
@@ -241,8 +249,9 @@ fn main() {
 <li>Note opens <code>AvmEmbedHandle</code> with graphics domain enabled and deterministic budgets.</li>
 <li>Note runs one VM tick or run-to-pause interval.</li>
 <li>Note calls <code>avm_embed_gfx_frame_get</code>.</li>
-<li>Note validates schema/version/limits, translates ops to Metal buffers/pipelines, and</li>
+<li>Note validates schema/version/limits, renders simple v0 frames through</li>
 </ol>
+<p>   <code>OrenAVMGraphicsView</code>, or translates richer ops to Metal buffers/pipelines and</p>
 <p>   presents through <code>MTKView</code>.</p>
 <ol>
 <li>Note captures touch/keyboard/resize events and calls <code>avm_embed_gfx_input_put</code> before</li>
@@ -296,9 +305,13 @@ fn main() {
 </ol>
 <p>   <code>LibAVM.xcframework</code>.</p>
 <ol>
-<li>Note-side Swift smoke mounts <code>MTKView</code>, runs a bundled OBC, renders one 2D frame, and</li>
+<li>iOS SDK smoke compiles a UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> adapter for</li>
 </ol>
-<p>   injects one touch event.</p>
+<p>   device/simulator targets. Done for compile/link coverage.</p>
+<ol>
+<li>Note-side Swift smoke mounts <code>OrenAVMGraphicsView</code> or <code>MTKView</code>, runs a bundled</li>
+</ol>
+<p>   OBC, renders one 2D frame, and injects one touch event.</p>
 <ol>
 <li>Deterministic headless raster test compares software raster output for geometry-only ops.</li>
 <li>3D smoke renders a single indexed triangle/mesh through the host Metal renderer.</li>
@@ -309,9 +322,10 @@ fn main() {
 <li>Done: add <code>std:ui/avm</code> and AVM/iOS verifier coverage that publishes a binary <code>fill_rect</code> frame.</li>
 <li>Done: add iOS C/SDK smoke to <code>make verify-libavm-ios</code> for exported graphics symbols and frame retrieval.</li>
 <li>Done: add binary input-event mailbox and pointer-event SDK helper.</li>
-<li>Next: add Note Swift/ObjC bridge smoke using UIKit/CoreGraphics or <code>MTKView</code> and one frame.</li>
+<li>Done: add default UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> for the current <code>fill_rect</code>/<code>text</code> subset and compile it in the iOS verifier.</li>
+<li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
 <li>Add keyboard/resize/text input helpers.</li>
-<li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> after the current <code>std:ui</code> frame path is proven in the app.</li>
+<li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> and Metal rendering after the current <code>std:ui</code> frame path is proven in the app.</li>
 </ol>
 <p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>
 <p>right app boundary: AVM computes and describes frames; iOS renders them.</p>

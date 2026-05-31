@@ -60,10 +60,15 @@ Retained SDK slices on 2026-05-31:
   that executes OBC, publishes a frame, retrieves it with
   `getGraphicsFrameDataWithError:`, validates the binary magic/opcode, injects a
   binary pointer event through the SDK, and clears the frame.
+- The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
+  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
+  (`fill_rect` and `text`) and enqueues pointer events back through the `OGE0`
+  input mailbox. This is the default 2D fallback; it is not the future high-volume
+  Metal path.
 
 Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
-compiler helper Swift/Objective-C package, OBC store helper, UIKit/Metal rendering,
-and broader keyboard/resize/text input helpers.
+compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,
+richer 2D drawing ops, and broader keyboard/resize/text input helpers.
 
 ## SDK Components
 
@@ -136,13 +141,15 @@ Default TIME adapter.
 Current GUI adapter boundary.
 
 - Receives validated frame command buffers from the AVM graphics mailbox.
-- Renders through UIKit/CoreGraphics for simple 2D or Metal/`MTKView` for GPU
-  paths.
+- Renders the current 2D fallback through `OrenAVMGraphicsView` using
+  UIKit/CoreGraphics.
+- Future high-volume 2D/3D paths should use Metal/`MTKView`.
 - Encodes pointer/keyboard/resize/input events back into AVM.
 - Does not expose UIKit or Metal objects directly to Oren code.
-- Current SDK implementation retrieves and clears binary frame payloads and can
-  enqueue binary pointer events; host-side rendering plus keyboard/resize/text
-  input helpers are the next slices.
+- Current SDK implementation retrieves and clears binary frame payloads, enqueues
+  binary pointer events, and renders the current `fill_rect`/`text` subset.
+  Keyboard/resize/text input helpers, richer drawing ops, and Metal are the next
+  slices.
 
 ### OrenAVMPackageStore
 
@@ -161,8 +168,8 @@ Public OBC store helper.
 | NET | VirtualNET/no host network | SDK `URLSession` prefetch into VirtualNET with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
-| GUI | Binary GFX frame/input mailboxes, no raw host access | UIKit/Metal renderer |
-| INPUT | Explicit binary event queue/mailbox | Keyboard/resize/text helper encoders |
+| GUI | Binary GFX mailboxes plus UIKit/CoreGraphics `OrenAVMGraphicsView` fallback | Metal/3D renderer |
+| INPUT | Explicit binary event queue/mailbox plus pointer events | Keyboard/resize/text helper encoders |
 | STDOUT | Captured stdout | App-controlled log/result UI |
 
 ## App Integration Shape

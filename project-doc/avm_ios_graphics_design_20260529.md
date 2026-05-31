@@ -35,13 +35,17 @@ The first retained implementation slices exist as of 2026-05-31:
 - `sdk/ios/OrenAVMKit` exposes `getGraphicsFrameDataWithError:` and
   `clearGraphicsFrameWithError:`, plus low-level input-byte enqueue and a binary
   pointer-event helper.
+- `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
+  UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/`text`
+  subset. It decodes frame bytes on the host side and enqueues pointer events back
+  into AVM.
 - `make verify-libavm-ios` proves the chain by running OBC that publishes a frame,
   retrieving/clearing that frame through the host SDK smoke, injecting a pointer
-  event, and consuming that event from OBC.
+  event, consuming that event from OBC, and compiling the UIKit renderer adapter for
+  device/simulator targets.
 
-Still pending: UIKit/CoreGraphics/Metal rendering adapter, keyboard/resize/text input
-helpers, 2D geometry expansion beyond the existing `std:ui` v0 command set, and 3D
-mesh commands.
+Still pending: Metal rendering adapter, keyboard/resize/text input helpers, 2D
+geometry expansion beyond the existing `std:ui` v0 command set, and 3D mesh commands.
 
 ## Source Facts
 
@@ -54,8 +58,9 @@ mesh commands.
   It describes `MTKView` as a Metal-aware view that creates, configures, and displays
   Metal objects, backed by `CAMetalLayer`.
 - Current AVM embed API: `lib/avm/avm_embed.h` exposes argv, VFS, VNET, VPROC,
-  stdout capture, OBC load/run helpers, and GFX frame/input mailboxes. It does not
-  yet expose texture/buffer handoff or a host renderer adapter.
+  stdout capture, OBC load/run helpers, and GFX frame/input mailboxes. The iOS SDK
+  now includes a UIKit/CoreGraphics renderer fallback; texture/buffer handoff and
+  Metal adapter APIs remain future work.
 - Current Oren UI stdlib: `lib/std/ui/` already uses the right architectural pattern:
   headless node/render command buffers plus a deterministic software rasterizer and a
   separate host shim. That pattern should be generalized for AVM app graphics.
@@ -123,8 +128,9 @@ Oren should also ship optional host-side extension SDK components, not just sche
 These SDKs are platform-specific packages maintained with the Oren/libavm contract:
 
 - `OrenAVMGraphicsKit` for iOS/macOS: Swift/Objective-C wrapper around `libavm`,
-  an `MTKView` renderer, frame mailbox polling, input-event encoding, lifecycle hooks,
-  and fixture-driven conformance tests.
+  the retained UIKit/CoreGraphics fallback renderer, a future `MTKView` renderer,
+  frame mailbox polling, input-event encoding, lifecycle hooks, and fixture-driven
+  conformance tests.
 - `oren-avm-gfx-win` for Windows: C/C++ wrapper around `libavm`, a Direct3D or CPU
   fallback renderer, input-event encoding, and the same frame-schema conformance tests.
 - `oren-avm-gfx-headless`: portable C reference adapter that validates frames and can
@@ -196,8 +202,8 @@ The Note app should create one graphics host view per AVM canvas:
 - Use UIKit/SwiftUI only for app composition, layout, and input ownership.
 - Use `MTKView` for GPU rendering when frames contain 3D meshes, many 2D primitives,
   or animated charts.
-- Use CoreGraphics/UIKit image presentation only for a simple v0 fallback where AVM emits
-  a software RGBA buffer or the host rasterizes a small 2D command list.
+- Use the retained `OrenAVMGraphicsView` UIKit/CoreGraphics path as the simple v0
+  fallback where the host rasterizes a small 2D command list.
 - Keep all UIKit view mutation on the main actor/main dispatch queue.
 - Run AVM compute/tick work off the main thread, then hand frame payloads back to the main
   actor for presentation.
@@ -209,7 +215,8 @@ Host loop:
 3. Note opens `AvmEmbedHandle` with graphics domain enabled and deterministic budgets.
 4. Note runs one VM tick or run-to-pause interval.
 5. Note calls `avm_embed_gfx_frame_get`.
-6. Note validates schema/version/limits, translates ops to Metal buffers/pipelines, and
+6. Note validates schema/version/limits, renders simple v0 frames through
+   `OrenAVMGraphicsView`, or translates richer ops to Metal buffers/pipelines and
    presents through `MTKView`.
 7. Note captures touch/keyboard/resize events and calls `avm_embed_gfx_input_put` before
    the next VM tick.
@@ -267,10 +274,12 @@ Required gates before Note integration should be called production-ready:
 2. Host-side C embed smoke validates `avm_embed_gfx_frame_get` and `avm_embed_gfx_input_put`.
 3. iOS simulator/device link smoke proves the new graphics API exports from
    `LibAVM.xcframework`.
-4. Note-side Swift smoke mounts `MTKView`, runs a bundled OBC, renders one 2D frame, and
-   injects one touch event.
-5. Deterministic headless raster test compares software raster output for geometry-only ops.
-6. 3D smoke renders a single indexed triangle/mesh through the host Metal renderer.
+4. iOS SDK smoke compiles a UIKit/CoreGraphics `OrenAVMGraphicsView` adapter for
+   device/simulator targets. Done for compile/link coverage.
+5. Note-side Swift smoke mounts `OrenAVMGraphicsView` or `MTKView`, runs a bundled
+   OBC, renders one 2D frame, and injects one touch event.
+6. Deterministic headless raster test compares software raster output for geometry-only ops.
+7. 3D smoke renders a single indexed triangle/mesh through the host Metal renderer.
 
 ## Implementation Order
 
@@ -278,9 +287,10 @@ Required gates before Note integration should be called production-ready:
 2. Done: add `std:ui/avm` and AVM/iOS verifier coverage that publishes a binary `fill_rect` frame.
 3. Done: add iOS C/SDK smoke to `make verify-libavm-ios` for exported graphics symbols and frame retrieval.
 4. Done: add binary input-event mailbox and pointer-event SDK helper.
-5. Next: add Note Swift/ObjC bridge smoke using UIKit/CoreGraphics or `MTKView` and one frame.
-6. Add keyboard/resize/text input helpers.
-7. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` after the current `std:ui` frame path is proven in the app.
+5. Done: add default UIKit/CoreGraphics `OrenAVMGraphicsView` for the current `fill_rect`/`text` subset and compile it in the iOS verifier.
+6. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
+7. Add keyboard/resize/text input helpers.
+8. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
 right app boundary: AVM computes and describes frames; iOS renders them.

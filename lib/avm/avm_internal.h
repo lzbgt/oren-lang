@@ -283,7 +283,7 @@ typedef struct {
 } AvmVfs;
 
 // --- GFX input mailbox ---
-// UTF-8 JSON event payloads queued by host adapters and consumed by bytecode.
+// Binary event payloads queued by host adapters and consumed by bytecode.
 typedef struct {
     uint8_t* data;
     uint32_t len;
