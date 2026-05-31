@@ -62,15 +62,14 @@ This file is the concise task view. Detailed implementation status lives in
      interactive configs, virtual FS/NET/PROC helpers, app file/directory mounts
      into VirtualFS, VFS export back to host files, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
-     wall-clock time, and an allowlisted `URLSession` prefetch bridge that injects
-     host-fetched bytes into VirtualNET for OBC `std:net/avm.try_get_text(url)`, plus binary
+     wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
+     allowlisted live NET callback for OBC `std:net/avm.try_get_text(url)`, plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
-     Remaining SDK work: live/asynchronous network sessions if required, compiler
-     helper package, package store helper, and the
+     Remaining SDK work: compiler helper package, package store helper, and the
      game-grade GUI path: display-link pacing, retained resource handles, budget
      gates, low-latency input ordering, Metal/`MTKView`, richer drawing ops, and
      richer IME/composition input helpers. The `OGF0` frame header now includes

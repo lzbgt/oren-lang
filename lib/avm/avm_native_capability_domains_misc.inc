@@ -187,7 +187,8 @@
         return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
-    // Domain 4: NET (bootstrap: VirtualNET fixtures only; host network is not implemented)
+    // Domain 4: NET. OBC sees fixture/live-fetch results through the same
+    // operation; embedders own host network policy and callbacks.
     if (domain == 4) {
         if (vm->replay_log_bytes) {
             return rr_replay_entry_mem(vm, vm->replay_log_bytes, &vm->replay_log_pos, domain, op, args, nargs);
@@ -196,36 +197,60 @@
             return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
         }
 
-        if (vm && vm->net_backend_kind == 1) {
-            switch (op) {
-                case 0: { // http_get(url) -> STRING (fixture body)
-                    if (nargs < 1 || args[0].type != AVM_VAL_STRING) {
-                        return avm_err_domop(AVM_ERR_INVALID_ARG, "net.get expects (url: string)", domain, op);
-                    }
-                    const char* url = (const char*)args[0].as.p;
+        switch (op) {
+            case 0: { // http_get(url) -> STRING
+                if (nargs < 1 || args[0].type != AVM_VAL_STRING) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.get expects (url: string)", domain, op);
+                }
+                const char* url = (const char*)args[0].as.p;
+                const uint8_t* body = NULL;
+                uint32_t body_len = 0;
+                uint8_t* callback_body = NULL;
+                size_t callback_len = 0;
+
+                if (vm && vm->net_backend_kind == 1) {
                     AvmVnetEntry* e = avm_vnet_find(vm, url ? url : "");
-                    if (!e) return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet: url not found", domain, op);
-
-                    // For now, treat body as a byte string and return STRING.
-                    AvmValue ret;
-                    char* s = (char*)avm_heap_malloc_k((size_t)e->body_len + 1, AVM_ALLOC_KIND_STRING);
-                    if (!s) { ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret; }
-                    if (e->body_len > 0 && e->body) memcpy(s, e->body, e->body_len);
-                    s[e->body_len] = 0;
-                    ret.type = AVM_VAL_STRING;
-                    ret.as.p = s;
-
-                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
-                    return ret;
+                    if (e) {
+                        body = e->body;
+                        body_len = e->body_len;
+                    } else if (vm->net_fetch_fn) {
+                        if (vm->net_fetch_fn(vm->net_fetch_user_data, url ? url : "", &callback_body, &callback_len) != 0) {
+                            return avm_err_domop(AVM_ERR_NOT_FOUND, "net host fetch failed", domain, op);
+                        }
+                        if (callback_len > (size_t)UINT32_MAX || (callback_len > 0 && !callback_body)) {
+                            if (callback_body) free(callback_body);
+                            return avm_err_domop(AVM_ERR_BUDGET, "net host fetch response too large", domain, op);
+                        }
+                        body = callback_body;
+                        body_len = (uint32_t)callback_len;
+                    } else {
+                        return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet: url not found", domain, op);
+                    }
+                } else {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "host net backend not implemented", domain, op);
                 }
 
-                default:
-                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
-            }
-        }
+                // For now, treat body as a byte string and return STRING.
+                AvmValue ret;
+                char* s = (char*)avm_heap_malloc_k((size_t)body_len + 1, AVM_ALLOC_KIND_STRING);
+                if (!s) {
+                    if (callback_body) free(callback_body);
+                    ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret;
+                }
+                if (body_len > 0 && body) memcpy(s, body, body_len);
+                s[body_len] = 0;
+                if (callback_body) free(callback_body);
+                ret.type = AVM_VAL_STRING;
+                ret.as.p = s;
 
-        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "host net backend not implemented", domain, op);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
+            default:
+                return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
+        }
     }
 
     // Domain 9: GFX frame mailbox.

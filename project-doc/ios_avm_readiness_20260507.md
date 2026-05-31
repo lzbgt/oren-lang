@@ -62,8 +62,9 @@ allocator/lifecycle hardening.
   deterministic AVM runs and interactive app runs. The verifier proves the SDK can
   run OBC with VirtualFS, VirtualNET, VirtualPROC, stdout capture, wall-clock
   `std:time.sleep_ms` in interactive mode, allowlisted URLSession prefetch into
-  VirtualNET, binary GFX frame mailbox retrieval/clear, and host-injected binary
-  pointer events consumed by OBC.
+  VirtualNET, allowlisted live NET callback fetches during OBC execution, binary
+  GFX frame mailbox retrieval/clear, and host-injected binary pointer events
+  consumed by OBC.
 - OBC resource API after 2026-05-28: `avm_embed_run_obc_bytes(...)` parses,
   verifies, loads, and runs `.obc` bytes owned by the embedder handle.
 - Compile/run chain after 2026-05-28: `make verify-libavm-ios` compiles a tiny
@@ -71,7 +72,7 @@ allocator/lifecycle hardening.
   iPhoneOS and simulator, and runs the same `.obc` through the host libavm embed
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction,
   VFS snapshot verification, deterministic TIME, VirtualNET through
-  `std:net/avm.try_get_text(...)`,
+  `std:net/avm.try_get_text(...)` including live callback mode,
   VirtualPROC `oren_system(...)`, binary GFX frame publication/retrieval,
   binary GFX input-event pull, and captured stdout retrieval/clear.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls

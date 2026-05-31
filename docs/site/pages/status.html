@@ -151,6 +151,13 @@
 <p>  <code>oren_net_get</code> intrinsic remains the AVM substrate, not the app-facing API.</p>
 <p>  AVM still does not expose raw host networking to bytecode.</p>
 <ul>
+<li>The SDK also exposes <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code>. This</li>
+</ul>
+<p>  installs an embedder NET callback so OBC can call <code>std:net/avm.try_get_text(url)</code></p>
+<p>  and have the iOS SDK synchronously perform an allowlisted <code>URLSession</code> fetch while</p>
+<p>  the AVM worker is running. <code>make verify-libavm-ios</code> proves both prefetch and live</p>
+<p>  fetch modes against a local HTTP server.</p>
+<ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>
 <p>  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>

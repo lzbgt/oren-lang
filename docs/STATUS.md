@@ -101,6 +101,11 @@ Facts from the 2026-05-28 implementation pass:
   then runs OBC that reads it with `std:net/avm.try_get_text(url)`. The raw
   `oren_net_get` intrinsic remains the AVM substrate, not the app-facing API.
   AVM still does not expose raw host networking to bytecode.
+- The SDK also exposes `enableLiveNetworkWithAllowedHosts:timeoutSeconds:`. This
+  installs an embedder NET callback so OBC can call `std:net/avm.try_get_text(url)`
+  and have the iOS SDK synchronously perform an allowlisted `URLSession` fetch while
+  the AVM worker is running. `make verify-libavm-ios` proves both prefetch and live
+  fetch modes against a local HTTP server.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

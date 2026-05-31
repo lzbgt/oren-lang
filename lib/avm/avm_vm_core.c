@@ -129,6 +129,8 @@ AvmVM* avm_new() {
     vm->proc_exit_code = 0;
     vm->net_backend_kind = 0;
     vm->vnet = NULL;
+    vm->net_fetch_fn = NULL;
+    vm->net_fetch_user_data = NULL;
     vm->gfx_frame_data = NULL;
     vm->gfx_frame_len = 0;
     vm->gfx_input_queue = NULL;

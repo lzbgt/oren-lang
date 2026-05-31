@@ -79,6 +79,9 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 createIntermediateDirectories:(BOOL)createIntermediateDirectories
                       error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putVirtualNetResponseForURL:(NSString*)url data:(NSData*)data error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)enableLiveNetworkWithAllowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                           timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                    error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)fetchURLIntoVirtualNet:(NSURL*)url
                   allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
                 timeoutSeconds:(NSTimeInterval)timeoutSeconds

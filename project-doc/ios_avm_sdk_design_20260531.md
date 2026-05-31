@@ -47,9 +47,15 @@ Retained SDK slices on 2026-05-31:
   the response bytes into VirtualNET under the original URL. OBC code uses the
   portable `std:net/avm.try_get_text(url)` facade; raw `oren_net_get(url)` is only
   the AVM substrate and never grants host networking authority.
+- `OrenAVMRuntime enableLiveNetworkWithAllowedHosts:timeoutSeconds:error:` installs
+  an embedder NET callback. When OBC calls `std:net/avm.try_get_text(url)` for a
+  URL not already in VirtualNET, the SDK can synchronously perform an allowlisted
+  `URLSession` fetch on the AVM worker and return the body to bytecode. This is a
+  convenience bridge for app integration, not raw socket authority.
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
   and then runs the same `.obc` program against `std:net/avm.try_get_text(url)`,
-  proving the real host-fetch-to-OBC-read chain.
+  proving the real host-fetch-to-OBC-read chain. It also runs live callback mode
+  against the same local server.
 - The first GFX bridge slices are implemented. `std:ui/avm` serializes validated
   `std:ui` v0 command buffers into compact `oren.gfx.frame.bin1` bytes,
   bytecode publishes them through `oren_gfx_present_frame`, `libavm` stores the
@@ -76,9 +82,8 @@ Retained SDK slices on 2026-05-31:
   `std:ui/avm.pull_event_bytes()` or decodes them with
   `std:ui/avm.next_event()`.
 
-Not implemented yet: live/asynchronous network sessions, compiler helper
-Swift/Objective-C package, OBC store helper, Metal/3D rendering, richer 2D
-drawing ops, and IME/composition input helpers. GUI follow-up must be
+Not implemented yet: compiler helper Swift/Objective-C package, OBC store helper,
+Metal/3D rendering, richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be
 game-grade, not widget-only: the next protocol work is display-link pacing,
 retained resource handles, strict budgets, low-latency input ordering, and
 Metal/`MTKView` gates as defined in
@@ -124,13 +129,24 @@ Default FS adapter.
 Default NET adapter.
 
 - Default mode: VirtualNET fixtures/no host network.
-- Optional reviewed mode: allowlisted `URLSession` requests.
+- Optional reviewed modes: allowlisted `URLSession` prefetch or live fetch callback.
 - Package manifest declares network domains before launch.
 - The SDK maps responses back into the AVM NET surface with size/time budgets.
 - Current implementation is prefetch-oriented: host code fetches allowlisted URLs
   before or between AVM runs, then OBC reads the materialized body through
   `std:net/avm.try_get_text(url)`. This preserves deterministic AVM execution and
   keeps iOS networking policy in the host SDK.
+- Live callback mode is available for interactive apps that need OBC-triggered
+  HTTP fetches during a run. It is synchronous and must run on an AVM worker queue,
+  not the UI thread. Raw TCP/UDP/socket authority remains intentionally unavailable
+  until a separate session protocol and policy gate exists.
+- Full OBC network capability is still the target. The next NET layer should not
+  hand native sockets to bytecode; it should expose small AVM session handles for
+  TCP/UDP-style operations. Required protocol pieces: connect/listen/send/recv/close,
+  DNS policy, readiness or async polling, cancellation, per-session byte budgets,
+  host lifecycle handling, and deterministic fixture/replay support. `std:net/tcp`
+  and `std:net/udp` should route through that AVM protocol when running under
+  libavm/iOS.
 
 ### OrenAVMProcessProvider
 
@@ -181,7 +197,7 @@ Public OBC store helper.
 | Surface | Default iOS implementation | Escalation |
 | --- | --- | --- |
 | FS | VirtualFS plus explicit app file/directory mount and export helpers | Richer mount policy/manifest wiring |
-| NET | VirtualNET/no host network | SDK `URLSession` prefetch into VirtualNET with allowlist |
+| NET | VirtualNET/no host network | SDK `URLSession` prefetch or live fetch callback with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
 | GUI | Binary GFX mailboxes plus UIKit/CoreGraphics `OrenAVMGraphicsView` fallback | Metal/3D renderer |
@@ -193,8 +209,9 @@ The boundary is that OBC uses portable stdlib APIs and AVM capability domains;
 the SDK owns the platform translation. TIME may use deterministic or wall-clock
 worker-thread mode. FS mounts concrete app-owned file URLs into VirtualFS and
 exports selected VFS outputs back to app-owned file URLs. NET may prefetch through
-allowlisted `URLSession` into VirtualNET today, with live/asynchronous HTTP/TCP/UDP
-requiring an explicit reviewed policy before exposure. PROC on iOS should remain
+allowlisted `URLSession` into VirtualNET or perform synchronous allowlisted live
+fetches on the AVM worker. Raw TCP/UDP requires an explicit reviewed session
+protocol before exposure. PROC on iOS should remain
 VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.
 UI/GFX should remain mailbox-based so UIKit/Metal objects never enter OBC memory.
 

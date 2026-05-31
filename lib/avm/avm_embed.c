@@ -743,6 +743,16 @@ int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* b
     return result ? result->status : AVM_EMBED_OK;
 }
 
+int avm_embed_set_net_fetch_callback(AvmEmbedHandle* handle, AvmNetFetchFn fetch_fn, void* user_data, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed NET callback handle");
+    }
+    handle->vm->net_fetch_fn = fetch_fn;
+    handle->vm->net_fetch_user_data = user_data;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
 int avm_embed_vproc_put(AvmEmbedHandle* handle, const char* command, int exit_code, AvmEmbedResult* result) {
     if (!avm_embed_valid_handle(handle) || !command) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VPROC put argument");

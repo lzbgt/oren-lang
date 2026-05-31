@@ -63,6 +63,8 @@ typedef struct {
     } as;
 } AvmValue;
 
+typedef int (*AvmNetFetchFn)(void* user_data, const char* url, uint8_t** out_data, size_t* out_len);
+
 typedef struct AvmFunc {
     // Code address inside AvmProgram->code (rolling: currently u16 addresses in opcodes).
     uint32_t addr;
@@ -208,11 +210,14 @@ typedef struct {
     int proc_exit_code;
 
     // NET backend mode (rolling):
-    // - 0: host network (not implemented yet in bootstrap; should remain denied-by-default)
-    // - 1: VirtualNET fixtures (no host network; deterministic responses)
+    // - 0: raw host network backend (not implemented; denied by default)
+    // - 1: VirtualNET fixtures, optionally backed by an embedder host-fetch callback
     int net_backend_kind;
     // Internal: VirtualNET fixtures table (owned by VM heap; freed on teardown via leak-free teardown).
     void* vnet;
+    // Optional embedder-provided host fetch callback. It is intentionally not serialized.
+    AvmNetFetchFn net_fetch_fn;
+    void* net_fetch_user_data;
 
     // GFX frame mailbox (rolling): latest validated host-renderable frame payload.
     uint8_t* gfx_frame_data;

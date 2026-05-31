@@ -35,6 +35,7 @@ for sym in \
   _avm_embed_vfs_get \
   _avm_embed_vfs_snapshot \
   _avm_embed_vnet_put \
+  _avm_embed_set_net_fetch_callback \
   _avm_embed_vproc_put \
   _avm_embed_vproc_set_default_exit \
   _avm_embed_set_output_capture \
@@ -326,6 +327,7 @@ int main(void) {
         NSString* netURL = env[@"OREN_AVM_SDK_NET_URL"] ?: @"https://note.local/probe";
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
+        BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
 
         OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
         if (cfg.timeMode != OrenAVMTimeModeInteractiveWallClock) return 31;
@@ -355,7 +357,11 @@ int main(void) {
         if (![runtime mountDirectoryURL:assetDir atVFSRoot:@"assets" error:&error]) return 63;
         if (![runtime mountFileURL:configURL atVFSPath:@"assets/config.txt" error:&error]) return 64;
         NSData* body = [@"net-ok" dataUsingEncoding:NSUTF8StringEncoding];
-        if (prefetchNetwork) {
+        if (liveNetwork) {
+            NSURL* url = [NSURL URLWithString:netURL];
+            NSSet<NSString*>* allowedHosts = [NSSet setWithObject:(url.host ?: allowedHost)];
+            if (![runtime enableLiveNetworkWithAllowedHosts:allowedHosts timeoutSeconds:5.0 error:&error]) return 68;
+        } else if (prefetchNetwork) {
             NSURL* url = [NSURL URLWithString:netURL];
             NSSet<NSString*>* allowedHosts = [NSSet setWithObject:allowedHost];
             if (![runtime fetchURLIntoVirtualNet:url allowedHosts:allowedHosts timeoutSeconds:5.0 error:&error]) return 38;
@@ -586,6 +592,10 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
   sleep 0.1
 done
 OREN_AVM_SDK_NET_PREFETCH=1 \
+OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
+  "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
   "$HOST_SDK_BIN"

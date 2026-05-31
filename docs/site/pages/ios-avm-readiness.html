@@ -104,8 +104,9 @@
 <p>  deterministic AVM runs and interactive app runs. The verifier proves the SDK can</p>
 <p>  run OBC with VirtualFS, VirtualNET, VirtualPROC, stdout capture, wall-clock</p>
 <p>  <code>std:time.sleep_ms</code> in interactive mode, allowlisted URLSession prefetch into</p>
-<p>  VirtualNET, binary GFX frame mailbox retrieval/clear, and host-injected binary</p>
-<p>  pointer events consumed by OBC.</p>
+<p>  VirtualNET, allowlisted live NET callback fetches during OBC execution, binary</p>
+<p>  GFX frame mailbox retrieval/clear, and host-injected binary pointer events</p>
+<p>  consumed by OBC.</p>
 <ul>
 <li>OBC resource API after 2026-05-28: <code>avm_embed_run_obc_bytes(...)</code> parses,</li>
 </ul>
@@ -117,7 +118,7 @@
 <p>  iPhoneOS and simulator, and runs the same <code>.obc</code> through the host libavm embed</p>
 <p>  API with <code>exit_code=9</code>, argv injection, VFS input, VFS output extraction,</p>
 <p>  VFS snapshot verification, deterministic TIME, VirtualNET through</p>
-<p>  <code>std:net/avm.try_get_text(...)</code>,</p>
+<p>  <code>std:net/avm.try_get_text(...)</code> including live callback mode,</p>
 <p>  VirtualPROC <code>oren_system(...)</code>, binary GFX frame publication/retrieval,</p>
 <p>  binary GFX input-event pull, and captured stdout retrieval/clear.</p>
 <ul>
