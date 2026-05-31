@@ -80,13 +80,18 @@
 <p>  <code>text</code>/<code>stroke_line</code>/<code>circle</code> subset. It decodes frame bytes on the host side</p>
 <p>  and enqueues pointer events back into AVM.</p>
 <ul>
+<li><code>OrenAVMKit</code> now has binary helper encoders for pointer, resize, key, and</li>
+</ul>
+<p>  UTF-8 text input events. The Oren side still receives raw <code>OGE0</code> bytes via</p>
+<p>  <code>std:ui/avm.poll_event_bytes()</code>.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> proves the chain by running OBC that publishes a frame,</li>
 </ul>
 <p>  retrieving/clearing that frame through the host SDK smoke, injecting a pointer</p>
 <p>  event, consuming that event from OBC, and compiling the UIKit renderer adapter for</p>
 <p>  device/simulator targets.</p>
-<p>Still pending: Metal rendering adapter, keyboard/resize/text input helpers, 2D</p>
-<p>geometry expansion beyond the retained v0 shape subset, and 3D mesh commands.</p>
+<p>Still pending: Metal rendering adapter, IME/composition helpers, 2D geometry</p>
+<p>expansion beyond the retained v0 shape subset, and 3D mesh commands.</p>
 <h2 id="source-facts">Source Facts</h2>
 <ul>
 <li>Apple OpenGL ES archive: <code>project-doc/web/apple-ios-graphics-20260529/apple-opengles-introduction.html</code>.</li>
@@ -198,8 +203,9 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p><code>oren.gfx.frame.bin0</code>: magic <code>OGF0</code>, version/flags/reserved, width, height, scale,</p>
 <p>op-count, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
 <p>magic <code>OGE0</code>, version/flags/reserved, then opcode records. The retained v0 opcodes</p>
-<p>cover <code>fill_rect</code>, <code>text</code>, and pointer events; later geometry, keyboard, resize,</p>
-<p>mesh, image, and material opcodes should extend the same binary stream.</p>
+<p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, pointer, resize, key, and text</p>
+<p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
+<p>should extend the same binary stream.</p>
 <p>The retained implementation uses the explicit graphics mailbox, not VFS or stdout.</p>
 <p>Frame publication is charged against AVM I/O budget so graphics output cannot grow</p>
 <p>unbounded.</p>
@@ -324,8 +330,9 @@ fn main() {
 <li>Done: add binary input-event mailbox and pointer-event SDK helper.</li>
 <li>Done: add default UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> for the current <code>fill_rect</code>/<code>text</code> subset and compile it in the iOS verifier.</li>
 <li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code> and <code>circle</code>.</li>
+<li>Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.</li>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
-<li>Add keyboard/resize/text input helpers.</li>
+<li>Add IME/composition helpers.</li>
 <li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> and Metal rendering after the current <code>std:ui</code> frame path is proven in the app.</li>
 </ol>
 <p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>

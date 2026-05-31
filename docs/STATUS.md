@@ -97,8 +97,9 @@ Facts from the 2026-05-28 implementation pass:
   publishes a binary frame, retrieves it through the SDK, injects a binary pointer
   event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
   UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
-  `stroke_line`/`circle` frame subset and can enqueue pointer events. Metal
-  rendering, broader input helpers, and richer 2D/3D command sets remain pending.
+  `stroke_line`/`circle` frame subset and can enqueue pointer, resize, key, and
+  text events. Metal rendering, IME/composition helpers, and richer 2D/3D command
+  sets remain pending.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

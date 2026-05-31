@@ -39,6 +39,25 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
     return NO;
 }
 
+static void OrenAVMKitPutU32LE(uint8_t* dst, uint32_t v) {
+    dst[0] = (uint8_t)(v & 255u);
+    dst[1] = (uint8_t)((v >> 8) & 255u);
+    dst[2] = (uint8_t)((v >> 16) & 255u);
+    dst[3] = (uint8_t)((v >> 24) & 255u);
+}
+
+static NSData* OrenAVMKitMakeGFXEvent(uint8_t opcode, const uint8_t* payload, uint16_t payloadLen) {
+    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)12u + (NSUInteger)payloadLen];
+    uint8_t* buf = (uint8_t*)data.mutableBytes;
+    buf[0] = 'O'; buf[1] = 'G'; buf[2] = 'E'; buf[3] = '0';
+    buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 0;
+    buf[8] = opcode; buf[9] = 0;
+    buf[10] = (uint8_t)(payloadLen & 255u);
+    buf[11] = (uint8_t)((payloadLen >> 8) & 255u);
+    if (payloadLen > 0 && payload) memcpy(buf + 12, payload, payloadLen);
+    return data;
+}
+
 #if TARGET_OS_IPHONE
 static uint16_t OrenAVMGfxReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -172,6 +191,18 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                                                        x:(int32_t)llround((double)point.x)
                                                        y:(int32_t)llround((double)point.y)
                                                pointerId:pointerId
+                                                   error:error];
+}
+
+- (BOOL)sendResizeEventWithScaleMilli:(uint32_t)scaleMilli error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics view has no AVM runtime");
+    }
+    CGSize size = self.bounds.size;
+    return [self.runtime putGraphicsResizeEventWithWidth:(uint32_t)llround((double)size.width)
+                                                  height:(uint32_t)llround((double)size.height)
+                                              scaleMilli:scaleMilli
                                                    error:error];
 }
 
@@ -524,16 +555,48 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
 }
 
 - (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError**)error {
-    uint8_t buf[24];
-    buf[0] = 'O'; buf[1] = 'G'; buf[2] = 'E'; buf[3] = '0';
-    buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 0;
-    buf[8] = kind; buf[9] = 0; buf[10] = 12; buf[11] = 0;
+    uint8_t payload[12];
     uint32_t ux = (uint32_t)x;
     uint32_t uy = (uint32_t)y;
-    buf[12] = (uint8_t)(ux & 255u); buf[13] = (uint8_t)((ux >> 8) & 255u); buf[14] = (uint8_t)((ux >> 16) & 255u); buf[15] = (uint8_t)((ux >> 24) & 255u);
-    buf[16] = (uint8_t)(uy & 255u); buf[17] = (uint8_t)((uy >> 8) & 255u); buf[18] = (uint8_t)((uy >> 16) & 255u); buf[19] = (uint8_t)((uy >> 24) & 255u);
-    buf[20] = (uint8_t)(pointerId & 255u); buf[21] = (uint8_t)((pointerId >> 8) & 255u); buf[22] = (uint8_t)((pointerId >> 16) & 255u); buf[23] = (uint8_t)((pointerId >> 24) & 255u);
-    NSData* data = [NSData dataWithBytes:buf length:sizeof(buf)];
+    OrenAVMKitPutU32LE(payload, ux);
+    OrenAVMKitPutU32LE(payload + 4, uy);
+    OrenAVMKitPutU32LE(payload + 8, pointerId);
+    NSData* data = OrenAVMKitMakeGFXEvent(kind, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
+- (BOOL)putGraphicsResizeEventWithWidth:(uint32_t)width height:(uint32_t)height scaleMilli:(uint32_t)scaleMilli error:(NSError**)error {
+    uint8_t payload[12];
+    OrenAVMKitPutU32LE(payload, width);
+    OrenAVMKitPutU32LE(payload + 4, height);
+    OrenAVMKitPutU32LE(payload + 8, scaleMilli);
+    NSData* data = OrenAVMKitMakeGFXEvent(16, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
+- (BOOL)putGraphicsKeyEventWithKind:(uint8_t)kind keyCode:(uint32_t)keyCode modifiers:(uint32_t)modifiers error:(NSError**)error {
+    uint8_t payload[8];
+    OrenAVMKitPutU32LE(payload, keyCode);
+    OrenAVMKitPutU32LE(payload + 4, modifiers);
+    NSData* data = OrenAVMKitMakeGFXEvent(kind, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
+- (BOOL)putGraphicsTextInputString:(NSString*)text error:(NSError**)error {
+    NSData* utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (!utf8) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"GFX text input must be valid UTF-8");
+    }
+    if (utf8.length > UINT16_MAX - 4u) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"GFX text input event is too large");
+    }
+    NSMutableData* payload = [NSMutableData dataWithLength:4u + utf8.length];
+    uint8_t* out = (uint8_t*)payload.mutableBytes;
+    OrenAVMKitPutU32LE(out, (uint32_t)utf8.length);
+    if (utf8.length > 0) memcpy(out + 4, utf8.bytes, utf8.length);
+    NSData* data = OrenAVMKitMakeGFXEvent(48, payload.bytes, (uint16_t)payload.length);
     return [self putGraphicsInputEventData:data error:error];
 }
 

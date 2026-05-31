@@ -39,13 +39,16 @@ The first retained implementation slices exist as of 2026-05-31:
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `text`/`stroke_line`/`circle` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
+- `OrenAVMKit` now has binary helper encoders for pointer, resize, key, and
+  UTF-8 text input events. The Oren side still receives raw `OGE0` bytes via
+  `std:ui/avm.poll_event_bytes()`.
 - `make verify-libavm-ios` proves the chain by running OBC that publishes a frame,
   retrieving/clearing that frame through the host SDK smoke, injecting a pointer
   event, consuming that event from OBC, and compiling the UIKit renderer adapter for
   device/simulator targets.
 
-Still pending: Metal rendering adapter, keyboard/resize/text input helpers, 2D
-geometry expansion beyond the retained v0 shape subset, and 3D mesh commands.
+Still pending: Metal rendering adapter, IME/composition helpers, 2D geometry
+expansion beyond the retained v0 shape subset, and 3D mesh commands.
 
 ## Source Facts
 
@@ -160,8 +163,9 @@ All three functions are implemented. Current frame payloads use
 `oren.gfx.frame.bin0`: magic `OGF0`, version/flags/reserved, width, height, scale,
 op-count, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
-cover `fill_rect`, `text`, and pointer events; later geometry, keyboard, resize,
-mesh, image, and material opcodes should extend the same binary stream.
+cover `fill_rect`, `text`, `stroke_line`, `circle`, pointer, resize, key, and text
+input events; later geometry, mesh, image, material, and IME/composition opcodes
+should extend the same binary stream.
 
 The retained implementation uses the explicit graphics mailbox, not VFS or stdout.
 Frame publication is charged against AVM I/O budget so graphics output cannot grow
@@ -289,9 +293,10 @@ Required gates before Note integration should be called production-ready:
 4. Done: add binary input-event mailbox and pointer-event SDK helper.
 5. Done: add default UIKit/CoreGraphics `OrenAVMGraphicsView` for the current `fill_rect`/`text` subset and compile it in the iOS verifier.
 6. Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to `stroke_line` and `circle`.
-7. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
-8. Add keyboard/resize/text input helpers.
-9. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
+7. Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.
+8. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
+9. Add IME/composition helpers.
+10. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
 right app boundary: AVM computes and describes frames; iOS renders them.

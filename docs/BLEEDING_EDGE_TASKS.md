@@ -60,8 +60,8 @@ This file is the concise task view. Detailed implementation status lives in
      `stroke_line`/`circle` subset.
      Remaining SDK work: app-sandbox FileProvider, live/asynchronous network
      sessions if required, compiler helper package, package store helper, iOS
-     Metal frame rendering, richer drawing ops, and broader keyboard/resize/text
-     input helpers.
+     Metal frame rendering, richer drawing ops, and richer IME/composition input
+     helpers.
      Design note: `project-doc/ios_avm_sdk_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated
      signed OBC store repo with package manifests, hashes, capability declarations,

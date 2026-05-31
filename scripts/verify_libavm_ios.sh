@@ -85,6 +85,23 @@ fn main() {
     if oren_bytes_get_u32_le(ev, 12) != 1 { oren_exit(36) }
     if oren_bytes_get_u32_le(ev, 16) != 2 { oren_exit(37) }
     if oren_bytes_get_u32_le(ev, 20) != 7 { oren_exit(38) }
+    var ev2 = ui_avm.poll_event_bytes()
+    if oren_bytes_len(ev2) != 24 { oren_exit(39) }
+    if oren_bytes_get_u8(ev2, 8) != 16 { oren_exit(40) }
+    if oren_bytes_get_u32_le(ev2, 12) != 4 { oren_exit(41) }
+    if oren_bytes_get_u32_le(ev2, 16) != 3 { oren_exit(42) }
+    if oren_bytes_get_u32_le(ev2, 20) != 1000 { oren_exit(43) }
+    var ev3 = ui_avm.poll_event_bytes()
+    if oren_bytes_len(ev3) != 20 { oren_exit(44) }
+    if oren_bytes_get_u8(ev3, 8) != 32 { oren_exit(45) }
+    if oren_bytes_get_u32_le(ev3, 12) != 65 { oren_exit(46) }
+    if oren_bytes_get_u32_le(ev3, 16) != 1 { oren_exit(47) }
+    var ev4 = ui_avm.poll_event_bytes()
+    if oren_bytes_len(ev4) != 18 { oren_exit(48) }
+    if oren_bytes_get_u8(ev4, 8) != 48 { oren_exit(49) }
+    if oren_bytes_get_u32_le(ev4, 12) != 2 { oren_exit(50) }
+    if oren_bytes_get_u8(ev4, 16) != 104 || oren_bytes_get_u8(ev4, 17) != 105 { oren_exit(51) }
+    if ui_avm.poll_event_bytes() != nil { oren_exit(52) }
     var rc1 = oren_system("probe-ok")
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
@@ -139,6 +156,18 @@ int main(void) {
         79, 71, 69, 48, 0, 0, 0, 0, 1, 0, 12, 0,
         1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0
     };
+    static const uint8_t resize_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 16, 0, 12, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0
+    };
+    static const uint8_t key_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 32, 0, 8, 0,
+        65, 0, 0, 0, 1, 0, 0, 0
+    };
+    static const uint8_t text_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 48, 0, 6, 0,
+        2, 0, 0, 0, 104, 105
+    };
     avm_embed_config_default(&cfg);
     AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
     if (!handle || result.status != AVM_EMBED_OK) return 2;
@@ -151,6 +180,9 @@ int main(void) {
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
+    if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
+    if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
+    if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 8;
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 9;
@@ -196,6 +228,9 @@ int main(void) {
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 23;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 24;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
+    if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
+    if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
+    if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
     uint64_t wall1 = host_now_ns();
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 26;
@@ -260,6 +295,9 @@ int main(void) {
         if (![runtime putVirtualProcExitForCommand:@"probe-ok" exitCode:21 error:&error]) return 39;
         if (![runtime setVirtualProcDefaultExitCode:44 error:&error]) return 40;
         if (![runtime putGraphicsPointerEventWithKind:1 x:1 y:2 pointerId:7 error:&error]) return 51;
+        if (![runtime putGraphicsResizeEventWithWidth:4 height:3 scaleMilli:1000 error:&error]) return 54;
+        if (![runtime putGraphicsKeyEventWithKind:32 keyCode:65 modifiers:1 error:&error]) return 55;
+        if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
 
         NSData* obc = [NSData dataWithBytes:kEmbedChainObc length:kEmbedChainObcLen];
         uint64_t wall0 = host_now_ns();
@@ -284,6 +322,7 @@ int main(void) {
         [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 3.0)];
         UIGraphicsEndImageContext();
         if (![graphicsView sendPointerEventWithKind:2 point:CGPointMake(2.0, 1.0) pointerId:8 error:&error]) return 53;
+        if (![graphicsView sendResizeEventWithScaleMilli:1000 error:&error]) return 57;
 #endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
         if ([runtime getGraphicsFrameDataWithError:&error] != nil) return 50;

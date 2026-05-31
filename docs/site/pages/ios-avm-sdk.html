@@ -114,9 +114,13 @@
 <p>  (<code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>) and enqueues pointer events</p>
 <p>  back through the <code>OGE0</code> input mailbox. This is the default 2D fallback; it is</p>
 <p>  not the future high-volume Metal path.</p>
+<ul>
+<li>The binary input helper set now covers pointer events, resize events, key events,</li>
+</ul>
+<p>  and UTF-8 text-input events. These are still mailbox records, not UIKit objects.</p>
 <p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
 <p>compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,</p>
-<p>richer 2D drawing ops, and broader keyboard/resize/text input helpers.</p>
+<p>richer 2D drawing ops, and IME/composition input helpers.</p>
 <h2 id="sdk-components">SDK Components</h2>
 <h3 id="orenavmkit">OrenAVMKit</h3>
 <p>Core Swift/Objective-C wrapper around <code>LibAVM.xcframework</code>.</p>
@@ -192,8 +196,8 @@
 <li>Current SDK implementation retrieves and clears binary frame payloads, enqueues</li>
 </ul>
 <p>  binary pointer events, and renders the current <code>fill_rect</code>/<code>text</code>/</p>
-<p>  <code>stroke_line</code>/<code>circle</code> subset. Keyboard/resize/text input helpers, richer</p>
-<p>  drawing ops, and Metal are the next slices.</p>
+<p>  <code>stroke_line</code>/<code>circle</code> subset. Resize/key/text event helpers are implemented;</p>
+<p>  IME/composition helpers, richer drawing ops, and Metal are the next slices.</p>
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>
@@ -210,7 +214,7 @@
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
 <tr><td>GUI</td><td>Binary GFX mailboxes plus UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> fallback</td><td>Metal/3D renderer</td></tr>
-<tr><td>INPUT</td><td>Explicit binary event queue/mailbox plus pointer events</td><td>Keyboard/resize/text helper encoders</td></tr>
+<tr><td>INPUT</td><td>Explicit binary event queue/mailbox plus pointer/resize/key/text events</td><td>IME/composition helper encoders</td></tr>
 <tr><td>STDOUT</td><td>Captured stdout</td><td>App-controlled log/result UI</td></tr>
 </table>
 <h2 id="app-integration-shape">App Integration Shape</h2>
