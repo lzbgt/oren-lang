@@ -79,6 +79,8 @@ HOST_FS_OBC_OUT="$TMP_DIR/host_fs_chain.obc"
 HOST_FS_OBC_HEADER="$TMP_DIR/host_fs_chain_obc.h"
 PACKAGE_SRC="$TMP_DIR/package_chain.oren"
 PACKAGE_OBC_OUT="$TMP_DIR/package_chain.obc"
+PACKAGE_V2_SRC="$TMP_DIR/package_chain_v2.oren"
+PACKAGE_V2_OBC_OUT="$TMP_DIR/package_chain_v2.obc"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
@@ -269,6 +271,18 @@ fn main() {
 main()
 OREN
 "$OREN_COMPILER" build "$PACKAGE_SRC" --backend bytecode -o "$PACKAGE_OBC_OUT" > "$LOG_DIR/libavm_ios_package_chain_obc_build.log" 2>&1
+
+cat > "$PACKAGE_V2_SRC" <<'OREN'
+fn main() {
+    var s = oren_read_file("assets/config.txt")
+    if oren_is_err(s) { oren_exit(95) }
+    if s != "pkg-asset-v2" { oren_exit(96) }
+    print("pkg:" + s)
+    oren_exit(9)
+}
+main()
+OREN
+"$OREN_COMPILER" build "$PACKAGE_V2_SRC" --backend bytecode -o "$PACKAGE_V2_OBC_OUT" > "$LOG_DIR/libavm_ios_package_chain_v2_obc_build.log" 2>&1
 
 python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
 import pathlib
@@ -786,6 +800,46 @@ int main(void) {
                                                                                 error:&error];
             if (!loadedPackage || ![loadedPackage.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 102;
             error = nil;
+            OrenAVMPackage* keepPackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                         packageID:@"oren-labs/sdk-package-remote"
+                                                                           version:@"0.1.0"
+                                                           destinationDirectoryURL:installRootURL
+                                                                      allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                    timeoutSeconds:5.0
+                                                             trustedIndexPublicKey:indexKey
+                                                        trustedPublisherPublicKeys:trustedKeys
+                                                                     installPolicy:OrenAVMPackageInstallPolicyKeepExisting
+                                                                             error:&error];
+            if (!keepPackage || ![keepPackage.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 106;
+            error = nil;
+            OrenAVMPackage* duplicatePackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                              packageID:@"oren-labs/sdk-package-remote"
+                                                                                version:@"0.1.0"
+                                                                destinationDirectoryURL:installRootURL
+                                                                           allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                         timeoutSeconds:5.0
+                                                                  trustedIndexPublicKey:indexKey
+                                                             trustedPublisherPublicKeys:trustedKeys
+                                                                          installPolicy:OrenAVMPackageInstallPolicyFailIfInstalled
+                                                                                  error:&error];
+            if (duplicatePackage || !error) return 107;
+            error = nil;
+            OrenAVMPackage* updatedPackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                            packageID:@"oren-labs/sdk-package-remote"
+                                                                              version:@"0.2.0"
+                                                              destinationDirectoryURL:installRootURL
+                                                                         allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                       timeoutSeconds:5.0
+                                                                trustedIndexPublicKey:indexKey
+                                                           trustedPublisherPublicKeys:trustedKeys
+                                                                        installPolicy:OrenAVMPackageInstallPolicyFailIfInstalled
+                                                                                error:&error];
+            if (!updatedPackage || ![updatedPackage.packageID isEqual:@"oren-labs/sdk-package-remote/0.2.0"]) return 108;
+            OrenAVMRuntimeConfig* updatedCfg = [store runtimeConfigForPackage:updatedPackage error:&error];
+            OrenAVMRuntime* updatedRuntime = updatedCfg ? [[OrenAVMRuntime alloc] initWithConfig:updatedCfg] : nil;
+            OrenAVMRunResult* updatedResult = updatedRuntime ? [store runPackage:updatedPackage runtime:updatedRuntime error:&error] : nil;
+            if (!updatedResult || ![updatedResult.stdoutData isEqualToData:[@"pkg:pkg-asset-v2\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 109;
+            error = nil;
             OrenAVMPackage* badAssetPackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
                                                                              packageID:@"oren-labs/sdk-package-bad-asset"
                                                                                version:@"0.1.0"
@@ -823,8 +877,13 @@ int main(void) {
                                                    packageID:@"oren-labs/sdk-package-remote"
                                                      version:@"0.1.0"
                                                        error:&error]) return 103;
+            if (![store removeInstalledPackageInDirectoryURL:installRootURL
+                                                   packageID:@"oren-labs/sdk-package-remote"
+                                                     version:@"0.2.0"
+                                                       error:&error]) return 110;
             NSArray<NSString*>* afterRemove = [store listInstalledPackageIDsInDirectoryURL:installRootURL error:&error];
             if ([afterRemove containsObject:@"oren-labs/sdk-package-remote/0.1.0"]) return 104;
+            if ([afterRemove containsObject:@"oren-labs/sdk-package-remote/0.2.0"]) return 111;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -1043,21 +1102,26 @@ PY
 PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
 REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
 REMOTE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.1.0"
+REMOTE_PACKAGE_V2_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.2.0"
 REMOTE_BAD_ASSET_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-asset/0.1.0"
 REMOTE_BAD_SIGNATURE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-signature/0.1.0"
-rm -rf "$TMP_DIR/package_store" "$REMOTE_STORE_DIR"
-mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets"
+rm -rf "$TMP_DIR/package_store" "$TMP_DIR/downloaded_packages" "$REMOTE_STORE_DIR"
+mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_PACKAGE_V2_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets"
 cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
+cp "$PACKAGE_V2_OBC_OUT" "$REMOTE_PACKAGE_V2_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_ASSET_PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/program.obc"
 printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_PACKAGE_DIR/assets/config.txt"
+printf 'pkg-asset-v2' > "$REMOTE_PACKAGE_V2_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets/config.txt"
 PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
 REMOTE_PACKAGE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/program.obc" | awk '{print $1}')"
+REMOTE_PACKAGE_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/program.obc" | awk '{print $1}')"
 REMOTE_ASSET_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/assets/config.txt" | awk '{print $1}')"
+REMOTE_ASSET_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/assets/config.txt" | awk '{print $1}')"
 cat > "$PACKAGE_DIR/package.json" <<JSON
 {
   "schema": "oren.obc.package.v0",
@@ -1167,12 +1231,42 @@ cat > "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" <<JSON
   ]
 }
 JSON
+cat > "$REMOTE_PACKAGE_V2_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-package-remote",
+  "publisher": "oren-labs",
+  "version": "0.2.0",
+  "title": "SDK Remote Package Smoke v2",
+  "summary": "Verifies OrenAVMPackageStore update policy.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$REMOTE_PACKAGE_V2_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "assets": [
+    { "path": "assets/config.txt", "sha256": "$REMOTE_ASSET_V2_HASH" }
+  ],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
+}
+JSON
 REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '{print $1}')"
+REMOTE_MANIFEST_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_ASSET_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_SIGNATURE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" | awk '{print $1}')"
 PACKAGE_SIGN_KEY="$TMP_DIR/package_store_p256.pem"
 BAD_STORE_INDEX_KEY="$TMP_DIR/package_store_bad_index_p256.pem"
 REMOTE_MANIFEST_HASH_MSG="$TMP_DIR/remote_manifest_hash.txt"
+REMOTE_MANIFEST_V2_HASH_MSG="$TMP_DIR/remote_manifest_v2_hash.txt"
 REMOTE_BAD_ASSET_HASH_MSG="$TMP_DIR/remote_bad_asset_manifest_hash.txt"
 extract_p256_pubkey_b64() {
   python3 - "$1" <<'PY'
@@ -1192,10 +1286,13 @@ PY
 openssl ecparam -name prime256v1 -genkey -noout -out "$PACKAGE_SIGN_KEY"
 openssl ecparam -name prime256v1 -genkey -noout -out "$BAD_STORE_INDEX_KEY"
 printf '%s' "$REMOTE_MANIFEST_HASH" > "$REMOTE_MANIFEST_HASH_MSG"
+printf '%s' "$REMOTE_MANIFEST_V2_HASH" > "$REMOTE_MANIFEST_V2_HASH_MSG"
 printf '%s' "$REMOTE_BAD_ASSET_MANIFEST_HASH" > "$REMOTE_BAD_ASSET_HASH_MSG"
 openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_manifest.sig" "$REMOTE_MANIFEST_HASH_MSG"
+openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_manifest_v2.sig" "$REMOTE_MANIFEST_V2_HASH_MSG"
 openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_bad_asset_manifest.sig" "$REMOTE_BAD_ASSET_HASH_MSG"
 REMOTE_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest.sig" | tr -d '\n')"
+REMOTE_SIGNATURE_V2_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest_v2.sig" | tr -d '\n')"
 REMOTE_BAD_ASSET_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_bad_asset_manifest.sig" | tr -d '\n')"
 PACKAGE_PUBLISHER_KEY_B64="$(extract_p256_pubkey_b64 "$PACKAGE_SIGN_KEY")"
 BAD_STORE_INDEX_KEY_B64="$(extract_p256_pubkey_b64 "$BAD_STORE_INDEX_KEY")"
@@ -1212,6 +1309,16 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
       "signature_alg": "p256-sha256-der",
       "signature_p256_sha256_der_hex": "$REMOTE_SIGNATURE_HEX",
       "tags": ["sdk", "smoke"],
+      "min_app": "0.1.0"
+    },
+    {
+      "id": "oren-labs/sdk-package-remote",
+      "version": "0.2.0",
+      "manifest": "packages/oren-labs/sdk-package-remote/0.2.0/package.json",
+      "manifest_sha256": "$REMOTE_MANIFEST_V2_HASH",
+      "signature_alg": "p256-sha256-der",
+      "signature_p256_sha256_der_hex": "$REMOTE_SIGNATURE_V2_HEX",
+      "tags": ["sdk", "smoke", "update"],
       "min_app": "0.1.0"
     },
     {

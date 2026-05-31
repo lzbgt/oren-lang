@@ -101,7 +101,13 @@ Facts from the 2026-05-28 implementation pass:
   bad-asset-hash, and bad-package-signature paths. The package store now has
   persisted app-directory lifecycle helpers for list, load, and remove installed
   packages; remote installs stage into a temporary package directory before replacing
-  the final install path.
+  the final install path. Explicit install policy is implemented for signed-index
+  downloads: replace, keep-existing, and fail-if-installed are SDK-visible, and the
+  iOS verifier proves same-version keep/fail behavior plus a signed `0.2.0` update.
+- OBC store trust/key tooling is available as `scripts/issue_obc_store_trust.sh`
+  and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
+  by default under `../oren-ca/private`, exports SDK-ready public key bytes and
+  `trust/obc_store_trust.json`, and self-checks signing/verification.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

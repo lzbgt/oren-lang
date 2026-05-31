@@ -30,6 +30,7 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
     <main class="content">
@@ -174,8 +175,16 @@
 <p>     enforcement remains host policy: apps can require trust or let users accept</p>
 <p>     unsigned/untrusted OBC risk. Persisted app-directory list/load/remove helpers</p>
 <p>     are implemented and verified, with staged remote install before final path</p>
-<p>     replacement. Remaining package-store work is root trust rotation, explicit</p>
-<p>     update policy, and Note app smoke.</p>
+<p>     replacement. Explicit install policy is implemented and verified for signed-index</p>
+<p>     downloads: replace, keep-existing, and fail-if-installed, including a signed</p>
+<p>     <code>0.2.0</code> update fixture. Remaining package-store work is root trust rotation,</p>
+<p>     richer update UX/persistence, and Note app smoke.</p>
+<ul>
+<li>2026-06-01: <code>scripts/issue_obc_store_trust.sh</code> and</li>
+</ul>
+<p>     <code>make issue-obc-store-trust</code> issue store/publisher P-256 keys and host-app</p>
+<p>     trust bundles into an external directory such as <code>../oren-ca/</code>; private keys</p>
+<p>     remain outside this repo.</p>
 <ol>
 <li><strong>AVM full-suite manifest runner</strong></li>
 </ol>

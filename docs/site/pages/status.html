@@ -30,6 +30,7 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
     <main class="content">
@@ -146,7 +147,15 @@
 <p>  bad-asset-hash, and bad-package-signature paths. The package store now has</p>
 <p>  persisted app-directory lifecycle helpers for list, load, and remove installed</p>
 <p>  packages; remote installs stage into a temporary package directory before replacing</p>
-<p>  the final install path.</p>
+<p>  the final install path. Explicit install policy is implemented for signed-index</p>
+<p>  downloads: replace, keep-existing, and fail-if-installed are SDK-visible, and the</p>
+<p>  iOS verifier proves same-version keep/fail behavior plus a signed <code>0.2.0</code> update.</p>
+<ul>
+<li>OBC store trust/key tooling is available as <code>scripts/issue_obc_store_trust.sh</code></li>
+</ul>
+<p>  and <code>make issue-obc-store-trust</code>. It writes private P-256 keys outside the repo</p>
+<p>  by default under <code>../oren-ca/private</code>, exports SDK-ready public key bytes and</p>
+<p>  <code>trust/obc_store_trust.json</code>, and self-checks signing/verification.</p>
 <ul>
 <li>iOS SDK design is documented in <code>project-doc/ios_avm_sdk_design_20260531.md</code>:</li>
 </ul>

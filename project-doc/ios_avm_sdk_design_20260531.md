@@ -293,12 +293,16 @@ Public OBC store helper.
   remove installed packages. Remote package installs write to a temporary package
   directory first, verify through the local package path, then replace the final
   install path so partially downloaded packages are not treated as installed.
+- Signed-index downloads accept an explicit install policy: replace, keep an
+  already-installed same-version package, or fail if the target version is already
+  installed. The retained gate proves same-version keep/fail behavior and installing
+  a signed `0.2.0` package alongside `0.1.0`.
 - Signature/cert enforcement is host policy. The SDK provides strict signed
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting
   users run non-store software while owning the risk.
-- Next slices should add root trust rotation, explicit update policy, and Note app
-  smoke.
+- Next slices should add root trust rotation, richer update UX/persistence, and Note
+  app smoke.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

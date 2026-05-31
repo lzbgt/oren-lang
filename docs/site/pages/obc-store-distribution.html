@@ -30,6 +30,7 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
     <main class="content">
@@ -240,13 +241,18 @@ packages/...</code></pre>
 <p>user-confirmed &quot;run untrusted OBC&quot; path. The SDK also has persisted app-directory</p>
 <p>lifecycle helpers for list, load, and remove installed packages, and remote installs</p>
 <p>stage into a temporary package directory before replacing the final package path.</p>
-<p>Remaining store work is root trust rotation, explicit update policy, and Note app</p>
-<p>smoke before a public store is release-ready.</p>
+<p>Signed-index installs now expose replace, keep-existing, and fail-if-installed</p>
+<p>policies so host apps can make update behavior explicit. Remaining store work is</p>
+<p>root trust rotation, richer update UX/persistence, and Note app smoke before a</p>
+<p>public store is release-ready.</p>
 <p>Key custody rule: private signing keys and any root CA material must live outside</p>
 <p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
 <p>may document paths and commit public trust anchors or test public keys, but must</p>
 <p>not commit private keys. Sibling apps such as <code>../note</code> should consume a public</p>
 <p>trust bundle or a local config path that points at <code>../oren-ca/</code> during development.</p>
+<p>The helper tool <code>scripts/issue_obc_store_trust.sh</code> creates the current P-256 store</p>
+<p>and publisher signing material plus a public trust bundle in that external</p>
+<p>directory; see <code>project-doc/obc_store_trust_tooling_20260601.md</code>.</p>
 <h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
 <p>Suggested public repository:</p>
 <pre><code>oren-obc-store/

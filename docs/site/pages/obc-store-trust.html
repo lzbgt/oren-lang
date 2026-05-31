@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBC Store Trust - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="ios-avm-sdk.html">iOS AVM SDK</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-store-trust.html">OBC Store Trust</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="obc-store-trust-tooling">OBC Store Trust Tooling</h1>
+<p><strong>Last updated:</strong> 2026-06-01</p>
+<p>OBC package trust material must be generated outside this repository. The repo</p>
+<p>ships tooling and public formats, but private store/publisher keys must not be</p>
+<p>committed here.</p>
+<h2 id="tool">Tool</h2>
+<p>Use:</p>
+<pre><code>scripts/issue_obc_store_trust.sh --out-dir ../oren-ca --store-id oren-store-dev --publisher-id oren-labs</code></pre>
+<p>or:</p>
+<pre><code>make issue-obc-store-trust OREN_CA_DIR=../oren-ca</code></pre>
+<p>The tool writes:</p>
+<ul>
+<li><code>../oren-ca/private/*.pem</code>: private P-256 store and publisher keys, mode <code>600</code>.</li>
+<li><code>../oren-ca/public/*.pem</code>: public PEM keys.</li>
+<li><code>../oren-ca/public/*.p256.x963.b64</code>: SDK-ready public key bytes for</li>
+</ul>
+<p>  <code>OrenAVMPackageStore</code>.</p>
+<ul>
+<li><code>../oren-ca/trust/obc_store_trust.json</code>: host-app trust bundle.</li>
+</ul>
+<p>The script also signs and verifies a local smoke message with both generated keys</p>
+<p>and validates the trust JSON.</p>
+<h2 id="host-app-consumption">Host App Consumption</h2>
+<p>Sibling host apps such as <code>../note</code> should not infer trust material from this repo.</p>
+<p>They should read a public trust bundle or a local config path, for example:</p>
+<pre><code>OREN_OBC_TRUST_BUNDLE=../oren-ca/trust/obc_store_trust.json</code></pre>
+<p>The Note app can then load the store public key as the <code>trustedIndexPublicKey</code> and</p>
+<p>publisher public keys as <code>trustedPublisherPublicKeys</code> when calling</p>
+<p><code>OrenAVMPackageStore</code>.</p>
+<h2 id="policy">Policy</h2>
+<p>Signature enforcement remains host policy. A host app may require trusted index and</p>
+<p>publisher signatures by default, or expose an explicit user-confirmed path for</p>
+<p>running unsigned/untrusted OBC. In both cases, the OBC program still runs inside</p>
+<p>AVM capability gates and only sees virtual resources.</p>
+<h2 id="rotation">Rotation</h2>
+<p>Key rotation should add new public keys to the trust bundle before packages depend</p>
+<p>on them. Old keys should stay accepted until installed packages and store indexes no</p>
+<p>longer need them. Private key escrow, revocation publication, and production CA</p>
+<p>operations remain outside this repo.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#obc-store-trust-tooling">OBC Store Trust Tooling</a>
+<a class="toc-l2" href="#tool">Tool</a>
+<a class="toc-l2" href="#host-app-consumption">Host App Consumption</a>
+<a class="toc-l2" href="#policy">Policy</a>
+<a class="toc-l2" href="#rotation">Rotation</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

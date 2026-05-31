@@ -24,6 +24,7 @@ DOCS = [
     ("AVM iOS Graphics", "project-doc/avm_ios_graphics_design_20260529.md", "avm-ios-graphics"),
     ("AVM UI Performance", "project-doc/avm_ui_render_performance_design_20260531.md", "avm-ui-performance"),
     ("OBC Store Distribution", "project-doc/obc_store_distribution_design_20260529.md", "obc-store-distribution"),
+    ("OBC Store Trust", "project-doc/obc_store_trust_tooling_20260601.md", "obc-store-trust"),
     ("Yield / Coroutine", "project-doc/yield_coroutine_lowering_20260422.md", "yield-coroutine"),
 ]
 

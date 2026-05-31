@@ -208,14 +208,19 @@ host policy: apps should default to trusted metadata, but may expose an explicit
 user-confirmed "run untrusted OBC" path. The SDK also has persisted app-directory
 lifecycle helpers for list, load, and remove installed packages, and remote installs
 stage into a temporary package directory before replacing the final package path.
-Remaining store work is root trust rotation, explicit update policy, and Note app
-smoke before a public store is release-ready.
+Signed-index installs now expose replace, keep-existing, and fail-if-installed
+policies so host apps can make update behavior explicit. Remaining store work is
+root trust rotation, richer update UX/persistence, and Note app smoke before a
+public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo
 may document paths and commit public trust anchors or test public keys, but must
 not commit private keys. Sibling apps such as `../note` should consume a public
 trust bundle or a local config path that points at `../oren-ca/` during development.
+The helper tool `scripts/issue_obc_store_trust.sh` creates the current P-256 store
+and publisher signing material plus a public trust bundle in that external
+directory; see `project-doc/obc_store_trust_tooling_20260601.md`.
 
 ## Initial Public Repo Shape
 

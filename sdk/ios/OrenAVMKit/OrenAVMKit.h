@@ -32,6 +32,12 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
     OrenAVMVirtualBackendVirtual = 1
 };
 
+typedef NS_ENUM(NSInteger, OrenAVMPackageInstallPolicy) {
+    OrenAVMPackageInstallPolicyReplace = 0,
+    OrenAVMPackageInstallPolicyKeepExisting = 1,
+    OrenAVMPackageInstallPolicyFailIfInstalled = 2
+};
+
 @interface OrenAVMRuntimeConfig : NSObject <NSCopying>
 
 @property(nonatomic) OrenAVMTimeMode timeMode;
@@ -159,6 +165,16 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                                timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                         trustedIndexPublicKey:(nullable NSData*)trustedIndexPublicKey
                                    trustedPublisherPublicKeys:(nullable NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
+                                                        error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                                    packageID:(NSString*)packageID
+                                                      version:(nullable NSString*)version
+                                      destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                                 allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                               timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                        trustedIndexPublicKey:(nullable NSData*)trustedIndexPublicKey
+                                   trustedPublisherPublicKeys:(nullable NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
+                                                installPolicy:(OrenAVMPackageInstallPolicy)installPolicy
                                                         error:(NSError* _Nullable* _Nullable)error;
 - (nullable OrenAVMRuntimeConfig*)runtimeConfigForPackage:(OrenAVMPackage*)package
                                                     error:(NSError* _Nullable* _Nullable)error;

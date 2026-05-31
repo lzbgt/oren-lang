@@ -310,8 +310,36 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
                                trustedIndexPublicKey:(NSData*)trustedIndexPublicKey
                           trustedPublisherPublicKeys:(NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
                                                error:(NSError**)error {
+    return [self downloadPackageFromSignedIndexURL:indexURL
+                                         packageID:packageID
+                                           version:version
+                           destinationDirectoryURL:destinationDirectoryURL
+                                      allowedHosts:allowedHosts
+                                    timeoutSeconds:timeoutSeconds
+                             trustedIndexPublicKey:trustedIndexPublicKey
+                        trustedPublisherPublicKeys:trustedPublisherPublicKeys
+                                     installPolicy:OrenAVMPackageInstallPolicyReplace
+                                             error:error];
+}
+
+- (OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                           packageID:(NSString*)packageID
+                                             version:(NSString*)version
+                             destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                        allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                      timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                               trustedIndexPublicKey:(NSData*)trustedIndexPublicKey
+                          trustedPublisherPublicKeys:(NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
+                                       installPolicy:(OrenAVMPackageInstallPolicy)installPolicy
+                                               error:(NSError**)error {
     if (!indexURL || packageID.length == 0 || !destinationDirectoryURL.isFileURL) {
         OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"index URL, package id, and destination directory are required");
+        return nil;
+    }
+    if (installPolicy != OrenAVMPackageInstallPolicyReplace &&
+        installPolicy != OrenAVMPackageInstallPolicyKeepExisting &&
+        installPolicy != OrenAVMPackageInstallPolicyFailIfInstalled) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"unsupported OBC package install policy");
         return nil;
     }
     NSData* indexData = nil;
@@ -398,14 +426,32 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
 
     NSURL* packageRoot = OrenAVMPackageAppendSafeRelativePath(destinationDirectoryURL, packageID, YES);
     packageRoot = OrenAVMPackageAppendSafeRelativePath(packageRoot, manifestVersion, YES);
-    NSString* tmpName = [NSString stringWithFormat:@".%@.tmp.%@", manifestVersion, [[NSUUID UUID] UUIDString]];
-    NSURL* packageTmpRoot = OrenAVMPackageAppendSafeRelativePath([packageRoot URLByDeletingLastPathComponent], tmpName, YES);
-    NSURL* obcOutURL = OrenAVMPackageAppendSafeRelativePath(packageTmpRoot, entryObc, NO);
-    if (!packageRoot || !packageTmpRoot || !obcOutURL) {
+    if (!packageRoot) {
         OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package destination path is invalid");
         return nil;
     }
     NSFileManager* fm = [NSFileManager defaultManager];
+    BOOL packageExists = [fm fileExistsAtPath:packageRoot.path];
+    if (packageExists) {
+        if (installPolicy == OrenAVMPackageInstallPolicyKeepExisting) {
+            return [self loadPackageAtDirectoryURL:packageRoot error:error];
+        }
+        if (installPolicy == OrenAVMPackageInstallPolicyFailIfInstalled) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package version is already installed");
+            return nil;
+        }
+        if (installPolicy != OrenAVMPackageInstallPolicyReplace) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"unsupported OBC package install policy");
+            return nil;
+        }
+    }
+    NSString* tmpName = [NSString stringWithFormat:@".%@.tmp.%@", manifestVersion, [[NSUUID UUID] UUIDString]];
+    NSURL* packageTmpRoot = OrenAVMPackageAppendSafeRelativePath([packageRoot URLByDeletingLastPathComponent], tmpName, YES);
+    NSURL* obcOutURL = OrenAVMPackageAppendSafeRelativePath(packageTmpRoot, entryObc, NO);
+    if (!packageTmpRoot || !obcOutURL) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package destination path is invalid");
+        return nil;
+    }
     (void)[fm removeItemAtURL:packageTmpRoot error:nil];
     if (![fm createDirectoryAtURL:[obcOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
     if (![manifestData writeToURL:[packageTmpRoot URLByAppendingPathComponent:@"package.json" isDirectory:NO] options:NSDataWritingAtomic error:error]) return nil;
