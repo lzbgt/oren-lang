@@ -173,6 +173,19 @@ fn poll_event_bytes() {
     return pull_event_bytes()
 }
 
+fn screen(id) {
+    if id == nil { id = 0 }
+    return oren_gfx_screen(id)
+}
+
+fn screen0() {
+    return screen(0)
+}
+
+fn screen_available(id) {
+    return screen(id) != nil
+}
+
 fn _read_u16_le(bs, off, ctx) {
     var b0 = bytes.try_get_u8(bs, off)
     if oren_is_err(b0) { return oren_err(4, ctx + ": truncated u16") }
@@ -235,6 +248,35 @@ fn decode_event_bytes(ev) {
         if oren_is_err(h) { return h }
         if oren_is_err(scale) { return scale }
         return {"kind": "resize", "opcode": opcode, "width": w, "height": h, "scale_milli": scale}
+    }
+
+    if opcode == 17 {
+        if payload_len != 28 { return oren_err(4, "ui.avm.decode_event_bytes: bad media payload") }
+        var mw = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var mh = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        var mscale = _read_u32_le(ev, 20, "ui.avm.decode_event_bytes")
+        var drawable_w = _read_u32_le(ev, 24, "ui.avm.decode_event_bytes")
+        var drawable_h = _read_u32_le(ev, 28, "ui.avm.decode_event_bytes")
+        var target_hz = _read_u32_le(ev, 32, "ui.avm.decode_event_bytes")
+        var flags = _read_u32_le(ev, 36, "ui.avm.decode_event_bytes")
+        if oren_is_err(mw) { return mw }
+        if oren_is_err(mh) { return mh }
+        if oren_is_err(mscale) { return mscale }
+        if oren_is_err(drawable_w) { return drawable_w }
+        if oren_is_err(drawable_h) { return drawable_h }
+        if oren_is_err(target_hz) { return target_hz }
+        if oren_is_err(flags) { return flags }
+        return {
+            "kind": "media",
+            "opcode": opcode,
+            "width": mw,
+            "height": mh,
+            "scale_milli": mscale,
+            "drawable_w": drawable_w,
+            "drawable_h": drawable_h,
+            "target_hz_milli": target_hz,
+            "flags": flags
+        }
     }
 
     if opcode == 32 || opcode == 33 {

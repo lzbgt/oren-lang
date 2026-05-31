@@ -1,0 +1,24 @@
+import math "std:math"
+import linalg "std:linalg"
+
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    var half = math.power(2.0, -1.0)
+    var curved = math.power(2.0, 4.3)
+    var dot = linalg.dot_f64([1.0, 2.0, 3.0], [4.0, 5.0, 6.0])
+
+    if half < 0.49 || half > 0.51 { fail("power negative exponent") }
+    if curved < 19.69 || curved > 19.71 { fail("power fractional exponent") }
+    if dot != 32.0 { fail("dot_f64") }
+
+    print("science-calculator demo OK")
+    print(half)
+    print(curved)
+    print(dot)
+    oren_exit(0)
+}

@@ -1,0 +1,30 @@
+import ui_avm "std:ui/avm"
+
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 320, "h": 180, "color": "#102820"},
+        {"op": "fill_rect", "x": 18, "y": 18, "w": 284, "h": 144, "color": "#f5efe0"},
+        {"op": "stroke_line", "x1": 18, "y1": 128, "x2": 302, "y2": 128, "width": 2, "color": "#146c5b"},
+        {"op": "circle", "cx": 272, "cy": 58, "r": 28, "fill": true, "color": "#e38b29"},
+        {"op": "text", "x": 34, "y": 52, "color": "#102820", "text": "Oren AVM UI"},
+        {"op": "text", "x": 34, "y": 92, "color": "#36584d", "text": "Binary OGF0 frame demo"}
+    ]
+    var rc = ui_avm.present_frame(cmds, 320, 180, {
+        "sequence": 1,
+        "scale_milli": 3000,
+        "drawable_w": 960,
+        "drawable_h": 540,
+        "target_hz_milli": 120000,
+        "strict_bounds": true
+    })
+    if oren_is_err(rc) { fail(oren_err_msg(rc)) }
+    if rc != 0 { fail("present_frame") }
+    print("ui-card demo OK")
+    oren_exit(0)
+}

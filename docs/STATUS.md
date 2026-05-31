@@ -85,6 +85,14 @@ Facts from the 2026-05-28 implementation pass:
   release gate, `store.hubstack.cn` should act as the public PyPI-like OBC
   store site for app experiences that the iOS app downloads, verifies, and runs
   through `libavm`.
+- Curated first-party OBC store demos are now source-controlled under
+  `examples/obc_store_demos/`. `make verify-obc-store-demos` builds
+  `oren-labs/science-calculator@0.1.0` and `oren-labs/ui-card-demo@0.1.0` into
+  `build/obc-store-demos`, writes package manifests/index metadata, emits
+  deterministic `.obc.zip` release bundles, bundles official demo source under
+  `assets/source/main.oren`, and runs the generated OBC under AVM capability
+  policies. The release bundle spec is documented in
+  `project-doc/obc_release_bundle_spec_20260601.md`.
 - The first `OrenAVMPackageStore` SDK slices are implemented. It loads a local
   `oren.obc.package.v0` directory, validates manifest shape and AVM ABI floor,
   verifies `program.obc` SHA-256, derives runtime capabilities/budgets/time mode,
@@ -124,7 +132,9 @@ Facts from the 2026-05-28 implementation pass:
   APIs for token rotation and revocation.
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
-  install and package run from that endpoint. It is not deployed yet.
+  install and package run from that endpoint. The release bundle format is
+  specified as deterministic `.obc.zip`; service/SDK bundle upload/download support
+  is still pending. It is not deployed yet.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key
@@ -248,7 +258,10 @@ Facts from the 2026-05-28 implementation pass:
   event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
   UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
   `stroke_line`/`circle` frame subset and can enqueue pointer, resize, key, and
-  text events. Bidirectional UI is a hard requirement for game-level OBC packages:
+  text events plus host-populated persistent screen state and runtime media-query
+  events with logical size, native drawable size, device scale, target refresh,
+  and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
+  consuming an input event. Bidirectional UI is a hard requirement for game-level OBC packages:
   OBC must publish frames and consume host-originated input through the same virtual
   protocol, while the host owns platform event APIs and rendering devices. Metal
   rendering, multitouch/gamepad/motion input, IME/composition helpers, and richer 2D/3D command

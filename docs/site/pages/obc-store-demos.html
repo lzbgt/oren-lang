@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBC Store Demos - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="ios-avm-sdk.html">iOS AVM SDK</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
+<a href="obc-store-trust.html">OBC Store Trust</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="obc-store-demo-packages">OBC Store Demo Packages</h1>
+<p><strong>Date:</strong> 2026-06-01</p>
+<h2 id="decision">Decision</h2>
+<p>The first public OBC store should ship with small first-party packages that prove</p>
+<p>the iOS AVM path is useful before third-party packages exist.</p>
+<h2 id="current-demo-set">Current Demo Set</h2>
+<p>Sources live under <code>examples/obc_store_demos/</code>.</p>
+<table>
+<tr><th>Package</th><th>Purpose</th><th>Capabilities</th></tr>
+<tr><td><code>oren-labs/science-calculator@0.1.0</code></td><td>Deterministic <code>std:math.power(...)</code> and <code>std:linalg.dot_f64(...)</code> smoke for scientific calculation.</td><td><code>CORE</code>, <code>EXIT</code></td></tr>
+<tr><td><code>oren-labs/ui-card-demo@0.1.0</code></td><td>Publishes a compact binary <code>OGF0</code> UI frame for host-rendered iOS UI/GFX demos.</td><td><code>CORE</code>, <code>GFX</code>, <code>EXIT</code></td></tr>
+</table>
+<h2 id="build-gate">Build Gate</h2>
+<pre><code>make verify-obc-store-demos</code></pre>
+<p>The gate builds each source to bytecode, runs each <code>.obc</code> under AVM with</p>
+<p>deny-by-default capability flags, and writes generated package directories plus</p>
+<p>deterministic ZIP release bundles under:</p>
+<pre><code>build/obc-store-demos/</code></pre>
+<p>The generated output includes:</p>
+<pre><code>build/obc-store-demos/index.json
+build/obc-store-demos/bundles/&lt;publisher&gt;__&lt;name&gt;__&lt;version&gt;.obc.zip
+build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/package.json
+build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/program.obc
+build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/assets/source/main.oren</code></pre>
+<p>Official demo packages always bundle source code as a package asset so host apps</p>
+<p>can show or ignore source independently from the executable OBC. The manifest</p>
+<p>declares the source in both <code>assets</code> and <code>sources</code>; the store index declares the</p>
+<p>ZIP bundle path, media type, and SHA-256.</p>
+<p>These generated package artifacts are intentionally not committed. They can be</p>
+<p>published to <code>store.hubstack.cn</code> after live deployment/signing credentials are</p>
+<p>available.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#obc-store-demo-packages">OBC Store Demo Packages</a>
+<a class="toc-l2" href="#decision">Decision</a>
+<a class="toc-l2" href="#current-demo-set">Current Demo Set</a>
+<a class="toc-l2" href="#build-gate">Build Gate</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

@@ -30,6 +30,8 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
 <a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -82,9 +84,10 @@
 <p>  <code>text</code>/<code>stroke_line</code>/<code>circle</code> subset. It decodes frame bytes on the host side</p>
 <p>  and enqueues pointer events back into AVM.</p>
 <ul>
-<li><code>OrenAVMKit</code> now has binary helper encoders for pointer, resize, key, and</li>
+<li><code>OrenAVMKit</code> now has binary helper encoders for pointer, resize, media-query,</li>
 </ul>
-<p>  UTF-8 text input events. The Oren side still receives raw <code>OGE0</code> bytes via</p>
+<p>  key, and UTF-8 text input events, plus host-populated persistent screen state.</p>
+<p>  The Oren side still receives raw <code>OGE0</code> bytes via</p>
 <p>  <code>std:ui/avm.pull_event_bytes()</code>, or decoded maps via</p>
 <p>  <code>std:ui/avm.next_event()</code>.</p>
 <ul>
@@ -210,7 +213,7 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>logical height, <code>scale_milli</code>, op-count, sequence, native drawable width, native</p>
 <p>drawable height, target refresh milli-Hz, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
 <p>magic <code>OGE0</code>, version/flags/reserved, then opcode records. The retained v0 opcodes</p>
-<p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, pointer, resize, key, and text</p>
+<p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, pointer, resize, media-query, key, and text</p>
 <p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
 <p>should extend the same binary stream.</p>
 <p>AVM validates <code>OGF0</code> headers/op records before accepting OBC-published frames and</p>
@@ -225,9 +228,13 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 </ul>
 <p>  <code>OrenAVMKit</code> convenience helpers.</p>
 <ul>
+<li>Host adapters populate persistent screen state with <code>avm_embed_gfx_screen_set(...)</code></li>
+</ul>
+<p>  or SDK helpers before OBC reads <code>std:ui/avm.screen(0)</code>.</p>
+<ul>
 <li>Oren/OBC pulls one event at a time with <code>std:ui/avm.pull_event_bytes()</code> for raw</li>
 </ul>
-<p>  protocol bytes or <code>std:ui/avm.next_event()</code> for decoded pointer/resize/key/text</p>
+<p>  protocol bytes or <code>std:ui/avm.next_event()</code> for decoded pointer/resize/media/key/text</p>
 <p>  maps.</p>
 <ul>
 <li>The VM does not callback into Oren from the host UI thread; this keeps device</li>
@@ -329,8 +336,9 @@ fn main() {
 <p>Curated AVM/iOS gates now cover malformed <code>OGF0</code> rejection, op-count cap rejection,</p>
 <p>frame I/O-budget rejection, malformed <code>OGE0</code> rejection, and the host input queue</p>
 <p>depth cap. The iOS verifier also covers non-1000 resize scale propagation,</p>
-<p>latest-frame replacement/clear semantics, and FIFO pointer down/move/up ordering</p>
-<p>before mixed key/text events.</p>
+<p>persistent screen-state reads, runtime media-query propagation, latest-frame</p>
+<p>replacement/clear semantics, and FIFO pointer down/move/up ordering before mixed</p>
+<p>key/text events.</p>
 <p>The same iOS verification chain now includes a stdlib OBC surface smoke for</p>
 <p>buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/linalg/math/</p>
 <p>strings/time/UI AVM modules, so graphics apps do not reach Note with missing</p>
@@ -363,7 +371,7 @@ fn main() {
 <li>Done: add binary input-event mailbox and pointer-event SDK helper.</li>
 <li>Done: add default UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> for the current <code>fill_rect</code>/<code>text</code> subset and compile it in the iOS verifier.</li>
 <li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code> and <code>circle</code>.</li>
-<li>Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.</li>
+<li>Done: add SDK binary helper encoders for resize, media-query, key, and UTF-8 text input events and verifier coverage that OBC consumes them.</li>
 <li>Done: add frame sequence, native drawable-size metadata, and target refresh hint to the <code>OGF0</code> header for high-refresh/high-resolution hosts.</li>
 <li>Done: add protocol/budget gates for malformed frames/events, op-count caps,</li>
 </ol>

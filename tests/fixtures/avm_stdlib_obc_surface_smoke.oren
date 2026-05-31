@@ -114,6 +114,7 @@ fn main() {
     if time.now_ns() < t0 { fail(61) }
 
     var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 2, "h": 2, "color": "#010203"}]
+    if ui_avm.screen_available(0) != false { fail(71) }
     if ui_avm.present_frame(cmds, 2, 2, {"strict_bounds": true, "sequence": 1}) != 0 { fail(70) }
 
     print("avm stdlib obc surface OK")

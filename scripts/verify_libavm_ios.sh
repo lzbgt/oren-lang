@@ -49,6 +49,7 @@ for sym in \
   _avm_embed_gfx_frame_get \
   _avm_embed_gfx_frame_clear \
   _avm_embed_gfx_input_put \
+  _avm_embed_gfx_screen_set \
   _avm_embed_permission_request_get \
   _avm_embed_permission_request_clear \
   _avm_embed_cancel \
@@ -190,6 +191,11 @@ fn main() {
         "target_hz_milli": 120000
     })
     if gr != 0 { oren_exit(19) }
+    var screen0 = ui_avm.screen0()
+    if screen0 == nil { oren_exit(62) }
+    if screen0["width"] != 4 || screen0["height"] != 3 || screen0["scale_milli"] != 3000 { oren_exit(63) }
+    if screen0["drawable_w"] != 12 || screen0["drawable_h"] != 9 || screen0["target_hz_milli"] != 120000 || screen0["flags"] != 5 { oren_exit(65) }
+    if ui_avm.screen_available(0) != true || ui_avm.screen(1) != nil { oren_exit(66) }
     var ev_ready = avm_events.select_once([{"kind": "ui", "id": "input"}])
     if oren_is_err(ev_ready) || ev_ready == nil || ev_ready["kind"] != "ui" || ev_ready["id"] != "input" { oren_exit(32) }
     var ev = ev_ready["event"]
@@ -205,10 +211,14 @@ fn main() {
     if ev4["kind"] != "resize" { oren_exit(39) }
     if ev4["width"] != 4 || ev4["height"] != 3 || ev4["scale_milli"] != 3000 { oren_exit(40) }
     var ev5 = ui_avm.next_event()
-    if ev5["kind"] != "key" || ev5["phase"] != "down" { oren_exit(44) }
-    if ev5["key_code"] != 65 || ev5["modifiers"] != 1 { oren_exit(45) }
+    if ev5["kind"] != "media" { oren_exit(53) }
+    if ev5["width"] != 4 || ev5["height"] != 3 || ev5["scale_milli"] != 3000 { oren_exit(54) }
+    if ev5["drawable_w"] != 12 || ev5["drawable_h"] != 9 || ev5["target_hz_milli"] != 120000 || ev5["flags"] != 5 { oren_exit(55) }
     var ev6 = ui_avm.next_event()
-    if ev6["kind"] != "text" || ev6["text"] != "hi" { oren_exit(48) }
+    if ev6["kind"] != "key" || ev6["phase"] != "down" { oren_exit(44) }
+    if ev6["key_code"] != 65 || ev6["modifiers"] != 1 { oren_exit(45) }
+    var ev7 = ui_avm.next_event()
+    if ev7["kind"] != "text" || ev7["text"] != "hi" { oren_exit(48) }
     if ui_avm.next_event() != nil { oren_exit(52) }
     var gr2 = ui_avm.present_frame(cmds, 4, 3, {
         "strict_bounds": true,
@@ -218,7 +228,7 @@ fn main() {
         "drawable_h": 12,
         "target_hz_milli": 90000
     })
-    if gr2 != 0 { oren_exit(53) }
+    if gr2 != 0 { oren_exit(57) }
     var rc1 = oren_system("probe-ok")
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
@@ -490,6 +500,12 @@ int main(void) {
         79, 71, 69, 48, 0, 0, 0, 0, 16, 0, 12, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 184, 11, 0, 0
     };
+    static const uint8_t media_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 17, 0, 28, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 184, 11, 0, 0,
+        12, 0, 0, 0, 9, 0, 0, 0, 192, 212, 1, 0,
+        5, 0, 0, 0
+    };
     static const uint8_t key_event[] = {
         79, 71, 69, 48, 0, 0, 0, 0, 32, 0, 8, 0,
         65, 0, 0, 0, 1, 0, 0, 0
@@ -529,11 +545,13 @@ int main(void) {
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 5;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
+    if (avm_embed_gfx_screen_set(handle, 0, 4, 3, 3000, 12, 9, 120000, 5, &result) != AVM_EMBED_OK) return 61;
     if (avm_embed_gfx_input_put(handle, bad_event, sizeof(bad_event), &result) == AVM_EMBED_OK) return 37;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
     if (avm_embed_gfx_input_put(handle, pointer_move_event, sizeof(pointer_move_event), &result) != AVM_EMBED_OK) return 42;
     if (avm_embed_gfx_input_put(handle, pointer_up_event, sizeof(pointer_up_event), &result) != AVM_EMBED_OK) return 43;
     if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
+    if (avm_embed_gfx_input_put(handle, media_event, sizeof(media_event), &result) != AVM_EMBED_OK) return 44;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
@@ -597,11 +615,13 @@ int main(void) {
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 22;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 23;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 24;
+    if (avm_embed_gfx_screen_set(handle, 0, 4, 3, 3000, 12, 9, 120000, 5, &result) != AVM_EMBED_OK) return 61;
     if (avm_embed_gfx_input_put(handle, bad_event, sizeof(bad_event), &result) == AVM_EMBED_OK) return 37;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
     if (avm_embed_gfx_input_put(handle, pointer_move_event, sizeof(pointer_move_event), &result) != AVM_EMBED_OK) return 42;
     if (avm_embed_gfx_input_put(handle, pointer_up_event, sizeof(pointer_up_event), &result) != AVM_EMBED_OK) return 43;
     if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
+    if (avm_embed_gfx_input_put(handle, media_event, sizeof(media_event), &result) != AVM_EMBED_OK) return 44;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
@@ -719,6 +739,8 @@ int main(void) {
         if (![runtime putGraphicsPointerEventWithKind:2 x:2 y:3 pointerId:7 error:&error]) return 58;
         if (![runtime putGraphicsPointerEventWithKind:3 x:3 y:4 pointerId:7 error:&error]) return 59;
         if (![runtime putGraphicsResizeEventWithWidth:4 height:3 scaleMilli:3000 error:&error]) return 54;
+        if (![runtime setGraphicsScreenWithID:0 width:4 height:3 scaleMilli:3000 drawableWidth:12 drawableHeight:9 targetHzMilli:120000 flags:5 error:&error]) return 62;
+        if (![runtime putGraphicsMediaEventWithWidth:4 height:3 scaleMilli:3000 drawableWidth:12 drawableHeight:9 targetHzMilli:120000 flags:5 error:&error]) return 60;
         if (![runtime putGraphicsKeyEventWithKind:32 keyCode:65 modifiers:1 error:&error]) return 55;
         if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
 
@@ -973,6 +995,8 @@ int main(void) {
         UIGraphicsEndImageContext();
         if (![graphicsView sendPointerEventWithKind:2 point:CGPointMake(2.0, 1.0) pointerId:8 error:&error]) return 53;
         if (![graphicsView sendResizeEventWithScaleMilli:1000 error:&error]) return 57;
+        if (![graphicsView publishScreenStateWithTargetHzMilli:120000 flags:5 error:&error]) return 123;
+        if (![graphicsView sendMediaEventWithTargetHzMilli:120000 flags:5 error:&error]) return 124;
 #endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
         if ([runtime getGraphicsFrameDataWithError:&error] != nil) return 50;

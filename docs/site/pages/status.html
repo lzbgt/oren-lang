@@ -30,6 +30,8 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
 <a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -130,6 +132,16 @@
 <p>  store site for app experiences that the iOS app downloads, verifies, and runs</p>
 <p>  through <code>libavm</code>.</p>
 <ul>
+<li>Curated first-party OBC store demos are now source-controlled under</li>
+</ul>
+<p>  <code>examples/obc_store_demos/</code>. <code>make verify-obc-store-demos</code> builds</p>
+<p>  <code>oren-labs/science-calculator@0.1.0</code> and <code>oren-labs/ui-card-demo@0.1.0</code> into</p>
+<p>  <code>build/obc-store-demos</code>, writes package manifests/index metadata, emits</p>
+<p>  deterministic <code>.obc.zip</code> release bundles, bundles official demo source under</p>
+<p>  <code>assets/source/main.oren</code>, and runs the generated OBC under AVM capability</p>
+<p>  policies. The release bundle spec is documented in</p>
+<p>  <code>project-doc/obc_release_bundle_spec_20260601.md</code>.</p>
+<ul>
 <li>The first <code>OrenAVMPackageStore</code> SDK slices are implemented. It loads a local</li>
 </ul>
 <p>  <code>oren.obc.package.v0</code> directory, validates manifest shape and AVM ABI floor,</p>
@@ -174,7 +186,9 @@
 <p>  APIs for token rotation and revocation.</p>
 <p>  <code>make verify-libavm-ios</code> starts this Go service, publishes a signed package via</p>
 <p>  the service API using publisher-scoped auth, and proves iOS SDK signed-index</p>
-<p>  install and package run from that endpoint. It is not deployed yet.</p>
+<p>  install and package run from that endpoint. The release bundle format is</p>
+<p>  specified as deterministic <code>.obc.zip</code>; service/SDK bundle upload/download support</p>
+<p>  is still pending. It is not deployed yet.</p>
 <ul>
 <li>The sibling Note repo handoff/verifier has been updated to consume this SDK</li>
 </ul>
@@ -328,7 +342,10 @@
 <p>  event, and consumes it from OBC. <code>OrenAVMGraphicsView</code> is now the default</p>
 <p>  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/<code>text</code>/</p>
 <p>  <code>stroke_line</code>/<code>circle</code> frame subset and can enqueue pointer, resize, key, and</p>
-<p>  text events. Bidirectional UI is a hard requirement for game-level OBC packages:</p>
+<p>  text events plus host-populated persistent screen state and runtime media-query</p>
+<p>  events with logical size, native drawable size, device scale, target refresh,</p>
+<p>  and host flags. OBC reads screen attributes with <code>std:ui/avm.screen(0)</code> without</p>
+<p>  consuming an input event. Bidirectional UI is a hard requirement for game-level OBC packages:</p>
 <p>  OBC must publish frames and consume host-originated input through the same virtual</p>
 <p>  protocol, while the host owns platform event APIs and rendering devices. Metal</p>
 <p>  rendering, multitouch/gamepad/motion input, IME/composition helpers, and richer 2D/3D command</p>

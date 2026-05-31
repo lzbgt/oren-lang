@@ -50,6 +50,13 @@ packages/<publisher>/<name>/<version>/
 treated as VirtualFS inputs or host presentation metadata, not arbitrary host
 filesystem paths.
 
+The portable release artifact should also be available as a deterministic ZIP
+bundle. The ZIP mirrors the rootless package layout above, uses media type
+`application/vnd.oren.obc.release+zip`, and should normally use an `.obc.zip`
+extension. The expanded directory remains the server/install layout; the ZIP is
+for upload, download, mirroring, archive, and offline handoff. Bundle details are
+specified in `project-doc/obc_release_bundle_spec_20260601.md`.
+
 ## Manifest Contract
 
 Minimum `package.json` shape:
@@ -79,6 +86,9 @@ Minimum `package.json` shape:
   "vfs_mounts": [
     { "virtual": "/assets/", "package_path": "assets/data/", "read_only": true }
   ],
+  "sources": [
+    { "path": "assets/source/main.oren", "language": "oren", "role": "main" }
+  ],
   "ui": {
     "kind": "gfx",
     "canvas": { "width": 390, "height": 844, "scale": "device" },
@@ -97,6 +107,9 @@ Rules:
   supports a reviewed host-network bridge.
 - Process execution should stay VirtualPROC on iOS.
 - GUI packages require the future `GFX` capability and frame mailbox.
+- Source code is optional for third-party packages and required for official
+  demos. If included, it should be declared as normal hashed assets and listed in
+  `sources`; host apps may choose to display, cache, recompile, or ignore it.
 
 ## Store Index
 
@@ -105,6 +118,7 @@ The root repo should publish a compact signed index:
 ```text
 index.json
 index.minisig
+bundles/...
 packages/...
 ```
 
@@ -120,6 +134,9 @@ Index shape:
       "version": "0.1.0",
       "manifest": "packages/oren-labs/plot-demo/0.1.0/package.json",
       "manifest_sha256": "<hex>",
+      "bundle": "bundles/oren-labs__plot-demo__0.1.0.obc.zip",
+      "bundle_sha256": "<hex>",
+      "bundle_media_type": "application/vnd.oren.obc.release+zip",
       "tags": ["science", "plot", "gfx"],
       "min_app": "0.1.0"
     }
@@ -164,7 +181,8 @@ API/service detail lives in `project-doc/obc_store_service_design_20260601.md`.
 1. Fetch signed `index.json` from `store.hubstack.cn` or a configured mirror.
 2. Filter packages by `avm_abi_min`, required capabilities, app version, and GUI
    support.
-3. Download `package.json`, `program.obc`, and selected assets.
+3. Download either the release ZIP bundle or `package.json`, `program.obc`, and
+   selected assets individually.
 4. Verify manifest hash, OBC hash, and package signature.
 5. Create an `AvmEmbedConfig`.
 6. Apply capabilities and budgets from the manifest.
@@ -268,6 +286,9 @@ store.hubstack.cn backing store or mirror repo:
   schemas/
     package.v0.schema.json
     index.v0.schema.json
+    release-bundle.v0.md
+  bundles/
+    oren-labs__plot-demo__0.1.0.obc.zip
   packages/
     oren-labs/
       hello/

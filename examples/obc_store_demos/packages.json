@@ -1,0 +1,24 @@
+[
+  {
+    "publisher": "oren-labs",
+    "name": "science-calculator",
+    "version": "0.1.0",
+    "source": "examples/obc_store_demos/science_calculator.oren",
+    "title": "Science Calculator",
+    "summary": "Small deterministic math and linalg AVM demo.",
+    "tags": ["science", "math", "linalg"],
+    "capabilities": ["CORE", "EXIT"],
+    "run_allow_domains": "0,6"
+  },
+  {
+    "publisher": "oren-labs",
+    "name": "ui-card-demo",
+    "version": "0.1.0",
+    "source": "examples/obc_store_demos/ui_card.oren",
+    "title": "UI Card Demo",
+    "summary": "Publishes a compact binary OGF0 UI frame for iOS host rendering.",
+    "tags": ["ui", "gfx", "demo"],
+    "capabilities": ["CORE", "GFX", "EXIT"],
+    "run_allow_domains": "0,6,9"
+  }
+]

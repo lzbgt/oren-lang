@@ -30,6 +30,8 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
 <a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -104,6 +106,12 @@
 <p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
+<li>Host helpers can publish persistent screen/media state and can enqueue</li>
+</ul>
+<p>  media-query change events so OBC can adapt to logical size, native drawable</p>
+<p>  size, device scale, target refresh rate, and host flags at runtime without</p>
+<p>  calling platform APIs directly.</p>
+<ul>
 <li>AVM validates <code>OGF0</code> frame headers/op records and <code>OGE0</code> input event</li>
 </ul>
 <p>  headers/payload lengths at the mailbox boundary before accepting them.</p>
@@ -123,6 +131,13 @@
 <p>yet game-complete: richer input such as multitouch gestures, focus, IME composition,</p>
 <p>gamepad/controller events, and high-rate motion data still need compact event</p>
 <p>records and iOS SDK helpers before game OBC packages should rely on them.</p>
+<p>Runtime media query must be host-populated state, not a consumed event only.</p>
+<p>OBC should not query <code>UIScreen</code>, <code>MTKView</code>, or any host object directly. The host</p>
+<p>publishes persistent screen state with logical width/height, <code>scale_milli</code>,</p>
+<p>native drawable width/height, and <code>target_hz_milli</code>; OBC reads it through</p>
+<p><code>std:ui/avm.screen(0)</code> / <code>screen0()</code>. The host may also enqueue a compact</p>
+<p>media-query event when those attributes change, so event loops can react without</p>
+<p>polling the persistent state every tick.</p>
 <p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
 <h2 id="high-refresh-contract">High-Refresh Contract</h2>
 <p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>

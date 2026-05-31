@@ -989,6 +989,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_avm_event_select" { native_domain = AVM_DOMAIN_EVENT; native_op = 0 }
         if name == "oren_gfx_present_frame" { native_domain = AVM_DOMAIN_GFX; native_op = 0 }
         if name == "oren_gfx_poll_input" { native_domain = AVM_DOMAIN_GFX; native_op = 1 }
+        if name == "oren_gfx_screen" { native_domain = AVM_DOMAIN_GFX; native_op = 2 }
 
         if native_domain != -1 {
             var args = expr["args"]

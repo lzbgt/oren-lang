@@ -242,6 +242,17 @@ typedef struct {
     size_t gfx_frame_len;
     // GFX input mailbox (rolling): FIFO binary event payloads from host adapters.
     void* gfx_input_queue;
+    // GFX screen/media state populated by host adapters; bytecode reads it through
+    // the GFX domain without consuming input events.
+    int gfx_screen_available;
+    uint32_t gfx_screen_id;
+    uint32_t gfx_screen_width;
+    uint32_t gfx_screen_height;
+    uint32_t gfx_screen_scale_milli;
+    uint32_t gfx_screen_drawable_width;
+    uint32_t gfx_screen_drawable_height;
+    uint32_t gfx_screen_target_hz_milli;
+    uint32_t gfx_screen_flags;
 
     // Permission request mailbox (rolling): latest OBC-published OPR0 request.
     uint8_t* permission_request_data;

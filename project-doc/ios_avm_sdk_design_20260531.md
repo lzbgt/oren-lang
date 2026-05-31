@@ -89,8 +89,12 @@ Retained SDK slices on 2026-05-31:
   (`fill_rect`, `text`, `stroke_line`, and `circle`) and enqueues pointer events
   back through the `OGE0` input mailbox. This is the default 2D fallback; it is
   not the future high-volume Metal path.
-- The binary input helper set now covers pointer events, resize events, key events,
-  and UTF-8 text-input events. These are still mailbox records, not UIKit objects.
+- The binary input helper set now covers pointer events, resize events,
+  media-query events, key events, and UTF-8 text-input events. These are still
+  mailbox records, not UIKit objects.
+- The SDK also exposes host-populated persistent screen state. `OrenAVMGraphicsView`
+  updates screen `0` during layout, and OBC reads it through `std:ui/avm.screen(0)`
+  without consuming an input event.
   Host code enqueues them; Oren/OBC pulls them with
   `std:ui/avm.pull_event_bytes()` or decodes them with
   `std:ui/avm.next_event()`.
@@ -266,11 +270,12 @@ Current GUI adapter boundary.
 - Renders the current 2D fallback through `OrenAVMGraphicsView` using
   UIKit/CoreGraphics.
 - Future high-volume 2D/3D paths should use Metal/`MTKView`.
-- Encodes pointer/keyboard/resize/input events back into AVM.
+- Encodes pointer/keyboard/resize/media/input events back into AVM and publishes
+  persistent screen state.
 - Does not expose UIKit or Metal objects directly to Oren code.
 - Current SDK implementation retrieves and clears binary frame payloads, enqueues
   binary pointer events, and renders the current `fill_rect`/`text`/
-  `stroke_line`/`circle` subset. Resize/key/text event helpers are implemented;
+  `stroke_line`/`circle` subset. Resize/media/key/text event helpers are implemented;
   IME/composition helpers, richer drawing ops, and Metal are the next slices.
 
 ### OrenAVMPackageStore
@@ -337,7 +342,7 @@ public publisher keys/trust bundles from app configuration; sibling apps such as
 | PROC | VirtualPROC | Reviewed app commands or future virtual jobs only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
 | GUI | Binary GFX mailboxes plus UIKit/CoreGraphics `OrenAVMGraphicsView` fallback | Metal/3D renderer |
-| INPUT | Explicit binary event queue/mailbox plus pointer/resize/key/text events | IME/composition helper encoders |
+| INPUT | Explicit binary event queue/mailbox plus pointer/resize/media/key/text events | IME/composition helper encoders |
 | STDOUT | Captured stdout | App-controlled log/result UI |
 
 Default iOS providers are intended to do real app work, not only test fixtures.

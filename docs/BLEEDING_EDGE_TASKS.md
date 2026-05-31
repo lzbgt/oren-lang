@@ -94,7 +94,11 @@ This file is the concise task view. Detailed implementation status lives in
      input records for multitouch, gamepad/controller, motion, focus, and
      IME/composition helpers. The `OGF0` frame header now includes
      sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
-     frames plus `OGE0` host input events before accepting them. Curated gates now
+     frames plus `OGE0` host input/media-query events before accepting them. OBC
+     can read host-populated screen attributes at runtime through
+     `std:ui/avm.screen(0)` and can consume media-change events through the same
+     virtual event channel: logical size, native drawable size, scale, target
+     refresh, and host flags. Curated gates now
      cover malformed-frame rejection, op-count cap rejection, frame I/O-budget
      rejection, the host input queue depth cap, non-1000 resize scale propagation,
      latest-frame replacement/clear semantics, and FIFO pointer down/move/up
@@ -120,10 +124,17 @@ This file is the concise task view. Detailed implementation status lives in
      JSON APIs for token rotation and revocation.
      `make verify-libavm-ios` starts the Go service, publishes a signed package
      through the HTTP API with publisher-scoped auth, and proves iOS SDK
-     install/run from that service. Live deployment and richer operator/browser
-     UX remain.
+     install/run from that service. The deterministic `.obc.zip` release bundle
+     format is now specified and emitted by demo tooling; service/SDK bundle
+     upload/download support, live deployment, and richer operator/browser UX remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
+     Curated demo package sources now live under `examples/obc_store_demos/`;
+     `make verify-obc-store-demos` builds and AVM-runs
+     `oren-labs/science-calculator@0.1.0` and
+     `oren-labs/ui-card-demo@0.1.0` package directories plus deterministic
+     `.obc.zip` release bundles under `build/obc-store-demos`. Official demos
+     bundle source as hashed package assets so host apps can show or ignore it.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
      manifest schema/ABI/hash validation, capability/budget/time config derivation,
      read-only package asset mounting into VirtualFS, package OBC run, HTTP

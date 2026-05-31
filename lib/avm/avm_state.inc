@@ -1007,6 +1007,17 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
         }
     }
     {
+        sha_u32_le(&h, (uint32_t)(vm->gfx_screen_available ? 1u : 0u));
+        sha_u32_le(&h, vm->gfx_screen_id);
+        sha_u32_le(&h, vm->gfx_screen_width);
+        sha_u32_le(&h, vm->gfx_screen_height);
+        sha_u32_le(&h, vm->gfx_screen_scale_milli);
+        sha_u32_le(&h, vm->gfx_screen_drawable_width);
+        sha_u32_le(&h, vm->gfx_screen_drawable_height);
+        sha_u32_le(&h, vm->gfx_screen_target_hz_milli);
+        sha_u32_le(&h, vm->gfx_screen_flags);
+    }
+    {
         uint32_t seq = vm->permission_request_sequence;
         sha_u32_le(&h, seq);
         uint32_t len = (vm->permission_request_data && vm->permission_request_len <= (size_t)UINT32_MAX) ? (uint32_t)vm->permission_request_len : 0u;

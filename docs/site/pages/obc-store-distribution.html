@@ -30,6 +30,8 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
 <a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -82,6 +84,12 @@
 <p><code>program.obc</code> is the executable bytecode. Assets are optional and should be</p>
 <p>treated as VirtualFS inputs or host presentation metadata, not arbitrary host</p>
 <p>filesystem paths.</p>
+<p>The portable release artifact should also be available as a deterministic ZIP</p>
+<p>bundle. The ZIP mirrors the rootless package layout above, uses media type</p>
+<p><code>application/vnd.oren.obc.release+zip</code>, and should normally use an <code>.obc.zip</code></p>
+<p>extension. The expanded directory remains the server/install layout; the ZIP is</p>
+<p>for upload, download, mirroring, archive, and offline handoff. Bundle details are</p>
+<p>specified in <code>project-doc/obc_release_bundle_spec_20260601.md</code>.</p>
 <h2 id="manifest-contract">Manifest Contract</h2>
 <p>Minimum <code>package.json</code> shape:</p>
 <pre><code>{
@@ -108,6 +116,9 @@
   &quot;vfs_mounts&quot;: [
     { &quot;virtual&quot;: &quot;/assets/&quot;, &quot;package_path&quot;: &quot;assets/data/&quot;, &quot;read_only&quot;: true }
   ],
+  &quot;sources&quot;: [
+    { &quot;path&quot;: &quot;assets/source/main.oren&quot;, &quot;language&quot;: &quot;oren&quot;, &quot;role&quot;: &quot;main&quot; }
+  ],
   &quot;ui&quot;: {
     &quot;kind&quot;: &quot;gfx&quot;,
     &quot;canvas&quot;: { &quot;width&quot;: 390, &quot;height&quot;: 844, &quot;scale&quot;: &quot;device&quot; },
@@ -130,11 +141,15 @@
 <ul>
 <li>Process execution should stay VirtualPROC on iOS.</li>
 <li>GUI packages require the future <code>GFX</code> capability and frame mailbox.</li>
+<li>Source code is optional for third-party packages and required for official</li>
 </ul>
+<p>  demos. If included, it should be declared as normal hashed assets and listed in</p>
+<p>  <code>sources</code>; host apps may choose to display, cache, recompile, or ignore it.</p>
 <h2 id="store-index">Store Index</h2>
 <p>The root repo should publish a compact signed index:</p>
 <pre><code>index.json
 index.minisig
+bundles/...
 packages/...</code></pre>
 <p>Index shape:</p>
 <pre><code>{
@@ -146,6 +161,9 @@ packages/...</code></pre>
       &quot;version&quot;: &quot;0.1.0&quot;,
       &quot;manifest&quot;: &quot;packages/oren-labs/plot-demo/0.1.0/package.json&quot;,
       &quot;manifest_sha256&quot;: &quot;&lt;hex&gt;&quot;,
+      &quot;bundle&quot;: &quot;bundles/oren-labs__plot-demo__0.1.0.obc.zip&quot;,
+      &quot;bundle_sha256&quot;: &quot;&lt;hex&gt;&quot;,
+      &quot;bundle_media_type&quot;: &quot;application/vnd.oren.obc.release+zip&quot;,
       &quot;tags&quot;: [&quot;science&quot;, &quot;plot&quot;, &quot;gfx&quot;],
       &quot;min_app&quot;: &quot;0.1.0&quot;
     }
@@ -193,7 +211,10 @@ packages/...</code></pre>
 </ol>
 <p>   support.</p>
 <ol>
-<li>Download <code>package.json</code>, <code>program.obc</code>, and selected assets.</li>
+<li>Download either the release ZIP bundle or <code>package.json</code>, <code>program.obc</code>, and</li>
+</ol>
+<p>   selected assets individually.</p>
+<ol>
 <li>Verify manifest hash, OBC hash, and package signature.</li>
 <li>Create an <code>AvmEmbedConfig</code>.</li>
 <li>Apply capabilities and budgets from the manifest.</li>
@@ -302,6 +323,9 @@ packages/...</code></pre>
   schemas/
     package.v0.schema.json
     index.v0.schema.json
+    release-bundle.v0.md
+  bundles/
+    oren-labs__plot-demo__0.1.0.obc.zip
   packages/
     oren-labs/
       hello/

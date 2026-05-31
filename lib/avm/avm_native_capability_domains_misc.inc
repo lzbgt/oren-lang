@@ -538,6 +538,35 @@
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
+            case 2: { // screen(screen_id=0) -> MAP|NIL
+                int64_t screen_id = 0;
+                if (nargs >= 1 && args[0].type == AVM_VAL_INT) screen_id = args[0].as.i;
+                if (screen_id < 0 || screen_id > UINT32_MAX) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.screen invalid screen id", domain, op);
+                }
+                AvmValue ret = avm_nil();
+                if (vm->gfx_screen_available && vm->gfx_screen_id == (uint32_t)screen_id) {
+                    AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+                    if (!out) return avm_err_domop(AVM_ERR_BUDGET, "gfx.screen allocation failed", domain, op);
+                    memset(out, 0, sizeof(*out));
+                    int ok = 1;
+                    ok = ok && avm_map_set_sorted(out, avm_string("available"), avm_bool(1));
+                    ok = ok && avm_map_set_sorted(out, avm_string("id"), avm_int((int64_t)vm->gfx_screen_id));
+                    ok = ok && avm_map_set_sorted(out, avm_string("width"), avm_int((int64_t)vm->gfx_screen_width));
+                    ok = ok && avm_map_set_sorted(out, avm_string("height"), avm_int((int64_t)vm->gfx_screen_height));
+                    ok = ok && avm_map_set_sorted(out, avm_string("scale_milli"), avm_int((int64_t)vm->gfx_screen_scale_milli));
+                    ok = ok && avm_map_set_sorted(out, avm_string("drawable_w"), avm_int((int64_t)vm->gfx_screen_drawable_width));
+                    ok = ok && avm_map_set_sorted(out, avm_string("drawable_h"), avm_int((int64_t)vm->gfx_screen_drawable_height));
+                    ok = ok && avm_map_set_sorted(out, avm_string("target_hz_milli"), avm_int((int64_t)vm->gfx_screen_target_hz_milli));
+                    ok = ok && avm_map_set_sorted(out, avm_string("flags"), avm_int((int64_t)vm->gfx_screen_flags));
+                    if (!ok) return avm_err_domop(AVM_ERR_BUDGET, "gfx.screen allocation failed", domain, op);
+                    ret.type = AVM_VAL_MAP;
+                    ret.as.m = out;
+                }
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
             default:
                 return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported GFX domain/op", domain, op);
         }

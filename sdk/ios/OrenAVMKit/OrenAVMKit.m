@@ -257,6 +257,61 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                                                    error:error];
 }
 
+- (BOOL)sendMediaEventWithTargetHzMilli:(uint32_t)targetHzMilli flags:(uint32_t)flags error:(NSError**)error {
+    if (![self publishScreenStateWithTargetHzMilli:targetHzMilli flags:flags error:error]) return NO;
+    CGSize size = self.bounds.size;
+    CGFloat scale = self.window.screen.scale;
+    if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
+    uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
+    uint32_t width = (uint32_t)llround((double)size.width);
+    uint32_t height = (uint32_t)llround((double)size.height);
+    uint32_t drawableWidth = (uint32_t)llround((double)size.width * (double)scale);
+    uint32_t drawableHeight = (uint32_t)llround((double)size.height * (double)scale);
+    uint32_t hz = targetHzMilli;
+    if (hz == 0) hz = (uint32_t)UIScreen.mainScreen.maximumFramesPerSecond * 1000u;
+    return [self.runtime putGraphicsMediaEventWithWidth:width
+                                                 height:height
+                                             scaleMilli:scaleMilli
+                                          drawableWidth:drawableWidth
+                                         drawableHeight:drawableHeight
+                                          targetHzMilli:hz
+                                                  flags:flags
+                                                  error:error];
+}
+
+- (BOOL)publishScreenStateWithTargetHzMilli:(uint32_t)targetHzMilli flags:(uint32_t)flags error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics view has no AVM runtime");
+    }
+    CGSize size = self.bounds.size;
+    CGFloat scale = self.window.screen.scale;
+    if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
+    uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
+    uint32_t width = (uint32_t)llround((double)size.width);
+    uint32_t height = (uint32_t)llround((double)size.height);
+    uint32_t drawableWidth = (uint32_t)llround((double)size.width * (double)scale);
+    uint32_t drawableHeight = (uint32_t)llround((double)size.height * (double)scale);
+    uint32_t hz = targetHzMilli;
+    if (hz == 0) hz = (uint32_t)UIScreen.mainScreen.maximumFramesPerSecond * 1000u;
+    return [self.runtime setGraphicsScreenWithID:0
+                                           width:width
+                                          height:height
+                                      scaleMilli:scaleMilli
+                                   drawableWidth:drawableWidth
+                                  drawableHeight:drawableHeight
+                                   targetHzMilli:hz
+                                           flags:flags
+                                           error:error];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    if (self.runtime) {
+        (void)[self publishScreenStateWithTargetHzMilli:0 flags:0 error:nil];
+    }
+}
+
 - (void)drawRect:(CGRect)rect {
     (void)rect;
     NSData* frame = self.frameData;
@@ -1514,6 +1569,50 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     OrenAVMKitPutU32LE(payload + 4, height);
     OrenAVMKitPutU32LE(payload + 8, scaleMilli);
     NSData* data = OrenAVMKitMakeGFXEvent(16, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
+- (BOOL)setGraphicsScreenWithID:(uint32_t)screenID
+                           width:(uint32_t)width
+                          height:(uint32_t)height
+                      scaleMilli:(uint32_t)scaleMilli
+                   drawableWidth:(uint32_t)drawableWidth
+                  drawableHeight:(uint32_t)drawableHeight
+                   targetHzMilli:(uint32_t)targetHzMilli
+                           flags:(uint32_t)flags
+                           error:(NSError**)error {
+    AvmEmbedResult result;
+    int rc = avm_embed_gfx_screen_set(_handle,
+                                      screenID,
+                                      width,
+                                      height,
+                                      scaleMilli,
+                                      drawableWidth,
+                                      drawableHeight,
+                                      targetHzMilli,
+                                      flags,
+                                      &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set GFX screen state", &result);
+    return YES;
+}
+
+- (BOOL)putGraphicsMediaEventWithWidth:(uint32_t)width
+                                 height:(uint32_t)height
+                             scaleMilli:(uint32_t)scaleMilli
+                          drawableWidth:(uint32_t)drawableWidth
+                         drawableHeight:(uint32_t)drawableHeight
+                          targetHzMilli:(uint32_t)targetHzMilli
+                                  flags:(uint32_t)flags
+                                  error:(NSError**)error {
+    uint8_t payload[28];
+    OrenAVMKitPutU32LE(payload, width);
+    OrenAVMKitPutU32LE(payload + 4, height);
+    OrenAVMKitPutU32LE(payload + 8, scaleMilli);
+    OrenAVMKitPutU32LE(payload + 12, drawableWidth);
+    OrenAVMKitPutU32LE(payload + 16, drawableHeight);
+    OrenAVMKitPutU32LE(payload + 20, targetHzMilli);
+    OrenAVMKitPutU32LE(payload + 24, flags);
+    NSData* data = OrenAVMKitMakeGFXEvent(17, payload, sizeof(payload));
     return [self putGraphicsInputEventData:data error:error];
 }
 

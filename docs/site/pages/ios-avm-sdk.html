@@ -30,6 +30,8 @@
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="avm-ui-performance.html">AVM UI Performance</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
 <a href="obc-store-trust.html">OBC Store Trust</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
@@ -144,9 +146,15 @@
 <p>  back through the <code>OGE0</code> input mailbox. This is the default 2D fallback; it is</p>
 <p>  not the future high-volume Metal path.</p>
 <ul>
-<li>The binary input helper set now covers pointer events, resize events, key events,</li>
+<li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>
-<p>  and UTF-8 text-input events. These are still mailbox records, not UIKit objects.</p>
+<p>  media-query events, key events, and UTF-8 text-input events. These are still</p>
+<p>  mailbox records, not UIKit objects.</p>
+<ul>
+<li>The SDK also exposes host-populated persistent screen state. <code>OrenAVMGraphicsView</code></li>
+</ul>
+<p>  updates screen <code>0</code> during layout, and OBC reads it through <code>std:ui/avm.screen(0)</code></p>
+<p>  without consuming an input event.</p>
 <p>  Host code enqueues them; Oren/OBC pulls them with</p>
 <p>  <code>std:ui/avm.pull_event_bytes()</code> or decodes them with</p>
 <p>  <code>std:ui/avm.next_event()</code>.</p>
@@ -350,12 +358,15 @@
 <p>  UIKit/CoreGraphics.</p>
 <ul>
 <li>Future high-volume 2D/3D paths should use Metal/<code>MTKView</code>.</li>
-<li>Encodes pointer/keyboard/resize/input events back into AVM.</li>
+<li>Encodes pointer/keyboard/resize/media/input events back into AVM and publishes</li>
+</ul>
+<p>  persistent screen state.</p>
+<ul>
 <li>Does not expose UIKit or Metal objects directly to Oren code.</li>
 <li>Current SDK implementation retrieves and clears binary frame payloads, enqueues</li>
 </ul>
 <p>  binary pointer events, and renders the current <code>fill_rect</code>/<code>text</code>/</p>
-<p>  <code>stroke_line</code>/<code>circle</code> subset. Resize/key/text event helpers are implemented;</p>
+<p>  <code>stroke_line</code>/<code>circle</code> subset. Resize/media/key/text event helpers are implemented;</p>
 <p>  IME/composition helpers, richer drawing ops, and Metal are the next slices.</p>
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
@@ -437,7 +448,7 @@
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands or future virtual jobs only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
 <tr><td>GUI</td><td>Binary GFX mailboxes plus UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> fallback</td><td>Metal/3D renderer</td></tr>
-<tr><td>INPUT</td><td>Explicit binary event queue/mailbox plus pointer/resize/key/text events</td><td>IME/composition helper encoders</td></tr>
+<tr><td>INPUT</td><td>Explicit binary event queue/mailbox plus pointer/resize/media/key/text events</td><td>IME/composition helper encoders</td></tr>
 <tr><td>STDOUT</td><td>Captured stdout</td><td>App-controlled log/result UI</td></tr>
 </table>
 <p>Default iOS providers are intended to do real app work, not only test fixtures.</p>

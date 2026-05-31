@@ -39,8 +39,9 @@ The first retained implementation slices exist as of 2026-05-31:
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `text`/`stroke_line`/`circle` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
-- `OrenAVMKit` now has binary helper encoders for pointer, resize, key, and
-  UTF-8 text input events. The Oren side still receives raw `OGE0` bytes via
+- `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
+  key, and UTF-8 text input events, plus host-populated persistent screen state.
+  The Oren side still receives raw `OGE0` bytes via
   `std:ui/avm.pull_event_bytes()`, or decoded maps via
   `std:ui/avm.next_event()`.
 - `make verify-libavm-ios` proves the chain by running OBC that publishes a frame,
@@ -168,7 +169,7 @@ All three functions are implemented. Current frame payloads use
 logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
-cover `fill_rect`, `text`, `stroke_line`, `circle`, pointer, resize, key, and text
+cover `fill_rect`, `text`, `stroke_line`, `circle`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.
 
@@ -184,8 +185,10 @@ Input direction is deliberately asymmetric:
 
 - Host adapters enqueue binary events with `avm_embed_gfx_input_put(...)` or
   `OrenAVMKit` convenience helpers.
+- Host adapters populate persistent screen state with `avm_embed_gfx_screen_set(...)`
+  or SDK helpers before OBC reads `std:ui/avm.screen(0)`.
 - Oren/OBC pulls one event at a time with `std:ui/avm.pull_event_bytes()` for raw
-  protocol bytes or `std:ui/avm.next_event()` for decoded pointer/resize/key/text
+  protocol bytes or `std:ui/avm.next_event()` for decoded pointer/resize/media/key/text
   maps.
 - The VM does not callback into Oren from the host UI thread; this keeps device
   lifecycles, threading, and permissions owned by the host app.
@@ -291,8 +294,9 @@ Frame publication should fail with an AVM graphics budget error, not crash or si
 Curated AVM/iOS gates now cover malformed `OGF0` rejection, op-count cap rejection,
 frame I/O-budget rejection, malformed `OGE0` rejection, and the host input queue
 depth cap. The iOS verifier also covers non-1000 resize scale propagation,
-latest-frame replacement/clear semantics, and FIFO pointer down/move/up ordering
-before mixed key/text events.
+persistent screen-state reads, runtime media-query propagation, latest-frame
+replacement/clear semantics, and FIFO pointer down/move/up ordering before mixed
+key/text events.
 The same iOS verification chain now includes a stdlib OBC surface smoke for
 buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/linalg/math/
 strings/time/UI AVM modules, so graphics apps do not reach Note with missing
@@ -321,7 +325,7 @@ Required gates before Note integration should be called production-ready:
 4. Done: add binary input-event mailbox and pointer-event SDK helper.
 5. Done: add default UIKit/CoreGraphics `OrenAVMGraphicsView` for the current `fill_rect`/`text` subset and compile it in the iOS verifier.
 6. Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to `stroke_line` and `circle`.
-7. Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.
+7. Done: add SDK binary helper encoders for resize, media-query, key, and UTF-8 text input events and verifier coverage that OBC consumes them.
 8. Done: add frame sequence, native drawable-size metadata, and target refresh hint to the `OGF0` header for high-refresh/high-resolution hosts.
 9. Done: add protocol/budget gates for malformed frames/events, op-count caps,
    frame I/O budget, and host input queue depth.

@@ -144,6 +144,15 @@ AvmVM* avm_new() {
     vm->gfx_frame_data = NULL;
     vm->gfx_frame_len = 0;
     vm->gfx_input_queue = NULL;
+    vm->gfx_screen_available = 0;
+    vm->gfx_screen_id = 0;
+    vm->gfx_screen_width = 0;
+    vm->gfx_screen_height = 0;
+    vm->gfx_screen_scale_milli = 0;
+    vm->gfx_screen_drawable_width = 0;
+    vm->gfx_screen_drawable_height = 0;
+    vm->gfx_screen_target_hz_milli = 0;
+    vm->gfx_screen_flags = 0;
     vm->permission_request_data = NULL;
     vm->permission_request_len = 0;
     vm->permission_request_sequence = 0;

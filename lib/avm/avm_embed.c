@@ -723,6 +723,32 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, s
     return result ? result->status : AVM_EMBED_OK;
 }
 
+int avm_embed_gfx_screen_set(AvmEmbedHandle* handle,
+                             uint32_t screen_id,
+                             uint32_t width,
+                             uint32_t height,
+                             uint32_t scale_milli,
+                             uint32_t drawable_width,
+                             uint32_t drawable_height,
+                             uint32_t target_hz_milli,
+                             uint32_t flags,
+                             AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || width == 0 || height == 0 || scale_milli == 0) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX screen state");
+    }
+    handle->vm->gfx_screen_available = 1;
+    handle->vm->gfx_screen_id = screen_id;
+    handle->vm->gfx_screen_width = width;
+    handle->vm->gfx_screen_height = height;
+    handle->vm->gfx_screen_scale_milli = scale_milli;
+    handle->vm->gfx_screen_drawable_width = drawable_width;
+    handle->vm->gfx_screen_drawable_height = drawable_height;
+    handle->vm->gfx_screen_target_hz_milli = target_hz_milli;
+    handle->vm->gfx_screen_flags = flags;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
 int avm_embed_permission_request_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
     if (out_data) *out_data = NULL;
     if (out_len) *out_len = 0;

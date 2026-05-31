@@ -66,6 +66,10 @@ Implemented as of 2026-05-31:
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`, `stroke_line`, and `circle`.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
+- Host helpers can publish persistent screen/media state and can enqueue
+  media-query change events so OBC can adapt to logical size, native drawable
+  size, device scale, target refresh rate, and host flags at runtime without
+  calling platform APIs directly.
 - AVM validates `OGF0` frame headers/op records and `OGE0` input event
   headers/payload lengths at the mailbox boundary before accepting them.
 - Curated gates cover malformed-frame rejection, op-count cap rejection, frame
@@ -81,6 +85,14 @@ This baseline proves bidirectional transport for the current 2D subset. It is no
 yet game-complete: richer input such as multitouch gestures, focus, IME composition,
 gamepad/controller events, and high-rate motion data still need compact event
 records and iOS SDK helpers before game OBC packages should rely on them.
+
+Runtime media query must be host-populated state, not a consumed event only.
+OBC should not query `UIScreen`, `MTKView`, or any host object directly. The host
+publishes persistent screen state with logical width/height, `scale_milli`,
+native drawable width/height, and `target_hz_milli`; OBC reads it through
+`std:ui/avm.screen(0)` / `screen0()`. The host may also enqueue a compact
+media-query event when those attributes change, so event loops can react without
+polling the persistent state every tick.
 
 This is a correct bootstrap, not the final game-grade renderer contract.
 

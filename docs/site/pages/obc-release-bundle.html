@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBC Release Bundle - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="ios-avm-sdk.html">iOS AVM SDK</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="avm-ui-performance.html">AVM UI Performance</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="obc-release-bundle.html">OBC Release Bundle</a>
+<a href="obc-store-demos.html">OBC Store Demos</a>
+<a href="obc-store-trust.html">OBC Store Trust</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="obc-release-bundle-format">OBC Release Bundle Format</h1>
+<p><strong>Date:</strong> 2026-06-01</p>
+<h2 id="decision">Decision</h2>
+<p>An OBC store release should have a portable bundle artifact in addition to the</p>
+<p>expanded store directory layout. The bundle format is a deterministic ZIP file</p>
+<p>with media type:</p>
+<pre><code>application/vnd.oren.obc.release+zip</code></pre>
+<p>Recommended extension:</p>
+<pre><code>.obc.zip</code></pre>
+<p>The ZIP is the unit users and tools can download, mirror, archive, or upload.</p>
+<p>The expanded directory remains the server/install layout used by the store and</p>
+<p>host SDK after verification.</p>
+<h2 id="required-zip-layout">Required ZIP Layout</h2>
+<p>The ZIP must be rootless and must not contain absolute paths, <code>..</code> segments, or</p>
+<p>symlinks.</p>
+<pre><code>package.json
+program.obc
+assets/
+  source/
+    main.oren
+  ...</code></pre>
+<p>Required entries:</p>
+<ul>
+<li><code>package.json</code>: <code>oren.obc.package.v0</code> manifest.</li>
+<li><code>program.obc</code>: executable OBC referenced by <code>entry_obc</code>.</li>
+</ul>
+<p>Optional entries:</p>
+<ul>
+<li><code>assets/**</code>: read-only package assets declared by manifest <code>assets</code>.</li>
+<li><code>assets/source/**</code>: source code assets. Official demos include source here.</li>
+</ul>
+<h2 id="source-policy">Source Policy</h2>
+<p>Source code is optional for third-party packages and required for official demos.</p>
+<p>The OBC artifact remains the executable release payload; source assets are for</p>
+<p>host-app display, audit, learning, or recompile workflows. A host app may choose</p>
+<p>to download, show, cache, or ignore source assets.</p>
+<p>Official demos should declare bundled source in both places:</p>
+<pre><code>{
+  &quot;assets&quot;: [
+    {
+      &quot;path&quot;: &quot;assets/source/main.oren&quot;,
+      &quot;sha256&quot;: &quot;&lt;hex&gt;&quot;,
+      &quot;media_type&quot;: &quot;text/x-oren&quot;,
+      &quot;role&quot;: &quot;source&quot;
+    }
+  ],
+  &quot;sources&quot;: [
+    {
+      &quot;path&quot;: &quot;assets/source/main.oren&quot;,
+      &quot;language&quot;: &quot;oren&quot;,
+      &quot;role&quot;: &quot;main&quot;
+    }
+  ]
+}</code></pre>
+<h2 id="hashing-and-signing">Hashing And Signing</h2>
+<p><code>package.json</code> contains hashes for <code>program.obc</code> and declared assets. The store</p>
+<p>index contains hashes for externally fetched metadata and bundle artifacts:</p>
+<pre><code>{
+  &quot;id&quot;: &quot;oren-labs/ui-card-demo&quot;,
+  &quot;version&quot;: &quot;0.1.0&quot;,
+  &quot;manifest&quot;: &quot;packages/oren-labs/ui-card-demo/0.1.0/package.json&quot;,
+  &quot;manifest_sha256&quot;: &quot;&lt;hex&gt;&quot;,
+  &quot;bundle&quot;: &quot;bundles/oren-labs__ui-card-demo__0.1.0.obc.zip&quot;,
+  &quot;bundle_sha256&quot;: &quot;&lt;hex&gt;&quot;,
+  &quot;bundle_media_type&quot;: &quot;application/vnd.oren.obc.release+zip&quot;
+}</code></pre>
+<p>Do not put <code>bundle_sha256</code> inside <code>package.json</code>; the ZIP contains the manifest,</p>
+<p>so that would create a circular hash. Sign index/package metadata outside the</p>
+<p>bundle using the existing store and publisher signature flow.</p>
+<h2 id="determinism">Determinism</h2>
+<p>Bundle writers should emit deterministic ZIPs:</p>
+<ul>
+<li>stable file order;</li>
+<li>fixed timestamps;</li>
+<li>no platform-specific extra fields;</li>
+<li>normal file mode metadata only;</li>
+<li>compressed or stored entries are both valid, but official tooling uses DEFLATE.</li>
+</ul>
+<p>The verifier should reject unsafe paths and should unpack into a temporary</p>
+<p>directory before replacing an installed package.</p>
+<h2 id="current-tooling">Current Tooling</h2>
+<p><code>make verify-obc-store-demos</code> builds first-party demo packages and emits both</p>
+<p>expanded directories and deterministic ZIP bundles under:</p>
+<pre><code>build/obc-store-demos/packages/
+build/obc-store-demos/bundles/</code></pre>
+<p>The initial iOS SDK package store path installs expanded packages from the store</p>
+<p>index. ZIP upload/download support can be added to the Go service and SDK later</p>
+<p>without changing the package manifest contract.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#obc-release-bundle-format">OBC Release Bundle Format</a>
+<a class="toc-l2" href="#decision">Decision</a>
+<a class="toc-l2" href="#required-zip-layout">Required ZIP Layout</a>
+<a class="toc-l2" href="#source-policy">Source Policy</a>
+<a class="toc-l2" href="#hashing-and-signing">Hashing And Signing</a>
+<a class="toc-l2" href="#determinism">Determinism</a>
+<a class="toc-l2" href="#current-tooling">Current Tooling</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>
