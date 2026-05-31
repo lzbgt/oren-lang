@@ -47,6 +47,36 @@
   -&gt; libavm capability gates, budgets, VFS/VNET/VPROC/TIME/GFX mailboxes
   -&gt; OrenAVMKit iOS adapters
   -&gt; Note app UI, sandbox, URLSession, Metal/MTKView, app lifecycle</code></pre>
+<h2 id="implementation-status">Implementation Status</h2>
+<p>First retained slice on 2026-05-31:</p>
+<ul>
+<li><code>scripts/build_libavm_ios.sh</code> builds <code>OrenAVMKit.xcframework</code> next to</li>
+</ul>
+<p>  <code>LibAVM.xcframework</code>.</p>
+<ul>
+<li><code>sdk/ios/OrenAVMKit/OrenAVMKit.h</code> and <code>.m</code> provide an Objective-C API usable</li>
+</ul>
+<p>  from Swift/Objective-C apps.</p>
+<ul>
+<li><code>OrenAVMRuntimeConfig deterministicDefaults</code> keeps deterministic virtual TIME</li>
+</ul>
+<p>  and virtual FS/NET/PROC.</p>
+<ul>
+<li><code>OrenAVMRuntimeConfig interactiveAppDefaults</code> keeps virtual FS/NET/PROC but</li>
+</ul>
+<p>  switches TIME to wall-clock mode so <code>std:time.sleep_ms</code> delays the AVM worker.</p>
+<ul>
+<li><code>OrenAVMRuntime</code> exposes argv, VirtualFS put/get, VirtualNET fixture put,</li>
+</ul>
+<p>  VirtualPROC fixture/default puts, OBC byte execution, and stdout capture.</p>
+<ul>
+<li><code>make verify-libavm-ios</code> compiles iOS device/simulator SDK smokes and runs a</li>
+</ul>
+<p>  host SDK smoke proving interactive <code>time.sleep_ms(25)</code> has real elapsed-time</p>
+<p>  effect.</p>
+<p>Not implemented yet: app-sandbox file mounts, URLSession host networking,</p>
+<p>compiler helper Swift/Objective-C package, OBC store helper, and GFX mailbox</p>
+<p>adapter. GUI remains last because <code>libavm</code> has no graphics mailbox yet.</p>
 <h2 id="sdk-components">SDK Components</h2>
 <h3 id="orenavmkit">OrenAVMKit</h3>
 <p>Core Swift/Objective-C wrapper around <code>LibAVM.xcframework</code>.</p>
@@ -185,6 +215,7 @@ graphicsView.attach(session.graphics)</code></pre>
       <h2>On This Page</h2>
       <a class="toc-l1" href="#ios-avm-sdk-design">iOS AVM SDK Design</a>
 <a class="toc-l2" href="#decision">Decision</a>
+<a class="toc-l2" href="#implementation-status">Implementation Status</a>
 <a class="toc-l2" href="#sdk-components">SDK Components</a>
 <a class="toc-l3" href="#orenavmkit">OrenAVMKit</a>
 <a class="toc-l3" href="#orenavmcompilerkit">OrenAVMCompilerKit</a>

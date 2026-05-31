@@ -49,10 +49,13 @@ This file is the concise task view. Detailed implementation status lives in
      gate, broader compiler/stdlib surface coverage, and CI coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
-   - SDK design: provide `OrenAVMKit`/CompilerKit/FileProvider/NetworkProvider/
-     ProcessProvider/TimeProvider/GraphicsKit/PackageStore so iOS apps get default
-     policy-controlled adapters for libavm and compiler-in-AVM. Design note:
-     `project-doc/ios_avm_sdk_design_20260531.md`.
+   - SDK slice retained: `OrenAVMKit.xcframework` now provides the TIME-first
+     Objective-C adapter surface with deterministic/interactive configs, virtual
+     FS/NET/PROC helpers, OBC run, stdout capture, and a verifier smoke proving
+     interactive `std:time.sleep_ms` blocks the AVM worker on wall-clock time.
+     Remaining SDK work: app-sandbox FileProvider, URLSession allowlist
+     NetworkProvider, compiler helper package, package store helper, and GFX last.
+     Design note: `project-doc/ios_avm_sdk_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated
      signed OBC store repo with package manifests, hashes, capability declarations,
      and iOS download/verify/run flow. Design note:

@@ -72,6 +72,13 @@ Facts from the 2026-05-28 implementation pass:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of
   hand-writing each bridge.
+- First SDK implementation slice: `scripts/build_libavm_ios.sh` now also builds
+  `OrenAVMKit.xcframework`. The Objective-C API provides deterministic defaults,
+  interactive app defaults for wall-clock `time.sleep_ms`, VirtualFS file helpers,
+  VirtualNET fixtures, VirtualPROC fixtures/defaults, OBC run, stdout capture, and
+  a module map for app imports. `make verify-libavm-ios` compiles iOS
+  device/simulator SDK smokes and runs a host SDK smoke that proves interactive
+  sleep has real elapsed-time effect.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

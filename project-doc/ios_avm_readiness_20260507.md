@@ -47,6 +47,11 @@ allocator/lifecycle hardening.
   `avm_embed_output_get(...)` copies stdout bytes back to the app,
   `avm_embed_output_clear(...)` clears the captured stdout buffer, and
   `avm_embed_free_bytes(...)` releases returned app-owned buffers.
+- iOS SDK slice after 2026-05-31: `OrenAVMKit.xcframework` builds beside
+  `LibAVM.xcframework` and exposes Objective-C/Swift-callable defaults for
+  deterministic AVM runs and interactive app runs. The verifier proves the SDK can
+  run OBC with VirtualFS, VirtualNET, VirtualPROC, stdout capture, and wall-clock
+  `std:time.sleep_ms` in interactive mode.
 - OBC resource API after 2026-05-28: `avm_embed_run_obc_bytes(...)` parses,
   verifies, loads, and runs `.obc` bytes owned by the embedder handle.
 - Compile/run chain after 2026-05-28: `make verify-libavm-ios` compiles a tiny

@@ -33,6 +33,10 @@ done < <(
   printf '%s\n' third_party/tweetnacl/tweetnacl.c
 )
 
+OREN_AVM_KIT_SOURCES=(
+  sdk/ios/OrenAVMKit/OrenAVMKit.m
+)
+
 stage_headers() {
   local include_dir="$OUT_ROOT/include"
   mkdir -p "$include_dir"
@@ -41,6 +45,9 @@ stage_headers() {
   cp lib/avm/avm_sig.h "$include_dir/"
   cp lib/avm/avm_cert.h "$include_dir/"
   cp lib/avm/sha256.h "$include_dir/"
+  cp sdk/ios/OrenAVMKit/module.modulemap "$include_dir/"
+  mkdir -p "$include_dir/OrenAVMKit"
+  cp sdk/ios/OrenAVMKit/OrenAVMKit.h "$include_dir/OrenAVMKit/"
 }
 
 compile_one_platform() {
@@ -70,6 +77,35 @@ compile_one_platform() {
   "$libtool" -static -o "$out_dir/libavm.a" "${objs[@]}"
 }
 
+compile_kit_one_platform() {
+  local sdk="$1"
+  local target="$2"
+  local min_flag="$3"
+  local out_dir="$4"
+  local sdk_path
+  sdk_path="$(xcrun --sdk "$sdk" --show-sdk-path)"
+  local cc
+  cc="$(xcrun --sdk "$sdk" --find clang)"
+  local libtool
+  libtool="$(xcrun --find libtool)"
+
+  mkdir -p "$out_dir/obj"
+
+  local objs=()
+  local src base obj
+  for src in "${OREN_AVM_KIT_SOURCES[@]}"; do
+    base="$(echo "$src" | sed 's#[/.]#_#g')"
+    obj="$out_dir/obj/${base}.o"
+    "$cc" -target "$target" "$min_flag" -isysroot "$sdk_path" \
+      -fobjc-arc -fvisibility=hidden \
+      -I"$OUT_ROOT/include" -I"$OUT_ROOT/include/OrenAVMKit" \
+      -c "$src" -o "$obj"
+    objs+=("$obj")
+  done
+
+  "$libtool" -static -o "$out_dir/libOrenAVMKit.a" "${objs[@]}"
+}
+
 main() {
   mkdir -p build
   tools/gen_avm_root_pubkeys_inc.sh > build/avm_root_pubkey.inc
@@ -77,14 +113,22 @@ main() {
   stage_headers
   compile_one_platform iphoneos "arm64-apple-ios${MIN_IOS_VERSION}" "-miphoneos-version-min=${MIN_IOS_VERSION}" "$OUT_ROOT/iphoneos-arm64"
   compile_one_platform iphonesimulator "arm64-apple-ios${MIN_IOS_VERSION}-simulator" "-mios-simulator-version-min=${MIN_IOS_VERSION}" "$OUT_ROOT/iphonesimulator-arm64"
+  compile_kit_one_platform iphoneos "arm64-apple-ios${MIN_IOS_VERSION}" "-miphoneos-version-min=${MIN_IOS_VERSION}" "$OUT_ROOT/iphoneos-arm64"
+  compile_kit_one_platform iphonesimulator "arm64-apple-ios${MIN_IOS_VERSION}-simulator" "-mios-simulator-version-min=${MIN_IOS_VERSION}" "$OUT_ROOT/iphonesimulator-arm64"
 
   rm -rf "$OUT_ROOT/LibAVM.xcframework"
+  rm -rf "$OUT_ROOT/OrenAVMKit.xcframework"
   xcodebuild -create-xcframework \
     -library "$OUT_ROOT/iphoneos-arm64/libavm.a" -headers "$OUT_ROOT/include" \
     -library "$OUT_ROOT/iphonesimulator-arm64/libavm.a" -headers "$OUT_ROOT/include" \
     -output "$OUT_ROOT/LibAVM.xcframework" >/dev/null
+  xcodebuild -create-xcframework \
+    -library "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" -headers "$OUT_ROOT/include" \
+    -library "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" -headers "$OUT_ROOT/include" \
+    -output "$OUT_ROOT/OrenAVMKit.xcframework" >/dev/null
 
   echo "Built $OUT_ROOT/LibAVM.xcframework"
+  echo "Built $OUT_ROOT/OrenAVMKit.xcframework"
 }
 
 main "$@"

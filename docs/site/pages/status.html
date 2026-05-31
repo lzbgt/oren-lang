@@ -115,6 +115,15 @@
 <p>  app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of</p>
 <p>  hand-writing each bridge.</p>
 <ul>
+<li>First SDK implementation slice: <code>scripts/build_libavm_ios.sh</code> now also builds</li>
+</ul>
+<p>  <code>OrenAVMKit.xcframework</code>. The Objective-C API provides deterministic defaults,</p>
+<p>  interactive app defaults for wall-clock <code>time.sleep_ms</code>, VirtualFS file helpers,</p>
+<p>  VirtualNET fixtures, VirtualPROC fixtures/defaults, OBC run, stdout capture, and</p>
+<p>  a module map for app imports. <code>make verify-libavm-ios</code> compiles iOS</p>
+<p>  device/simulator SDK smokes and runs a host SDK smoke that proves interactive</p>
+<p>  sleep has real elapsed-time effect.</p>
+<ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>
 <p>  dereferencing failed allocations.</p>

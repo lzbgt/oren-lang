@@ -18,8 +18,13 @@ fi
 
 test -f "$OUT_ROOT/iphoneos-arm64/libavm.a"
 test -f "$OUT_ROOT/iphonesimulator-arm64/libavm.a"
+test -f "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a"
+test -f "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a"
 test -d "$OUT_ROOT/LibAVM.xcframework"
+test -d "$OUT_ROOT/OrenAVMKit.xcframework"
 test -f "$OUT_ROOT/include/avm_embed.h"
+test -f "$OUT_ROOT/include/module.modulemap"
+test -f "$OUT_ROOT/include/OrenAVMKit/OrenAVMKit.h"
 
 nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q '_avm_embed_open'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q '_avm_embed_open'
@@ -39,6 +44,9 @@ for sym in \
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
 done
+
+nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
 
 OREN_SRC="$TMP_DIR/embed_chain.oren"
 OBC_OUT="$TMP_DIR/embed_chain.obc"
@@ -162,6 +170,66 @@ int main(void) {
 }
 SMOKE
 
+cat > "$TMP_DIR/sdk_smoke.m" <<'SMOKE'
+#import <Foundation/Foundation.h>
+#import "OrenAVMKit/OrenAVMKit.h"
+#include "embed_chain_obc.h"
+
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+
+static uint64_t host_now_ns(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+int main(void) {
+    @autoreleasepool {
+        OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
+        if (cfg.timeMode != OrenAVMTimeModeInteractiveWallClock) return 31;
+        if (cfg.fsBackend != OrenAVMVirtualBackendVirtual) return 32;
+        if (cfg.netBackend != OrenAVMVirtualBackendVirtual) return 33;
+        if (cfg.procBackend != OrenAVMVirtualBackendVirtual) return 34;
+
+        OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
+        if (!runtime) return 35;
+        NSError* error = nil;
+        if (![runtime setArgv:@[@"oren", @"ios", @"probe"] error:&error]) return 36;
+        NSData* input = [@"abc" dataUsingEncoding:NSUTF8StringEncoding];
+        if (![runtime putVFSFileAtPath:@"input.txt" data:input error:&error]) return 37;
+        NSData* body = [@"net-ok" dataUsingEncoding:NSUTF8StringEncoding];
+        if (![runtime putVirtualNetResponseForURL:@"https://note.local/probe" data:body error:&error]) return 38;
+        if (![runtime putVirtualProcExitForCommand:@"probe-ok" exitCode:21 error:&error]) return 39;
+        if (![runtime setVirtualProcDefaultExitCode:44 error:&error]) return 40;
+
+        NSData* obc = [NSData dataWithBytes:kEmbedChainObc length:kEmbedChainObcLen];
+        uint64_t wall0 = host_now_ns();
+        OrenAVMRunResult* result = [runtime runOBCData:obc error:&error];
+        uint64_t wall1 = host_now_ns();
+        if (!result) return 41;
+        if (result.exitCode != 9) return 42;
+        if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
+        NSData* out = [runtime getVFSFileAtPath:@"out.txt" error:&error];
+        if (![out isEqualToData:[@"ios:abc" dataUsingEncoding:NSUTF8StringEncoding]]) return 44;
+        if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
+    }
+    return 0;
+}
+SMOKE
+
+cat > "$TMP_DIR/sdk_module_smoke.m" <<'SMOKE'
+@import Foundation;
+@import OrenAVMKit;
+
+int main(void) {
+    OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
+    if (!cfg || cfg.timeMode != OrenAVMTimeModeInteractiveWallClock) return 1;
+    return 0;
+}
+SMOKE
+
 SIM_SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
 "$SIM_CC" \
@@ -173,6 +241,29 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   "$TMP_DIR/embed_smoke.c" \
   "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
   -o "$TMP_DIR/embed_smoke_sim"
+"$SIM_CC" \
+  -target arm64-apple-ios13.0-simulator \
+  -mios-simulator-version-min=13.0 \
+  -isysroot "$SIM_SDK" \
+  -fobjc-arc -fmodules \
+  -I"$OUT_ROOT/include" \
+  -I"$TMP_DIR" \
+  "$TMP_DIR/sdk_smoke.m" \
+  "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" \
+  "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
+  -framework Foundation \
+  -o "$TMP_DIR/sdk_smoke_sim"
+"$SIM_CC" \
+  -target arm64-apple-ios13.0-simulator \
+  -mios-simulator-version-min=13.0 \
+  -isysroot "$SIM_SDK" \
+  -fobjc-arc -fmodules \
+  -I"$OUT_ROOT/include" \
+  "$TMP_DIR/sdk_module_smoke.m" \
+  "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" \
+  "$OUT_ROOT/iphonesimulator-arm64/libavm.a" \
+  -framework Foundation \
+  -o "$TMP_DIR/sdk_module_smoke_sim"
 
 DEV_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 DEV_CC="$(xcrun --sdk iphoneos --find clang)"
@@ -185,6 +276,29 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   "$TMP_DIR/embed_smoke.c" \
   "$OUT_ROOT/iphoneos-arm64/libavm.a" \
   -o "$TMP_DIR/embed_smoke_device"
+"$DEV_CC" \
+  -target arm64-apple-ios13.0 \
+  -miphoneos-version-min=13.0 \
+  -isysroot "$DEV_SDK" \
+  -fobjc-arc -fmodules \
+  -I"$OUT_ROOT/include" \
+  -I"$TMP_DIR" \
+  "$TMP_DIR/sdk_smoke.m" \
+  "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
+  "$OUT_ROOT/iphoneos-arm64/libavm.a" \
+  -framework Foundation \
+  -o "$TMP_DIR/sdk_smoke_device"
+"$DEV_CC" \
+  -target arm64-apple-ios13.0 \
+  -miphoneos-version-min=13.0 \
+  -isysroot "$DEV_SDK" \
+  -fobjc-arc -fmodules \
+  -I"$OUT_ROOT/include" \
+  "$TMP_DIR/sdk_module_smoke.m" \
+  "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
+  "$OUT_ROOT/iphoneos-arm64/libavm.a" \
+  -framework Foundation \
+  -o "$TMP_DIR/sdk_module_smoke_device"
 
 HOST_BIN="$TMP_DIR/embed_smoke_host"
 HOST_SOURCES=()
@@ -204,5 +318,12 @@ done < <(
 cc -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK=1 -Ilib/avm -Ibuild -I"$TMP_DIR" \
   "$TMP_DIR/embed_smoke.c" "${HOST_SOURCES[@]}" -o "$HOST_BIN"
 "$HOST_BIN"
+
+HOST_SDK_BIN="$TMP_DIR/sdk_smoke_host"
+clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK=1 \
+  -Ilib/avm -Ibuild -I"$TMP_DIR" -I"$OUT_ROOT/include" \
+  "$TMP_DIR/sdk_smoke.m" sdk/ios/OrenAVMKit/OrenAVMKit.m "${HOST_SOURCES[@]}" \
+  -fobjc-arc -framework Foundation -o "$HOST_SDK_BIN"
+"$HOST_SDK_BIN"
 
 echo "libavm iOS verify OK"

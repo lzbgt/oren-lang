@@ -1,0 +1,13 @@
+module LibAVM [extern_c] {
+  header "avm.h"
+  header "avm_embed.h"
+  header "avm_sig.h"
+  header "avm_cert.h"
+  header "sha256.h"
+  export *
+}
+
+module OrenAVMKit {
+  header "OrenAVMKit/OrenAVMKit.h"
+  export *
+}

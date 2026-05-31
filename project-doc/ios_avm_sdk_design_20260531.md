@@ -20,6 +20,28 @@ Oren source / OBC
   -> Note app UI, sandbox, URLSession, Metal/MTKView, app lifecycle
 ```
 
+## Implementation Status
+
+First retained slice on 2026-05-31:
+
+- `scripts/build_libavm_ios.sh` builds `OrenAVMKit.xcframework` next to
+  `LibAVM.xcframework`.
+- `sdk/ios/OrenAVMKit/OrenAVMKit.h` and `.m` provide an Objective-C API usable
+  from Swift/Objective-C apps.
+- `OrenAVMRuntimeConfig deterministicDefaults` keeps deterministic virtual TIME
+  and virtual FS/NET/PROC.
+- `OrenAVMRuntimeConfig interactiveAppDefaults` keeps virtual FS/NET/PROC but
+  switches TIME to wall-clock mode so `std:time.sleep_ms` delays the AVM worker.
+- `OrenAVMRuntime` exposes argv, VirtualFS put/get, VirtualNET fixture put,
+  VirtualPROC fixture/default puts, OBC byte execution, and stdout capture.
+- `make verify-libavm-ios` compiles iOS device/simulator SDK smokes and runs a
+  host SDK smoke proving interactive `time.sleep_ms(25)` has real elapsed-time
+  effect.
+
+Not implemented yet: app-sandbox file mounts, URLSession host networking,
+compiler helper Swift/Objective-C package, OBC store helper, and GFX mailbox
+adapter. GUI remains last because `libavm` has no graphics mailbox yet.
+
 ## SDK Components
 
 ### OrenAVMKit
