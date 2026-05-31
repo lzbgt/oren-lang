@@ -76,7 +76,7 @@ Facts from the 2026-05-28 implementation pass:
   and runs the result in AVM. The smoke imports `std:buffer`, `std:bytes`,
   `std:cbor`, `std:encoding/base64`, `std:crypto/pem`,
   `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:json`,
-  `std:linalg`, `std:math`, `std:regex`, `std:strings`, `std:time`,
+  `std:linalg`, `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`,
   `std:ui/avm`, and `std:yaml`, proving common app-facing exports including
   `STD_linalg_dot_f64` are actually linkable from the bundled stdlib OBC.
 - OBC distribution design is documented in
@@ -97,8 +97,9 @@ Facts from the 2026-05-28 implementation pass:
 - The SDK now includes an allowlisted `URLSession` prefetch helper that maps real
   host network responses into VirtualNET. `make verify-libavm-ios` starts a local
   HTTP server, fetches it through the SDK, injects the body under the requested URL,
-  then runs OBC that reads it with `oren_net_get(url)`. This is the current
-  app-facing NET bridge; AVM still does not expose raw host networking to bytecode.
+  then runs OBC that reads it with `std:net/avm.try_get_text(url)`. The raw
+  `oren_net_get` intrinsic remains the AVM substrate, not the app-facing API.
+  AVM still does not expose raw host networking to bytecode.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
   publish a validated `std:ui` v0 frame through `std:ui/avm` /
   `oren_gfx_present_frame`; embedders can read and clear it with

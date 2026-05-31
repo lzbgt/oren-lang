@@ -106,7 +106,7 @@
 <p>     smoke imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:cbor</code>,</p>
 <p>     <code>std:encoding/base64</code>, <code>std:crypto/pem</code>, <code>std:crypto/sha1</code>,</p>
 <p>     <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>, <code>std:linalg</code>,</p>
-<p>     <code>std:math</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and</p>
+<p>     <code>std:math</code>, <code>std:net/avm</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and</p>
 <p>     <code>std:yaml</code>, preventing missing app-facing exports such as</p>
 <p>     <code>STD_linalg_dot_f64</code> from reaching the iOS app.</p>
 <ul>
@@ -115,7 +115,7 @@
 <p>     interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,</p>
 <p>     verifier proof that interactive <code>std:time.sleep_ms</code> blocks the AVM worker on</p>
 <p>     wall-clock time, and an allowlisted <code>URLSession</code> prefetch bridge that injects</p>
-<p>     host-fetched bytes into VirtualNET for OBC <code>oren_net_get(url)</code>, plus binary</p>
+<p>     host-fetched bytes into VirtualNET for OBC <code>std:net/avm.try_get_text(url)</code>, plus binary</p>
 <p>     GFX frame and input mailboxes for OBC-published <code>std:ui</code> frames and</p>
 <p>     host-injected pointer/resize/key/text events with Oren-side decoded</p>
 <p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>

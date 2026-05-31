@@ -80,14 +80,14 @@
 </ul>
 <p>  provides the first app-usable NetworkProvider slice. The SDK owns the host</p>
 <p>  <code>URLSession</code> request, enforces an allowlisted host and timeout, then injects</p>
-<p>  the response bytes into VirtualNET under the original URL. OBC code still uses</p>
-<p>  the portable <code>oren_net_get(url)</code> surface and never receives raw host networking</p>
-<p>  authority.</p>
+<p>  the response bytes into VirtualNET under the original URL. OBC code uses the</p>
+<p>  portable <code>std:net/avm.try_get_text(url)</code> facade; raw <code>oren_net_get(url)</code> is only</p>
+<p>  the AVM substrate and never grants host networking authority.</p>
 <ul>
 <li>The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,</li>
 </ul>
-<p>  and then runs the same <code>.obc</code> program against <code>oren_net_get(url)</code>, proving the</p>
-<p>  real host-fetch-to-OBC-read chain.</p>
+<p>  and then runs the same <code>.obc</code> program against <code>std:net/avm.try_get_text(url)</code>,</p>
+<p>  proving the real host-fetch-to-OBC-read chain.</p>
 <ul>
 <li>The first GFX bridge slices are implemented. <code>std:ui/avm</code> serializes validated</li>
 </ul>
@@ -171,8 +171,8 @@
 <li>Current implementation is prefetch-oriented: host code fetches allowlisted URLs</li>
 </ul>
 <p>  before or between AVM runs, then OBC reads the materialized body through</p>
-<p>  <code>oren_net_get(url)</code>. This preserves deterministic AVM execution and keeps iOS</p>
-<p>  networking policy in the host SDK.</p>
+<p>  <code>std:net/avm.try_get_text(url)</code>. This preserves deterministic AVM execution and</p>
+<p>  keeps iOS networking policy in the host SDK.</p>
 <h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>
 <p>Default PROC adapter.</p>
 <ul>
@@ -226,6 +226,14 @@
 <tr><td>INPUT</td><td>Explicit binary event queue/mailbox plus pointer/resize/key/text events</td><td>IME/composition helper encoders</td></tr>
 <tr><td>STDOUT</td><td>Captured stdout</td><td>App-controlled log/result UI</td></tr>
 </table>
+<p>Default iOS providers are intended to do real app work, not only test fixtures.</p>
+<p>The boundary is that OBC uses portable stdlib APIs and AVM capability domains;</p>
+<p>the SDK owns the platform translation. TIME may use deterministic or wall-clock</p>
+<p>worker-thread mode. NET may prefetch through allowlisted <code>URLSession</code> into</p>
+<p>VirtualNET today, with live/asynchronous HTTP/TCP/UDP requiring an explicit</p>
+<p>reviewed policy before exposure. PROC on iOS should remain VirtualPROC or</p>
+<p>reviewed app-command dispatch, not arbitrary host subprocess. UI/GFX should</p>
+<p>remain mailbox-based so UIKit/Metal objects never enter OBC memory.</p>
 <h2 id="app-integration-shape">App Integration Shape</h2>
 <p>Desired Note-side API:</p>
 <pre><code>let runtime = OrenAVMRuntime(.interactiveAppDefaults)

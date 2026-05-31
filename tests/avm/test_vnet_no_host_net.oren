@@ -1,3 +1,5 @@
+import net_avm "std:net/avm"
+
 fn fail(msg) {
     print("FAIL")
     print(msg)
@@ -8,10 +10,11 @@ fn main() {
     // This test is intended to run with:
     //   --net-backend vnet --net-fixtures-hex <...>
     // so NET domain calls do not touch the host network.
-    var body = oren_net_get("u")
+    var r = net_avm.get_text("u")
+    if r["ok"] != 1 || r["v"] != "ok" { fail("unexpected result map") }
+    var body = net_avm.try_get_text("u")
     if body != "ok" { fail("unexpected body") }
     oren_exit(0)
 }
 
 main()
-

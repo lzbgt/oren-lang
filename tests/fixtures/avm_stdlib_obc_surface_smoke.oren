@@ -15,6 +15,7 @@ import x509 "std:crypto/x509"
 import json "std:json"
 import linalg "std:linalg"
 import math "std:math"
+import net_avm "std:net/avm"
 import strings "std:strings"
 import time "std:time"
 import ui_avm "std:ui/avm"
@@ -89,6 +90,10 @@ fn main() {
 
     if strings.starts_with("hello", "he") != true { fail(50) }
     if strings.ends_with("hello", "lo") != true { fail(51) }
+
+    var net_r = net_avm.get_text("u")
+    if net_r["ok"] != 1 || net_r["v"] != "ok" { fail(55) }
+    if net_avm.try_get_text("u") != "ok" { fail(56) }
 
     var t0 = time.now_ns()
     if time.sleep_ms(1) != 0 { fail(60) }

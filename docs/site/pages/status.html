@@ -117,7 +117,7 @@
 <p>  and runs the result in AVM. The smoke imports <code>std:buffer</code>, <code>std:bytes</code>,</p>
 <p>  <code>std:cbor</code>, <code>std:encoding/base64</code>, <code>std:crypto/pem</code>,</p>
 <p>  <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>,</p>
-<p>  <code>std:linalg</code>, <code>std:math</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>,</p>
+<p>  <code>std:linalg</code>, <code>std:math</code>, <code>std:net/avm</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>,</p>
 <p>  <code>std:ui/avm</code>, and <code>std:yaml</code>, proving common app-facing exports including</p>
 <p>  <code>STD_linalg_dot_f64</code> are actually linkable from the bundled stdlib OBC.</p>
 <ul>
@@ -146,8 +146,9 @@
 </ul>
 <p>  host network responses into VirtualNET. <code>make verify-libavm-ios</code> starts a local</p>
 <p>  HTTP server, fetches it through the SDK, injects the body under the requested URL,</p>
-<p>  then runs OBC that reads it with <code>oren_net_get(url)</code>. This is the current</p>
-<p>  app-facing NET bridge; AVM still does not expose raw host networking to bytecode.</p>
+<p>  then runs OBC that reads it with <code>std:net/avm.try_get_text(url)</code>. The raw</p>
+<p>  <code>oren_net_get</code> intrinsic remains the AVM substrate, not the app-facing API.</p>
+<p>  AVM still does not expose raw host networking to bytecode.</p>
 <ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>

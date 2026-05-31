@@ -40,12 +40,12 @@ Retained SDK slices on 2026-05-31:
 - `OrenAVMRuntime fetchURLIntoVirtualNet:allowedHosts:timeoutSeconds:error:`
   provides the first app-usable NetworkProvider slice. The SDK owns the host
   `URLSession` request, enforces an allowlisted host and timeout, then injects
-  the response bytes into VirtualNET under the original URL. OBC code still uses
-  the portable `oren_net_get(url)` surface and never receives raw host networking
-  authority.
+  the response bytes into VirtualNET under the original URL. OBC code uses the
+  portable `std:net/avm.try_get_text(url)` facade; raw `oren_net_get(url)` is only
+  the AVM substrate and never grants host networking authority.
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
-  and then runs the same `.obc` program against `oren_net_get(url)`, proving the
-  real host-fetch-to-OBC-read chain.
+  and then runs the same `.obc` program against `std:net/avm.try_get_text(url)`,
+  proving the real host-fetch-to-OBC-read chain.
 - The first GFX bridge slices are implemented. `std:ui/avm` serializes validated
   `std:ui` v0 command buffers into compact `oren.gfx.frame.bin1` bytes,
   bytecode publishes them through `oren_gfx_present_frame`, `libavm` stores the
@@ -123,8 +123,8 @@ Default NET adapter.
 - The SDK maps responses back into the AVM NET surface with size/time budgets.
 - Current implementation is prefetch-oriented: host code fetches allowlisted URLs
   before or between AVM runs, then OBC reads the materialized body through
-  `oren_net_get(url)`. This preserves deterministic AVM execution and keeps iOS
-  networking policy in the host SDK.
+  `std:net/avm.try_get_text(url)`. This preserves deterministic AVM execution and
+  keeps iOS networking policy in the host SDK.
 
 ### OrenAVMProcessProvider
 
@@ -181,6 +181,15 @@ Public OBC store helper.
 | GUI | Binary GFX mailboxes plus UIKit/CoreGraphics `OrenAVMGraphicsView` fallback | Metal/3D renderer |
 | INPUT | Explicit binary event queue/mailbox plus pointer/resize/key/text events | IME/composition helper encoders |
 | STDOUT | Captured stdout | App-controlled log/result UI |
+
+Default iOS providers are intended to do real app work, not only test fixtures.
+The boundary is that OBC uses portable stdlib APIs and AVM capability domains;
+the SDK owns the platform translation. TIME may use deterministic or wall-clock
+worker-thread mode. NET may prefetch through allowlisted `URLSession` into
+VirtualNET today, with live/asynchronous HTTP/TCP/UDP requiring an explicit
+reviewed policy before exposure. PROC on iOS should remain VirtualPROC or
+reviewed app-command dispatch, not arbitrary host subprocess. UI/GFX should
+remain mailbox-based so UIKit/Metal objects never enter OBC memory.
 
 ## App Integration Shape
 

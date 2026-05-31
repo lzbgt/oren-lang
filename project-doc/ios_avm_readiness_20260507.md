@@ -70,7 +70,8 @@ allocator/lifecycle hardening.
   Oren source to `.obc`, embeds those bytes into a C smoke, links that smoke for
   iPhoneOS and simulator, and runs the same `.obc` through the host libavm embed
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction,
-  VFS snapshot verification, deterministic TIME, VirtualNET `oren_net_get(...)`,
+  VFS snapshot verification, deterministic TIME, VirtualNET through
+  `std:net/avm.try_get_text(...)`,
   VirtualPROC `oren_system(...)`, binary GFX frame publication/retrieval,
   binary GFX input-event pull, and captured stdout retrieval/clear.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls

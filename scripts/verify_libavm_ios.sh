@@ -58,6 +58,7 @@ OBC_OUT="$TMP_DIR/embed_chain.obc"
 OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
 cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
+import net_avm "std:net/avm"
 import ui_avm "std:ui/avm"
 
 fn main() {
@@ -68,7 +69,8 @@ fn main() {
     if s != "abc" { oren_exit(12) }
     var w = oren_write_file("out.txt", args[1] + ":" + s)
     if oren_is_err(w) { oren_exit(13) }
-    var body = oren_net_get(args[2])
+    var body = net_avm.try_get_text(args[2])
+    if oren_is_err(body) { oren_exit(14) }
     if body != "net-ok" { oren_exit(14) }
     print("stdout:" + body)
     var cmds = [

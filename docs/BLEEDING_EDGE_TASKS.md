@@ -55,14 +55,14 @@ This file is the concise task view. Detailed implementation status lives in
      smoke imports `std:buffer`, `std:bytes`, `std:cbor`,
      `std:encoding/base64`, `std:crypto/pem`, `std:crypto/sha1`,
      `std:crypto/sha256`, `std:crypto/x509`, `std:json`, `std:linalg`,
-     `std:math`, `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
+     `std:math`, `std:net/avm`, `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
      `std:yaml`, preventing missing app-facing exports such as
      `STD_linalg_dot_f64` from reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
      interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
      wall-clock time, and an allowlisted `URLSession` prefetch bridge that injects
-     host-fetched bytes into VirtualNET for OBC `oren_net_get(url)`, plus binary
+     host-fetched bytes into VirtualNET for OBC `std:net/avm.try_get_text(url)`, plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics

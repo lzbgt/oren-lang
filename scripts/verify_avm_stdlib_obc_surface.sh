@@ -33,7 +33,7 @@ test -f "$obc" || {
 }
 
 set +e
-./avm "$obc" >"$run_log" 2>&1
+./avm --net-backend vnet --net-fixtures-hex 41564d4e45543031010000000100000075020000006f6b "$obc" >"$run_log" 2>&1
 rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
