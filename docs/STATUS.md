@@ -135,8 +135,10 @@ Facts from the 2026-05-28 implementation pass:
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
   install and package run from that endpoint. The release bundle format is
-  specified as deterministic `.obc.zip`; SDK bundle-preferred install support is
-  still pending. It is not deployed yet.
+  specified as deterministic `.obc.zip`; the iOS SDK now prefers verified bundles
+  when `bundle`/`bundle_sha256` are present in `index.json`, rejects unsafe ZIP
+  paths, and falls back to expanded manifest/OBC/assets otherwise. It is not
+  deployed yet.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key

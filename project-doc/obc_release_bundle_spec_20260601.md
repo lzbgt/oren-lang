@@ -130,6 +130,9 @@ serves it at:
 and advertises `bundle`, `bundle_sha256`, and `bundle_media_type` in
 `index.json`.
 
-The initial iOS SDK package store path still installs expanded packages from the
-store index. A follow-up SDK slice should prefer the ZIP bundle when present and
-fall back to expanded `package.json`/`program.obc`/assets otherwise.
+The iOS SDK package store path now prefers the ZIP bundle when those index fields
+are present. It verifies `bundle_sha256`, extracts only safe rootless entries,
+rejects encrypted/unsupported/symlink paths, verifies the extracted
+`package.json` hash against `manifest_sha256`, then runs the existing local
+package verifier. If no bundle is listed, it falls back to expanded
+`package.json`/`program.obc`/assets.

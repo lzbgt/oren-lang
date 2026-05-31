@@ -288,9 +288,14 @@ Public OBC store helper.
   `OrenAVMRuntimeConfig` from capabilities/budgets/time mode, mounts read-only
   package assets into VirtualFS, and runs the OBC through `OrenAVMRuntime`.
 - The SDK can also download a store `index.json`, find a package/version, verify
-  the indexed manifest SHA-256, fetch the manifest, OBC, and declared assets,
-  verify asset SHA-256 values, install them into an app-owned directory, and then
-  run through the same local verifier path.
+  the indexed manifest SHA-256, then install through the same local verifier path.
+  When the index entry includes `bundle` and `bundle_sha256`, the SDK prefers the
+  deterministic `.obc.zip` release bundle, verifies the bundle hash, extracts only
+  safe rootless ZIP entries, verifies the extracted manifest hash, and then loads
+  the package. If no bundle is listed, it falls back to fetching the manifest,
+  OBC, and declared assets individually with SHA-256 verification.
+  Host apps linking the static `OrenAVMKit` archive must also link `libz` because
+  the SDK accepts deflated ZIP entries.
 - A signed download overload accepts trusted publisher P-256 public keys and
   verifies `p256-sha256-der` signatures over the manifest hash before install.
 - A signed-index overload fetches `index.json.sig`, verifies it with a trusted

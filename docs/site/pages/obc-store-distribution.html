@@ -218,11 +218,12 @@ packages/...</code></pre>
 </ol>
 <p>   support.</p>
 <ol>
-<li>Download either the release ZIP bundle or <code>package.json</code>, <code>program.obc</code>, and</li>
+<li>Download the release ZIP bundle when <code>bundle</code>/<code>bundle_sha256</code> are advertised,</li>
 </ol>
-<p>   selected assets individually.</p>
+<p>   otherwise download <code>package.json</code>, <code>program.obc</code>, and selected assets</p>
+<p>   individually.</p>
 <ol>
-<li>Verify manifest hash, OBC hash, and package signature.</li>
+<li>Verify package signature, bundle or asset hashes, manifest hash, and OBC hash.</li>
 <li>Create an <code>AvmEmbedConfig</code>.</li>
 <li>Apply capabilities and budgets from the manifest.</li>
 <li>Use deterministic default config for reproducible/headless packages, or</li>

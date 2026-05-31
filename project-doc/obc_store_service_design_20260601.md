@@ -114,8 +114,6 @@ Remaining service work before deployment:
 - signed index rotation/key-id publication beyond the current single-key signer;
 - richer browser/operator UX beyond the current browse/detail/operator reference
   pages;
-- SDK bundle install preference so host apps can choose the ZIP artifact when it is
-  present and fall back to expanded manifest/OBC/assets otherwise;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script

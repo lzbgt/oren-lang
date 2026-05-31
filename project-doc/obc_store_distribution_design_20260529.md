@@ -186,9 +186,10 @@ API/service detail lives in `project-doc/obc_store_service_design_20260601.md`.
 1. Fetch signed `index.json` from `store.hubstack.cn` or a configured mirror.
 2. Filter packages by `avm_abi_min`, required capabilities, app version, and GUI
    support.
-3. Download either the release ZIP bundle or `package.json`, `program.obc`, and
-   selected assets individually.
-4. Verify manifest hash, OBC hash, and package signature.
+3. Download the release ZIP bundle when `bundle`/`bundle_sha256` are advertised,
+   otherwise download `package.json`, `program.obc`, and selected assets
+   individually.
+4. Verify package signature, bundle or asset hashes, manifest hash, and OBC hash.
 5. Create an `AvmEmbedConfig`.
 6. Apply capabilities and budgets from the manifest.
 7. Use deterministic default config for reproducible/headless packages, or

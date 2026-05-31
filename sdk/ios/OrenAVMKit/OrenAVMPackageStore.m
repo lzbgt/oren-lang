@@ -3,6 +3,8 @@
 #import <CommonCrypto/CommonDigest.h>
 #import <Security/Security.h>
 #import <dispatch/dispatch.h>
+#import <limits.h>
+#import <zlib.h>
 
 static BOOL OrenAVMPackageAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
@@ -206,6 +208,146 @@ static NSURL* OrenAVMPackageResolveStoreURL(NSURL* baseURL, NSString* path) {
     if (url.scheme.length > 0) return url;
     if (!OrenAVMPackagePathIsSafe(path)) return nil;
     return [[NSURL URLWithString:path relativeToURL:baseURL] absoluteURL];
+}
+
+static uint16_t OrenAVMPackageReadLE16(const uint8_t* bytes, NSUInteger length, NSUInteger off) {
+    if (off + 2u > length) return 0;
+    return (uint16_t)bytes[off] | ((uint16_t)bytes[off + 1u] << 8);
+}
+
+static uint32_t OrenAVMPackageReadLE32(const uint8_t* bytes, NSUInteger length, NSUInteger off) {
+    if (off + 4u > length) return 0;
+    return (uint32_t)bytes[off] |
+        ((uint32_t)bytes[off + 1u] << 8) |
+        ((uint32_t)bytes[off + 2u] << 16) |
+        ((uint32_t)bytes[off + 3u] << 24);
+}
+
+static NSData* OrenAVMPackageInflateRawDeflate(const uint8_t* input, NSUInteger inputLen, NSUInteger outputLen) {
+    NSMutableData* out = [NSMutableData dataWithLength:outputLen];
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+    stream.next_in = (Bytef*)input;
+    stream.avail_in = (uInt)inputLen;
+    stream.next_out = out.mutableBytes;
+    stream.avail_out = (uInt)outputLen;
+    if (inputLen > UINT_MAX || outputLen > UINT_MAX || inflateInit2(&stream, -MAX_WBITS) != Z_OK) return nil;
+    int rc = inflate(&stream, Z_FINISH);
+    inflateEnd(&stream);
+    if (rc != Z_STREAM_END || stream.total_out != outputLen) return nil;
+    return out;
+}
+
+static BOOL OrenAVMPackageWriteZIPEntry(NSData* zipData,
+                                        NSUInteger localHeaderOffset,
+                                        NSString* name,
+                                        uint16_t method,
+                                        uint32_t expectedCRC,
+                                        uint32_t compressedSize,
+                                        uint32_t uncompressedSize,
+                                        NSURL* destinationRoot,
+                                        NSError** error) {
+    const uint8_t* bytes = zipData.bytes;
+    NSUInteger length = zipData.length;
+    if (localHeaderOffset + 30u > length || OrenAVMPackageReadLE32(bytes, length, localHeaderOffset) != 0x04034b50u) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle has invalid local ZIP header");
+    }
+    uint16_t nameLen = OrenAVMPackageReadLE16(bytes, length, localHeaderOffset + 26u);
+    uint16_t extraLen = OrenAVMPackageReadLE16(bytes, length, localHeaderOffset + 28u);
+    NSUInteger dataOffset = localHeaderOffset + 30u + nameLen + extraLen;
+    if (dataOffset > length || compressedSize > length - dataOffset) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle entry is truncated");
+    }
+    NSData* body = nil;
+    const uint8_t* compressed = bytes + dataOffset;
+    if (method == 0) {
+        if (compressedSize != uncompressedSize) {
+            return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle stored entry size mismatch");
+        }
+        body = [NSData dataWithBytes:compressed length:uncompressedSize];
+    } else if (method == 8) {
+        body = OrenAVMPackageInflateRawDeflate(compressed, compressedSize, uncompressedSize);
+        if (!body) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle deflate entry failed");
+    } else {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle uses unsupported compression");
+    }
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, body.bytes, (uInt)body.length);
+    if ((uint32_t)crc != expectedCRC) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle entry CRC mismatch");
+    }
+    NSURL* outURL = OrenAVMPackageAppendSafeRelativePath(destinationRoot, name, NO);
+    if (!outURL) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle path is unsafe");
+    NSFileManager* fm = [NSFileManager defaultManager];
+    if (![fm createDirectoryAtURL:[outURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return NO;
+    return [body writeToURL:outURL options:NSDataWritingAtomic error:error];
+}
+
+static BOOL OrenAVMPackageExtractReleaseBundle(NSData* zipData, NSURL* destinationRoot, NSError** error) {
+    if (!destinationRoot.isFileURL || zipData.length < 22u) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle is invalid");
+    }
+    const uint8_t* bytes = zipData.bytes;
+    NSUInteger length = zipData.length;
+    NSUInteger minEOCD = length > 65557u ? length - 65557u : 0u;
+    NSUInteger eocd = NSNotFound;
+    for (NSUInteger off = length - 22u;; off--) {
+        if (OrenAVMPackageReadLE32(bytes, length, off) == 0x06054b50u) {
+            eocd = off;
+            break;
+        }
+        if (off == minEOCD) break;
+    }
+    if (eocd == NSNotFound) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle missing ZIP directory");
+    uint16_t entries = OrenAVMPackageReadLE16(bytes, length, eocd + 10u);
+    uint32_t centralSize = OrenAVMPackageReadLE32(bytes, length, eocd + 12u);
+    uint32_t centralOffset = OrenAVMPackageReadLE32(bytes, length, eocd + 16u);
+    if (centralOffset > length || centralSize > length - centralOffset) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle ZIP directory is truncated");
+    }
+    BOOL sawManifest = NO;
+    BOOL sawProgram = NO;
+    NSUInteger off = centralOffset;
+    for (uint16_t i = 0; i < entries; i++) {
+        if (off + 46u > length || OrenAVMPackageReadLE32(bytes, length, off) != 0x02014b50u) {
+            return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle has invalid ZIP directory entry");
+        }
+        uint16_t flags = OrenAVMPackageReadLE16(bytes, length, off + 8u);
+        uint16_t method = OrenAVMPackageReadLE16(bytes, length, off + 10u);
+        uint32_t crc = OrenAVMPackageReadLE32(bytes, length, off + 16u);
+        uint32_t compressedSize = OrenAVMPackageReadLE32(bytes, length, off + 20u);
+        uint32_t uncompressedSize = OrenAVMPackageReadLE32(bytes, length, off + 24u);
+        uint16_t nameLen = OrenAVMPackageReadLE16(bytes, length, off + 28u);
+        uint16_t extraLen = OrenAVMPackageReadLE16(bytes, length, off + 30u);
+        uint16_t commentLen = OrenAVMPackageReadLE16(bytes, length, off + 32u);
+        uint32_t externalAttrs = OrenAVMPackageReadLE32(bytes, length, off + 38u);
+        uint32_t localHeaderOffset = OrenAVMPackageReadLE32(bytes, length, off + 42u);
+        NSUInteger nameOff = off + 46u;
+        NSUInteger next = nameOff + nameLen + extraLen + commentLen;
+        if (next > length || (flags & 1u) != 0 || compressedSize > 512u * 1024u * 1024u || uncompressedSize > 512u * 1024u * 1024u) {
+            return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle entry is unsupported");
+        }
+        NSString* name = [[NSString alloc] initWithBytes:bytes + nameOff length:nameLen encoding:NSUTF8StringEncoding];
+        if (name.length == 0) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle entry path is invalid");
+        BOOL isDirectory = [name hasSuffix:@"/"];
+        NSString* cleanName = isDirectory ? [name substringToIndex:name.length - 1u] : name;
+        if (!OrenAVMPackagePathIsSafe(cleanName) || (externalAttrs & 0xA0000000u) == 0xA0000000u) {
+            return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle entry path is unsafe");
+        }
+        if (isDirectory) {
+            NSURL* dirURL = OrenAVMPackageAppendSafeRelativePath(destinationRoot, cleanName, YES);
+            if (!dirURL || ![[NSFileManager defaultManager] createDirectoryAtURL:dirURL withIntermediateDirectories:YES attributes:nil error:error]) return NO;
+        } else {
+            if ([name isEqualToString:@"package.json"]) sawManifest = YES;
+            if ([name isEqualToString:@"program.obc"]) sawProgram = YES;
+            if (!OrenAVMPackageWriteZIPEntry(zipData, localHeaderOffset, name, method, crc, compressedSize, uncompressedSize, destinationRoot, error)) return NO;
+        }
+        off = next;
+    }
+    if (!sawManifest || !sawProgram) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle must contain package.json and program.obc");
+    }
+    return YES;
 }
 
 static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
@@ -582,10 +724,6 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
         OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package manifest identity is invalid");
         return nil;
     }
-    NSURL* obcURL = OrenAVMPackageResolveStoreURL(manifestURL, entryObc);
-    NSData* obcData = nil;
-    if (!OrenAVMPackageFetchURLData(obcURL, allowedHosts, timeoutSeconds, &obcData, error)) return nil;
-
     NSURL* packageRoot = OrenAVMPackageAppendSafeRelativePath(destinationDirectoryURL, packageID, YES);
     packageRoot = OrenAVMPackageAppendSafeRelativePath(packageRoot, manifestVersion, YES);
     if (!packageRoot) {
@@ -609,48 +747,86 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
     }
     NSString* tmpName = [NSString stringWithFormat:@".%@.tmp.%@", manifestVersion, [[NSUUID UUID] UUIDString]];
     NSURL* packageTmpRoot = OrenAVMPackageAppendSafeRelativePath([packageRoot URLByDeletingLastPathComponent], tmpName, YES);
-    NSURL* obcOutURL = OrenAVMPackageAppendSafeRelativePath(packageTmpRoot, entryObc, NO);
-    if (!packageTmpRoot || !obcOutURL) {
+    if (!packageTmpRoot) {
         OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package destination path is invalid");
         return nil;
     }
     (void)[fm removeItemAtURL:packageTmpRoot error:nil];
-    if (![fm createDirectoryAtURL:[obcOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
-    if (![manifestData writeToURL:[packageTmpRoot URLByAppendingPathComponent:@"package.json" isDirectory:NO] options:NSDataWritingAtomic error:error]) return nil;
-    if (![obcData writeToURL:obcOutURL options:NSDataWritingAtomic error:error]) return nil;
-    id assets = manifest[@"assets"];
-    if ([assets isKindOfClass:[NSArray class]]) {
-        for (id item in (NSArray*)assets) {
-            if (![item isKindOfClass:[NSDictionary class]]) {
-                OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset entries must be objects");
-                return nil;
+    NSString* bundlePath = OrenAVMPackageString(entry, @"bundle");
+    NSString* bundleHash = OrenAVMPackageString(entry, @"bundle_sha256");
+    NSString* bundleMediaType = OrenAVMPackageString(entry, @"bundle_media_type");
+    if (bundlePath.length > 0 || bundleHash.length > 0) {
+        if (bundlePath.length == 0 || bundleHash.length != 64 ||
+            (bundleMediaType.length > 0 && ![bundleMediaType isEqualToString:@"application/vnd.oren.obc.release+zip"])) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC store index bundle entry is invalid");
+            return nil;
+        }
+        NSURL* bundleURL = OrenAVMPackageResolveStoreURL(indexURL, bundlePath);
+        NSData* bundleData = nil;
+        if (!bundleURL || !OrenAVMPackageFetchURLData(bundleURL, allowedHosts, timeoutSeconds, &bundleData, error)) return nil;
+        if (![[OrenAVMPackageStore sha256HexForData:bundleData] isEqualToString:bundleHash.lowercaseString]) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle hash mismatch");
+            return nil;
+        }
+        if (![fm createDirectoryAtURL:packageTmpRoot withIntermediateDirectories:YES attributes:nil error:error]) return nil;
+        if (!OrenAVMPackageExtractReleaseBundle(bundleData, packageTmpRoot, error)) return nil;
+        NSData* stagedManifestData = [NSData dataWithContentsOfURL:[packageTmpRoot URLByAppendingPathComponent:@"package.json" isDirectory:NO] options:0 error:error];
+        if (!stagedManifestData) return nil;
+        if (![[OrenAVMPackageStore sha256HexForData:stagedManifestData] isEqualToString:manifestHash.lowercaseString]) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle manifest hash mismatch");
+            return nil;
+        }
+    } else {
+        NSURL* obcURL = OrenAVMPackageResolveStoreURL(manifestURL, entryObc);
+        NSData* obcData = nil;
+        if (!OrenAVMPackageFetchURLData(obcURL, allowedHosts, timeoutSeconds, &obcData, error)) return nil;
+        NSURL* obcOutURL = OrenAVMPackageAppendSafeRelativePath(packageTmpRoot, entryObc, NO);
+        if (!obcOutURL) {
+            OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package destination path is invalid");
+            return nil;
+        }
+        if (![fm createDirectoryAtURL:[obcOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
+        if (![manifestData writeToURL:[packageTmpRoot URLByAppendingPathComponent:@"package.json" isDirectory:NO] options:NSDataWritingAtomic error:error]) return nil;
+        if (![obcData writeToURL:obcOutURL options:NSDataWritingAtomic error:error]) return nil;
+        id assets = manifest[@"assets"];
+        if ([assets isKindOfClass:[NSArray class]]) {
+            for (id item in (NSArray*)assets) {
+                if (![item isKindOfClass:[NSDictionary class]]) {
+                    OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset entries must be objects");
+                    return nil;
+                }
+                NSDictionary* asset = (NSDictionary*)item;
+                NSString* assetPath = OrenAVMPackageString(asset, @"path");
+                NSString* assetHash = OrenAVMPackageString(asset, @"sha256");
+                if (!OrenAVMPackagePathIsSafe(assetPath) || assetHash.length != 64) {
+                    OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset entry is invalid");
+                    return nil;
+                }
+                NSURL* assetURL = OrenAVMPackageResolveStoreURL(manifestURL, assetPath);
+                NSURL* assetOutURL = OrenAVMPackageAppendSafeRelativePath(packageTmpRoot, assetPath, NO);
+                if (!assetURL || !assetOutURL) {
+                    OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset path is invalid");
+                    return nil;
+                }
+                NSData* assetData = nil;
+                if (!OrenAVMPackageFetchURLData(assetURL, allowedHosts, timeoutSeconds, &assetData, error)) return nil;
+                if (![[OrenAVMPackageStore sha256HexForData:assetData] isEqualToString:assetHash.lowercaseString]) {
+                    OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset hash mismatch");
+                    return nil;
+                }
+                if (![fm createDirectoryAtURL:[assetOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
+                if (![assetData writeToURL:assetOutURL options:NSDataWritingAtomic error:error]) return nil;
             }
-            NSDictionary* asset = (NSDictionary*)item;
-            NSString* assetPath = OrenAVMPackageString(asset, @"path");
-            NSString* assetHash = OrenAVMPackageString(asset, @"sha256");
-            if (!OrenAVMPackagePathIsSafe(assetPath) || assetHash.length != 64) {
-                OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset entry is invalid");
-                return nil;
-            }
-            NSURL* assetURL = OrenAVMPackageResolveStoreURL(manifestURL, assetPath);
-            NSURL* assetOutURL = OrenAVMPackageAppendSafeRelativePath(packageTmpRoot, assetPath, NO);
-            if (!assetURL || !assetOutURL) {
-                OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset path is invalid");
-                return nil;
-            }
-            NSData* assetData = nil;
-            if (!OrenAVMPackageFetchURLData(assetURL, allowedHosts, timeoutSeconds, &assetData, error)) return nil;
-            if (![[OrenAVMPackageStore sha256HexForData:assetData] isEqualToString:assetHash.lowercaseString]) {
-                OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package asset hash mismatch");
-                return nil;
-            }
-            if (![fm createDirectoryAtURL:[assetOutURL URLByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error]) return nil;
-            if (![assetData writeToURL:assetOutURL options:NSDataWritingAtomic error:error]) return nil;
         }
     }
     OrenAVMPackage* staged = [self loadPackageAtDirectoryURL:packageTmpRoot error:error];
     if (!staged) {
         (void)[fm removeItemAtURL:packageTmpRoot error:nil];
+        return nil;
+    }
+    if (![staged.packageID isEqualToString:[NSString stringWithFormat:@"%@/%@", packageID, manifestVersion]]) {
+        (void)[fm removeItemAtURL:packageTmpRoot error:nil];
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package staged identity mismatch");
         return nil;
     }
     (void)[fm removeItemAtURL:packageRoot error:nil];

@@ -380,9 +380,14 @@
 <ul>
 <li>The SDK can also download a store <code>index.json</code>, find a package/version, verify</li>
 </ul>
-<p>  the indexed manifest SHA-256, fetch the manifest, OBC, and declared assets,</p>
-<p>  verify asset SHA-256 values, install them into an app-owned directory, and then</p>
-<p>  run through the same local verifier path.</p>
+<p>  the indexed manifest SHA-256, then install through the same local verifier path.</p>
+<p>  When the index entry includes <code>bundle</code> and <code>bundle_sha256</code>, the SDK prefers the</p>
+<p>  deterministic <code>.obc.zip</code> release bundle, verifies the bundle hash, extracts only</p>
+<p>  safe rootless ZIP entries, verifies the extracted manifest hash, and then loads</p>
+<p>  the package. If no bundle is listed, it falls back to fetching the manifest,</p>
+<p>  OBC, and declared assets individually with SHA-256 verification.</p>
+<p>  Host apps linking the static <code>OrenAVMKit</code> archive must also link <code>libz</code> because</p>
+<p>  the SDK accepts deflated ZIP entries.</p>
 <ul>
 <li>A signed download overload accepts trusted publisher P-256 public keys and</li>
 </ul>

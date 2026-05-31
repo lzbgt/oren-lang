@@ -852,6 +852,10 @@ int main(void) {
                                                                    trustBundle:trustBundle
                                                                           error:&error];
             if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 94;
+            NSData* bundleOnlySource = [NSData dataWithContentsOfURL:[package.directoryURL URLByAppendingPathComponent:@"assets/source/main.oren" isDirectory:NO]
+                                                              options:0
+                                                                error:nil];
+            if (![bundleOnlySource isEqualToData:[@"print(\"bundle-source\")\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 125;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 95;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
@@ -968,6 +972,10 @@ int main(void) {
                                                                    trustBundle:trustBundle
                                                                           error:&error];
             if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-service/0.1.0"]) return 117;
+            NSData* serviceBundleOnlySource = [NSData dataWithContentsOfURL:[package.directoryURL URLByAppendingPathComponent:@"assets/source/main.oren" isDirectory:NO]
+                                                                     options:0
+                                                                       error:nil];
+            if (![serviceBundleOnlySource isEqualToData:[@"print(\"service-bundle-source\")\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 126;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 118;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
@@ -1053,6 +1061,7 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -lz \
   -o "$TMP_DIR/sdk_smoke_sim"
 "$SIM_CC" \
   -target arm64-apple-ios13.0-simulator \
@@ -1067,6 +1076,7 @@ SIM_CC="$(xcrun --sdk iphonesimulator --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -lz \
   -o "$TMP_DIR/sdk_module_smoke_sim"
 
 DEV_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
@@ -1094,6 +1104,7 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -lz \
   -o "$TMP_DIR/sdk_smoke_device"
 "$DEV_CC" \
   -target arm64-apple-ios13.0 \
@@ -1108,6 +1119,7 @@ DEV_CC="$(xcrun --sdk iphoneos --find clang)"
   -framework Security \
   -framework UIKit \
   -framework CoreGraphics \
+  -lz \
   -o "$TMP_DIR/sdk_module_smoke_device"
 
 HOST_BIN="$TMP_DIR/embed_smoke_host"
@@ -1135,7 +1147,7 @@ clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK
   "$TMP_DIR/sdk_smoke.m" sdk/ios/OrenAVMKit/OrenAVMKit.m "${HOST_SOURCES[@]}" \
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m \
   sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m \
-  -fobjc-arc -framework Foundation -framework Security -o "$HOST_SDK_BIN"
+  -fobjc-arc -framework Foundation -framework Security -lz -o "$HOST_SDK_BIN"
 NET_DIR="$TMP_DIR/net_server"
 rm -rf "$NET_DIR"
 mkdir -p "$NET_DIR"
@@ -1378,6 +1390,25 @@ REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '
 REMOTE_MANIFEST_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_ASSET_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_SIGNATURE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" | awk '{print $1}')"
+python3 - "$REMOTE_PACKAGE_DIR" "$REMOTE_PACKAGE_DIR/bundle.obc.zip" <<'PY'
+import pathlib
+import sys
+import zipfile
+
+root = pathlib.Path(sys.argv[1])
+out = pathlib.Path(sys.argv[2])
+with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for name in ["package.json", "program.obc", "assets/config.txt"]:
+        info = zipfile.ZipInfo(name)
+        info.date_time = (2026, 1, 1, 0, 0, 0)
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zf.writestr(info, (root / name).read_bytes())
+    info = zipfile.ZipInfo("assets/source/main.oren")
+    info.date_time = (2026, 1, 1, 0, 0, 0)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    zf.writestr(info, b"print(\"bundle-source\")\n")
+PY
+REMOTE_BUNDLE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/bundle.obc.zip" | awk '{print $1}')"
 PACKAGE_SIGN_KEY="$TMP_DIR/package_store_p256.pem"
 BAD_STORE_INDEX_KEY="$TMP_DIR/package_store_bad_index_p256.pem"
 REMOTE_MANIFEST_HASH_MSG="$TMP_DIR/remote_manifest_hash.txt"
@@ -1443,6 +1474,9 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
       "version": "0.1.0",
       "manifest": "packages/oren-labs/sdk-package-remote/0.1.0/package.json",
       "manifest_sha256": "$REMOTE_MANIFEST_HASH",
+      "bundle": "packages/oren-labs/sdk-package-remote/0.1.0/bundle.obc.zip",
+      "bundle_sha256": "$REMOTE_BUNDLE_HASH",
+      "bundle_media_type": "application/vnd.oren.obc.release+zip",
       "signature_alg": "p256-sha256-der",
       "signature_p256_sha256_der_hex": "$REMOTE_SIGNATURE_HEX",
       "tags": ["sdk", "smoke"],
@@ -1644,12 +1678,14 @@ python3 - "$GO_STORE_PORT" "$GO_STORE_DIR" "$PACKAGE_OBC_OUT" "$PACKAGE_SIGN_KEY
 import base64
 import hashlib
 import http.client
+import io
 import json
 import pathlib
 import subprocess
 import sys
 import time
 import urllib.request
+import zipfile
 
 port = int(sys.argv[1])
 data_dir = pathlib.Path(sys.argv[2])
@@ -1695,11 +1731,55 @@ print(base64.b64encode(pub).decode("ascii"))
 
 post("/api/v0/publishers", {"id": "oren-labs", "display_name": "Oren Labs", "public_keys": [pub], "token_sha256_hex": hashlib.sha256(publisher_token.encode("utf-8")).hexdigest()}, admin_auth)
 post("/api/v0/packages", {"publisher": "oren-labs", "name": "sdk-package-service", "title": "SDK Service Package Smoke", "summary": "Verifies SDK install from obc-store-server", "tags": ["sdk", "service"]}, publisher_auth)
+manifest_for_bundle = {
+    "schema": "oren.obc.package.v0",
+    "name": "sdk-package-service",
+    "publisher": "oren-labs",
+    "version": "0.1.0",
+    "title": "SDK Service Package Smoke",
+    "summary": "Verifies SDK install from obc-store-server",
+    "entry_obc": "program.obc",
+    "obc_sha256": hashlib.sha256(obc_path.read_bytes()).hexdigest(),
+    "oren_min": "0.0.rolling",
+    "avm_abi_min": 8,
+    "capabilities": ["CORE", "FS", "EXIT"],
+    "time_mode": "deterministic",
+    "budgets": {
+        "gas": 5000000,
+        "heap_bytes": 33554432,
+        "io_bytes": 1048576,
+        "frame_commands": 1024,
+    },
+    "vfs_mounts": [
+        {"virtual": "assets", "package_path": "assets", "read_only": True}
+    ],
+    "assets": [
+        {
+            "path": "assets/config.txt",
+            "sha256": hashlib.sha256(b"pkg-asset").hexdigest(),
+            "size": len(b"pkg-asset"),
+            "media_type": "text/plain",
+        }
+    ],
+}
+bundle_io = io.BytesIO()
+with zipfile.ZipFile(bundle_io, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for name, body in [
+        ("package.json", (json.dumps(manifest_for_bundle, indent=2, sort_keys=True) + "\n").encode("utf-8")),
+        ("program.obc", obc_path.read_bytes()),
+        ("assets/config.txt", b"pkg-asset"),
+        ("assets/source/main.oren", b"print(\"service-bundle-source\")\n"),
+    ]:
+        info = zipfile.ZipInfo(name)
+        info.date_time = (2026, 1, 1, 0, 0, 0)
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zf.writestr(info, body)
 release = post(
     "/api/v0/packages/oren-labs/sdk-package-service/versions",
     {
         "version": "0.1.0",
         "program_obc_base64": base64.b64encode(obc_path.read_bytes()).decode("ascii"),
+        "release_bundle_base64": base64.b64encode(bundle_io.getvalue()).decode("ascii"),
         "tags": ["sdk", "service"],
         "min_app": "0.1.0",
         "manifest": {
