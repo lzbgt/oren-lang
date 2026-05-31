@@ -372,11 +372,22 @@
 <li>A signed download overload accepts trusted publisher P-256 public keys and</li>
 </ul>
 <p>  verifies <code>p256-sha256-der</code> signatures over the manifest hash before install.</p>
-<p>  The retained gate proves valid signatures and bad-signature rejection.</p>
 <ul>
-<li>Next slices should add signed store indexes, root trust rotation, persisted</li>
+<li>A signed-index overload fetches <code>index.json.sig</code>, verifies it with a trusted</li>
 </ul>
-<p>  install/update/remove lifecycle, and Note app smoke.</p>
+<p>  P-256 store key before trusting package entries, then applies publisher</p>
+<p>  signature checks. The retained gate proves valid signatures plus bad-index-key,</p>
+<p>  bad-package-signature, and bad-asset-hash rejection.</p>
+<ul>
+<li>Signature/cert enforcement is host policy. The SDK provides strict signed</li>
+</ul>
+<p>  verification for safe defaults, but a host app may deliberately use the unsigned</p>
+<p>  download/local load path after user confirmation, equivalent to a platform letting</p>
+<p>  users run non-store software while owning the risk.</p>
+<ul>
+<li>Next slices should add root trust rotation, persisted install/update/remove</li>
+</ul>
+<p>  lifecycle, and Note app smoke.</p>
 <ul>
 <li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
 </ul>

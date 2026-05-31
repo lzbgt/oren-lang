@@ -285,9 +285,16 @@ Public OBC store helper.
   run through the same local verifier path.
 - A signed download overload accepts trusted publisher P-256 public keys and
   verifies `p256-sha256-der` signatures over the manifest hash before install.
-  The retained gate proves valid signatures and bad-signature rejection.
-- Next slices should add signed store indexes, root trust rotation, persisted
-  install/update/remove lifecycle, and Note app smoke.
+- A signed-index overload fetches `index.json.sig`, verifies it with a trusted
+  P-256 store key before trusting package entries, then applies publisher
+  signature checks. The retained gate proves valid signatures plus bad-index-key,
+  bad-package-signature, and bad-asset-hash rejection.
+- Signature/cert enforcement is host policy. The SDK provides strict signed
+  verification for safe defaults, but a host app may deliberately use the unsigned
+  download/local load path after user confirmation, equivalent to a platform letting
+  users run non-store software while owning the risk.
+- Next slices should add root trust rotation, persisted install/update/remove
+  lifecycle, and Note app smoke.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

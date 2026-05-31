@@ -619,6 +619,8 @@ int main(void) {
         NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
         NSString* packageIndexURL = env[@"OREN_AVM_SDK_PACKAGE_INDEX_URL"];
         NSString* packageDownloadDir = env[@"OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR"];
+        NSString* storeIndexKeyB64 = env[@"OREN_AVM_SDK_STORE_INDEX_KEY_B64"];
+        NSString* badStoreIndexKeyB64 = env[@"OREN_AVM_SDK_BAD_STORE_INDEX_KEY_B64"];
         NSString* packagePublisherKeyB64 = env[@"OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64"];
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
@@ -754,16 +756,19 @@ int main(void) {
         }
         if (packageIndexURL.length > 0 && packageDownloadDir.length > 0) {
             OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
+            NSData* indexKey = [[NSData alloc] initWithBase64EncodedString:(storeIndexKeyB64 ?: @"") options:0];
+            NSData* badIndexKey = [[NSData alloc] initWithBase64EncodedString:(badStoreIndexKeyB64 ?: @"") options:0];
             NSData* publisherKey = [[NSData alloc] initWithBase64EncodedString:(packagePublisherKeyB64 ?: @"") options:0];
             NSDictionary<NSString*, NSData*>* trustedKeys = publisherKey ? @{@"oren-labs": publisherKey} : nil;
-            OrenAVMPackage* package = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
-                                                               packageID:@"oren-labs/sdk-package-remote"
-                                                                 version:@"0.1.0"
-                                                 destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
-                                                            allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
-                                                          timeoutSeconds:5.0
-                                            trustedPublisherPublicKeys:trustedKeys
-                                                                   error:&error];
+            OrenAVMPackage* package = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                      packageID:@"oren-labs/sdk-package-remote"
+                                                                        version:@"0.1.0"
+                                                        destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                                   allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                 timeoutSeconds:5.0
+                                                          trustedIndexPublicKey:indexKey
+                                                     trustedPublisherPublicKeys:trustedKeys
+                                                                          error:&error];
             if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 94;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 95;
@@ -773,25 +778,38 @@ int main(void) {
             if (!packageResult || packageResult.exitCode != 9) return 97;
             if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 98;
             error = nil;
-            OrenAVMPackage* badAssetPackage = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
-                                                                       packageID:@"oren-labs/sdk-package-bad-asset"
-                                                                         version:@"0.1.0"
-                                                         destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
-                                                                    allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
-                                                                  timeoutSeconds:5.0
-                                                    trustedPublisherPublicKeys:trustedKeys
-                                                                           error:&error];
+            OrenAVMPackage* badAssetPackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                             packageID:@"oren-labs/sdk-package-bad-asset"
+                                                                               version:@"0.1.0"
+                                                               destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                                          allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                        timeoutSeconds:5.0
+                                                                 trustedIndexPublicKey:indexKey
+                                                            trustedPublisherPublicKeys:trustedKeys
+                                                                                 error:&error];
             if (badAssetPackage || !error) return 99;
             error = nil;
-            OrenAVMPackage* badSignaturePackage = [store downloadPackageFromIndexURL:[NSURL URLWithString:packageIndexURL]
-                                                                           packageID:@"oren-labs/sdk-package-bad-signature"
-                                                                             version:@"0.1.0"
-                                                             destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
-                                                                        allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
-                                                                      timeoutSeconds:5.0
-                                                        trustedPublisherPublicKeys:trustedKeys
-                                                                               error:&error];
+            OrenAVMPackage* badSignaturePackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                                 packageID:@"oren-labs/sdk-package-bad-signature"
+                                                                                   version:@"0.1.0"
+                                                                   destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                                              allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                            timeoutSeconds:5.0
+                                                                     trustedIndexPublicKey:indexKey
+                                                                trustedPublisherPublicKeys:trustedKeys
+                                                                                     error:&error];
             if (badSignaturePackage || !error) return 100;
+            error = nil;
+            OrenAVMPackage* badIndexPackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+                                                                             packageID:@"oren-labs/sdk-package-remote"
+                                                                               version:@"0.1.0"
+                                                               destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
+                                                                          allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                        timeoutSeconds:5.0
+                                                                 trustedIndexPublicKey:badIndexKey
+                                                            trustedPublisherPublicKeys:trustedKeys
+                                                                                 error:&error];
+            if (badIndexPackage || !error) return 101;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -1137,17 +1155,11 @@ REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '
 REMOTE_BAD_ASSET_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_SIGNATURE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" | awk '{print $1}')"
 PACKAGE_SIGN_KEY="$TMP_DIR/package_store_p256.pem"
+BAD_STORE_INDEX_KEY="$TMP_DIR/package_store_bad_index_p256.pem"
 REMOTE_MANIFEST_HASH_MSG="$TMP_DIR/remote_manifest_hash.txt"
 REMOTE_BAD_ASSET_HASH_MSG="$TMP_DIR/remote_bad_asset_manifest_hash.txt"
-openssl ecparam -name prime256v1 -genkey -noout -out "$PACKAGE_SIGN_KEY"
-printf '%s' "$REMOTE_MANIFEST_HASH" > "$REMOTE_MANIFEST_HASH_MSG"
-printf '%s' "$REMOTE_BAD_ASSET_MANIFEST_HASH" > "$REMOTE_BAD_ASSET_HASH_MSG"
-openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_manifest.sig" "$REMOTE_MANIFEST_HASH_MSG"
-openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_bad_asset_manifest.sig" "$REMOTE_BAD_ASSET_HASH_MSG"
-REMOTE_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest.sig" | tr -d '\n')"
-REMOTE_BAD_ASSET_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_bad_asset_manifest.sig" | tr -d '\n')"
-PACKAGE_PUBLISHER_KEY_B64="$(
-  python3 - "$PACKAGE_SIGN_KEY" <<'PY'
+extract_p256_pubkey_b64() {
+  python3 - "$1" <<'PY'
 import base64
 import subprocess
 import sys
@@ -1160,7 +1172,17 @@ if len(pub) != 65 or pub[0] != 4:
     raise SystemExit("invalid P-256 public key length")
 print(base64.b64encode(pub).decode("ascii"))
 PY
-)"
+}
+openssl ecparam -name prime256v1 -genkey -noout -out "$PACKAGE_SIGN_KEY"
+openssl ecparam -name prime256v1 -genkey -noout -out "$BAD_STORE_INDEX_KEY"
+printf '%s' "$REMOTE_MANIFEST_HASH" > "$REMOTE_MANIFEST_HASH_MSG"
+printf '%s' "$REMOTE_BAD_ASSET_MANIFEST_HASH" > "$REMOTE_BAD_ASSET_HASH_MSG"
+openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_manifest.sig" "$REMOTE_MANIFEST_HASH_MSG"
+openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$TMP_DIR/remote_bad_asset_manifest.sig" "$REMOTE_BAD_ASSET_HASH_MSG"
+REMOTE_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_manifest.sig" | tr -d '\n')"
+REMOTE_BAD_ASSET_SIGNATURE_HEX="$(xxd -p -c 256 "$TMP_DIR/remote_bad_asset_manifest.sig" | tr -d '\n')"
+PACKAGE_PUBLISHER_KEY_B64="$(extract_p256_pubkey_b64 "$PACKAGE_SIGN_KEY")"
+BAD_STORE_INDEX_KEY_B64="$(extract_p256_pubkey_b64 "$BAD_STORE_INDEX_KEY")"
 cat > "$REMOTE_STORE_DIR/index.json" <<JSON
 {
   "schema": "oren.obc.store.index.v0",
@@ -1199,6 +1221,7 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
   ]
 }
 JSON
+openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$REMOTE_STORE_DIR/index.json.sig" "$REMOTE_STORE_DIR/index.json"
 python3 - "$NET_PORT" "$NET_DIR/net.txt" "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 <<'PY' &
 import pathlib
 import socket
@@ -1387,6 +1410,8 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
 OREN_AVM_SDK_PACKAGE_INDEX_URL="http://127.0.0.1:${PKG_PORT}/index.json" \
 OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_packages" \
+OREN_AVM_SDK_STORE_INDEX_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \
+OREN_AVM_SDK_BAD_STORE_INDEX_KEY_B64="$BAD_STORE_INDEX_KEY_B64" \
 OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64="$PACKAGE_PUBLISHER_KEY_B64" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_LIVE=1 \

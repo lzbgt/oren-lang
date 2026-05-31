@@ -234,9 +234,12 @@ packages/...</code></pre>
 <p>path. The iOS SDK also has a signed download overload for publisher signatures:</p>
 <p>host apps pass trusted P-256 public keys by publisher ID, and the SDK verifies</p>
 <p><code>p256-sha256-der</code> signatures over indexed manifest hashes before install.</p>
-<p>Remaining store work is signed index/root trust rotation, persisted</p>
-<p>install/update/remove lifecycle, and Note app smoke before a public store is</p>
-<p>release-ready.</p>
+<p>A signed-index overload also fetches and verifies <code>index.json.sig</code> with a trusted</p>
+<p>P-256 store key before trusting package entries. Signature/cert enforcement is</p>
+<p>host policy: apps should default to trusted metadata, but may expose an explicit</p>
+<p>user-confirmed &quot;run untrusted OBC&quot; path. Remaining store work is root trust</p>
+<p>rotation, persisted install/update/remove lifecycle, and Note app smoke before a</p>
+<p>public store is release-ready.</p>
 <p>Key custody rule: private signing keys and any root CA material must live outside</p>
 <p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
 <p>may document paths and commit public trust anchors or test public keys, but must</p>

@@ -92,10 +92,13 @@ Facts from the 2026-05-28 implementation pass:
   the manifest, OBC, and declared assets into an app-owned install directory,
   verify asset SHA-256 values, then reuse the local
   verifier/runner path. The iOS verifier now proves local package install/asset/run
-  plus HTTP index download/install/asset/run. A signed download overload accepts
-  trusted publisher P-256 public keys and verifies `p256-sha256-der` signatures over
-  the manifest hash before package install; the iOS verifier proves valid-signature,
-  bad-asset-hash, and bad-signature paths.
+  plus HTTP index download/install/asset/run. Signature/cert enforcement is host
+  policy: apps may require trusted metadata by default, or explicitly let users run
+  unsigned/untrusted OBC after confirmation. A signed-index download overload
+  verifies `index.json.sig` with a trusted P-256 store key, then verifies
+  trusted-publisher `p256-sha256-der` signatures over manifest hashes before
+  package install; the iOS verifier proves valid signatures plus bad-index-key,
+  bad-asset-hash, and bad-package-signature paths.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

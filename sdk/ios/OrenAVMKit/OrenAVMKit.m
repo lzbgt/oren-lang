@@ -421,12 +421,42 @@ static uint64_t OrenAVMPackageDomainForCapability(NSString* cap) {
                                 timeoutSeconds:(NSTimeInterval)timeoutSeconds
                     trustedPublisherPublicKeys:(NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
                                          error:(NSError**)error {
+    return [self downloadPackageFromSignedIndexURL:indexURL
+                                         packageID:packageID
+                                           version:version
+                           destinationDirectoryURL:destinationDirectoryURL
+                                      allowedHosts:allowedHosts
+                                    timeoutSeconds:timeoutSeconds
+                             trustedIndexPublicKey:nil
+                        trustedPublisherPublicKeys:trustedPublisherPublicKeys
+                                             error:error];
+}
+
+- (OrenAVMPackage*)downloadPackageFromSignedIndexURL:(NSURL*)indexURL
+                                           packageID:(NSString*)packageID
+                                             version:(NSString*)version
+                             destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                        allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                      timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                               trustedIndexPublicKey:(NSData*)trustedIndexPublicKey
+                          trustedPublisherPublicKeys:(NSDictionary<NSString*, NSData*>*)trustedPublisherPublicKeys
+                                               error:(NSError**)error {
     if (!indexURL || packageID.length == 0 || !destinationDirectoryURL.isFileURL) {
         OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"index URL, package id, and destination directory are required");
         return nil;
     }
     NSData* indexData = nil;
     if (!OrenAVMRuntimeFetchURLData(indexURL, allowedHosts, timeoutSeconds, 0, nil, &indexData, error)) return nil;
+    if (trustedIndexPublicKey) {
+        NSURL* signatureURL = [[indexURL URLByDeletingLastPathComponent] URLByAppendingPathComponent:[indexURL.lastPathComponent stringByAppendingString:@".sig"]];
+        NSData* signatureData = nil;
+        if (!signatureURL ||
+            !OrenAVMRuntimeFetchURLData(signatureURL, allowedHosts, timeoutSeconds, 0, nil, &signatureData, error)) return nil;
+        if (!OrenAVMPackageVerifyP256Signature(trustedIndexPublicKey, indexData, signatureData)) {
+            OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC store index signature verification failed");
+            return nil;
+        }
+    }
     id indexJSON = [NSJSONSerialization JSONObjectWithData:indexData options:0 error:error];
     if (![indexJSON isKindOfClass:[NSDictionary class]]) {
         OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC store index must be a JSON object");

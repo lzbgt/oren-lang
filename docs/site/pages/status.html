@@ -137,10 +137,13 @@
 <p>  the manifest, OBC, and declared assets into an app-owned install directory,</p>
 <p>  verify asset SHA-256 values, then reuse the local</p>
 <p>  verifier/runner path. The iOS verifier now proves local package install/asset/run</p>
-<p>  plus HTTP index download/install/asset/run. A signed download overload accepts</p>
-<p>  trusted publisher P-256 public keys and verifies <code>p256-sha256-der</code> signatures over</p>
-<p>  the manifest hash before package install; the iOS verifier proves valid-signature,</p>
-<p>  bad-asset-hash, and bad-signature paths.</p>
+<p>  plus HTTP index download/install/asset/run. Signature/cert enforcement is host</p>
+<p>  policy: apps may require trusted metadata by default, or explicitly let users run</p>
+<p>  unsigned/untrusted OBC after confirmation. A signed-index download overload</p>
+<p>  verifies <code>index.json.sig</code> with a trusted P-256 store key, then verifies</p>
+<p>  trusted-publisher <code>p256-sha256-der</code> signatures over manifest hashes before</p>
+<p>  package install; the iOS verifier proves valid signatures plus bad-index-key,</p>
+<p>  bad-asset-hash, and bad-package-signature paths.</p>
 <ul>
 <li>iOS SDK design is documented in <code>project-doc/ios_avm_sdk_design_20260531.md</code>:</li>
 </ul>
