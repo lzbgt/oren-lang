@@ -66,9 +66,9 @@ Implemented as of 2026-05-31:
   propagation, latest-frame replacement/clear semantics, and FIFO pointer
   down/move/up ordering before mixed key/text events.
 - The iOS verification chain now also compiles and runs a stdlib OBC surface smoke
-  that imports buffer/bytes/CBOR/YAML/regex/base64/SHA-1/SHA-256/json/linalg/math/
-  strings/time/UI AVM modules, so GUI app dependencies fail in the repo gate
-  instead of later in app integration.
+  that imports buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/
+  linalg/math/strings/time/UI AVM modules, so GUI app dependencies fail in the
+  repo gate instead of later in app integration.
 
 This is a correct bootstrap, not the final game-grade renderer contract.
 

@@ -73,8 +73,9 @@
 <li>AVM stdlib bundle after 2026-05-31: the bundle root includes <code>std:time</code>,</li>
 </ul>
 <p>  <code>std:ui/avm</code>, <code>std:linalg</code>, codec modules (<code>std:cbor</code>, <code>std:yaml</code>,</p>
-<p>  <code>std:regex</code>, <code>std:encoding/base64</code>), hash modules (<code>std:crypto/sha1</code>,</p>
-<p>  <code>std:crypto/sha256</code>), and the existing compiler/app-critical portable subset.</p>
+<p>  <code>std:regex</code>, <code>std:encoding/base64</code>), crypto helper modules (<code>std:crypto/pem</code>,</p>
+<p>  <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>), and the existing</p>
+<p>  compiler/app-critical portable subset.</p>
 <p>  The iOS verifier now runs <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which</p>
 <p>  rebuilds <code>stdlib_bundle.obc</code>, compiles a representative app fixture against it,</p>
 <p>  and runs that app in AVM. The fixture catches missing bundled exports such as</p>
@@ -130,8 +131,8 @@
 </ul>
 <p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which compiles</p>
 <p>  <code>tests/fixtures/avm_stdlib_obc_surface_smoke.oren</code> with <code>--stdlib-mode obc</code> and</p>
-<p>  proves buffer/bytes/CBOR/YAML/regex/base64/SHA-1/SHA-256/json/linalg/math/</p>
-<p>  strings/time/UI AVM APIs link and run from the bundled stdlib OBC.</p>
+<p>  proves buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/linalg/</p>
+<p>  math/strings/time/UI AVM APIs link and run from the bundled stdlib OBC.</p>
 <ul>
 <li>AVM fixes retained for the chain: child-owned OBC string/bytes constants for</li>
 </ul>

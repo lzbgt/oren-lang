@@ -57,7 +57,8 @@ Facts from the 2026-05-28 implementation pass:
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
   app-facing modules such as `std:time`, `std:ui/avm`, `std:linalg`,
   `std:cbor`, `std:yaml`, `std:regex`, `std:encoding/base64`,
-  `std:crypto/sha1`, and `std:crypto/sha256`.
+  `std:crypto/pem`, `std:crypto/sha1`, `std:crypto/sha256`, and
+  `std:crypto/x509`.
   Broader pure-stdlib expansion should be manifest-gated so bundle build time stays
   inside the repo iteration budget.
 - The embedder API can now parse, verify, load, and run `.obc` bytes from memory.
@@ -73,10 +74,10 @@ Facts from the 2026-05-28 implementation pass:
   `scripts/verify_avm_stdlib_obc_surface.sh`: it compiles a representative app
   fixture with `--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc`
   and runs the result in AVM. The smoke imports `std:buffer`, `std:bytes`,
-  `std:cbor`, `std:encoding/base64`, `std:crypto/sha1`,
-  `std:crypto/sha256`, `std:json`, `std:linalg`, `std:math`,
-  `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and `std:yaml`,
-  proving common app-facing exports including
+  `std:cbor`, `std:encoding/base64`, `std:crypto/pem`,
+  `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:json`,
+  `std:linalg`, `std:math`, `std:regex`, `std:strings`, `std:time`,
+  `std:ui/avm`, and `std:yaml`, proving common app-facing exports including
   `STD_linalg_dot_f64` are actually linkable from the bundled stdlib OBC.
 - OBC distribution design is documented in
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge

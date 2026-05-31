@@ -7,9 +7,11 @@ import buffer "std:buffer"
 import bytes "std:bytes"
 import cbor "std:cbor"
 import base64 "std:encoding/base64"
+import pem "std:crypto/pem"
 import regex "std:regex"
 import sha1 "std:crypto/sha1"
 import sha256 "std:crypto/sha256"
+import x509 "std:crypto/x509"
 import json "std:json"
 import linalg "std:linalg"
 import math "std:math"
@@ -71,8 +73,14 @@ fn main() {
 
     assert_close(linalg.dot_f64([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]), 32.0, 1e-12, 45)
 
+    var pem_blocks = pem.try_decode_blocks_strict("-----BEGIN CERT-----\nTQ==\n-----END CERT-----\n")
+    if oren_is_err(pem_blocks) { fail(44) }
+    if pem_blocks[0]["type"] != "CERT" { fail(45) }
+    if bytes.try_len(pem_blocks[0]["bytes"]) != 1 || bytes.try_get_u8(pem_blocks[0]["bytes"], 0) != 77 { fail(48) }
+
     if sha1.sha1_hex(bytes.pack([97, 98, 99])) != "a9993e364706816aba3e25717850c26c9cd0d89d" { fail(46) }
     if sha256.sha256_hex(bytes.pack([97, 98, 99])) != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" { fail(47) }
+    if x509.sha256_hex_der(bytes.pack([97, 98, 99])) != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" { fail(49) }
 
     assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 50)
     assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 51)

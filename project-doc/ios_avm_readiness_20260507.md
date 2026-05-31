@@ -35,8 +35,9 @@ allocator/lifecycle hardening.
   the iOS main thread.
 - AVM stdlib bundle after 2026-05-31: the bundle root includes `std:time`,
   `std:ui/avm`, `std:linalg`, codec modules (`std:cbor`, `std:yaml`,
-  `std:regex`, `std:encoding/base64`), hash modules (`std:crypto/sha1`,
-  `std:crypto/sha256`), and the existing compiler/app-critical portable subset.
+  `std:regex`, `std:encoding/base64`), crypto helper modules (`std:crypto/pem`,
+  `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`), and the existing
+  compiler/app-critical portable subset.
   The iOS verifier now runs `scripts/verify_avm_stdlib_obc_surface.sh`, which
   rebuilds `stdlib_bundle.obc`, compiles a representative app fixture against it,
   and runs that app in AVM. The fixture catches missing bundled exports such as
@@ -80,8 +81,8 @@ allocator/lifecycle hardening.
 - Stdlib-OBC app surface after 2026-05-31: `make verify-libavm-ios` also calls
   `scripts/verify_avm_stdlib_obc_surface.sh`, which compiles
   `tests/fixtures/avm_stdlib_obc_surface_smoke.oren` with `--stdlib-mode obc` and
-  proves buffer/bytes/CBOR/YAML/regex/base64/SHA-1/SHA-256/json/linalg/math/
-  strings/time/UI AVM APIs link and run from the bundled stdlib OBC.
+  proves buffer/bytes/CBOR/YAML/regex/base64/PEM/X509/SHA-1/SHA-256/json/linalg/
+  math/strings/time/UI AVM APIs link and run from the bundled stdlib OBC.
 - AVM fixes retained for the chain: child-owned OBC string/bytes constants for
   nested universes with an explicit VM-owned constant-root flag, float constants in
   the nested OBC parser, explicit global-index failures plus a `MAX_GLOBALS=1024`
