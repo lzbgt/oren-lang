@@ -90,10 +90,11 @@ Facts from the 2026-05-28 implementation pass:
 - First SDK implementation slice: `scripts/build_libavm_ios.sh` now also builds
   `OrenAVMKit.xcframework`. The Objective-C API provides deterministic defaults,
   interactive app defaults for wall-clock `time.sleep_ms`, VirtualFS file helpers,
-  VirtualNET fixtures, VirtualPROC fixtures/defaults, OBC run, stdout capture, and
-  a module map for app imports. `make verify-libavm-ios` compiles iOS
-  device/simulator SDK smokes and runs a host SDK smoke that proves interactive
-  sleep has real elapsed-time effect.
+  explicit app file/directory mount and export helpers, VirtualNET fixtures,
+  VirtualPROC fixtures/defaults, OBC run, stdout capture, and a module map for app
+  imports. `make verify-libavm-ios` compiles iOS device/simulator SDK smokes and
+  runs a host SDK smoke that proves interactive sleep has real elapsed-time effect
+  and that host files can flow into/out of OBC through VirtualFS.
 - The SDK now includes an allowlisted `URLSession` prefetch helper that maps real
   host network responses into VirtualNET. `make verify-libavm-ios` starts a local
   HTTP server, fetches it through the SDK, injects the body under the requested URL,

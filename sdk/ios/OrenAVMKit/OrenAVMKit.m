@@ -58,6 +58,20 @@ static NSData* OrenAVMKitMakeGFXEvent(uint8_t opcode, const uint8_t* payload, ui
     return data;
 }
 
+static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
+    NSString* cleanRoot = root ?: @"";
+    while ([cleanRoot hasSuffix:@"/"] && cleanRoot.length > 1) {
+        cleanRoot = [cleanRoot substringToIndex:cleanRoot.length - 1];
+    }
+    NSString* cleanRel = relative ?: @"";
+    while ([cleanRel hasPrefix:@"/"]) {
+        cleanRel = [cleanRel substringFromIndex:1];
+    }
+    if (cleanRoot.length == 0) return cleanRel;
+    if (cleanRel.length == 0) return cleanRoot;
+    return [cleanRoot stringByAppendingFormat:@"/%@", cleanRel];
+}
+
 #if TARGET_OS_IPHONE
 static uint16_t OrenAVMGfxReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -411,6 +425,105 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     NSData* out = [NSData dataWithBytes:bytes length:len];
     avm_embed_free_bytes(bytes);
     return out;
+}
+
+- (BOOL)mountFileURL:(NSURL*)fileURL atVFSPath:(NSString*)vfsPath error:(NSError**)error {
+    if (!fileURL.isFileURL || vfsPath.length == 0) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"mountFileURL requires a file URL and non-empty VFS path");
+    }
+    NSNumber* isRegular = nil;
+    NSError* localError = nil;
+    if (![fileURL getResourceValue:&isRegular forKey:NSURLIsRegularFileKey error:&localError]) {
+        if (error) *error = localError;
+        return NO;
+    }
+    if (!isRegular.boolValue) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"mountFileURL requires a regular file");
+    }
+    NSData* data = [NSData dataWithContentsOfURL:fileURL options:0 error:&localError];
+    if (!data) {
+        if (error) *error = localError;
+        return NO;
+    }
+    return [self putVFSFileAtPath:vfsPath data:data error:error];
+}
+
+- (BOOL)mountDirectoryURL:(NSURL*)directoryURL atVFSRoot:(NSString*)vfsRoot error:(NSError**)error {
+    if (!directoryURL.isFileURL || vfsRoot.length == 0) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"mountDirectoryURL requires a file URL and non-empty VFS root");
+    }
+    NSNumber* isDirectory = nil;
+    NSError* localError = nil;
+    if (![directoryURL getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&localError]) {
+        if (error) *error = localError;
+        return NO;
+    }
+    if (!isDirectory.boolValue) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"mountDirectoryURL requires a directory");
+    }
+
+    NSString* basePath = directoryURL.path.stringByStandardizingPath;
+    NSDirectoryEnumerator<NSURL*>* enumerator =
+        [[NSFileManager defaultManager] enumeratorAtURL:directoryURL
+                             includingPropertiesForKeys:@[NSURLIsRegularFileKey]
+                                                options:0
+                                           errorHandler:^BOOL(NSURL* url, NSError* enumError) {
+        (void)url;
+        if (error) *error = enumError;
+        return NO;
+    }];
+    for (NSURL* childURL in enumerator) {
+        NSNumber* isRegular = nil;
+        if (![childURL getResourceValue:&isRegular forKey:NSURLIsRegularFileKey error:&localError]) {
+            if (error) *error = localError;
+            return NO;
+        }
+        if (!isRegular.boolValue) continue;
+        NSString* childPath = childURL.path.stringByStandardizingPath;
+        if (![childPath isEqualToString:basePath] &&
+            ![childPath hasPrefix:[basePath stringByAppendingString:@"/"]]) {
+            return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
+                                            @"mountDirectoryURL encountered path outside base directory");
+        }
+        NSString* relative = [childPath substringFromIndex:basePath.length];
+        NSString* vfsPath = OrenAVMKitJoinVFSPath(vfsRoot, relative);
+        if (![self mountFileURL:childURL atVFSPath:vfsPath error:error]) return NO;
+    }
+    return YES;
+}
+
+- (BOOL)exportVFSFileAtPath:(NSString*)vfsPath
+                  toFileURL:(NSURL*)fileURL
+createIntermediateDirectories:(BOOL)createIntermediateDirectories
+                      error:(NSError**)error {
+    if (!fileURL.isFileURL || vfsPath.length == 0) {
+        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"exportVFSFile requires a file URL and non-empty VFS path");
+    }
+    NSData* data = [self getVFSFileAtPath:vfsPath error:error];
+    if (!data) return NO;
+    NSError* localError = nil;
+    if (createIntermediateDirectories) {
+        NSURL* parent = [fileURL URLByDeletingLastPathComponent];
+        if (parent) {
+            if (![[NSFileManager defaultManager] createDirectoryAtURL:parent
+                                          withIntermediateDirectories:YES
+                                                           attributes:nil
+                                                                error:&localError]) {
+                if (error) *error = localError;
+                return NO;
+            }
+        }
+    }
+    if (![data writeToURL:fileURL options:NSDataWritingAtomic error:&localError]) {
+        if (error) *error = localError;
+        return NO;
+    }
+    return YES;
 }
 
 - (BOOL)putVirtualNetResponseForURL:(NSString*)url data:(NSData*)data error:(NSError**)error {

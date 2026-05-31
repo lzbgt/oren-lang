@@ -67,8 +67,12 @@ fn main() {
     var s = oren_read_file("input.txt")
     if oren_is_err(s) { oren_exit(11) }
     if s != "abc" { oren_exit(12) }
+    var mounted = oren_read_file("assets/config.txt")
+    if oren_is_err(mounted) { oren_exit(54) }
+    if mounted != "mount-ok" { oren_exit(55) }
     var w = oren_write_file("out.txt", args[1] + ":" + s)
     if oren_is_err(w) { oren_exit(13) }
+    if oren_is_err(oren_write_file("export.txt", "export:" + mounted)) { oren_exit(56) }
     var body = net_avm.try_get_text(args[2])
     if oren_is_err(body) { oren_exit(14) }
     if body != "net-ok" { oren_exit(14) }
@@ -209,6 +213,8 @@ int main(void) {
     if (avm_embed_set_argv(handle, 4, argv, &result) != AVM_EMBED_OK) return 3;
     static const uint8_t input[] = {'a', 'b', 'c'};
     if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 4;
+    static const uint8_t mounted_input[] = {'m', 'o', 'u', 'n', 't', '-', 'o', 'k'};
+    if (avm_embed_vfs_put(handle, "assets/config.txt", mounted_input, sizeof(mounted_input), &result) != AVM_EMBED_OK) return 60;
     static const uint8_t body[] = {'n', 'e', 't', '-', 'o', 'k'};
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 5;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
@@ -227,6 +233,11 @@ int main(void) {
     size_t out_len = 0;
     if (avm_embed_vfs_get(handle, "out.txt", &out, &out_len, &result) != AVM_EMBED_OK) return 10;
     if (out_len != 7 || memcmp(out, "ios:abc", 7) != 0) return 11;
+    avm_embed_free_bytes(out);
+    out = 0;
+    out_len = 0;
+    if (avm_embed_vfs_get(handle, "export.txt", &out, &out_len, &result) != AVM_EMBED_OK) return 61;
+    if (out_len != 15 || memcmp(out, "export:mount-ok", 15) != 0) return 62;
     avm_embed_free_bytes(out);
     uint8_t* snap = 0;
     size_t snap_len = 0;
@@ -262,6 +273,7 @@ int main(void) {
     if (!handle || result.status != AVM_EMBED_OK) return 19;
     if (avm_embed_set_argv(handle, 4, argv, &result) != AVM_EMBED_OK) return 20;
     if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 21;
+    if (avm_embed_vfs_put(handle, "assets/config.txt", mounted_input, sizeof(mounted_input), &result) != AVM_EMBED_OK) return 60;
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 22;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 23;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 24;
@@ -327,6 +339,21 @@ int main(void) {
         if (![runtime setArgv:@[@"oren", @"ios", netURL, @"probe"] error:&error]) return 36;
         NSData* input = [@"abc" dataUsingEncoding:NSUTF8StringEncoding];
         if (![runtime putVFSFileAtPath:@"input.txt" data:input error:&error]) return 37;
+        NSURL* tempRoot = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"oren-avmkit-fs-%@", [[NSUUID UUID] UUIDString]]]
+                                     isDirectory:YES];
+        NSURL* assetDir = [tempRoot URLByAppendingPathComponent:@"assets" isDirectory:YES];
+        NSURL* nestedDir = [assetDir URLByAppendingPathComponent:@"nested" isDirectory:YES];
+        if (![[NSFileManager defaultManager] createDirectoryAtURL:nestedDir
+                                      withIntermediateDirectories:YES
+                                                       attributes:nil
+                                                            error:&error]) return 60;
+        NSURL* configURL = [assetDir URLByAppendingPathComponent:@"config.txt" isDirectory:NO];
+        NSURL* nestedURL = [nestedDir URLByAppendingPathComponent:@"skip.txt" isDirectory:NO];
+        if (![[@"mount-ok" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:configURL options:NSDataWritingAtomic error:&error]) return 61;
+        if (![[@"nested-ok" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:nestedURL options:NSDataWritingAtomic error:&error]) return 62;
+        if (![runtime mountDirectoryURL:assetDir atVFSRoot:@"assets" error:&error]) return 63;
+        if (![runtime mountFileURL:configURL atVFSPath:@"assets/config.txt" error:&error]) return 64;
         NSData* body = [@"net-ok" dataUsingEncoding:NSUTF8StringEncoding];
         if (prefetchNetwork) {
             NSURL* url = [NSURL URLWithString:netURL];
@@ -353,6 +380,15 @@ int main(void) {
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
         NSData* out = [runtime getVFSFileAtPath:@"out.txt" error:&error];
         if (![out isEqualToData:[@"ios:abc" dataUsingEncoding:NSUTF8StringEncoding]]) return 44;
+        NSData* nested = [runtime getVFSFileAtPath:@"assets/nested/skip.txt" error:&error];
+        if (![nested isEqualToData:[@"nested-ok" dataUsingEncoding:NSUTF8StringEncoding]]) return 65;
+        NSURL* exportURL = [tempRoot URLByAppendingPathComponent:@"out/export.txt" isDirectory:NO];
+        if (![runtime exportVFSFileAtPath:@"export.txt"
+                                toFileURL:exportURL
+             createIntermediateDirectories:YES
+                                    error:&error]) return 66;
+        NSData* exported = [NSData dataWithContentsOfURL:exportURL options:0 error:&error];
+        if (![exported isEqualToData:[@"export:mount-ok" dataUsingEncoding:NSUTF8StringEncoding]]) return 67;
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;

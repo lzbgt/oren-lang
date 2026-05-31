@@ -71,6 +71,12 @@
 </ul>
 <p>  VirtualPROC fixture/default puts, OBC byte execution, and stdout capture.</p>
 <ul>
+<li><code>OrenAVMRuntime</code> also exposes app file/directory mount helpers and VFS export</li>
+</ul>
+<p>  back to a host file URL. The verifier mounts a host asset directory into</p>
+<p>  VirtualFS, OBC reads it, writes an output file, and the SDK exports that VFS</p>
+<p>  output back to the host filesystem.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> compiles iOS device/simulator SDK smokes and runs a</li>
 </ul>
 <p>  host SDK smoke proving interactive <code>time.sleep_ms(25)</code> has real elapsed-time</p>
@@ -123,9 +129,9 @@
 <p>  Host code enqueues them; Oren/OBC pulls them with</p>
 <p>  <code>std:ui/avm.pull_event_bytes()</code> or decodes them with</p>
 <p>  <code>std:ui/avm.next_event()</code>.</p>
-<p>Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,</p>
-<p>compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,</p>
-<p>richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be</p>
+<p>Not implemented yet: live/asynchronous network sessions, compiler helper</p>
+<p>Swift/Objective-C package, OBC store helper, Metal/3D rendering, richer 2D</p>
+<p>drawing ops, and IME/composition input helpers. GUI follow-up must be</p>
 <p>game-grade, not widget-only: the next protocol work is display-link pacing,</p>
 <p>retained resource handles, strict budgets, low-latency input ordering, and</p>
 <p>Metal/<code>MTKView</code> gates as defined in</p>
@@ -153,14 +159,18 @@
 <h3 id="orenavmfileprovider">OrenAVMFileProvider</h3>
 <p>Default FS adapter.</p>
 <ul>
-<li>Default mode: VirtualFS only.</li>
-<li>Optional app-sandbox mode: explicit read-only/read-write mounts into app</li>
+<li>Default mode: VirtualFS with explicit host file/directory mount and export</li>
 </ul>
-<p>  Documents, temporary directories, or bundled resources.</p>
+<p>  helpers.</p>
 <ul>
-<li>No arbitrary absolute host paths.</li>
-<li>Every mount is declared before launch and visible to package policy.</li>
+<li>App-sandbox mode: host code passes concrete <code>file://</code> URLs from the app</li>
 </ul>
+<p>  container or bundle, and the SDK copies bytes into VirtualFS. OBC never sees</p>
+<p>  arbitrary host paths.</p>
+<ul>
+<li>Asset/package mounts should be treated as read-only by policy; writable</li>
+</ul>
+<p>  scratch/output paths are exported explicitly after the run.</p>
 <h3 id="orenavmnetworkprovider">OrenAVMNetworkProvider</h3>
 <p>Default NET adapter.</p>
 <ul>
@@ -218,7 +228,7 @@
 <h2 id="default-policy">Default Policy</h2>
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>
-<tr><td>FS</td><td>VirtualFS</td><td>Explicit app-sandbox mounts</td></tr>
+<tr><td>FS</td><td>VirtualFS plus explicit app file/directory mount and export helpers</td><td>Richer mount policy/manifest wiring</td></tr>
 <tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch into VirtualNET with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
@@ -229,11 +239,12 @@
 <p>Default iOS providers are intended to do real app work, not only test fixtures.</p>
 <p>The boundary is that OBC uses portable stdlib APIs and AVM capability domains;</p>
 <p>the SDK owns the platform translation. TIME may use deterministic or wall-clock</p>
-<p>worker-thread mode. NET may prefetch through allowlisted <code>URLSession</code> into</p>
-<p>VirtualNET today, with live/asynchronous HTTP/TCP/UDP requiring an explicit</p>
-<p>reviewed policy before exposure. PROC on iOS should remain VirtualPROC or</p>
-<p>reviewed app-command dispatch, not arbitrary host subprocess. UI/GFX should</p>
-<p>remain mailbox-based so UIKit/Metal objects never enter OBC memory.</p>
+<p>worker-thread mode. FS mounts concrete app-owned file URLs into VirtualFS and</p>
+<p>exports selected VFS outputs back to app-owned file URLs. NET may prefetch through</p>
+<p>allowlisted <code>URLSession</code> into VirtualNET today, with live/asynchronous HTTP/TCP/UDP</p>
+<p>requiring an explicit reviewed policy before exposure. PROC on iOS should remain</p>
+<p>VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.</p>
+<p>UI/GFX should remain mailbox-based so UIKit/Metal objects never enter OBC memory.</p>
 <h2 id="app-integration-shape">App Integration Shape</h2>
 <p>Desired Note-side API:</p>
 <pre><code>let runtime = OrenAVMRuntime(.interactiveAppDefaults)

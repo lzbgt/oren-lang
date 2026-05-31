@@ -72,6 +72,12 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 - (BOOL)setArgv:(NSArray<NSString*>*)argv error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putVFSFileAtPath:(NSString*)path data:(NSData*)data error:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getVFSFileAtPath:(NSString*)path error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)mountFileURL:(NSURL*)fileURL atVFSPath:(NSString*)vfsPath error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)mountDirectoryURL:(NSURL*)directoryURL atVFSRoot:(NSString*)vfsRoot error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)exportVFSFileAtPath:(NSString*)vfsPath
+                  toFileURL:(NSURL*)fileURL
+createIntermediateDirectories:(BOOL)createIntermediateDirectories
+                      error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putVirtualNetResponseForURL:(NSString*)url data:(NSData*)data error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)fetchURLIntoVirtualNet:(NSURL*)url
                   allowedHosts:(nullable NSSet<NSString*>*)allowedHosts

@@ -137,10 +137,11 @@
 </ul>
 <p>  <code>OrenAVMKit.xcframework</code>. The Objective-C API provides deterministic defaults,</p>
 <p>  interactive app defaults for wall-clock <code>time.sleep_ms</code>, VirtualFS file helpers,</p>
-<p>  VirtualNET fixtures, VirtualPROC fixtures/defaults, OBC run, stdout capture, and</p>
-<p>  a module map for app imports. <code>make verify-libavm-ios</code> compiles iOS</p>
-<p>  device/simulator SDK smokes and runs a host SDK smoke that proves interactive</p>
-<p>  sleep has real elapsed-time effect.</p>
+<p>  explicit app file/directory mount and export helpers, VirtualNET fixtures,</p>
+<p>  VirtualPROC fixtures/defaults, OBC run, stdout capture, and a module map for app</p>
+<p>  imports. <code>make verify-libavm-ios</code> compiles iOS device/simulator SDK smokes and</p>
+<p>  runs a host SDK smoke that proves interactive sleep has real elapsed-time effect</p>
+<p>  and that host files can flow into/out of OBC through VirtualFS.</p>
 <ul>
 <li>The SDK now includes an allowlisted <code>URLSession</code> prefetch helper that maps real</li>
 </ul>

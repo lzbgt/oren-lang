@@ -59,7 +59,8 @@ This file is the concise task view. Detailed implementation status lives in
      `std:yaml`, preventing missing app-facing exports such as
      `STD_linalg_dot_f64` from reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
-     interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,
+     interactive configs, virtual FS/NET/PROC helpers, app file/directory mounts
+     into VirtualFS, VFS export back to host files, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
      wall-clock time, and an allowlisted `URLSession` prefetch bridge that injects
      host-fetched bytes into VirtualNET for OBC `std:net/avm.try_get_text(url)`, plus binary
@@ -68,8 +69,8 @@ This file is the concise task view. Detailed implementation status lives in
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
-     Remaining SDK work: app-sandbox FileProvider, live/asynchronous network
-     sessions if required, compiler helper package, package store helper, and the
+     Remaining SDK work: live/asynchronous network sessions if required, compiler
+     helper package, package store helper, and the
      game-grade GUI path: display-link pacing, retained resource handles, budget
      gates, low-latency input ordering, Metal/`MTKView`, richer drawing ops, and
      richer IME/composition input helpers. The `OGF0` frame header now includes

@@ -34,6 +34,10 @@ Retained SDK slices on 2026-05-31:
   switches TIME to wall-clock mode so `std:time.sleep_ms` delays the AVM worker.
 - `OrenAVMRuntime` exposes argv, VirtualFS put/get, VirtualNET fixture put,
   VirtualPROC fixture/default puts, OBC byte execution, and stdout capture.
+- `OrenAVMRuntime` also exposes app file/directory mount helpers and VFS export
+  back to a host file URL. The verifier mounts a host asset directory into
+  VirtualFS, OBC reads it, writes an output file, and the SDK exports that VFS
+  output back to the host filesystem.
 - `make verify-libavm-ios` compiles iOS device/simulator SDK smokes and runs a
   host SDK smoke proving interactive `time.sleep_ms(25)` has real elapsed-time
   effect.
@@ -72,9 +76,9 @@ Retained SDK slices on 2026-05-31:
   `std:ui/avm.pull_event_bytes()` or decodes them with
   `std:ui/avm.next_event()`.
 
-Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
-compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,
-richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be
+Not implemented yet: live/asynchronous network sessions, compiler helper
+Swift/Objective-C package, OBC store helper, Metal/3D rendering, richer 2D
+drawing ops, and IME/composition input helpers. GUI follow-up must be
 game-grade, not widget-only: the next protocol work is display-link pacing,
 retained resource handles, strict budgets, low-latency input ordering, and
 Metal/`MTKView` gates as defined in
@@ -107,11 +111,13 @@ Compiler-in-AVM helper package.
 
 Default FS adapter.
 
-- Default mode: VirtualFS only.
-- Optional app-sandbox mode: explicit read-only/read-write mounts into app
-  Documents, temporary directories, or bundled resources.
-- No arbitrary absolute host paths.
-- Every mount is declared before launch and visible to package policy.
+- Default mode: VirtualFS with explicit host file/directory mount and export
+  helpers.
+- App-sandbox mode: host code passes concrete `file://` URLs from the app
+  container or bundle, and the SDK copies bytes into VirtualFS. OBC never sees
+  arbitrary host paths.
+- Asset/package mounts should be treated as read-only by policy; writable
+  scratch/output paths are exported explicitly after the run.
 
 ### OrenAVMNetworkProvider
 
@@ -174,7 +180,7 @@ Public OBC store helper.
 
 | Surface | Default iOS implementation | Escalation |
 | --- | --- | --- |
-| FS | VirtualFS | Explicit app-sandbox mounts |
+| FS | VirtualFS plus explicit app file/directory mount and export helpers | Richer mount policy/manifest wiring |
 | NET | VirtualNET/no host network | SDK `URLSession` prefetch into VirtualNET with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
@@ -185,11 +191,12 @@ Public OBC store helper.
 Default iOS providers are intended to do real app work, not only test fixtures.
 The boundary is that OBC uses portable stdlib APIs and AVM capability domains;
 the SDK owns the platform translation. TIME may use deterministic or wall-clock
-worker-thread mode. NET may prefetch through allowlisted `URLSession` into
-VirtualNET today, with live/asynchronous HTTP/TCP/UDP requiring an explicit
-reviewed policy before exposure. PROC on iOS should remain VirtualPROC or
-reviewed app-command dispatch, not arbitrary host subprocess. UI/GFX should
-remain mailbox-based so UIKit/Metal objects never enter OBC memory.
+worker-thread mode. FS mounts concrete app-owned file URLs into VirtualFS and
+exports selected VFS outputs back to app-owned file URLs. NET may prefetch through
+allowlisted `URLSession` into VirtualNET today, with live/asynchronous HTTP/TCP/UDP
+requiring an explicit reviewed policy before exposure. PROC on iOS should remain
+VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.
+UI/GFX should remain mailbox-based so UIKit/Metal objects never enter OBC memory.
 
 ## App Integration Shape
 

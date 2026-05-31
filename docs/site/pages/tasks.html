@@ -112,7 +112,8 @@
 <ul>
 <li>SDK slices retained: <code>OrenAVMKit.xcframework</code> now provides deterministic and</li>
 </ul>
-<p>     interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,</p>
+<p>     interactive configs, virtual FS/NET/PROC helpers, app file/directory mounts</p>
+<p>     into VirtualFS, VFS export back to host files, OBC run, stdout capture,</p>
 <p>     verifier proof that interactive <code>std:time.sleep_ms</code> blocks the AVM worker on</p>
 <p>     wall-clock time, and an allowlisted <code>URLSession</code> prefetch bridge that injects</p>
 <p>     host-fetched bytes into VirtualNET for OBC <code>std:net/avm.try_get_text(url)</code>, plus binary</p>
@@ -121,8 +122,8 @@
 <p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>
 <p>     <code>OrenAVMGraphicsView</code> renderer for the current <code>fill_rect</code>/<code>text</code>/</p>
 <p>     <code>stroke_line</code>/<code>circle</code> subset.</p>
-<p>     Remaining SDK work: app-sandbox FileProvider, live/asynchronous network</p>
-<p>     sessions if required, compiler helper package, package store helper, and the</p>
+<p>     Remaining SDK work: live/asynchronous network sessions if required, compiler</p>
+<p>     helper package, package store helper, and the</p>
 <p>     game-grade GUI path: display-link pacing, retained resource handles, budget</p>
 <p>     gates, low-latency input ordering, Metal/<code>MTKView</code>, richer drawing ops, and</p>
 <p>     richer IME/composition input helpers. The <code>OGF0</code> frame header now includes</p>
