@@ -110,7 +110,10 @@ This file is the concise task view. Detailed implementation status lives in
      iOS app has useful downloadable examples once GUI/network gates are ready.
      The intended public store site is `store.hubstack.cn`, with PyPI-like
      release/discovery/download pages backed by the same signed index/package
-     schema.
+     schema. The first Go service slice now exists as `cmd/obc-store-server` /
+     `internal/obcstore`, with publisher/package/release publish, list/search,
+     index, download, and yank APIs; deployment, signed-index generation, and
+     SDK endpoint smoke remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:

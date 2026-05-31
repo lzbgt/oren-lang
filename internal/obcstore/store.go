@@ -1,0 +1,789 @@
+package obcstore
+
+import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	indexSchema    = "oren.obc.store.index.v0"
+	manifestSchema = "oren.obc.package.v0"
+)
+
+type Config struct {
+	DataDir       string
+	AdminUser     string
+	AdminPassword string
+	Now           func() time.Time
+}
+
+type Service struct {
+	dataDir       string
+	adminUser     string
+	adminPassword string
+	now           func() time.Time
+	mu            sync.Mutex
+}
+
+type Publisher struct {
+	ID          string   `json:"id"`
+	DisplayName string   `json:"display_name,omitempty"`
+	PublicKeys  []string `json:"public_keys,omitempty"`
+	Status      string   `json:"status,omitempty"`
+}
+
+type PackageMeta struct {
+	Publisher string   `json:"publisher"`
+	Name      string   `json:"name"`
+	Title     string   `json:"title,omitempty"`
+	Summary   string   `json:"summary,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Status    string   `json:"status,omitempty"`
+}
+
+type AssetUpload struct {
+	Path          string `json:"path"`
+	MediaType     string `json:"media_type,omitempty"`
+	ContentBase64 string `json:"content_base64"`
+}
+
+type ReleaseUpload struct {
+	Version                   string                 `json:"version"`
+	Manifest                  map[string]any         `json:"manifest,omitempty"`
+	ProgramOBCBase64          string                 `json:"program_obc_base64"`
+	Assets                    []AssetUpload          `json:"assets,omitempty"`
+	Tags                      []string               `json:"tags,omitempty"`
+	MinApp                    string                 `json:"min_app,omitempty"`
+	SignatureAlg              string                 `json:"signature_alg,omitempty"`
+	SignatureP256SHA256DERHex string                 `json:"signature_p256_sha256_der_hex,omitempty"`
+	Metadata                  map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type ArtifactUpload struct {
+	Path          string `json:"path"`
+	MediaType     string `json:"media_type,omitempty"`
+	ContentBase64 string `json:"content_base64"`
+}
+
+type ReleaseMeta struct {
+	Publisher                 string    `json:"publisher"`
+	Name                      string    `json:"name"`
+	Version                   string    `json:"version"`
+	Status                    string    `json:"status"`
+	ManifestPath              string    `json:"manifest"`
+	ManifestSHA256            string    `json:"manifest_sha256"`
+	OBCSHA256                 string    `json:"obc_sha256"`
+	SignatureAlg              string    `json:"signature_alg,omitempty"`
+	SignatureP256SHA256DERHex string    `json:"signature_p256_sha256_der_hex,omitempty"`
+	Tags                      []string  `json:"tags,omitempty"`
+	MinApp                    string    `json:"min_app,omitempty"`
+	CreatedAt                 time.Time `json:"created_at"`
+	UpdatedAt                 time.Time `json:"updated_at"`
+}
+
+func New(cfg Config) (*Service, error) {
+	if cfg.DataDir == "" {
+		return nil, errors.New("data dir is required")
+	}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
+		return nil, err
+	}
+	return &Service{
+		dataDir:       cfg.DataDir,
+		adminUser:     cfg.AdminUser,
+		adminPassword: cfg.AdminPassword,
+		now:           now,
+	}, nil
+}
+
+func (s *Service) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v0/health", s.handleHealth)
+	mux.HandleFunc("/api/v0/me", s.handleMe)
+	mux.HandleFunc("/api/v0/publishers", s.handlePublishers)
+	mux.HandleFunc("/api/v0/index.json", s.handleIndex)
+	mux.HandleFunc("/api/v0/index.json.sig", s.handleIndexSignature)
+	mux.HandleFunc("/api/v0/trust/bundle.json", s.handleTrustBundle)
+	mux.HandleFunc("/api/v0/packages", s.handlePackagesRoot)
+	mux.HandleFunc("/api/v0/packages/", s.handlePackagePath)
+	mux.HandleFunc("/api/v0/artifacts/sha256/", s.handleArtifactByHash)
+	return mux
+}
+
+func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "schema": indexSchema})
+}
+
+func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": s.adminUser, "role": "admin"})
+}
+
+func (s *Service) handlePublishers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	var p Publisher
+	if !decodeJSON(w, r, &p) {
+		return
+	}
+	if !safeID(p.ID) {
+		http.Error(w, "invalid publisher id", http.StatusBadRequest)
+		return
+	}
+	if p.Status == "" {
+		p.Status = "active"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := writeJSONFile(s.publisherPath(p.ID), p); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+func (s *Service) handlePackagesRoot(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.listPackages(w, r)
+	case http.MethodPost:
+		if !s.requireAdmin(w, r) {
+			return
+		}
+		s.createPackage(w, r)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/v0/packages/")
+	parts := strings.Split(rest, "/")
+	if len(parts) < 2 || !safeID(parts[0]) || !safeID(parts[1]) {
+		http.NotFound(w, r)
+		return
+	}
+	pub, name := parts[0], parts[1]
+	if len(parts) == 2 {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.getPackage(w, pub, name)
+		return
+	}
+	if parts[2] != "versions" {
+		http.NotFound(w, r)
+		return
+	}
+	if len(parts) == 3 {
+		if r.Method == http.MethodGet {
+			s.listVersions(w, pub, name)
+			return
+		}
+		if r.Method == http.MethodPost && s.requireAdmin(w, r) {
+			s.createVersion(w, r, pub, name)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	version := parts[3]
+	if !safeVersion(version) {
+		http.NotFound(w, r)
+		return
+	}
+	if len(parts) == 4 && r.Method == http.MethodGet {
+		s.getRelease(w, pub, name, version)
+		return
+	}
+	if len(parts) == 5 && r.Method == http.MethodPost && s.requireAdmin(w, r) {
+		switch parts[4] {
+		case "publish":
+			s.setReleaseStatus(w, pub, name, version, "published")
+		case "yank":
+			s.setReleaseStatus(w, pub, name, version, "yanked")
+		case "artifacts":
+			s.uploadArtifact(w, r, pub, name, version)
+		default:
+			http.NotFound(w, r)
+		}
+		return
+	}
+	if len(parts) >= 5 && r.Method == http.MethodGet {
+		s.downloadReleaseFile(w, r, pub, name, version, parts[4:])
+		return
+	}
+	http.NotFound(w, r)
+}
+
+func (s *Service) createPackage(w http.ResponseWriter, r *http.Request) {
+	var p PackageMeta
+	if !decodeJSON(w, r, &p) {
+		return
+	}
+	if !safeID(p.Publisher) || !safeID(p.Name) {
+		http.Error(w, "invalid package identity", http.StatusBadRequest)
+		return
+	}
+	if p.Status == "" {
+		p.Status = "active"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := os.Stat(s.publisherPath(p.Publisher)); err != nil {
+		http.Error(w, "publisher not found", http.StatusNotFound)
+		return
+	}
+	if err := writeJSONFile(s.packageMetaPath(p.Publisher, p.Name), p); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, name string) {
+	var upload ReleaseUpload
+	if !decodeJSON(w, r, &upload) {
+		return
+	}
+	if !safeVersion(upload.Version) || upload.ProgramOBCBase64 == "" {
+		http.Error(w, "invalid release upload", http.StatusBadRequest)
+		return
+	}
+	program, err := base64.StdEncoding.DecodeString(upload.ProgramOBCBase64)
+	if err != nil {
+		http.Error(w, "invalid program_obc_base64", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := os.Stat(s.packageMetaPath(pub, name)); err != nil {
+		http.Error(w, "package not found", http.StatusNotFound)
+		return
+	}
+	dir := s.releaseDir(pub, name, upload.Version)
+	if _, err := os.Stat(filepath.Join(dir, "release.json")); err == nil {
+		http.Error(w, "release already exists", http.StatusConflict)
+		return
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(dir, "program.obc"), program, 0o644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	assetEntries, ok := s.writeAssets(w, dir, upload.Assets)
+	if !ok {
+		return
+	}
+	obcHash := sha256Hex(program)
+	manifest := upload.Manifest
+	if manifest == nil {
+		manifest = map[string]any{}
+	}
+	manifest["schema"] = manifestSchema
+	manifest["publisher"] = pub
+	manifest["name"] = name
+	manifest["version"] = upload.Version
+	manifest["entry_obc"] = "program.obc"
+	manifest["obc_sha256"] = obcHash
+	if len(assetEntries) > 0 {
+		manifest["assets"] = assetEntries
+	}
+	manifestBytes, err := marshalJSON(manifest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), manifestBytes, 0o644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	now := s.now().UTC()
+	rel := ReleaseMeta{
+		Publisher:                 pub,
+		Name:                      name,
+		Version:                   upload.Version,
+		Status:                    "draft",
+		ManifestPath:              fmt.Sprintf("packages/%s/%s/versions/%s/package.json", pub, name, upload.Version),
+		ManifestSHA256:            sha256Hex(manifestBytes),
+		OBCSHA256:                 obcHash,
+		SignatureAlg:              upload.SignatureAlg,
+		SignatureP256SHA256DERHex: strings.ToLower(upload.SignatureP256SHA256DERHex),
+		Tags:                      upload.Tags,
+		MinApp:                    upload.MinApp,
+		CreatedAt:                 now,
+		UpdatedAt:                 now,
+	}
+	if err := writeJSONFile(filepath.Join(dir, "release.json"), rel); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, rel)
+}
+
+func (s *Service) uploadArtifact(w http.ResponseWriter, r *http.Request, pub, name, version string) {
+	var upload ArtifactUpload
+	if !decodeJSON(w, r, &upload) {
+		return
+	}
+	if !safeRelPath(upload.Path) || upload.ContentBase64 == "" {
+		http.Error(w, "invalid artifact upload", http.StatusBadRequest)
+		return
+	}
+	body, err := base64.StdEncoding.DecodeString(upload.ContentBase64)
+	if err != nil {
+		http.Error(w, "invalid content_base64", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dir := s.releaseDir(pub, name, version)
+	rel, err := readJSONFile[ReleaseMeta](filepath.Join(dir, "release.json"))
+	if err != nil {
+		http.Error(w, "release not found", http.StatusNotFound)
+		return
+	}
+	target := filepath.Join(dir, filepath.FromSlash(upload.Path))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.WriteFile(target, body, 0o644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rel.UpdatedAt = s.now().UTC()
+	if err := writeJSONFile(filepath.Join(dir, "release.json"), rel); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"path": upload.Path, "sha256": sha256Hex(body), "size": len(body)})
+}
+
+func (s *Service) writeAssets(w http.ResponseWriter, dir string, assets []AssetUpload) ([]map[string]any, bool) {
+	out := make([]map[string]any, 0, len(assets))
+	for _, asset := range assets {
+		if !safeRelPath(asset.Path) || asset.ContentBase64 == "" {
+			http.Error(w, "invalid asset upload", http.StatusBadRequest)
+			return nil, false
+		}
+		body, err := base64.StdEncoding.DecodeString(asset.ContentBase64)
+		if err != nil {
+			http.Error(w, "invalid asset content_base64", http.StatusBadRequest)
+			return nil, false
+		}
+		target := filepath.Join(dir, filepath.FromSlash(asset.Path))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return nil, false
+		}
+		if err := os.WriteFile(target, body, 0o644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return nil, false
+		}
+		out = append(out, map[string]any{
+			"path":       filepath.ToSlash(asset.Path),
+			"sha256":     sha256Hex(body),
+			"size":       len(body),
+			"media_type": asset.MediaType,
+		})
+	}
+	return out, true
+}
+
+func (s *Service) setReleaseStatus(w http.ResponseWriter, pub, name, version, status string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := filepath.Join(s.releaseDir(pub, name, version), "release.json")
+	rel, err := readJSONFile[ReleaseMeta](path)
+	if err != nil {
+		http.Error(w, "release not found", http.StatusNotFound)
+		return
+	}
+	rel.Status = status
+	rel.UpdatedAt = s.now().UTC()
+	if err := writeJSONFile(path, rel); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, rel)
+}
+
+func (s *Service) listPackages(w http.ResponseWriter, r *http.Request) {
+	q := strings.ToLower(r.URL.Query().Get("query"))
+	tag := strings.ToLower(r.URL.Query().Get("tag"))
+	capability := strings.ToLower(r.URL.Query().Get("capability"))
+	limit := parseLimit(r.URL.Query().Get("limit"), 50)
+	releases, err := s.publishedReleases()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	items := make([]map[string]any, 0)
+	for _, rel := range releases {
+		meta, _ := readJSONFile[PackageMeta](s.packageMetaPath(rel.Publisher, rel.Name))
+		if q != "" && !strings.Contains(strings.ToLower(rel.Publisher+"/"+rel.Name+" "+meta.Title+" "+meta.Summary), q) {
+			continue
+		}
+		if tag != "" && !containsLower(rel.Tags, tag) && !containsLower(meta.Tags, tag) {
+			continue
+		}
+		if capability != "" && !manifestHasCapability(s.releaseDir(rel.Publisher, rel.Name, rel.Version), capability) {
+			continue
+		}
+		items = append(items, map[string]any{
+			"id":        rel.Publisher + "/" + rel.Name,
+			"publisher": rel.Publisher,
+			"name":      rel.Name,
+			"version":   rel.Version,
+			"title":     meta.Title,
+			"summary":   meta.Summary,
+			"tags":      append(meta.Tags, rel.Tags...),
+		})
+		if len(items) >= limit {
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"packages": items})
+}
+
+func (s *Service) getPackage(w http.ResponseWriter, pub, name string) {
+	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
+	if err != nil {
+		http.NotFound(w, nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, meta)
+}
+
+func (s *Service) listVersions(w http.ResponseWriter, pub, name string) {
+	dir := filepath.Join(s.packageDir(pub, name))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		http.NotFound(w, nil)
+		return
+	}
+	var releases []ReleaseMeta
+	for _, ent := range entries {
+		if !ent.IsDir() {
+			continue
+		}
+		rel, err := readJSONFile[ReleaseMeta](filepath.Join(dir, ent.Name(), "release.json"))
+		if err == nil {
+			releases = append(releases, rel)
+		}
+	}
+	sort.Slice(releases, func(i, j int) bool { return releases[i].Version < releases[j].Version })
+	writeJSON(w, http.StatusOK, map[string]any{"versions": releases})
+}
+
+func (s *Service) getRelease(w http.ResponseWriter, pub, name, version string) {
+	rel, err := readJSONFile[ReleaseMeta](filepath.Join(s.releaseDir(pub, name, version), "release.json"))
+	if err != nil {
+		http.NotFound(w, nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, rel)
+}
+
+func (s *Service) downloadReleaseFile(w http.ResponseWriter, r *http.Request, pub, name, version string, tail []string) {
+	var rel string
+	switch tail[0] {
+	case "package.json":
+		rel = "package.json"
+	case "program.obc":
+		rel = "program.obc"
+	case "assets":
+		if len(tail) < 2 {
+			http.NotFound(w, r)
+			return
+		}
+		assetPath := strings.Join(tail[1:], "/")
+		if !safeRelPath("assets/" + assetPath) {
+			http.NotFound(w, r)
+			return
+		}
+		rel = "assets/" + assetPath
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(s.releaseDir(pub, name, version), filepath.FromSlash(rel)))
+}
+
+func (s *Service) handleIndex(w http.ResponseWriter, _ *http.Request) {
+	releases, err := s.publishedReleases()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	items := make([]map[string]any, 0, len(releases))
+	for _, rel := range releases {
+		item := map[string]any{
+			"id":              rel.Publisher + "/" + rel.Name,
+			"version":         rel.Version,
+			"manifest":        rel.ManifestPath,
+			"manifest_sha256": rel.ManifestSHA256,
+			"tags":            rel.Tags,
+			"min_app":         rel.MinApp,
+		}
+		if rel.SignatureAlg != "" {
+			item["signature_alg"] = rel.SignatureAlg
+			item["signature_p256_sha256_der_hex"] = rel.SignatureP256SHA256DERHex
+		}
+		items = append(items, item)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"schema":       indexSchema,
+		"generated_at": s.now().UTC().Format(time.RFC3339),
+		"packages":     items,
+	})
+}
+
+func (s *Service) handleIndexSignature(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, filepath.Join(s.dataDir, "index.json.sig"))
+}
+
+func (s *Service) handleTrustBundle(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, filepath.Join(s.dataDir, "trust", "obc_store_trust.json"))
+}
+
+func (s *Service) handleArtifactByHash(w http.ResponseWriter, r *http.Request) {
+	want := strings.TrimPrefix(r.URL.Path, "/api/v0/artifacts/sha256/")
+	if len(want) != 64 {
+		http.NotFound(w, r)
+		return
+	}
+	releases, err := s.publishedReleases()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, rel := range releases {
+		dir := s.releaseDir(rel.Publisher, rel.Name, rel.Version)
+		found := ""
+		_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() || found != "" {
+				return nil
+			}
+			body, err := os.ReadFile(path)
+			if err == nil && sha256Hex(body) == want {
+				found = path
+			}
+			return nil
+		})
+		if found != "" {
+			http.ServeFile(w, r, found)
+			return
+		}
+	}
+	http.NotFound(w, r)
+}
+
+func (s *Service) publishedReleases() ([]ReleaseMeta, error) {
+	root := filepath.Join(s.dataDir, "packages")
+	var out []ReleaseMeta
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Base(path) != "release.json" {
+			return nil
+		}
+		rel, err := readJSONFile[ReleaseMeta](path)
+		if err == nil && rel.Status == "published" {
+			out = append(out, rel)
+		}
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a := out[i].Publisher + "/" + out[i].Name + "/" + out[i].Version
+		b := out[j].Publisher + "/" + out[j].Name + "/" + out[j].Version
+		return a < b
+	})
+	return out, err
+}
+
+func (s *Service) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if s.adminUser == "" || s.adminPassword == "" {
+		http.Error(w, "admin auth is not configured", http.StatusServiceUnavailable)
+		return false
+	}
+	u, p, ok := r.BasicAuth()
+	if !ok || u != s.adminUser || p != s.adminPassword {
+		w.Header().Set("WWW-Authenticate", `Basic realm="obc-store"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
+
+func (s *Service) publisherPath(id string) string {
+	return filepath.Join(s.dataDir, "publishers", id+".json")
+}
+
+func (s *Service) packageDir(pub, name string) string {
+	return filepath.Join(s.dataDir, "packages", pub, name)
+}
+
+func (s *Service) packageMetaPath(pub, name string) string {
+	return filepath.Join(s.packageDir(pub, name), "package.json")
+}
+
+func (s *Service) releaseDir(pub, name, version string) string {
+	return filepath.Join(s.packageDir(pub, name), version)
+}
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	defer r.Body.Close()
+	dec := json.NewDecoder(io.LimitReader(r.Body, 32<<20))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeJSONFile(path string, v any) error {
+	body, err := marshalJSON(v)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, body, 0o644)
+}
+
+func readJSONFile[T any](path string) (T, error) {
+	var out T
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	return out, err
+}
+
+func marshalJSON(v any) ([]byte, error) {
+	body, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(body, '\n'), nil
+}
+
+func sha256Hex(body []byte) string {
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:])
+}
+
+func safeID(s string) bool {
+	if s == "" || len(s) > 80 {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func safeVersion(s string) bool {
+	if s == "" || len(s) > 80 {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || strings.ContainsRune(".-_+", r) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func safeRelPath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") {
+		return false
+	}
+	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
+	return clean == p && clean != "." && !strings.HasPrefix(clean, "../") && !strings.Contains(clean, "/../")
+}
+
+func parseLimit(raw string, def int) int {
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return def
+	}
+	if n > 200 {
+		return 200
+	}
+	return n
+}
+
+func containsLower(items []string, want string) bool {
+	for _, item := range items {
+		if strings.ToLower(item) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func manifestHasCapability(dir, want string) bool {
+	body, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return false
+	}
+	var m map[string]any
+	if json.Unmarshal(body, &m) != nil {
+		return false
+	}
+	caps, _ := m["capabilities"].([]any)
+	for _, cap := range caps {
+		if strings.ToLower(fmt.Sprint(cap)) == want {
+			return true
+		}
+	}
+	return false
+}

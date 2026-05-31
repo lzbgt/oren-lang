@@ -69,6 +69,29 @@ Recommended Go service modules:
 - `internal/trust`: public key/trust bundle publication and rotation metadata.
 - `internal/audit`: append-only publish/remove/admin audit log.
 
+## Current Implementation Slice
+
+Implemented in this repo:
+
+- `cmd/obc-store-server`: stdlib-only Go HTTP server entry point.
+- `internal/obcstore`: file-backed registry implementation.
+- Admin write endpoints use HTTP Basic Auth from environment variables:
+  `OBC_STORE_ADMIN_USERNAME` and `OBC_STORE_ADMIN_PASSWORD`.
+- Public endpoints expose health, package list/search, package/version metadata,
+  `index.json`, package manifests, `program.obc`, assets, and hash-addressed
+  artifact lookup.
+- Publisher endpoints can create publishers, packages, draft versions, upload
+  release OBC/assets, publish releases, and yank releases.
+- Verification target: `make verify-obc-store-service`.
+
+Remaining service work before deployment:
+
+- signed index generation/rotation instead of only serving unsigned `index.json`;
+- production auth model for publishers/API tokens;
+- metadata DB or transactional storage backend if filesystem storage is not enough;
+- deployment unit/Traefik config and health smoke on `store.hubstack.cn`;
+- SDK end-to-end install smoke against the service endpoint.
+
 ## Registry Model
 
 Core records:

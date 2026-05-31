@@ -112,6 +112,11 @@ Facts from the 2026-05-28 implementation pass:
   `OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)` now loads that JSON into
   validated SDK key material, and the package store has signed-index overloads
   that accept the bundle directly.
+- The first `store.hubstack.cn` Go service slice is implemented in
+  `cmd/obc-store-server` and `internal/obcstore`. It supports admin-authenticated
+  publisher/package/release publish, public list/search/index/download endpoints,
+  asset serving, and yanking. It is not deployed yet and does not yet generate
+  signed indexes; use `make verify-obc-store-service` for the current service gate.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key
