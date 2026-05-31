@@ -52,9 +52,11 @@ This file is the concise task view. Detailed implementation status lives in
    - Stdlib OBC gate: `make verify-libavm-ios` now also runs
      `scripts/verify_avm_stdlib_obc_surface.sh`, compiling a representative app
      fixture against `build/plugins/stdlib_bundle.obc` and running it in AVM. The
-     smoke imports `std:buffer`, `std:bytes`, `std:json`, `std:linalg`,
-     `std:math`, `std:strings`, `std:time`, and `std:ui/avm`, preventing missing
-     app-facing exports such as `STD_linalg_dot_f64` from reaching the iOS app.
+     smoke imports `std:buffer`, `std:bytes`, `std:cbor`,
+     `std:encoding/base64`, `std:crypto/sha1`, `std:crypto/sha256`,
+     `std:json`, `std:linalg`, `std:math`, `std:regex`, `std:strings`,
+     `std:time`, `std:ui/avm`, and `std:yaml`, preventing missing app-facing
+     exports such as `STD_linalg_dot_f64` from reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
      interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on

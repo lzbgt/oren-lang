@@ -17,9 +17,7 @@ if [[ ! -x ./avm ]]; then
 fi
 
 stdlib_obc="build/plugins/stdlib_bundle.obc"
-if [[ ! -f "$stdlib_obc" ]]; then
-  OREN_COMPILER="$COMPILER" ./scripts/build_avm_plugins.sh
-fi
+OREN_COMPILER="$COMPILER" ./scripts/build_avm_plugins.sh
 
 tag="$(date +%Y%m%d_%H%M%S)"
 src="tests/fixtures/avm_stdlib_obc_surface_smoke.oren"

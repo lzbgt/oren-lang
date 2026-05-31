@@ -5,12 +5,18 @@
 
 import buffer "std:buffer"
 import bytes "std:bytes"
+import cbor "std:cbor"
+import base64 "std:encoding/base64"
+import regex "std:regex"
+import sha1 "std:crypto/sha1"
+import sha256 "std:crypto/sha256"
 import json "std:json"
 import linalg "std:linalg"
 import math "std:math"
 import strings "std:strings"
 import time "std:time"
 import ui_avm "std:ui/avm"
+import yaml "std:yaml"
 
 fn fail(code) {
     print("avm stdlib obc surface FAIL " + oren_int_to_string(code))
@@ -40,18 +46,38 @@ fn main() {
     if bytes.to_hex(bs) != "6869" { fail(20) }
     if bytes.to_string(bs) != "hi" { fail(21) }
 
+    if base64.try_encode_bytes([77, 97, 110]) != "TWFu" { fail(22) }
+    var b64 = base64.try_decode_bytes_strict("TQ==")
+    if oren_is_err(b64) { fail(23) }
+    if bytes.try_len(b64) != 1 || bytes.try_get_u8(b64, 0) != 77 { fail(24) }
+
     var jv = json.try_decode("{\"a\":1,\"b\":\"x\"}")
     if oren_is_err(jv) { fail(30) }
     if jv["t"] != "object" { fail(31) }
     if jv["o"]["a"]["i"] != 1 { fail(32) }
     if json.encode(json.jarray([json.jint(1), json.jstring("x")])) != "[1,\"x\"]" { fail(33) }
 
-    assert_close(linalg.dot_f64([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]), 32.0, 1e-12, 35)
+    var yv = yaml.try_decode("a: 1\nb: x\n")
+    if oren_is_err(yv) { fail(34) }
+    if yv["o"]["a"]["i"] != 1 || yv["o"]["b"]["s"] != "x" { fail(35) }
 
-    assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 40)
-    assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 41)
-    assert_close(math.log10(1000.0), 3.0, 1e-10, 42)
-    assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 43)
+    var cb = cbor.try_encode(cbor.cint(7))
+    if oren_is_err(cb) { fail(36) }
+    var cbr = cbor.try_decode(cb)
+    if oren_is_err(cbr) { fail(37) }
+    if cbr["i"] != 7 { fail(38) }
+
+    if regex.try_is_match("h.llo", "hello") != true { fail(39) }
+
+    assert_close(linalg.dot_f64([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]), 32.0, 1e-12, 45)
+
+    if sha1.sha1_hex(bytes.pack([97, 98, 99])) != "a9993e364706816aba3e25717850c26c9cd0d89d" { fail(46) }
+    if sha256.sha256_hex(bytes.pack([97, 98, 99])) != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" { fail(47) }
+
+    assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 50)
+    assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 51)
+    assert_close(math.log10(1000.0), 3.0, 1e-10, 52)
+    assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 53)
 
     if strings.starts_with("hello", "he") != true { fail(50) }
     if strings.ends_with("hello", "lo") != true { fail(51) }

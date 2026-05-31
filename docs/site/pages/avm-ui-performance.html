@@ -109,9 +109,9 @@
 <ul>
 <li>The iOS verification chain now also compiles and runs a stdlib OBC surface smoke</li>
 </ul>
-<p>  that imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>,</p>
-<p>  <code>std:strings</code>, <code>std:time</code>, and <code>std:ui/avm</code>, so GUI app dependencies fail in the</p>
-<p>  repo gate instead of later in app integration.</p>
+<p>  that imports buffer/bytes/CBOR/YAML/regex/base64/SHA-1/SHA-256/json/linalg/math/</p>
+<p>  strings/time/UI AVM modules, so GUI app dependencies fail in the repo gate</p>
+<p>  instead of later in app integration.</p>
 <p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
 <h2 id="high-refresh-contract">High-Refresh Contract</h2>
 <p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>

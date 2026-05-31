@@ -90,7 +90,9 @@
 <ul>
 <li>The AVM stdlib bundle root includes the compiler/app-critical portable subset plus</li>
 </ul>
-<p>  app-facing modules such as <code>std:time</code>, <code>std:ui/avm</code>, and <code>std:linalg</code>.</p>
+<p>  app-facing modules such as <code>std:time</code>, <code>std:ui/avm</code>, <code>std:linalg</code>,</p>
+<p>  <code>std:cbor</code>, <code>std:yaml</code>, <code>std:regex</code>, <code>std:encoding/base64</code>,</p>
+<p>  <code>std:crypto/sha1</code>, and <code>std:crypto/sha256</code>.</p>
 <p>  Broader pure-stdlib expansion should be manifest-gated so bundle build time stays</p>
 <p>  inside the repo iteration budget.</p>
 <ul>
@@ -112,8 +114,10 @@
 <p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>: it compiles a representative app</p>
 <p>  fixture with <code>--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc</code></p>
 <p>  and runs the result in AVM. The smoke imports <code>std:buffer</code>, <code>std:bytes</code>,</p>
-<p>  <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>, <code>std:strings</code>, <code>std:time</code>, and</p>
-<p>  <code>std:ui/avm</code>, proving common app-facing exports including</p>
+<p>  <code>std:cbor</code>, <code>std:encoding/base64</code>, <code>std:crypto/sha1</code>,</p>
+<p>  <code>std:crypto/sha256</code>, <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>,</p>
+<p>  <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>, and <code>std:yaml</code>,</p>
+<p>  proving common app-facing exports including</p>
 <p>  <code>STD_linalg_dot_f64</code> are actually linkable from the bundled stdlib OBC.</p>
 <ul>
 <li>OBC distribution design is documented in</li>

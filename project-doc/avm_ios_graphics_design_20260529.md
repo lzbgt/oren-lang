@@ -294,9 +294,9 @@ depth cap. The iOS verifier also covers non-1000 resize scale propagation,
 latest-frame replacement/clear semantics, and FIFO pointer down/move/up ordering
 before mixed key/text events.
 The same iOS verification chain now includes a stdlib OBC surface smoke for
-`std:buffer`, `std:bytes`, `std:json`, `std:linalg`, `std:math`, `std:strings`,
-`std:time`, and `std:ui/avm`, so graphics apps do not reach Note with missing
-bundle exports such as `STD_linalg_dot_f64`.
+buffer/bytes/CBOR/YAML/regex/base64/SHA-1/SHA-256/json/linalg/math/strings/time/
+UI AVM modules, so graphics apps do not reach Note with missing bundle exports
+such as `STD_linalg_dot_f64`.
 
 ### 7. Verification Plan
 

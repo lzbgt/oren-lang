@@ -103,9 +103,11 @@
 </ul>
 <p>     <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, compiling a representative app</p>
 <p>     fixture against <code>build/plugins/stdlib_bundle.obc</code> and running it in AVM. The</p>
-<p>     smoke imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:json</code>, <code>std:linalg</code>,</p>
-<p>     <code>std:math</code>, <code>std:strings</code>, <code>std:time</code>, and <code>std:ui/avm</code>, preventing missing</p>
-<p>     app-facing exports such as <code>STD_linalg_dot_f64</code> from reaching the iOS app.</p>
+<p>     smoke imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:cbor</code>,</p>
+<p>     <code>std:encoding/base64</code>, <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>,</p>
+<p>     <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>, <code>std:regex</code>, <code>std:strings</code>,</p>
+<p>     <code>std:time</code>, <code>std:ui/avm</code>, and <code>std:yaml</code>, preventing missing app-facing</p>
+<p>     exports such as <code>STD_linalg_dot_f64</code> from reaching the iOS app.</p>
 <ul>
 <li>SDK slices retained: <code>OrenAVMKit.xcframework</code> now provides deterministic and</li>
 </ul>
