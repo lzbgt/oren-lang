@@ -97,8 +97,8 @@
 <p>  retrieving/clearing that frame through the host SDK smoke, injecting a pointer</p>
 <p>  event, consuming that event from OBC, and compiling the UIKit renderer adapter for</p>
 <p>  device/simulator targets.</p>
-<p>Still pending: game-grade render protocol hardening, Metal rendering adapter,</p>
-<p>IME/composition helpers, 2D geometry expansion beyond the retained v0 shape</p>
+<p>Still pending: game-grade render protocol hardening beyond the current Metal adapter,</p>
+<p>IME/composition helpers, atlas/sub-rect drawing, 2D geometry expansion beyond the retained v0 shape</p>
 <p>subset, and 3D mesh commands. The high-refresh/high-resolution contract is now</p>
 <p>tracked in <code>project-doc/avm_ui_render_performance_design_20260531.md</code>; follow it</p>
 <p>before growing the command set.</p>
@@ -121,8 +121,8 @@
 <li>Current AVM embed API: <code>lib/avm/avm_embed.h</code> exposes argv, VFS, VNET, VPROC,</li>
 </ul>
 <p>  stdout capture, OBC load/run helpers, and GFX frame/input mailboxes. The iOS SDK</p>
-<p>  now includes a UIKit/CoreGraphics renderer fallback; texture/buffer handoff and</p>
-<p>  Metal adapter APIs remain future work.</p>
+<p>  now includes UIKit/CoreGraphics and Metal renderer adapters; atlas/mesh resource</p>
+<p>  protocols remain future work.</p>
 <ul>
 <li>Current Oren UI stdlib: <code>lib/std/ui/</code> already uses the right architectural pattern:</li>
 </ul>
@@ -387,16 +387,17 @@ fn main() {
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>
 <p>    Metal draw loop, publishes screen state, forwards touch input, and renders the</p>
-<p>    current <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry records.</p>
+<p>    current <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry records plus</p>
+<p>    retained image upload/draw/destroy records.</p>
 <ol>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code> or</li>
 </ol>
 <p>    <code>OrenAVMMetalView</code>, runs a bundled OBC, renders one frame, and injects one touch.</p>
 <ol>
 <li>Add IME/composition helpers.</li>
-<li>Add retained resources plus <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> records for</li>
+<li>Add atlas/sub-rect resources plus <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code></li>
 </ol>
-<p>    sprite/text/mesh rendering on the Metal path.</p>
+<p>    records for sprite/text/mesh rendering on the Metal path.</p>
 <p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>
 <p>right app boundary: AVM computes and describes frames; iOS renders them.</p>
     </main>
