@@ -69,6 +69,9 @@ OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
 CANCEL_SRC="$TMP_DIR/cancel_spin.oren"
 CANCEL_OBC_OUT="$TMP_DIR/cancel_spin.obc"
 CANCEL_OBC_HEADER="$TMP_DIR/cancel_spin_obc.h"
+CANCEL_WATCH_SRC="$TMP_DIR/cancel_watch.oren"
+CANCEL_WATCH_OBC_OUT="$TMP_DIR/cancel_watch.obc"
+CANCEL_WATCH_OBC_HEADER="$TMP_DIR/cancel_watch_obc.h"
 HOST_FS_SRC="$TMP_DIR/host_fs_chain.oren"
 HOST_FS_OBC_OUT="$TMP_DIR/host_fs_chain.obc"
 HOST_FS_OBC_HEADER="$TMP_DIR/host_fs_chain_obc.h"
@@ -207,6 +210,20 @@ main()
 OREN
 "$OREN_COMPILER" build "$CANCEL_SRC" --backend bytecode -o "$CANCEL_OBC_OUT" > "$LOG_DIR/libavm_ios_cancel_spin_obc_build.log" 2>&1
 
+cat > "$CANCEL_WATCH_SRC" <<'OREN'
+import events "std:avm/events"
+
+fn main() {
+    var ev = events.select([events.watch_cancel("stop")], 5000)
+    if oren_is_err(ev) { oren_exit(90) }
+    if ev == nil { oren_exit(91) }
+    if ev["kind"] != "cancel" || ev["id"] != "stop" || ev["source"] != "host" { oren_exit(92) }
+    oren_exit(9)
+}
+main()
+OREN
+"$OREN_COMPILER" build "$CANCEL_WATCH_SRC" --backend bytecode -o "$CANCEL_WATCH_OBC_OUT" > "$LOG_DIR/libavm_ios_cancel_watch_obc_build.log" 2>&1
+
 cat > "$HOST_FS_SRC" <<'OREN'
 fn main() {
     var s = oren_read_file("host/input.txt")
@@ -260,6 +277,25 @@ out.write_text(
 )
 PY
 
+python3 - "$CANCEL_WATCH_OBC_OUT" "$CANCEL_WATCH_OBC_HEADER" <<'PY'
+import pathlib
+import sys
+
+data = pathlib.Path(sys.argv[1]).read_bytes()
+out = pathlib.Path(sys.argv[2])
+chunks = []
+for i in range(0, len(data), 12):
+    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
+out.write_text(
+    "#include <stddef.h>\n"
+    "static const unsigned char kCancelWatchObc[] = {\n"
+    + ",\n".join("    " + chunk for chunk in chunks)
+    + "\n};\n"
+    + f"static const size_t kCancelWatchObcLen = {len(data)}u;\n",
+    encoding="utf-8",
+)
+PY
+
 python3 - "$HOST_FS_OBC_OUT" "$HOST_FS_OBC_HEADER" <<'PY'
 import pathlib
 import sys
@@ -283,6 +319,7 @@ cat > "$TMP_DIR/embed_smoke.c" <<'SMOKE'
 #include "avm_embed.h"
 #include "embed_chain_obc.h"
 #include "cancel_spin_obc.h"
+#include "cancel_watch_obc.h"
 
 #include <pthread.h>
 #include <stdint.h>
@@ -343,6 +380,35 @@ static int run_cancel_smoke(void) {
     return 0;
 }
 
+static void* cancel_watch_run_main(void* arg) {
+    CancelRunCtx* ctx = (CancelRunCtx*)arg;
+    ctx->rc = avm_embed_run_obc_bytes(ctx->handle, kCancelWatchObc, kCancelWatchObcLen, &ctx->result);
+    return NULL;
+}
+
+static int run_cancel_watch_smoke(void) {
+    AvmEmbedConfig cfg;
+    AvmEmbedResult result;
+    avm_embed_config_interactive_default(&cfg);
+    cfg.gas_limit = 0;
+    AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
+    if (!handle || result.status != AVM_EMBED_OK) return 86;
+    CancelRunCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.handle = handle;
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, cancel_watch_run_main, &ctx) != 0) {
+        avm_embed_close(handle);
+        return 87;
+    }
+    usleep(10000);
+    if (avm_embed_cancel(handle, &result) != AVM_EMBED_OK) return 88;
+    if (pthread_join(thread, NULL) != 0) return 89;
+    if (ctx.rc != AVM_EMBED_OK || ctx.result.status != AVM_EMBED_OK || ctx.result.exit_code != 9) return 90;
+    avm_embed_close(handle);
+    return 0;
+}
+
 int main(void) {
     AvmEmbedConfig cfg;
     AvmEmbedResult result;
@@ -376,6 +442,8 @@ int main(void) {
     };
     int cancel_rc = run_cancel_smoke();
     if (cancel_rc != 0) return cancel_rc;
+    int cancel_watch_rc = run_cancel_watch_smoke();
+    if (cancel_watch_rc != 0) return cancel_watch_rc;
     avm_embed_config_default(&cfg);
 
     AvmEmbedHandle* queue_handle = avm_embed_open(&cfg, &result);

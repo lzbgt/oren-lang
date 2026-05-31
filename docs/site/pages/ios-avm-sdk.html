@@ -260,7 +260,10 @@
 <p>  <code>avm_embed_clear_cancel</code>, with iOS wrappers <code>requestCancelWithError:</code> and</p>
 <p>  <code>clearCancelWithError:</code>. This lets a host app stop long-running OBC work from</p>
 <p>  UI lifecycle, user action, or package policy without exposing thread handles</p>
-<p>  or native cancellation primitives to OBC.</p>
+<p>  or native cancellation primitives to OBC. If an OBC event loop explicitly watches</p>
+<p>  <code>{&quot;kind&quot;:&quot;cancel&quot;}</code>, native <code>std:avm/events</code> can consume the pending host cancel</p>
+<p>  and return <code>{kind:&quot;cancel&quot;, source:&quot;host&quot;}</code>; without that watch, the same host</p>
+<p>  cancel remains a hard VM cancellation.</p>
 <ul>
 <li>Naming note: Oren native/runtime code already has raw <code>sys_select</code> for OS file</li>
 </ul>
@@ -280,11 +283,11 @@
 <ul>
 <li><code>std:avm/events</code> now offers <code>select</code>/<code>select_once</code> over timer, UI/GFX input,</li>
 </ul>
-<p>  and VNET session-readiness watches through a native AVM <code>EVENT</code> capability</p>
-<p>  domain. The iOS SDK backs VNET multi-watch selection with one host <code>select()</code></p>
-<p>  over app-owned sockets, so high-volume app/game code does not pay an</p>
-<p>  Oren-level polling loop for network readiness. OBC still sees only stable</p>
-<p>  virtual watch maps, event masks, and bounded event maps.</p>
+<p>  VNET session-readiness, and cooperative host-cancel watches through a native</p>
+<p>  AVM <code>EVENT</code> capability domain. The iOS SDK backs VNET multi-watch selection</p>
+<p>  with one host <code>select()</code> over app-owned sockets, so high-volume app/game code</p>
+<p>  does not pay an Oren-level polling loop for network readiness. OBC still sees</p>
+<p>  only stable virtual watch maps, event masks, and bounded event maps.</p>
 <ul>
 <li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
 </ul>
@@ -299,8 +302,7 @@
 <ul>
 <li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
-<p>  WebSocket, listen/accept where app policy allows, explicit cancellation watches,</p>
-<p>  broader lifecycle handling, deterministic</p>
+<p>  WebSocket, listen/accept where app policy allows, broader lifecycle handling, deterministic</p>
 <p>  fixture/replay support, and any compatibility aliases needed for non-AVM</p>
 <p>  <code>std:net/tcp</code> / <code>std:net/udp</code> callers.</p>
 <h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>

@@ -82,8 +82,8 @@ This file is the concise task view. Detailed implementation status lives in
      live VNET session-count/per-session-byte limits, plus host-requested VM
      cancellation through the embed/iOS SDK APIs.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
-     WebSocket/listen/accept and explicit cancellation watches on the VNET/event
-     session protocol, event-bus cancellation/FS/package events without exposing raw sockets to OBC, compiler helper
+     WebSocket/listen/accept on the VNET/session protocol, event-bus FS/package
+     events without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
      input ordering, Metal/`MTKView`, richer drawing ops, and richer

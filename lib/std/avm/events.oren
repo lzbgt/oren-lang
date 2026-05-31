@@ -11,6 +11,7 @@ import ui_avm "std:ui/avm"
 fn event_read() { return 1 }
 fn event_write() { return 2 }
 fn event_read_write() { return 3 }
+fn watch_cancel(id) { return {"kind": "cancel", "id": id} }
 
 fn _watch_id(w, i) {
     var id = w["id"]
@@ -62,6 +63,10 @@ fn _check_one(w, i) {
         if ready != 0 {
             return {"kind": "net", "id": id, "index": i, "session_id": sid, "events": events, "ready": ready}
         }
+        return nil
+    }
+
+    if kind == "cancel" || kind == "cancellation" {
         return nil
     }
 

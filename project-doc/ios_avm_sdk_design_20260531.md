@@ -191,7 +191,10 @@ Default NET adapter.
   `avm_embed_clear_cancel`, with iOS wrappers `requestCancelWithError:` and
   `clearCancelWithError:`. This lets a host app stop long-running OBC work from
   UI lifecycle, user action, or package policy without exposing thread handles
-  or native cancellation primitives to OBC.
+  or native cancellation primitives to OBC. If an OBC event loop explicitly watches
+  `{"kind":"cancel"}`, native `std:avm/events` can consume the pending host cancel
+  and return `{kind:"cancel", source:"host"}`; without that watch, the same host
+  cancel remains a hard VM cancellation.
 - Naming note: Oren native/runtime code already has raw `sys_select` for OS file
   descriptors. AVM uses virtual-session readiness; `session_select*` is the
   preferred app-facing name and `session_poll*` remains the low-level alias for
@@ -205,11 +208,11 @@ Default NET adapter.
   display-link ticks, while OBC sees only stable virtual handles, event masks,
   sequence numbers, and bounded event payloads.
 - `std:avm/events` now offers `select`/`select_once` over timer, UI/GFX input,
-  and VNET session-readiness watches through a native AVM `EVENT` capability
-  domain. The iOS SDK backs VNET multi-watch selection with one host `select()`
-  over app-owned sockets, so high-volume app/game code does not pay an
-  Oren-level polling loop for network readiness. OBC still sees only stable
-  virtual watch maps, event masks, and bounded event maps.
+  VNET session-readiness, and cooperative host-cancel watches through a native
+  AVM `EVENT` capability domain. The iOS SDK backs VNET multi-watch selection
+  with one host `select()` over app-owned sockets, so high-volume app/game code
+  does not pay an Oren-level polling loop for network readiness. OBC still sees
+  only stable virtual watch maps, event masks, and bounded event maps.
 - The current HTTP body provider keeps a reusable ephemeral `NSURLSession` per
   `OrenAVMRuntime` so capability-enabled prefetch/live fetches use the fast SDK
   provider path by default instead of rebuilding a session for each OBC request.
@@ -218,8 +221,7 @@ Default NET adapter.
   see virtual responses or virtual session handles that AVM can budget, close,
   snapshot/test, and deny by capability.
 - Full OBC network capability is still the target. The next NET layers should add
-  WebSocket, listen/accept where app policy allows, explicit cancellation watches,
-  broader lifecycle handling, deterministic
+  WebSocket, listen/accept where app policy allows, broader lifecycle handling, deterministic
   fixture/replay support, and any compatibility aliases needed for non-AVM
   `std:net/tcp` / `std:net/udp` callers.
 

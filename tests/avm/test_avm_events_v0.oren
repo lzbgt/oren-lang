@@ -5,6 +5,7 @@ fn main() {
     if events.event_read() != 1 { exit(1) }
     if events.event_write() != 2 { exit(2) }
     if events.event_read_write() != 3 { exit(3) }
+    if events.watch_cancel("c0")["kind"] != "cancel" { exit(10) }
 
     var now = time.now_ns()
     var ev = events.select_once([{"kind": "timer", "id": "t0", "deadline_ns": now}])
@@ -13,6 +14,9 @@ fn main() {
 
     var none = events.select_once([{"kind": "timer", "id": "future", "deadline_ns": now + 1000000000}])
     if oren_is_err(none) || none != nil { exit(6) }
+
+    var no_cancel = events.select_once([events.watch_cancel("c0")])
+    if oren_is_err(no_cancel) || no_cancel != nil { exit(11) }
 
     var waited = events.select([{"kind": "timer", "id": "late", "deadline_ns": time.now_ns() + 1000000}], 10)
     if oren_is_err(waited) { exit(7) }

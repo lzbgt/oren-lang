@@ -1017,6 +1017,7 @@
                     uint32_t session_events[1024];
                     int session_watch_index[1024];
                     int net_count = 0;
+                    int has_cancel_watch = 0;
                     uint64_t nearest_timer_ns = UINT64_MAX;
 
                     for (int i = 0; i < watches->count; i++) {
@@ -1102,6 +1103,29 @@
                             net_count++;
                             continue;
                         }
+                        if (strcmp(kind, "cancel") == 0 || strcmp(kind, "cancellation") == 0) {
+                            has_cancel_watch = 1;
+                            if (vm && vm->cancelled) {
+                                AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+                                if (!out) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                                memset(out, 0, sizeof(*out));
+                                AvmValue idv;
+                                if (!avm_map_get_key(wv, "id", &idv)) idv = avm_int(i);
+                                int ok = 1;
+                                ok = ok && avm_map_set_sorted(out, avm_string("kind"), avm_string("cancel"));
+                                ok = ok && avm_map_set_sorted(out, avm_string("id"), idv);
+                                ok = ok && avm_map_set_sorted(out, avm_string("index"), avm_int(i));
+                                ok = ok && avm_map_set_sorted(out, avm_string("source"), avm_string("host"));
+                                if (!ok) return avm_err_domop(AVM_ERR_BUDGET, "event.select allocation failed", domain, op);
+                                vm->cancelled = 0;
+                                vm->last_error = avm_nil();
+                                AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+                                if (vm->record_log_bytes) { uint32_t rp = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &rp, domain, op, args, nargs, ret); }
+                                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                                return ret;
+                            }
+                            continue;
+                        }
                         return avm_err_domop(AVM_ERR_INVALID_ARG, "event.select unsupported watch kind", domain, op);
                     }
 
@@ -1120,6 +1144,7 @@
                         if ((timer_ns % 1000000ull) != 0) timer_ms++;
                         if (timeout_ms == 0 || timer_ms < wait_ms) wait_ms = timer_ms;
                     }
+                    if (has_cancel_watch && wait_ms > 8) wait_ms = 8;
 
                     if (net_count > 0) {
                         size_t ready_index = 0;
