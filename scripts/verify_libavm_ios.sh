@@ -81,6 +81,7 @@ import net_avm "std:net/avm"
 import net_dns "std:net/avm/dns"
 import net_tcp "std:net/avm/tcp"
 import net_udp "std:net/avm/udp"
+import net_ws "std:net/avm/ws"
 import avm_events "std:avm/events"
 import ui_avm "std:ui/avm"
 import perm "std:avm/permission"
@@ -104,8 +105,12 @@ fn main() {
     if args[3] != "session-none" {
         var is_udp = false
         if oren_string_len(args[3]) >= 6 && oren_string_slice(args[3], 0, 6) == "udp://" { is_udp = true }
+        var is_ws = false
+        if oren_string_len(args[3]) >= 5 && oren_string_slice(args[3], 0, 5) == "ws://" { is_ws = true }
         var sid = nil
-        if is_udp {
+        if is_ws {
+            sid = net_ws.connect_spec(args[3], 5000)
+        } else if is_udp {
             sid = net_udp.connect_spec(args[3], 5000)
         } else {
             sid = net_tcp.connect_spec(args[3], 5000)
@@ -114,28 +119,38 @@ fn main() {
         var first_ip = net_dns.resolve_first("localhost", 5000)
         if oren_is_err(first_ip) || oren_string_len(first_ip) <= 0 { oren_exit(65) }
         var pw = nil
-        if is_udp {
+        if is_ws {
+            pw = net_ws.select(sid, net_ws.event_write(), 5000)
+        } else if is_udp {
             pw = net_udp.select(sid, net_udp.event_write(), 5000)
         } else {
             pw = net_tcp.select(sid, net_tcp.event_write(), 5000)
         }
         if oren_is_err(pw) || pw == nil || pw["kind"] != "net" || (pw["ready"] & 2) == 0 { oren_exit(63) }
         var wn = nil
-        if is_udp { wn = net_udp.send(sid, "ping", 5000) } else { wn = net_tcp.write(sid, "ping", 5000) }
+        if is_ws { wn = net_ws.send_text(sid, "ping", 5000) } else if is_udp { wn = net_udp.send(sid, "ping", 5000) } else { wn = net_tcp.write(sid, "ping", 5000) }
+        if is_ws && oren_is_err(wn) { oren_exit(66) }
         if oren_is_err(wn) || wn != 4 { oren_exit(58) }
         var pr = nil
-        if is_udp {
+        if is_ws {
+            pr = net_ws.select(sid, net_ws.event_read(), 5000)
+        } else if is_udp {
             pr = net_udp.select(sid, net_udp.event_read(), 5000)
         } else {
             pr = net_tcp.select(sid, net_tcp.event_read(), 5000)
         }
         if oren_is_err(pr) || pr == nil || pr["kind"] != "net" || (pr["ready"] & 1) == 0 { oren_exit(64) }
         var rb = nil
-        if is_udp { rb = net_udp.recv(sid, 4, 5000) } else { rb = net_tcp.read(sid, 4, 5000) }
+        if is_ws { rb = net_ws.recv_text(sid, 4, 5000) } else if is_udp { rb = net_udp.recv(sid, 4, 5000) } else { rb = net_tcp.read(sid, 4, 5000) }
+        if is_ws && oren_is_err(rb) { oren_exit(67) }
         if oren_is_err(rb) { oren_exit(59) }
-        if bytes.to_string(rb) != "pong" { oren_exit(60) }
+        if is_ws {
+            if rb != "pong" { oren_exit(60) }
+        } else {
+            if bytes.to_string(rb) != "pong" { oren_exit(60) }
+        }
         var cr = nil
-        if is_udp { cr = net_udp.close(sid) } else { cr = net_tcp.close(sid) }
+        if is_ws { cr = net_ws.close(sid) } else if is_udp { cr = net_udp.close(sid) } else { cr = net_tcp.close(sid) }
         if oren_is_err(cr) || cr != 0 { oren_exit(61) }
     }
     print("stdout:" + body)
@@ -323,6 +338,7 @@ cat > "$TMP_DIR/embed_smoke.c" <<'SMOKE'
 
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -655,7 +671,14 @@ int main(void) {
         OrenAVMRunResult* result = [runtime runOBCData:obc error:&error];
         uint64_t wall1 = host_now_ns();
         if (!result) return 41;
-        if (result.exitCode != expectedExit) return 42;
+        if (result.exitCode != expectedExit) {
+            fprintf(stderr, "sdk_smoke: expected OBC exit %ld got %ld status %ld avm_error %ld\n",
+                    (long)expectedExit,
+                    (long)result.exitCode,
+                    (long)result.status,
+                    (long)result.avmErrorCode);
+            return 42;
+        }
         if (expectedExit != 9) return 0;
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
         NSDictionary<NSString*, id>* permission = [runtime getPermissionRequestWithError:&error];
@@ -883,6 +906,17 @@ print(s.getsockname()[1])
 s.close()
 PY
 )"
+WS_READY="$TMP_DIR/ws_server.ready"
+rm -f "$WS_READY"
+WS_PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
 python3 - "$NET_PORT" "$NET_DIR/net.txt" "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 <<'PY' &
 import pathlib
 import socket
@@ -896,7 +930,7 @@ srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 srv.bind(("127.0.0.1", port))
 srv.listen(5)
 ready.write_text("ready\n", encoding="utf-8")
-for _ in range(5):
+for _ in range(6):
     conn, _addr = srv.accept()
     try:
         conn.recv(4096)
@@ -953,6 +987,73 @@ if data == b"ping":
 srv.close()
 PY
 UDP_SERVER_PID=$!
+python3 - "$WS_PORT" "$WS_READY" > "$LOG_DIR/libavm_ios_sdk_ws_server.log" 2>&1 <<'PY' &
+import base64
+import hashlib
+import pathlib
+import socket
+import sys
+
+port = int(sys.argv[1])
+ready = pathlib.Path(sys.argv[2])
+
+def recv_exact(conn, n):
+    out = bytearray()
+    while len(out) < n:
+        chunk = conn.recv(n - len(out))
+        if not chunk:
+            raise RuntimeError("short read")
+        out.extend(chunk)
+    return bytes(out)
+
+srv = socket.socket()
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("127.0.0.1", port))
+srv.listen(1)
+ready.write_text("ready\n", encoding="utf-8")
+conn, _addr = srv.accept()
+try:
+    header = bytearray()
+    while b"\r\n\r\n" not in header:
+        chunk = conn.recv(1024)
+        if not chunk:
+            raise RuntimeError("closed before handshake")
+        header.extend(chunk)
+    key = None
+    for line in header.decode("ascii", "strict").split("\r\n"):
+        if line.lower().startswith("sec-websocket-key:"):
+            key = line.split(":", 1)[1].strip()
+            break
+    if not key:
+        raise RuntimeError("missing websocket key")
+    accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")).digest()).decode("ascii")
+    response = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
+    )
+    conn.sendall(response.encode("ascii"))
+    h = recv_exact(conn, 2)
+    opcode = h[0] & 0x0f
+    length = h[1] & 0x7f
+    if length == 126:
+        ext = recv_exact(conn, 2)
+        length = (ext[0] << 8) | ext[1]
+    elif length == 127:
+        raise RuntimeError("64-bit websocket length unsupported in verifier")
+    mask = recv_exact(conn, 4) if (h[1] & 0x80) else b"\x00\x00\x00\x00"
+    payload = bytearray(recv_exact(conn, length))
+    for i in range(len(payload)):
+        payload[i] ^= mask[i & 3]
+    if opcode != 1 or bytes(payload) != b"ping":
+        raise RuntimeError("unexpected websocket payload")
+    conn.sendall(b"\x81\x04pong")
+finally:
+    conn.close()
+    srv.close()
+PY
+WS_SERVER_PID=$!
 cleanup_net_server() {
   if kill -0 "$NET_SERVER_PID" >/dev/null 2>&1; then
     kill "$NET_SERVER_PID" >/dev/null 2>&1 || true
@@ -966,10 +1067,14 @@ cleanup_net_server() {
     kill "$UDP_SERVER_PID" >/dev/null 2>&1 || true
     wait "$UDP_SERVER_PID" >/dev/null 2>&1 || true
   fi
+  if kill -0 "$WS_SERVER_PID" >/dev/null 2>&1; then
+    kill "$WS_SERVER_PID" >/dev/null 2>&1 || true
+    wait "$WS_SERVER_PID" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup_net_server EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if [[ -f "$NET_READY" && -f "$TCP_READY" && -f "$UDP_READY" ]]; then
+  if [[ -f "$NET_READY" && -f "$TCP_READY" && -f "$UDP_READY" && -f "$WS_READY" ]]; then
     break
   fi
   sleep 0.1
@@ -995,6 +1100,10 @@ OREN_AVM_SDK_EXPECT_EXIT=60 \
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_TCP_URL="udp://127.0.0.1:${UDP_PORT}" \
+  "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
+OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_TCP_URL="ws://127.0.0.1:${WS_PORT}/echo" \
   "$HOST_SDK_BIN"
 cleanup_net_server
 trap - EXIT

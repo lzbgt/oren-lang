@@ -56,6 +56,7 @@ This file is the concise task view. Detailed implementation status lives in
      `std:encoding/base64`, `std:crypto/pem`, `std:crypto/sha1`,
      `std:crypto/sha256`, `std:crypto/x509`, `std:json`, `std:linalg`,
      `std:math`, `std:net/avm`, `std:net/avm/tcp`, `std:net/avm/udp`,
+     `std:net/avm/ws`,
      `std:regex`, `std:strings`, `std:time`, `std:ui/avm`, and
      `std:yaml`, preventing missing app-facing exports such as
      `STD_linalg_dot_f64` from reaching the iOS app.
@@ -67,9 +68,10 @@ This file is the concise task view. Detailed implementation status lives in
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
-     session, plus first `std:net/avm.session_open/write/read/select/close` TCP/UDP virtual
+     session, plus first `std:net/avm.session_open/write/read/select/close` TCP/UDP/WebSocket virtual
      session handles and `std:net/avm/tcp` / `std:net/avm/udp` convenience facades
-     over host-owned iOS sockets with readiness selection, plus the native `std:avm/events`
+     plus `std:net/avm/ws` over host-owned iOS sockets with readiness selection,
+     plus the native `std:avm/events`
      virtual event-bus facade over AVM `EVENT` domain and `std:avm/permission`
      facade and OPR0 permission mailbox for host-visible OBC permission intent,
      plus binary
@@ -82,7 +84,7 @@ This file is the concise task view. Detailed implementation status lives in
      live VNET session-count/per-session-byte limits, plus host-requested VM
      cancellation through the embed/iOS SDK APIs.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
-     WebSocket/listen/accept on the VNET/session protocol, event-bus FS/package
+     listen/accept on the VNET/session protocol, event-bus FS/package
      events without exposing raw sockets to OBC, compiler helper
      package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
@@ -94,6 +96,9 @@ This file is the concise task view. Detailed implementation status lives in
      rejection, the host input queue depth cap, non-1000 resize scale propagation,
      latest-frame replacement/clear semantics, and FIFO pointer down/move/up
      ordering before mixed key/text events.
+   - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
+     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
+     may convert at the boundary but must not force list-of-byte round trips.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated

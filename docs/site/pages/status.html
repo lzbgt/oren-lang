@@ -118,7 +118,7 @@
 <p>  <code>std:cbor</code>, <code>std:encoding/base64</code>, <code>std:crypto/pem</code>,</p>
 <p>  <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/x509</code>, <code>std:json</code>,</p>
 <p>  <code>std:linalg</code>, <code>std:math</code>, <code>std:net/avm</code>, <code>std:net/avm/tcp</code>,</p>
-<p>  <code>std:net/avm/udp</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>,</p>
+<p>  <code>std:net/avm/udp</code>, <code>std:net/avm/ws</code>, <code>std:regex</code>, <code>std:strings</code>, <code>std:time</code>, <code>std:ui/avm</code>,</p>
 <p>  and <code>std:yaml</code>, proving common app-facing exports including</p>
 <p>  <code>STD_linalg_dot_f64</code> are actually linkable from the bundled stdlib OBC.</p>
 <ul>
@@ -167,21 +167,21 @@
 <p>  default live fetch modes against a local HTTP server, including dynamic disable</p>
 <p>  and re-enable through the SDK.</p>
 <ul>
-<li>AVM NET now also has virtual session handles for performance-oriented TCP/UDP</li>
+<li>AVM NET now also has virtual session handles for performance-oriented TCP/UDP/WebSocket</li>
 </ul>
 <p>  networking: <code>std:net/avm.session_open/write/read/close</code> map to AVM NET ops 1-4,</p>
 <p>  while <code>std:net/avm.session_select*</code> / <code>session_poll*</code> maps to NET op 5 for read/write readiness,</p>
 <p>  and embedders can install host callbacks with</p>
 <p>  <code>avm_embed_set_net_session_callbacks</code>. The iOS SDK implements the first reviewed</p>
-<p>  provider for <code>tcp://host:port</code> and <code>udp://host:port</code> using host-owned sockets plus <code>select()</code> behind the same</p>
+<p>  provider for <code>tcp://host:port</code>, <code>udp://host:port</code>, and <code>ws://host:port/path</code> using host-owned sockets plus <code>select()</code> behind the same</p>
 <p>  allowlist/dynamic live-NET controls. OBC receives only integer virtual session</p>
 <p>  IDs and bytes; it never receives a socket or file descriptor. `make</p>
-<p>  verify-libavm-ios` proves local TCP and UDP ping/pong plus select-before-write/read through this path.</p>
+<p>  verify-libavm-ios` proves local TCP, UDP, and WebSocket ping/pong plus select-before-write/read through this path.</p>
 <ul>
-<li><code>std:net/avm/tcp</code> and <code>std:net/avm/udp</code> now provide OBC-safe app-facing TCP/UDP</li>
+<li><code>std:net/avm/tcp</code>, <code>std:net/avm/udp</code>, and <code>std:net/avm/ws</code> now provide OBC-safe app-facing TCP/UDP/WebSocket</li>
 </ul>
-<p>  convenience wrappers over virtual sessions. The iOS verifier exercises both</p>
-<p>  modules through live host-backed virtual sockets, so app code does not need to</p>
+<p>  convenience wrappers over virtual sessions. The iOS verifier exercises all</p>
+<p>  three modules through live host-backed virtual sockets, so app code does not need to</p>
 <p>  call the lowest-level <code>session_*</code> functions directly for common client flows.</p>
 <ul>
 <li><code>std:net/avm/dns</code> now provides an OBC-safe DNS facade over AVM NET op 6.</li>
@@ -219,7 +219,7 @@
 </ul>
 <p>  providers, not raw OS object access from bytecode. FS follows this rule through</p>
 <p>  host-backed directory mounts: the SDK owns app <code>file://</code> URLs and OBC sees only</p>
-<p>  virtual paths. Remaining WebSocket, listen/accept, explicit cancellation watches,</p>
+<p>  virtual paths. Remaining listen/accept, WebSocket fixture/replay, explicit cancellation watches,</p>
 <p>  and richer lifecycle support should extend the VNET session protocol while the</p>
 <p>  iOS SDK owns Network.framework or socket backends. UI/GFX follows the same rule:</p>
 <p>  the SDK may use UIKit/CoreGraphics/Metal/<code>MTKView</code>, but OBC sees binary</p>
@@ -283,7 +283,14 @@
 <ul>
 <li>Host subprocess execution is compiled out of iOS embed builds; PROC must use</li>
 </ul>
-<p>  the virtual backend path there.</p>
+<p>  the virtual backend path there. Future real work dispatch should be a reviewed</p>
+<p>  host-backed virtual job/app-command provider with cancellation and budgets, not</p>
+<p>  raw process/thread creation exposed to OBC.</p>
+<ul>
+<li>AVM app-facing stdlib still needs a cleanup pass to remove legacy</li>
+</ul>
+<p>  list-of-byte string conversion from hot paths. Raw bytes are the performance</p>
+<p>  path; text helpers can exist but should convert only at explicit boundaries.</p>
 <ul>
 <li><code>lib/avm/avm.h</code> still exposes fixed global/frame/stack limits and rolling</li>
 </ul>

@@ -1,0 +1,71 @@
+// AVM-safe WebSocket facade over host-backed virtual network sessions.
+//
+// OBC opens `ws://` virtual sessions and exchanges payload bytes/text. The iOS
+// SDK owns the HTTP upgrade, masking/framing, host sockets, policy, and budgets.
+
+import events "std:avm/events"
+import net "std:net/avm"
+
+fn event_read() { return events.event_read() }
+fn event_write() { return events.event_write() }
+fn event_read_write() { return events.event_read_write() }
+
+fn connect_spec(spec, timeout_ms) {
+    if spec == nil { return oren_err(4, "std:net/avm/ws.connect_spec: spec is nil") }
+    return net.session_open(spec, timeout_ms)
+}
+
+fn connect(host, port, path, timeout_ms) {
+    if host == nil { return oren_err(4, "std:net/avm/ws.connect: host is nil") }
+    var p = path
+    if p == nil || p == "" { p = "/" }
+    if oren_string_slice(p, 0, 1) != "/" { p = "/" + p }
+    return connect_spec("ws://" + host + ":" + oren_int_to_string(port) + p, timeout_ms)
+}
+
+fn send(session_id, data, timeout_ms) {
+    return net.session_write(session_id, data, timeout_ms)
+}
+
+fn send_text(session_id, text, timeout_ms) {
+    if text == nil { return oren_err(4, "std:net/avm/ws.send_text: text is nil") }
+    return send(session_id, text, timeout_ms)
+}
+
+fn recv(session_id, max_len, timeout_ms) {
+    return net.session_read(session_id, max_len, timeout_ms)
+}
+
+fn recv_text(session_id, max_len, timeout_ms) {
+    var data = recv(session_id, max_len, timeout_ms)
+    if oren_is_err(data) { return data }
+    return oren_string_from_bytes_slice(data, 0, oren_bytes_len(data))
+}
+
+fn close(session_id) {
+    return net.session_close(session_id)
+}
+
+fn select(session_id, event_mask, timeout_ms) {
+    return events.select([{
+        "kind": "net",
+        "session_id": session_id,
+        "events": event_mask
+    }], timeout_ms)
+}
+
+fn wait_readable(session_id, timeout_ms) {
+    var ev = select(session_id, events.event_read(), timeout_ms)
+    if oren_is_err(ev) { return ev }
+    if ev == nil { return 0 }
+    if (ev["ready"] & events.event_read()) != 0 { return 1 }
+    return 0
+}
+
+fn wait_writable(session_id, timeout_ms) {
+    var ev = select(session_id, events.event_write(), timeout_ms)
+    if oren_is_err(ev) { return ev }
+    if ev == nil { return 0 }
+    if (ev["ready"] & events.event_write()) != 0 { return 1 }
+    return 0
+}

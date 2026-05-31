@@ -162,19 +162,22 @@ Default NET adapter.
   `disableLiveNetworkWithError:` at runtime; apps can restrict/re-enable it with
   `liveNetworkAllowedHosts` or `enableLiveNetworkWithAllowedHosts:timeoutSeconds:`.
   OBC still has no raw host network authority.
-- The first VNET session protocol is implemented for TCP and UDP client flows:
+- The first VNET session protocol is implemented for TCP, UDP, and WebSocket client flows:
   `std:net/avm.session_open("tcp://host:port", timeout_ms)`,
-  `std:net/avm.session_open("udp://host:port", timeout_ms)`, `session_write`,
+  `std:net/avm.session_open("udp://host:port", timeout_ms)`,
+  `std:net/avm.session_open("ws://host:port/path", timeout_ms)`, `session_write`,
   `session_read`, `session_select` / `session_poll`, and `session_close` map to AVM
   NET ops and embedder callbacks. The iOS SDK backs those virtual session IDs
   with host-owned POSIX sockets and `select()` readiness polling under the
-  live-NET allowlist and runtime enable/disable controls. OBC sees only integer
-  virtual session IDs, readiness masks, and byte buffers, never native sockets or
+  live-NET allowlist and runtime enable/disable controls. For `ws://`, the SDK
+  owns the HTTP upgrade and WebSocket masking/framing so OBC still sees only a
+  virtual session and payload bytes/text helpers. OBC sees only integer virtual
+  session IDs, readiness masks, and byte buffers, never native sockets or
   descriptors.
-- `std:net/avm/tcp` and `std:net/avm/udp` provide app-facing convenience wrappers
+- `std:net/avm/tcp`, `std:net/avm/udp`, and `std:net/avm/ws` provide app-facing convenience wrappers
   over those virtual sessions for common client flows. They are included in
   `stdlib_bundle.obc`, covered by the AVM stdlib OBC surface gate, and exercised
-  in the iOS verifier through live host-backed TCP and UDP virtual sockets.
+  in the iOS verifier through live host-backed TCP, UDP, and WebSocket virtual sockets.
 - `std:net/avm/dns` provides explicit OBC-safe virtual DNS. It maps to AVM NET
   op 6 and `avm_embed_set_net_resolve_callback`; the iOS SDK backs it with
   `getaddrinfo` under the same dynamic live-NET allowlist and timeout policy.
@@ -221,9 +224,12 @@ Default NET adapter.
   see virtual responses or virtual session handles that AVM can budget, close,
   snapshot/test, and deny by capability.
 - Full OBC network capability is still the target. The next NET layers should add
-  WebSocket, listen/accept where app policy allows, broader lifecycle handling, deterministic
+  listen/accept where app policy allows, WebSocket fixture/replay, broader lifecycle handling, deterministic
   fixture/replay support, and any compatibility aliases needed for non-AVM
   `std:net/tcp` / `std:net/udp` callers.
+- Hot app-facing network paths should remain byte-first. Text convenience helpers
+  may exist, but cleanup should remove legacy list-of-byte string conversion from
+  hot stdlib paths and keep conversions explicit at API boundaries.
 
 ### OrenAVMProcessProvider
 
@@ -234,6 +240,10 @@ Default PROC adapter.
 - Package tests can register command fixtures and default exit codes.
 - If future app actions are needed, expose them as reviewed app commands, not raw
   process execution.
+- If OBC needs host-side concurrency or background work, add a separate
+  host-backed virtual job/thread provider with capability checks, cancellation,
+  lifecycle limits, and result mailboxes. Do not map `VPROC` to arbitrary host
+  process/thread creation by default.
 
 ### OrenAVMTimeProvider
 
@@ -274,8 +284,8 @@ Public OBC store helper.
 | Surface | Default iOS implementation | Escalation |
 | --- | --- | --- |
 | FS | VirtualFS copy/export plus live host-backed app-directory mounts | Richer mount policy/manifest wiring |
-| NET | VirtualNET/no host network | SDK `URLSession` prefetch/live fetch plus TCP virtual sessions with allowlist |
-| PROC | VirtualPROC | Reviewed app commands only |
+| NET | VirtualNET/no host network | SDK `URLSession` prefetch/live fetch plus TCP/UDP/WebSocket virtual sessions with allowlist |
+| PROC | VirtualPROC | Reviewed app commands or future virtual jobs only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
 | GUI | Binary GFX mailboxes plus UIKit/CoreGraphics `OrenAVMGraphicsView` fallback | Metal/3D renderer |
 | INPUT | Explicit binary event queue/mailbox plus pointer/resize/key/text events | IME/composition helper encoders |
@@ -297,10 +307,11 @@ the latest request in a compact `OPR0` binary mailbox; embedders can retrieve an
 clear it through `avm_embed_permission_request_get/clear`, and `OrenAVMKit`
 provides raw and decoded helpers. High-performance networking should be implemented
 as a host-backed VNET provider with virtual session handles, not as
-bytecode-visible native sockets. TCP client streams and UDP connected datagrams
-now use that reviewed session protocol; WebSocket and listen/accept still need explicit reviewed extensions. PROC on
-iOS should remain
-VirtualPROC or reviewed app-command dispatch, not arbitrary host subprocess.
+bytecode-visible native sockets. TCP client streams, UDP connected datagrams, and
+WebSocket client sessions now use that reviewed session protocol; listen/accept
+still need explicit reviewed extensions. PROC on iOS should remain VirtualPROC,
+reviewed app-command dispatch, or a future virtual job provider, not arbitrary
+host subprocess/thread creation.
 UI/GFX follows the same policy: the SDK may use CoreGraphics, Metal, `MTKView`,
 retained GPU resources, and display-link pacing, but OBC sees only compact binary
 frames/events and virtual resource handles. UIKit/Metal objects never enter OBC

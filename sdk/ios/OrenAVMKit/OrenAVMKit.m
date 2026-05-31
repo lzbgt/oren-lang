@@ -1,5 +1,6 @@
 #import "OrenAVMKit.h"
 
+#import <CommonCrypto/CommonDigest.h>
 #import <dispatch/dispatch.h>
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
@@ -9,6 +10,7 @@
 #include <math.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -409,6 +411,7 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     uint64_t _liveNetworkSessionByteLimitBytes;
     NSURLSession* _networkSession;
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSockets;
+    NSMutableDictionary<NSNumber*, NSString*>* _networkSessionKinds;
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSessionByteCounts;
     uint32_t _nextNetworkSessionId;
 }
@@ -422,6 +425,26 @@ static void OrenAVMRuntimeSetSocketTimeout(int fd, uint32_t timeoutMs) {
     (void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 }
 
+static int OrenAVMRuntimeSendAll(int fd, const uint8_t* data, size_t len) {
+    size_t total = 0;
+    while (total < len) {
+        ssize_t n = send(fd, data + total, len - total, 0);
+        if (n <= 0) return -1;
+        total += (size_t)n;
+    }
+    return 0;
+}
+
+static int OrenAVMRuntimeRecvExact(int fd, uint8_t* data, size_t len) {
+    size_t total = 0;
+    while (total < len) {
+        ssize_t n = recv(fd, data + total, len - total, 0);
+        if (n <= 0) return -1;
+        total += (size_t)n;
+    }
+    return 0;
+}
+
 static int OrenAVMRuntimeSocketForSession(OrenAVMRuntime* runtime, uint32_t sessionId) {
     __block int fd = -1;
     @synchronized (runtime) {
@@ -429,6 +452,140 @@ static int OrenAVMRuntimeSocketForSession(OrenAVMRuntime* runtime, uint32_t sess
         if (value) fd = value.intValue;
     }
     return fd;
+}
+
+static NSString* OrenAVMRuntimeKindForSession(OrenAVMRuntime* runtime, uint32_t sessionId) {
+    __block NSString* kind = nil;
+    @synchronized (runtime) {
+        kind = runtime->_networkSessionKinds[@(sessionId)];
+    }
+    return kind;
+}
+
+static NSString* OrenAVMRuntimeWebSocketAccept(NSString* key) {
+    NSString* input = [key stringByAppendingString:@"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"];
+    NSData* data = [input dataUsingEncoding:NSASCIIStringEncoding];
+    if (!data) return nil;
+    uint8_t digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1(data.bytes, (CC_LONG)data.length, digest);
+    NSData* digestData = [NSData dataWithBytes:digest length:sizeof(digest)];
+    return [digestData base64EncodedStringWithOptions:0];
+}
+
+static BOOL OrenAVMRuntimeWebSocketHandshake(int fd, NSURL* url, uint32_t timeoutMs) {
+    NSMutableData* keyBytes = [NSMutableData dataWithLength:16];
+    if (!keyBytes) return NO;
+    arc4random_buf(keyBytes.mutableBytes, keyBytes.length);
+    NSString* key = [keyBytes base64EncodedStringWithOptions:0];
+    NSString* accept = OrenAVMRuntimeWebSocketAccept(key);
+    if (!key || !accept) return NO;
+
+    NSString* path = url.path.length > 0 ? url.path : @"/";
+    if (url.query.length > 0) path = [path stringByAppendingFormat:@"?%@", url.query];
+    NSString* hostHeader = url.port ? [NSString stringWithFormat:@"%@:%@", url.host, url.port] : url.host;
+    NSString* request = [NSString stringWithFormat:
+        @"GET %@ HTTP/1.1\r\n"
+         "Host: %@\r\n"
+         "Upgrade: websocket\r\n"
+         "Connection: Upgrade\r\n"
+         "Sec-WebSocket-Key: %@\r\n"
+         "Sec-WebSocket-Version: 13\r\n\r\n",
+        path, hostHeader, key];
+    NSData* requestData = [request dataUsingEncoding:NSASCIIStringEncoding];
+    if (!requestData) return NO;
+    OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
+    if (OrenAVMRuntimeSendAll(fd, requestData.bytes, requestData.length) != 0) return NO;
+
+    NSMutableData* response = [NSMutableData data];
+    uint8_t tmp[512];
+    BOOL complete = NO;
+    while (response.length < 8192u) {
+        ssize_t n = recv(fd, tmp, sizeof(tmp), 0);
+        if (n <= 0) return NO;
+        [response appendBytes:tmp length:(NSUInteger)n];
+        const uint8_t* p = response.bytes;
+        for (NSUInteger i = 3; i < response.length; i++) {
+            if (p[i - 3] == '\r' && p[i - 2] == '\n' && p[i - 1] == '\r' && p[i] == '\n') {
+                complete = YES;
+                break;
+            }
+        }
+        if (complete) break;
+    }
+    if (!complete) return NO;
+    NSString* header = [[NSString alloc] initWithData:response encoding:NSASCIIStringEncoding];
+    NSString* lower = header.lowercaseString;
+    if (!header || ![header containsString:@" 101 "] || ![lower containsString:@"upgrade: websocket"]) return NO;
+    if (![lower containsString:[accept lowercaseString]]) return NO;
+    return YES;
+}
+
+static int OrenAVMRuntimeWebSocketWriteText(int fd, const uint8_t* data, size_t len) {
+    if (len > 65535u) return -1;
+    size_t headerLen = len < 126u ? 6u : 8u;
+    size_t frameLen = headerLen + len;
+    uint8_t* frame = (uint8_t*)malloc(frameLen);
+    if (!frame) return -1;
+    size_t off = 0;
+    frame[off++] = 0x81u;
+    if (len < 126u) {
+        frame[off++] = (uint8_t)(0x80u | (uint8_t)len);
+    } else {
+        frame[off++] = 0xFEu;
+        frame[off++] = (uint8_t)((len >> 8) & 255u);
+        frame[off++] = (uint8_t)(len & 255u);
+    }
+    uint8_t mask[4];
+    arc4random_buf(mask, sizeof(mask));
+    memcpy(frame + off, mask, sizeof(mask));
+    off += sizeof(mask);
+    for (size_t i = 0; i < len; i++) frame[off + i] = data[i] ^ mask[i & 3u];
+    int rc = OrenAVMRuntimeSendAll(fd, frame, frameLen);
+    free(frame);
+    return rc;
+}
+
+static int OrenAVMRuntimeWebSocketReadPayload(int fd, size_t maxLen, uint8_t** outData, size_t* outLen) {
+    uint8_t head[2];
+    if (OrenAVMRuntimeRecvExact(fd, head, sizeof(head)) != 0) return -1;
+    uint8_t opcode = head[0] & 0x0Fu;
+    BOOL masked = (head[1] & 0x80u) != 0;
+    uint64_t payloadLen = (uint64_t)(head[1] & 0x7Fu);
+    if (payloadLen == 126u) {
+        uint8_t ext[2];
+        if (OrenAVMRuntimeRecvExact(fd, ext, sizeof(ext)) != 0) return -1;
+        payloadLen = ((uint64_t)ext[0] << 8) | (uint64_t)ext[1];
+    } else if (payloadLen == 127u) {
+        return -1;
+    }
+    uint8_t mask[4] = {0, 0, 0, 0};
+    if (masked && OrenAVMRuntimeRecvExact(fd, mask, sizeof(mask)) != 0) return -1;
+    if (payloadLen > maxLen || payloadLen > (16u * 1024u * 1024u)) return -1;
+    uint8_t* payload = NULL;
+    if (payloadLen > 0) {
+        payload = (uint8_t*)malloc((size_t)payloadLen);
+        if (!payload) return -1;
+        if (OrenAVMRuntimeRecvExact(fd, payload, (size_t)payloadLen) != 0) {
+            free(payload);
+            return -1;
+        }
+        if (masked) {
+            for (size_t i = 0; i < (size_t)payloadLen; i++) payload[i] ^= mask[i & 3u];
+        }
+    }
+    if (opcode == 8u) {
+        free(payload);
+        *outData = NULL;
+        *outLen = 0;
+        return 0;
+    }
+    if (opcode != 1u && opcode != 2u) {
+        free(payload);
+        return -1;
+    }
+    *outData = payload;
+    *outLen = (size_t)payloadLen;
+    return 0;
 }
 
 static BOOL OrenAVMRuntimeCanUseSessionBytes(OrenAVMRuntime* runtime, uint32_t sessionId, uint64_t len) {
@@ -648,7 +805,8 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     NSString* scheme = url.scheme.lowercaseString;
     BOOL isTCP = [scheme isEqualToString:@"tcp"];
     BOOL isUDP = [scheme isEqualToString:@"udp"];
-    if (!url || (!isTCP && !isUDP) || url.host.length == 0 || !url.port) return -1;
+    BOOL isWS = [scheme isEqualToString:@"ws"];
+    if (!url || (!isTCP && !isUDP && !isWS) || url.host.length == 0 || !url.port) return -1;
     if (runtime->_liveNetworkAllowedHosts.count > 0 && ![runtime->_liveNetworkAllowedHosts containsObject:url.host]) return -1;
 
     char service[16];
@@ -672,6 +830,10 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     }
     freeaddrinfo(result);
     if (fd < 0) return -1;
+    if (isWS && !OrenAVMRuntimeWebSocketHandshake(fd, url, timeoutMs)) {
+        close(fd);
+        return -1;
+    }
 
     @synchronized (runtime) {
         if (runtime->_liveNetworkMaxSessions > 0 && runtime->_networkSockets.count >= runtime->_liveNetworkMaxSessions) {
@@ -682,6 +844,7 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
         if (runtime->_nextNetworkSessionId == 0) runtime->_nextNetworkSessionId = 1u;
         *outSessionId = runtime->_nextNetworkSessionId;
         runtime->_networkSockets[@(*outSessionId)] = @(fd);
+        runtime->_networkSessionKinds[@(*outSessionId)] = isWS ? @"ws" : (isUDP ? @"udp" : @"tcp");
         runtime->_networkSessionByteCounts[@(*outSessionId)] = @0;
     }
     return 0;
@@ -694,14 +857,16 @@ static int OrenAVMRuntimeNetSessionWrite(void* userData, uint32_t sessionId, con
     if (fd < 0) return -1;
     if (!OrenAVMRuntimeCanUseSessionBytes(runtime, sessionId, (uint64_t)len)) return -1;
     OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
-    size_t total = 0;
-    while (total < len) {
-        ssize_t n = send(fd, data + total, len - total, 0);
-        if (n <= 0) return -1;
-        total += (size_t)n;
+    NSString* kind = OrenAVMRuntimeKindForSession(runtime, sessionId);
+    if ([kind isEqualToString:@"ws"]) {
+        if (OrenAVMRuntimeWebSocketWriteText(fd, data, len) != 0) return -1;
+        OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)len);
+        *outWritten = len;
+        return 0;
     }
-    OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)total);
-    *outWritten = total;
+    if (OrenAVMRuntimeSendAll(fd, data, len) != 0) return -1;
+    OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)len);
+    *outWritten = len;
     return 0;
 }
 
@@ -714,6 +879,17 @@ static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size
     if (fd < 0) return -1;
     maxLen = OrenAVMRuntimeClampSessionReadLen(runtime, sessionId, maxLen);
     if (maxLen == 0) return 0;
+    NSString* kind = OrenAVMRuntimeKindForSession(runtime, sessionId);
+    if ([kind isEqualToString:@"ws"]) {
+        uint8_t* payload = NULL;
+        size_t payloadLen = 0;
+        OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
+        if (OrenAVMRuntimeWebSocketReadPayload(fd, maxLen, &payload, &payloadLen) != 0) return -1;
+        OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)payloadLen);
+        *outData = payload;
+        *outLen = payloadLen;
+        return 0;
+    }
     uint8_t* buf = (uint8_t*)malloc(maxLen);
     if (!buf) return -1;
     OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
@@ -822,6 +998,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
         if (value) {
             fd = value.intValue;
             [runtime->_networkSockets removeObjectForKey:key];
+            [runtime->_networkSessionKinds removeObjectForKey:key];
             [runtime->_networkSessionByteCounts removeObjectForKey:key];
         }
     }
@@ -846,6 +1023,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
     _networkSession = [NSURLSession sessionWithConfiguration:sessionConfig];
     _networkSockets = [NSMutableDictionary dictionary];
+    _networkSessionKinds = [NSMutableDictionary dictionary];
     _networkSessionByteCounts = [NSMutableDictionary dictionary];
     _nextNetworkSessionId = 0;
     if (effective.liveNetworkEnabled) {
