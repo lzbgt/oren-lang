@@ -493,8 +493,10 @@
 <p>the latest request in a compact <code>OPR0</code> binary mailbox; embedders can retrieve and</p>
 <p>clear it through <code>avm_embed_permission_request_get/clear</code>, and <code>OrenAVMKit</code></p>
 <p>provides raw and decoded helpers. <code>OrenAVMPermissionGrantStore</code> persists decoded</p>
-<p>host decisions in an app-owned JSON file and can reapply NET connect grants or</p>
-<p>revocations to a runtime by updating live VNET allowed hosts. High-performance networking should be implemented</p>
+<p>host decisions in an app-owned JSON file, can explicitly apply package</p>
+<p><code>permission_defaults</code> after host/user policy accepts them, and can reapply NET</p>
+<p>connect grants or revocations to a runtime by updating live VNET allowed hosts.</p>
+<p>High-performance networking should be implemented</p>
 <p>as a host-backed VNET provider with virtual session handles, not as</p>
 <p>bytecode-visible native sockets. TCP client streams, UDP connected datagrams, and</p>
 <p>WebSocket client sessions and TCP listener/accept server flows now use that</p>

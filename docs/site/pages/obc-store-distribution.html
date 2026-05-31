@@ -106,6 +106,15 @@
   &quot;avm_abi_min&quot;: 3,
   &quot;stdlib_bundle&quot;: &quot;stdlib_bundle.obc&quot;,
   &quot;capabilities&quot;: [&quot;CORE&quot;, &quot;TIME&quot;, &quot;GFX&quot;, &quot;INPUT&quot;],
+  &quot;permission_defaults&quot;: [
+    {
+      &quot;domain&quot;: &quot;NET&quot;,
+      &quot;action&quot;: &quot;connect&quot;,
+      &quot;detail&quot;: &quot;https://api.example.invalid&quot;,
+      &quot;granted&quot;: false,
+      &quot;reason&quot;: &quot;Optional demo data sync&quot;
+    }
+  ],
   &quot;time_mode&quot;: &quot;interactive&quot;,
   &quot;budgets&quot;: {
     &quot;gas&quot;: 5000000,
@@ -131,13 +140,20 @@
 </ul>
 <p>  permissions from code behavior after launch.</p>
 <ul>
+<li><code>permission_defaults</code> is optional host-facing policy metadata. Entries declare</li>
+</ul>
+<p>  proposed persisted grants or revocations (<code>domain</code>, <code>action</code>, optional <code>detail</code>,</p>
+<p>  optional boolean <code>granted</code>, and UI metadata such as <code>reason</code>). The SDK never</p>
+<p>  applies them implicitly; a host app must explicitly apply them after store policy</p>
+<p>  or user confirmation.</p>
+<ul>
 <li><code>time_mode</code> is explicit. Scientific simulations can use deterministic time;</li>
 </ul>
 <p>  interactive UI demos can use wall-clock <code>avm_embed_config_interactive_default</code>.</p>
 <ul>
-<li>Network should default to VirtualNET fixtures unless the app intentionally</li>
+<li>Interactive network should use host-backed VNET providers by default when the</li>
 </ul>
-<p>  supports a reviewed host-network bridge.</p>
+<p>  host policy grants it; deterministic tests can still use VirtualNET fixtures.</p>
 <ul>
 <li>Process execution should stay VirtualPROC on iOS.</li>
 <li>GUI packages require the future <code>GFX</code> capability and frame mailbox.</li>

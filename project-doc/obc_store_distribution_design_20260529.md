@@ -76,6 +76,15 @@ Minimum `package.json` shape:
   "avm_abi_min": 3,
   "stdlib_bundle": "stdlib_bundle.obc",
   "capabilities": ["CORE", "TIME", "GFX", "INPUT"],
+  "permission_defaults": [
+    {
+      "domain": "NET",
+      "action": "connect",
+      "detail": "https://api.example.invalid",
+      "granted": false,
+      "reason": "Optional demo data sync"
+    }
+  ],
   "time_mode": "interactive",
   "budgets": {
     "gas": 5000000,
@@ -101,10 +110,15 @@ Rules:
 
 - The manifest declares capabilities before execution. The host must never infer
   permissions from code behavior after launch.
+- `permission_defaults` is optional host-facing policy metadata. Entries declare
+  proposed persisted grants or revocations (`domain`, `action`, optional `detail`,
+  optional boolean `granted`, and UI metadata such as `reason`). The SDK never
+  applies them implicitly; a host app must explicitly apply them after store policy
+  or user confirmation.
 - `time_mode` is explicit. Scientific simulations can use deterministic time;
   interactive UI demos can use wall-clock `avm_embed_config_interactive_default`.
-- Network should default to VirtualNET fixtures unless the app intentionally
-  supports a reviewed host-network bridge.
+- Interactive network should use host-backed VNET providers by default when the
+  host policy grants it; deterministic tests can still use VirtualNET fixtures.
 - Process execution should stay VirtualPROC on iOS.
 - GUI packages require the future `GFX` capability and frame mailbox.
 - Source code is optional for third-party packages and required for official

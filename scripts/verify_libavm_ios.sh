@@ -866,9 +866,15 @@ int main(void) {
                                                                   error:&error];
             if (!package || ![package.packageID isEqual:@"oren-labs/sdk-package-smoke/0.1.0"]) return 89;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
-            if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 90;
+            if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0 || (packageCfg.allowedDomains & OrenAVMDomainNet) == 0) return 90;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
             if (!packageRuntime) return 91;
+            NSURL* packageGrantsURL = [tempRoot URLByAppendingPathComponent:@"package-permission-grants.json" isDirectory:NO];
+            OrenAVMPermissionGrantStore* packageGrantStore = [[OrenAVMPermissionGrantStore alloc] initWithStoreURL:packageGrantsURL];
+            if (![packageGrantStore loadWithError:&error]) return 147;
+            if (![packageGrantStore applyPackagePermissionDefaults:package runtime:packageRuntime timeoutSeconds:5.0 error:&error]) return 148;
+            if (![packageGrantStore isGrantedForDomain:@"NET" action:@"connect" detail:@"tcp://package.example:443"]) return 149;
+            if (![packageGrantStore.allowedNetworkHosts containsObject:@"package.example"]) return 150;
             OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
             if (!packageResult || packageResult.exitCode != 9) return 92;
             if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 93;
@@ -1252,7 +1258,10 @@ cat > "$PACKAGE_DIR/package.json" <<JSON
   "obc_sha256": "$PACKAGE_HASH",
   "oren_min": "0.0.rolling",
   "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
+  "capabilities": ["CORE", "FS", "NET", "EXIT"],
+  "permission_defaults": [
+    { "domain": "NET", "action": "connect", "detail": "tcp://package.example:443", "granted": true }
+  ],
   "time_mode": "deterministic",
   "budgets": {
     "gas": 5000000,

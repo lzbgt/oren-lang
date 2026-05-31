@@ -12,6 +12,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class OrenAVMPackage;
+
 typedef NS_ENUM(NSInteger, OrenAVMTimeMode) {
     OrenAVMTimeModeDeterministic = 0,
     OrenAVMTimeModeInteractiveWallClock = 1
@@ -204,6 +206,10 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                    runtime:(nullable OrenAVMRuntime*)runtime
                             timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                       error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)applyPackagePermissionDefaults:(OrenAVMPackage*)package
+                                runtime:(nullable OrenAVMRuntime*)runtime
+                         timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                  error:(NSError* _Nullable* _Nullable)error;
 
 @end
 

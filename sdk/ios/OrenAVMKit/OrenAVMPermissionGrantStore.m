@@ -178,4 +178,84 @@ static NSString* OrenAVMPermissionNetworkHostFromDetail(NSString* detail) {
     return YES;
 }
 
+- (BOOL)applyPackagePermissionDefaults:(OrenAVMPackage*)package
+                                runtime:(OrenAVMRuntime*)runtime
+                         timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                  error:(NSError**)error {
+    if (![package isKindOfClass:[OrenAVMPackage class]]) {
+        return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                           @"package is required to apply permission defaults");
+    }
+    id defaults = package.manifest[@"permission_defaults"];
+    if (!defaults || defaults == (id)[NSNull null]) return YES;
+    if (![defaults isKindOfClass:[NSArray class]]) {
+        return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                           @"package permission_defaults must be an array");
+    }
+
+    NSMutableArray<NSDictionary<NSString*, id>*>* cleanDefaults = [NSMutableArray array];
+    BOOL touchesNetwork = NO;
+    for (id item in (NSArray*)defaults) {
+        if (![item isKindOfClass:[NSDictionary class]]) {
+            return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                               @"package permission default entries must be objects");
+        }
+        NSDictionary<NSString*, id>* entry = (NSDictionary<NSString*, id>*)item;
+        id domainValue = entry[@"domain"];
+        id actionValue = entry[@"action"];
+        if (![domainValue isKindOfClass:[NSString class]] || ![actionValue isKindOfClass:[NSString class]]) {
+            return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                               @"package permission default requires string domain and action");
+        }
+        NSString* domain = (NSString*)domainValue;
+        NSString* action = (NSString*)actionValue;
+        id detailValue = entry[@"detail"];
+        NSString* detail = @"";
+        if (detailValue && detailValue != (id)[NSNull null]) {
+            if (![detailValue isKindOfClass:[NSString class]]) {
+                return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                                   @"package permission default detail must be a string");
+            }
+            detail = (NSString*)detailValue;
+        }
+        if (domain.length == 0 || action.length == 0) {
+            return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                               @"package permission default requires non-empty domain and action");
+        }
+        BOOL granted = YES;
+        id grantedValue = entry[@"granted"];
+        if (grantedValue && grantedValue != (id)[NSNull null]) {
+            if (![grantedValue isKindOfClass:[NSNumber class]]) {
+                return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                                   @"package permission default granted must be boolean");
+            }
+            granted = [(NSNumber*)grantedValue boolValue];
+        }
+        if ([domain.uppercaseString isEqualToString:@"NET"]) touchesNetwork = YES;
+        [cleanDefaults addObject:@{
+            @"domain": domain,
+            @"action": action,
+            @"detail": detail,
+            @"granted": @(granted),
+        }];
+    }
+
+    for (NSDictionary<NSString*, id>* entry in cleanDefaults) {
+        NSString* domain = (NSString*)entry[@"domain"];
+        NSString* action = (NSString*)entry[@"action"];
+        NSString* detail = (NSString*)entry[@"detail"];
+        NSString* key = OrenAVMPermissionKey(domain, action, detail);
+        if ([entry[@"granted"] boolValue]) {
+            self.grantsByKey[key] = OrenAVMPermissionEntry(domain, action, detail);
+        } else {
+            [self.grantsByKey removeObjectForKey:key];
+        }
+    }
+    if (![self saveWithError:error]) return NO;
+    if (touchesNetwork && runtime) {
+        return [self applyNetworkGrantsToRuntime:runtime timeoutSeconds:timeoutSeconds error:error];
+    }
+    return YES;
+}
+
 @end

@@ -379,8 +379,10 @@ changing OBC. The current implementation exposes that request path as
 the latest request in a compact `OPR0` binary mailbox; embedders can retrieve and
 clear it through `avm_embed_permission_request_get/clear`, and `OrenAVMKit`
 provides raw and decoded helpers. `OrenAVMPermissionGrantStore` persists decoded
-host decisions in an app-owned JSON file and can reapply NET connect grants or
-revocations to a runtime by updating live VNET allowed hosts. High-performance networking should be implemented
+host decisions in an app-owned JSON file, can explicitly apply package
+`permission_defaults` after host/user policy accepts them, and can reapply NET
+connect grants or revocations to a runtime by updating live VNET allowed hosts.
+High-performance networking should be implemented
 as a host-backed VNET provider with virtual session handles, not as
 bytecode-visible native sockets. TCP client streams, UDP connected datagrams, and
 WebSocket client sessions and TCP listener/accept server flows now use that
