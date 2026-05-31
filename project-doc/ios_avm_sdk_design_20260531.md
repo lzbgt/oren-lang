@@ -289,12 +289,16 @@ Public OBC store helper.
   P-256 store key before trusting package entries, then applies publisher
   signature checks. The retained gate proves valid signatures plus bad-index-key,
   bad-package-signature, and bad-asset-hash rejection.
+- Persisted app-directory lifecycle helpers are implemented for list, load, and
+  remove installed packages. Remote package installs write to a temporary package
+  directory first, verify through the local package path, then replace the final
+  install path so partially downloaded packages are not treated as installed.
 - Signature/cert enforcement is host policy. The SDK provides strict signed
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting
   users run non-store software while owning the risk.
-- Next slices should add root trust rotation, persisted install/update/remove
-  lifecycle, and Note app smoke.
+- Next slices should add root trust rotation, explicit update policy, and Note app
+  smoke.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

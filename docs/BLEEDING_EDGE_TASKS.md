@@ -112,8 +112,10 @@ This file is the concise task view. Detailed implementation status lives in
      download with SHA-256 verification, signed `index.json.sig` verification,
      trusted P-256 publisher signature verification, install, and run. Signature
      enforcement remains host policy: apps can require trust or let users accept
-     unsigned/untrusted OBC risk. Remaining package-store work is root trust
-     rotation, persisted install/update/remove flows, and Note app smoke.
+     unsigned/untrusted OBC risk. Persisted app-directory list/load/remove helpers
+     are implemented and verified, with staged remote install before final path
+     replacement. Remaining package-store work is root trust rotation, explicit
+     update policy, and Note app smoke.
 
 2. **AVM full-suite manifest runner**
    - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`

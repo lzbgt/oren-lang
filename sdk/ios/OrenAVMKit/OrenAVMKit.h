@@ -168,6 +168,16 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (nullable OrenAVMRunResult*)runPackage:(OrenAVMPackage*)package
                                  runtime:(OrenAVMRuntime*)runtime
                                    error:(NSError* _Nullable* _Nullable)error;
+- (NSArray<NSString*>*)listInstalledPackageIDsInDirectoryURL:(NSURL*)installRootURL
+                                                       error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackage*)loadInstalledPackageInDirectoryURL:(NSURL*)installRootURL
+                                                     packageID:(NSString*)packageID
+                                                       version:(NSString*)version
+                                                         error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)removeInstalledPackageInDirectoryURL:(NSURL*)installRootURL
+                                   packageID:(NSString*)packageID
+                                     version:(NSString*)version
+                                       error:(NSError* _Nullable* _Nullable)error;
 
 + (NSString*)sha256HexForData:(NSData*)data;
 

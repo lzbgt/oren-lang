@@ -205,9 +205,11 @@ host apps pass trusted P-256 public keys by publisher ID, and the SDK verifies
 A signed-index overload also fetches and verifies `index.json.sig` with a trusted
 P-256 store key before trusting package entries. Signature/cert enforcement is
 host policy: apps should default to trusted metadata, but may expose an explicit
-user-confirmed "run untrusted OBC" path. Remaining store work is root trust
-rotation, persisted install/update/remove lifecycle, and Note app smoke before a
-public store is release-ready.
+user-confirmed "run untrusted OBC" path. The SDK also has persisted app-directory
+lifecycle helpers for list, load, and remove installed packages, and remote installs
+stage into a temporary package directory before replacing the final package path.
+Remaining store work is root trust rotation, explicit update policy, and Note app
+smoke before a public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo

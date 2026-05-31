@@ -379,15 +379,21 @@
 <p>  signature checks. The retained gate proves valid signatures plus bad-index-key,</p>
 <p>  bad-package-signature, and bad-asset-hash rejection.</p>
 <ul>
+<li>Persisted app-directory lifecycle helpers are implemented for list, load, and</li>
+</ul>
+<p>  remove installed packages. Remote package installs write to a temporary package</p>
+<p>  directory first, verify through the local package path, then replace the final</p>
+<p>  install path so partially downloaded packages are not treated as installed.</p>
+<ul>
 <li>Signature/cert enforcement is host policy. The SDK provides strict signed</li>
 </ul>
 <p>  verification for safe defaults, but a host app may deliberately use the unsigned</p>
 <p>  download/local load path after user confirmation, equivalent to a platform letting</p>
 <p>  users run non-store software while owning the risk.</p>
 <ul>
-<li>Next slices should add root trust rotation, persisted install/update/remove</li>
+<li>Next slices should add root trust rotation, explicit update policy, and Note app</li>
 </ul>
-<p>  lifecycle, and Note app smoke.</p>
+<p>  smoke.</p>
 <ul>
 <li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
 </ul>

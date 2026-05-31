@@ -98,7 +98,10 @@ Facts from the 2026-05-28 implementation pass:
   verifies `index.json.sig` with a trusted P-256 store key, then verifies
   trusted-publisher `p256-sha256-der` signatures over manifest hashes before
   package install; the iOS verifier proves valid signatures plus bad-index-key,
-  bad-asset-hash, and bad-package-signature paths.
+  bad-asset-hash, and bad-package-signature paths. The package store now has
+  persisted app-directory lifecycle helpers for list, load, and remove installed
+  packages; remote installs stage into a temporary package directory before replacing
+  the final install path.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

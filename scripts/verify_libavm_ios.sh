@@ -777,6 +777,14 @@ int main(void) {
             OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
             if (!packageResult || packageResult.exitCode != 9) return 97;
             if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 98;
+            NSURL* installRootURL = [NSURL fileURLWithPath:packageDownloadDir isDirectory:YES];
+            NSArray<NSString*>* installed = [store listInstalledPackageIDsInDirectoryURL:installRootURL error:&error];
+            if (![installed containsObject:@"oren-labs/sdk-package-remote/0.1.0"]) return 101;
+            OrenAVMPackage* loadedPackage = [store loadInstalledPackageInDirectoryURL:installRootURL
+                                                                            packageID:@"oren-labs/sdk-package-remote"
+                                                                              version:@"0.1.0"
+                                                                                error:&error];
+            if (!loadedPackage || ![loadedPackage.packageID isEqual:@"oren-labs/sdk-package-remote/0.1.0"]) return 102;
             error = nil;
             OrenAVMPackage* badAssetPackage = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
                                                                              packageID:@"oren-labs/sdk-package-bad-asset"
@@ -809,7 +817,14 @@ int main(void) {
                                                                  trustedIndexPublicKey:badIndexKey
                                                             trustedPublisherPublicKeys:trustedKeys
                                                                                  error:&error];
-            if (badIndexPackage || !error) return 101;
+            if (badIndexPackage || !error) return 105;
+            error = nil;
+            if (![store removeInstalledPackageInDirectoryURL:installRootURL
+                                                   packageID:@"oren-labs/sdk-package-remote"
+                                                     version:@"0.1.0"
+                                                       error:&error]) return 103;
+            NSArray<NSString*>* afterRemove = [store listInstalledPackageIDsInDirectoryURL:installRootURL error:&error];
+            if ([afterRemove containsObject:@"oren-labs/sdk-package-remote/0.1.0"]) return 104;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -964,6 +979,7 @@ HOST_SDK_BIN="$TMP_DIR/sdk_smoke_host"
 clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK=1 \
   -Ilib/avm -Ibuild -I"$TMP_DIR" -I"$OUT_ROOT/include" \
   "$TMP_DIR/sdk_smoke.m" sdk/ios/OrenAVMKit/OrenAVMKit.m "${HOST_SOURCES[@]}" \
+  sdk/ios/OrenAVMKit/OrenAVMPackageStore.m \
   -fobjc-arc -framework Foundation -framework Security -o "$HOST_SDK_BIN"
 NET_DIR="$TMP_DIR/net_server"
 rm -rf "$NET_DIR"

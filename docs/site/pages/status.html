@@ -143,7 +143,10 @@
 <p>  verifies <code>index.json.sig</code> with a trusted P-256 store key, then verifies</p>
 <p>  trusted-publisher <code>p256-sha256-der</code> signatures over manifest hashes before</p>
 <p>  package install; the iOS verifier proves valid signatures plus bad-index-key,</p>
-<p>  bad-asset-hash, and bad-package-signature paths.</p>
+<p>  bad-asset-hash, and bad-package-signature paths. The package store now has</p>
+<p>  persisted app-directory lifecycle helpers for list, load, and remove installed</p>
+<p>  packages; remote installs stage into a temporary package directory before replacing</p>
+<p>  the final install path.</p>
 <ul>
 <li>iOS SDK design is documented in <code>project-doc/ios_avm_sdk_design_20260531.md</code>:</li>
 </ul>
