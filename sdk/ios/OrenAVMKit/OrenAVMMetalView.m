@@ -781,9 +781,12 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                y:(float)y
                                                                w:(float)w
                                                                h:(float)h
-                                                    logicalWidth:(float)logicalW
-                                                   logicalHeight:(float)logicalH];
+	                                                    logicalWidth:(float)logicalW
+	                                                   logicalHeight:(float)logicalH];
             if (run) [imageRuns addObject:run];
+        } else if (opcode == 66 && payloadLen == 4) {
+            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
+            [self.orenImageTextures removeObjectForKey:@(imageID)];
         }
         off += payloadLen;
     }

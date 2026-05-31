@@ -140,6 +140,9 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if dx < 0 || dy < 0 || dx + dw > w || dy + dh > h { return oren_err(4, "ui.validate: draw_image out of bounds") }
             }
+        } else if op == "destroy_image" {
+            var xid = c["id"]
+            if _is_int(xid) == false || xid < 1 { return oren_err(4, "ui.validate: destroy_image invalid id") }
         } else {
             return oren_err(4, "ui.validate: unknown op")
         }

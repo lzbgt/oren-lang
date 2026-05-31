@@ -77,6 +77,17 @@ fn main() {
     assert_true(oren_is_err(r6))
     assert_true(oren_err_code(r6) == 4)
 
+    var bad_destroy = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        66, 0, 8, 0,
+        1, 0, 0, 0, 2, 0, 0, 0
+    ])
+    var r7 = ui_avm.present_bytes(bad_destroy)
+    assert_true(oren_is_err(r7))
+    assert_true(oren_err_code(r7) == 4)
+
     exit(0)
 }
 

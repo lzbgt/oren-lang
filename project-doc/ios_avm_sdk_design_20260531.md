@@ -85,17 +85,17 @@ Retained SDK slices on 2026-05-31:
   `getGraphicsFrameDataWithError:`, validates the binary magic/opcode, injects a
   binary pointer event through the SDK, and clears the frame.
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
-  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
-  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`,
-  `fill_triangle`, `image_rgba`, and `draw_image`) and enqueues pointer events back through the `OGE0` input
+	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
+	  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`,
+	  `fill_triangle`, `image_rgba`, `draw_image`, and `destroy_image`) and enqueues pointer events back through the `OGE0` input
   mailbox. This is the default 2D fallback.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
-  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
-  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-  stroke-line, circle, fill-triangle, retained RGBA image draws, and byte-native text payloads through Metal
-  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
-  over-budget frames without reading raw Metal timing APIs. Retained image
-  destruction/lifetime, atlas batching, and text atlas resources remain pending.
+	  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
+	  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
+	  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy records, and byte-native text payloads through Metal
+	  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
+	  over-budget frames without reading raw Metal timing APIs. Atlas batching and
+	  text atlas resources remain pending.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, and UTF-8 text-input events. These are still
   mailbox records, not UIKit objects.

@@ -38,7 +38,7 @@ The first retained implementation slices exist as of 2026-05-31:
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `text`/`text_bytes`/`stroke_line`/`circle`/`fill_triangle`/`image_rgba`/
-  `draw_image` subset. It decodes frame bytes on the host side
+  `draw_image`/`destroy_image` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
   key, and UTF-8 text input events, plus host-populated persistent screen state.
@@ -171,7 +171,7 @@ logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
 cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
-`image_rgba`, `draw_image`, pointer, resize, media-query, key, and text
+`image_rgba`, `draw_image`, `destroy_image`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.
 

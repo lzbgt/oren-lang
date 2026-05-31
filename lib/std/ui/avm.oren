@@ -168,6 +168,11 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["h"])
         return 0
     }
+    if op == "destroy_image" {
+        _push_op_header(out, 66, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
     return oren_err(4, "ui.avm.frame_bytes: unsupported op")
 }
 

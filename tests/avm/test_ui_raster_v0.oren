@@ -127,7 +127,8 @@ fn test_raster_image() {
     assert_true(oren_is_err(px) == false)
     var cmds = [
         {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": px},
-        {"op": "draw_image", "id": 1, "x": 0, "y": 0, "w": 2, "h": 2}
+        {"op": "draw_image", "id": 1, "x": 0, "y": 0, "w": 2, "h": 2},
+        {"op": "destroy_image", "id": 1}
     ]
     var buf = ui_raster.try_rasterize(cmds, 3, 3, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)

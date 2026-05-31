@@ -491,6 +491,9 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             uint32_t h = OrenAVMGfxReadU32LE(payload + 16);
             UIImage* image = self.orenImages[@(imageID)];
             if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
+        } else if (opcode == 66 && payloadLen == 4) {
+            uint32_t imageID = OrenAVMGfxReadU32LE(payload);
+            [self.orenImages removeObjectForKey:@(imageID)];
         }
 
         off += payloadLen;

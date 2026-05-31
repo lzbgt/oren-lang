@@ -72,13 +72,16 @@ fn test_validate_image() {
     assert_true(oren_is_err(px) == false)
     var cmds = [
         {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": px},
-        {"op": "draw_image", "id": 1, "x": 0, "y": 0, "w": 2, "h": 2}
+        {"op": "draw_image", "id": 1, "x": 0, "y": 0, "w": 2, "h": 2},
+        {"op": "destroy_image", "id": 1}
     ]
     assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"strict_bounds": true})) == false)
     var bad_image = [{"op": "image_rgba", "id": 1, "w": 2, "h": 1, "data": px}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_image, 2, 2, nil)) == true)
     var bad_draw = [{"op": "draw_image", "id": 1, "x": 1, "y": 1, "w": 2, "h": 2}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_draw, 2, 2, {"strict_bounds": true})) == true)
+    var bad_destroy = [{"op": "destroy_image", "id": 0}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_destroy, 2, 2, nil)) == true)
 }
 
 fn main() {
