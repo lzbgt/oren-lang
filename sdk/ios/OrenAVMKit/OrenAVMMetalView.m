@@ -5,7 +5,7 @@
 #if TARGET_OS_IPHONE
 
 #import <Metal/Metal.h>
-#import <QuartzCore/CAMetalLayer.h>
+#import <QuartzCore/QuartzCore.h>
 #include <math.h>
 #include <string.h>
 
@@ -146,13 +146,24 @@ static void OrenAVMMetalAppendLine(NSMutableData* vertices,
     self.enableSetNeedsDisplay = NO;
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
-    self.preferredFramesPerSecond = (NSInteger)((self.targetHzMilli + 999u) / 1000u);
-    if (self.preferredFramesPerSecond <= 0) self.preferredFramesPerSecond = 60;
+    [self orenApplyFrameRate];
     if (self.device) {
         self.orenCommandQueue = [self.device newCommandQueue];
         [self orenBuildPipeline];
     }
     self.delegate = self;
+}
+
+- (void)setTargetHzMilli:(uint32_t)targetHzMilli {
+    _targetHzMilli = targetHzMilli;
+    [self orenApplyFrameRate];
+}
+
+- (void)orenApplyFrameRate {
+    uint32_t hzMilli = self.targetHzMilli == 0 ? 60000u : self.targetHzMilli;
+    NSInteger fps = (NSInteger)((hzMilli + 999u) / 1000u);
+    if (fps <= 0) fps = 60;
+    self.preferredFramesPerSecond = fps;
 }
 
 - (void)orenBuildPipeline {

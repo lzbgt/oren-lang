@@ -109,8 +109,10 @@
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
 <p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code> geometry through a Metal</p>
-<p>  pipeline. CoreGraphics remains the complete fallback for text/circle until text</p>
-<p>  atlas and richer retained resources exist.</p>
+<p>  pipeline. Its <code>targetHzMilli</code> setting drives <code>MTKView.preferredFramesPerSecond</code></p>
+<p>  so hosts can request 60/90/120 Hz pacing without exposing UIKit/Metal objects to</p>
+<p>  OBC. CoreGraphics remains the complete fallback for text/circle until text atlas</p>
+<p>  and richer retained resources exist.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>Host helpers can publish persistent screen/media state and can enqueue</li>
@@ -288,9 +290,10 @@
 <ol>
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter for the current low-level</li>
 </ol>
-<p>   <code>OGF0</code> fill-rect/stroke-line geometry, touch forwarding, and host screen state.</p>
+<p>   <code>OGF0</code> fill-rect/stroke-line geometry, touch forwarding, host screen state, and</p>
+<p>   target-refresh pacing through <code>MTKView.preferredFramesPerSecond</code>.</p>
 <ol>
-<li>Add Note/iOS display-link smoke for high-refresh pacing behavior.</li>
+<li>Add Note/iOS display-link smoke for measured high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>
 <li>Add text atlas/sprite/mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
