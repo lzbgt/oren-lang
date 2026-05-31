@@ -68,6 +68,10 @@ Facts from the 2026-05-28 implementation pass:
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
   release gate, a public signed OBC store repo can distribute app experiences
   that the iOS app downloads, verifies, and runs through `libavm`.
+- iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
+  Oren should ship host-adapter SDK components so Note can use default
+  app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of
+  hand-writing each bridge.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

@@ -26,6 +26,7 @@
 <a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
 <a href="current-implementation.html">Current Implementation</a>
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="ios-avm-sdk.html">iOS AVM SDK</a>
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="obc-store-distribution.html">OBC Store Distribution</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
@@ -97,6 +98,12 @@
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
+<li>SDK design: provide <code>OrenAVMKit</code>/CompilerKit/FileProvider/NetworkProvider/</li>
+</ul>
+<p>     ProcessProvider/TimeProvider/GraphicsKit/PackageStore so iOS apps get default</p>
+<p>     policy-controlled adapters for libavm and compiler-in-AVM. Design note:</p>
+<p>     <code>project-doc/ios_avm_sdk_design_20260531.md</code>.</p>
+<ul>
 <li>Follow-up distribution design: after the GUI bridge gate, publish a curated</li>
 </ul>
 <p>     signed OBC store repo with package manifests, hashes, capability declarations,</p>

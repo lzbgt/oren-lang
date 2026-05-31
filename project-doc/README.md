@@ -8,6 +8,7 @@ Canonical current docs live in `docs/`.
 ## Current Notes
 
 - `current_implementation_20260526.md` - compact current implementation map.
+- `ios_avm_sdk_design_20260531.md` - iOS host-adapter SDK design for libavm, compiler-in-AVM, and default FS/NET/PROC/TIME/GFX adapters.
 - `avm_ios_graphics_design_20260529.md` - AVM-to-iOS graphics command-buffer and Metal host design.
 - `obc_store_distribution_design_20260529.md` - public signed OBC package/store design for iOS app experiences.
 - `ios_avm_readiness_20260507.md` - AVM/iOS production readiness inspection.

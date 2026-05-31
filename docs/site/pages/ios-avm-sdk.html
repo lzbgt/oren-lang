@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iOS AVM SDK - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="ios-avm-sdk.html">iOS AVM SDK</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="ios-avm-sdk-design">iOS AVM SDK Design</h1>
+<h2 id="decision">Decision</h2>
+<p>Yes: Oren should provide an iOS host-adapter SDK on top of <code>libavm</code> and the</p>
+<p>compiler-in-AVM package. The SDK should make the Note app integration small and</p>
+<p>boring: the app should configure policy, attach views/resources, and receive</p>
+<p>results, while Oren/libavm define portable semantics and enforce capability</p>
+<p>budgets.</p>
+<p>The SDK must not make OBC programs native iOS plugins. OBC remains untrusted data</p>
+<p>executed by AVM. The SDK supplies default iOS implementations for approved host</p>
+<p>surfaces.</p>
+<pre><code>Oren source / OBC
+  -&gt; std:fs / std:net / std:proc / std:time / future std:gfx/std:input
+  -&gt; libavm capability gates, budgets, VFS/VNET/VPROC/TIME/GFX mailboxes
+  -&gt; OrenAVMKit iOS adapters
+  -&gt; Note app UI, sandbox, URLSession, Metal/MTKView, app lifecycle</code></pre>
+<h2 id="sdk-components">SDK Components</h2>
+<h3 id="orenavmkit">OrenAVMKit</h3>
+<p>Core Swift/Objective-C wrapper around <code>LibAVM.xcframework</code>.</p>
+<ul>
+<li>Opens and closes <code>AvmEmbedHandle</code>.</li>
+<li>Loads bundled or downloaded <code>.obc</code> bytes.</li>
+<li>Provides default deterministic config and interactive config.</li>
+<li>Runs AVM on a worker queue, never the iOS main thread.</li>
+<li>Surfaces <code>AvmEmbedResult</code>, stdout, diagnostics, and package metadata.</li>
+<li>Owns lifecycle rules for cancellation, teardown, and app backgrounding.</li>
+</ul>
+<h3 id="orenavmcompilerkit">OrenAVMCompilerKit</h3>
+<p>Compiler-in-AVM helper package.</p>
+<ul>
+<li>Bundles <code>oren.obc</code> and <code>stdlib_bundle.obc</code> as app resources.</li>
+<li>Mounts source and stdlib resources into VirtualFS.</li>
+<li>Runs the compiler OBC to produce output OBC.</li>
+<li>Returns compile diagnostics and <code>out.obc</code> bytes to the app.</li>
+<li>Keeps the host app from manually recreating the current compiler-in-AVM harness.</li>
+</ul>
+<h3 id="orenavmfileprovider">OrenAVMFileProvider</h3>
+<p>Default FS adapter.</p>
+<ul>
+<li>Default mode: VirtualFS only.</li>
+<li>Optional app-sandbox mode: explicit read-only/read-write mounts into app</li>
+</ul>
+<p>  Documents, temporary directories, or bundled resources.</p>
+<ul>
+<li>No arbitrary absolute host paths.</li>
+<li>Every mount is declared before launch and visible to package policy.</li>
+</ul>
+<h3 id="orenavmnetworkprovider">OrenAVMNetworkProvider</h3>
+<p>Default NET adapter.</p>
+<ul>
+<li>Default mode: VirtualNET fixtures/no host network.</li>
+<li>Optional reviewed mode: allowlisted <code>URLSession</code> requests.</li>
+<li>Package manifest declares network domains before launch.</li>
+<li>The SDK maps responses back into the AVM NET surface with size/time budgets.</li>
+</ul>
+<h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>
+<p>Default PROC adapter.</p>
+<ul>
+<li>iOS default: VirtualPROC only.</li>
+<li>No arbitrary <code>system()</code> or subprocess execution on iOS.</li>
+<li>Package tests can register command fixtures and default exit codes.</li>
+<li>If future app actions are needed, expose them as reviewed app commands, not raw</li>
+</ul>
+<p>  process execution.</p>
+<h3 id="orenavmtimeprovider">OrenAVMTimeProvider</h3>
+<p>Default TIME adapter.</p>
+<ul>
+<li>Default mode: deterministic virtual time, matching <code>avm_embed_config_default</code>.</li>
+<li>Interactive mode: wall-clock time via <code>avm_embed_config_interactive_default</code>.</li>
+<li><code>time.sleep_ms</code> in interactive mode blocks only the AVM worker queue.</li>
+<li>The SDK should make the time mode explicit in package/app config so UI packages</li>
+</ul>
+<p>  do not accidentally appear to ignore delays.</p>
+<h3 id="orenavmgraphicskit">OrenAVMGraphicsKit</h3>
+<p>Future GUI adapter.</p>
+<ul>
+<li>Receives validated frame command buffers from the AVM graphics mailbox.</li>
+<li>Renders through UIKit/CoreGraphics for simple 2D or Metal/<code>MTKView</code> for GPU</li>
+</ul>
+<p>  paths.</p>
+<ul>
+<li>Encodes pointer/keyboard/resize/input events back into AVM.</li>
+<li>Does not expose UIKit or Metal objects directly to Oren code.</li>
+</ul>
+<h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
+<p>Public OBC store helper.</p>
+<ul>
+<li>Downloads signed store indexes and package manifests.</li>
+<li>Verifies hashes/signatures before execution.</li>
+<li>Applies package capabilities, budgets, assets, time mode, and GUI requirements.</li>
+<li>Rejects unknown schema versions or unsupported AVM ABI requirements.</li>
+</ul>
+<h2 id="default-policy">Default Policy</h2>
+<table>
+<tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>
+<tr><td>FS</td><td>VirtualFS</td><td>Explicit app-sandbox mounts</td></tr>
+<tr><td>NET</td><td>VirtualNET/no host network</td><td>URLSession allowlist</td></tr>
+<tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
+<tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
+<tr><td>GUI</td><td>No raw host access</td><td>GFX mailbox to UIKit/Metal adapter</td></tr>
+<tr><td>INPUT</td><td>No implicit input</td><td>Explicit event queue/mailbox</td></tr>
+<tr><td>STDOUT</td><td>Captured stdout</td><td>App-controlled log/result UI</td></tr>
+</table>
+<h2 id="app-integration-shape">App Integration Shape</h2>
+<p>Desired Note-side API:</p>
+<pre><code>let runtime = OrenAVMRuntime(.interactiveAppDefaults)
+runtime.mountAssetBundle(&quot;/assets/&quot;, bundle: .main)
+runtime.network.allowHosts([&quot;api.example.com&quot;])
+runtime.stdoutCapture = true
+
+let program = try OrenOBCProgram(bytes: obcBytes, manifest: manifest)
+let session = try runtime.start(program)
+graphicsView.attach(session.graphics)</code></pre>
+<p>For pure calculation packages, the app can omit graphics and run one-shot:</p>
+<pre><code>let result = try runtime.run(program, argv: [&quot;oren&quot;, &quot;calc&quot;])</code></pre>
+<h2 id="release-gates">Release Gates</h2>
+<p>The SDK should not be called production-ready until these gates exist:</p>
+<ol>
+<li>Swift/Objective-C smoke app loads a bundled OBC and runs it through</li>
+</ol>
+<p>   <code>LibAVM.xcframework</code>.</p>
+<ol>
+<li>CompilerKit compiles source to OBC inside AVM using bundled compiler/stdlib</li>
+</ol>
+<p>   resources.</p>
+<ol>
+<li>FileProvider proves VirtualFS and explicit app-sandbox mounts.</li>
+<li>NetworkProvider proves VirtualNET and deny-by-default host network.</li>
+<li>ProcessProvider proves iOS VirtualPROC and no host subprocess path.</li>
+<li>TimeProvider proves deterministic virtual time and interactive wall-clock sleep.</li>
+<li>GraphicsKit proves one rendered frame and one input event when the GFX mailbox</li>
+</ol>
+<p>   exists.</p>
+<ol>
+<li>PackageStore proves signed fixture download, verification, install, and run.</li>
+</ol>
+<h2 id="relationship-to-existing-designs">Relationship To Existing Designs</h2>
+<ul>
+<li><code>project-doc/avm_ios_graphics_design_20260529.md</code> defines the graphics mailbox</li>
+</ul>
+<p>  and rendering boundary.</p>
+<ul>
+<li><code>project-doc/obc_store_distribution_design_20260529.md</code> defines the public OBC</li>
+</ul>
+<p>  store package/index model.</p>
+<ul>
+<li>This note defines the host-side iOS SDK that makes those features easy for the</li>
+</ul>
+<p>  Note app to consume.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#ios-avm-sdk-design">iOS AVM SDK Design</a>
+<a class="toc-l2" href="#decision">Decision</a>
+<a class="toc-l2" href="#sdk-components">SDK Components</a>
+<a class="toc-l3" href="#orenavmkit">OrenAVMKit</a>
+<a class="toc-l3" href="#orenavmcompilerkit">OrenAVMCompilerKit</a>
+<a class="toc-l3" href="#orenavmfileprovider">OrenAVMFileProvider</a>
+<a class="toc-l3" href="#orenavmnetworkprovider">OrenAVMNetworkProvider</a>
+<a class="toc-l3" href="#orenavmprocessprovider">OrenAVMProcessProvider</a>
+<a class="toc-l3" href="#orenavmtimeprovider">OrenAVMTimeProvider</a>
+<a class="toc-l3" href="#orenavmgraphicskit">OrenAVMGraphicsKit</a>
+<a class="toc-l3" href="#orenavmpackagestore">OrenAVMPackageStore</a>
+<a class="toc-l2" href="#default-policy">Default Policy</a>
+<a class="toc-l2" href="#app-integration-shape">App Integration Shape</a>
+<a class="toc-l2" href="#release-gates">Release Gates</a>
+<a class="toc-l2" href="#relationship-to-existing-designs">Relationship To Existing Designs</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

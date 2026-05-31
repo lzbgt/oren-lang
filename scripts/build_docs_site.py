@@ -20,6 +20,7 @@ DOCS = [
     ("Project Notes", "project-doc/README.md", "project-notes"),
     ("Current Implementation", "project-doc/current_implementation_20260526.md", "current-implementation"),
     ("iOS AVM Readiness", "project-doc/ios_avm_readiness_20260507.md", "ios-avm-readiness"),
+    ("iOS AVM SDK", "project-doc/ios_avm_sdk_design_20260531.md", "ios-avm-sdk"),
     ("AVM iOS Graphics", "project-doc/avm_ios_graphics_design_20260529.md", "avm-ios-graphics"),
     ("OBC Store Distribution", "project-doc/obc_store_distribution_design_20260529.md", "obc-store-distribution"),
     ("Yield / Coroutine", "project-doc/yield_coroutine_lowering_20260422.md", "yield-coroutine"),
