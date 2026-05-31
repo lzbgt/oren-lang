@@ -91,6 +91,10 @@ type ArtifactUpload struct {
 	ContentBase64 string `json:"content_base64"`
 }
 
+type PublisherTokenUpdate struct {
+	TokenSHA256Hex string `json:"token_sha256_hex"`
+}
+
 type ReleaseMeta struct {
 	Publisher                 string    `json:"publisher"`
 	Name                      string    `json:"name"`
@@ -154,6 +158,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/api/v0/health", s.handleHealth)
 	mux.HandleFunc("/api/v0/me", s.handleMe)
 	mux.HandleFunc("/api/v0/publishers", s.handlePublishers)
+	mux.HandleFunc("/api/v0/publishers/", s.handlePublisherPath)
 	mux.HandleFunc("/api/v0/index.json", s.handleIndex)
 	mux.HandleFunc("/api/v0/index.json.sig", s.handleIndexSignature)
 	mux.HandleFunc("/api/v0/trust/bundle.json", s.handleTrustBundle)
@@ -194,6 +199,7 @@ func (s *Service) handlePublishers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid publisher token hash", http.StatusBadRequest)
 		return
 	}
+	p.TokenSHA256Hex = strings.ToLower(strings.TrimSpace(p.TokenSHA256Hex))
 	if p.Status == "" {
 		p.Status = "active"
 	}
@@ -204,6 +210,23 @@ func (s *Service) handlePublishers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, p)
+}
+
+func (s *Service) handlePublisherPath(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/v0/publishers/")
+	parts := strings.Split(rest, "/")
+	if len(parts) != 2 || !safeID(parts[0]) || parts[1] != "token" {
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case http.MethodPost:
+		s.rotatePublisherToken(w, r, parts[0])
+	case http.MethodDelete:
+		s.revokePublisherToken(w, r, parts[0])
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (s *Service) handlePackagesRoot(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +333,51 @@ func (s *Service) createPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, p)
+}
+
+func (s *Service) rotatePublisherToken(w http.ResponseWriter, r *http.Request, publisherID string) {
+	if !s.requirePublisher(w, r, publisherID) {
+		return
+	}
+	var update PublisherTokenUpdate
+	if !decodeJSON(w, r, &update) {
+		return
+	}
+	if !validSHA256Hex(update.TokenSHA256Hex) {
+		http.Error(w, "invalid publisher token hash", http.StatusBadRequest)
+		return
+	}
+	if !s.setPublisherTokenHash(w, publisherID, strings.ToLower(strings.TrimSpace(update.TokenSHA256Hex))) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"publisher": publisherID, "token_configured": true})
+}
+
+func (s *Service) revokePublisherToken(w http.ResponseWriter, r *http.Request, publisherID string) {
+	if !s.requirePublisher(w, r, publisherID) {
+		return
+	}
+	if !s.setPublisherTokenHash(w, publisherID, "") {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"publisher": publisherID, "token_configured": false})
+}
+
+func (s *Service) setPublisherTokenHash(w http.ResponseWriter, publisherID, tokenHash string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := s.publisherPath(publisherID)
+	publisher, err := readJSONFile[Publisher](path)
+	if err != nil {
+		http.Error(w, "publisher not found", http.StatusNotFound)
+		return false
+	}
+	publisher.TokenSHA256Hex = tokenHash
+	if err := writeJSONFile(path, publisher); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return false
+	}
+	return true
 }
 
 func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, name string) {

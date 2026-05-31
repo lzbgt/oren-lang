@@ -267,6 +267,29 @@ func TestStoreAcceptsPublisherScopedBearerToken(t *testing.T) {
 	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/scoped-demo/versions/0.1.0/yank", map[string]any{}, "oren-labs-token"); got.Code != http.StatusOK {
 		t.Fatalf("scoped yank status=%d body=%s", got.Code, got.Body.String())
 	}
+	rotatedHash := sha256.Sum256([]byte("rotated-token"))
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/publishers/oren-labs/token", map[string]any{"token_sha256_hex": hex.EncodeToString(rotatedHash[:])}, "oren-labs-token"); got.Code != http.StatusOK {
+		t.Fatalf("rotate token status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "old-token-demo"}, "oren-labs-token"); got.Code != http.StatusUnauthorized {
+		t.Fatalf("old token after rotation status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "rotated-token-demo"}, "rotated-token"); got.Code != http.StatusCreated {
+		t.Fatalf("rotated token package status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodDelete, "/api/v0/publishers/oren-labs/token", nil, "rotated-token"); got.Code != http.StatusOK {
+		t.Fatalf("revoke token status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "revoked-token-demo"}, "rotated-token"); got.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked token status=%d body=%s", got.Code, got.Body.String())
+	}
+	adminHash := sha256.Sum256([]byte("admin-reset-token"))
+	if got := request(t, ts, http.MethodPost, "/api/v0/publishers/oren-labs/token", map[string]any{"token_sha256_hex": hex.EncodeToString(adminHash[:])}, true); got.Code != http.StatusOK {
+		t.Fatalf("admin token reset status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "admin-reset-demo"}, "admin-reset-token"); got.Code != http.StatusCreated {
+		t.Fatalf("admin reset token package status=%d body=%s", got.Code, got.Body.String())
+	}
 }
 
 func request(t *testing.T, ts *httptest.Server, method, path string, body any, auth bool) *httptest.ResponseRecorder {

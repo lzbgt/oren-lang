@@ -115,10 +115,11 @@ This file is the concise task view. Detailed implementation status lives in
      signed index, download, and yank APIs. Write endpoints now accept an
      external-hash bearer token for deployment automation, while Basic Auth is
      retained for local bring-up. Publisher package/version/release writes now
-     accept publisher-scoped bearer tokens limited to that publisher id.
+     accept publisher-scoped bearer tokens limited to that publisher id, with
+     JSON APIs for token rotation and revocation.
      `make verify-libavm-ios` starts the Go service, publishes a signed package
      through the HTTP API with publisher-scoped auth, and proves iOS SDK
-     install/run from that service. Deployment and token rotation hardening
+     install/run from that service. Live deployment and operator/browser UX
      remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.

@@ -84,6 +84,9 @@ Implemented in this repo:
   tokens verified against the publisher's stored `token_sha256_hex`. A publisher
   token can only write under that publisher id; admin auth still controls
   publisher creation and global operations.
+- Publisher tokens can be rotated or revoked through
+  `POST`/`DELETE /api/v0/publishers/{publisher}/token` using either admin auth or
+  the current publisher token.
 - Public endpoints expose health, package list/search, package/version metadata,
   `index.json`, package manifests, `program.obc`, assets, and hash-addressed
   artifact lookup.
@@ -100,8 +103,7 @@ Implemented in this repo:
 Remaining service work before deployment:
 
 - signed index rotation/key-id publication beyond the current single-key signer;
-- token rotation/revocation UX beyond replacing the stored publisher/admin token
-  hash;
+- browser/operator UX for token lifecycle beyond the current JSON API;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
@@ -187,6 +189,8 @@ The iOS SDK install flow should use:
 ```http
 POST /api/v0/publishers
 GET  /api/v0/me
+POST /api/v0/publishers/{publisher}/token
+DELETE /api/v0/publishers/{publisher}/token
 POST /api/v0/packages
 POST /api/v0/packages/{publisher}/{name}/versions
 POST /api/v0/packages/{publisher}/{name}/versions/{version}/artifacts

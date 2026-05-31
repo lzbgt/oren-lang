@@ -169,7 +169,8 @@
 <p>  P-256 key path. Write endpoints now accept a deploy-safe admin bearer token</p>
 <p>  verified by external <code>OBC_STORE_ADMIN_TOKEN_SHA256_HEX</code>, while Basic Auth</p>
 <p>  remains for local bring-up. Publisher package/version/release writes also</p>
-<p>  accept publisher-scoped bearer tokens limited to that publisher id.</p>
+<p>  accept publisher-scoped bearer tokens limited to that publisher id, with JSON</p>
+<p>  APIs for token rotation and revocation.</p>
 <p>  <code>make verify-libavm-ios</code> starts this Go service, publishes a signed package via</p>
 <p>  the service API using publisher-scoped auth, and proves iOS SDK signed-index</p>
 <p>  install and package run from that endpoint. It is not deployed yet.</p>
