@@ -47,10 +47,11 @@ Retained SDK slices on 2026-05-31:
   and then runs the same `.obc` program against `oren_net_get(url)`, proving the
   real host-fetch-to-OBC-read chain.
 - The first GFX bridge slices are implemented. `std:ui/avm` serializes validated
-  `std:ui` v0 command buffers into compact `oren.gfx.frame.bin0` bytes,
+  `std:ui` v0 command buffers into compact `oren.gfx.frame.bin1` bytes,
   bytecode publishes them through `oren_gfx_present_frame`, `libavm` stores the
   latest frame in a GFX mailbox, and `OrenAVMKit` exposes frame get/clear
-  helpers.
+  helpers. The frame header now carries sequence, native drawable size, and target
+  refresh hint metadata needed by high-refresh/high-resolution hosts.
 - The low-level GUI transport is binary by design. JSON/QML-like documents may be
   used later as a high-level declarative UI/layout authoring format, but they must
   compile to the binary frame/event mailbox protocol before crossing the AVM-host
@@ -68,13 +69,14 @@ Retained SDK slices on 2026-05-31:
 - The binary input helper set now covers pointer events, resize events, key events,
   and UTF-8 text-input events. These are still mailbox records, not UIKit objects.
   Host code enqueues them; Oren/OBC pulls them with
-  `std:ui/avm.pull_event_bytes()`.
+  `std:ui/avm.pull_event_bytes()` or decodes them with
+  `std:ui/avm.next_event()`.
 
 Not implemented yet: app-sandbox file mounts, live/asynchronous network sessions,
 compiler helper Swift/Objective-C package, OBC store helper, Metal/3D rendering,
 richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be
-game-grade, not widget-only: the next protocol work is high-refresh/high-resolution
-pacing, retained resource handles, strict budgets, low-latency input ordering, and
+game-grade, not widget-only: the next protocol work is display-link pacing,
+retained resource handles, strict budgets, low-latency input ordering, and
 Metal/`MTKView` gates as defined in
 `project-doc/avm_ui_render_performance_design_20260531.md`.
 

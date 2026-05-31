@@ -212,6 +212,9 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     if (frame.length < 24) return;
     const uint8_t* data = (const uint8_t*)frame.bytes;
     if (memcmp(data, "OGF0", 4) != 0) return;
+    uint8_t version = data[4];
+    uint16_t headerLen = version == 0 ? 24 : OrenAVMGfxReadU16LE(data + 6);
+    if (headerLen < 24 || headerLen > frame.length) return;
     uint32_t width = OrenAVMGfxReadU32LE(data + 8);
     uint32_t height = OrenAVMGfxReadU32LE(data + 12);
     uint32_t opCount = OrenAVMGfxReadU32LE(data + 20);
@@ -220,7 +223,7 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     CGContextRef ctx = UIGraphicsGetCurrentContext();
     if (!ctx) return;
 
-    size_t off = 24;
+    size_t off = headerLen;
     size_t len = frame.length;
     for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
         uint8_t opcode = data[off];

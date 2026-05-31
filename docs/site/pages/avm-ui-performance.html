@@ -78,12 +78,19 @@
 <h2 id="current-baseline">Current Baseline</h2>
 <p>Implemented as of 2026-05-31:</p>
 <ul>
-<li><code>OGF0</code> binary frame mailbox with latest-frame semantics.</li>
+<li><code>OGF0</code> binary frame mailbox with latest-frame semantics and v1 frame metadata</li>
+</ul>
+<p>  for sequence, logical size, native drawable size, scale, and target refresh hint.</p>
+<ul>
 <li><code>OGE0</code> binary input-event mailbox.</li>
 <li><code>std:ui/avm.present_frame(...)</code> publishes current <code>std:ui</code> command buffers.</li>
 <li><code>std:ui/avm.pull_event_bytes()</code> pulls host-injected input; <code>poll_event_bytes()</code></li>
 </ul>
 <p>  remains only as a compatibility alias during rolling development.</p>
+<ul>
+<li><code>std:ui/avm.next_event()</code> decodes <code>OGE0</code> pointer/resize/key/text records into</li>
+</ul>
+<p>  Oren maps so OBC programs do not have to parse bytes manually.</p>
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
@@ -106,14 +113,13 @@
 <li>AVM runs on a worker thread or queue and publishes the latest complete frame.</li>
 <li>The host may re-present the previous frame when AVM has not produced a new one.</li>
 <li>The host may drop stale frames rather than queue unbounded frame history.</li>
-<li>Frame metadata should add a monotonically increasing sequence number before the</li>
+<li>Frame metadata carries a monotonically increasing sequence number so hosts can</li>
 </ul>
-<p>  protocol becomes release-stable.</p>
+<p>  drop stale frames.</p>
 <ul>
-<li>Future frame metadata should also carry producer time and optional desired</li>
+<li>Frame metadata carries a target refresh hint in milli-Hz, but the host remains</li>
 </ul>
-<p>  presentation hints, but the host remains authoritative because system refresh</p>
-<p>  rates can change.</p>
+<p>  authoritative because system refresh rates can change.</p>
 <p>For game OBC packages, simulation and rendering must be separable. Oren should be</p>
 <p>able to run a fixed-step simulation loop, emit a render snapshot, and let the host</p>
 <p>present at the display&#x27;s available cadence. The renderer must tolerate 30/60/90/120</p>
@@ -123,8 +129,8 @@
 <p>host data for correct mapping to physical pixels:</p>
 <ul>
 <li>logical width and height;</li>
-<li>scale in milli-units, already present as <code>scale_milli</code>;</li>
-<li>future native drawable width and height for GPU-backed render targets;</li>
+<li>scale in milli-units as <code>scale_milli</code>;</li>
+<li>native drawable width and height for GPU-backed render targets;</li>
 <li>resize events from host to Oren whenever the logical size or scale changes.</li>
 </ul>
 <p>Do not hard-code iPhone sizes. The same OBC package must tolerate compact iPhone,</p>
@@ -190,7 +196,10 @@
 </ul>
 <p>  helpers;</p>
 <ul>
-<li>Oren pulls events at safe points with <code>std:ui/avm.pull_event_bytes()</code>;</li>
+<li>Oren pulls events at safe points with <code>std:ui/avm.pull_event_bytes()</code> or</li>
+</ul>
+<p>  <code>std:ui/avm.next_event()</code>;</p>
+<ul>
 <li>the host UI thread never calls back into Oren bytecode synchronously.</li>
 </ul>
 <p>This keeps UIKit/Metal thread rules outside AVM and avoids reentrant VM execution.</p>
@@ -214,9 +223,9 @@
 <h2 id="reweighted-implementation-order">Reweighted Implementation Order</h2>
 <ol>
 <li>Freeze the performance contract and keep docs/tests aligned.</li>
-<li>Add frame sequence and native drawable-size metadata while rolling compatibility</li>
+<li>Done: add <code>OGF0</code> v1 frame sequence, native drawable-size metadata, and target</li>
 </ol>
-<p>   is still cheap.</p>
+<p>   refresh hint while rolling compatibility is cheap.</p>
 <ol>
 <li>Add budget fixtures for oversized frames and event queues.</li>
 <li>Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.</li>

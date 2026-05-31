@@ -1,0 +1,61 @@
+// AVM headless UI test: std:ui/avm decoded input events.
+
+import ui_avm "std:ui/avm"
+import bytes "std:bytes"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn event(xs) {
+    return bytes.try_pack(xs)
+}
+
+fn main() {
+    var ptr = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 2, 0, 12, 0,
+        11, 0, 0, 0, 22, 0, 0, 0, 7, 0, 0, 0
+    ]))
+    assert_eq(ptr["kind"], "pointer")
+    assert_eq(ptr["phase"], "move")
+    assert_eq(ptr["x"], 11)
+    assert_eq(ptr["y"], 22)
+    assert_eq(ptr["pointer_id"], 7)
+
+    var resize = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 16, 0, 12, 0,
+        100, 1, 0, 0, 200, 2, 0, 0, 184, 11, 0, 0
+    ]))
+    assert_eq(resize["kind"], "resize")
+    assert_eq(resize["width"], 356)
+    assert_eq(resize["height"], 712)
+    assert_eq(resize["scale_milli"], 3000)
+
+    var key = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 32, 0, 8, 0,
+        65, 0, 0, 0, 5, 0, 0, 0
+    ]))
+    assert_eq(key["kind"], "key")
+    assert_eq(key["phase"], "down")
+    assert_eq(key["key_code"], 65)
+    assert_eq(key["modifiers"], 5)
+
+    var text = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 48, 0, 6, 0,
+        2, 0, 0, 0, 104, 105
+    ]))
+    assert_eq(text["kind"], "text")
+    assert_eq(text["text"], "hi")
+
+    assert_eq(ui_avm.next_event(), nil)
+    exit(0)
+}
+
+main()

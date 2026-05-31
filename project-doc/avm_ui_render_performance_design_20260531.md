@@ -48,11 +48,14 @@ mapping, and conformance tests that catch regressions before app integration.
 
 Implemented as of 2026-05-31:
 
-- `OGF0` binary frame mailbox with latest-frame semantics.
+- `OGF0` binary frame mailbox with latest-frame semantics and v1 frame metadata
+  for sequence, logical size, native drawable size, scale, and target refresh hint.
 - `OGE0` binary input-event mailbox.
 - `std:ui/avm.present_frame(...)` publishes current `std:ui` command buffers.
 - `std:ui/avm.pull_event_bytes()` pulls host-injected input; `poll_event_bytes()`
   remains only as a compatibility alias during rolling development.
+- `std:ui/avm.next_event()` decodes `OGE0` pointer/resize/key/text records into
+  Oren maps so OBC programs do not have to parse bytes manually.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`, `stroke_line`, and `circle`.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
@@ -73,11 +76,10 @@ Required behavior:
 - AVM runs on a worker thread or queue and publishes the latest complete frame.
 - The host may re-present the previous frame when AVM has not produced a new one.
 - The host may drop stale frames rather than queue unbounded frame history.
-- Frame metadata should add a monotonically increasing sequence number before the
-  protocol becomes release-stable.
-- Future frame metadata should also carry producer time and optional desired
-  presentation hints, but the host remains authoritative because system refresh
-  rates can change.
+- Frame metadata carries a monotonically increasing sequence number so hosts can
+  drop stale frames.
+- Frame metadata carries a target refresh hint in milli-Hz, but the host remains
+  authoritative because system refresh rates can change.
 
 For game OBC packages, simulation and rendering must be separable. Oren should be
 able to run a fixed-step simulation loop, emit a render snapshot, and let the host
@@ -90,8 +92,8 @@ The Oren UI API should use logical coordinates. The frame header must carry enou
 host data for correct mapping to physical pixels:
 
 - logical width and height;
-- scale in milli-units, already present as `scale_milli`;
-- future native drawable width and height for GPU-backed render targets;
+- scale in milli-units as `scale_milli`;
+- native drawable width and height for GPU-backed render targets;
 - resize events from host to Oren whenever the logical size or scale changes.
 
 Do not hard-code iPhone sizes. The same OBC package must tolerate compact iPhone,
@@ -153,7 +155,8 @@ UI input should be a pull API from Oren's perspective:
 
 - host adapters enqueue events into AVM with `avm_embed_gfx_input_put(...)` or SDK
   helpers;
-- Oren pulls events at safe points with `std:ui/avm.pull_event_bytes()`;
+- Oren pulls events at safe points with `std:ui/avm.pull_event_bytes()` or
+  `std:ui/avm.next_event()`;
 - the host UI thread never calls back into Oren bytecode synchronously.
 
 This keeps UIKit/Metal thread rules outside AVM and avoids reentrant VM execution.
@@ -177,8 +180,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 ## Reweighted Implementation Order
 
 1. Freeze the performance contract and keep docs/tests aligned.
-2. Add frame sequence and native drawable-size metadata while rolling compatibility
-   is still cheap.
+2. Done: add `OGF0` v1 frame sequence, native drawable-size metadata, and target
+   refresh hint while rolling compatibility is cheap.
 3. Add budget fixtures for oversized frames and event queues.
 4. Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.
 5. Add retained resources, batching, and resource lifetime records.

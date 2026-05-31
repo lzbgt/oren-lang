@@ -67,7 +67,7 @@
 <ul>
 <li><code>lib/std/ui/avm.oren</code> serializes validated <code>std:ui</code> v0 command buffers into</li>
 </ul>
-<p>  compact <code>oren.gfx.frame.bin0</code> bytes and publishes them with</p>
+<p>  compact <code>oren.gfx.frame.bin1</code> bytes and publishes them with</p>
 <p>  <code>oren_gfx_present_frame(...)</code>.</p>
 <ul>
 <li><code>sdk/ios/OrenAVMKit</code> exposes <code>getGraphicsFrameDataWithError:</code> and</li>
@@ -84,7 +84,8 @@
 <li><code>OrenAVMKit</code> now has binary helper encoders for pointer, resize, key, and</li>
 </ul>
 <p>  UTF-8 text input events. The Oren side still receives raw <code>OGE0</code> bytes via</p>
-<p>  <code>std:ui/avm.pull_event_bytes()</code>.</p>
+<p>  <code>std:ui/avm.pull_event_bytes()</code>, or decoded maps via</p>
+<p>  <code>std:ui/avm.next_event()</code>.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> proves the chain by running OBC that publishes a frame,</li>
 </ul>
@@ -204,8 +205,9 @@ int avm_embed_gfx_frame_clear(AvmEmbedHandle* h, AvmEmbedResult* r);
 int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t event_len,
                             AvmEmbedResult* r);</code></pre>
 <p>All three functions are implemented. Current frame payloads use</p>
-<p><code>oren.gfx.frame.bin0</code>: magic <code>OGF0</code>, version/flags/reserved, width, height, scale,</p>
-<p>op-count, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
+<p><code>oren.gfx.frame.bin1</code>: magic <code>OGF0</code>, version/flags/header length, logical width,</p>
+<p>logical height, <code>scale_milli</code>, op-count, sequence, native drawable width, native</p>
+<p>drawable height, target refresh milli-Hz, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
 <p>magic <code>OGE0</code>, version/flags/reserved, then opcode records. The retained v0 opcodes</p>
 <p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, pointer, resize, key, and text</p>
 <p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
@@ -219,7 +221,11 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 </ul>
 <p>  <code>OrenAVMKit</code> convenience helpers.</p>
 <ul>
-<li>Oren/OBC pulls one event at a time with <code>std:ui/avm.pull_event_bytes()</code>.</li>
+<li>Oren/OBC pulls one event at a time with <code>std:ui/avm.pull_event_bytes()</code> for raw</li>
+</ul>
+<p>  protocol bytes or <code>std:ui/avm.next_event()</code> for decoded pointer/resize/key/text</p>
+<p>  maps.</p>
+<ul>
 <li>The VM does not callback into Oren from the host UI thread; this keeps device</li>
 </ul>
 <p>  lifecycles, threading, and permissions owned by the host app.</p>
@@ -338,13 +344,14 @@ fn main() {
 </ol>
 <h2 id="implementation-order">Implementation Order</h2>
 <ol>
-<li>Done: define <code>oren.gfx.frame.bin0</code> for existing <code>std:ui</code> v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.</li>
+<li>Done: define <code>oren.gfx.frame.bin1</code> for existing <code>std:ui</code> v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.</li>
 <li>Done: add <code>std:ui/avm</code> and AVM/iOS verifier coverage that publishes a binary <code>fill_rect</code> frame.</li>
 <li>Done: add iOS C/SDK smoke to <code>make verify-libavm-ios</code> for exported graphics symbols and frame retrieval.</li>
 <li>Done: add binary input-event mailbox and pointer-event SDK helper.</li>
 <li>Done: add default UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> for the current <code>fill_rect</code>/<code>text</code> subset and compile it in the iOS verifier.</li>
 <li>Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to <code>stroke_line</code> and <code>circle</code>.</li>
 <li>Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.</li>
+<li>Done: add frame sequence, native drawable-size metadata, and target refresh hint to the <code>OGF0</code> header for high-refresh/high-resolution hosts.</li>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
 <li>Add IME/composition helpers.</li>
 <li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> and Metal rendering after the current <code>std:ui</code> frame path is proven in the app.</li>

@@ -30,7 +30,7 @@ The first retained implementation slices exist as of 2026-05-31:
   `avm_embed_gfx_frame_clear(...)` for host rendering, plus
   `avm_embed_gfx_input_put(...)` for host-to-OBC input events.
 - `lib/std/ui/avm.oren` serializes validated `std:ui` v0 command buffers into
-  compact `oren.gfx.frame.bin0` bytes and publishes them with
+  compact `oren.gfx.frame.bin1` bytes and publishes them with
   `oren_gfx_present_frame(...)`.
 - `sdk/ios/OrenAVMKit` exposes `getGraphicsFrameDataWithError:` and
   `clearGraphicsFrameWithError:`, plus low-level input-byte enqueue and a binary
@@ -41,7 +41,8 @@ The first retained implementation slices exist as of 2026-05-31:
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, key, and
   UTF-8 text input events. The Oren side still receives raw `OGE0` bytes via
-  `std:ui/avm.pull_event_bytes()`.
+  `std:ui/avm.pull_event_bytes()`, or decoded maps via
+  `std:ui/avm.next_event()`.
 - `make verify-libavm-ios` proves the chain by running OBC that publishes a frame,
   retrieving/clearing that frame through the host SDK smoke, injecting a pointer
   event, consuming that event from OBC, and compiling the UIKit renderer adapter for
@@ -163,8 +164,9 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 ```
 
 All three functions are implemented. Current frame payloads use
-`oren.gfx.frame.bin0`: magic `OGF0`, version/flags/reserved, width, height, scale,
-op-count, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
+`oren.gfx.frame.bin1`: magic `OGF0`, version/flags/header length, logical width,
+logical height, `scale_milli`, op-count, sequence, native drawable width, native
+drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
 cover `fill_rect`, `text`, `stroke_line`, `circle`, pointer, resize, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
@@ -178,7 +180,9 @@ Input direction is deliberately asymmetric:
 
 - Host adapters enqueue binary events with `avm_embed_gfx_input_put(...)` or
   `OrenAVMKit` convenience helpers.
-- Oren/OBC pulls one event at a time with `std:ui/avm.pull_event_bytes()`.
+- Oren/OBC pulls one event at a time with `std:ui/avm.pull_event_bytes()` for raw
+  protocol bytes or `std:ui/avm.next_event()` for decoded pointer/resize/key/text
+  maps.
 - The VM does not callback into Oren from the host UI thread; this keeps device
   lifecycles, threading, and permissions owned by the host app.
 
@@ -298,14 +302,15 @@ Required gates before Note integration should be called production-ready:
 
 ## Implementation Order
 
-1. Done: define `oren.gfx.frame.bin0` for existing `std:ui` v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.
+1. Done: define `oren.gfx.frame.bin1` for existing `std:ui` v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.
 2. Done: add `std:ui/avm` and AVM/iOS verifier coverage that publishes a binary `fill_rect` frame.
 3. Done: add iOS C/SDK smoke to `make verify-libavm-ios` for exported graphics symbols and frame retrieval.
 4. Done: add binary input-event mailbox and pointer-event SDK helper.
 5. Done: add default UIKit/CoreGraphics `OrenAVMGraphicsView` for the current `fill_rect`/`text` subset and compile it in the iOS verifier.
 6. Done: extend the binary frame protocol, deterministic rasterizer, and iOS fallback renderer to `stroke_line` and `circle`.
 7. Done: add SDK binary helper encoders for resize, key, and UTF-8 text input events and verifier coverage that OBC consumes them.
-8. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
+8. Done: add frame sequence, native drawable-size metadata, and target refresh hint to the `OGF0` header for high-refresh/high-resolution hosts.
+9. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
 9. Add IME/composition helpers.
 10. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
 

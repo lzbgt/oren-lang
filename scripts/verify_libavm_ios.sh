@@ -76,32 +76,36 @@ fn main() {
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},
         {"op": "circle", "cx": 2, "cy": 1, "r": 1, "fill": true, "color": "#00ff00"}
     ]
-    var gr = ui_avm.present_frame(cmds, 4, 3, {"strict_bounds": true})
+    var gr = ui_avm.present_frame(cmds, 4, 3, {
+        "strict_bounds": true,
+        "scale_milli": 3000,
+        "sequence": 7,
+        "drawable_w": 12,
+        "drawable_h": 9,
+        "target_hz_milli": 120000
+    })
     if gr != 0 { oren_exit(19) }
-    var ev = ui_avm.pull_event_bytes()
-    if oren_bytes_len(ev) != 24 { oren_exit(33) }
-    if oren_bytes_get_u8(ev, 0) != 79 || oren_bytes_get_u8(ev, 1) != 71 || oren_bytes_get_u8(ev, 2) != 69 || oren_bytes_get_u8(ev, 3) != 48 { oren_exit(34) }
-    if oren_bytes_get_u8(ev, 8) != 1 { oren_exit(35) }
-    if oren_bytes_get_u32_le(ev, 12) != 1 { oren_exit(36) }
-    if oren_bytes_get_u32_le(ev, 16) != 2 { oren_exit(37) }
-    if oren_bytes_get_u32_le(ev, 20) != 7 { oren_exit(38) }
-    var ev2 = ui_avm.pull_event_bytes()
-    if oren_bytes_len(ev2) != 24 { oren_exit(39) }
-    if oren_bytes_get_u8(ev2, 8) != 16 { oren_exit(40) }
-    if oren_bytes_get_u32_le(ev2, 12) != 4 { oren_exit(41) }
-    if oren_bytes_get_u32_le(ev2, 16) != 3 { oren_exit(42) }
-    if oren_bytes_get_u32_le(ev2, 20) != 1000 { oren_exit(43) }
-    var ev3 = ui_avm.pull_event_bytes()
-    if oren_bytes_len(ev3) != 20 { oren_exit(44) }
-    if oren_bytes_get_u8(ev3, 8) != 32 { oren_exit(45) }
-    if oren_bytes_get_u32_le(ev3, 12) != 65 { oren_exit(46) }
-    if oren_bytes_get_u32_le(ev3, 16) != 1 { oren_exit(47) }
-    var ev4 = ui_avm.pull_event_bytes()
-    if oren_bytes_len(ev4) != 18 { oren_exit(48) }
-    if oren_bytes_get_u8(ev4, 8) != 48 { oren_exit(49) }
-    if oren_bytes_get_u32_le(ev4, 12) != 2 { oren_exit(50) }
-    if oren_bytes_get_u8(ev4, 16) != 104 || oren_bytes_get_u8(ev4, 17) != 105 { oren_exit(51) }
-    if ui_avm.pull_event_bytes() != nil { oren_exit(52) }
+    var ev = ui_avm.next_event()
+    if ev["kind"] != "pointer" || ev["phase"] != "down" { oren_exit(33) }
+    if ev["x"] != 1 || ev["y"] != 2 || ev["pointer_id"] != 7 { oren_exit(34) }
+    var ev2 = ui_avm.next_event()
+    if ev2["kind"] != "resize" { oren_exit(39) }
+    if ev2["width"] != 4 || ev2["height"] != 3 || ev2["scale_milli"] != 1000 { oren_exit(40) }
+    var ev3 = ui_avm.next_event()
+    if ev3["kind"] != "key" || ev3["phase"] != "down" { oren_exit(44) }
+    if ev3["key_code"] != 65 || ev3["modifiers"] != 1 { oren_exit(45) }
+    var ev4 = ui_avm.next_event()
+    if ev4["kind"] != "text" || ev4["text"] != "hi" { oren_exit(48) }
+    if ui_avm.next_event() != nil { oren_exit(52) }
+    var gr2 = ui_avm.present_frame(cmds, 4, 3, {
+        "strict_bounds": true,
+        "scale_milli": 4000,
+        "sequence": 8,
+        "drawable_w": 16,
+        "drawable_h": 12,
+        "target_hz_milli": 90000
+    })
+    if gr2 != 0 { oren_exit(53) }
     var rc1 = oren_system("probe-ok")
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
@@ -204,9 +208,10 @@ int main(void) {
     uint8_t* frame = 0;
     size_t frame_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) != AVM_EMBED_OK) return 28;
-    if (frame_len != 100 || memcmp(frame, "OGF0", 4) != 0) return 29;
-    if (frame[24] != 1 || frame[48] != 3 || frame[76] != 4) return 30;
-    if (frame[24] != 1) return 30;
+    if (frame_len != 116 || memcmp(frame, "OGF0", 4) != 0) return 29;
+    if (frame[4] != 1 || frame[6] != 40 || frame[16] != 160 || frame[17] != 15) return 30;
+    if (frame[24] != 8 || frame[28] != 16 || frame[32] != 12 || frame[36] != 144 || frame[37] != 95 || frame[38] != 1) return 30;
+    if (frame[40] != 1 || frame[64] != 3 || frame[92] != 4) return 30;
     avm_embed_free_bytes(frame);
     if (avm_embed_gfx_frame_clear(handle, &result) != AVM_EMBED_OK) return 31;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) == AVM_EMBED_OK) return 32;
@@ -238,8 +243,10 @@ int main(void) {
     uint8_t* frame2 = 0;
     size_t frame2_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame2, &frame2_len, &result) != AVM_EMBED_OK) return 28;
-    if (frame2_len != 100 || memcmp(frame2, "OGF0", 4) != 0) return 29;
-    if (frame2[24] != 1 || frame2[48] != 3 || frame2[76] != 4) return 30;
+    if (frame2_len != 116 || memcmp(frame2, "OGF0", 4) != 0) return 29;
+    if (frame2[4] != 1 || frame2[6] != 40 || frame2[16] != 160 || frame2[17] != 15) return 30;
+    if (frame2[24] != 8 || frame2[28] != 16 || frame2[32] != 12 || frame2[36] != 144 || frame2[37] != 95 || frame2[38] != 1) return 30;
+    if (frame2[40] != 1 || frame2[64] != 3 || frame2[92] != 4) return 30;
     avm_embed_free_bytes(frame2);
     avm_embed_close(handle);
     return 0;
@@ -311,9 +318,11 @@ int main(void) {
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
-        if (frame.length != 100) return 47;
+        if (frame.length != 116) return 47;
         const uint8_t* frameBytes = frame.bytes;
-        if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[24] != 1 || frameBytes[48] != 3 || frameBytes[76] != 4) return 48;
+        if (memcmp(frameBytes, "OGF0", 4) != 0 || frameBytes[4] != 1 || frameBytes[6] != 40) return 48;
+        if (frameBytes[24] != 8 || frameBytes[28] != 16 || frameBytes[32] != 12) return 48;
+        if (frameBytes[40] != 1 || frameBytes[64] != 3 || frameBytes[92] != 4) return 48;
 #if TARGET_OS_IPHONE
         OrenAVMGraphicsView* graphicsView = [[OrenAVMGraphicsView alloc] initWithRuntime:runtime];
         if (!graphicsView) return 52;

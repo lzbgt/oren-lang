@@ -138,9 +138,12 @@
 </ul>
 <p>  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>
 <p>  <code>oren_gfx_present_frame</code>; embedders can read and clear it with</p>
-<p>  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. Hosts enqueue</p>
-<p>  binary input events with <code>avm_embed_gfx_input_put</code>; OBC pulls them through</p>
-<p>  <code>std:ui/avm.pull_event_bytes()</code>. <code>poll_event_bytes()</code> remains a thin alias.</p>
+<p>  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. The current <code>OGF0</code></p>
+<p>  frame header includes sequence, logical size, native drawable size, scale, and</p>
+<p>  target refresh hint metadata for high-refresh/high-resolution hosts. Hosts enqueue</p>
+<p>  binary input events with <code>avm_embed_gfx_input_put</code>; OBC pulls raw bytes through</p>
+<p>  <code>std:ui/avm.pull_event_bytes()</code> or structured maps through</p>
+<p>  <code>std:ui/avm.next_event()</code>. <code>poll_event_bytes()</code> remains a thin alias.</p>
 <p>  <code>OrenAVMKit</code> exposes matching Objective-C</p>
 <p>  helpers including a convenience binary pointer-event encoder. The iOS verifier</p>
 <p>  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>
@@ -150,8 +153,8 @@
 <p>  <code>stroke_line</code>/<code>circle</code> frame subset and can enqueue pointer, resize, key, and</p>
 <p>  text events. Metal rendering, IME/composition helpers, and richer 2D/3D command</p>
 <p>  sets remain pending. The next GUI contract is game-grade rather than widget-only:</p>
-<p>  high-refresh/high-resolution pacing, latest-frame/drop-stale behavior, retained</p>
-<p>  resource handles, strict budgets, low-latency input ordering, and Metal/<code>MTKView</code></p>
+<p>  display-link pacing, latest-frame/drop-stale behavior, retained resource handles,</p>
+<p>  strict budgets, low-latency input ordering, and Metal/<code>MTKView</code></p>
 <p>  conformance gates are documented in</p>
 <p>  <code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
 <ul>

@@ -52,19 +52,23 @@ fn _append_bytes(out, bs) {
     return 0
 }
 
-fn _push_frame_header(out, w, h, scale, op_count) {
-    // Magic "OGF0", version=0, flags=0, reserved=0.
+fn _push_frame_header(out, w, h, scale_milli, op_count, sequence, drawable_w, drawable_h, target_hz_milli) {
+    // Magic "OGF0", version=1, flags=0, header_len=40.
     _push_u8(out, 79)
     _push_u8(out, 71)
     _push_u8(out, 70)
     _push_u8(out, 48)
+    _push_u8(out, 1)
     _push_u8(out, 0)
-    _push_u8(out, 0)
-    _push_u16_le(out, 0)
+    _push_u16_le(out, 40)
     _push_u32_le(out, w)
     _push_u32_le(out, h)
-    _push_u32_le(out, scale)
+    _push_u32_le(out, scale_milli)
     _push_u32_le(out, op_count)
+    _push_u32_le(out, sequence)
+    _push_u32_le(out, drawable_w)
+    _push_u32_le(out, drawable_h)
+    _push_u32_le(out, target_hz_milli)
 }
 
 fn _push_op_header(out, opcode, payload_len) {
@@ -128,10 +132,19 @@ fn frame_bytes(cmds, w, h, opts) {
     var vr = ui_cmds.try_validate(cmds, w, h, opts)
     if oren_is_err(vr) { return vr }
 
-    var scale = opts["scale"]
-    if scale == nil { scale = 1 }
+    var scale_milli = opts["scale_milli"]
+    if scale_milli == nil { scale_milli = opts["scale"] }
+    if scale_milli == nil { scale_milli = 1000 }
+    var sequence = opts["sequence"]
+    if sequence == nil { sequence = 0 }
+    var drawable_w = opts["drawable_w"]
+    if drawable_w == nil { drawable_w = w }
+    var drawable_h = opts["drawable_h"]
+    if drawable_h == nil { drawable_h = h }
+    var target_hz_milli = opts["target_hz_milli"]
+    if target_hz_milli == nil { target_hz_milli = 0 }
     var out = []
-    _push_frame_header(out, w, h, scale, oren_list_len(cmds))
+    _push_frame_header(out, w, h, scale_milli, oren_list_len(cmds), sequence, drawable_w, drawable_h, target_hz_milli)
 
     var i = 0
     while i < oren_list_len(cmds) {
@@ -158,4 +171,96 @@ fn pull_event_bytes() {
 
 fn poll_event_bytes() {
     return pull_event_bytes()
+}
+
+fn _read_u16_le(bs, off, ctx) {
+    var b0 = bytes.try_get_u8(bs, off)
+    if oren_is_err(b0) { return oren_err(4, ctx + ": truncated u16") }
+    var b1 = bytes.try_get_u8(bs, off + 1)
+    if oren_is_err(b1) { return oren_err(4, ctx + ": truncated u16") }
+    return b0 | (b1 << 8)
+}
+
+fn _read_u32_le(bs, off, ctx) {
+    var v = oren_bytes_get_u32_le(bs, off)
+    if oren_is_err(v) { return oren_err(4, ctx + ": truncated u32") }
+    return v
+}
+
+fn _pointer_phase(opcode) {
+    if opcode == 1 { return "down" }
+    if opcode == 2 { return "move" }
+    if opcode == 3 { return "up" }
+    if opcode == 4 { return "cancel" }
+    return "unknown"
+}
+
+fn _key_phase(opcode) {
+    if opcode == 32 { return "down" }
+    if opcode == 33 { return "up" }
+    return "unknown"
+}
+
+fn decode_event_bytes(ev) {
+    if ev == nil { return nil }
+    var n = bytes.try_len(ev)
+    if oren_is_err(n) { return n }
+    if n < 12 { return oren_err(4, "ui.avm.decode_event_bytes: short event") }
+    if bytes.try_get_u8(ev, 0) != 79 || bytes.try_get_u8(ev, 1) != 71 || bytes.try_get_u8(ev, 2) != 69 || bytes.try_get_u8(ev, 3) != 48 {
+        return oren_err(4, "ui.avm.decode_event_bytes: bad OGE0 magic")
+    }
+    var opcode = bytes.try_get_u8(ev, 8)
+    if oren_is_err(opcode) { return opcode }
+    var payload_len = _read_u16_le(ev, 10, "ui.avm.decode_event_bytes")
+    if oren_is_err(payload_len) { return payload_len }
+    if n < 12 + payload_len { return oren_err(4, "ui.avm.decode_event_bytes: truncated payload") }
+
+    if opcode >= 1 && opcode <= 4 {
+        if payload_len != 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad pointer payload") }
+        var x = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var y = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        var pid = _read_u32_le(ev, 20, "ui.avm.decode_event_bytes")
+        if oren_is_err(x) { return x }
+        if oren_is_err(y) { return y }
+        if oren_is_err(pid) { return pid }
+        return {"kind": "pointer", "phase": _pointer_phase(opcode), "opcode": opcode, "x": x, "y": y, "pointer_id": pid}
+    }
+
+    if opcode == 16 {
+        if payload_len != 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad resize payload") }
+        var w = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var h = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        var scale = _read_u32_le(ev, 20, "ui.avm.decode_event_bytes")
+        if oren_is_err(w) { return w }
+        if oren_is_err(h) { return h }
+        if oren_is_err(scale) { return scale }
+        return {"kind": "resize", "opcode": opcode, "width": w, "height": h, "scale_milli": scale}
+    }
+
+    if opcode == 32 || opcode == 33 {
+        if payload_len != 8 { return oren_err(4, "ui.avm.decode_event_bytes: bad key payload") }
+        var key_code = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var mods = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        if oren_is_err(key_code) { return key_code }
+        if oren_is_err(mods) { return mods }
+        return {"kind": "key", "phase": _key_phase(opcode), "opcode": opcode, "key_code": key_code, "modifiers": mods}
+    }
+
+    if opcode == 48 {
+        if payload_len < 4 { return oren_err(4, "ui.avm.decode_event_bytes: bad text payload") }
+        var text_len = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        if oren_is_err(text_len) { return text_len }
+        if text_len != payload_len - 4 { return oren_err(4, "ui.avm.decode_event_bytes: text length mismatch") }
+        var text_bytes = bytes.try_slice(ev, 16, text_len)
+        if oren_is_err(text_bytes) { return text_bytes }
+        var text = bytes.try_to_string(text_bytes)
+        if oren_is_err(text) { return text }
+        return {"kind": "text", "opcode": opcode, "text": text}
+    }
+
+    return {"kind": "unknown", "opcode": opcode, "payload_len": payload_len}
+}
+
+fn next_event() {
+    return decode_event_bytes(pull_event_bytes())
 }

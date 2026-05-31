@@ -106,14 +106,16 @@
 <p>     wall-clock time, and an allowlisted <code>URLSession</code> prefetch bridge that injects</p>
 <p>     host-fetched bytes into VirtualNET for OBC <code>oren_net_get(url)</code>, plus binary</p>
 <p>     GFX frame and input mailboxes for OBC-published <code>std:ui</code> frames and</p>
-<p>     host-injected pointer/resize/key/text events, and a default UIKit/CoreGraphics</p>
+<p>     host-injected pointer/resize/key/text events with Oren-side decoded</p>
+<p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>
 <p>     <code>OrenAVMGraphicsView</code> renderer for the current <code>fill_rect</code>/<code>text</code>/</p>
 <p>     <code>stroke_line</code>/<code>circle</code> subset.</p>
 <p>     Remaining SDK work: app-sandbox FileProvider, live/asynchronous network</p>
 <p>     sessions if required, compiler helper package, package store helper, and the</p>
-<p>     game-grade GUI path: high-refresh/high-resolution pacing, retained resource</p>
-<p>     handles, budget gates, low-latency input ordering, Metal/<code>MTKView</code>, richer</p>
-<p>     drawing ops, and richer IME/composition input helpers.</p>
+<p>     game-grade GUI path: display-link pacing, retained resource handles, budget</p>
+<p>     gates, low-latency input ordering, Metal/<code>MTKView</code>, richer drawing ops, and</p>
+<p>     richer IME/composition input helpers. The <code>OGF0</code> frame header now includes</p>
+<p>     sequence/native-drawable/target-refresh metadata.</p>
 <p>     Design notes: <code>project-doc/ios_avm_sdk_design_20260531.md</code>,</p>
 <p>     <code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
 <ul>

@@ -55,14 +55,16 @@ This file is the concise task view. Detailed implementation status lives in
      wall-clock time, and an allowlisted `URLSession` prefetch bridge that injects
      host-fetched bytes into VirtualNET for OBC `oren_net_get(url)`, plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
-     host-injected pointer/resize/key/text events, and a default UIKit/CoreGraphics
+     host-injected pointer/resize/key/text events with Oren-side decoded
+     `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
      Remaining SDK work: app-sandbox FileProvider, live/asynchronous network
      sessions if required, compiler helper package, package store helper, and the
-     game-grade GUI path: high-refresh/high-resolution pacing, retained resource
-     handles, budget gates, low-latency input ordering, Metal/`MTKView`, richer
-     drawing ops, and richer IME/composition input helpers.
+     game-grade GUI path: display-link pacing, retained resource handles, budget
+     gates, low-latency input ordering, Metal/`MTKView`, richer drawing ops, and
+     richer IME/composition input helpers. The `OGF0` frame header now includes
+     sequence/native-drawable/target-refresh metadata.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated
