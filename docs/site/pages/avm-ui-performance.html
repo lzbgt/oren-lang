@@ -112,20 +112,21 @@
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
-<p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, and <code>fill_triangle</code>.</p>
+<p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, and <code>fill_triangle</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry plus text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry plus byte-native text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
 <p>  SDK-side LRU texture cache for repeated labels; host apps can clear the cache on</p>
 <p>  memory pressure. The view exposes frame metrics for rendered frame count, CPU</p>
 <p>  encode time, target frame budget, geometry vertex count, and text-run count so</p>
-<p>  host apps and verifiers can observe pacing cost. OBC-visible retained text atlas</p>
-<p>  and richer resources remain the next performance step.</p>
+<p>  host apps and verifiers can observe pacing cost. <code>text_bytes</code> lets OBC publish</p>
+<p>  UTF-8 bytes directly on the frame hot path; OBC-visible retained text atlas and</p>
+<p>  richer resources remain the next performance step.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>

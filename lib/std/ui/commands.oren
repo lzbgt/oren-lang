@@ -9,6 +9,7 @@
 // See `docs/DESIGN.md#ui-v0-schema-headless-core` for the current v0 schema.
 
 import ui_color "std:ui/color"
+import bytes "std:bytes"
 
 fn _is_int(v) {
     if v == nil { return false }
@@ -110,6 +111,16 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 var ln = oren_string_len(s)
                 if y2 < 0 || y2 >= h || x2 < 0 || x2 + ln > w { return oren_err(4, "ui.validate: text out of bounds") }
+            }
+        } else if op == "text_bytes" {
+            var bx = c["x"]; var by = c["y"]; var bd = c["data"]; var bcol = c["color"]
+            if _is_int(bx) == false || _is_int(by) == false { return oren_err(4, "ui.validate: text_bytes expects int x,y") }
+            var blen = bytes.try_len(bd)
+            if oren_is_err(blen) { return oren_err(4, "ui.validate: text_bytes expects byte data") }
+            if blen > 65519 { return oren_err(4, "ui.validate: text_bytes data too large") }
+            if _hex_ok(bcol) == false { return oren_err(4, "ui.validate: text_bytes invalid color") }
+            if strict {
+                if by < 0 || by >= h || bx < 0 || bx + blen > w { return oren_err(4, "ui.validate: text_bytes out of bounds") }
             }
         } else {
             return oren_err(4, "ui.validate: unknown op")

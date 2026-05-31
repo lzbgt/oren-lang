@@ -71,18 +71,19 @@ Implemented as of 2026-05-31:
   tick and cannot starve pointer/key/text events by filling the FIFO with stale
   timing records.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
-  `fill_rect`, `text`, `stroke_line`, `circle`, and `fill_triangle`.
+  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, and `fill_triangle`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry plus text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry plus byte-native text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels; host apps can clear the cache on
   memory pressure. The view exposes frame metrics for rendered frame count, CPU
   encode time, target frame budget, geometry vertex count, and text-run count so
-  host apps and verifiers can observe pacing cost. OBC-visible retained text atlas
-  and richer resources remain the next performance step.
+  host apps and verifiers can observe pacing cost. `text_bytes` lets OBC publish
+  UTF-8 bytes directly on the frame hot path; OBC-visible retained text atlas and
+  richer resources remain the next performance step.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on

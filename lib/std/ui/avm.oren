@@ -134,6 +134,19 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, tn)
         return _append_bytes(out, tb)
     }
+    if op == "text_bytes" {
+        var tb2 = c["data"]
+        var tn2 = bytes.try_len(tb2)
+        if oren_is_err(tn2) { return tn2 }
+        if tn2 > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_bytes too large") }
+        _push_op_header(out, 2, 16 + tn2)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        var rc2 = _push_color_rgba(out, c["color"])
+        if oren_is_err(rc2) { return rc2 }
+        _push_u32_le(out, tn2)
+        return _append_bytes(out, tb2)
+    }
     return oren_err(4, "ui.avm.frame_bytes: unsupported op")
 }
 

@@ -37,7 +37,7 @@ The first retained implementation slices exist as of 2026-05-31:
   pointer-event helper.
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
-  `text`/`stroke_line`/`circle`/`fill_triangle` subset. It decodes frame bytes on the host side
+  `text`/`text_bytes`/`stroke_line`/`circle`/`fill_triangle` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
   key, and UTF-8 text input events, plus host-populated persistent screen state.

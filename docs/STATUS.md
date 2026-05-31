@@ -260,15 +260,15 @@ Facts from the 2026-05-28 implementation pass:
   checks exported symbols, device/simulator SDK linkage, and a host OBC run that
   publishes a binary frame, retrieves it through the SDK, injects a binary pointer
   event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
-  UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
-  `stroke_line`/`circle`/`fill_triangle` frame subset and can enqueue pointer, resize, key, and
+	  UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
+	  `text_bytes`/`stroke_line`/`circle`/`fill_triangle` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
   events with logical size, native drawable size, device scale, target refresh,
   and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
   consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/stroke-line/
-  circle/fill-triangle geometry plus text through Metal pipelines. Its `targetHzMilli` setting
+	  circle/fill-triangle geometry plus byte-native text payloads through Metal pipelines. Its `targetHzMilli` setting
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels, and host apps can clear that cache
   on memory pressure. The UI input stream now also carries validated `frame_tick`

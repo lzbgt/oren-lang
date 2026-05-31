@@ -18,12 +18,14 @@
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"fill_triangle","x1":int,"y1":int,"x2":int,"y2":int,"x3":int,"y3":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
-//   - v0 rasterizes "text" as a simple 1px-high run of pixels (one per character),
+// - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
+//   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
 //     purely as a deterministic marker for tests.
 
 import ui_cmds "std:ui/commands"
 import ui_color "std:ui/color"
 import result "std:result"
+import bytes "std:bytes"
 
 fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
     if x < 0 || y < 0 || x >= w || y >= h { return 0 }
@@ -230,6 +232,20 @@ fn rasterize(cmds, w, h, opts) {
             while j < ln {
                 _set_px_rgba(buf, w, h, tx + j, ty, c2["r"], c2["g"], c2["b"], c2["a"])
                 j = j + 1
+            }
+        } else if op == "text_bytes" {
+            // Deterministic marker: draw 1 pixel per byte at y.
+            var c3 = ui_color.try_parse_hex(opm["color"])
+            if oren_is_err(c3) { return result.with_context(c3, "rasterize: text_bytes color") }
+            var bx = opm["x"]
+            var by = opm["y"]
+            var data = opm["data"]
+            var bn = bytes.try_len(data)
+            if oren_is_err(bn) { return result.with_context(bn, "rasterize: text_bytes data") }
+            var bj = 0
+            while bj < bn {
+                _set_px_rgba(buf, w, h, bx + bj, by, c3["r"], c3["g"], c3["b"], c3["a"])
+                bj = bj + 1
             }
         }
         ci = ci + 1
