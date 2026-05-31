@@ -36,6 +36,7 @@ done < <(
 OREN_AVM_KIT_SOURCES=(
   sdk/ios/OrenAVMKit/OrenAVMKit.m
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m
+  sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m
 )
 
 stage_headers() {

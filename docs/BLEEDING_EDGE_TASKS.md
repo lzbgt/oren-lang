@@ -82,9 +82,11 @@ This file is the concise task view. Detailed implementation status lives in
      `stroke_line`/`circle` subset, plus OBC-safe virtual DNS through
      `std:net/avm/dns` and the iOS live-NET resolver callback, and SDK-enforced
      live VNET session-count/per-session-byte limits, plus host-requested VM
-     cancellation through the embed/iOS SDK APIs.
-     Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
-     listen/accept on the VNET/session protocol, event-bus FS/package
+     cancellation through the embed/iOS SDK APIs, plus an
+     `OrenAVMPermissionGrantStore` that persists decoded permission decisions and
+     reapplies live VNET allowed-host grants/revocations at runtime.
+     Remaining SDK work: visible permission prompt UX, listen/accept on the
+     VNET/session protocol, event-bus FS/package
      events without exposing raw sockets to OBC, compiler helper
      package, signed package-store support, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency

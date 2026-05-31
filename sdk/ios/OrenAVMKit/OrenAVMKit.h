@@ -125,6 +125,35 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @end
 
+@interface OrenAVMPermissionGrantStore : NSObject
+
+@property(nonatomic, readonly, copy) NSURL* storeURL;
+
+- (instancetype)initWithStoreURL:(NSURL*)storeURL NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+
+- (BOOL)loadWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)saveWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)setGranted:(BOOL)granted
+            domain:(NSString*)domain
+            action:(NSString*)action
+            detail:(NSString*)detail
+             error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)isGrantedForDomain:(NSString*)domain
+                    action:(NSString*)action
+                    detail:(NSString*)detail;
+- (NSSet<NSString*>*)allowedNetworkHosts;
+- (BOOL)applyNetworkGrantsToRuntime:(OrenAVMRuntime*)runtime
+                      timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                               error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)recordDecisionForPermissionRequest:(NSDictionary<NSString*, id>*)request
+                                   granted:(BOOL)granted
+                                   runtime:(nullable OrenAVMRuntime*)runtime
+                            timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                      error:(NSError* _Nullable* _Nullable)error;
+
+@end
+
 @interface OrenAVMPackage : NSObject
 
 @property(nonatomic, readonly, copy) NSURL* directoryURL;

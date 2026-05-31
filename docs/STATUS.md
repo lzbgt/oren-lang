@@ -184,8 +184,10 @@ Facts from the 2026-05-28 implementation pass:
   domain rather than the broader nested-AVM domain. AVM stores the latest request
   as a compact `OPR0` binary mailbox; embedders read/clear it with
   `avm_embed_permission_request_get/clear`, and iOS `OrenAVMKit` exposes raw and
-  decoded helpers. This lets host apps show user permission UI and then update
-  provider policy with existing SDK controls without recompiling OBC.
+  decoded helpers. `OrenAVMPermissionGrantStore` now persists host decisions in
+  app-owned JSON and can reapply NET connect grants/revocations to a runtime by
+  enabling, restricting, or disabling live VNET allowed hosts. This lets host apps
+  show user permission UI and then update provider policy without recompiling OBC.
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. FS follows this rule through
   host-backed directory mounts: the SDK owns app `file://` URLs and OBC sees only

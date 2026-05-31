@@ -62,6 +62,8 @@ nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenA
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
 nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPackageStore'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPackageStore'
+nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPermissionGrantStore'
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPermissionGrantStore'
 nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
 
@@ -726,6 +728,26 @@ int main(void) {
         if (![permission[@"sequence"] isEqual:@1]) return 76;
         NSData* permissionData = [runtime getPermissionRequestDataWithError:&error];
         if (!permissionData || permissionData.length < 20) return 77;
+        NSURL* grantsURL = [tempRoot URLByAppendingPathComponent:@"permission-grants.json" isDirectory:NO];
+        OrenAVMPermissionGrantStore* grantStore = [[OrenAVMPermissionGrantStore alloc] initWithStoreURL:grantsURL];
+        if (![grantStore loadWithError:&error]) return 116;
+        if (![grantStore recordDecisionForPermissionRequest:permission
+                                                    granted:YES
+                                                    runtime:runtime
+                                             timeoutSeconds:5.0
+                                                       error:&error]) return 117;
+        if (![grantStore isGrantedForDomain:@"NET" action:@"connect" detail:tcpURL]) return 118;
+        if (grantStore.allowedNetworkHosts.count != 1) return 119;
+        OrenAVMPermissionGrantStore* reloadedGrantStore = [[OrenAVMPermissionGrantStore alloc] initWithStoreURL:grantsURL];
+        if (![reloadedGrantStore loadWithError:&error]) return 120;
+        if (![reloadedGrantStore isGrantedForDomain:@"NET" action:@"connect" detail:tcpURL]) return 121;
+        if (![reloadedGrantStore recordDecisionForPermissionRequest:permission
+                                                           granted:NO
+                                                           runtime:runtime
+                                                    timeoutSeconds:5.0
+                                                              error:&error]) return 122;
+        if ([reloadedGrantStore isGrantedForDomain:@"NET" action:@"connect" detail:tcpURL]) return 123;
+        if (reloadedGrantStore.allowedNetworkHosts.count != 0) return 124;
         if (![runtime clearPermissionRequestWithError:&error]) return 78;
         if ([runtime getPermissionRequestDataWithError:&error] != nil) return 79;
         NSData* out = [runtime getVFSFileAtPath:@"out.txt" error:&error];
@@ -1046,6 +1068,7 @@ clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK
   -Ilib/avm -Ibuild -I"$TMP_DIR" -I"$OUT_ROOT/include" \
   "$TMP_DIR/sdk_smoke.m" sdk/ios/OrenAVMKit/OrenAVMKit.m "${HOST_SOURCES[@]}" \
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m \
+  sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m \
   -fobjc-arc -framework Foundation -framework Security -o "$HOST_SDK_BIN"
 NET_DIR="$TMP_DIR/net_server"
 rm -rf "$NET_DIR"
