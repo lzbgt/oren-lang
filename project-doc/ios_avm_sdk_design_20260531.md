@@ -139,8 +139,9 @@ Default FS adapter.
 
 Default NET adapter.
 
-- Default mode: VirtualNET fixtures/no host network.
-- Optional reviewed modes: allowlisted `URLSession` prefetch or live fetch callback.
+- Deterministic mode: VirtualNET fixtures/no host network.
+- Interactive default mode: allowlisted host-backed VNET provider enabled by
+  default, with SDK controls to restrict or disable it at runtime.
 - Package manifest declares network domains before launch.
 - The SDK maps responses back into the AVM NET surface with size/time budgets.
 - Current implementation is prefetch-oriented: host code fetches allowlisted URLs
@@ -153,8 +154,14 @@ Default NET adapter.
   disable it by clearing `liveNetworkEnabled` before runtime creation or by calling
   `disableLiveNetworkWithError:` at runtime; apps can restrict/re-enable it with
   `liveNetworkAllowedHosts` or `enableLiveNetworkWithAllowedHosts:timeoutSeconds:`.
-  Raw TCP/UDP/socket authority remains intentionally unavailable until a separate
-  session protocol and policy gate exists.
+  OBC still has no raw host network authority.
+- The first VNET session protocol is implemented for TCP client streams:
+  `std:net/avm.session_open("tcp://host:port", timeout_ms)`,
+  `session_write`, `session_read`, and `session_close` map to AVM NET ops and
+  embedder callbacks. The iOS SDK backs those virtual session IDs with host-owned
+  POSIX sockets under the live-NET allowlist and runtime enable/disable controls.
+  OBC sees only integer virtual session IDs and byte buffers, never native sockets
+  or descriptors.
 - The current HTTP body provider keeps a reusable ephemeral `NSURLSession` per
   `OrenAVMRuntime` so capability-enabled prefetch/live fetches use the fast SDK
   provider path by default instead of rebuilding a session for each OBC request.
@@ -162,12 +169,11 @@ Default NET adapter.
   VNET with `URLSession`, Network.framework, or platform sockets, but OBC must only
   see virtual responses or virtual session handles that AVM can budget, close,
   snapshot/test, and deny by capability.
-- Full OBC network capability is still the target. The next NET layer should not
-  hand native sockets to bytecode; it should expose small AVM session handles for
-  TCP/UDP-style operations. Required protocol pieces: connect/listen/send/recv/close,
-  DNS policy, readiness or async polling, cancellation, per-session byte budgets,
-  host lifecycle handling, and deterministic fixture/replay support. `std:net/tcp`
-  and `std:net/udp` should route through that AVM protocol when running under
+- Full OBC network capability is still the target. The next NET layers should add
+  UDP, WebSocket, listen/accept where app policy allows, DNS policy, readiness or
+  async polling, cancellation, stronger per-session byte budgets, lifecycle
+  handling, and deterministic fixture/replay support. `std:net/tcp` and
+  `std:net/udp` should route through the AVM protocol when running under
   libavm/iOS.
 
 ### OrenAVMProcessProvider
@@ -219,7 +225,7 @@ Public OBC store helper.
 | Surface | Default iOS implementation | Escalation |
 | --- | --- | --- |
 | FS | VirtualFS plus explicit app file/directory mount and export helpers | Richer mount policy/manifest wiring |
-| NET | VirtualNET/no host network | SDK `URLSession` prefetch or live fetch callback with allowlist |
+| NET | VirtualNET/no host network | SDK `URLSession` prefetch/live fetch plus TCP virtual sessions with allowlist |
 | PROC | VirtualPROC | Reviewed app commands only |
 | TIME | Deterministic virtual time | Interactive wall-clock on worker queue |
 | GUI | Binary GFX mailboxes plus UIKit/CoreGraphics `OrenAVMGraphicsView` fallback | Metal/3D renderer |

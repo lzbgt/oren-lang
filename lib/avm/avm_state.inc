@@ -29,34 +29,38 @@ static void objtable_free(ObjTable* t) {
     t->cap = 0;
 }
 
-static void avm_free_object_table_objects(ObjTable* t) {
+static void avm_heap_free_if_owned(AvmVM* vm, void* ptr) {
+    if (avm_heap_is_owned_by(vm, ptr)) avm_heap_free(ptr);
+}
+
+static void avm_free_object_table_objects(AvmVM* vm, ObjTable* t) {
     if (!t) return;
     for (uint32_t id = 0; id < t->count; id++) {
         uint8_t ty = t->types[id];
         void* ptr = t->ptrs[id];
         if (!ptr) continue;
         if (ty == 1) { // STRING (char*)
-            avm_heap_free(ptr);
+            avm_heap_free_if_owned(vm, ptr);
         } else if (ty == 2) { // LIST
             AvmList* list = (AvmList*)ptr;
-            if (list->items) avm_heap_free(list->items);
-            avm_heap_free(list);
+            if (list->items) avm_heap_free_if_owned(vm, list->items);
+            avm_heap_free_if_owned(vm, list);
         } else if (ty == 3) { // MAP
             AvmMap* map = (AvmMap*)ptr;
-            if (map->keys) avm_heap_free(map->keys);
-            if (map->values) avm_heap_free(map->values);
-            avm_heap_free(map);
+            if (map->keys) avm_heap_free_if_owned(vm, map->keys);
+            if (map->values) avm_heap_free_if_owned(vm, map->values);
+            avm_heap_free_if_owned(vm, map);
         } else if (ty == 4) { // BYTES
             AvmBytes* b = (AvmBytes*)ptr;
-            if (b->data) avm_heap_free(b->data);
-            avm_heap_free(b);
+            if (b->data) avm_heap_free_if_owned(vm, b->data);
+            avm_heap_free_if_owned(vm, b);
         } else if (ty == 5) { // FUNC
             AvmFunc* fn = (AvmFunc*)ptr;
-            avm_heap_free(fn);
+            avm_heap_free_if_owned(vm, fn);
         } else if (ty == 6 || ty == 7 || ty == 8 || ty == 9) { // typed buffers
             AvmBuf* b = (AvmBuf*)ptr;
-            if (b && b->data) avm_heap_free(b->data);
-            if (b) avm_heap_free(b);
+            if (b && b->data) avm_heap_free_if_owned(vm, b->data);
+            if (b) avm_heap_free_if_owned(vm, b);
         } else if (avm_generator_free_object(ty, ptr)) {
             // handled
         }
@@ -100,7 +104,7 @@ static void avm_release_heap(AvmVM* vm) {
         collect_value_objects(&objs, v);
     }
 
-    avm_free_object_table_objects(&objs);
+    avm_free_object_table_objects(vm, &objs);
     objtable_free(&objs);
 }
 

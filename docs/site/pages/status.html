@@ -164,11 +164,21 @@
 <p>  default live fetch modes against a local HTTP server, including dynamic disable</p>
 <p>  and re-enable through the SDK.</p>
 <ul>
+<li>AVM NET now also has virtual session handles for performance-oriented stream</li>
+</ul>
+<p>  networking: <code>std:net/avm.session_open/write/read/close</code> map to AVM NET ops 1-4,</p>
+<p>  and embedders can install host callbacks with</p>
+<p>  <code>avm_embed_set_net_session_callbacks</code>. The iOS SDK implements the first reviewed</p>
+<p>  provider for <code>tcp://host:port</code> using host-owned sockets behind the same</p>
+<p>  allowlist/dynamic live-NET controls. OBC receives only integer virtual session</p>
+<p>  IDs and bytes; it never receives a socket or file descriptor. `make</p>
+<p>  verify-libavm-ios` proves local TCP ping/pong through this path.</p>
+<ul>
 <li>Performance work for virtual resources should continue as host-backed virtual</li>
 </ul>
-<p>  providers, not raw OS object access from bytecode. Future TCP/UDP/WebSocket</p>
-<p>  support should use VNET session handles with capability checks, allowlists, byte</p>
-<p>  budgets, cancellation, and host lifecycle cleanup while the iOS SDK owns</p>
+<p>  providers, not raw OS object access from bytecode. Remaining UDP/WebSocket,</p>
+<p>  listen/accept, async readiness, DNS policy, cancellation, and richer lifecycle</p>
+<p>  support should extend the VNET session protocol while the iOS SDK owns</p>
 <p>  Network.framework or socket backends. UI/GFX follows the same rule: the SDK may</p>
 <p>  use UIKit/CoreGraphics/Metal/<code>MTKView</code>, but OBC sees binary frame/event mailboxes</p>
 <p>  and virtual resource handles only.</p>

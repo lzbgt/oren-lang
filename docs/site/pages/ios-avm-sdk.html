@@ -191,8 +191,11 @@
 <h3 id="orenavmnetworkprovider">OrenAVMNetworkProvider</h3>
 <p>Default NET adapter.</p>
 <ul>
-<li>Default mode: VirtualNET fixtures/no host network.</li>
-<li>Optional reviewed modes: allowlisted <code>URLSession</code> prefetch or live fetch callback.</li>
+<li>Deterministic mode: VirtualNET fixtures/no host network.</li>
+<li>Interactive default mode: allowlisted host-backed VNET provider enabled by</li>
+</ul>
+<p>  default, with SDK controls to restrict or disable it at runtime.</p>
+<ul>
 <li>Package manifest declares network domains before launch.</li>
 <li>The SDK maps responses back into the AVM NET surface with size/time budgets.</li>
 <li>Current implementation is prefetch-oriented: host code fetches allowlisted URLs</li>
@@ -208,8 +211,16 @@
 <p>  disable it by clearing <code>liveNetworkEnabled</code> before runtime creation or by calling</p>
 <p>  <code>disableLiveNetworkWithError:</code> at runtime; apps can restrict/re-enable it with</p>
 <p>  <code>liveNetworkAllowedHosts</code> or <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code>.</p>
-<p>  Raw TCP/UDP/socket authority remains intentionally unavailable until a separate</p>
-<p>  session protocol and policy gate exists.</p>
+<p>  OBC still has no raw host network authority.</p>
+<ul>
+<li>The first VNET session protocol is implemented for TCP client streams:</li>
+</ul>
+<p>  <code>std:net/avm.session_open(&quot;tcp://host:port&quot;, timeout_ms)</code>,</p>
+<p>  <code>session_write</code>, <code>session_read</code>, and <code>session_close</code> map to AVM NET ops and</p>
+<p>  embedder callbacks. The iOS SDK backs those virtual session IDs with host-owned</p>
+<p>  POSIX sockets under the live-NET allowlist and runtime enable/disable controls.</p>
+<p>  OBC sees only integer virtual session IDs and byte buffers, never native sockets</p>
+<p>  or descriptors.</p>
 <ul>
 <li>The current HTTP body provider keeps a reusable ephemeral <code>NSURLSession</code> per</li>
 </ul>
@@ -222,13 +233,12 @@
 <p>  see virtual responses or virtual session handles that AVM can budget, close,</p>
 <p>  snapshot/test, and deny by capability.</p>
 <ul>
-<li>Full OBC network capability is still the target. The next NET layer should not</li>
+<li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
-<p>  hand native sockets to bytecode; it should expose small AVM session handles for</p>
-<p>  TCP/UDP-style operations. Required protocol pieces: connect/listen/send/recv/close,</p>
-<p>  DNS policy, readiness or async polling, cancellation, per-session byte budgets,</p>
-<p>  host lifecycle handling, and deterministic fixture/replay support. <code>std:net/tcp</code></p>
-<p>  and <code>std:net/udp</code> should route through that AVM protocol when running under</p>
+<p>  UDP, WebSocket, listen/accept where app policy allows, DNS policy, readiness or</p>
+<p>  async polling, cancellation, stronger per-session byte budgets, lifecycle</p>
+<p>  handling, and deterministic fixture/replay support. <code>std:net/tcp</code> and</p>
+<p>  <code>std:net/udp</code> should route through the AVM protocol when running under</p>
 <p>  libavm/iOS.</p>
 <h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>
 <p>Default PROC adapter.</p>
@@ -276,7 +286,7 @@
 <table>
 <tr><th>Surface</th><th>Default iOS implementation</th><th>Escalation</th></tr>
 <tr><td>FS</td><td>VirtualFS plus explicit app file/directory mount and export helpers</td><td>Richer mount policy/manifest wiring</td></tr>
-<tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch or live fetch callback with allowlist</td></tr>
+<tr><td>NET</td><td>VirtualNET/no host network</td><td>SDK <code>URLSession</code> prefetch/live fetch plus TCP virtual sessions with allowlist</td></tr>
 <tr><td>PROC</td><td>VirtualPROC</td><td>Reviewed app commands only</td></tr>
 <tr><td>TIME</td><td>Deterministic virtual time</td><td>Interactive wall-clock on worker queue</td></tr>
 <tr><td>GUI</td><td>Binary GFX mailboxes plus UIKit/CoreGraphics <code>OrenAVMGraphicsView</code> fallback</td><td>Metal/3D renderer</td></tr>

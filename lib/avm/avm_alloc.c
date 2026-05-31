@@ -339,6 +339,14 @@ void avm_heap_free(void* p) {
     }
 }
 
+int avm_heap_is_owned_by(AvmVM* vm, void* p) {
+    if (!vm || !p) return 0;
+    for (AvmAllocHdr* h = (AvmAllocHdr*)vm->heap_allocs_head; h; h = h->next) {
+        if ((void*)(h + 1) == p) return 1;
+    }
+    return 0;
+}
+
 void* avm_heap_realloc_k(void* p, size_t new_size, uint8_t kind) {
     g_last_alloc_err = 0;
     if (!p) return avm_heap_malloc_k(new_size, kind);

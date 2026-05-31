@@ -131,6 +131,11 @@ AvmVM* avm_new() {
     vm->vnet = NULL;
     vm->net_fetch_fn = NULL;
     vm->net_fetch_user_data = NULL;
+    vm->net_session_open_fn = NULL;
+    vm->net_session_write_fn = NULL;
+    vm->net_session_read_fn = NULL;
+    vm->net_session_close_fn = NULL;
+    vm->net_session_user_data = NULL;
     vm->gfx_frame_data = NULL;
     vm->gfx_frame_len = 0;
     vm->gfx_input_queue = NULL;
@@ -214,7 +219,7 @@ void avm_free(AvmVM* vm) {
     if (vm->record_log) fclose(vm->record_log);
     if (vm->replay_log) fclose(vm->replay_log);
 
-    // Best-effort: release heap objects reachable from VM roots (including const pool objects).
+    // Best-effort: release heap objects reachable from VM roots.
     avm_release_heap_all(vm);
     // Release any remaining unreachable heap allocations (leak-free teardown).
     avm_release_unreachable_allocs(vm);

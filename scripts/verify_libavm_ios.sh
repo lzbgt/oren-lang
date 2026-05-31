@@ -36,6 +36,7 @@ for sym in \
   _avm_embed_vfs_snapshot \
   _avm_embed_vnet_put \
   _avm_embed_set_net_fetch_callback \
+  _avm_embed_set_net_session_callbacks \
   _avm_embed_vproc_put \
   _avm_embed_vproc_set_default_exit \
   _avm_embed_set_output_capture \
@@ -61,6 +62,7 @@ cat > "$OREN_SRC" <<'OREN'
 import time "std:time"
 import net_avm "std:net/avm"
 import ui_avm "std:ui/avm"
+import bytes "std:bytes"
 
 fn main() {
     var args = oren_args()
@@ -77,6 +79,17 @@ fn main() {
     var body = net_avm.try_get_text(args[2])
     if oren_is_err(body) { oren_exit(14) }
     if body != "net-ok" { oren_exit(14) }
+    if args[3] != "session-none" {
+        var sid = net_avm.session_open(args[3], 5000)
+        if oren_is_err(sid) { oren_exit(57) }
+        var wn = net_avm.session_write(sid, "ping", 5000)
+        if oren_is_err(wn) || wn != 4 { oren_exit(58) }
+        var rb = net_avm.session_read(sid, 4, 5000)
+        if oren_is_err(rb) { oren_exit(59) }
+        if bytes.to_string(rb) != "pong" { oren_exit(60) }
+        var cr = net_avm.session_close(sid)
+        if oren_is_err(cr) || cr != 0 { oren_exit(61) }
+    }
     print("stdout:" + body)
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
@@ -210,7 +223,7 @@ int main(void) {
 
     AvmEmbedHandle* handle = avm_embed_open(&cfg, &result);
     if (!handle || result.status != AVM_EMBED_OK) return 2;
-    const char* argv[] = {"oren", "ios", "https://note.local/probe", "probe"};
+    const char* argv[] = {"oren", "ios", "https://note.local/probe", "session-none"};
     if (avm_embed_set_argv(handle, 4, argv, &result) != AVM_EMBED_OK) return 3;
     static const uint8_t input[] = {'a', 'b', 'c'};
     if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 4;
@@ -325,6 +338,7 @@ int main(void) {
     @autoreleasepool {
         NSDictionary<NSString*, NSString*>* env = [[NSProcessInfo processInfo] environment];
         NSString* netURL = env[@"OREN_AVM_SDK_NET_URL"] ?: @"https://note.local/probe";
+        NSString* tcpURL = env[@"OREN_AVM_SDK_TCP_URL"] ?: @"session-none";
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
@@ -344,7 +358,7 @@ int main(void) {
             if (![runtime disableLiveNetworkWithError:&error]) return 70;
             if (![runtime enableLiveNetworkWithAllowedHosts:nil timeoutSeconds:5.0 error:&error]) return 71;
         }
-        if (![runtime setArgv:@[@"oren", @"ios", netURL, @"probe"] error:&error]) return 36;
+        if (![runtime setArgv:@[@"oren", @"ios", netURL, tcpURL] error:&error]) return 36;
         NSData* input = [@"abc" dataUsingEncoding:NSUTF8StringEncoding];
         if (![runtime putVFSFileAtPath:@"input.txt" data:input error:&error]) return 37;
         NSURL* tempRoot = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
@@ -557,6 +571,17 @@ print(s.getsockname()[1])
 s.close()
 PY
 )"
+TCP_READY="$TMP_DIR/tcp_server.ready"
+rm -f "$TCP_READY"
+TCP_PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
 python3 - "$NET_PORT" "$NET_DIR/net.txt" "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 <<'PY' &
 import pathlib
 import socket
@@ -587,15 +612,41 @@ for _ in range(4):
 srv.close()
 PY
 NET_SERVER_PID=$!
+python3 - "$TCP_PORT" "$TCP_READY" > "$LOG_DIR/libavm_ios_sdk_tcp_server.log" 2>&1 <<'PY' &
+import pathlib
+import socket
+import sys
+
+port = int(sys.argv[1])
+ready = pathlib.Path(sys.argv[2])
+srv = socket.socket()
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("127.0.0.1", port))
+srv.listen(1)
+ready.write_text("ready\n", encoding="utf-8")
+conn, _addr = srv.accept()
+try:
+    data = conn.recv(4)
+    if data == b"ping":
+        conn.sendall(b"pong")
+finally:
+    conn.close()
+    srv.close()
+PY
+TCP_SERVER_PID=$!
 cleanup_net_server() {
   if kill -0 "$NET_SERVER_PID" >/dev/null 2>&1; then
     kill "$NET_SERVER_PID" >/dev/null 2>&1 || true
     wait "$NET_SERVER_PID" >/dev/null 2>&1 || true
   fi
+  if kill -0 "$TCP_SERVER_PID" >/dev/null 2>&1; then
+    kill "$TCP_SERVER_PID" >/dev/null 2>&1 || true
+    wait "$TCP_SERVER_PID" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup_net_server EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if [[ -f "$NET_READY" ]]; then
+  if [[ -f "$NET_READY" && -f "$TCP_READY" ]]; then
     break
   fi
   sleep 0.1
@@ -610,6 +661,7 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" \
   "$HOST_SDK_BIN"
 cleanup_net_server
 trap - EXIT

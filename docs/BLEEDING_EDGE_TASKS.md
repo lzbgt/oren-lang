@@ -65,15 +65,16 @@ This file is the concise task view. Detailed implementation status lives in
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
      interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
-     session, plus binary
+     session, plus first `std:net/avm.session_open/write/read/close` TCP virtual
+     session handles over host-owned iOS sockets, plus binary
      GFX frame and input mailboxes for OBC-published `std:ui` frames and
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset.
-     Remaining SDK work: host-backed VNET session handles for high-performance
-     TCP/UDP/WebSocket-style networking without exposing raw sockets to OBC,
-     compiler helper package, package store helper, and the game-grade GUI path:
+     Remaining SDK work: UDP/WebSocket/listen/accept/async readiness on the VNET
+     session protocol without exposing raw sockets to OBC, compiler helper
+     package, package store helper, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
      input ordering, Metal/`MTKView`, richer drawing ops, and richer
      IME/composition input helpers. The `OGF0` frame header now includes

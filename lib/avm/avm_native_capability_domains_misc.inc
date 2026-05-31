@@ -248,6 +248,109 @@
                 return ret;
             }
 
+            case 1: { // session_open(spec, timeout_ms) -> INT virtual session id
+                if (nargs < 1 || args[0].type != AVM_VAL_STRING) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_open expects (spec: string, timeout_ms?: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_open_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session open not implemented", domain, op);
+                }
+                uint32_t timeout_ms = 0;
+                if (nargs >= 2) timeout_ms = (uint32_t)avm_value_u64(args[1], 0);
+                uint32_t session_id = 0;
+                if (vm->net_session_open_fn(vm->net_session_user_data, (const char*)args[0].as.p, timeout_ms, &session_id) != 0 || session_id == 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session open failed", domain, op);
+                }
+                AvmValue ret = avm_int((int64_t)session_id);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
+            case 2: { // session_write(session_id, data, timeout_ms) -> INT bytes written
+                if (nargs < 2 || args[0].type != AVM_VAL_INT || (!((args[1].type == AVM_VAL_BYTES && args[1].as.b) || args[1].type == AVM_VAL_STRING))) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_write expects (session_id: int, data: bytes|string, timeout_ms?: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_write_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session write not implemented", domain, op);
+                }
+                const uint8_t* data = NULL;
+                size_t len = 0;
+                if (args[1].type == AVM_VAL_BYTES) {
+                    data = args[1].as.b->data;
+                    len = (size_t)args[1].as.b->len;
+                } else {
+                    const char* s = (const char*)args[1].as.p;
+                    data = (const uint8_t*)s;
+                    len = s ? strlen(s) : 0;
+                }
+                if (!avm_io_charge(vm, (uint64_t)len, domain, op)) return vm->last_error;
+                uint32_t timeout_ms = 0;
+                if (nargs >= 3) timeout_ms = (uint32_t)avm_value_u64(args[2], 0);
+                size_t written = 0;
+                if (vm->net_session_write_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), data, len, timeout_ms, &written) != 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session write failed", domain, op);
+                }
+                AvmValue ret = avm_int((int64_t)written);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
+            case 3: { // session_read(session_id, max_len, timeout_ms) -> BYTES
+                if (nargs < 2 || args[0].type != AVM_VAL_INT || args[1].type != AVM_VAL_INT) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_read expects (session_id: int, max_len: int, timeout_ms?: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_read_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session read not implemented", domain, op);
+                }
+                uint64_t max_len64 = avm_value_u64(args[1], 0);
+                if (max_len64 > (uint64_t)UINT32_MAX) {
+                    return avm_err_domop(AVM_ERR_BUDGET, "vnet session read too large", domain, op);
+                }
+                uint32_t timeout_ms = 0;
+                if (nargs >= 3) timeout_ms = (uint32_t)avm_value_u64(args[2], 0);
+                uint8_t* callback_body = NULL;
+                size_t callback_len = 0;
+                if (vm->net_session_read_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), (size_t)max_len64, timeout_ms, &callback_body, &callback_len) != 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session read failed", domain, op);
+                }
+                if (callback_len > (size_t)UINT32_MAX || callback_len > (size_t)max_len64 || (callback_len > 0 && !callback_body)) {
+                    if (callback_body) free(callback_body);
+                    return avm_err_domop(AVM_ERR_BUDGET, "vnet session read response too large", domain, op);
+                }
+                if (!avm_io_charge(vm, (uint64_t)callback_len, domain, op)) {
+                    if (callback_body) free(callback_body);
+                    return vm->last_error;
+                }
+                AvmValue ret = avm_bytes_new((int)callback_len);
+                if (ret.type != AVM_VAL_BYTES || !ret.as.b) {
+                    if (callback_body) free(callback_body);
+                    avm_abort(vm, ret); return ret;
+                }
+                if (callback_len > 0 && callback_body) memcpy(ret.as.b->data, callback_body, callback_len);
+                if (callback_body) free(callback_body);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
+            case 4: { // session_close(session_id) -> INT
+                if (nargs < 1 || args[0].type != AVM_VAL_INT) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_close expects (session_id: int)", domain, op);
+                }
+                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_close_fn) {
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session close not implemented", domain, op);
+                }
+                if (vm->net_session_close_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0)) != 0) {
+                    return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session close failed", domain, op);
+                }
+                AvmValue ret = avm_int(0);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+
             default:
                 return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
         }

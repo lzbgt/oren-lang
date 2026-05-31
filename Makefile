@@ -1714,7 +1714,7 @@ verify: clean oren_stage2
 # --- AVM (experimental) ---
 
 AVM_C_SRC := $(shell find lib/avm -maxdepth 1 -name '*.c' -print | sort) third_party/tweetnacl/tweetnacl.c
-AVM_INC := $(shell find lib/avm -maxdepth 1 -name '*.inc' -print | sort)
+AVM_INC := $(shell find lib/avm -maxdepth 1 \( -name '*.h' -o -name '*.inc' \) -print | sort)
 
 build/avm_root_pubkey.inc: tools/gen_avm_root_pubkeys_inc.sh
 	@mkdir -p build

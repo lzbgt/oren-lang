@@ -179,6 +179,7 @@ void avm_alloc_unbudgeted_pop(int prev);
 void* avm_heap_malloc_k(size_t size, uint8_t kind);
 void* avm_heap_realloc_k(void* p, size_t new_size, uint8_t kind);
 void avm_heap_free(void* p);
+int avm_heap_is_owned_by(AvmVM* vm, void* p);
 
 AvmValue avm_alloc_fail_value(void);
 void avm_release_unreachable_allocs(AvmVM* vm);

@@ -118,15 +118,16 @@
 <p>     wall-clock time, an allowlisted <code>URLSession</code> prefetch bridge, and an</p>
 <p>     interactive-default live NET callback for OBC <code>std:net/avm.try_get_text(url)</code></p>
 <p>     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK</p>
-<p>     session, plus binary</p>
+<p>     session, plus first <code>std:net/avm.session_open/write/read/close</code> TCP virtual</p>
+<p>     session handles over host-owned iOS sockets, plus binary</p>
 <p>     GFX frame and input mailboxes for OBC-published <code>std:ui</code> frames and</p>
 <p>     host-injected pointer/resize/key/text events with Oren-side decoded</p>
 <p>     <code>std:ui/avm.next_event()</code> maps, and a default UIKit/CoreGraphics</p>
 <p>     <code>OrenAVMGraphicsView</code> renderer for the current <code>fill_rect</code>/<code>text</code>/</p>
 <p>     <code>stroke_line</code>/<code>circle</code> subset.</p>
-<p>     Remaining SDK work: host-backed VNET session handles for high-performance</p>
-<p>     TCP/UDP/WebSocket-style networking without exposing raw sockets to OBC,</p>
-<p>     compiler helper package, package store helper, and the game-grade GUI path:</p>
+<p>     Remaining SDK work: UDP/WebSocket/listen/accept/async readiness on the VNET</p>
+<p>     session protocol without exposing raw sockets to OBC, compiler helper</p>
+<p>     package, package store helper, and the game-grade GUI path:</p>
 <p>     display-link pacing, retained resource handles, budget gates, low-latency</p>
 <p>     input ordering, Metal/<code>MTKView</code>, richer drawing ops, and richer</p>
 <p>     IME/composition input helpers. The <code>OGF0</code> frame header now includes</p>
