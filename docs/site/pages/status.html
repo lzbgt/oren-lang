@@ -295,12 +295,13 @@
 <p>  domain rather than the broader nested-AVM domain. AVM stores the latest request</p>
 <p>  as a compact <code>OPR0</code> binary mailbox; embedders read/clear it with</p>
 <p>  <code>avm_embed_permission_request_get/clear</code>, and iOS <code>OrenAVMKit</code> exposes raw and</p>
-<p>  decoded helpers. <code>OrenAVMPermissionGrantStore</code> now persists host decisions in</p>
-<p>  app-owned JSON, can explicitly apply package <code>permission_defaults</code> after</p>
-<p>  host/user policy accepts them, and can reapply NET connect grants/revocations to</p>
-<p>  a runtime by enabling, restricting, or disabling live VNET allowed hosts. This</p>
-<p>  lets host apps show user permission UI and then update provider policy without</p>
-<p>  recompiling OBC.</p>
+<p>  decoded helpers plus <code>OrenAVMPermissionPrompt</code>, a Foundation-only prompt model</p>
+<p>  with stable title/message/risk metadata for host-native UI. <code>OrenAVMPermissionGrantStore</code></p>
+<p>  now persists host decisions in app-owned JSON, records decisions from prompts,</p>
+<p>  can explicitly apply package <code>permission_defaults</code> after host/user policy accepts</p>
+<p>  them, and can reapply NET connect grants/revocations to a runtime by enabling,</p>
+<p>  restricting, or disabling live VNET allowed hosts. This lets host apps show user</p>
+<p>  permission UI and then update provider policy without recompiling OBC.</p>
 <ul>
 <li>Performance work for virtual resources should continue as host-backed virtual</li>
 </ul>

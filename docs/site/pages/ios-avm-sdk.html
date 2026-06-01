@@ -505,8 +505,10 @@
 <p><code>std:avm/permission.request*</code> over a separate AVM <code>PERMISSION</code> domain. AVM stores</p>
 <p>the latest request in a compact <code>OPR0</code> binary mailbox; embedders can retrieve and</p>
 <p>clear it through <code>avm_embed_permission_request_get/clear</code>, and <code>OrenAVMKit</code></p>
-<p>provides raw and decoded helpers. <code>OrenAVMPermissionGrantStore</code> persists decoded</p>
-<p>host decisions in an app-owned JSON file, can explicitly apply package</p>
+<p>provides raw and decoded helpers plus <code>OrenAVMPermissionPrompt</code>, a Foundation-only</p>
+<p>handoff object with stable title/message/risk metadata for host-native UI.</p>
+<p><code>OrenAVMPermissionGrantStore</code> persists decoded host decisions in an app-owned JSON</p>
+<p>file, can record decisions from prompts, can explicitly apply package</p>
 <p><code>permission_defaults</code> after host/user policy accepts them, and can reapply NET</p>
 <p>connect grants or revocations to a runtime by updating live VNET allowed hosts.</p>
 <p>High-performance networking should be implemented</p>

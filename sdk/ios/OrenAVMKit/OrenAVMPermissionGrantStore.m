@@ -32,10 +32,115 @@ static NSString* OrenAVMPermissionNetworkHostFromDetail(NSString* detail) {
     if (detail.length == 0) return nil;
     NSURL* url = [NSURL URLWithString:detail];
     if (url.host.length > 0) return url.host;
+    NSRange scheme = [detail rangeOfString:@"://"];
+    if (scheme.location != NSNotFound) {
+        NSString* authority = [detail substringFromIndex:scheme.location + scheme.length];
+        NSRange slash = [authority rangeOfString:@"/"];
+        if (slash.location != NSNotFound) authority = [authority substringToIndex:slash.location];
+        if ([authority hasPrefix:@"["]) {
+            NSRange close = [authority rangeOfString:@"]"];
+            if (close.location != NSNotFound && close.location > 1) {
+                return [authority substringWithRange:NSMakeRange(1, close.location - 1)];
+            }
+        }
+        NSRange colonInAuthority = [authority rangeOfString:@":"];
+        NSString* host = colonInAuthority.location == NSNotFound ? authority : [authority substringToIndex:colonInAuthority.location];
+        return host.length > 0 ? host : nil;
+    }
     NSRange colon = [detail rangeOfString:@":"];
     NSString* host = colon.location == NSNotFound ? detail : [detail substringToIndex:colon.location];
     return host.length > 0 ? host : nil;
 }
+
+@interface OrenAVMPermissionPrompt ()
+
+@property(nonatomic, readwrite, copy) NSString* domain;
+@property(nonatomic, readwrite, copy) NSString* action;
+@property(nonatomic, readwrite, copy) NSString* detail;
+@property(nonatomic, readwrite) uint64_t sequence;
+@property(nonatomic, readwrite, copy) NSString* title;
+@property(nonatomic, readwrite, copy) NSString* message;
+@property(nonatomic, readwrite, copy) NSString* riskLevel;
+@property(nonatomic, readwrite, copy) NSString* networkHost;
+
+@end
+
+@implementation OrenAVMPermissionPrompt
+
++ (instancetype)promptWithPermissionRequest:(NSDictionary<NSString*, id>*)request error:(NSError**)error {
+    if (![request isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                     @"permission request must be a dictionary");
+        return nil;
+    }
+    NSString* domain = OrenAVMPermissionCleanString(request[@"domain"]).uppercaseString;
+    NSString* action = OrenAVMPermissionCleanString(request[@"action"]).lowercaseString;
+    NSString* detail = OrenAVMPermissionCleanString(request[@"detail"]);
+    if (domain.length == 0 || action.length == 0) {
+        OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                     @"permission prompt requires domain and action");
+        return nil;
+    }
+    uint64_t sequence = 0;
+    id sequenceValue = request[@"sequence"];
+    if (sequenceValue && sequenceValue != (id)[NSNull null]) {
+        if (![sequenceValue isKindOfClass:[NSNumber class]]) {
+            OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                         @"permission prompt sequence must be numeric");
+            return nil;
+        }
+        sequence = [(NSNumber*)sequenceValue unsignedLongLongValue];
+    }
+
+    OrenAVMPermissionPrompt* prompt = [[OrenAVMPermissionPrompt alloc] init];
+    prompt.domain = domain;
+    prompt.action = action;
+    prompt.detail = detail;
+    prompt.sequence = sequence;
+
+    if ([domain isEqualToString:@"NET"] && [action isEqualToString:@"connect"]) {
+        NSString* host = OrenAVMPermissionNetworkHostFromDetail(detail);
+        prompt.networkHost = host;
+        prompt.title = @"Allow Network Access?";
+        prompt.riskLevel = @"network";
+        if (host.length > 0) {
+            prompt.message = [NSString stringWithFormat:
+                @"This OBC program wants to connect to %@. Approve only if you trust the package and endpoint.",
+                host];
+        } else {
+            prompt.message = @"This OBC program wants to open a network connection. Approve only if you trust the package.";
+        }
+    } else if ([domain isEqualToString:@"FS"]) {
+        prompt.title = @"Allow File Access?";
+        prompt.riskLevel = @"host-data";
+        prompt.message = @"This OBC program wants to access host-provided files or package assets. Review the path before approving.";
+    } else if ([domain isEqualToString:@"PROC"]) {
+        prompt.title = @"Allow Host Process Action?";
+        prompt.riskLevel = @"host-process";
+        prompt.message = @"This OBC program wants to request a host-managed process or job action. Approve only for trusted packages.";
+    } else {
+        prompt.title = @"Allow AVM Permission?";
+        prompt.riskLevel = @"custom";
+        prompt.message = [NSString stringWithFormat:
+            @"This OBC program requests %@/%@%@%@.",
+            domain,
+            action,
+            detail.length > 0 ? @" for " : @"",
+            detail.length > 0 ? detail : @""];
+    }
+    return prompt;
+}
+
+- (NSDictionary<NSString*, id>*)permissionRequest {
+    return @{
+        @"domain": self.domain ?: @"",
+        @"action": self.action ?: @"",
+        @"detail": self.detail ?: @"",
+        @"sequence": @(self.sequence),
+    };
+}
+
+@end
 
 @interface OrenAVMPermissionGrantStore ()
 
@@ -176,6 +281,27 @@ static NSString* OrenAVMPermissionNetworkHostFromDetail(NSString* detail) {
         return [self applyNetworkGrantsToRuntime:runtime timeoutSeconds:timeoutSeconds error:error];
     }
     return YES;
+}
+
+- (BOOL)recordDecisionForPermissionPrompt:(OrenAVMPermissionPrompt*)prompt
+                                  granted:(BOOL)granted
+                                  runtime:(OrenAVMRuntime*)runtime
+                           timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                     error:(NSError**)error {
+    if (![prompt isKindOfClass:[OrenAVMPermissionPrompt class]]) {
+        return OrenAVMPermissionAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                           @"permission prompt is required");
+    }
+    return [self recordDecisionForPermissionRequest:[prompt permissionRequest]
+                                           granted:granted
+                                           runtime:runtime
+                                    timeoutSeconds:timeoutSeconds
+                                             error:error];
+}
+
+- (BOOL)isGrantedForPermissionPrompt:(OrenAVMPermissionPrompt*)prompt {
+    if (![prompt isKindOfClass:[OrenAVMPermissionPrompt class]]) return NO;
+    return [self isGrantedForDomain:prompt.domain action:prompt.action detail:prompt.detail];
 }
 
 - (BOOL)applyPackagePermissionDefaults:(OrenAVMPackage*)package

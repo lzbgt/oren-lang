@@ -217,6 +217,23 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @end
 
+@interface OrenAVMPermissionPrompt : NSObject
+
+@property(nonatomic, readonly, copy) NSString* domain;
+@property(nonatomic, readonly, copy) NSString* action;
+@property(nonatomic, readonly, copy) NSString* detail;
+@property(nonatomic, readonly) uint64_t sequence;
+@property(nonatomic, readonly, copy) NSString* title;
+@property(nonatomic, readonly, copy) NSString* message;
+@property(nonatomic, readonly, copy) NSString* riskLevel;
+@property(nonatomic, readonly, nullable, copy) NSString* networkHost;
+
++ (nullable instancetype)promptWithPermissionRequest:(NSDictionary<NSString*, id>*)request
+                                              error:(NSError* _Nullable* _Nullable)error;
+- (NSDictionary<NSString*, id>*)permissionRequest;
+
+@end
+
 @interface OrenAVMPermissionGrantStore : NSObject
 
 @property(nonatomic, readonly, copy) NSURL* storeURL;
@@ -243,6 +260,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                    runtime:(nullable OrenAVMRuntime*)runtime
                             timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                       error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)recordDecisionForPermissionPrompt:(OrenAVMPermissionPrompt*)prompt
+                                  granted:(BOOL)granted
+                                  runtime:(nullable OrenAVMRuntime*)runtime
+                           timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                     error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)isGrantedForPermissionPrompt:(OrenAVMPermissionPrompt*)prompt;
 - (BOOL)applyPackagePermissionDefaults:(OrenAVMPackage*)package
                                 runtime:(nullable OrenAVMRuntime*)runtime
                          timeoutSeconds:(NSTimeInterval)timeoutSeconds

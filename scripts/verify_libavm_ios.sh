@@ -621,25 +621,37 @@ int main(void) {
         if (![permission[@"sequence"] isEqual:@1]) return 76;
         NSData* permissionData = [runtime getPermissionRequestDataWithError:&error];
         if (!permissionData || permissionData.length < 20) return 77;
+        OrenAVMPermissionPrompt* prompt = [OrenAVMPermissionPrompt promptWithPermissionRequest:permission error:&error];
+        if (!prompt) return 162;
+        if (![prompt.domain isEqual:@"NET"]) return 163;
+        if (![prompt.action isEqual:@"connect"]) return 164;
+        if (![prompt.detail isEqual:tcpURL]) return 165;
+        if (prompt.sequence != 1) return 166;
+        NSString* expectedPromptHost = [tcpURL containsString:@"://"] ? @"127.0.0.1" : tcpURL;
+        if (![prompt.networkHost isEqual:expectedPromptHost]) return 167;
+        if (![prompt.riskLevel isEqual:@"network"]) return 168;
+        if (prompt.title.length == 0 || prompt.message.length == 0) return 169;
         NSURL* grantsURL = [tempRoot URLByAppendingPathComponent:@"permission-grants.json" isDirectory:NO];
         OrenAVMPermissionGrantStore* grantStore = [[OrenAVMPermissionGrantStore alloc] initWithStoreURL:grantsURL];
         if (![grantStore loadWithError:&error]) return 116;
-        if (![grantStore recordDecisionForPermissionRequest:permission
-                                                    granted:YES
-                                                    runtime:runtime
-                                             timeoutSeconds:5.0
-                                                       error:&error]) return 117;
+        if (![grantStore recordDecisionForPermissionPrompt:prompt
+                                                   granted:YES
+                                                   runtime:runtime
+                                            timeoutSeconds:5.0
+                                                      error:&error]) return 117;
         if (![grantStore isGrantedForDomain:@"NET" action:@"connect" detail:tcpURL]) return 118;
+        if (![grantStore isGrantedForPermissionPrompt:prompt]) return 170;
         if (grantStore.allowedNetworkHosts.count != 1) return 119;
         OrenAVMPermissionGrantStore* reloadedGrantStore = [[OrenAVMPermissionGrantStore alloc] initWithStoreURL:grantsURL];
         if (![reloadedGrantStore loadWithError:&error]) return 120;
         if (![reloadedGrantStore isGrantedForDomain:@"NET" action:@"connect" detail:tcpURL]) return 121;
-        if (![reloadedGrantStore recordDecisionForPermissionRequest:permission
-                                                           granted:NO
-                                                           runtime:runtime
-                                                    timeoutSeconds:5.0
-                                                              error:&error]) return 122;
+        if (![reloadedGrantStore recordDecisionForPermissionPrompt:prompt
+                                                          granted:NO
+                                                          runtime:runtime
+                                                   timeoutSeconds:5.0
+                                                             error:&error]) return 122;
         if ([reloadedGrantStore isGrantedForDomain:@"NET" action:@"connect" detail:tcpURL]) return 123;
+        if ([reloadedGrantStore isGrantedForPermissionPrompt:prompt]) return 171;
         if (reloadedGrantStore.allowedNetworkHosts.count != 0) return 124;
         if (![runtime clearPermissionRequestWithError:&error]) return 78;
         if ([runtime getPermissionRequestDataWithError:&error] != nil) return 79;
