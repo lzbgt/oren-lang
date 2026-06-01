@@ -184,7 +184,8 @@ Constraints:
   should favor object/method style when it reads better:
   `http.get(url).text()`, `"{}".json().text()`, `"hi".bytes().base64()`,
   `"TWFu".base64_bytes().text()`, `bytes.from_string("abc").sha256_hex()`,
-  and `cbor.cint(7).bytes().cbor()`.
+  `cbor.cint(7).bytes().cbor()`, and
+  `buf.matrix(2, 3).row(1).text()`.
 - Session-oriented network protocols should put IO operations on session/connection
   values. For example, TCP/UDP/TLS/WebSocket callers should prefer
   `conn.read_into(...)`, `socket.send_to(...)`, `conn.write_from(...)`,
@@ -193,6 +194,9 @@ Constraints:
   code. Raw syscall-first forms may remain as internal/performance primitives.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
+- Buffer/matrix views should expose small wrapper values over zero-copy slices and
+  strides, so callers can chain receiver methods without allocating list-of-byte
+  intermediates.
 - Builtin annotation names (`bytes`, `string`, `int`, buffers, etc.) are reserved
   for type/method lowering even if a module imports an alias with the same
   spelling. That keeps trait-backed method syntax from depending on fragile local

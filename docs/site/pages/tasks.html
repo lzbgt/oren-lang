@@ -168,11 +168,16 @@
 <p>		     socket scopes, and codecs/bytes expose <code>&quot;{}&quot;.json().text()</code>,</p>
 <p>		     <code>&quot;a: 1\n&quot;.yaml().text()</code>, <code>cbor.cint(7).bytes().cbor()</code>, and</p>
 <p>		     <code>&quot;hi&quot;.bytes().text()</code> through stdlib source and OBC metadata.</p>
-<p>		     Base64 and crypto hashes now follow the same rule with</p>
-<p>		     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
-<p>		     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
-<p>		     path on exact-size <code>u8_buf</code> output.</p>
-<p>		     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket</p>
+<p>			     Base64 and crypto hashes now follow the same rule with</p>
+<p>			     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
+<p>			     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
+<p>			     path on exact-size <code>u8_buf</code> output.</p>
+<p>			     Buffer views now expose wrapper objects over zero-copy slices,</p>
+<p>			     strides, and matrices, so callers can write</p>
+<p>			     <code>buf.slice(1, 3).text()</code> and</p>
+<p>			     <code>buf.matrix(2, 3).row(1).text()</code> instead of routing through</p>
+<p>			     root-level projection helpers.</p>
+<p>			     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket</p>
 <p>		     now follow the same session/object rule with examples like</p>
 <p>		     <code>conn.read_into(...)</code>, <code>socket.send_to(...)</code>,</p>
 <p>		     <code>conn.write_from(...)</code>, <code>conn.recv_text(...)</code>,</p>

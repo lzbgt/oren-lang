@@ -16,6 +16,79 @@ import proj "std:buffer/mat_proj"
 import mnum "std:buffer/mat_numeric"
 import mu8 "std:buffer/mat_u8"
 
+struct Slice {
+    view
+}
+
+struct Strided {
+    view
+}
+
+struct Matrix {
+    view
+}
+
+trait U8BufferViews {
+    fn slice(self, off, n): Slice;
+    fn strided(self, off, n, stride): Strided;
+    fn matrix(self, rows, cols): Matrix;
+    fn matrix_at(self, off, rows, cols, row_stride): Matrix;
+}
+
+trait SliceView {
+    fn raw_view(self);
+    fn len(self);
+    fn slice(self, off, n): Slice;
+    fn to_bytes(self): bytes;
+    fn bytes(self): bytes;
+    fn to_u8_buf(self);
+    fn text(self);
+    fn copy_from_bytes(self, bytes);
+    fn copy_from_u8_buf(self, src);
+    fn copy_from_string(self, text);
+}
+
+trait StridedView {
+    fn raw_view(self);
+    fn len(self);
+    fn to_bytes(self): bytes;
+    fn bytes(self): bytes;
+    fn to_u8_buf(self);
+    fn text(self);
+    fn copy_from_bytes(self, bytes);
+    fn copy_from_u8_buf(self, src);
+    fn copy_from_string(self, text);
+}
+
+trait MatrixView {
+    fn raw_view(self);
+    fn rows(self);
+    fn cols(self);
+    fn row_stride(self);
+    fn row(self, r): Slice;
+    fn col(self, c): Strided;
+    fn diag(self): Strided;
+    fn subview(self, row_off, col_off, rows, cols): Matrix;
+    fn to_u8_buf(self);
+    fn text(self);
+    fn copy_from_string(self, text);
+}
+
+fn _slice_wrap(v) {
+    if oren_is_err(v) { return v }
+    return Slice(v)
+}
+
+fn _strided_wrap(v) {
+    if oren_is_err(v) { return v }
+    return Strided(v)
+}
+
+fn _matrix_wrap(v) {
+    if oren_is_err(v) { return v }
+    return Matrix(v)
+}
+
 // Constructors (thin wrappers)
 fn u8_new(n) { return raw.u8_new(n) }
 fn u8_new_uninit(n) { return raw.u8_new_uninit(n) }
@@ -323,12 +396,14 @@ fn f64_copy_from_f64_buf(out: []f64, src) {
 
 fn slice_new(buf, off, n) { return view.slice_new(buf, off, n) }
 fn try_slice_new(buf, off, n) { return view.try_slice_new(buf, off, n) }
+fn slice(buf, off, n): Slice { return _slice_wrap(view.try_slice_new(buf, off, n)) }
 fn slice_slice(s, off, n) { return view.slice_slice(s, off, n) }
 fn try_slice_slice(s, off, n) { return view.try_slice_slice(s, off, n) }
 fn slice_len(s) { return view.slice_len(s) }
 fn try_slice_len(s) { return view.try_slice_len(s) }
 fn strided_new(buf, off, n, stride) { return view.strided_new(buf, off, n, stride) }
 fn try_strided_new(buf, off, n, stride) { return view.try_strided_new(buf, off, n, stride) }
+fn strided(buf, off, n, stride): Strided { return _strided_wrap(view.try_strided_new(buf, off, n, stride)) }
 fn strided_len(s) { return view.strided_len(s) }
 fn try_strided_len(s) { return view.try_strided_len(s) }
 fn strided_load_i32(s, idx) { return view.strided_load_i32(s, idx) }
@@ -474,6 +549,8 @@ fn slice_copy_from_f64_buf(s, src) { return view.slice_copy_from_f64_buf(s, src)
 
 fn mat_view_new(buf, off, rows, cols, row_stride) { return core.mat_view_new(buf, off, rows, cols, row_stride) }
 fn try_mat_view_new(buf, off, rows, cols, row_stride) { return core.try_mat_view_new(buf, off, rows, cols, row_stride) }
+fn matrix(buf, rows, cols): Matrix { return matrix_at(buf, 0, rows, cols, cols) }
+fn matrix_at(buf, off, rows, cols, row_stride): Matrix { return _matrix_wrap(core.try_mat_view_new(buf, off, rows, cols, row_stride)) }
 fn mat_rows(m) { return core.mat_rows(m) }
 fn try_mat_rows(m) { return core.try_mat_rows(m) }
 fn mat_cols(m) { return core.mat_cols(m) }
@@ -748,3 +825,51 @@ fn u8_mat_copy_from_rows(m, rows) { return mu8.u8_mat_copy_from_rows(m, rows) }
 fn try_u8_mat_copy_from_rows(m, rows) { return mu8.try_u8_mat_copy_from_rows(m, rows) }
 fn u8_mat_copy_from_strings(m, rows) { return mu8.u8_mat_copy_from_strings(m, rows) }
 fn try_u8_mat_copy_from_strings(m, rows) { return mu8.try_u8_mat_copy_from_strings(m, rows) }
+
+impl U8BufferViews for []u8 {
+    fn slice(self, off, n): Slice { return slice(self, off, n) }
+    fn strided(self, off, n, stride): Strided { return strided(self, off, n, stride) }
+    fn matrix(self, rows, cols): Matrix { return matrix(self, rows, cols) }
+    fn matrix_at(self, off, rows, cols, row_stride): Matrix { return matrix_at(self, off, rows, cols, row_stride) }
+}
+
+impl SliceView for Slice {
+    fn raw_view(self) { return self.view }
+    fn len(self) { return view.try_slice_len(self.view) }
+    fn slice(self, off, n): Slice { return _slice_wrap(view.try_slice_slice(self.view, off, n)) }
+    fn to_bytes(self): bytes { return view.try_slice_to_bytes(self.view) }
+    fn bytes(self): bytes { return view.try_slice_to_bytes(self.view) }
+    fn to_u8_buf(self) { return view.try_slice_to_u8_buf(self.view) }
+    fn text(self) { return view.try_slice_to_string(self.view) }
+    fn copy_from_bytes(self, bytes) { return view.try_slice_copy_from_bytes(self.view, bytes) }
+    fn copy_from_u8_buf(self, src) { return view.try_slice_copy_from_u8_buf(self.view, src) }
+    fn copy_from_string(self, text) { return view.try_slice_copy_from_string(self.view, text) }
+}
+
+impl StridedView for Strided {
+    fn raw_view(self) { return self.view }
+    fn len(self) { return view.try_strided_len(self.view) }
+    fn to_bytes(self): bytes { return view.try_strided_to_bytes(self.view) }
+    fn bytes(self): bytes { return view.try_strided_to_bytes(self.view) }
+    fn to_u8_buf(self) { return view.try_strided_to_u8_buf(self.view) }
+    fn text(self) { return view.try_strided_to_string(self.view) }
+    fn copy_from_bytes(self, bytes) { return view.try_strided_copy_from_bytes(self.view, bytes) }
+    fn copy_from_u8_buf(self, src) { return view.try_strided_copy_from_u8_buf(self.view, src) }
+    fn copy_from_string(self, text) { return view.try_strided_copy_from_string(self.view, text) }
+}
+
+impl MatrixView for Matrix {
+    fn raw_view(self) { return self.view }
+    fn rows(self) { return core.try_mat_rows(self.view) }
+    fn cols(self) { return core.try_mat_cols(self.view) }
+    fn row_stride(self) { return core.try_mat_row_stride(self.view) }
+    fn row(self, r): Slice { return _slice_wrap(proj.try_mat_row_slice(self.view, r)) }
+    fn col(self, c): Strided { return _strided_wrap(proj.try_mat_col_strided(self.view, c)) }
+    fn diag(self): Strided { return _strided_wrap(proj.try_mat_diag_strided(self.view)) }
+    fn subview(self, row_off, col_off, rows, cols): Matrix {
+        return _matrix_wrap(proj.try_mat_subview(self.view, row_off, col_off, rows, cols))
+    }
+    fn to_u8_buf(self) { return mu8.try_u8_mat_to_u8_buf(self.view) }
+    fn text(self) { return mu8.try_u8_mat_to_string(self.view) }
+    fn copy_from_string(self, text) { return mu8.try_u8_mat_copy_from_string(self.view, text) }
+}

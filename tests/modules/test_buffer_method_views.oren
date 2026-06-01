@@ -1,0 +1,35 @@
+import buffer "std:buffer"
+
+fn fail(code) {
+    print("buffer_method_views FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn main() {
+    var b: []u8 = buffer.u8_new(6)
+    buffer.try_u8_copy_from_string(b, "abcdef")
+
+    if b.slice(1, 3).text() != "bcd" { fail(1) }
+    if b.slice(1, 3).slice(1, 2).text() != "cd" { fail(2) }
+    if b.strided(0, 3, 2).text() != "ace" { fail(3) }
+
+    var m = b.matrix(2, 3)
+    if m.rows() != 2 { fail(4) }
+    if m.cols() != 3 { fail(5) }
+    if m.row_stride() != 3 { fail(6) }
+    if m.row(1).text() != "def" { fail(7) }
+    if m.col(1).text() != "be" { fail(8) }
+    if m.diag().text() != "ae" { fail(9) }
+    if m.subview(0, 1, 2, 2).row(1).text() != "ef" { fail(10) }
+
+    var out: []u8 = buffer.u8_new(3)
+    var out_slice = out.slice(0, 3)
+    var rc = out_slice.copy_from_string("xyz")
+    if oren_is_err(rc) { fail(11) }
+    if out_slice.text() != "xyz" { fail(12) }
+
+    print("buffer_method_views OK")
+    exit(0)
+}
+
+main()

@@ -110,11 +110,16 @@ This file is the concise task view. Detailed implementation status lives in
 		     socket scopes, and codecs/bytes expose `"{}".json().text()`,
 		     `"a: 1\n".yaml().text()`, `cbor.cint(7).bytes().cbor()`, and
 		     `"hi".bytes().text()` through stdlib source and OBC metadata.
-		     Base64 and crypto hashes now follow the same rule with
-		     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
-		     `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
-		     path on exact-size `u8_buf` output.
-		     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket
+			     Base64 and crypto hashes now follow the same rule with
+			     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
+			     `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
+			     path on exact-size `u8_buf` output.
+			     Buffer views now expose wrapper objects over zero-copy slices,
+			     strides, and matrices, so callers can write
+			     `buf.slice(1, 3).text()` and
+			     `buf.matrix(2, 3).row(1).text()` instead of routing through
+			     root-level projection helpers.
+			     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket
 		     now follow the same session/object rule with examples like
 		     `conn.read_into(...)`, `socket.send_to(...)`,
 		     `conn.write_from(...)`, `conn.recv_text(...)`,

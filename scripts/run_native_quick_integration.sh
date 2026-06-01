@@ -1420,6 +1420,19 @@ run_step_checked "omitted args smoke (bytecode)" "$omitted_args_log" \
   "$compiler" test "$omitted_args_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$omitted_args_log"
 
+echo "== buffer method view smoke (receiver API) =="
+buffer_method_src="tests/modules/test_buffer_method_views.oren"
+buffer_method_log="build/logs/${compiler_base}_buffer_method_views.log"
+rm -f "$buffer_method_log" 2>/dev/null || true
+
+run_step_checked "buffer method view smoke (native)" "$buffer_method_log" \
+  "$compiler" test "$buffer_method_src" --backend native --platform "$platform" --no-cache
+run_step_checked "buffer method view smoke (C)" "$buffer_method_log" \
+  "$compiler" test "$buffer_method_src" --backend c --platform "$platform" --no-cache
+run_step_checked "buffer method view smoke (bytecode)" "$buffer_method_log" \
+  "$compiler" test "$buffer_method_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$buffer_method_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"
