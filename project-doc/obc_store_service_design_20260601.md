@@ -97,9 +97,11 @@ Implemented in this repo:
   and artifacts.
 - Browser endpoints expose a server-rendered package store surface: `/` for
   search/browse, `/publishers/{publisher}` for public publisher package lists,
-  `/packages/{publisher}/{name}` for release download links, and `/ops` for
-  operator API/token lifecycle reference. The machine APIs remain the source of
-  truth.
+  `/packages/{publisher}/{name}` for release download links, `/ops` for
+  operator API/token lifecycle reference, and authenticated `/ops/status` for
+  registry counts plus deployment gates. `GET /api/v0/ops/status` exposes the
+  same status as JSON for operator smoke checks. The machine APIs remain the
+  source of truth.
 - `index.json.sig` is generated dynamically when the service is configured with
   `--index-signing-key` or `OBC_STORE_INDEX_SIGN_KEY_PEM`, using P-256
   SHA-256 DER signatures over the exact stable `index.json` bytes.
@@ -118,7 +120,7 @@ Remaining service work before deployment:
 
 - signed index rotation/key-id publication beyond the current single-key signer;
 - richer operator UX beyond the current browse/detail/publisher/operator
-  reference pages;
+  reference/status pages;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script

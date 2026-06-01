@@ -39,6 +39,7 @@ var (
 	sitePackageTemplate   = template.Must(template.New("store-package").Parse(sitePackageHTML))
 	sitePublisherTemplate = template.Must(template.New("store-publisher").Parse(sitePublisherHTML))
 	siteOpsTemplate       = template.Must(template.New("store-ops").Parse(siteOpsHTML))
+	siteOpsStatusTemplate = template.Must(template.New("store-ops-status").Parse(siteOpsStatusHTML))
 )
 
 type Config struct {
@@ -121,6 +122,25 @@ type PackageVisibilityUpdate struct {
 	Visibility string `json:"visibility"`
 }
 
+type OperatorStatus struct {
+	Schema                 string `json:"schema"`
+	Service                string `json:"service"`
+	GeneratedAt            string `json:"generated_at"`
+	PublisherCount         int    `json:"publisher_count"`
+	ActivePublisherCount   int    `json:"active_publisher_count"`
+	DisabledPublisherCount int    `json:"disabled_publisher_count"`
+	PackageCount           int    `json:"package_count"`
+	PublicPackageCount     int    `json:"public_package_count"`
+	PrivatePackageCount    int    `json:"private_package_count"`
+	ReleaseCount           int    `json:"release_count"`
+	PublishedReleaseCount  int    `json:"published_release_count"`
+	YankedReleaseCount     int    `json:"yanked_release_count"`
+	DraftReleaseCount      int    `json:"draft_release_count"`
+	SignedIndexEnabled     bool   `json:"signed_index_enabled"`
+	TrustBundleAvailable   bool   `json:"trust_bundle_available"`
+	AdminAuthConfigured    bool   `json:"admin_auth_configured"`
+}
+
 type ReleaseMeta struct {
 	Publisher                 string    `json:"publisher"`
 	Name                      string    `json:"name"`
@@ -187,10 +207,12 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/", s.handleSiteHome)
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/ops", s.handleSiteOps)
+	mux.HandleFunc("/ops/status", s.handleSiteOpsStatus)
 	mux.HandleFunc("/publishers/", s.handleSitePublisher)
 	mux.HandleFunc("/packages/", s.handleSitePackage)
 	mux.HandleFunc("/api/v0/health", s.handleHealth)
 	mux.HandleFunc("/api/v0/me", s.handleMe)
+	mux.HandleFunc("/api/v0/ops/status", s.handleOpsStatus)
 	mux.HandleFunc("/api/v0/publishers", s.handlePublishers)
 	mux.HandleFunc("/api/v0/publishers/", s.handlePublisherPath)
 	mux.HandleFunc("/api/v0/index.json", s.handleIndex)
@@ -310,6 +332,42 @@ func (s *Service) handleSiteOps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderHTML(w, siteOpsTemplate, nil)
+}
+
+func (s *Service) handleSiteOpsStatus(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/ops/status" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	status, err := s.operatorStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	renderHTML(w, siteOpsStatusTemplate, status)
+}
+
+func (s *Service) handleOpsStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	status, err := s.operatorStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
@@ -1148,6 +1206,81 @@ func (s *Service) publishedReleases() ([]ReleaseMeta, error) {
 	return out, err
 }
 
+func (s *Service) operatorStatus() (OperatorStatus, error) {
+	status := OperatorStatus{
+		Schema:               indexSchema,
+		Service:              "obc-store",
+		GeneratedAt:          s.now().UTC().Format(time.RFC3339),
+		SignedIndexEnabled:   s.indexSigner != nil,
+		AdminAuthConfigured:  s.adminPassword != "" || len(s.adminTokenHash) > 0,
+		TrustBundleAvailable: fileExists(filepath.Join(s.dataDir, "trust", "obc_store_trust.json")),
+	}
+	pubRoot := filepath.Join(s.dataDir, "publishers")
+	if err := filepath.WalkDir(pubRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
+		}
+		p, readErr := readJSONFile[Publisher](path)
+		if readErr != nil {
+			return nil
+		}
+		status.PublisherCount++
+		if p.Status == "disabled" {
+			status.DisabledPublisherCount++
+		} else {
+			status.ActivePublisherCount++
+		}
+		return nil
+	}); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, err
+	}
+	pkgRoot := filepath.Join(s.dataDir, "packages")
+	if err := filepath.WalkDir(pkgRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Base(path) != "package.json" {
+			return nil
+		}
+		relPath, relErr := filepath.Rel(pkgRoot, path)
+		if relErr != nil || len(strings.Split(filepath.ToSlash(relPath), "/")) != 3 {
+			return nil
+		}
+		meta, readErr := readJSONFile[PackageMeta](path)
+		if readErr != nil || meta.Publisher == "" || meta.Name == "" {
+			return nil
+		}
+		status.PackageCount++
+		if packageIsPublic(meta) {
+			status.PublicPackageCount++
+		} else {
+			status.PrivatePackageCount++
+		}
+		return nil
+	}); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, err
+	}
+	if err := filepath.WalkDir(pkgRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Base(path) != "release.json" {
+			return nil
+		}
+		rel, readErr := readJSONFile[ReleaseMeta](path)
+		if readErr != nil {
+			return nil
+		}
+		status.ReleaseCount++
+		switch rel.Status {
+		case "published":
+			status.PublishedReleaseCount++
+		case "yanked":
+			status.YankedReleaseCount++
+		default:
+			status.DraftReleaseCount++
+		}
+		return nil
+	}); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, err
+	}
+	return status, nil
+}
+
 func (s *Service) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 	if s.adminPassword == "" && len(s.adminTokenHash) == 0 {
 		http.Error(w, "admin auth is not configured", http.StatusServiceUnavailable)
@@ -1288,6 +1421,11 @@ func readJSONFile[T any](path string) (T, error) {
 	}
 	err = json.Unmarshal(body, &out)
 	return out, err
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
 }
 
 func marshalJSON(v any) ([]byte, error) {
@@ -1520,7 +1658,7 @@ const siteHomeHTML = `<!doctype html>
   <input name="capability" placeholder="Capability, e.g. GFX" value="{{.Capability}}">
   <button type="submit">Search</button>
 </form>
-<p><a href="/api/v0/index.json">index.json</a> · <a href="/api/v0/trust/bundle.json">trust bundle</a> · <a href="/ops">operator guide</a></p>
+<p><a href="/api/v0/index.json">index.json</a> · <a href="/api/v0/trust/bundle.json">trust bundle</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a></p>
 {{if .Packages}}{{range .Packages}}
 <article class="card">
 	  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
@@ -1557,7 +1695,7 @@ const sitePublisherHTML = `<!doctype html>
 <title>{{.Publisher.ID}} - OBC Store</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">{{if .Publisher.DisplayName}}{{.Publisher.DisplayName}}{{else}}{{.Publisher.ID}}{{end}}</h1><p>Public packages by {{.Publisher.ID}}.</p></header>
 <main>
-<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a></p>
+<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a></p>
 {{if .Packages}}{{range .Packages}}
 <article class="card">
   <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
@@ -1573,6 +1711,7 @@ const siteOpsHTML = `<!doctype html>
 <title>OBC Store Operator Guide</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Operator Guide</h1><p>Minimal publish and token lifecycle reference.</p></header>
 <main>
+<section class="card"><h2>Deployment status</h2><p><a href="/ops/status">Authenticated operator status page</a> · <code>GET /api/v0/ops/status</code></p></section>
 <section class="card"><h2>Public endpoints</h2><pre>GET /healthz
 GET /api/v0/health
 GET /api/v0/index.json
@@ -1589,6 +1728,28 @@ Body: {"token_sha256_hex":"&lt;sha256 hex of new token&gt;"}</pre></section>
 	POST /api/v0/packages/{publisher}/{name}/visibility
 	Body: {"visibility":"public|private"}</pre>
 	<p>Release uploads may include release_bundle_base64 for deterministic .obc.zip bundles.</p></section>
+</main></body></html>`
+
+const siteOpsStatusHTML = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OBC Store Operator Status</title><style>` + siteCSS + `</style></head>
+<body><header><h1 class="brand">Operator Status</h1><p>Authenticated deployment summary for store.hubstack.cn.</p></header>
+<main>
+<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/api/v0/ops/status">status JSON</a></p>
+<section class="card"><h2>Registry Counts</h2><table>
+<tr><th>Publishers</th><td>{{.PublisherCount}} total, {{.ActivePublisherCount}} active, {{.DisabledPublisherCount}} disabled</td></tr>
+<tr><th>Packages</th><td>{{.PackageCount}} total, {{.PublicPackageCount}} public, {{.PrivatePackageCount}} private</td></tr>
+<tr><th>Releases</th><td>{{.ReleaseCount}} total, {{.PublishedReleaseCount}} published, {{.YankedReleaseCount}} yanked, {{.DraftReleaseCount}} draft</td></tr>
+</table></section>
+<section class="card"><h2>Deployment Gates</h2><table>
+<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
+<tr><th>Trust bundle</th><td>{{.TrustBundleAvailable}}</td></tr>
+<tr><th>Admin auth</th><td>{{.AdminAuthConfigured}}</td></tr>
+<tr><th>Generated at</th><td>{{.GeneratedAt}}</td></tr>
+</table></section>
+<section class="card"><h2>Smoke Commands</h2><pre>curl -fsS https://store.hubstack.cn/healthz
+curl -fsS https://store.hubstack.cn/api/v0/index.json
+curl -fsS -u "$OBC_STORE_ADMIN_USERNAME:$OBC_STORE_ADMIN_PASSWORD" https://store.hubstack.cn/api/v0/ops/status</pre></section>
 </main></body></html>`
 
 func manifestHasCapability(dir, want string) bool {

@@ -142,8 +142,26 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("publisher page missing public package: %s", publisher)
 	}
 	ops := string(rawGet(t, ts, "/ops"))
-	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") || !strings.Contains(ops, "/healthz") {
+	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") || !strings.Contains(ops, "/healthz") || !strings.Contains(ops, "/api/v0/ops/status") {
 		t.Fatalf("ops page missing operator endpoints: %s", ops)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/status", nil, false); got.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated ops status=%d body=%s", got.Code, got.Body.String())
+	}
+	opsStatusResp := request(t, ts, http.MethodGet, "/api/v0/ops/status", nil, true)
+	if opsStatusResp.Code != http.StatusOK {
+		t.Fatalf("ops status=%d body=%s", opsStatusResp.Code, opsStatusResp.Body.String())
+	}
+	var opsStatus map[string]any
+	if err := json.Unmarshal(opsStatusResp.Body.Bytes(), &opsStatus); err != nil {
+		t.Fatalf("decode ops status: %v body=%s", err, opsStatusResp.Body.String())
+	}
+	if opsStatus["publisher_count"] != float64(1) || opsStatus["public_package_count"] != float64(1) || opsStatus["published_release_count"] != float64(1) || opsStatus["admin_auth_configured"] != true {
+		t.Fatalf("bad ops status=%v", opsStatus)
+	}
+	opsStatusPage := request(t, ts, http.MethodGet, "/ops/status", nil, true)
+	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
+		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
 	}
 
 	search := getJSON[map[string]any](t, ts, "/api/v0/packages?query=plot&capability=GFX")
