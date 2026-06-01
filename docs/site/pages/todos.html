@@ -76,6 +76,11 @@
 <p>  <code>tests/fixtures/ios_avm/</code> instead of embedding large heredocs, preserving</p>
 <p>  line-guardrail headroom for more GUI/Metal gates.</p>
 <ul>
+<li><code>OrenAVMRuntimeConfig</code> and <code>OrenAVMRunResult</code> live in</li>
+</ul>
+<p>  <code>OrenAVMRuntimeTypes.m</code>, keeping the core runtime implementation below the</p>
+<p>  2000-line source guardrail as more iOS AVM providers are added.</p>
+<ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>
 <p>  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,</p>

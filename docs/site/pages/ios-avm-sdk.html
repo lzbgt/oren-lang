@@ -64,9 +64,11 @@
 </ul>
 <p>  <code>LibAVM.xcframework</code>.</p>
 <ul>
-<li><code>sdk/ios/OrenAVMKit/OrenAVMKit.h</code> and <code>.m</code> provide an Objective-C API usable</li>
+<li><code>sdk/ios/OrenAVMKit/OrenAVMKit.h</code> plus focused <code>.m</code> implementation files</li>
 </ul>
-<p>  from Swift/Objective-C apps.</p>
+<p>  provide an Objective-C API usable from Swift/Objective-C apps. Runtime</p>
+<p>  configuration/result value types live in <code>OrenAVMRuntimeTypes.m</code> so the core</p>
+<p>  runtime file stays below the source-size guardrail as providers grow.</p>
 <ul>
 <li><code>OrenAVMRuntimeConfig deterministicDefaults</code> keeps deterministic virtual TIME</li>
 </ul>
@@ -144,7 +146,7 @@
 </ul>
 <p>	  UIKit/CoreGraphics <code>UIView</code> that decodes the current <code>OGF0</code> binary frame subset</p>
 <p>		  (<code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>,</p>
-<p>		  <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>, <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>,</p>
+<p>			  <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>, <code>fill_triangles</code>, <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>,</p>
 <p>		  <code>image_rgba</code>, <code>draw_image</code>, <code>destroy_image</code>, and</p>
 <p>		  <code>draw_image_rect</code>/<code>draw_image_rects</code>) and enqueues pointer events back through the <code>OGE0</code> input</p>
 <p>  mailbox. This is the default 2D fallback.</p>
@@ -152,8 +154,8 @@
 <li>The first high-volume renderer is implemented as <code>OrenAVMMetalView</code>, an</li>
 </ul>
 <p>		  <code>MTKView</code> adapter that owns the Metal draw loop, publishes host screen/media</p>
-<p>		  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
-<p>		  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal</p>
+<p>			  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
+<p>			  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal</p>
 <p>		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect</p>
 <p>	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal</p>
 <p>	  renderers also expose retained image count/pixel limits and counters so host apps</p>

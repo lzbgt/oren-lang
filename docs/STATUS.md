@@ -354,6 +354,10 @@ Working evidence:
 - `scripts/verify_compiler_in_avm_ios_chain.sh` builds both OBC resources with
   `./oren`, runs the stdlib-OBC nested compiler harness through `./avm`, and is
   called by `make verify-libavm-ios`.
+- The iOS SDK implementation is split so `OrenAVMRuntimeConfig` and
+  `OrenAVMRunResult` live in `OrenAVMRuntimeTypes.m`; this keeps the core
+  runtime file below the 2000-line source guardrail while GUI/NET/FS providers
+  continue to grow.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, and current CLI args (`--platform`,

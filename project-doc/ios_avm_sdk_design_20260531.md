@@ -33,8 +33,10 @@ Retained SDK slices on 2026-05-31:
 
 - `scripts/build_libavm_ios.sh` builds `OrenAVMKit.xcframework` next to
   `LibAVM.xcframework`.
-- `sdk/ios/OrenAVMKit/OrenAVMKit.h` and `.m` provide an Objective-C API usable
-  from Swift/Objective-C apps.
+- `sdk/ios/OrenAVMKit/OrenAVMKit.h` plus focused `.m` implementation files
+  provide an Objective-C API usable from Swift/Objective-C apps. Runtime
+  configuration/result value types live in `OrenAVMRuntimeTypes.m` so the core
+  runtime file stays below the source-size guardrail as providers grow.
 - `OrenAVMRuntimeConfig deterministicDefaults` keeps deterministic virtual TIME
   and virtual FS/NET/PROC.
 - `OrenAVMRuntimeConfig interactiveAppDefaults` keeps virtual FS/NET/PROC, switches
@@ -88,14 +90,14 @@ Retained SDK slices on 2026-05-31:
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
 	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
 		  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`,
-		  `ellipse`, `polyline`, `fill_triangle`, `text_resource`, `draw_text`, `destroy_text`,
+			  `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`,
 		  `image_rgba`, `draw_image`, `destroy_image`, and
 		  `draw_image_rect`/`draw_image_rects`) and enqueues pointer events back through the `OGE0` input
   mailbox. This is the default 2D fallback.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
 		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
-		  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-		  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal
+			  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
+			  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps

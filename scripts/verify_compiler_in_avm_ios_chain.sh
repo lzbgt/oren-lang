@@ -118,6 +118,7 @@ echo "== run OrenAVMCompilerKit SDK smoke =="
 clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK=1 \
   -Ilib/avm -Isdk/ios/OrenAVMKit -Ibuild \
   "$compilerkit_src" sdk/ios/OrenAVMKit/OrenAVMKit.m sdk/ios/OrenAVMKit/OrenAVMCompilerKit.m \
+  sdk/ios/OrenAVMKit/OrenAVMRuntimeTypes.m \
   "${HOST_SOURCES[@]}" -fobjc-arc -framework Foundation -framework Security -o "$compilerkit_bin" >"$compilerkit_log" 2>&1 || {
   echo "FAIL: CompilerKit SDK smoke build failed" >&2
   tail -n 180 "$compilerkit_log" >&2 || true

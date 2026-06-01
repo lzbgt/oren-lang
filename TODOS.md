@@ -37,6 +37,9 @@ design evidence lives under `project-doc/`.
 - The main iOS verifier keeps reusable OBC smoke sources under
   `tests/fixtures/ios_avm/` instead of embedding large heredocs, preserving
   line-guardrail headroom for more GUI/Metal gates.
+- `OrenAVMRuntimeConfig` and `OrenAVMRunResult` live in
+  `OrenAVMRuntimeTypes.m`, keeping the core runtime implementation below the
+  2000-line source guardrail as more iOS AVM providers are added.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,
   `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,

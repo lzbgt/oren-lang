@@ -135,4 +135,5 @@ clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK
   sdk/ios/OrenAVMKit/OrenAVMGFXInput.m \
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m \
   sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m \
+  sdk/ios/OrenAVMKit/OrenAVMRuntimeTypes.m \
   -fobjc-arc -framework Foundation -framework Security -lz -o "$HOST_SDK_BIN"

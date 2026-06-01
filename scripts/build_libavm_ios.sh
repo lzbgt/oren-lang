@@ -40,6 +40,7 @@ OREN_AVM_KIT_SOURCES=(
   sdk/ios/OrenAVMKit/OrenAVMMetalView.m
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m
   sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m
+  sdk/ios/OrenAVMKit/OrenAVMRuntimeTypes.m
 )
 
 stage_headers() {
