@@ -13,7 +13,9 @@
       "faces": [
         [0, 1, 2]
       ],
-      "color": "#223344"
+      "base_color": "#223344",
+      "roughness_milli": 600,
+      "metallic_milli": 0
     },
     {
       "kind": "triangles_rgba",
@@ -32,7 +34,7 @@
     }
   ],
   "materials": [
-    {"id": 32, "name": "card-green", "color": "#00ff00"}
+    {"id": 32, "name": "card-green", "base_color": "#00ff00ff", "opacity_milli": 1000, "roughness_milli": 350, "metallic_milli": 0}
   ],
   "model_templates": [
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "position_xyz": [0, 0, 0], "scale_milli": 1000}

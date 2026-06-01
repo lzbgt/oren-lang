@@ -272,7 +272,9 @@ fn _asset_mesh(m) {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }
         if oren_is_err(tris) { return tris }
-        return mesh(id, tris, m["color"])
+        var tri_color = _asset_color(m, "ui.scene3d mesh")
+        if oren_is_err(tri_color) { return tri_color }
+        return mesh(id, tris, tri_color)
     }
     if kind == "triangles_rgba" {
         var tris_rgba = nil
@@ -305,7 +307,9 @@ fn _asset_mesh(m) {
             indices = _pack_bytes(m["indices"], "ui.scene3d mesh.indices")
         }
         if oren_is_err(indices) { return indices }
-        return mesh_indexed(id, vertices, indices, m["color"])
+        var indexed_color = _asset_color(m, "ui.scene3d mesh")
+        if oren_is_err(indexed_color) { return indexed_color }
+        return mesh_indexed(id, vertices, indices, indexed_color)
     }
     return oren_err(4, "ui.scene3d: unsupported mesh kind")
 }
@@ -574,6 +578,30 @@ fn _color_hex(rgba) {
     return "#" + _hex_byte(r) + _hex_byte(g) + _hex_byte(b) + _hex_byte(a)
 }
 
+fn _asset_color(m, ctx) {
+    var color = m["color"]
+    if color == nil { color = m["base_color"] }
+    if color == nil { return oren_err(4, ctx + ": missing color") }
+    var c = ui_color.try_parse_hex(color)
+    if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
+    var opacity = m["opacity_milli"]
+    if opacity != nil {
+        if _is_int(opacity) == false || opacity < 0 || opacity > 1000 {
+            return oren_err(4, ctx + ": invalid opacity_milli")
+        }
+        c["a"] = (c["a"] * opacity) / 1000
+    }
+    var roughness = m["roughness_milli"]
+    if roughness != nil && (_is_int(roughness) == false || roughness < 0 || roughness > 1000) {
+        return oren_err(4, ctx + ": invalid roughness_milli")
+    }
+    var metallic = m["metallic_milli"]
+    if metallic != nil && (_is_int(metallic) == false || metallic < 0 || metallic > 1000) {
+        return oren_err(4, ctx + ": invalid metallic_milli")
+    }
+    return _color_hex(c["r"] * 16777216 + c["g"] * 65536 + c["b"] * 256 + c["a"])
+}
+
 fn _bin_u32(data, off) {
     var v = bytes.try_get_u32_le(data, off)
     if oren_is_err(v) { return v }
@@ -705,7 +733,9 @@ fn scene_from_asset_at(asset, time_milli) {
         var mi = 0
         while mi < oren_list_len(mats) {
             var mat = mats[mi]
-            list.push(materials, material(mat["id"], mat["color"]))
+            var mat_color = _asset_color(mat, "ui.scene3d material")
+            if oren_is_err(mat_color) { return mat_color }
+            list.push(materials, material(mat["id"], mat_color))
             mi = mi + 1
         }
     }

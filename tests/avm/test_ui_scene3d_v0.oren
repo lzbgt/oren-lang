@@ -212,6 +212,28 @@ fn main() {
     assert_true(oren_is_err(anim_buf) == false)
     assert_eq(_px(anim_buf, 4, 1, 0, 1), 255)
 
+    var from_rich_material = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "indexed",
+                "id": 67,
+                "vertices_xyz": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+                "faces": [[0, 1, 2]],
+                "base_color": "#010203",
+                "roughness_milli": 250,
+                "metallic_milli": 0
+            }
+        ],
+        "materials": [
+            {"id": 68, "base_color": "#3366ffff", "opacity_milli": 500, "roughness_milli": 750, "metallic_milli": 250}
+        ],
+        "models": [{"id": 69, "mesh_id": 67, "material_id": 68}],
+        "draw": [69]
+    })
+    assert_true(oren_is_err(from_rich_material) == false)
+    assert_eq(from_rich_material[0]["color"], "#010203ff")
+    assert_eq(from_rich_material[1]["color"], "#3366ff7f")
+
     var bin = scene_binary(vertices, indices, true)
     assert_true(oren_is_err(bin) == false)
     var from_bin = scene3d.commands_from_binary(bin)
@@ -237,6 +259,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"position_xyz\":[1,2]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles_rgba\",\"id\":1,\"triangles_xyz_rgba\":[{\"vertices\":[[0,0,0],[1,0,0],[0,1,0]],\"color\":\"nope\"}]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json_at("{\"schema\":\"oren.ui.scene3d.v0\",\"animations\":[{\"target\":\"missing\",\"keyframes\":[{\"time_milli\":0,\"position_xyz\":[0,0,0]}]}]}", 0)) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"materials\":[{\"id\":1,\"base_color\":\"#ffffff\",\"opacity_milli\":1200}]}")) == true)
     assert_true(oren_is_err(scene3d.commands(nil)) == true)
     exit(0)
 }

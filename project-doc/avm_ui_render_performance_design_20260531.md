@@ -250,7 +250,10 @@ High-volume 2D and 3D need retained resources:
   `position_xyz` model transforms, human-readable `vertices_xyz` / `faces`
   arrays for indexed meshes, `triangles_xyz` arrays for direct triangle meshes,
   `triangles_xyz_rgba` arrays for per-triangle colors, or transform keyframes
-  sampled by `commands_from_*_at(..., time_milli)`; face indices are validated
+  sampled by `commands_from_*_at(..., time_milli)`. Materials accept `color` or
+  `base_color` plus optional `opacity_milli`, `roughness_milli`, and
+  `metallic_milli`, with v0 lowering those fields into deterministic
+  `material3d` colors; face indices and material scalar ranges are validated
   while these resolve to existing numeric
   retained commands before encoding;
 - `std:ui/scene3d.commands_from_binary(...)` and
@@ -259,9 +262,10 @@ High-volume 2D and 3D need retained resources:
   byte slices, RGBA u32 colors, optional scene-level camera depth windows, model
   transforms, draw ids, and a destroy flag. The `.os3d` builder resolves named
   JSON references, templates, position arrays, coordinate-array meshes, and
-  per-triangle RGBA colors at package-build time. If `animations` and
-  `sample_time_milli` are present, the builder samples transform keyframes into
-  static model records so the runtime format stays id-based and compact;
+  per-triangle RGBA colors at package-build time, and it lowers richer material
+  fields to v0 RGBA colors. If `animations` and `sample_time_milli` are present,
+  the builder samples transform keyframes into static model records so the
+  runtime format stays id-based and compact;
 - orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
   and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
   range without exposing host camera objects or Metal depth buffers to OBC;

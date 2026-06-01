@@ -51,8 +51,10 @@ reviewable JSON source with `scripts/make_scene3d_bin_v0.py`, including
 scene-level camera depth metadata, named mesh/material references, model
 templates, instances, human-readable `position_xyz` model transforms,
 human-readable `vertices_xyz` / `faces` coordinate arrays, and per-triangle
-`triangles_xyz_rgba` colors, plus sampled transform keyframes. The builder
-validates face indices, resolves that authoring form into compact numeric `.os3d` records using `sample_time_milli`,
+`triangles_xyz_rgba` colors, richer material fields (`base_color`,
+`opacity_milli`, `roughness_milli`, `metallic_milli`), plus sampled transform
+keyframes. The builder validates face indices/material scalar ranges, resolves
+that authoring form into compact numeric `.os3d` records using `sample_time_milli`,
 the package declares a read-only `assets/` VFS mount, and OBC proves it can load
 retained UI scene metadata from package assets without JSON parsing in the hot
 path. `make verify-libavm-ios` also carries an SDK-local

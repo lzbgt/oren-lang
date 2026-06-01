@@ -16,8 +16,10 @@ The `scene3d-asset-demo` package derives `assets/scene3d_card.os3d` from the
 reviewable JSON source in this directory. The JSON can use named mesh/material
 references, model templates, instances, human-readable `position_xyz` model
 transforms, human-readable `vertices_xyz` / `faces` coordinate arrays,
-per-triangle `triangles_xyz_rgba` colors, and sampled transform keyframes. The
-build helper validates face indices and lowers those fields to compact numeric
-`.os3d` records using `sample_time_milli`. The package declares a read-only
-package VFS mount, proving OBC can load retained UI scene metadata from package
-assets without parsing JSON in the hot runtime path.
+per-triangle `triangles_xyz_rgba` colors, richer material fields (`base_color`,
+`opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform
+keyframes. The build helper validates face indices/material scalar ranges and
+lowers those fields to compact numeric `.os3d` records using
+`sample_time_milli`. The package declares a read-only package VFS mount, proving
+OBC can load retained UI scene metadata from package assets without parsing JSON
+in the hot runtime path.

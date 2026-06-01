@@ -316,7 +316,10 @@ Facts from the 2026-05-28 implementation pass:
   now use named mesh/material/model references plus model templates and
   instances, human-readable `position_xyz` model transforms, human-readable
   `vertices_xyz` / `faces` coordinate arrays, and per-triangle
-  `triangles_xyz_rgba` colors. JSON loaders can sample transform keyframes via
+  `triangles_xyz_rgba` colors. Material authoring accepts `color` or
+  `base_color` plus optional `opacity_milli`, `roughness_milli`, and
+  `metallic_milli`, lowering the v0 renderer-visible output to deterministic
+  `material3d` colors. JSON loaders can sample transform keyframes via
   `commands_from_*_at(..., time_milli)`, while the package builder uses
   `sample_time_milli` to lower animated authoring assets into static numeric
   `.os3d` records for the hot runtime path. The iOS SDK verifier now also

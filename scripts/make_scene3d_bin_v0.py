@@ -24,6 +24,33 @@ def color_rgba_bytes(s):
     ])
 
 
+def color_hex_from_rgba(r, g, b, a):
+    return f"#{int(r):02x}{int(g):02x}{int(b):02x}{int(a):02x}"
+
+
+def material_color_hex(item, context):
+    color = item.get("color", item.get("base_color"))
+    if color is None:
+        raise SystemExit(f"{context} missing color")
+    rgba = color_u32(color)
+    r = (rgba >> 24) & 0xFF
+    g = (rgba >> 16) & 0xFF
+    b = (rgba >> 8) & 0xFF
+    a = rgba & 0xFF
+    opacity = item.get("opacity_milli")
+    if opacity is not None:
+        opacity = int(opacity)
+        if opacity < 0 or opacity > 1000:
+            raise SystemExit(f"{context} opacity_milli out of range")
+        a = (a * opacity) // 1000
+    for key in ("roughness_milli", "metallic_milli"):
+        if item.get(key) is not None:
+            v = int(item[key])
+            if v < 0 or v > 1000:
+                raise SystemExit(f"{context} {key} out of range")
+    return color_hex_from_rgba(r, g, b, a)
+
+
 def u32(v):
     return int(v).to_bytes(4, "little", signed=False)
 
@@ -279,10 +306,11 @@ def scene3d_bin_v0(scene_bytes):
             indices = b""
         else:
             raise SystemExit(f"unsupported scene mesh kind: {kind}")
-        out += u32(mesh["id"]) + u32(kind_id) + u32(color_u32(mesh.get("color", "#00000000")))
+        mesh_color = material_color_hex(mesh, "scene mesh") if kind_id != 3 else "#00000000"
+        out += u32(mesh["id"]) + u32(kind_id) + u32(color_u32(mesh_color))
         out += u32(len(payload)) + u32(len(indices)) + payload + indices
     for material in materials:
-        out += u32(material["id"]) + u32(color_u32(material["color"]))
+        out += u32(material["id"]) + u32(color_u32(material_color_hex(material, "scene material")))
     for model in models:
         out += (
             u32(model["id"]) + u32(model["mesh_id"]) + u32(model.get("material_id", 0)) +
