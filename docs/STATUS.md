@@ -226,8 +226,9 @@ Facts from the 2026-05-28 implementation pass:
   them, and can reapply NET connect grants/revocations to a runtime by enabling,
   restricting, or disabling live VNET allowed hosts. This lets host apps show user
   permission UI and then update provider policy without recompiling OBC. The Note
-  app handoff now also has an ObjC bridge wrapper and Swift DTO around this prompt
-  model; remaining app work is presenting it in live package-run flows.
+  app handoff now also has an ObjC bridge wrapper, Swift DTO, and source/imported-OBC
+  live-run prompt presentation around this prompt model; remaining app work is
+  applying explicit user decisions back through the SDK grant store/runtime policy.
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. FS follows this rule through
   host-backed directory mounts: the SDK owns app `file://` URLs and OBC sees only
