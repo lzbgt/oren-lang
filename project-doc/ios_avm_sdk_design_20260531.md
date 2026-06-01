@@ -397,9 +397,10 @@ handoff object with stable title/message/risk metadata for host-native UI.
 file, can record decisions from prompts, can explicitly apply package
 `permission_defaults` after host/user policy accepts them, and can reapply NET
 connect grants or revocations to a runtime by updating live VNET allowed hosts.
-The sibling Note app now has a thin ObjC/Swift prompt DTO bridge and live
-source/imported-OBC prompt presentation for this SDK surface; app-specific grant
-storage, revocation, and retry timing remain host policy.
+The sibling Note app now has a thin ObjC/Swift prompt DTO bridge, live
+source/imported-OBC prompt presentation, explicit Allow/Deny persistence through
+`OrenAVMPermissionGrantStore`, and grant-store application before future live
+runs. App-specific wording and retry timing remain host policy.
 High-performance networking should be implemented
 as a host-backed VNET provider with virtual session handles, not as
 bytecode-visible native sockets. TCP client streams, UDP connected datagrams, and
