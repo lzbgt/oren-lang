@@ -1,0 +1,25 @@
+fn fail(code) {
+    print("omitted_args_nil FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn expect_trailing_nil(a, b, c) {
+    if b != nil { return 10 }
+    if c != nil { return 11 }
+    return a
+}
+
+fn expect_last_nil(a, b, c) {
+    if b != 4 { return 20 }
+    if c != nil { return 21 }
+    return a + b
+}
+
+fn main() {
+    if expect_trailing_nil(7) != 7 { fail(1) }
+    if expect_last_nil(3, 4) != 7 { fail(2) }
+    print("omitted_args_nil OK")
+    exit(0)
+}
+
+main()

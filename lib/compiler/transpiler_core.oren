@@ -15,6 +15,7 @@ fn new_transpiler() {
         "flush_lines": 512,
         "indent": 0,
         "functions": [],
+        "func_arity": {},
         "func_varargs_fixed": {},
         "aliases": {},
         "type_ns": {},

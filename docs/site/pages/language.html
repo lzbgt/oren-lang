@@ -37,7 +37,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-language">Oren Language</h1>
-<p><strong>Last updated:</strong> 2026-05-26</p>
+<p><strong>Last updated:</strong> 2026-06-02</p>
 <p>This is the concise current language reference. Oren is rolling: code and fixtures are</p>
 <p>the execution source of truth when a detail matters.</p>
 <h2 id="implementation-map">Implementation Map</h2>
@@ -105,6 +105,9 @@ var f = fn(x) {
 }</code></pre>
 <p>Closures are supported. Function/generic/lowering behavior is still rolling; use fixtures</p>
 <p>for exact edge cases.</p>
+<p>Fixed-arity calls may omit trailing arguments; omitted trailing arguments materialize as</p>
+<p><code>nil</code> across C, native, and AVM backends. Passing more than the declared arity remains</p>
+<p>invalid for fixed-arity direct calls.</p>
 <h2 id="modules">Modules</h2>
 <pre><code>import math &quot;std:math&quot;
 

@@ -112,6 +112,10 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
                 var nm = order[j]
                 oren_list_push(t["functions"], nm)
                 if nm == "main" { has_user_main = true }
+                if meta["func_arity"] != nil {
+                    var arity_enc = meta["func_arity"][nm]
+                    if oren_type_tag(arity_enc) != 0 { t["func_arity"][nm] = arity_enc }
+                }
                 var vf = nil
                 if meta["func_varargs_fixed"] != nil { vf = meta["func_varargs_fixed"][nm] }
                 if vf != nil { t["func_varargs_fixed"][nm] = vf }

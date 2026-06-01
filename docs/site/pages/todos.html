@@ -86,6 +86,11 @@
 <p>  file, keeping the runtime file focused on AVM execution/host bridges and</p>
 <p>  restoring guardrail headroom for future GUI provider work.</p>
 <ul>
+<li>Fixed-arity direct calls now materialize omitted trailing arguments as real</li>
+</ul>
+<p>  <code>nil</code> across C, native, and AVM backends; <code>tests/modules/test_omitted_args_nil.oren</code></p>
+<p>  is part of the native quick integration gate.</p>
+<ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>
 <p>  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,</p>

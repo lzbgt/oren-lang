@@ -1,6 +1,6 @@
 # Oren Language
 
-**Last updated:** 2026-05-26
+**Last updated:** 2026-06-02
 
 This is the concise current language reference. Oren is rolling: code and fixtures are
 the execution source of truth when a detail matters.
@@ -86,6 +86,10 @@ var f = fn(x) {
 
 Closures are supported. Function/generic/lowering behavior is still rolling; use fixtures
 for exact edge cases.
+
+Fixed-arity calls may omit trailing arguments; omitted trailing arguments materialize as
+`nil` across C, native, and AVM backends. Passing more than the declared arity remains
+invalid for fixed-arity direct calls.
 
 ## Modules
 

@@ -642,8 +642,24 @@ fn transpile_expression(t, exp) {
             if argc == 0 { return "oren_call_obj_argv(" + fn_expr + ", 0, NULL)" }
             return "oren_call_obj_argv(" + fn_expr + ", " + int_str(argc) + ", (OrenValue[]){" + args_s + "})"
         }
-        // Direct call
-        if fn_sym != "" { return c_fn_name(fn_sym) + "(" + args_s + ")" }
+        // Direct call. Fixed-arity Oren functions treat omitted trailing args as nil
+        // (matching AVM); make that explicit so C does not reject under-arity calls.
+        if fn_sym != "" {
+            var direct_args_s = args_s
+            if t["func_varargs_fixed"][fn_sym] == nil && t["func_arity"] != nil {
+                var arity_enc = t["func_arity"][fn_sym]
+                if oren_type_tag(arity_enc) != 0 {
+                    var want = arity_enc - 1
+                    var argc2 = oren_list_len(exp["args"])
+                    while argc2 < want {
+                        if direct_args_s != "" { direct_args_s = direct_args_s + ", " }
+                        direct_args_s = direct_args_s + "OREN_NIL"
+                        argc2 = argc2 + 1
+                    }
+                }
+            }
+            return c_fn_name(fn_sym) + "(" + direct_args_s + ")"
+        }
         return fn_expr + "(" + args_s + ")"
     }
     if et == "SpawnExpr" {

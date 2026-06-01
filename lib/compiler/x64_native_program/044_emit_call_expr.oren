@@ -635,6 +635,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     //     call code_ptr(env_ptr, args_list)
     //
     // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
+    var fixed_direct_arity = nil
     if is_direct == true && is_import != true {
         var arity2_enc = ctx["func_arity"][nm]
         if oren_type_tag(arity2_enc) == 0 { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
@@ -647,7 +648,8 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
                 return nil
             }
         } else {
-            if argc != arity2 { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            if argc > arity2 { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            fixed_direct_arity = arity2
         }
     }
 
@@ -659,6 +661,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     // Evaluate explicit args left-to-right, spill to stack temps, then load into ABI arg registers.
     // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
     var spill_n2 = argc
+    if fixed_direct_arity != nil && fixed_direct_arity > spill_n2 { spill_n2 = fixed_direct_arity }
     if is_varargs_named { spill_n2 = argc + 1 } // +1 for the packed rest_list
     var base2 = _intr_tmp_push(ctx, spill_n2)
     if oren_type_tag(base2) == 0 { return nil }
@@ -672,9 +675,18 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
         i2 = iadd(i2, 1)
     }
+    while fixed_direct_arity != nil && i2 < fixed_direct_arity {
+        var nil_off = _intr_tmp_off(ctx, locals, iadd(base2, i2))
+        if oren_type_tag(nil_off) == 0 { _intr_tmp_pop(ctx, base2); return nil }
+        _emit_eval_int_to_rax(ctx, {"type": "Nil", "token": nil}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - nil_off, 0)
+        i2 = iadd(i2, 1)
+    }
 
     // Varargs packing: build rest_list and spill it in the extra slot.
     var call_argc = argc
+    if fixed_direct_arity != nil { call_argc = fixed_direct_arity }
     if is_varargs_named {
         var fixed2 = varargs_fixed
         // rest_list lives in the extra spill slot at base2+argc

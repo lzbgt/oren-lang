@@ -387,14 +387,27 @@ fn native_expr_chunk_call(ctx, expr) {
     }
 
 
-    // Generic call
+    // Generic call. Fixed-arity Oren functions treat omitted trailing args as nil
+    // (matching AVM); materialize those nils before ABI marshalling.
+    var fixed_direct_arity = nil
+    if ctx != nil && ctx["func_arity"] != nil {
+        var arity_enc = ctx["func_arity"][fn_name]
+        if oren_type_tag(arity_enc) != 0 && (ctx["func_varargs_fixed"] == nil || ctx["func_varargs_fixed"][fn_name] == nil) {
+            fixed_direct_arity = arity_enc - 1
+        }
+    }
     var nargs = args_n_direct
+    if fixed_direct_arity != nil && fixed_direct_arity > nargs { nargs = fixed_direct_arity }
     var i = 0
     var generic_sub_start = _native_expr_subprof_start(ctx)
 
     // Push args
     while i < nargs {
-        native_compile_expr(ctx, args[i])
+        if i < args_n_direct {
+            native_compile_expr(ctx, args[i])
+        } else {
+            native_compile_expr(ctx, {"type": "Nil", "token": nil})
+        }
         push_u32_le(ctx["code"], insn_sub_sp(16))
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
         ctx["stack_size"] = ctx["stack_size"] + 16

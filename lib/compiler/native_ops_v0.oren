@@ -922,18 +922,24 @@ fn _max_call_argc_in_expr(ctx, expr) {
                     if m < 2 { m = 2 }
                 } else {
                     // Inside the wrapper we call the real function directly at its declared arity.
-                    if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                    if ctx["func_arity"] != nil {
                         var arity2 = ctx["func_arity"][nm]
+                        if oren_type_tag(arity2) == 0 { arity2 = 0 }
                         if m < arity2 { m = arity2 }
                     }
                 }
-            } else if nm != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
-                var arity = ctx["func_arity"][nm]
-                if expr["spread"] != nil {
-                    m = arity
-                } else if ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
-                    // Bring-up mode: x64 packs varargs to a single rest_list, so the real call argc is the declared arity.
-                    m = arity
+            } else if nm != nil && ctx != nil && ctx["func_arity"] != nil {
+                var arity_enc = ctx["func_arity"][nm]
+                if oren_type_tag(arity_enc) != 0 {
+                    var arity = arity_enc - 1
+                    if expr["spread"] != nil {
+                        m = arity
+                    } else if ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+                        // Bring-up mode: x64 packs varargs to a single rest_list, so the real call argc is the declared arity.
+                        m = arity
+                    } else if m < arity {
+                        m = arity
+                    }
                 }
             }
         }
@@ -1231,6 +1237,13 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
             return argc + 2
         }
         return argc + 1
+    }
+    if ctx != nil && ctx["func_arity"] != nil {
+        var arity_enc = ctx["func_arity"][nm]
+        if oren_type_tag(arity_enc) != 0 {
+            var arity = arity_enc - 1
+            if argc < arity { return arity }
+        }
     }
     // Normal calls: spill all args.
     return argc

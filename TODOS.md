@@ -43,6 +43,9 @@ design evidence lives under `project-doc/`.
 - `OrenAVMGraphicsView` now lives in its own UIKit/CoreGraphics implementation
   file, keeping the runtime file focused on AVM execution/host bridges and
   restoring guardrail headroom for future GUI provider work.
+- Fixed-arity direct calls now materialize omitted trailing arguments as real
+  `nil` across C, native, and AVM backends; `tests/modules/test_omitted_args_nil.oren`
+  is part of the native quick integration gate.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,
   `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,

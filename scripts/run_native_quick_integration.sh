@@ -1407,6 +1407,19 @@ run_step_checked "method inference smoke (bytecode run)" "$method_assign_log" \
   ./avm "build/tmp/${compiler_base}_method_assignment_inference.obc"
 tail -n 8 "$method_assign_log"
 
+echo "== omitted args smoke (nil default parity) =="
+omitted_args_src="tests/modules/test_omitted_args_nil.oren"
+omitted_args_log="build/logs/${compiler_base}_omitted_args_nil.log"
+rm -f "$omitted_args_log" 2>/dev/null || true
+
+run_step_checked "omitted args smoke (native)" "$omitted_args_log" \
+  "$compiler" test "$omitted_args_src" --backend native --platform "$platform" --no-cache
+run_step_checked "omitted args smoke (C)" "$omitted_args_log" \
+  "$compiler" test "$omitted_args_src" --backend c --platform "$platform" --no-cache
+run_step_checked "omitted args smoke (bytecode)" "$omitted_args_log" \
+  "$compiler" test "$omitted_args_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$omitted_args_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"
