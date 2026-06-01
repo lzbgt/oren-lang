@@ -327,6 +327,13 @@ fn _focus_phase(opcode) {
     return "unknown"
 }
 
+fn _composition_phase(opcode) {
+    if opcode == 128 { return "update" }
+    if opcode == 129 { return "commit" }
+    if opcode == 130 { return "cancel" }
+    return "unknown"
+}
+
 fn decode_event_bytes(ev) {
     if ev == nil { return nil }
     var n = bytes.try_len(ev)
@@ -504,6 +511,29 @@ fn decode_event_bytes(ev) {
         if oren_is_err(focus_id) { return focus_id }
         if oren_is_err(focus_flags) { return focus_flags }
         return {"kind": "focus", "phase": _focus_phase(opcode), "opcode": opcode, "focus_id": focus_id, "flags": focus_flags}
+    }
+
+    if opcode >= 128 && opcode <= 130 {
+        if payload_len < 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad composition payload") }
+        var comp_len = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var sel_start = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        var sel_end = _read_u32_le(ev, 20, "ui.avm.decode_event_bytes")
+        if oren_is_err(comp_len) { return comp_len }
+        if oren_is_err(sel_start) { return sel_start }
+        if oren_is_err(sel_end) { return sel_end }
+        if comp_len != payload_len - 12 { return oren_err(4, "ui.avm.decode_event_bytes: composition length mismatch") }
+        var comp_bytes = bytes.try_slice(ev, 24, comp_len)
+        if oren_is_err(comp_bytes) { return comp_bytes }
+        var comp_text = bytes.try_to_string(comp_bytes)
+        if oren_is_err(comp_text) { return comp_text }
+        return {
+            "kind": "composition",
+            "phase": _composition_phase(opcode),
+            "opcode": opcode,
+            "text": comp_text,
+            "selection_start": sel_start,
+            "selection_end": sel_end
+        }
     }
 
     return {"kind": "unknown", "opcode": opcode, "payload_len": payload_len}

@@ -103,8 +103,9 @@ Retained SDK slices on 2026-05-31:
 		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, UTF-8 text-input events, and compact
-  gamepad/controller state plus coalesced motion and focus events. These are
-  still mailbox records, not UIKit, CoreMotion, or GameController objects.
+  gamepad/controller state plus coalesced motion, focus, and IME/composition
+  events. These are still mailbox records, not UIKit, CoreMotion, GameController,
+  or `UITextInput` objects.
 - The SDK also exposes host-populated persistent screen state. `OrenAVMGraphicsView`
   updates screen `0` during layout, and OBC reads it through `std:ui/avm.screen(0)`
   without consuming an input event.
@@ -113,7 +114,7 @@ Retained SDK slices on 2026-05-31:
   `std:ui/avm.next_event()`.
 
 Not implemented yet: compiler helper Swift/Objective-C package, OBC store helper,
-Metal/3D rendering, richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be
+Metal/3D rendering, and richer 2D drawing ops. GUI follow-up must be
 game-grade, not widget-only: the next protocol work is display-link pacing,
 retained resource handles, strict budgets, low-latency input ordering, and
 Metal/`MTKView` gates as defined in

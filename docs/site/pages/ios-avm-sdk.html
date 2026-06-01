@@ -163,8 +163,9 @@
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>
 <p>  media-query events, key events, UTF-8 text-input events, and compact</p>
-<p>  gamepad/controller state plus coalesced motion and focus events. These are</p>
-<p>  still mailbox records, not UIKit, CoreMotion, or GameController objects.</p>
+<p>  gamepad/controller state plus coalesced motion, focus, and IME/composition</p>
+<p>  events. These are still mailbox records, not UIKit, CoreMotion, GameController,</p>
+<p>  or <code>UITextInput</code> objects.</p>
 <ul>
 <li>The SDK also exposes host-populated persistent screen state. <code>OrenAVMGraphicsView</code></li>
 </ul>
@@ -174,7 +175,7 @@
 <p>  <code>std:ui/avm.pull_event_bytes()</code> or decodes them with</p>
 <p>  <code>std:ui/avm.next_event()</code>.</p>
 <p>Not implemented yet: compiler helper Swift/Objective-C package, OBC store helper,</p>
-<p>Metal/3D rendering, richer 2D drawing ops, and IME/composition input helpers. GUI follow-up must be</p>
+<p>Metal/3D rendering, and richer 2D drawing ops. GUI follow-up must be</p>
 <p>game-grade, not widget-only: the next protocol work is display-link pacing,</p>
 <p>retained resource handles, strict budgets, low-latency input ordering, and</p>
 <p>Metal/<code>MTKView</code> gates as defined in</p>

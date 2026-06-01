@@ -173,4 +173,24 @@ static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* m
     return [self putGraphicsInputEventData:data error:error];
 }
 
+- (BOOL)putGraphicsCompositionEventWithKind:(uint8_t)kind text:(NSString*)text selectionStart:(uint32_t)selectionStart selectionEnd:(uint32_t)selectionEnd error:(NSError**)error {
+    NSData* utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (!utf8) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                      @"GFX composition event must be valid UTF-8");
+    }
+    if (utf8.length > UINT16_MAX - 12u) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                      @"GFX composition event is too large");
+    }
+    NSMutableData* payload = [NSMutableData dataWithLength:12u + utf8.length];
+    uint8_t* out = (uint8_t*)payload.mutableBytes;
+    OrenAVMGFXInputPutU32LE(out, (uint32_t)utf8.length);
+    OrenAVMGFXInputPutU32LE(out + 4, selectionStart);
+    OrenAVMGFXInputPutU32LE(out + 8, selectionEnd);
+    if (utf8.length > 0) memcpy(out + 12, utf8.bytes, utf8.length);
+    NSData* data = OrenAVMGFXInputMakeEvent(kind, payload.bytes, (uint16_t)payload.length);
+    return [self putGraphicsInputEventData:data error:error];
+}
+
 @end

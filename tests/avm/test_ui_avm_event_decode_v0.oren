@@ -123,6 +123,16 @@ fn main() {
     assert_eq(focus["focus_id"], 4)
     assert_eq(focus["flags"], 1)
 
+    var comp = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 128, 0, 15, 0,
+        3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 97, 98, 99
+    ]))
+    assert_eq(comp["kind"], "composition")
+    assert_eq(comp["phase"], "update")
+    assert_eq(comp["text"], "abc")
+    assert_eq(comp["selection_start"], 1)
+    assert_eq(comp["selection_end"], 2)
+
     assert_eq(ui_avm.next_event(), nil)
     exit(0)
 }

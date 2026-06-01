@@ -267,6 +267,18 @@ int avm_gfx_validate_event(const uint8_t* data, size_t len, char* err, size_t er
         }
         return 1;
     }
+    if (opcode >= 128u && opcode <= 130u) {
+        if (payload_len < 12u) {
+            avm_gfx_err(err, err_cap, "invalid OGE0 event: bad composition payload");
+            return 0;
+        }
+        uint32_t text_len = avm_gfx_u32le(data + 12);
+        if (text_len != (uint32_t)payload_len - 12u) {
+            avm_gfx_err(err, err_cap, "invalid OGE0 event: composition length mismatch");
+            return 0;
+        }
+        return 1;
+    }
     avm_gfx_err(err, err_cap, "invalid OGE0 event: unsupported opcode");
     return 0;
 }

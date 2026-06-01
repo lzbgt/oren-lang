@@ -209,6 +209,11 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                focusID:(uint32_t)focusID
                                  flags:(uint32_t)flags
                                  error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsCompositionEventWithKind:(uint8_t)kind
+                                       text:(NSString*)text
+                             selectionStart:(uint32_t)selectionStart
+                               selectionEnd:(uint32_t)selectionEnd
+                                      error:(NSError* _Nullable* _Nullable)error;
 
 @end
 
