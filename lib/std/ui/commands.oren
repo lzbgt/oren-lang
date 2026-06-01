@@ -176,6 +176,20 @@ fn validate(cmds, w, h, opts) {
                 var sx_t = sx + tx; var sy_t = sy + ty
                 if sx_t < 0 || sy_t < 0 || sx_t + sw > w || sy_t + sh > h { return oren_err(4, "ui.validate: stroke_rect out of bounds") }
             }
+        } else if op == "round_rect" {
+            var rx = c["x"]; var ry = c["y"]; var rw2 = c["w"]; var rh2 = c["h"]; var rr = c["r"]; var rlw = c["width"]; var rcol = c["color"]
+            if _is_int(rx) == false || _is_int(ry) == false || _is_int(rw2) == false || _is_int(rh2) == false || _is_int(rr) == false {
+                return oren_err(4, "ui.validate: round_rect expects int x,y,w,h,r")
+            }
+            if rlw == nil { rlw = 1 }
+            if _is_int(rlw) == false || rlw < 1 { return oren_err(4, "ui.validate: round_rect invalid width") }
+            if rw2 < 1 || rh2 < 1 { return oren_err(4, "ui.validate: round_rect invalid size") }
+            if rr < 0 || rr * 2 > rw2 || rr * 2 > rh2 { return oren_err(4, "ui.validate: round_rect invalid radius") }
+            if _hex_ok(rcol) == false { return oren_err(4, "ui.validate: round_rect invalid color") }
+            if strict {
+                var rx_t = rx + tx; var ry_t = ry + ty
+                if rx_t < 0 || ry_t < 0 || rx_t + rw2 > w || ry_t + rh2 > h { return oren_err(4, "ui.validate: round_rect out of bounds") }
+            }
         } else if op == "circle" {
             var cx = c["cx"]; var cy = c["cy"]; var cr = c["r"]; var ccol = c["color"]
             if _is_int(cx) == false || _is_int(cy) == false || _is_int(cr) == false { return oren_err(4, "ui.validate: circle expects int cx,cy,r") }

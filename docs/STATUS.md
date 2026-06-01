@@ -266,7 +266,7 @@ Facts from the 2026-05-28 implementation pass:
   UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/
   `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
   `push_opacity`/`pop_opacity`/`text`/`text_bytes`/`text_resource`/
-  `draw_text`/`destroy_text`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/
+  `draw_text`/`destroy_text`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/
   `polyline`/`fill_triangle`/`image_rgba`/`draw_image`/`destroy_image`/
   `draw_image_rect`/`draw_image_rects` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
@@ -275,7 +275,7 @@ Facts from the 2026-05-28 implementation pass:
   consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/
-  clip-stack/translation-stack/opacity-stack/stroke-line/stroke-rect/circle/
+  clip-stack/translation-stack/opacity-stack/stroke-line/stroke-rect/round-rect/circle/
   ellipse/polyline/fill-triangle geometry, retained RGBA image upload/draw/
   destroy/sub-rect and batched atlas records, and byte-native/retained text
   payloads through Metal pipelines. Its `targetHzMilli` setting
@@ -306,7 +306,7 @@ Facts from the 2026-05-28 implementation pass:
   and Metal/`MTKView` conformance gates are documented in
   `project-doc/avm_ui_render_performance_design_20260531.md`.
   The AVM release manifest also includes a whole-frame 2D raster conformance hash
-	  covering geometry including `stroke_rect`, `ellipse`, `polyline`, clip and translation stacks, retained text, retained images, atlas sub-rects, batched
+	  covering geometry including `stroke_rect`, `round_rect`, `ellipse`, `polyline`, clip and translation stacks, retained text, retained images, atlas sub-rects, batched
   sprites, and draw ordering in one scene.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.

@@ -495,6 +495,25 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             CGContextStrokeRectWithWidth(ctx,
                                          CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h),
                                          (CGFloat)(width == 0 ? 1 : width));
+        } else if (opcode == 9 && payloadLen == 32) {
+            uint32_t x = OrenAVMGfxReadU32LE(payload);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t radius = OrenAVMGfxReadU32LE(payload + 16);
+            uint32_t width = OrenAVMGfxReadU32LE(payload + 20);
+            uint32_t flags = OrenAVMGfxReadU32LE(payload + 24);
+            UIColor* color = OrenAVMGfxColor(payload + 28);
+            UIBezierPath* path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)
+                                                             cornerRadius:(CGFloat)radius];
+            if ((flags & 1u) != 0) {
+                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                [path fill];
+            } else {
+                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                path.lineWidth = (CGFloat)(width == 0 ? 1 : width);
+                [path stroke];
+            }
         } else if (opcode == 4 && payloadLen == 20) {
             uint32_t cx = OrenAVMGfxReadU32LE(payload);
             uint32_t cy = OrenAVMGfxReadU32LE(payload + 4);

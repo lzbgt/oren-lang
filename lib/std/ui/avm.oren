@@ -149,6 +149,23 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, rw)
         return _push_color_rgba(out, c["color"])
     }
+    if op == "round_rect" {
+        var rrw = c["width"]
+        if rrw == nil { rrw = 1 }
+        var rrfill = c["fill"]
+        if rrfill == nil { rrfill = true }
+        var rrflags = 0
+        if _truthy_flag(rrfill) { rrflags = rrflags | 1 }
+        _push_op_header(out, 9, 32)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        _push_u32_le(out, c["r"])
+        _push_u32_le(out, rrw)
+        _push_u32_le(out, rrflags)
+        return _push_color_rgba(out, c["color"])
+    }
     if op == "circle" {
         var fill = c["fill"]
         if fill == nil { fill = true }

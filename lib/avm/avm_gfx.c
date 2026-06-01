@@ -192,6 +192,19 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad stroke_rect payload");
                 return 0;
             }
+        } else if (opcode == 9u) {
+            if (payload_len != 32u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad round_rect payload");
+                return 0;
+            }
+            uint32_t w = avm_gfx_u32le(payload + 8);
+            uint32_t h = avm_gfx_u32le(payload + 12);
+            uint32_t radius = avm_gfx_u32le(payload + 16);
+            if (w == 0u || h == 0u || avm_gfx_u32le(payload + 20) == 0u ||
+                radius > w / 2u || radius > h / 2u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad round_rect dimensions");
+                return 0;
+            }
         } else if (opcode == 7u) {
             if (payload_len != 28u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad ellipse payload");

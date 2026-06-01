@@ -382,6 +382,110 @@ static void OrenAVMMetalAppendEllipse(NSMutableData* vertices,
     }
 }
 
+static void OrenAVMMetalAppendSector(NSMutableData* vertices,
+                                     float cx,
+                                     float cy,
+                                     float radius,
+                                     float a0,
+                                     float a1,
+                                     float logicalWidth,
+                                     float logicalHeight,
+                                     const uint8_t* rgba) {
+    if (radius <= 0.0f) return;
+    const int segments = 8;
+    for (int i = 0; i < segments; i++) {
+        float t0 = a0 + ((a1 - a0) * ((float)i / (float)segments));
+        float t1 = a0 + ((a1 - a0) * ((float)(i + 1) / (float)segments));
+        OrenAVMMetalVertex out[3];
+        out[0] = OrenAVMMetalMakeVertex(cx, cy, logicalWidth, logicalHeight, rgba);
+        out[1] = OrenAVMMetalMakeVertex(cx + cosf(t0) * radius,
+                                        cy + sinf(t0) * radius,
+                                        logicalWidth,
+                                        logicalHeight,
+                                        rgba);
+        out[2] = OrenAVMMetalMakeVertex(cx + cosf(t1) * radius,
+                                        cy + sinf(t1) * radius,
+                                        logicalWidth,
+                                        logicalHeight,
+                                        rgba);
+        [vertices appendBytes:out length:sizeof(out)];
+    }
+}
+
+static void OrenAVMMetalAppendArcLines(NSMutableData* vertices,
+                                       float cx,
+                                       float cy,
+                                       float radius,
+                                       float a0,
+                                       float a1,
+                                       float width,
+                                       float logicalWidth,
+                                       float logicalHeight,
+                                       const uint8_t* rgba) {
+    if (radius <= 0.0f) return;
+    const int segments = 8;
+    float lastX = cx + cosf(a0) * radius;
+    float lastY = cy + sinf(a0) * radius;
+    for (int i = 1; i <= segments; i++) {
+        float t = a0 + ((a1 - a0) * ((float)i / (float)segments));
+        float x = cx + cosf(t) * radius;
+        float y = cy + sinf(t) * radius;
+        OrenAVMMetalAppendLine(vertices, lastX, lastY, x, y, width, logicalWidth, logicalHeight, rgba);
+        lastX = x;
+        lastY = y;
+    }
+}
+
+static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
+                                        float x,
+                                        float y,
+                                        float w,
+                                        float h,
+                                        float radius,
+                                        float width,
+                                        BOOL filled,
+                                        float logicalWidth,
+                                        float logicalHeight,
+                                        const uint8_t* rgba) {
+    if (w <= 0.0f || h <= 0.0f) return;
+    float r = radius;
+    if (r < 0.0f) r = 0.0f;
+    if (r > w * 0.5f) r = w * 0.5f;
+    if (r > h * 0.5f) r = h * 0.5f;
+    if (r <= 0.0f) {
+        if (filled) {
+            OrenAVMMetalAppendRect(vertices, x, y, w, h, logicalWidth, logicalHeight, rgba);
+        } else {
+            OrenAVMMetalAppendStrokeRect(vertices, x, y, w, h, width, logicalWidth, logicalHeight, rgba);
+        }
+        return;
+    }
+    const float pi = acosf(-1.0f);
+    if (filled) {
+        if (w - (2.0f * r) > 0.0f) {
+            OrenAVMMetalAppendRect(vertices, x + r, y, w - (2.0f * r), h, logicalWidth, logicalHeight, rgba);
+        }
+        if (h - (2.0f * r) > 0.0f) {
+            OrenAVMMetalAppendRect(vertices, x, y + r, r, h - (2.0f * r), logicalWidth, logicalHeight, rgba);
+            OrenAVMMetalAppendRect(vertices, x + w - r, y + r, r, h - (2.0f * r), logicalWidth, logicalHeight, rgba);
+        }
+        OrenAVMMetalAppendSector(vertices, x + r, y + r, r, pi, pi * 1.5f, logicalWidth, logicalHeight, rgba);
+        OrenAVMMetalAppendSector(vertices, x + w - r, y + r, r, pi * 1.5f, pi * 2.0f, logicalWidth, logicalHeight, rgba);
+        OrenAVMMetalAppendSector(vertices, x + w - r, y + h - r, r, 0.0f, pi * 0.5f, logicalWidth, logicalHeight, rgba);
+        OrenAVMMetalAppendSector(vertices, x + r, y + h - r, r, pi * 0.5f, pi, logicalWidth, logicalHeight, rgba);
+        return;
+    }
+    float lw = width <= 0.0f ? 1.0f : width;
+    OrenAVMMetalAppendLine(vertices, x + r, y, x + w - r, y, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendLine(vertices, x + w, y + r, x + w, y + h - r, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendLine(vertices, x + w - r, y + h, x + r, y + h, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendLine(vertices, x, y + h - r, x, y + r, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendArcLines(vertices, x + r, y + r, r, pi, pi * 1.5f, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendArcLines(vertices, x + w - r, y + r, r, pi * 1.5f, pi * 2.0f, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendArcLines(vertices, x + w - r, y + h - r, r, 0.0f, pi * 0.5f, lw, logicalWidth, logicalHeight, rgba);
+    OrenAVMMetalAppendArcLines(vertices, x + r, y + h - r, r, pi * 0.5f, pi, lw, logicalWidth, logicalHeight, rgba);
+}
+
 static NSData* OrenAVMMetalTextureQuad(float x,
                                        float y,
                                        float w,
@@ -1006,6 +1110,26 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                          (float)logicalW,
                                          (float)logicalH,
                                          rgba);
+        } else if (opcode == 9 && payloadLen == 32) {
+            uint32_t x = OrenAVMMetalReadU32LE(payload);
+            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
+            uint32_t radius = OrenAVMMetalReadU32LE(payload + 16);
+            uint32_t width = OrenAVMMetalReadU32LE(payload + 20);
+            uint32_t flags = OrenAVMMetalReadU32LE(payload + 24);
+            OrenAVMMetalRGBAWithOpacity(payload + 28, opacity, rgba);
+            OrenAVMMetalAppendRoundRect(vertices,
+                                        (float)x + tx,
+                                        (float)y + ty,
+                                        (float)w,
+                                        (float)h,
+                                        (float)radius,
+                                        (float)(width == 0 ? 1u : width),
+                                        (flags & 1u) != 0,
+                                        (float)logicalW,
+                                        (float)logicalH,
+                                        rgba);
         } else if (opcode == 4 && payloadLen == 20) {
             uint32_t cx = OrenAVMMetalReadU32LE(payload);
             uint32_t cy = OrenAVMMetalReadU32LE(payload + 4);

@@ -112,6 +112,7 @@ fn main() {
         {"op": "pop_opacity"},
         {"op": "push_clip_rect", "x": 0, "y": 0, "w": 4, "h": 3},
         {"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"},
+        {"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 2, "r": 1, "width": 1, "fill": false, "color": "#ff8800"},
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},
         {"op": "circle", "cx": 2, "cy": 1, "r": 1, "fill": true, "color": "#00ff00"},
         {"op": "ellipse", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "fill": false, "color": "#00ffff"},

@@ -105,6 +105,19 @@ fn test_validate_stroke_rect() {
     assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
 }
 
+fn test_validate_round_rect() {
+    var cmds = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 2, "width": 1, "fill": false, "color": "#ff8800"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 4, {"strict_bounds": true})) == false)
+    var filled = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 2, "fill": true, "color": "#ff8800"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(filled, 4, 4, {"strict_bounds": true})) == false)
+    var bad_radius = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 3, "color": "#ff8800"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_radius, 4, 4, nil)) == true)
+    var bad_width = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 1, "width": 0, "color": "#ff8800"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_width, 4, 4, nil)) == true)
+    var bad_bounds = [{"op": "round_rect", "x": 1, "y": 0, "w": 4, "h": 4, "r": 1, "color": "#ff8800"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 4, {"strict_bounds": true})) == true)
+}
+
 fn test_validate_ellipse() {
     var cmds = [{"op": "ellipse", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "fill": false, "color": "#00ffff"}]
     assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
@@ -211,6 +224,7 @@ fn main() {
     test_validate_transform_stack()
     test_validate_opacity_stack()
     test_validate_stroke_rect()
+    test_validate_round_rect()
     test_validate_ellipse()
     test_validate_polyline()
     test_validate_text_bytes()

@@ -82,12 +82,12 @@ Implemented as of 2026-05-31:
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `push_clip_rect`/`pop_clip`, `push_translate`/`pop_transform`,
   `push_opacity`/`pop_opacity`, `text`/`text_bytes`, `stroke_line`,
-  `stroke_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
+  `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
   `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
+  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -346,5 +346,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     CoreGraphics alpha state, Metal geometry/image/text opacity, iOS verifier,
     and the 2D conformance scene.
 24. Add richer text atlas batching and mesh rendering on the Metal path.
-25. Add richer 2D and 3D command sets.
+25. Done: add `round_rect {x,y,w,h,r,fill,width,color}` across validation,
+    binary frames, AVM protocol validation, deterministic raster, CoreGraphics
+    fallback, Metal, iOS verifier, and the 2D conformance scene.
+26. Add richer 2D and 3D command sets.
 26. Add game/app package smoke in the Note host or iOS SDK harness.

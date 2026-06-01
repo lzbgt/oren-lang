@@ -83,7 +83,7 @@
 <p>  UIKit/CoreGraphics <code>UIView</code> renderer for the current <code>OGF0</code> <code>fill_rect</code>/</p>
 <p>  <code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/</p>
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>/<code>text</code>/<code>text_bytes</code>/<code>stroke_line</code>/</p>
-<p>  <code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>image_rgba</code>/</p>
+<p>  <code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>image_rgba</code>/</p>
 <p>  <code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code>/<code>draw_image_rects</code> plus retained</p>
 <p>  <code>text_resource</code>/<code>draw_text</code>/<code>destroy_text</code> subset. It decodes frame bytes on the host side</p>
 <p>  and enqueues pointer events back into AVM.</p>
@@ -217,7 +217,7 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>logical height, <code>scale_milli</code>, op-count, sequence, native drawable width, native</p>
 <p>drawable height, target refresh milli-Hz, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
 <p>magic <code>OGE0</code>, version/flags/reserved, then opcode records. The retained v0 opcodes</p>
-<p>cover <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
+<p>cover <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>round_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
 <p><code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p><code>destroy_image</code>, <code>draw_image_rect</code>, <code>draw_image_rects</code>, pointer, resize, media-query, key, and text</p>
 <p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
@@ -310,6 +310,7 @@ fn main() {
 <li><code>push_opacity {alpha_milli}</code> and <code>pop_opacity</code> for a balanced virtual alpha stack</li>
 <li><code>stroke_line {x1,y1,x2,y2,color,width}</code></li>
 <li><code>stroke_rect {x,y,w,h,color,width}</code></li>
+<li><code>round_rect {x,y,w,h,r,fill,color,width}</code></li>
 <li><code>ellipse {x,y,w,h,fill,color,width}</code></li>
 <li><code>fill_triangle {x1,y1,x2,y2,x3,y3,color}</code></li>
 <li><code>polyline {points,color,width}</code> where <code>points</code> is packed little-endian <code>u32 x,y</code> pairs</li>
@@ -401,7 +402,7 @@ fn main() {
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>
 <p>    Metal draw loop, publishes screen state, forwards touch input, and renders the</p>
-<p>    current <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry records plus</p>
+<p>    current <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry records plus</p>
 <p>    retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text</p>
 <p>    upload/draw/destroy records.</p>
 <ol>
@@ -430,6 +431,11 @@ fn main() {
 <p>    alpha stack across validation, <code>OGF0</code>, AVM protocol checks, deterministic</p>
 <p>    raster alpha multiplication, CoreGraphics global alpha state, Metal geometry</p>
 <p>    alpha, texture/text fragment opacity, and iOS verifier coverage.</p>
+<ol>
+<li>Done: add <code>round_rect {x,y,w,h,r,fill,width,color}</code> across validation,</li>
+</ol>
+<p>    <code>OGF0</code>, AVM protocol checks, deterministic raster, CoreGraphics, Metal,</p>
+<p>    iOS verifier coverage, and the 2D conformance scene.</p>
 <ol>
 <li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> records for sprite/text/mesh rendering</li>
 </ol>
