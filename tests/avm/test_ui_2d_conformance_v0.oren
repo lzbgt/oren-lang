@@ -46,6 +46,9 @@ fn main() {
 
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 6, "h": 5, "color": "#101010"},
+        {"op": "push_clip_rect", "x": 1, "y": 1, "w": 2, "h": 2},
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 6, "h": 5, "color": "#303030"},
+        {"op": "pop_clip"},
         {"op": "stroke_rect", "x": 1, "y": 1, "w": 4, "h": 3, "width": 1, "color": "#ffff00"},
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 5, "y2": 0, "width": 1, "color": "#2020ff"},
         {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#20ff20"},

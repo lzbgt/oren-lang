@@ -303,6 +303,7 @@ fn main() {
 <ul>
 <li><code>clear {color}</code></li>
 <li><code>fill_rect {x,y,w,h,color}</code></li>
+<li><code>push_clip_rect {x,y,w,h}</code> and <code>pop_clip</code> for a balanced virtual scissor stack</li>
 <li><code>stroke_line {x1,y1,x2,y2,color,width}</code></li>
 <li><code>stroke_rect {x,y,w,h,color,width}</code></li>
 <li><code>ellipse {x,y,w,h,fill,color,width}</code></li>
@@ -396,7 +397,7 @@ fn main() {
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>
 <p>    Metal draw loop, publishes screen state, forwards touch input, and renders the</p>
-<p>    current <code>fill_rect</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry records plus</p>
+<p>    current <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry records plus</p>
 <p>    retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text</p>
 <p>    upload/draw/destroy records.</p>
 <ol>
@@ -408,6 +409,11 @@ fn main() {
 <li>Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel</li>
 </ol>
 <p>    limits and counters.</p>
+<ol>
+<li>Done: add a balanced OBC-visible <code>push_clip_rect</code> / <code>pop_clip</code> scissor stack</li>
+</ol>
+<p>    across validation, <code>OGF0</code>, AVM protocol checks, deterministic raster,</p>
+<p>    CoreGraphics, Metal scissor rectangles, and iOS verifier coverage.</p>
 <ol>
 <li>Add <code>std:gfx/canvas2d</code> / <code>std:gfx/mesh3d</code> records for sprite/text/mesh rendering</li>
 </ol>

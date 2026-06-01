@@ -411,6 +411,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 
     size_t off = headerLen;
     size_t len = frame.length;
+    uint32_t clipDepth = 0;
     for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
@@ -426,6 +427,19 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             UIColor* color = OrenAVMGfxColor(payload + 16);
             CGContextSetFillColorWithColor(ctx, color.CGColor);
             CGContextFillRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
+        } else if (opcode == 16 && payloadLen == 16) {
+            uint32_t x = OrenAVMGfxReadU32LE(payload);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
+            CGContextSaveGState(ctx);
+            CGContextClipToRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
+            clipDepth++;
+        } else if (opcode == 17 && payloadLen == 0) {
+            if (clipDepth > 0) {
+                CGContextRestoreGState(ctx);
+                clipDepth--;
+            }
         } else if (opcode == 3 && payloadLen == 24) {
             uint32_t x1 = OrenAVMGfxReadU32LE(payload);
             uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);
@@ -629,6 +643,10 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
         }
 
         off += payloadLen;
+    }
+    while (clipDepth > 0) {
+        CGContextRestoreGState(ctx);
+        clipDepth--;
     }
 }
 

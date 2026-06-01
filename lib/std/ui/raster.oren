@@ -14,6 +14,8 @@
 //
 // Supported ops (v0):
 // - {"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"push_clip_rect","x":int,"y":int,"w":int,"h":int}
+// - {"op":"pop_clip"}
 // - {"op":"stroke_line","x1":int,"y1":int,"x2":int,"y2":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"stroke_rect","x":int,"y":int,"w":int,"h":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
@@ -39,8 +41,62 @@ import ui_color "std:ui/color"
 import result "std:result"
 import bytes "std:bytes"
 
+var _clip_enabled = 0
+var _clip_x = 0
+var _clip_y = 0
+var _clip_w = 0
+var _clip_h = 0
+
+fn _max_i(a, b) {
+    if a > b { return a }
+    return b
+}
+
+fn _min_i(a, b) {
+    if a < b { return a }
+    return b
+}
+
+fn _clip_snapshot() {
+    return [_clip_enabled, _clip_x, _clip_y, _clip_w, _clip_h]
+}
+
+fn _clip_restore(s) {
+    _clip_enabled = s[0]
+    _clip_x = s[1]
+    _clip_y = s[2]
+    _clip_w = s[3]
+    _clip_h = s[4]
+    return 0
+}
+
+fn _clip_push(x, y, cw, ch) {
+    if _clip_enabled == 0 {
+        _clip_enabled = 1
+        _clip_x = x
+        _clip_y = y
+        _clip_w = cw
+        _clip_h = ch
+        return 0
+    }
+    var x0 = _max_i(_clip_x, x)
+    var y0 = _max_i(_clip_y, y)
+    var x1 = _min_i(_clip_x + _clip_w, x + cw)
+    var y1 = _min_i(_clip_y + _clip_h, y + ch)
+    _clip_x = x0
+    _clip_y = y0
+    _clip_w = x1 - x0
+    _clip_h = y1 - y0
+    if _clip_w < 0 { _clip_w = 0 }
+    if _clip_h < 0 { _clip_h = 0 }
+    return 0
+}
+
 fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
     if x < 0 || y < 0 || x >= w || y >= h { return 0 }
+    if _clip_enabled != 0 {
+        if x < _clip_x || y < _clip_y || x >= _clip_x + _clip_w || y >= _clip_y + _clip_h { return 0 }
+    }
     var idx = (y * w + x) * 4
     oren_buf_store_u8(buf, idx + 0, r)
     oren_buf_store_u8(buf, idx + 1, g)
@@ -249,13 +305,26 @@ fn rasterize(cmds, w, h, opts) {
 
     if cmds == nil { return buf }
 
+    _clip_enabled = 0
+    var clip_stack = {}
+    var clip_depth = 0
     var images = {}
     var texts = {}
     var ci = 0
     while ci < oren_list_len(cmds) {
         var opm = cmds[ci]
         var op = opm["op"]
-        if op == "fill_rect" {
+        if op == "push_clip_rect" {
+            clip_stack[oren_int_to_string(clip_depth)] = _clip_snapshot()
+            clip_depth = clip_depth + 1
+            _clip_push(opm["x"], opm["y"], opm["w"], opm["h"])
+        } else if op == "pop_clip" {
+            if clip_depth <= 0 { return oren_err(4, "rasterize: clip stack underflow") }
+            clip_depth = clip_depth - 1
+            var ckey = oren_int_to_string(clip_depth)
+            _clip_restore(clip_stack[ckey])
+            clip_stack[ckey] = nil
+        } else if op == "fill_rect" {
             var c = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(c) { return result.with_context(c, "rasterize: fill_rect color") }
             var rx = opm["x"]

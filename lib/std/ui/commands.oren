@@ -55,6 +55,7 @@ fn validate(cmds, w, h, opts) {
     var max_image_count = opts["max_image_count"]
     var image_bytes = 0
     var image_count = 0
+    var clip_depth = 0
     if max_image_bytes != nil && (_is_int(max_image_bytes) == false || max_image_bytes < 0) {
         return oren_err(4, "ui.validate: invalid max_image_bytes")
     }
@@ -87,6 +88,18 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if x < 0 || y < 0 || x + rw > w || y + rh > h { return oren_err(4, "ui.validate: fill_rect out of bounds") }
             }
+        } else if op == "push_clip_rect" {
+            var cx = c["x"]; var cy = c["y"]; var cw = c["w"]; var ch = c["h"]
+            if _is_int(cx) == false || _is_int(cy) == false || _is_int(cw) == false || _is_int(ch) == false { return oren_err(4, "ui.validate: push_clip_rect expects int x,y,w,h") }
+            if cw < 1 || ch < 1 { return oren_err(4, "ui.validate: push_clip_rect invalid size") }
+            if strict {
+                if cx < 0 || cy < 0 || cx + cw > w || cy + ch > h { return oren_err(4, "ui.validate: push_clip_rect out of bounds") }
+            }
+            clip_depth = clip_depth + 1
+            if clip_depth > 64 { return oren_err(4, "ui.validate: clip stack too deep") }
+        } else if op == "pop_clip" {
+            if clip_depth <= 0 { return oren_err(4, "ui.validate: clip stack underflow") }
+            clip_depth = clip_depth - 1
         } else if op == "stroke_line" {
             var x1 = c["x1"]; var y1 = c["y1"]; var x2 = c["x2"]; var y2 = c["y2"]; var lw = c["width"]; var lcol = c["color"]
             if _is_int(x1) == false || _is_int(y1) == false || _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: stroke_line expects int x1,y1,x2,y2") }
@@ -263,6 +276,8 @@ fn validate(cmds, w, h, opts) {
 
         i = i + 1
     }
+
+    if clip_depth != 0 { return oren_err(4, "ui.validate: unbalanced clip stack") }
 
     return 0
 }

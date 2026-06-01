@@ -25,9 +25,25 @@ typedef struct {
     float v;
 } OrenAVMMetalTextVertex;
 
+typedef struct {
+    BOOL enabled;
+    MTLScissorRect rect;
+} OrenAVMMetalScissorState;
+
+@interface OrenAVMMetalVertexRun : NSObject
+@property(nonatomic, strong) NSData* vertices;
+@property(nonatomic) BOOL hasScissor;
+@property(nonatomic) MTLScissorRect scissor;
+@end
+
+@implementation OrenAVMMetalVertexRun
+@end
+
 @interface OrenAVMMetalTextRun : NSObject
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic, strong) NSData* vertices;
+@property(nonatomic) BOOL hasScissor;
+@property(nonatomic) MTLScissorRect scissor;
 @end
 
 @implementation OrenAVMMetalTextRun
@@ -44,6 +60,8 @@ typedef struct {
 @interface OrenAVMMetalImageRun : NSObject
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic, strong) NSData* vertices;
+@property(nonatomic) BOOL hasScissor;
+@property(nonatomic) MTLScissorRect scissor;
 @end
 
 @implementation OrenAVMMetalImageRun
@@ -90,6 +108,57 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                  userInfo:@{NSLocalizedDescriptionKey: message ?: @"OrenAVMMetalView error"}];
     }
     return NO;
+}
+
+static MTLScissorRect OrenAVMMetalClipRectToScissor(uint32_t x,
+                                                    uint32_t y,
+                                                    uint32_t w,
+                                                    uint32_t h,
+                                                    uint32_t logicalW,
+                                                    uint32_t logicalH,
+                                                    uint32_t drawableW,
+                                                    uint32_t drawableH) {
+    MTLScissorRect r;
+    r.x = logicalW == 0 ? 0 : (NSUInteger)(((uint64_t)x * drawableW) / logicalW);
+    r.y = logicalH == 0 ? 0 : (NSUInteger)(((uint64_t)y * drawableH) / logicalH);
+    NSUInteger x1 = logicalW == 0 ? 0 : (NSUInteger)(((uint64_t)(x + w) * drawableW) / logicalW);
+    NSUInteger y1 = logicalH == 0 ? 0 : (NSUInteger)(((uint64_t)(y + h) * drawableH) / logicalH);
+    if (r.x > drawableW) r.x = drawableW;
+    if (r.y > drawableH) r.y = drawableH;
+    if (x1 > drawableW) x1 = drawableW;
+    if (y1 > drawableH) y1 = drawableH;
+    r.width = x1 > r.x ? x1 - r.x : 0;
+    r.height = y1 > r.y ? y1 - r.y : 0;
+    return r;
+}
+
+static MTLScissorRect OrenAVMMetalIntersectScissor(MTLScissorRect a, MTLScissorRect b) {
+    NSUInteger x0 = a.x > b.x ? a.x : b.x;
+    NSUInteger y0 = a.y > b.y ? a.y : b.y;
+    NSUInteger ax1 = a.x + a.width;
+    NSUInteger ay1 = a.y + a.height;
+    NSUInteger bx1 = b.x + b.width;
+    NSUInteger by1 = b.y + b.height;
+    NSUInteger x1 = ax1 < bx1 ? ax1 : bx1;
+    NSUInteger y1 = ay1 < by1 ? ay1 : by1;
+    MTLScissorRect out;
+    out.x = x0;
+    out.y = y0;
+    out.width = x1 > x0 ? x1 - x0 : 0;
+    out.height = y1 > y0 ? y1 - y0 : 0;
+    return out;
+}
+
+static void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>* runs,
+                                       NSMutableData* vertices,
+                                       OrenAVMMetalScissorState scissor) {
+    if (vertices.length == 0) return;
+    OrenAVMMetalVertexRun* run = [[OrenAVMMetalVertexRun alloc] init];
+    run.vertices = [vertices copy];
+    run.hasScissor = scissor.enabled;
+    run.scissor = scissor.rect;
+    [runs addObject:run];
+    [vertices setLength:0];
 }
 
 static float OrenAVMMetalClipX(float x, float logicalWidth) {
@@ -791,22 +860,30 @@ static NSData* OrenAVMMetalTextQuad(float x,
     return run;
 }
 
-- (NSMutableData*)orenVerticesForFrame:(NSData*)frame
-                            clearColor:(MTLClearColor*)clearColor
-                              textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns
-                             imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>*)imageRuns {
+- (NSArray<OrenAVMMetalVertexRun*>*)orenVertexRunsForFrame:(NSData*)frame
+                                                 clearColor:(MTLClearColor*)clearColor
+                                                   textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns
+                                                  imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>*)imageRuns {
+    NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = [NSMutableArray array];
     NSMutableData* vertices = [NSMutableData data];
-    if (frame.length < 40) return vertices;
+    if (frame.length < 40) return vertexRuns;
     const uint8_t* data = (const uint8_t*)frame.bytes;
-    if (memcmp(data, "OGF0", 4) != 0 || data[4] != 1) return vertices;
+    if (memcmp(data, "OGF0", 4) != 0 || data[4] != 1) return vertexRuns;
     uint16_t headerLen = OrenAVMMetalReadU16LE(data + 6);
-    if (headerLen < 40 || headerLen > frame.length) return vertices;
+    if (headerLen < 40 || headerLen > frame.length) return vertexRuns;
     uint32_t logicalW = OrenAVMMetalReadU32LE(data + 8);
     uint32_t logicalH = OrenAVMMetalReadU32LE(data + 12);
     uint32_t opCount = OrenAVMMetalReadU32LE(data + 20);
-    if (logicalW == 0 || logicalH == 0) return vertices;
+    uint32_t drawableW = OrenAVMMetalReadU32LE(data + 28);
+    uint32_t drawableH = OrenAVMMetalReadU32LE(data + 32);
+    if (logicalW == 0 || logicalH == 0 || drawableW == 0 || drawableH == 0) return vertexRuns;
 
     size_t off = headerLen;
+    OrenAVMMetalScissorState clip;
+    clip.enabled = NO;
+    clip.rect = (MTLScissorRect){0, 0, 0, 0};
+    OrenAVMMetalScissorState clipStack[64];
+    uint32_t clipDepth = 0;
     for (uint32_t i = 0; i < opCount && off + 4 <= frame.length; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMMetalReadU16LE(data + off + 2);
@@ -827,6 +904,24 @@ static NSData* OrenAVMMetalTextQuad(float x,
             }
             OrenAVMMetalAppendRect(vertices, (float)x, (float)y, (float)w, (float)h,
                                    (float)logicalW, (float)logicalH, rgba);
+        } else if (opcode == 16 && payloadLen == 16) {
+            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            if (clipDepth < 64) {
+                clipStack[clipDepth++] = clip;
+                MTLScissorRect next = OrenAVMMetalClipRectToScissor(OrenAVMMetalReadU32LE(payload),
+                                                                    OrenAVMMetalReadU32LE(payload + 4),
+                                                                    OrenAVMMetalReadU32LE(payload + 8),
+                                                                    OrenAVMMetalReadU32LE(payload + 12),
+                                                                    logicalW,
+                                                                    logicalH,
+                                                                    drawableW,
+                                                                    drawableH);
+                clip.rect = clip.enabled ? OrenAVMMetalIntersectScissor(clip.rect, next) : next;
+                clip.enabled = YES;
+            }
+        } else if (opcode == 17 && payloadLen == 0) {
+            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            if (clipDepth > 0) clip = clipStack[--clipDepth];
         } else if (opcode == 3 && payloadLen == 24) {
             uint32_t x1 = OrenAVMMetalReadU32LE(payload);
             uint32_t y1 = OrenAVMMetalReadU32LE(payload + 4);
@@ -937,7 +1032,11 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                   rgba:payload + 8
                                                           logicalWidth:(float)logicalW
 	                                                         logicalHeight:(float)logicalH];
-                if (run) [textRuns addObject:run];
+                if (run) {
+                    run.hasScissor = clip.enabled;
+                    run.scissor = clip.rect;
+                    [textRuns addObject:run];
+                }
             }
         } else if (opcode == 68 && payloadLen >= 12) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
@@ -965,7 +1064,11 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                  rgba:resource.rgba.bytes
                                                          logicalWidth:(float)logicalW
                                                         logicalHeight:(float)logicalH];
-                if (run) [textRuns addObject:run];
+                if (run) {
+                    run.hasScissor = clip.enabled;
+                    run.scissor = clip.rect;
+                    [textRuns addObject:run];
+                }
             }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
@@ -999,7 +1102,11 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                h:(float)h
 	                                                    logicalWidth:(float)logicalW
 	                                                   logicalHeight:(float)logicalH];
-            if (run) [imageRuns addObject:run];
+            if (run) {
+                run.hasScissor = clip.enabled;
+                run.scissor = clip.rect;
+                [imageRuns addObject:run];
+            }
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             NSNumber* key = @(imageID);
@@ -1031,7 +1138,11 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                h:(float)h
                                                     logicalWidth:(float)logicalW
 	                                                    logicalHeight:(float)logicalH];
-            if (run) [imageRuns addObject:run];
+            if (run) {
+                run.hasScissor = clip.enabled;
+                run.scissor = clip.rect;
+                [imageRuns addObject:run];
+            }
         } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
@@ -1049,13 +1160,18 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                        h:(float)OrenAVMMetalReadU32LE(r + 28)
                                                             logicalWidth:(float)logicalW
                                                            logicalHeight:(float)logicalH];
-                    if (run) [imageRuns addObject:run];
+                    if (run) {
+                        run.hasScissor = clip.enabled;
+                        run.scissor = clip.rect;
+                        [imageRuns addObject:run];
+                    }
                 }
             }
         }
         off += payloadLen;
     }
-    return vertices;
+    OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+    return vertexRuns;
 }
 
 - (void)drawInMTKView:(MTKView*)view {
@@ -1073,11 +1189,15 @@ static NSData* OrenAVMMetalTextQuad(float x,
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
     NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
     NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray array];
-    NSMutableData* vertices = [self orenVerticesForFrame:self.frameData
-                                              clearColor:&clearColor
-                                                textRuns:textRuns
-                                               imageRuns:imageRuns];
-    self.lastFrameVertexCount = (uint32_t)(vertices.length / sizeof(OrenAVMMetalVertex));
+    NSArray<OrenAVMMetalVertexRun*>* vertexRuns = [self orenVertexRunsForFrame:self.frameData
+                                                                    clearColor:&clearColor
+                                                                      textRuns:textRuns
+                                                                     imageRuns:imageRuns];
+    uint32_t vertexCount = 0;
+    for (OrenAVMMetalVertexRun* run in vertexRuns) {
+        vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
+    }
+    self.lastFrameVertexCount = vertexCount;
     self.lastFrameTextRunCount = (uint32_t)textRuns.count;
     pass.colorAttachments[0].clearColor = clearColor;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -1087,17 +1207,27 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!commandBuffer) return;
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
     if (!encoder) return;
-    if (encoder && self.orenPipelineState && vertices.length > 0) {
+    MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawable.texture.width, (NSUInteger)drawable.texture.height};
+    if (encoder && self.orenPipelineState) {
         [encoder setRenderPipelineState:self.orenPipelineState];
-        [encoder setVertexBytes:vertices.bytes length:vertices.length atIndex:0];
-        [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                     vertexStart:0
-                     vertexCount:vertices.length / sizeof(OrenAVMMetalVertex)];
+        for (OrenAVMMetalVertexRun* run in vertexRuns) {
+            if (run.vertices.length == 0) continue;
+            MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
+            if (scissor.width == 0 || scissor.height == 0) continue;
+            [encoder setScissorRect:scissor];
+            [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                         vertexStart:0
+                         vertexCount:run.vertices.length / sizeof(OrenAVMMetalVertex)];
+        }
     }
     if (encoder && self.orenTextPipelineState) {
         [encoder setRenderPipelineState:self.orenTextPipelineState];
         for (OrenAVMMetalImageRun* run in imageRuns) {
             if (!run.texture || run.vertices.length == 0) continue;
+            MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
+            if (scissor.width == 0 || scissor.height == 0) continue;
+            [encoder setScissorRect:scissor];
             [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
             [encoder setFragmentTexture:run.texture atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
@@ -1106,6 +1236,9 @@ static NSData* OrenAVMMetalTextQuad(float x,
         }
         for (OrenAVMMetalTextRun* run in textRuns) {
             if (!run.texture || run.vertices.length == 0) continue;
+            MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
+            if (scissor.width == 0 || scissor.height == 0) continue;
+            [encoder setScissorRect:scissor];
             [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
             [encoder setFragmentTexture:run.texture atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle

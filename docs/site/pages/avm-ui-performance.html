@@ -127,14 +127,14 @@
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
-<p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
+<p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
 <p>  <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -275,6 +275,11 @@
 </ul>
 <p>  <code>draw_text {id,x,y}</code> draws the virtual text handle, and <code>destroy_text {id}</code></p>
 <p>  releases the host-side retained label;</p>
+<ul>
+<li>balanced clipping records: <code>push_clip_rect {x,y,w,h}</code> and <code>pop_clip</code></li>
+</ul>
+<p>  express a virtual scissor stack for nested game UI panels while the host maps</p>
+<p>  it to CoreGraphics state or Metal scissor rectangles;</p>
 <ul>
 <li>path/shape handles;</li>
 <li>vertex/index buffers for plots and meshes;</li>
@@ -432,6 +437,12 @@
 </ol>
 <p>    binary frames, AVM protocol checks, deterministic raster, CoreGraphics</p>
 <p>    fallback, Metal, iOS verifier, and the 2D conformance scene.</p>
+<ol>
+<li>Done: add balanced <code>push_clip_rect</code> / <code>pop_clip</code> clipping across validation,</li>
+</ol>
+<p>    binary frames, AVM protocol checks, deterministic raster, CoreGraphics</p>
+<p>    fallback, Metal scissor rectangles, iOS verifier, and the 2D conformance</p>
+<p>    scene.</p>
 <ol>
 <li>Add richer text atlas batching and mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>

@@ -63,6 +63,23 @@ fn main() {
     assert_eq(ui_avm.pull_event_bytes(), nil)
     assert_eq(ui_avm.present_frame(cmds, 4, 3, opts), 0)
 
+    var clip_frame = ui_avm.frame_bytes([
+        {"op": "push_clip_rect", "x": 1, "y": 0, "w": 2, "h": 2},
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#abcdef"},
+        {"op": "pop_clip"}
+    ], 4, 2, {"strict_bounds": true})
+    assert_bytes_eq(clip_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        16, 0, 16, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
+        1, 0, 20, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0,
+        171, 205, 239, 255,
+        17, 0, 0, 0
+    ])
+
     var ellipse_frame = ui_avm.frame_bytes([{"op": "ellipse", "x": 1, "y": 0, "w": 3, "h": 2, "width": 1, "fill": false, "color": "#00ffff"}], 4, 2, {"strict_bounds": true})
     assert_bytes_eq(ellipse_frame, [
         79, 71, 70, 48, 1, 0, 40, 0,

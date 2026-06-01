@@ -53,6 +53,7 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     }
 
     size_t off = (size_t)header_len;
+    uint32_t clip_depth = 0u;
     for (uint32_t i = 0; i < op_count; i++) {
         if (off + 4u > len) {
             avm_gfx_err(err, err_cap, "invalid OGF0 frame: truncated op header");
@@ -71,6 +72,30 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_rect payload");
                 return 0;
             }
+        } else if (opcode == 16u) {
+            if (payload_len != 16u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_clip_rect payload");
+                return 0;
+            }
+            if (avm_gfx_u32le(payload + 8) == 0u || avm_gfx_u32le(payload + 12) == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_clip_rect dimensions");
+                return 0;
+            }
+            clip_depth++;
+            if (clip_depth > 64u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: clip stack too deep");
+                return 0;
+            }
+        } else if (opcode == 17u) {
+            if (payload_len != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad pop_clip payload");
+                return 0;
+            }
+            if (clip_depth == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: clip stack underflow");
+                return 0;
+            }
+            clip_depth--;
         } else if (opcode == 2u) {
             if (payload_len < 16u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text payload");
@@ -201,6 +226,10 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     }
     if (off != len) {
         avm_gfx_err(err, err_cap, "invalid OGF0 frame: trailing bytes");
+        return 0;
+    }
+    if (clip_depth != 0u) {
+        avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced clip stack");
         return 0;
     }
     return 1;
