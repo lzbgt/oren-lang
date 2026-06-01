@@ -298,6 +298,9 @@ Facts from the 2026-05-28 implementation pass:
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in
   `project-doc/avm_ui_render_performance_design_20260531.md`.
+  The AVM release manifest also includes a whole-frame 2D raster conformance hash
+  covering geometry, retained text, retained images, atlas sub-rects, batched
+  sprites, and draw ordering in one scene.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

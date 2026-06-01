@@ -1,0 +1,64 @@
+// AVM UI 2D conformance: one golden raster scene covering current retained 2D ops.
+
+import ui_raster "std:ui/raster"
+import bytes "std:bytes"
+import sha256 "std:crypto/sha256"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    var image = bytes.try_pack([
+        255, 0, 0, 255, 0, 255, 0, 255,
+        0, 0, 255, 255, 255, 255, 0, 255
+    ])
+    assert_true(oren_is_err(image) == false)
+    var text_data = bytes.try_pack([65, 66, 67])
+    assert_true(oren_is_err(text_data) == false)
+    var text_bytes_data = bytes.try_pack([88, 89])
+    assert_true(oren_is_err(text_bytes_data) == false)
+    var rects = bytes.try_pack([
+        0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        5, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
+    ])
+    assert_true(oren_is_err(rects) == false)
+
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 6, "h": 5, "color": "#101010"},
+        {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 5, "y2": 0, "width": 1, "color": "#2020ff"},
+        {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#20ff20"},
+        {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 2, "y2": 4, "x3": 0, "y3": 2, "color": "#ff2020"},
+        {"op": "text_bytes", "x": 3, "y": 4, "data": text_bytes_data, "color": "#ff00ff"},
+        {"op": "text_resource", "id": 10, "data": text_data, "color": "#00ffff"},
+        {"op": "draw_text", "id": 10, "x": 2, "y": 1},
+        {"op": "destroy_text", "id": 10},
+        {"op": "image_rgba", "id": 1, "w": 2, "h": 2, "data": image},
+        {"op": "draw_image", "id": 1, "x": 0, "y": 1, "w": 2, "h": 2},
+        {"op": "draw_image_rect", "id": 1, "sx": 1, "sy": 0, "sw": 1, "sh": 1, "x": 3, "y": 2, "w": 1, "h": 1},
+        {"op": "draw_image_rects", "id": 1, "rects": rects},
+        {"op": "destroy_image", "id": 1}
+    ]
+
+    var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
+    assert_true(oren_is_err(buf) == false)
+    var got = sha256.sha256_hex(buf)
+    assert_eq(got, "5e778433bde1fdefe1b615afad0bdb7d65ff32fc24939bbfc456c30f4a9457bc")
+    exit(0)
+}
+
+main()

@@ -267,6 +267,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 9. Metal/`MTKView` renderer smoke for retained sprite/mesh resources once the
    resource protocol exists;
 10. docs-site page and conformance fixtures for the binary protocol.
+11. whole-frame 2D raster conformance hash that covers retained image/text,
+    atlas sub-rects, batched sprites, geometry, and draw ordering together.
 
 ## Reweighted Implementation Order
 
@@ -308,6 +310,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 16. Done: add batched sprite-atlas draw records (`draw_image_rects`) across
     validation, binary frames, AVM protocol checks, deterministic raster,
     CoreGraphics fallback, Metal texture draws, and iOS verifier coverage.
-17. Add richer text atlas batching and mesh rendering on the Metal path.
-18. Add richer 2D and 3D command sets.
-19. Add game/app package smoke in the Note host or iOS SDK harness.
+17. Done: add a release-manifest 2D conformance fixture that hashes one
+    deterministic raster scene covering retained text, retained images, atlas
+    sub-rects, batched sprites, geometry, and draw ordering.
+18. Add richer text atlas batching and mesh rendering on the Metal path.
+19. Add richer 2D and 3D command sets.
+20. Add game/app package smoke in the Note host or iOS SDK harness.

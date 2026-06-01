@@ -321,6 +321,8 @@ Required gates before Note integration should be called production-ready:
 5. Note-side Swift smoke mounts `OrenAVMGraphicsView` or `MTKView`, runs a bundled
    OBC, renders one 2D frame, and injects one touch event.
 6. Deterministic headless raster test compares software raster output for geometry-only ops.
+   Done: `test_ui_2d_conformance_v0.oren` now hashes one combined retained
+   image/text/atlas/geometry scene in the AVM release manifest.
 7. 3D smoke renders a single indexed triangle/mesh through the host Metal renderer.
 
 ## Implementation Order
