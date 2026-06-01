@@ -128,8 +128,9 @@ This file is the concise task view. Detailed implementation status lives in
 	     install/run from that service. The deterministic `.obc.zip` release bundle
 	     format is now specified, emitted by demo tooling, accepted by the service,
 	     served by release download APIs, advertised in `index.json`, and preferred
-	     by the iOS SDK installer with expanded-artifact fallback; live deployment
-	     and richer operator/browser UX remain.
+	     by the iOS SDK installer with expanded-artifact fallback. Operator status
+	     now exposes deployment gates plus bundle/source/signature/permission
+	     readiness counts; live deployment and richer operator/browser UX remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
      Curated demo package sources now live under `examples/obc_store_demos/`;

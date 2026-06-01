@@ -124,7 +124,8 @@ Facts from the 2026-05-28 implementation pass:
   publisher/package/release publish, public list/search/index/download endpoints,
   browser browse/detail/publisher/operator pages, package detail release
   capability/source/permission metadata, authenticated operator status page/API
-  for registry counts and deployment gates, asset serving, deterministic `.obc.zip`
+  for registry counts, bundle/source/signature/permission readiness, and deployment
+  gates, asset serving, deterministic `.obc.zip`
   bundle upload/download/index metadata, public-by-default package visibility with
   publisher/admin private toggle, yanking, and dynamic `index.json.sig` generation
   from an external

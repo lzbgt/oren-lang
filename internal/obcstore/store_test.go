@@ -170,8 +170,11 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if opsStatus["publisher_count"] != float64(1) || opsStatus["public_package_count"] != float64(1) || opsStatus["published_release_count"] != float64(1) || opsStatus["admin_auth_configured"] != true {
 		t.Fatalf("bad ops status=%v", opsStatus)
 	}
+	if opsStatus["bundle_release_count"] != float64(1) || opsStatus["source_release_count"] != float64(1) || opsStatus["source_asset_count"] != float64(1) || opsStatus["permission_default_count"] != float64(1) {
+		t.Fatalf("bad ops status=%v", opsStatus)
+	}
 	opsStatusPage := request(t, ts, http.MethodGet, "/ops/status", nil, true)
-	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
+	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Source metadata") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
 		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
 	}
 
