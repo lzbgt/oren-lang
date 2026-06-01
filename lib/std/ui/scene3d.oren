@@ -390,6 +390,108 @@ fn _asset_instance(inst, templates, mesh_names, material_names) {
     return _asset_model(m, mesh_names, material_names)
 }
 
+fn _keyframe_time(k, ctx) {
+    var t = k["time_milli"]
+    if _is_int(t) == false || t < 0 { return oren_err(4, ctx + ": invalid time_milli") }
+    return t
+}
+
+fn _key_axis(k, axis, key, fallback, ctx) {
+    var pos = k["position_xyz"]
+    if pos != nil {
+        if oren_list_len(pos) != 3 { return oren_err(4, ctx + ": position_xyz must be [x,y,z]") }
+        return pos[axis]
+    }
+    var v = k[key]
+    if v == nil { return fallback }
+    if _is_int(v) == false { return oren_err(4, ctx + ": expected int " + key) }
+    return v
+}
+
+fn _key_scale(k, fallback, ctx) {
+    var v = k["scale_milli"]
+    if v == nil { return fallback }
+    if _is_int(v) == false || v <= 0 { return oren_err(4, ctx + ": invalid scale_milli") }
+    return v
+}
+
+fn _lerp_int(a, b, num, den) {
+    if den <= 0 { return a }
+    return a + ((b - a) * num) / den
+}
+
+fn _sample_keyframes(kfs, time_milli, model, ctx) {
+    if kfs == nil || oren_list_len(kfs) == 0 { return oren_err(4, ctx + ": missing keyframes") }
+    if _is_int(time_milli) == false || time_milli < 0 { return oren_err(4, ctx + ": invalid sample time") }
+    var prev = nil; var prev_t = -1
+    var next = nil; var next_t = -1
+    var i = 0
+    while i < oren_list_len(kfs) {
+        var k = kfs[i]
+        if k == nil { return oren_err(4, ctx + ": keyframe is nil") }
+        var kt = _keyframe_time(k, ctx)
+        if oren_is_err(kt) { return kt }
+        if kt <= time_milli {
+            if prev == nil || kt >= prev_t { prev = k; prev_t = kt }
+        }
+        if kt >= time_milli {
+            if next == nil || kt <= next_t { next = k; next_t = kt }
+        }
+        i = i + 1
+    }
+    if prev == nil { prev = next; prev_t = next_t }
+    if next == nil { next = prev; next_t = prev_t }
+    var base_x = model["x"]; var base_y = model["y"]; var base_z = model["z"]; var base_s = model["scale_milli"]
+    var ax = _key_axis(prev, 0, "x", base_x, ctx); if oren_is_err(ax) { return ax }
+    var ay = _key_axis(prev, 1, "y", base_y, ctx); if oren_is_err(ay) { return ay }
+    var az = _key_axis(prev, 2, "z", base_z, ctx); if oren_is_err(az) { return az }
+    var a_scale = _key_scale(prev, base_s, ctx); if oren_is_err(a_scale) { return a_scale }
+    var bx = _key_axis(next, 0, "x", ax, ctx); if oren_is_err(bx) { return bx }
+    var by = _key_axis(next, 1, "y", ay, ctx); if oren_is_err(by) { return by }
+    var bz = _key_axis(next, 2, "z", az, ctx); if oren_is_err(bz) { return bz }
+    var b_scale = _key_scale(next, a_scale, ctx); if oren_is_err(b_scale) { return b_scale }
+    var den = next_t - prev_t
+    var num = time_milli - prev_t
+    return {
+        "x": _lerp_int(ax, bx, num, den),
+        "y": _lerp_int(ay, by, num, den),
+        "z": _lerp_int(az, bz, num, den),
+        "scale_milli": _lerp_int(a_scale, b_scale, num, den)
+    }
+}
+
+fn _find_model(models, target, target_id) {
+    var i = 0
+    while i < oren_list_len(models) {
+        var m = models[i]
+        if target_id != nil && m["id"] == target_id { return m }
+        if target != nil && m["name"] == target { return m }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _apply_animations(models, animations, time_milli) {
+    if animations == nil { return 0 }
+    var i = 0
+    while i < oren_list_len(animations) {
+        var a = animations[i]
+        if a == nil { return oren_err(4, "ui.scene3d: animation is nil") }
+        var target = a["target"]
+        var target_id = a["target_id"]
+        var m = _find_model(models, target, target_id)
+        if m == nil { return oren_err(4, "ui.scene3d: animation target missing") }
+        var sample = _sample_keyframes(a["keyframes"], time_milli, m, "ui.scene3d animation")
+        if oren_is_err(sample) { return sample }
+        oren_map_set_str(m, "x", sample["x"])
+        oren_map_set_str(m, "y", sample["y"])
+        oren_map_set_str(m, "z", sample["z"])
+        oren_map_set_str(m, "scale_milli", sample["scale_milli"])
+        i = i + 1
+    }
+    return 0
+}
+
 fn _map_list(xs, map_fn) {
     var out = []
     if xs == nil { return out }
@@ -588,7 +690,7 @@ fn scene_from_binary(data) {
     }
 }
 
-fn scene_from_asset(asset) {
+fn scene_from_asset_at(asset, time_milli) {
     if asset == nil { return oren_err(4, "ui.scene3d.scene_from_asset: asset is nil") }
     var schema = asset["schema"]
     if schema != nil && schema != "oren.ui.scene3d.v0" {
@@ -624,6 +726,10 @@ fn scene_from_asset(asset) {
     if oren_is_err(model_push) { return model_push }
     var instance_push = _push_asset_instances(models, asset["instances"], templates, mesh_names, material_names)
     if oren_is_err(instance_push) { return instance_push }
+    if time_milli != nil {
+        var anim_push = _apply_animations(models, asset["animations"], time_milli)
+        if oren_is_err(anim_push) { return anim_push }
+    }
     var model_names = _index_names(models)
     var draws = []
     var raw_draws = asset["draw"]
@@ -651,8 +757,18 @@ fn scene_from_asset(asset) {
     }
 }
 
+fn scene_from_asset(asset) {
+    return scene_from_asset_at(asset, nil)
+}
+
 fn commands_from_asset(asset) {
     var scene = scene_from_asset(asset)
+    if oren_is_err(scene) { return scene }
+    return commands(scene)
+}
+
+fn commands_from_asset_at(asset, time_milli) {
+    var scene = scene_from_asset_at(asset, time_milli)
     if oren_is_err(scene) { return scene }
     return commands(scene)
 }
@@ -665,6 +781,14 @@ fn commands_from_json(s) {
     return commands_from_asset(asset)
 }
 
+fn commands_from_json_at(s, time_milli) {
+    var jv = json.try_decode(s)
+    if oren_is_err(jv) { return jv }
+    var asset = _json_to_plain(jv)
+    if oren_is_err(asset) { return asset }
+    return commands_from_asset_at(asset, time_milli)
+}
+
 fn commands_from_binary(data) {
     var scene = scene_from_binary(data)
     if oren_is_err(scene) { return scene }
@@ -675,6 +799,12 @@ fn commands_from_file(path) {
     var s = oren_read_file(path)
     if oren_is_err(s) { return s }
     return commands_from_json(s)
+}
+
+fn commands_from_file_at(path, time_milli) {
+    var s = oren_read_file(path)
+    if oren_is_err(s) { return s }
+    return commands_from_json_at(s, time_milli)
 }
 
 fn commands_from_binary_file(path) {

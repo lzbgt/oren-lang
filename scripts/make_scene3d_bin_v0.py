@@ -107,6 +107,87 @@ def apply_position(model):
     model["x"], model["y"], model["z"] = pos
 
 
+def lerp_int(a, b, num, den):
+    if den <= 0:
+        return int(a)
+    return int(a) + ((int(b) - int(a)) * int(num)) // int(den)
+
+
+def key_axis(keyframe, axis, key, fallback):
+    pos = keyframe.get("position_xyz")
+    if pos is not None:
+        if not isinstance(pos, list) or len(pos) != 3:
+            raise SystemExit("scene animation position_xyz must be [x,y,z]")
+        return pos[axis]
+    return keyframe.get(key, fallback)
+
+
+def key_scale(keyframe, fallback):
+    scale = keyframe.get("scale_milli", fallback)
+    if int(scale) <= 0:
+        raise SystemExit("scene animation scale_milli must be positive")
+    return scale
+
+
+def sample_keyframes(keyframes, time_milli, model):
+    if not isinstance(keyframes, list) or not keyframes:
+        raise SystemExit("scene animation keyframes must be non-empty")
+    prev = None
+    prev_t = -1
+    nxt = None
+    next_t = -1
+    for keyframe in keyframes:
+        if not isinstance(keyframe, dict):
+            raise SystemExit("scene animation keyframes must be objects")
+        t = int(keyframe.get("time_milli", -1))
+        if t < 0:
+            raise SystemExit("scene animation keyframe time_milli must be non-negative")
+        if t <= time_milli and (prev is None or t >= prev_t):
+            prev = keyframe
+            prev_t = t
+        if t >= time_milli and (nxt is None or t <= next_t):
+            nxt = keyframe
+            next_t = t
+    if prev is None:
+        prev = nxt
+        prev_t = next_t
+    if nxt is None:
+        nxt = prev
+        next_t = prev_t
+    base_x = model.get("x", 0)
+    base_y = model.get("y", 0)
+    base_z = model.get("z", 0)
+    base_scale = model.get("scale_milli", 1000)
+    ax = key_axis(prev, 0, "x", base_x)
+    ay = key_axis(prev, 1, "y", base_y)
+    az = key_axis(prev, 2, "z", base_z)
+    ascale = key_scale(prev, base_scale)
+    bx = key_axis(nxt, 0, "x", ax)
+    by = key_axis(nxt, 1, "y", ay)
+    bz = key_axis(nxt, 2, "z", az)
+    bscale = key_scale(nxt, ascale)
+    den = next_t - prev_t
+    num = int(time_milli) - prev_t
+    return {
+        "x": lerp_int(ax, bx, num, den),
+        "y": lerp_int(ay, by, num, den),
+        "z": lerp_int(az, bz, num, den),
+        "scale_milli": lerp_int(ascale, bscale, num, den),
+    }
+
+
+def apply_animations(models, animations, time_milli):
+    model_by_name = {m["name"]: m for m in models if m.get("name") is not None}
+    model_by_id = {m["id"]: m for m in models if m.get("id") is not None}
+    for anim in animations or []:
+        target = anim.get("target")
+        target_id = anim.get("target_id")
+        model = model_by_id.get(target_id) if target_id is not None else model_by_name.get(target)
+        if model is None:
+            raise SystemExit("scene animation target missing")
+        model.update(sample_keyframes(anim.get("keyframes"), time_milli, model))
+
+
 def normalize_scene(scene):
     meshes = scene.get("meshes", [])
     materials = scene.get("materials", [])
@@ -132,6 +213,9 @@ def normalize_scene(scene):
         m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
         apply_position(m)
         models.append(m)
+
+    if scene.get("animations") is not None:
+        apply_animations(models, scene.get("animations"), int(scene.get("sample_time_milli", 0)))
 
     model_names = index_names(models)
     draws = []

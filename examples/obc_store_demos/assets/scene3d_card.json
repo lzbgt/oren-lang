@@ -41,6 +41,16 @@
     {"id": 33, "name": "card", "template": "card-template", "position_xyz": [1, 1, 0]},
     {"id": 35, "name": "accent", "mesh": "accent-mesh", "position_xyz": [0, 0, 0], "scale_milli": 1000}
   ],
+  "animations": [
+    {
+      "target": "card",
+      "keyframes": [
+        {"time_milli": 0, "position_xyz": [0, 1, 0], "scale_milli": 1000},
+        {"time_milli": 1000, "position_xyz": [1, 1, 0], "scale_milli": 1000}
+      ]
+    }
+  ],
+  "sample_time_milli": 1000,
   "camera": {"near_z": 0, "far_z": 2},
   "draw": ["card", "accent"],
   "destroy": true

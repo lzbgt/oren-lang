@@ -325,8 +325,9 @@
 <p>  <code>model_templates</code>, <code>instances</code>, string draw entries, human-readable</p>
 <p>  <code>position_xyz</code> model transforms, human-readable <code>vertices_xyz</code> / <code>faces</code></p>
 <p>  arrays for indexed meshes, <code>triangles_xyz</code> arrays for direct triangle meshes,</p>
-<p>  or <code>triangles_xyz_rgba</code> arrays for per-triangle colors; face indices are</p>
-<p>  validated while these resolve to existing numeric</p>
+<p>  <code>triangles_xyz_rgba</code> arrays for per-triangle colors, or transform keyframes</p>
+<p>  sampled by <code>commands_from_*_at(..., time_milli)</code>; face indices are validated</p>
+<p>  while these resolve to existing numeric</p>
 <p>  retained commands before encoding;</p>
 <ul>
 <li><code>std:ui/scene3d.commands_from_binary(...)</code> and</li>
@@ -336,8 +337,9 @@
 <p>  byte slices, RGBA u32 colors, optional scene-level camera depth windows, model</p>
 <p>  transforms, draw ids, and a destroy flag. The <code>.os3d</code> builder resolves named</p>
 <p>  JSON references, templates, position arrays, coordinate-array meshes, and</p>
-<p>  per-triangle RGBA colors at package-build time so the runtime format stays</p>
-<p>  id-based and compact;</p>
+<p>  per-triangle RGBA colors at package-build time. If <code>animations</code> and</p>
+<p>  <code>sample_time_milli</code> are present, the builder samples transform keyframes into</p>
+<p>  static model records so the runtime format stays id-based and compact;</p>
 <ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>

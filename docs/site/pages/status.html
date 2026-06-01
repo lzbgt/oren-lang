@@ -400,9 +400,10 @@
 <p>  now use named mesh/material/model references plus model templates and</p>
 <p>  instances, human-readable <code>position_xyz</code> model transforms, human-readable</p>
 <p>  <code>vertices_xyz</code> / <code>faces</code> coordinate arrays, and per-triangle</p>
-<p>  <code>triangles_xyz_rgba</code> colors; the package builder validates face indices and</p>
-<p>  resolves them into numeric byte-native <code>.os3d</code> assets so the hot runtime path</p>
-<p>  stays compact. The iOS SDK verifier now also</p>
+<p>  <code>triangles_xyz_rgba</code> colors. JSON loaders can sample transform keyframes via</p>
+<p>  <code>commands_from_*_at(..., time_milli)</code>, while the package builder uses</p>
+<p>  <code>sample_time_milli</code> to lower animated authoring assets into static numeric</p>
+<p>  <code>.os3d</code> records for the hot runtime path. The iOS SDK verifier now also</p>
 <p>  runs an <code>OrenAVMPackageStore</code> package that mounts a bundled <code>.os3d</code> scene</p>
 <p>  asset and raster-checks it through OBC. <code>OrenAVMMetalView</code> now exposes</p>
 <p>  drawable-independent <code>prepareFrameResourcesWithError:</code> so host apps and</p>

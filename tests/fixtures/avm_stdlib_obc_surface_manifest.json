@@ -314,7 +314,10 @@
       "probes": [
         "var scene_cmds = ui_scene3d.commands({\"models\": [ui_scene3d.model_default(1, 2)], \"draw\": [1]})",
         "if oren_is_err(scene_cmds) || oren_list_len(scene_cmds) != 2 { fail(97) }",
-        "if scene_cmds[0][\"op\"] != \"model3d\" || scene_cmds[1][\"op\"] != \"draw_model3d\" { fail(98) }"
+        "if scene_cmds[0][\"op\"] != \"model3d\" || scene_cmds[1][\"op\"] != \"draw_model3d\" { fail(98) }",
+        "var anim_scene = {\"models\": [ui_scene3d.model_default(3, 2)], \"animations\": [{\"target_id\": 3, \"keyframes\": [{\"time_milli\": 0, \"position_xyz\": [0, 0, 0]}, {\"time_milli\": 1000, \"position_xyz\": [2, 0, 0]}]}], \"draw\": [3]}",
+        "var anim_cmds = ui_scene3d.commands_from_asset_at(anim_scene, 500)",
+        "if oren_is_err(anim_cmds) || anim_cmds[0][\"x\"] != 1 { fail(99) }"
       ]
     }
   ],

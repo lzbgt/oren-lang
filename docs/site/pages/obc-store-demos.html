@@ -71,8 +71,8 @@ build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d
 <p>scene-level camera depth metadata, named mesh/material references, model</p>
 <p>templates, instances, human-readable <code>position_xyz</code> model transforms,</p>
 <p>human-readable <code>vertices_xyz</code> / <code>faces</code> coordinate arrays, and per-triangle</p>
-<p><code>triangles_xyz_rgba</code> colors. The builder validates face indices, resolves that</p>
-<p>authoring form into compact numeric <code>.os3d</code> records,</p>
+<p><code>triangles_xyz_rgba</code> colors, plus sampled transform keyframes. The builder</p>
+<p>validates face indices, resolves that authoring form into compact numeric <code>.os3d</code> records using <code>sample_time_milli</code>,</p>
 <p>the package declares a read-only <code>assets/</code> VFS mount, and OBC proves it can load</p>
 <p>retained UI scene metadata from package assets without JSON parsing in the hot</p>
 <p>path. <code>make verify-libavm-ios</code> also carries an SDK-local</p>
