@@ -28,11 +28,8 @@ struct Conn {
 
 trait WebSocketConn {
     fn send_text_client(self, text, timeout_ms);
-    fn try_send_text_client(self, text, timeout_ms);
     fn send_text_server(self, text, timeout_ms);
-    fn try_send_text_server(self, text, timeout_ms);
     fn recv_text(self, timeout_ms);
-    fn try_recv_text(self, timeout_ms);
     fn close(self);
 }
 
@@ -1053,11 +1050,8 @@ fn try_recv_text(conn, timeout_ms) {
 }
 
 impl WebSocketConn for Conn {
-    fn send_text_client(self, text, timeout_ms) { return send_text_client(self, text, timeout_ms) }
-    fn try_send_text_client(self, text, timeout_ms) { return try_send_text_client(self, text, timeout_ms) }
-    fn send_text_server(self, text, timeout_ms) { return send_text_server(self, text, timeout_ms) }
-    fn try_send_text_server(self, text, timeout_ms) { return try_send_text_server(self, text, timeout_ms) }
-    fn recv_text(self, timeout_ms) { return recv_text(self, timeout_ms) }
-    fn try_recv_text(self, timeout_ms) { return try_recv_text(self, timeout_ms) }
+    fn send_text_client(self, text, timeout_ms) { return try_send_text_client(self, text, timeout_ms) }
+    fn send_text_server(self, text, timeout_ms) { return try_send_text_server(self, text, timeout_ms) }
+    fn recv_text(self, timeout_ms) { return try_recv_text(self, timeout_ms) }
     fn close(self) { return close(self) }
 }
