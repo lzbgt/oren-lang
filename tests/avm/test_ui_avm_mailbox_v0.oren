@@ -175,6 +175,28 @@ fn main() {
         70, 0, 4, 0,
         2, 0, 0, 0
     ])
+    var text_positions = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0
+    ])
+    var retained_text_batch_frame = ui_avm.frame_bytes([
+        {"op": "text_resource", "id": 2, "data": text_data, "color": "#ffffff"},
+        {"op": "draw_texts", "id": 2, "positions": text_positions},
+        {"op": "destroy_text", "id": 2}
+    ], 4, 2, {"strict_bounds": true})
+    assert_bytes_eq(retained_text_batch_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        68, 0, 14, 0,
+        2, 0, 0, 0, 255, 255, 255, 255, 2, 0, 0, 0, 65, 66,
+        72, 0, 24, 0,
+        2, 0, 0, 0, 2, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0,
+        70, 0, 4, 0,
+        2, 0, 0, 0
+    ])
 
     var image_data = bytes.try_pack([255, 0, 0, 255])
     var rects = bytes.try_pack([

@@ -41,7 +41,7 @@ The first retained implementation slices exist as of 2026-05-31:
   `push_opacity`/`pop_opacity`/`text`/`text_bytes`/`stroke_line`/
   `stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`image_rgba`/
   `draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` plus retained
-  `text_resource`/`draw_text`/`destroy_text` subset. It decodes frame bytes on the host side
+  `text_resource`/`draw_text`/`draw_texts`/`destroy_text` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
 - `OrenAVMKit` now has binary helper encoders for pointer, resize, media-query,
   key, and UTF-8 text input events, plus host-populated persistent screen state.
@@ -174,7 +174,7 @@ logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
 cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
-`text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
+`text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
 `destroy_image`, `draw_image_rect`, `draw_image_rects`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.

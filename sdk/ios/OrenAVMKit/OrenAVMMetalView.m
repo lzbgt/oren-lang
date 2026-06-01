@@ -1259,6 +1259,27 @@ static NSData* OrenAVMMetalTextQuad(float x,
                     [textRuns addObject:run];
                 }
             }
+        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
+            uint32_t textID = OrenAVMMetalReadU32LE(payload);
+            uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
+            OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
+            if (resource.text && resource.rgba.length == 4 && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                for (uint32_t pi = 0; pi < posCount; pi++) {
+                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
+                    OrenAVMMetalTextRun* run = [self orenTextRunWithText:resource.text
+                                                                       x:(float)OrenAVMMetalReadU32LE(p) + tx
+                                                                       y:(float)OrenAVMMetalReadU32LE(p + 4) + ty
+                                                                    rgba:resource.rgba.bytes
+                                                                 opacity:opacity
+                                                            logicalWidth:(float)logicalW
+                                                           logicalHeight:(float)logicalH];
+                    if (run) {
+                        run.hasScissor = clip.enabled;
+                        run.scissor = clip.rect;
+                        [textRuns addObject:run];
+                    }
+                }
+            }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
             [self.orenTextResources removeObjectForKey:@(textID)];

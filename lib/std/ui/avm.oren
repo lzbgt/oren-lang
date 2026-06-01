@@ -264,6 +264,16 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["y"])
         return 0
     }
+    if op == "draw_texts" {
+        var positions = c["positions"]
+        var pos_n = bytes.try_len(positions)
+        if oren_is_err(pos_n) { return pos_n }
+        if pos_n == 0 || pos_n > 65520 || pos_n % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_texts invalid position bytes") }
+        _push_op_header(out, 72, 8 + pos_n)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, pos_n / 8)
+        return _append_bytes(out, positions)
+    }
     if op == "destroy_text" {
         _push_op_header(out, 70, 4)
         _push_u32_le(out, c["id"])

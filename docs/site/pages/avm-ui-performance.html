@@ -130,13 +130,13 @@
 <p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>push_translate</code>/<code>pop_transform</code>,</p>
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>,</p>
 <p>  <code>stroke_rect</code>, <code>round_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
-<p>  <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
+<p>  <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -275,8 +275,9 @@
 <ul>
 <li>retained text records: <code>text_resource {id,data,color}</code> uploads UTF-8 bytes once,</li>
 </ul>
-<p>  <code>draw_text {id,x,y}</code> draws the virtual text handle, and <code>destroy_text {id}</code></p>
-<p>  releases the host-side retained label;</p>
+<p>  <code>draw_text {id,x,y}</code> draws one virtual text handle placement, `draw_texts</p>
+<p>  {id,positions}<code> draws many packed little-endian </code>x,y` placements from the same</p>
+<p>  handle, and <code>destroy_text {id}</code> releases the host-side retained label;</p>
 <ul>
 <li>balanced clipping records: <code>push_clip_rect {x,y,w,h}</code> and <code>pop_clip</code></li>
 </ul>
@@ -421,7 +422,7 @@
 <ol>
 <li>Done: add first retained text resource records (<code>text_resource</code>,</li>
 </ol>
-<p>    <code>draw_text</code>, <code>destroy_text</code>) across validation, binary frames, AVM protocol</p>
+<p>    <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>) across validation, binary frames, AVM protocol</p>
 <p>    checks, deterministic raster, CoreGraphics fallback, Metal text cache, and</p>
 <p>    iOS verifier coverage.</p>
 <ol>
@@ -429,6 +430,11 @@
 </ol>
 <p>    validation, binary frames, AVM protocol checks, deterministic raster,</p>
 <p>    CoreGraphics fallback, Metal texture draws, and iOS verifier coverage.</p>
+<ol>
+<li>Done: add retained text batch draws (<code>draw_texts</code>) so repeated labels can be</li>
+</ol>
+<p>    placed with one retained text handle and packed positions instead of one</p>
+<p>    opcode per label.</p>
 <ol>
 <li>Done: add a release-manifest 2D conformance fixture that hashes one</li>
 </ol>

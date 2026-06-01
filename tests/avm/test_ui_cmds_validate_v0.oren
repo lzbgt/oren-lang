@@ -165,16 +165,30 @@ fn test_validate_text_bytes() {
 fn test_validate_text_resource() {
     var data = bytes.try_pack([65, 66])
     assert_true(oren_is_err(data) == false)
+    var positions = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0
+    ])
+    assert_true(oren_is_err(positions) == false)
     var cmds = [
         {"op": "text_resource", "id": 1, "data": data, "color": "#ffffff"},
         {"op": "draw_text", "id": 1, "x": 0, "y": 0},
+        {"op": "draw_texts", "id": 1, "positions": positions},
         {"op": "destroy_text", "id": 1}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 1, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"strict_bounds": true})) == false)
     var bad_upload = [{"op": "text_resource", "id": 0, "data": data, "color": "#ffffff"}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_upload, 2, 1, nil)) == true)
     var bad_draw = [{"op": "draw_text", "id": 1, "x": 2, "y": 0}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_draw, 2, 1, {"strict_bounds": true})) == true)
+    var bad_batch = bytes.try_pack([0, 0, 0, 0])
+    assert_true(oren_is_err(bad_batch) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_texts", "id": 1, "positions": bad_batch}], 2, 2, nil)) == true)
+    var bad_batch_bounds = bytes.try_pack([
+        2, 0, 0, 0, 0, 0, 0, 0
+    ])
+    assert_true(oren_is_err(bad_batch_bounds) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_texts", "id": 1, "positions": bad_batch_bounds}], 2, 2, {"strict_bounds": true})) == true)
     var bad_destroy = [{"op": "destroy_text", "id": 0}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_destroy, 2, 1, nil)) == true)
 }

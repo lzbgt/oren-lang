@@ -30,6 +30,11 @@ fn main() {
     assert_true(oren_is_err(text_data) == false)
     var text_bytes_data = bytes.try_pack([88, 89])
     assert_true(oren_is_err(text_bytes_data) == false)
+    var text_positions = bytes.try_pack([
+        1, 0, 0, 0, 3, 0, 0, 0,
+        4, 0, 0, 0, 1, 0, 0, 0
+    ])
+    assert_true(oren_is_err(text_positions) == false)
     var points = bytes.try_pack([
         5, 0, 0, 0, 0, 0, 0, 0,
         5, 0, 0, 0, 4, 0, 0, 0,
@@ -59,6 +64,7 @@ fn main() {
         {"op": "text_bytes", "x": 3, "y": 4, "data": text_bytes_data, "color": "#ff00ff"},
         {"op": "text_resource", "id": 10, "data": text_data, "color": "#00ffff"},
         {"op": "draw_text", "id": 10, "x": 2, "y": 1},
+        {"op": "draw_texts", "id": 10, "positions": text_positions},
         {"op": "destroy_text", "id": 10},
         {"op": "image_rgba", "id": 1, "w": 2, "h": 2, "data": image},
         {"op": "draw_image", "id": 1, "x": 0, "y": 1, "w": 2, "h": 2},
@@ -76,7 +82,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "049a1d798024368ca0203b63106ec46c108b57db3c9a542e763dda8db5bc61ed")
+    assert_eq(got, "07cd8a1480f6241f611c57f315ca7f038150f00eceecb5802d6a9cf8ccae742a")
     exit(0)
 }
 

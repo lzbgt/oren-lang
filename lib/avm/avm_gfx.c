@@ -241,6 +241,17 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_text payload");
                 return 0;
             }
+        } else if (opcode == 72u) {
+            if (payload_len < 16u || ((payload_len - 8u) % 8u) != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_texts payload");
+                return 0;
+            }
+            uint32_t pos_count = avm_gfx_u32le(payload + 4);
+            if (avm_gfx_u32le(payload) == 0u || pos_count == 0u ||
+                pos_count != ((uint32_t)payload_len - 8u) / 8u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_texts positions");
+                return 0;
+            }
         } else if (opcode == 70u) {
             if (payload_len != 4u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad destroy_text payload");

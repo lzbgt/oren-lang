@@ -277,6 +277,23 @@ fn validate(cmds, w, h, opts) {
                 var dtx_t = dtx + tx; var dty_t = dty + ty
                 if dtx_t < 0 || dty_t < 0 || dtx_t >= w || dty_t >= h { return oren_err(4, "ui.validate: draw_text out of bounds") }
             }
+        } else if op == "draw_texts" {
+            var btid = c["id"]; var positions = c["positions"]
+            if _is_int(btid) == false || btid < 1 { return oren_err(4, "ui.validate: draw_texts invalid id") }
+            var pos_len = bytes.try_len(positions)
+            if oren_is_err(pos_len) { return oren_err(4, "ui.validate: draw_texts expects byte positions") }
+            if pos_len == 0 || pos_len > 65520 || pos_len % 8 != 0 { return oren_err(4, "ui.validate: draw_texts invalid position bytes") }
+            if strict {
+                var poff2 = 0
+                while poff2 < pos_len {
+                    var ptx = bytes.try_get_u32_le(positions, poff2)
+                    var pty = bytes.try_get_u32_le(positions, poff2 + 4)
+                    if oren_is_err(ptx) || oren_is_err(pty) { return oren_err(4, "ui.validate: draw_texts malformed position") }
+                    var ptx_t = ptx + tx; var pty_t = pty + ty
+                    if ptx_t < 0 || pty_t < 0 || ptx_t >= w || pty_t >= h { return oren_err(4, "ui.validate: draw_texts out of bounds") }
+                    poff2 = poff2 + 8
+                }
+            }
         } else if op == "destroy_text" {
             var xtid = c["id"]
             if _is_int(xtid) == false || xtid < 1 { return oren_err(4, "ui.validate: destroy_text invalid id") }

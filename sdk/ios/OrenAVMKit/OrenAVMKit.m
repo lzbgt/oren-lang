@@ -622,6 +622,24 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                 };
                 [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
             }
+        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
+            uint32_t textID = OrenAVMGfxReadU32LE(payload);
+            uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
+            NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)];
+            NSString* text = resource[@"text"];
+            UIColor* color = resource[@"color"];
+            if (text && color && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                NSDictionary<NSAttributedStringKey, id>* attrs = @{
+                    NSForegroundColorAttributeName: color,
+                    NSFontAttributeName: [UIFont systemFontOfSize:14.0]
+                };
+                for (uint32_t pi = 0; pi < posCount; pi++) {
+                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
+                    [text drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
+                                                  (CGFloat)OrenAVMGfxReadU32LE(p + 4))
+                        withAttributes:attrs];
+                }
+            }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             [self.orenTextResources removeObjectForKey:@(textID)];

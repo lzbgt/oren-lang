@@ -354,7 +354,7 @@
 <p>  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/</p>
 <p>  <code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/</p>
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>/<code>text</code>/<code>text_bytes</code>/<code>text_resource</code>/</p>
-<p>  <code>draw_text</code>/<code>destroy_text</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/</p>
+<p>  <code>draw_text</code>/<code>draw_texts</code>/<code>destroy_text</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/</p>
 <p>  <code>polyline</code>/<code>fill_triangle</code>/<code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/</p>
 <p>  <code>draw_image_rect</code>/<code>draw_image_rects</code> frame subset and can enqueue pointer, resize, key, and</p>
 <p>  text events plus host-populated persistent screen state and runtime media-query</p>
@@ -373,8 +373,8 @@
 <p>  records so OBC game loops can receive host display timing through the same virtual</p>
 <p>  event path instead of polling raw platform clocks. Frame ticks are coalesced so</p>
 <p>  stale timing records cannot fill the input FIFO and starve real input. The Metal</p>
-<p>	  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,</p>
-<p>				  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, with Oren-side image upload budgets and SDK retained image count/pixel budgets; retained text upload/draw/destroy records now avoid resending repeated UTF-8 labels every frame, while richer glyph atlas batching remains next. UIKit/CoreGraphics</p>
+<p>  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,</p>
+<p>  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, with Oren-side image upload budgets and SDK retained image count/pixel budgets; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels and reduce per-label opcode overhead, while richer glyph atlas batching remains next. UIKit/CoreGraphics</p>
 <p>  and Metal views now forward every touch in a UIKit touch set, assign stable compact</p>
 <p>  pointer IDs for each active touch, release IDs on end/cancel, and expose batch</p>
 <p>  pointer-event helpers, so multi-finger input reaches OBC as multiple virtual</p>

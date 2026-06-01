@@ -33,6 +33,7 @@
 //     purely as a deterministic marker for tests.
 // - {"op":"text_resource","id":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"draw_text","id":int,"x":int,"y":int}
+// - {"op":"draw_texts","id":int,"positions":bytes} where each position is u32le x,y
 // - {"op":"destroy_text","id":int}
 // - {"op":"image_rgba","id":int,"w":int,"h":int,"data":bytes}
 // - {"op":"draw_image","id":int,"x":int,"y":int,"w":int,"h":int}
@@ -277,6 +278,20 @@ fn _draw_polyline(buf, w, h, points, lw, c) {
         last_x = x
         last_y = y
         off = off + 8
+    }
+    return 0
+}
+
+fn _draw_text_marker(buf, w, h, text_resource, x, y) {
+    var tc = ui_color.try_parse_hex(text_resource["color"])
+    if oren_is_err(tc) { return result.with_context(tc, "rasterize: draw_text color") }
+    var tb = text_resource["data"]
+    var tn = bytes.try_len(tb)
+    if oren_is_err(tn) { return result.with_context(tn, "rasterize: draw_text data") }
+    var ti = 0
+    while ti < tn {
+        _set_px_rgba(buf, w, h, x + ti, y, tc["r"], tc["g"], tc["b"], tc["a"])
+        ti = ti + 1
     }
     return 0
 }
@@ -528,17 +543,22 @@ fn rasterize(cmds, w, h, opts) {
         } else if op == "draw_text" {
             var text_resource = texts[oren_int_to_string(opm["id"])]
             if text_resource == nil { return oren_err(4, "rasterize: draw_text missing text") }
-            var tc = ui_color.try_parse_hex(text_resource["color"])
-            if oren_is_err(tc) { return result.with_context(tc, "rasterize: draw_text color") }
-            var tb = text_resource["data"]
-            var tn = bytes.try_len(tb)
-            if oren_is_err(tn) { return result.with_context(tn, "rasterize: draw_text data") }
-            var tx2 = opm["x"]
-            var ty2 = opm["y"]
-            var ti = 0
-            while ti < tn {
-                _set_px_rgba(buf, w, h, tx2 + ti, ty2, tc["r"], tc["g"], tc["b"], tc["a"])
-                ti = ti + 1
+            var dtr = _draw_text_marker(buf, w, h, text_resource, opm["x"], opm["y"])
+            if oren_is_err(dtr) { return dtr }
+        } else if op == "draw_texts" {
+            var batch_text_resource = texts[oren_int_to_string(opm["id"])]
+            if batch_text_resource == nil { return oren_err(4, "rasterize: draw_texts missing text") }
+            var positions = opm["positions"]
+            var pos_len = bytes.try_len(positions)
+            if oren_is_err(pos_len) { return result.with_context(pos_len, "rasterize: draw_texts positions") }
+            var poff = 0
+            while poff < pos_len {
+                var px = bytes.try_get_u32_le(positions, poff)
+                var py = bytes.try_get_u32_le(positions, poff + 4)
+                if oren_is_err(px) || oren_is_err(py) { return oren_err(4, "rasterize: draw_texts malformed position") }
+                var btr = _draw_text_marker(buf, w, h, batch_text_resource, px, py)
+                if oren_is_err(btr) { return btr }
+                poff = poff + 8
             }
         } else if op == "destroy_text" {
             texts[oren_int_to_string(opm["id"])] = nil

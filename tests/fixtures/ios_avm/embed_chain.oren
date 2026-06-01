@@ -97,6 +97,10 @@ fn main() {
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
     ])
+    var label_positions = bytes.pack([
+        0, 0, 0, 0, 2, 0, 0, 0,
+        2, 0, 0, 0, 2, 0, 0, 0
+    ])
     var poly_points = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 1, 0, 0, 0,
@@ -121,6 +125,7 @@ fn main() {
         {"op": "pop_clip"},
         {"op": "text_resource", "id": 2, "data": label, "color": "#ffffff"},
         {"op": "draw_text", "id": 2, "x": 0, "y": 2},
+        {"op": "draw_texts", "id": 2, "positions": label_positions},
         {"op": "destroy_text", "id": 2},
         {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": sprite},
         {"op": "draw_image", "id": 1, "x": 3, "y": 0, "w": 1, "h": 1},
