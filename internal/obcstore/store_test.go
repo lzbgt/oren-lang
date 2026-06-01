@@ -130,12 +130,16 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 
 	home := string(rawGet(t, ts, "/"))
-	if !strings.Contains(home, "Plot Demo") || !strings.Contains(home, "/packages/oren-labs/plot-demo") {
+	if !strings.Contains(home, "Plot Demo") || !strings.Contains(home, "/packages/oren-labs/plot-demo") || !strings.Contains(home, "/publishers/oren-labs") {
 		t.Fatalf("home page missing package: %s", home)
 	}
 	detail := string(rawGet(t, ts, "/packages/oren-labs/plot-demo"))
-	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") || !strings.Contains(detail, "bundle.obc.zip") {
+	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") || !strings.Contains(detail, "bundle.obc.zip") || !strings.Contains(detail, "/publishers/oren-labs") {
 		t.Fatalf("detail page missing release links: %s", detail)
+	}
+	publisher := string(rawGet(t, ts, "/publishers/oren-labs"))
+	if !strings.Contains(publisher, "Oren Labs") || !strings.Contains(publisher, "Plot Demo") || !strings.Contains(publisher, "/packages/oren-labs/plot-demo") {
+		t.Fatalf("publisher page missing public package: %s", publisher)
 	}
 	ops := string(rawGet(t, ts, "/ops"))
 	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") || !strings.Contains(ops, "/healthz") {
@@ -170,6 +174,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 	if got := request(t, ts, http.MethodGet, "/packages/oren-labs/plot-demo", nil, false); got.Code != http.StatusNotFound {
 		t.Fatalf("private browser package status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := string(rawGet(t, ts, "/publishers/oren-labs")); strings.Contains(got, "Plot Demo") {
+		t.Fatalf("private package still visible on publisher page: %s", got)
 	}
 	if got := request(t, ts, http.MethodGet, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/program.obc", nil, false); got.Code != http.StatusNotFound {
 		t.Fatalf("private unauthenticated download status=%d body=%s", got.Code, got.Body.String())

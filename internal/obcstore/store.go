@@ -35,9 +35,10 @@ const (
 )
 
 var (
-	siteHomeTemplate    = template.Must(template.New("store-home").Parse(siteHomeHTML))
-	sitePackageTemplate = template.Must(template.New("store-package").Parse(sitePackageHTML))
-	siteOpsTemplate     = template.Must(template.New("store-ops").Parse(siteOpsHTML))
+	siteHomeTemplate      = template.Must(template.New("store-home").Parse(siteHomeHTML))
+	sitePackageTemplate   = template.Must(template.New("store-package").Parse(sitePackageHTML))
+	sitePublisherTemplate = template.Must(template.New("store-publisher").Parse(sitePublisherHTML))
+	siteOpsTemplate       = template.Must(template.New("store-ops").Parse(siteOpsHTML))
 )
 
 type Config struct {
@@ -186,6 +187,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/", s.handleSiteHome)
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/ops", s.handleSiteOps)
+	mux.HandleFunc("/publishers/", s.handleSitePublisher)
 	mux.HandleFunc("/packages/", s.handleSitePackage)
 	mux.HandleFunc("/api/v0/health", s.handleHealth)
 	mux.HandleFunc("/api/v0/me", s.handleMe)
@@ -231,6 +233,32 @@ func (s *Service) handleSiteHome(w http.ResponseWriter, r *http.Request) {
 		"Tag":        r.URL.Query().Get("tag"),
 		"Capability": r.URL.Query().Get("capability"),
 		"Packages":   items,
+	})
+}
+
+func (s *Service) handleSitePublisher(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	publisherID := strings.TrimPrefix(r.URL.Path, "/publishers/")
+	if !safeID(publisherID) {
+		http.NotFound(w, r)
+		return
+	}
+	publisher, err := readJSONFile[Publisher](s.publisherPath(publisherID))
+	if err != nil || publisher.Status == "disabled" {
+		http.NotFound(w, r)
+		return
+	}
+	items, err := s.packageItemsForPublisher(publisherID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	renderHTML(w, sitePublisherTemplate, map[string]any{
+		"Publisher": publisher,
+		"Packages":  items,
 	})
 }
 
@@ -857,6 +885,30 @@ func (s *Service) packageSearchItems(r *http.Request) ([]PackageListItem, error)
 	return items, nil
 }
 
+func (s *Service) packageItemsForPublisher(publisherID string) ([]PackageListItem, error) {
+	releases, err := s.publishedReleases()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]PackageListItem, 0)
+	for _, rel := range releases {
+		if rel.Publisher != publisherID {
+			continue
+		}
+		meta, _ := readJSONFile[PackageMeta](s.packageMetaPath(rel.Publisher, rel.Name))
+		items = append(items, PackageListItem{
+			ID:        rel.Publisher + "/" + rel.Name,
+			Publisher: rel.Publisher,
+			Name:      rel.Name,
+			Version:   rel.Version,
+			Title:     meta.Title,
+			Summary:   meta.Summary,
+			Tags:      append(meta.Tags, rel.Tags...),
+		})
+	}
+	return items, nil
+}
+
 func (s *Service) getPackage(w http.ResponseWriter, r *http.Request, pub, name string) {
 	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
 	if err != nil {
@@ -1471,8 +1523,8 @@ const siteHomeHTML = `<!doctype html>
 <p><a href="/api/v0/index.json">index.json</a> · <a href="/api/v0/trust/bundle.json">trust bundle</a> · <a href="/ops">operator guide</a></p>
 {{if .Packages}}{{range .Packages}}
 <article class="card">
-  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
-  <p class="muted">{{.ID}}@{{.Version}}</p>
+	  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
+	  <p class="muted"><a href="/publishers/{{.Publisher}}">{{.Publisher}}</a>/{{.Name}}@{{.Version}}</p>
   <p>{{.Summary}}</p>
   <p>{{range .Tags}}<span class="pill">{{.}}</span>{{end}}</p>
 </article>
@@ -1484,7 +1536,7 @@ const sitePackageHTML = `<!doctype html>
 <title>{{.Meta.Publisher}}/{{.Meta.Name}} - OBC Store</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">{{if .Meta.Title}}{{.Meta.Title}}{{else}}{{.Meta.Publisher}}/{{.Meta.Name}}{{end}}</h1><p>{{.Meta.Summary}}</p></header>
 <main>
-<p><a href="/">Browse packages</a></p>
+<p><a href="/">Browse packages</a> · <a href="/publishers/{{.Meta.Publisher}}">Publisher: {{.Meta.Publisher}}</a></p>
 <section class="card">
   <h2>Releases</h2>
 	  {{if .Releases}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Bundle</th><th>Status</th></tr>
@@ -1498,6 +1550,22 @@ const sitePackageHTML = `<!doctype html>
 </section>
 <section class="card"><h2>Install Metadata</h2><pre>package={{.Meta.Publisher}}/{{.Meta.Name}}
 index=https://store.hubstack.cn/api/v0/index.json</pre></section>
+</main></body></html>`
+
+const sitePublisherHTML = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.Publisher.ID}} - OBC Store</title><style>` + siteCSS + `</style></head>
+<body><header><h1 class="brand">{{if .Publisher.DisplayName}}{{.Publisher.DisplayName}}{{else}}{{.Publisher.ID}}{{end}}</h1><p>Public packages by {{.Publisher.ID}}.</p></header>
+<main>
+<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a></p>
+{{if .Packages}}{{range .Packages}}
+<article class="card">
+  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
+  <p class="muted">{{.ID}}@{{.Version}}</p>
+  <p>{{.Summary}}</p>
+  <p>{{range .Tags}}<span class="pill">{{.}}</span>{{end}}</p>
+</article>
+{{end}}{{else}}<div class="card">No public packages are currently published for this publisher.</div>{{end}}
 </main></body></html>`
 
 const siteOpsHTML = `<!doctype html>

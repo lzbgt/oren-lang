@@ -122,7 +122,7 @@ Facts from the 2026-05-28 implementation pass:
 - The first `store.hubstack.cn` Go service slice is implemented in
   `cmd/obc-store-server` and `internal/obcstore`. It supports admin-authenticated
   publisher/package/release publish, public list/search/index/download endpoints,
-  browser browse/detail/operator pages, asset serving, deterministic `.obc.zip`
+  browser browse/detail/publisher/operator pages, asset serving, deterministic `.obc.zip`
   bundle upload/download/index metadata, public-by-default package visibility with
   publisher/admin private toggle, yanking, and dynamic `index.json.sig` generation
   from an external
