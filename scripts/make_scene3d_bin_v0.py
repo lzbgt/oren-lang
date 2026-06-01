@@ -22,6 +22,33 @@ def i32(v):
     return int(v).to_bytes(4, "little", signed=True)
 
 
+def pack_vertices_xyz(points):
+    out = bytearray()
+    for point in points:
+        if not isinstance(point, list) or len(point) != 3:
+            raise SystemExit("scene vertices_xyz entries must be [x,y,z]")
+        out += i32(point[0]) + i32(point[1]) + i32(point[2])
+    return bytes(out)
+
+
+def pack_faces(faces):
+    out = bytearray()
+    for face in faces:
+        if not isinstance(face, list) or len(face) != 3:
+            raise SystemExit("scene faces entries must be [a,b,c]")
+        out += u32(face[0]) + u32(face[1]) + u32(face[2])
+    return bytes(out)
+
+
+def pack_triangles_xyz(triangles):
+    out = bytearray()
+    for tri in triangles:
+        if not isinstance(tri, list) or len(tri) != 3:
+            raise SystemExit("scene triangles_xyz entries must contain 3 vertices")
+        out += pack_vertices_xyz(tri)
+    return bytes(out)
+
+
 def index_names(items):
     out = {}
     for item in items or []:
@@ -102,11 +129,19 @@ def scene3d_bin_v0(scene_bytes):
         kind = mesh.get("kind", "triangles")
         if kind == "indexed":
             kind_id = 1
-            payload = bytes(mesh["vertices"])
-            indices = bytes(mesh["indices"])
+            payload = (
+                pack_vertices_xyz(mesh["vertices_xyz"])
+                if mesh.get("vertices_xyz") is not None
+                else bytes(mesh["vertices"])
+            )
+            indices = pack_faces(mesh["faces"]) if mesh.get("faces") is not None else bytes(mesh["indices"])
         elif kind == "triangles":
             kind_id = 2
-            payload = bytes(mesh["triangles"])
+            payload = (
+                pack_triangles_xyz(mesh["triangles_xyz"])
+                if mesh.get("triangles_xyz") is not None
+                else bytes(mesh["triangles"])
+            )
             indices = b""
         elif kind == "triangles_rgba":
             kind_id = 3

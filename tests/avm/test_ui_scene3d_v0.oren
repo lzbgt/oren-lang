@@ -133,6 +133,27 @@ fn main() {
     assert_eq(_px(asset_buf, 4, 1, 1, 1), 255)
     assert_eq(_px(asset_buf, 4, 1, 1, 2), 0)
 
+    var from_coords = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 37,
+                "triangles_xyz": [
+                    [[0, 0, 0], [2, 0, 0], [0, 2, 0]]
+                ],
+                "color": "#ff0000"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 37}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_coords) == false)
+    assert_eq(from_coords[0]["op"], "mesh3d")
+    assert_true(ui_cmds.try_validate(from_coords, 4, 4, {"strict_bounds": true}) == 0)
+    var coord_buf = ui_raster.try_rasterize(from_coords, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(coord_buf) == false)
+    assert_eq(_px(coord_buf, 4, 0, 0, 0), 255)
+
     var bin = scene_binary(vertices, indices, true)
     assert_true(oren_is_err(bin) == false)
     var from_bin = scene3d.commands_from_binary(bin)

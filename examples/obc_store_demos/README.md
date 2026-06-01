@@ -14,7 +14,8 @@ live under `build/obc-store-demos/` and are not committed.
 
 The `scene3d-asset-demo` package derives `assets/scene3d_card.os3d` from the
 reviewable JSON source in this directory. The JSON can use named mesh/material
-references, model templates, and instances; the build helper lowers those to
-compact numeric `.os3d` records. The package declares a read-only package VFS
-mount, proving OBC can load retained UI scene metadata from package assets
-without parsing JSON in the hot runtime path.
+references, model templates, instances, and human-readable `vertices_xyz` /
+`faces` coordinate arrays; the build helper lowers those to compact numeric
+`.os3d` records. The package declares a read-only package VFS mount, proving OBC
+can load retained UI scene metadata from package assets without parsing JSON in
+the hot runtime path.
