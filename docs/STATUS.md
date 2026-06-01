@@ -225,7 +225,9 @@ Facts from the 2026-05-28 implementation pass:
   can explicitly apply package `permission_defaults` after host/user policy accepts
   them, and can reapply NET connect grants/revocations to a runtime by enabling,
   restricting, or disabling live VNET allowed hosts. This lets host apps show user
-  permission UI and then update provider policy without recompiling OBC.
+  permission UI and then update provider policy without recompiling OBC. The Note
+  app handoff now also has an ObjC bridge wrapper and Swift DTO around this prompt
+  model; remaining app work is presenting it in live package-run flows.
 - Performance work for virtual resources should continue as host-backed virtual
   providers, not raw OS object access from bytecode. FS follows this rule through
   host-backed directory mounts: the SDK owns app `file://` URLs and OBC sees only
