@@ -400,6 +400,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 28. Done: extend `std:ui/scene3d` JSON and `OS3D01` package assets with
     scene-level camera depth windows so packaged 3D scenes can carry view state
     without host-side renderer objects.
+29. Done: extend the iOS SDK package-store verifier with a local package that
+    mounts a bundled `.os3d` scene asset through VirtualFS and raster-checks it
+    from OBC, proving the package-store install/run path covers binary scene
+    assets and not only standalone stdlib/store-demo fixtures.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.

@@ -73,6 +73,8 @@ PACKAGE_SRC="$TMP_DIR/package_chain.oren"
 PACKAGE_OBC_OUT="$TMP_DIR/package_chain.obc"
 PACKAGE_V2_SRC="$TMP_DIR/package_chain_v2.oren"
 PACKAGE_V2_OBC_OUT="$TMP_DIR/package_chain_v2.obc"
+PACKAGE_SCENE_SRC="$TMP_DIR/package_scene3d.oren"
+PACKAGE_SCENE_OBC_OUT="$TMP_DIR/package_scene3d.obc"
 cp "$FIXTURE_DIR/embed_chain.oren" "$OREN_SRC"
 "$OREN_COMPILER" build "$OREN_SRC" --backend bytecode -o "$OBC_OUT" > "$LOG_DIR/libavm_ios_embed_chain_obc_build.log" 2>&1
 
@@ -90,6 +92,9 @@ cp "$FIXTURE_DIR/package_chain.oren" "$PACKAGE_SRC"
 
 cp "$FIXTURE_DIR/package_chain_v2.oren" "$PACKAGE_V2_SRC"
 "$OREN_COMPILER" build "$PACKAGE_V2_SRC" --backend bytecode -o "$PACKAGE_V2_OBC_OUT" > "$LOG_DIR/libavm_ios_package_chain_v2_obc_build.log" 2>&1
+
+cp "$FIXTURE_DIR/package_scene3d.oren" "$PACKAGE_SCENE_SRC"
+"$OREN_COMPILER" build "$PACKAGE_SCENE_SRC" --backend bytecode -o "$PACKAGE_SCENE_OBC_OUT" > "$LOG_DIR/libavm_ios_package_scene3d_obc_build.log" 2>&1
 
 python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
 import pathlib
@@ -509,6 +514,7 @@ int main(void) {
         NSString* tcpURL = env[@"OREN_AVM_SDK_TCP_URL"] ?: @"session-none";
         NSString* tcpListenURL = env[@"OREN_AVM_SDK_TCP_LISTEN_URL"] ?: @"listen-none";
         NSString* packageDir = env[@"OREN_AVM_SDK_PACKAGE_DIR"];
+        NSString* scenePackageDir = env[@"OREN_AVM_SDK_SCENE_PACKAGE_DIR"];
         NSString* packageIndexURL = env[@"OREN_AVM_SDK_PACKAGE_INDEX_URL"];
         NSString* servicePackageIndexURL = env[@"OREN_AVM_SDK_SERVICE_PACKAGE_INDEX_URL"];
         NSString* packageDownloadDir = env[@"OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR"];
@@ -683,6 +689,19 @@ int main(void) {
             OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
             if (!packageResult || packageResult.exitCode != 9) return 92;
             if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 93;
+        }
+        if (scenePackageDir.length > 0) {
+            OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
+            OrenAVMPackage* package = [store loadPackageAtDirectoryURL:[NSURL fileURLWithPath:scenePackageDir isDirectory:YES]
+                                                                  error:&error];
+            if (!package || ![package.packageID isEqual:@"oren-labs/sdk-scene3d-package/0.1.0"]) return 157;
+            OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
+            if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 158;
+            OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
+            if (!packageRuntime) return 159;
+            OrenAVMRunResult* packageResult = [store runPackage:package runtime:packageRuntime error:&error];
+            if (!packageResult || packageResult.exitCode != 9) return 160;
+            if (![packageResult.stdoutData isEqualToData:[@"scene3d:ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 161;
         }
         if (packageIndexURL.length > 0 && packageDownloadDir.length > 0) {
             OrenAVMPackageStore* store = [[OrenAVMPackageStore alloc] init];
@@ -972,6 +991,7 @@ rm -f "$PKG_READY"
 PKG_PORT="$(reserve_tcp_port)"
 GO_STORE_PORT="$(reserve_tcp_port)"
 PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
+SCENE_PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-scene3d-package/0.1.0"
 REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
 GO_STORE_DIR="$TMP_DIR/go_obc_store"
 REMOTE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0.1.0"
@@ -979,18 +999,24 @@ REMOTE_PACKAGE_V2_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-remote/0
 REMOTE_BAD_ASSET_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-asset/0.1.0"
 REMOTE_BAD_SIGNATURE_PACKAGE_DIR="$REMOTE_STORE_DIR/packages/oren-labs/sdk-package-bad-signature/0.1.0"
 rm -rf "$TMP_DIR/package_store" "$TMP_DIR/downloaded_packages" "$TMP_DIR/downloaded_service_packages" "$REMOTE_STORE_DIR" "$GO_STORE_DIR"
-mkdir -p "$PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_PACKAGE_V2_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets"
+mkdir -p "$PACKAGE_DIR/assets" "$SCENE_PACKAGE_DIR/assets" "$REMOTE_PACKAGE_DIR/assets" "$REMOTE_PACKAGE_V2_DIR/assets" "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets"
 cp "$PACKAGE_OBC_OUT" "$PACKAGE_DIR/program.obc"
+cp "$PACKAGE_SCENE_OBC_OUT" "$SCENE_PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_PACKAGE_DIR/program.obc"
 cp "$PACKAGE_V2_OBC_OUT" "$REMOTE_PACKAGE_V2_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_ASSET_PACKAGE_DIR/program.obc"
 cp "$PACKAGE_OBC_OUT" "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/program.obc"
 printf 'pkg-asset' > "$PACKAGE_DIR/assets/config.txt"
+python3 scripts/make_scene3d_bin_v0.py \
+  examples/obc_store_demos/assets/scene3d_card.json \
+  "$SCENE_PACKAGE_DIR/assets/scene3d_card.os3d"
 printf 'pkg-asset' > "$REMOTE_PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset-v2' > "$REMOTE_PACKAGE_V2_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_BAD_ASSET_PACKAGE_DIR/assets/config.txt"
 printf 'pkg-asset' > "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/assets/config.txt"
 PACKAGE_HASH="$(shasum -a 256 "$PACKAGE_DIR/program.obc" | awk '{print $1}')"
+SCENE_PACKAGE_HASH="$(shasum -a 256 "$SCENE_PACKAGE_DIR/program.obc" | awk '{print $1}')"
+SCENE_ASSET_HASH="$(shasum -a 256 "$SCENE_PACKAGE_DIR/assets/scene3d_card.os3d" | awk '{print $1}')"
 REMOTE_PACKAGE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/program.obc" | awk '{print $1}')"
 REMOTE_PACKAGE_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/program.obc" | awk '{print $1}')"
 REMOTE_ASSET_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/assets/config.txt" | awk '{print $1}')"
@@ -1010,6 +1036,38 @@ cat > "$PACKAGE_DIR/package.json" <<JSON
   "capabilities": ["CORE", "FS", "NET", "EXIT"],
   "permission_defaults": [
     { "domain": "NET", "action": "connect", "detail": "tcp://package.example:443", "granted": true }
+  ],
+  "time_mode": "deterministic",
+  "budgets": {
+    "gas": 5000000,
+    "heap_bytes": 33554432,
+    "io_bytes": 1048576,
+    "frame_commands": 1024
+  },
+  "vfs_mounts": [
+    { "virtual": "assets", "package_path": "assets", "read_only": true }
+  ]
+}
+JSON
+cat > "$SCENE_PACKAGE_DIR/package.json" <<JSON
+{
+  "schema": "oren.obc.package.v0",
+  "name": "sdk-scene3d-package",
+  "publisher": "oren-labs",
+  "version": "0.1.0",
+  "title": "SDK Scene3D Package",
+  "summary": "Verifies OrenAVMPackageStore mounts byte-native Scene3D assets.",
+  "entry_obc": "program.obc",
+  "obc_sha256": "$SCENE_PACKAGE_HASH",
+  "oren_min": "0.0.rolling",
+  "avm_abi_min": 8,
+  "capabilities": ["CORE", "FS", "EXIT"],
+  "assets": [
+    {
+      "path": "assets/scene3d_card.os3d",
+      "sha256": "$SCENE_ASSET_HASH",
+      "media_type": "application/vnd.oren.ui.scene3d.bin.v0"
+    }
   ],
   "time_mode": "deterministic",
   "budgets": {
@@ -1590,6 +1648,7 @@ OREN_AVM_SDK_NET_PREFETCH=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
+OREN_AVM_SDK_SCENE_PACKAGE_DIR="$SCENE_PACKAGE_DIR" \
 OREN_AVM_SDK_PACKAGE_INDEX_URL="http://127.0.0.1:${PKG_PORT}/index.json" \
 OREN_AVM_SDK_PACKAGE_DOWNLOAD_DIR="$TMP_DIR/downloaded_packages" \
 OREN_AVM_SDK_SERVICE_PACKAGE_INDEX_URL="http://127.0.0.1:${GO_STORE_PORT}/api/v0/index.json" \

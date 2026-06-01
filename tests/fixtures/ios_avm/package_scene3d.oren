@@ -1,0 +1,27 @@
+import scene3d "std:ui/scene3d"
+import ui_cmds "std:ui/commands"
+import ui_raster "std:ui/raster"
+
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn px(buf, w, x, y, chan) {
+    return oren_bytes_get_u8(buf, (y * w + x) * 4 + chan)
+}
+
+fn main() {
+    var cmds = scene3d.commands_from_binary_file("assets/scene3d_card.os3d")
+    if oren_is_err(cmds) { fail(oren_err_msg(cmds)) }
+    var valid = ui_cmds.try_validate(cmds, 4, 4, {"strict_bounds": true})
+    if oren_is_err(valid) { fail(oren_err_msg(valid)) }
+    var buf = ui_raster.try_rasterize(cmds, 4, 4, {"strict_bounds": true})
+    if oren_is_err(buf) { fail(oren_err_msg(buf)) }
+    if px(buf, 4, 1, 1, 1) != 255 { fail("scene3d package pixel") }
+    print("scene3d:ok")
+    oren_exit(9)
+}
+
+main()
