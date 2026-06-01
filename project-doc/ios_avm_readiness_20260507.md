@@ -73,7 +73,7 @@ allocator/lifecycle hardening.
   iPhoneOS and simulator, and runs the same `.obc` through the host libavm embed
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction,
   VFS snapshot verification, deterministic TIME, VirtualNET through
-  `std:net/avm.try_get_text(...)` including live callback mode,
+  `std:net/avm/http.get(...).text()` including live callback mode,
   VirtualPROC `oren_system(...)`, binary GFX frame publication/retrieval,
   binary GFX input-event pull, and captured stdout retrieval/clear.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls

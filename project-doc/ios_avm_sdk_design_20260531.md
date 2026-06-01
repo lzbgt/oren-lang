@@ -58,16 +58,17 @@ Retained SDK slices on 2026-05-31:
   provides the first app-usable NetworkProvider slice. The SDK owns the host
   `URLSession` request, enforces an allowlisted host and timeout, then injects
   the response bytes into VirtualNET under the original URL. OBC code uses the
-  portable `std:net/avm.try_get_bytes(url)` or boundary-only
-  `try_get_text(url)` facades; raw `oren_net_get*` calls are only the AVM substrate
-  and never grant host networking authority.
+  portable object-style `std:net/avm/http.get(url).bytes()` /
+  `std:net/avm/http.get(url).text()` response methods; raw `oren_net_get*` calls
+  and older root helpers are only the AVM substrate and never grant host
+  networking authority.
 - `OrenAVMRuntime enableLiveNetworkWithAllowedHosts:timeoutSeconds:error:` installs
   or updates the embedder NET callback, and `disableLiveNetworkWithError:` removes
   it. This lets the host app prompt users, grant/restrict/deny network policy, and
   change that policy later while the same OBC program remains portable. When OBC
-  calls `std:net/avm.try_get_bytes(url)` for a URL not already in VirtualNET, the SDK
-  can synchronously perform an allowlisted `URLSession` fetch on the AVM worker and
-  return the body to bytecode. This is a convenience bridge for app integration,
+  asks `std:net/avm/http.get(url).bytes()` for a URL not already in VirtualNET, the
+  SDK can synchronously perform an allowlisted `URLSession` fetch on the AVM worker
+  and return the body to bytecode. This is a convenience bridge for app integration,
   not raw socket authority.
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
   and then runs the same `.obc` program against `std:net/avm.try_get_bytes(url)`,
@@ -179,9 +180,9 @@ Default NET adapter.
 - Package manifest declares network domains before launch.
 - The SDK maps responses back into the AVM NET surface with size/time budgets.
 - Current implementation is prefetch-oriented: host code fetches allowlisted URLs
-  before or between AVM runs, then OBC reads the materialized body through
-  `std:net/avm.try_get_text(url)`. This preserves deterministic AVM execution and
-  keeps iOS networking policy in the host SDK.
+  before or between AVM runs, then OBC reads the materialized response through
+  `std:net/avm/http.get(url).text()` or `.bytes()`. This preserves deterministic
+  AVM execution and keeps iOS networking policy in the host SDK.
 - Live callback mode is enabled by the interactive app defaults so useful OBC app
   programs can reach the network through VNET without extra boilerplate. It remains
   synchronous and must run on an AVM worker queue, not the UI thread. Apps can
