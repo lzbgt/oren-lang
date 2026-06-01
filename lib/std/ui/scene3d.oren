@@ -154,15 +154,76 @@ fn _asset_mesh(m) {
     return oren_err(4, "ui.scene3d: unsupported mesh kind")
 }
 
-fn _asset_model(m) {
+fn _index_names(xs) {
+    var out = {}
+    if xs == nil { return out }
+    var i = 0
+    while i < oren_list_len(xs) {
+        var item = xs[i]
+        if item != nil {
+            var name = item["name"]
+            var id = item["id"]
+            if name != nil && id != nil { oren_map_set_str(out, name, id) }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _resolve_named_id(m, id_key, name_key, names, fallback) {
+    var id = m[id_key]
+    if id != nil { return id }
+    var name = m[name_key]
+    if name == nil { return fallback }
+    var resolved = oren_map_get_str(names, name)
+    if resolved == nil { return oren_err(4, "ui.scene3d: unknown " + name_key) }
+    return resolved
+}
+
+fn _asset_model(m, mesh_names, material_names) {
     if m == nil { return oren_err(4, "ui.scene3d: model is nil") }
-    var material_id = m["material_id"]
-    if material_id == nil { material_id = 0 }
+    var mesh_id = _resolve_named_id(m, "mesh_id", "mesh", mesh_names, nil)
+    if oren_is_err(mesh_id) { return mesh_id }
+    var material_id = _resolve_named_id(m, "material_id", "material", material_names, 0)
+    if oren_is_err(material_id) { return material_id }
     var x = m["x"]; if x == nil { x = 0 }
     var y = m["y"]; if y == nil { y = 0 }
     var z = m["z"]; if z == nil { z = 0 }
     var scale_milli = m["scale_milli"]; if scale_milli == nil { scale_milli = 1000 }
-    return model(m["id"], m["mesh_id"], material_id, x, y, z, scale_milli)
+    var out = model(m["id"], mesh_id, material_id, x, y, z, scale_milli)
+    if m["name"] != nil { oren_map_set_str(out, "name", m["name"]) }
+    return out
+}
+
+fn _asset_instance(inst, templates, mesh_names, material_names) {
+    if inst == nil { return oren_err(4, "ui.scene3d: instance is nil") }
+    var template_name = inst["template"]
+    var tpl = nil
+    if template_name != nil { tpl = oren_map_get_str(templates, template_name) }
+    if template_name != nil && tpl == nil { return oren_err(4, "ui.scene3d: unknown template") }
+    if tpl == nil { tpl = {} }
+    var m = {}
+    var id = inst["id"]; if id == nil { id = tpl["id"] }
+    var name = inst["name"]; if name == nil { name = tpl["name"] }
+    var mesh_id = inst["mesh_id"]; if mesh_id == nil { mesh_id = tpl["mesh_id"] }
+    var mesh_name = inst["mesh"]; if mesh_name == nil { mesh_name = tpl["mesh"] }
+    var material_id = inst["material_id"]; if material_id == nil { material_id = tpl["material_id"] }
+    var material_name = inst["material"]; if material_name == nil { material_name = tpl["material"] }
+    var x = inst["x"]; if x == nil { x = tpl["x"] }
+    var y = inst["y"]; if y == nil { y = tpl["y"] }
+    var z = inst["z"]; if z == nil { z = tpl["z"] }
+    var scale_milli = inst["scale_milli"]; if scale_milli == nil { scale_milli = tpl["scale_milli"] }
+    oren_map_set_str(m, "id", id)
+    if name != nil { oren_map_set_str(m, "name", name) }
+    if mesh_id != nil { oren_map_set_str(m, "mesh_id", mesh_id) }
+    if mesh_name != nil { oren_map_set_str(m, "mesh", mesh_name) }
+    if material_id != nil { oren_map_set_str(m, "material_id", material_id) }
+    if material_name != nil { oren_map_set_str(m, "material", material_name) }
+    if x != nil { oren_map_set_str(m, "x", x) }
+    if y != nil { oren_map_set_str(m, "y", y) }
+    if z != nil { oren_map_set_str(m, "z", z) }
+    if scale_milli != nil { oren_map_set_str(m, "scale_milli", scale_milli) }
+    return _asset_model(m, mesh_names, material_names)
 }
 
 fn _map_list(xs, map_fn) {
@@ -176,6 +237,30 @@ fn _map_list(xs, map_fn) {
         i = i + 1
     }
     return out
+}
+
+fn _push_asset_models(out, xs, mesh_names, material_names) {
+    if xs == nil { return 0 }
+    var i = 0
+    while i < oren_list_len(xs) {
+        var item = _asset_model(xs[i], mesh_names, material_names)
+        if oren_is_err(item) { return item }
+        list.push(out, item)
+        i = i + 1
+    }
+    return 0
+}
+
+fn _push_asset_instances(out, xs, templates, mesh_names, material_names) {
+    if xs == nil { return 0 }
+    var i = 0
+    while i < oren_list_len(xs) {
+        var item = _asset_instance(xs[i], templates, mesh_names, material_names)
+        if oren_is_err(item) { return item }
+        list.push(out, item)
+        i = i + 1
+    }
+    return 0
 }
 
 fn _json_to_plain(jv) {
@@ -347,6 +432,7 @@ fn scene_from_asset(asset) {
     }
     var meshes = _map_list(asset["meshes"], _asset_mesh)
     if oren_is_err(meshes) { return meshes }
+    var mesh_names = _index_names(asset["meshes"])
     var materials = []
     var mats = asset["materials"]
     if mats != nil {
@@ -357,14 +443,46 @@ fn scene_from_asset(asset) {
             mi = mi + 1
         }
     }
-    var models = _map_list(asset["models"], _asset_model)
-    if oren_is_err(models) { return models }
+    var material_names = _index_names(asset["materials"])
+    var templates = {}
+    var model_templates = asset["model_templates"]
+    if model_templates != nil {
+        var ti = 0
+        while ti < oren_list_len(model_templates) {
+            var tpl = model_templates[ti]
+            var tpl_name = tpl["name"]
+            if tpl_name != nil { oren_map_set_str(templates, tpl_name, tpl) }
+            ti = ti + 1
+        }
+    }
+    var models = []
+    var model_push = _push_asset_models(models, asset["models"], mesh_names, material_names)
+    if oren_is_err(model_push) { return model_push }
+    var instance_push = _push_asset_instances(models, asset["instances"], templates, mesh_names, material_names)
+    if oren_is_err(instance_push) { return instance_push }
+    var model_names = _index_names(models)
+    var draws = []
+    var raw_draws = asset["draw"]
+    if raw_draws != nil {
+        var di = 0
+        while di < oren_list_len(raw_draws) {
+            var d = raw_draws[di]
+            if oren_type_tag(d) == 4 {
+                var draw_id = oren_map_get_str(model_names, d)
+                if draw_id == nil { return oren_err(4, "ui.scene3d: unknown draw model") }
+                list.push(draws, draw_id)
+            } else {
+                list.push(draws, d)
+            }
+            di = di + 1
+        }
+    }
     return {
         "meshes": meshes,
         "materials": materials,
         "models": models,
         "camera": asset["camera"],
-        "draw": asset["draw"],
+        "draw": draws,
         "destroy": asset["destroy"]
     }
 }

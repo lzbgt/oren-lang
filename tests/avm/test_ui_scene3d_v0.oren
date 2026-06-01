@@ -120,6 +120,9 @@ fn main() {
     assert_eq(from_asset[0]["op"], "mesh3d_indexed")
     assert_eq(from_asset[1]["op"], "material3d")
     assert_eq(from_asset[2]["op"], "model3d")
+    assert_eq(from_asset[2]["name"], "fixture-card")
+    assert_eq(from_asset[2]["mesh_id"], 17)
+    assert_eq(from_asset[2]["material_id"], 18)
     assert_eq(from_asset[3]["op"], "push_camera_ortho")
     assert_eq(from_asset[4]["op"], "draw_model3d")
     assert_eq(from_asset[5]["op"], "pop_camera")
@@ -150,6 +153,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_binary(bytes.try_pack([79, 83]))) == true)
 
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"bad\"}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instances\":[{\"id\":1,\"template\":\"missing\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands(nil)) == true)
     exit(0)
 }

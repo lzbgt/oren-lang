@@ -4,6 +4,7 @@
     {
       "kind": "indexed",
       "id": 31,
+      "name": "card-mesh",
       "vertices": [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -16,12 +17,15 @@
     }
   ],
   "materials": [
-    {"id": 32, "color": "#00ff00"}
+    {"id": 32, "name": "card-green", "color": "#00ff00"}
   ],
-  "models": [
-    {"id": 33, "mesh_id": 31, "material_id": 32, "x": 1, "y": 1, "z": 0, "scale_milli": 1000}
+  "model_templates": [
+    {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "z": 0, "scale_milli": 1000}
+  ],
+  "instances": [
+    {"id": 33, "name": "card", "template": "card-template", "x": 1, "y": 1}
   ],
   "camera": {"near_z": 0, "far_z": 2},
-  "draw": [33],
+  "draw": ["card"],
   "destroy": true
 }

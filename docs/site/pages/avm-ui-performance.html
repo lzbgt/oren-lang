@@ -320,14 +320,19 @@
 </ul>
 <p>  mesh/material/model command lists from ordinary maps/lists before</p>
 <p>  <code>std:ui/avm</code> encodes them into OGF0, and <code>commands_from_file(path)</code> loads the</p>
-<p>  same scene shape from JSON package assets mounted into VirtualFS;</p>
+<p>  same scene shape from JSON package assets mounted into VirtualFS. Reviewable</p>
+<p>  JSON assets can use <code>name</code> fields, <code>mesh</code>/<code>material</code> string references,</p>
+<p>  <code>model_templates</code>, <code>instances</code>, and string draw entries; these resolve to the</p>
+<p>  existing numeric retained commands before encoding;</p>
 <ul>
 <li><code>std:ui/scene3d.commands_from_binary(...)</code> and</li>
 </ul>
 <p>  <code>commands_from_binary_file(path)</code> load the byte-native <code>OS3D01</code> package asset</p>
 <p>  format: little-endian mesh/material/model/draw counts, retained mesh payload</p>
 <p>  byte slices, RGBA u32 colors, optional scene-level camera depth windows, model</p>
-<p>  transforms, draw ids, and a destroy flag;</p>
+<p>  transforms, draw ids, and a destroy flag. The <code>.os3d</code> builder resolves named</p>
+<p>  JSON references and templates at package-build time so the runtime format stays</p>
+<p>  id-based and compact;</p>
 <ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>
@@ -560,6 +565,11 @@
 <p>    so headless iOS SDK verification can parse retained 3D/resource frames,</p>
 <p>    update resource state, and assert vertex/text/image run counts without a</p>
 <p>    live <code>CAMetalDrawable</code>.</p>
+<ol>
+<li>Done: add richer package-scene material/model authoring by supporting named</li>
+</ol>
+<p>    JSON mesh/material/model references plus model templates and instances, while</p>
+<p>    lowering them to existing numeric retained commands and <code>.os3d</code> records.</p>
 <ol>
 <li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
 </ol>

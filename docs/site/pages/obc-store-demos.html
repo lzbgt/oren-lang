@@ -68,9 +68,11 @@ build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d
 <p>ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime</p>
 <p>assets; <code>scene3d-asset-demo</code> derives a byte-native <code>.os3d</code> asset from the</p>
 <p>reviewable JSON source with <code>scripts/make_scene3d_bin_v0.py</code>, including</p>
-<p>scene-level camera depth metadata, declares a read-only <code>assets/</code> VFS mount, and</p>
-<p>proves OBC can load retained UI scene metadata from package assets without JSON</p>
-<p>parsing in the hot path. <code>make verify-libavm-ios</code> also carries an SDK-local</p>
+<p>scene-level camera depth metadata, named mesh/material references, model</p>
+<p>templates, and instances. The builder resolves that authoring form into compact</p>
+<p>numeric <code>.os3d</code> records, the package declares a read-only <code>assets/</code> VFS mount,</p>
+<p>and OBC proves it can load retained UI scene metadata from package assets without</p>
+<p>JSON parsing in the hot path. <code>make verify-libavm-ios</code> also carries an SDK-local</p>
 <p>package-store fixture that mounts and raster-checks the same class of <code>.os3d</code></p>
 <p>asset through <code>OrenAVMPackageStore</code>, so host-app package install/run coverage</p>
 <p>matches the demo bundle format.</p>

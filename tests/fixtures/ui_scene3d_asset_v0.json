@@ -4,6 +4,7 @@
     {
       "kind": "indexed",
       "id": 17,
+      "name": "fixture-mesh",
       "vertices": [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -16,12 +17,15 @@
     }
   ],
   "materials": [
-    {"id": 18, "color": "#00ff00"}
+    {"id": 18, "name": "fixture-green", "color": "#00ff00"}
   ],
-  "models": [
-    {"id": 19, "mesh_id": 17, "material_id": 18, "x": 1, "y": 1, "z": 0, "scale_milli": 1000}
+  "model_templates": [
+    {"name": "fixture-template", "mesh": "fixture-mesh", "material": "fixture-green", "z": 0, "scale_milli": 1000}
+  ],
+  "instances": [
+    {"id": 19, "name": "fixture-card", "template": "fixture-template", "x": 1, "y": 1}
   ],
   "camera": {"near_z": 0, "far_z": 2},
-  "draw": [19],
+  "draw": ["fixture-card"],
   "destroy": true
 }

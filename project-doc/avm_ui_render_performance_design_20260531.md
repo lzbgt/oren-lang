@@ -244,12 +244,17 @@ High-volume 2D and 3D need retained resources:
 - `std:ui/scene3d` is a pure OBC-side helper layer that builds ordered retained
   mesh/material/model command lists from ordinary maps/lists before
   `std:ui/avm` encodes them into OGF0, and `commands_from_file(path)` loads the
-  same scene shape from JSON package assets mounted into VirtualFS;
+  same scene shape from JSON package assets mounted into VirtualFS. Reviewable
+  JSON assets can use `name` fields, `mesh`/`material` string references,
+  `model_templates`, `instances`, and string draw entries; these resolve to the
+  existing numeric retained commands before encoding;
 - `std:ui/scene3d.commands_from_binary(...)` and
   `commands_from_binary_file(path)` load the byte-native `OS3D01` package asset
   format: little-endian mesh/material/model/draw counts, retained mesh payload
   byte slices, RGBA u32 colors, optional scene-level camera depth windows, model
-  transforms, draw ids, and a destroy flag;
+  transforms, draw ids, and a destroy flag. The `.os3d` builder resolves named
+  JSON references and templates at package-build time so the runtime format stays
+  id-based and compact;
 - orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
   and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
   range without exposing host camera objects or Metal depth buffers to OBC;
@@ -408,6 +413,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     so headless iOS SDK verification can parse retained 3D/resource frames,
     update resource state, and assert vertex/text/image run counts without a
     live `CAMetalDrawable`.
+31. Done: add richer package-scene material/model authoring by supporting named
+    JSON mesh/material/model references plus model templates and instances, while
+    lowering them to existing numeric retained commands and `.os3d` records.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.

@@ -22,8 +22,69 @@ def i32(v):
     return int(v).to_bytes(4, "little", signed=True)
 
 
+def index_names(items):
+    out = {}
+    for item in items or []:
+        name = item.get("name")
+        item_id = item.get("id")
+        if name is not None and item_id is not None:
+            out[name] = item_id
+    return out
+
+
+def resolve_id(item, id_key, name_key, names, fallback=None):
+    if item.get(id_key) is not None:
+        return item[id_key]
+    name = item.get(name_key)
+    if name is None:
+        return fallback
+    if name not in names:
+        raise SystemExit(f"unknown scene {name_key}: {name!r}")
+    return names[name]
+
+
+def normalize_scene(scene):
+    meshes = scene.get("meshes", [])
+    materials = scene.get("materials", [])
+    mesh_names = index_names(meshes)
+    material_names = index_names(materials)
+    templates = {m["name"]: m for m in scene.get("model_templates", []) if m.get("name") is not None}
+
+    models = []
+    for model in scene.get("models", []):
+        m = dict(model)
+        m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
+        m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
+        models.append(m)
+
+    for inst in scene.get("instances", []):
+        tpl = templates.get(inst.get("template"), {})
+        if inst.get("template") is not None and not tpl:
+            raise SystemExit(f"unknown scene template: {inst.get('template')!r}")
+        m = dict(tpl)
+        m.update(inst)
+        m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
+        m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
+        models.append(m)
+
+    model_names = index_names(models)
+    draws = []
+    for draw in scene.get("draw", []):
+        if isinstance(draw, str):
+            if draw not in model_names:
+                raise SystemExit(f"unknown scene draw model: {draw!r}")
+            draws.append(model_names[draw])
+        else:
+            draws.append(draw)
+
+    out = dict(scene)
+    out["models"] = models
+    out["draw"] = draws
+    return out
+
+
 def scene3d_bin_v0(scene_bytes):
-    scene = json.loads(scene_bytes)
+    scene = normalize_scene(json.loads(scene_bytes))
     out = bytearray(b"OS3D01\x00\x00")
     meshes = scene.get("meshes", [])
     materials = scene.get("materials", [])
