@@ -553,7 +553,7 @@ fn discover_module(base, path, config) {
 
     // Extern stdlib module (bytecode stdlib linking mode).
     if is_std && std_mode == "obc" {
-        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "added": false}
+        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "external_api": _ml_stdlib_obc_api(config), "added": false}
         MODULES[full] = mod
         if mod["added"] != true {
             mod["added"] = true

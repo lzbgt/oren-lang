@@ -64,9 +64,10 @@ This file is the concise task view. Detailed implementation status lives in
      mounts for real app-owned file reads/writes during OBC execution, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
      wall-clock time, an allowlisted `URLSession` prefetch bridge, and an
-     interactive-default live NET callback for OBC `std:net/avm.try_get_text(url)`
+     interactive-default live NET callback for OBC `http.get(url).text()` /
+     `http.get(url).bytes()` through `std:net/avm/http`
      backed by dynamic SDK enable/restrict/disable controls and a reusable SDK
-     session, plus first `std:net/avm.session_open/write/read/select/accept/close` TCP/UDP/WebSocket virtual
+     session, plus first `std:net/avm/socket.open/write/read/select/accept/close` TCP/UDP/WebSocket virtual
      session handles and `std:net/avm/tcp` / `std:net/avm/udp` convenience facades
      plus `std:net/avm/ws` over host-owned iOS sockets with readiness selection,
      plus the native `std:avm/events`

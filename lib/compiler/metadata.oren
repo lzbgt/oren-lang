@@ -1063,6 +1063,18 @@ fn generate_metadata(prog) {
             oren_list_push(func_parts, "      \"params\": " + json_named_list(params) + ",\n")
             oren_list_push(func_parts, "      \"attrs\": " + json_attrs(func["attrs"]) + ",\n")
             oren_list_push(func_parts, "      \"doc\": " + json_string(func["doc"]) + ",\n")
+            if func["ret_ann_type"] != nil {
+                oren_list_push(func_parts, "      \"ret_ann_type\": " + json_string(func["ret_ann_type"]) + ",\n")
+            }
+            if func["impl_trait"] != nil {
+                oren_list_push(func_parts, "      \"impl_trait\": " + json_string(func["impl_trait"]) + ",\n")
+            }
+            if func["impl_type"] != nil {
+                oren_list_push(func_parts, "      \"impl_type\": " + json_string(func["impl_type"]) + ",\n")
+            }
+            if func["impl_method"] != nil {
+                oren_list_push(func_parts, "      \"impl_method\": " + json_string(func["impl_method"]) + ",\n")
+            }
             oren_list_push(func_parts, "      \"contains_yield\": " + json_bool(yield_info["contains_yield"]) + ",\n")
             oren_list_push(func_parts, "      \"yield_stmt_count\": " + oren_int_to_string(yield_info["yield_stmt_count"]) + ",\n")
             oren_list_push(func_parts, "      \"yield_stmt_sites\": " + json_string_array(yield_info["yield_stmt_sites"]) + ",\n")

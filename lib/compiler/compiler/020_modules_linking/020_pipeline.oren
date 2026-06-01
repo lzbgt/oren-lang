@@ -182,9 +182,9 @@ fn load_module(base, path, config) {
 
     // Extern stdlib module (bytecode stdlib linking mode):
     // - no parsing, no dependency walking
-    // - contributes no statements
+    // - contributes no statements, but does contribute OBC metadata for method lowering
     if is_std && std_mode == "obc" {
-        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "added": false}
+        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "external_api": _ml_stdlib_obc_api(config), "added": false}
         MODULES[full] = mod
         if mod["added"] != true {
             mod["added"] = true
@@ -616,11 +616,56 @@ fn link_program(entry_path, root_prog, config) {
     }
     if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.aliases.done", "", t0) }
 
+    var external_function_returns = {}
+    var external_impl_methods = {}
+    var external_impl_trait_methods = {}
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var emod = MODULE_ORDER[i]
+        var api = emod["external_api"]
+        if api != nil {
+            var fr = api["function_returns"]
+            for fn_name in fr {
+                external_function_returns[fn_name] = fr[fn_name]
+            }
+            var im = api["impl_methods"]
+            for type_name in im {
+                if external_impl_methods[type_name] == nil { external_impl_methods[type_name] = {} }
+                var methods = im[type_name]
+                for method_name in methods {
+                    external_impl_methods[type_name][method_name] = methods[method_name]
+                }
+            }
+            var itm = api["impl_trait_methods"]
+            for trait_name in itm {
+                if external_impl_trait_methods[trait_name] == nil { external_impl_trait_methods[trait_name] = {} }
+                var types = itm[trait_name]
+                for type_name2 in types {
+                    if external_impl_trait_methods[trait_name][type_name2] == nil { external_impl_trait_methods[trait_name][type_name2] = {} }
+                    var methods2 = types[type_name2]
+                    for method_name2 in methods2 {
+                        external_impl_trait_methods[trait_name][type_name2][method_name2] = methods2[method_name2]
+                    }
+                }
+            }
+            var traits_ext = api["traits"]
+            var ti_ext = 0
+            while traits_ext != nil && ti_ext < oren_list_len(traits_ext) {
+                oren_list_push(merged_traits, traits_ext[ti_ext])
+                ti_ext = ti_ext + 1
+            }
+        }
+        i = i + 1
+    }
+
     var linked = {
         "statements": merged_stmts,
         "traits": merged_traits,
         "aliases": all_aliases,
         "type_ns": type_ns,
+        "external_function_returns": external_function_returns,
+        "external_impl_methods": external_impl_methods,
+        "external_impl_trait_methods": external_impl_trait_methods,
         "config": config,
         "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
     }

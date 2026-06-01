@@ -4,7 +4,7 @@
 // adapters may use select/kqueue/epoll/dispatch internally, but OBC sees only
 // stable watch maps and bounded event maps.
 
-import net_avm "std:net/avm"
+import socket "std:net/avm/socket"
 import time "std:time"
 import ui_avm "std:ui/avm"
 
@@ -60,7 +60,7 @@ fn _check_one(w, i) {
         if sid == nil { return oren_err(4, "std:avm/events.select: net watch missing session_id") }
         var events = w["events"]
         if events == nil { events = event_read() }
-        var ready = net_avm.session_select(sid, events, 0)
+        var ready = socket.select(sid, events, 0)
         if oren_is_err(ready) { return ready }
         if ready != 0 {
             return {"kind": "net", "id": id, "index": i, "session_id": sid, "events": events, "ready": ready}

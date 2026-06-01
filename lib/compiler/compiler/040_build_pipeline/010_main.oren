@@ -1,3 +1,31 @@
+fn _build_obx_api_surface(linked) {
+    var surface = {"function_returns": {}, "impls": []}
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var entry = analysis.top_level_function_surface_entry(stmts[i])
+        if entry != nil {
+            var name = entry["name"]
+            var fn0 = entry["func"]
+            if name != nil && fn0 != nil {
+                if fn0["ret_ann_type"] != nil {
+                    surface["function_returns"][name] = fn0["ret_ann_type"]
+                }
+                if fn0["impl_type"] != nil && fn0["impl_method"] != nil {
+                    oren_list_push(surface["impls"], {
+                        "trait": fn0["impl_trait"],
+                        "type": fn0["impl_type"],
+                        "method": fn0["impl_method"],
+                        "name": name
+                    })
+                }
+            }
+        }
+        i = i + 1
+    }
+    return surface
+}
+
 fn compiler_main() {
     // Modern CLI parsing (click-style):
     // - supports `--opt=value` and interspersed options/args
@@ -694,7 +722,7 @@ fn compiler_main() {
 	        if oren_list_len(link_obc) > 0 { allow_undef = true }
 	        if obc_lib { allow_undef = true }
 
-	        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
+		        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "stdlib_obc": stdlib_obc, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
 	        if trace_phase_path != nil {
 	            var linked_bc_stmts = 0
 	            if linked_bc != nil && linked_bc["statements"] != nil { linked_bc_stmts = oren_list_len(linked_bc["statements"]) }
@@ -782,7 +810,9 @@ fn compiler_main() {
                         }
                     }
                 }
-                ctx["obx_bytes"] = obc_link.obx_encode(path, exports, ctx["relocs"])
+                    var obx_surface = nil
+                    if obc_lib { obx_surface = _build_obx_api_surface(linked_bc) }
+	                ctx["obx_bytes"] = obc_link.obx_encode(path, exports, ctx["relocs"], obx_surface)
             }
 
         // Stdlib/extra library linking (rolling):

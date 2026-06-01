@@ -8,6 +8,37 @@ fn _is_std_spec(path) {
 // GC pin root for module linking (set in link_program).
 var LINK_GC_ROOT = nil
 
+fn _ml_stdlib_obc_api(config) {
+    var empty = {"function_returns": {}, "impl_methods": {}, "impl_trait_methods": {}, "traits": []}
+    if config == nil { return empty }
+    if config["stdlib_obc_api"] != nil { return config["stdlib_obc_api"] }
+
+    var path = config["stdlib_obc"]
+    if path == nil || path == "" {
+        var env_path = oren_env("OREN_STDLIB_OBC")
+        if env_path != nil { path = env_path }
+    }
+    if path == nil || path == "" {
+        config["stdlib_obc_api"] = empty
+        return empty
+    }
+
+    var parsed_obc = obc_link.obc_read_file(path)
+    if parsed_obc["error"] != nil {
+        print("Failed to read stdlib OBC metadata: " + path)
+        print(parsed_obc["error"])
+        oren_exit(2)
+    }
+    var obx = parsed_obc["obx"]
+    if obx == nil || obx["surface"] == nil {
+        print("Stdlib OBC missing OBX API surface: " + path)
+        oren_exit(2)
+    }
+    var api = obx["surface"]
+    config["stdlib_obc_api"] = api
+    return api
+}
+
 fn _strip_orext(p) {
     if p == nil { return "" }
     var n = oren_string_len(p)

@@ -1,0 +1,75 @@
+// AVM-safe HTTP facade over host-owned VirtualNET GET providers.
+//
+// OBC code should import this module for request/response style HTTP reads:
+//   var req = http.get(url)
+//   var text = req.text()
+//   var parsed = req.json()
+//
+// The root `std:net/avm` module is intentionally only a namespace boundary.
+
+import json_std "std:json"
+
+struct Response {
+    method,
+    url,
+    status,
+    headers,
+    body
+}
+
+trait BodyReader {
+    fn bytes(self);
+    fn text(self);
+    fn json(self);
+}
+
+fn _err_msg(v, fallback) {
+    var msg = oren_err_msg(v)
+    if msg == nil || msg == "" { return fallback }
+    return msg
+}
+
+fn _check_response(resp, ctx) {
+    if resp == nil { return oren_err(4, ctx + ": response is nil") }
+    return 0
+}
+
+fn request(method, url, opts): Response {
+    if method == nil { return oren_err(4, "std:net/avm/http.request: method is nil") }
+    if url == nil { return oren_err(4, "std:net/avm/http.request: url is nil") }
+    if method != "GET" { return oren_err(4, "std:net/avm/http.request: only GET is supported by AVM v0") }
+
+    var body = oren_net_get_bytes(url)
+    if oren_is_err(body) {
+        return oren_err(oren_err_code(body), _err_msg(body, "std:net/avm/http.request failed"))
+    }
+    return Response("GET", url, 200, {}, body)
+}
+
+fn get(url): Response {
+    return request("GET", url, nil)
+}
+
+fn bytes(resp: Response) {
+    var ok = _check_response(resp, "std:net/avm/http.bytes")
+    if oren_is_err(ok) { return ok }
+    return resp.body
+}
+
+fn text(resp: Response) {
+    var body = bytes(resp)
+    if oren_is_err(body) { return body }
+    return oren_string_from_bytes_slice(body, 0, oren_bytes_len(body))
+}
+
+fn json(resp: Response) {
+    var s = text(resp)
+    if oren_is_err(s) { return s }
+    return json_std.try_decode(s)
+}
+
+impl BodyReader for Response {
+    fn bytes(self) { return bytes(self) }
+    fn text(self) { return text(self) }
+    fn json(self) { return json(self) }
+}

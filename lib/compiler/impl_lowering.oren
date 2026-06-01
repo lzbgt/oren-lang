@@ -15,7 +15,8 @@ import ast "ast.oren"
 //     impl_methods[type][method] = fn_name OR "__AMBIG__"
 //     impl_trait_methods[trait][type][method] = fn_name OR "__AMBIG__"
 // - Rewrite call sites in-place:
-//     x.method(...)           -> __oren_impl__...(x, ...)   when x has a known annotation in scope
+//     x.method(...)           -> __oren_impl__...(x, ...)   when x has a known annotation or inferred return type in scope
+//     make_x(...).method(...) -> __oren_impl__...(make_x(...), ...) when the call return type is annotated
 //     Type.method(...)        -> __oren_impl__...( ... )
 //     Trait.method(x, ...)    -> __oren_impl__...(x, ...)   when x has a known annotation in scope
 //
@@ -150,14 +151,49 @@ fn collect_impl_registries(linked, errs) {
     var impl_methods = {}
     var impl_trait_methods = {}
     var impl_blocks = {}
+    var function_returns = {}
+
+    var external_returns = linked["external_function_returns"]
+    for ern in external_returns {
+        function_returns[ern] = external_returns[ern]
+    }
+    var external_impls = linked["external_impl_methods"]
+    for ety in external_impls {
+        if impl_methods[ety] == nil { impl_methods[ety] = {} }
+        var ems = external_impls[ety]
+        for em in ems {
+            impl_methods[ety][em] = ems[em]
+        }
+    }
+    var external_trait_impls = linked["external_impl_trait_methods"]
+    for etr in external_trait_impls {
+        if impl_trait_methods[etr] == nil { impl_trait_methods[etr] = {} }
+        var etypes = external_trait_impls[etr]
+        for ety2 in etypes {
+            if impl_trait_methods[etr][ety2] == nil { impl_trait_methods[etr][ety2] = {} }
+            var ems2 = etypes[ety2]
+            for em2 in ems2 {
+                impl_trait_methods[etr][ety2][em2] = ems2[em2]
+            }
+        }
+    }
+
     var ss = linked["statements"]
     var i = 0
     while i < oren_list_len(ss) {
         var st = ss[i]
+        if st != nil && st["type"] == "Function" {
+            if st["name"] != nil && st["ret_ann_type"] != nil {
+                function_returns[st["name"]] = st["ret_ann_type"]
+            }
+        }
         // impl blocks are lowered to plain Function expressions inside ExprStmt.
         if st != nil && st["type"] == "ExprStmt" {
             var e = st["expr"]
             if e != nil && e["type"] == "Function" {
+                if e["name"] != nil && e["name"] != "" && e["ret_ann_type"] != nil {
+                    function_returns[e["name"]] = e["ret_ann_type"]
+                }
                 var tr = e["impl_trait"]
                 var ty = e["impl_type"]
                 var m = e["impl_method"]
@@ -184,7 +220,7 @@ fn collect_impl_registries(linked, errs) {
         }
         i = i + 1
     }
-    return {"impl_methods": impl_methods, "impl_trait_methods": impl_trait_methods}
+    return {"impl_methods": impl_methods, "impl_trait_methods": impl_trait_methods, "function_returns": function_returns}
 }
 
 // Persistent environment for local type/kind inference.
@@ -424,6 +460,24 @@ fn infer_container_kind(expr, kind_env) {
         }
     }
     return nil
+}
+
+fn infer_expr_type(expr, regs, env) {
+    if expr == nil { return nil }
+    if expr["type"] == "Identifier" { return type_env_get(env, expr["value"]) }
+    if expr["type"] != "Call" { return nil }
+
+    var fnn = expr["fn"]
+    var name = nil
+    if fnn != nil && fnn["type"] == "Identifier" {
+        name = fnn["value"]
+    } else {
+        name = resolve_ns_name(regs["aliases"], fnn)
+    }
+    if name == nil { return nil }
+    var returns = regs["function_returns"]
+    if returns == nil { return nil }
+    return returns[name]
 }
 
 fn infer_map_key_kind(expr, kind_env) {
@@ -703,10 +757,15 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
     var args = expr["args"]
     if args == nil { args = [] }
 
-    // receiver-style: x.method(...)
-    if fn_expr["left"] != nil && fn_expr["left"]["type"] == "Identifier" {
-        var recv = fn_expr["left"]
-        var tname = type_env_get(env, recv["value"])
+    // receiver-style: x.method(...) or make_x(...).method(...)
+    var recv = fn_expr["left"]
+    if recv != nil {
+        var tname = nil
+        if recv["type"] == "Identifier" {
+            tname = type_env_get(env, recv["value"])
+        } else {
+            tname = infer_expr_type(recv, regs, env)
+        }
         if tname != nil {
             var mangled = impl_method_lookup(regs["impl_methods"], tname, method)
             if mangled == "__AMBIG__" {
@@ -896,6 +955,11 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
             type_env_set(env, nm["value"], nm["ann_type"])
             var kk = kind_from_ann_type(nm["ann_type"])
             if kk != nil { kind_env_set(kind_env, nm["value"], kk) }
+        } else {
+            if nm != nil && nm["type"] == "Identifier" {
+                var inferred_type = infer_expr_type(stmt["value"], regs, env)
+                if inferred_type != nil { type_env_set(env, nm["value"], inferred_type) }
+            }
         }
         if nm != nil && nm["type"] == "Identifier" {
             var k = infer_container_kind(stmt["value"], kind_env)
@@ -907,6 +971,8 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
         stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, kind_env, errs)
         var nm2 = stmt["name"]
         if nm2 != nil && nm2["type"] == "Identifier" {
+            var inferred_type2 = infer_expr_type(stmt["value"], regs, env)
+            if inferred_type2 != nil { type_env_set(env, nm2["value"], inferred_type2) }
             var k2 = infer_container_kind(stmt["value"], kind_env)
             if k2 != nil { kind_env_set(kind_env, nm2["value"], k2) }
         }

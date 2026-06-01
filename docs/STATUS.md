@@ -170,13 +170,13 @@ Facts from the 2026-05-28 implementation pass:
 - The SDK now includes an allowlisted `URLSession` prefetch helper that maps real
   host network responses into VirtualNET. `make verify-libavm-ios` starts a local
   HTTP server, fetches it through the SDK, injects the body under the requested URL,
-  then runs OBC that reads it with byte-native `std:net/avm.try_get_bytes(url)`.
+  then runs OBC that reads it as `http.get(url).bytes()` through
+  `std:net/avm/http`.
   The raw `oren_net_get*` intrinsics remain the AVM substrate, not the app-facing API.
   AVM still does not expose raw host networking to bytecode.
 - Interactive `OrenAVMRuntimeConfig` now enables the live host-backed VNET provider
   by default, while deterministic defaults stay fixture/replay oriented. OBC still
-  only sees `std:net/avm.try_get_bytes(url)` or explicit text-boundary helpers and
-  the AVM NET domain; the SDK owns
+  only sees `std:net/avm/http` request/response helpers and the AVM NET domain; the SDK owns
   real `URLSession` access. Apps can dynamically enable, restrict, or disable live
   NET with `enableLiveNetworkWithAllowedHosts:timeoutSeconds:` and
   `disableLiveNetworkWithError:`, so user permission prompts and settings changes
@@ -185,10 +185,10 @@ Facts from the 2026-05-28 implementation pass:
   `make verify-libavm-ios` proves fixture, prefetch, explicit live, and interactive-
   default live fetch modes against a local HTTP server, including dynamic disable
   and re-enable through the SDK.
-- AVM NET now also has virtual session handles for performance-oriented TCP/UDP/WebSocket
-  networking: `std:net/avm.session_open/write/read/close` map to AVM NET ops 1-4,
-  while `std:net/avm.session_select*` / `session_poll*` maps to NET op 5 for read/write readiness,
-  virtual DNS maps to NET op 6, and `session_accept` maps to NET op 7,
+- AVM NET now also has virtual socket/session handles for performance-oriented TCP/UDP/WebSocket
+  networking: `std:net/avm/socket.open/write/read/close` map to AVM NET ops 1-4,
+  while `std:net/avm/socket.select*` / `poll*` maps to NET op 5 for read/write readiness,
+  virtual DNS maps to NET op 6, and `std:net/avm/socket.accept` maps to NET op 7,
   and embedders can install host callbacks with
   `avm_embed_set_net_session_callbacks`. The iOS SDK implements the first reviewed
   provider for `tcp://host:port`, `tcp-listen://host:port`,
@@ -197,10 +197,12 @@ Facts from the 2026-05-28 implementation pass:
   IDs and bytes; it never receives a socket or file descriptor. `make
   verify-libavm-ios` proves local TCP, UDP, WebSocket, and TCP listen/accept
   ping/pong plus select-before-write/read through this path.
-- `std:net/avm/tcp`, `std:net/avm/udp`, and `std:net/avm/ws` now provide OBC-safe app-facing TCP/UDP/WebSocket
-  convenience wrappers over virtual sessions. The iOS verifier exercises all
-  three modules through live host-backed virtual sockets, so app code does not need to
-  call the lowest-level `session_*` functions directly for common client/server flows.
+- `std:net/avm/http`, `std:net/avm/socket`, `std:net/avm/tcp`, `std:net/avm/udp`,
+  and `std:net/avm/ws` now follow the same split as Python/Go network libraries:
+  request/response HTTP helpers are separate from socket/session primitives, and
+  protocol facades wrap the lower-level virtual socket module. The iOS verifier
+  exercises TCP/UDP/WebSocket through live host-backed virtual sockets, so app code
+  does not need to call `std:net/avm/socket` directly for common client/server flows.
 - `std:net/avm/dns` now provides an OBC-safe DNS facade over AVM NET op 6.
   Embedders install `avm_embed_set_net_resolve_callback`; the iOS SDK maps that
   virtual DNS request to `getaddrinfo` under the same dynamic live-NET allowlist
@@ -356,7 +358,7 @@ Facts from the 2026-05-28 implementation pass:
   `text_bytes`, direct text/composition event payload string slicing, and
   exact-size `u8_buf` OGF0 frame encoding instead of final list-to-byte packing,
   `std:ui/scene3d` lowers coordinate/face/color package assets through exact-size
-  `u8_buf` builders, `std:net/avm` has `try_get_bytes`, and `std:bytes.to_string`
+  `u8_buf` builders, `std:net/avm/http` has request/response helpers, and `std:bytes.to_string`
   now uses direct byte-slice conversion instead of list materialization. `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and

@@ -232,15 +232,15 @@
 </ul>
 <p>  host network responses into VirtualNET. <code>make verify-libavm-ios</code> starts a local</p>
 <p>  HTTP server, fetches it through the SDK, injects the body under the requested URL,</p>
-<p>  then runs OBC that reads it with byte-native <code>std:net/avm.try_get_bytes(url)</code>.</p>
+<p>  then runs OBC that reads it as <code>http.get(url).bytes()</code> through</p>
+<p>  <code>std:net/avm/http</code>.</p>
 <p>  The raw <code>oren_net_get*</code> intrinsics remain the AVM substrate, not the app-facing API.</p>
 <p>  AVM still does not expose raw host networking to bytecode.</p>
 <ul>
 <li>Interactive <code>OrenAVMRuntimeConfig</code> now enables the live host-backed VNET provider</li>
 </ul>
 <p>  by default, while deterministic defaults stay fixture/replay oriented. OBC still</p>
-<p>  only sees <code>std:net/avm.try_get_bytes(url)</code> or explicit text-boundary helpers and</p>
-<p>  the AVM NET domain; the SDK owns</p>
+<p>  only sees <code>std:net/avm/http</code> request/response helpers and the AVM NET domain; the SDK owns</p>
 <p>  real <code>URLSession</code> access. Apps can dynamically enable, restrict, or disable live</p>
 <p>  NET with <code>enableLiveNetworkWithAllowedHosts:timeoutSeconds:</code> and</p>
 <p>  <code>disableLiveNetworkWithError:</code>, so user permission prompts and settings changes</p>
@@ -250,11 +250,11 @@
 <p>  default live fetch modes against a local HTTP server, including dynamic disable</p>
 <p>  and re-enable through the SDK.</p>
 <ul>
-<li>AVM NET now also has virtual session handles for performance-oriented TCP/UDP/WebSocket</li>
+<li>AVM NET now also has virtual socket/session handles for performance-oriented TCP/UDP/WebSocket</li>
 </ul>
-<p>  networking: <code>std:net/avm.session_open/write/read/close</code> map to AVM NET ops 1-4,</p>
-<p>  while <code>std:net/avm.session_select*</code> / <code>session_poll*</code> maps to NET op 5 for read/write readiness,</p>
-<p>  virtual DNS maps to NET op 6, and <code>session_accept</code> maps to NET op 7,</p>
+<p>  networking: <code>std:net/avm/socket.open/write/read/close</code> map to AVM NET ops 1-4,</p>
+<p>  while <code>std:net/avm/socket.select*</code> / <code>poll*</code> maps to NET op 5 for read/write readiness,</p>
+<p>  virtual DNS maps to NET op 6, and <code>std:net/avm/socket.accept</code> maps to NET op 7,</p>
 <p>  and embedders can install host callbacks with</p>
 <p>  <code>avm_embed_set_net_session_callbacks</code>. The iOS SDK implements the first reviewed</p>
 <p>  provider for <code>tcp://host:port</code>, <code>tcp-listen://host:port</code>,</p>
@@ -264,11 +264,13 @@
 <p>  verify-libavm-ios` proves local TCP, UDP, WebSocket, and TCP listen/accept</p>
 <p>  ping/pong plus select-before-write/read through this path.</p>
 <ul>
-<li><code>std:net/avm/tcp</code>, <code>std:net/avm/udp</code>, and <code>std:net/avm/ws</code> now provide OBC-safe app-facing TCP/UDP/WebSocket</li>
+<li><code>std:net/avm/http</code>, <code>std:net/avm/socket</code>, <code>std:net/avm/tcp</code>, <code>std:net/avm/udp</code>,</li>
 </ul>
-<p>  convenience wrappers over virtual sessions. The iOS verifier exercises all</p>
-<p>  three modules through live host-backed virtual sockets, so app code does not need to</p>
-<p>  call the lowest-level <code>session_*</code> functions directly for common client/server flows.</p>
+<p>  and <code>std:net/avm/ws</code> now follow the same split as Python/Go network libraries:</p>
+<p>  request/response HTTP helpers are separate from socket/session primitives, and</p>
+<p>  protocol facades wrap the lower-level virtual socket module. The iOS verifier</p>
+<p>  exercises TCP/UDP/WebSocket through live host-backed virtual sockets, so app code</p>
+<p>  does not need to call <code>std:net/avm/socket</code> directly for common client/server flows.</p>
 <ul>
 <li><code>std:net/avm/dns</code> now provides an OBC-safe DNS facade over AVM NET op 6.</li>
 </ul>
@@ -448,7 +450,7 @@
 <p>  <code>text_bytes</code>, direct text/composition event payload string slicing, and</p>
 <p>  exact-size <code>u8_buf</code> OGF0 frame encoding instead of final list-to-byte packing,</p>
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/color package assets through exact-size</p>
-<p>  <code>u8_buf</code> builders, <code>std:net/avm</code> has <code>try_get_bytes</code>, and <code>std:bytes.to_string</code></p>
+<p>  <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers, and <code>std:bytes.to_string</code></p>
 <p>  now uses direct byte-slice conversion instead of list materialization. <code>std:buffer</code></p>
 <p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
 <p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>

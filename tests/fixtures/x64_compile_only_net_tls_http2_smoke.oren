@@ -101,9 +101,9 @@ fn main() {
             var _tcr2 = ctls.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
             var _ptr = _provider_try_refs(fd, conn)
 
-            // HTTP/1.1 surface (TLS-backed GET response helper).
+            // HTTP/1.1 surface (TLS-backed request/response helper).
             // Note: we do not actually dial; this is just a type/symbol coverage hook.
-            var _rr = http.get_response_opts("https://127.0.0.1/", 1, {"tls": {"insecure_skip_verify": 1}})
+            var _rr = http.get_opts("https://127.0.0.1/", 1, {"tls": {"insecure_skip_verify": 1}})
             http.response_free(_rr)
 
             // WSS surface (WebSocket over TLS).

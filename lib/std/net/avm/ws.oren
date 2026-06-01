@@ -4,7 +4,7 @@
 // SDK owns the HTTP upgrade, masking/framing, host sockets, policy, and budgets.
 
 import events "std:avm/events"
-import net "std:net/avm"
+import socket "std:net/avm/socket"
 
 fn event_read() { return events.event_read() }
 fn event_write() { return events.event_write() }
@@ -12,7 +12,7 @@ fn event_read_write() { return events.event_read_write() }
 
 fn connect_spec(spec, timeout_ms) {
     if spec == nil { return oren_err(4, "std:net/avm/ws.connect_spec: spec is nil") }
-    return net.session_open(spec, timeout_ms)
+    return socket.open(spec, timeout_ms)
 }
 
 fn connect(host, port, path, timeout_ms) {
@@ -24,7 +24,7 @@ fn connect(host, port, path, timeout_ms) {
 }
 
 fn send(session_id, data, timeout_ms) {
-    return net.session_write(session_id, data, timeout_ms)
+    return socket.write(session_id, data, timeout_ms)
 }
 
 fn send_text(session_id, text, timeout_ms) {
@@ -33,7 +33,7 @@ fn send_text(session_id, text, timeout_ms) {
 }
 
 fn recv(session_id, max_len, timeout_ms) {
-    return net.session_read(session_id, max_len, timeout_ms)
+    return socket.read(session_id, max_len, timeout_ms)
 }
 
 fn recv_text(session_id, max_len, timeout_ms) {
@@ -43,7 +43,7 @@ fn recv_text(session_id, max_len, timeout_ms) {
 }
 
 fn close(session_id) {
-    return net.session_close(session_id)
+    return socket.close(session_id)
 }
 
 fn select(session_id, event_mask, timeout_ms) {

@@ -2,7 +2,7 @@
   "schema": "oren.avm.stdlib_surface.v0",
   "stdlib_root": "lib/std/stdlib_avm.oren",
   "success_marker": "avm stdlib obc surface OK",
-  "net_fixtures_hex": "41564d4e45543031010000000100000075020000006f6b",
+  "net_fixtures_hex": "41564d4e45543031020000000100000075020000006f6b010000006a070000007b2261223a317d",
   "modules": [
     {
       "module": "std:buffer",
@@ -134,14 +134,25 @@
       ]
     },
     {
-      "module": "std:net/avm",
-      "alias": "net_avm",
+      "module": "std:net/avm/http",
+      "alias": "net_avm_http",
       "probes": [
-        "var net_r = net_avm.get_text(\"u\")",
-        "if net_r[\"ok\"] != 1 || net_r[\"v\"] != \"ok\" { fail(55) }",
-        "if net_avm.try_get_text(\"u\") != \"ok\" { fail(56) }",
-        "var net_b = net_avm.try_get_bytes(\"u\")",
-        "if oren_is_err(net_b) || bytes.len(net_b) != 2 || bytes.get_u8(net_b, 0) != 111 || bytes.get_u8(net_b, 1) != 107 { fail(57) }"
+        "var net_req = net_avm_http.get(\"u\")",
+        "if oren_is_err(net_req) { fail(55) }",
+        "if net_avm_http.text(net_req) != \"ok\" { fail(56) }",
+        "if net_req.text() != \"ok\" { fail(57) }",
+        "if net_avm_http.get(\"u\").text() != \"ok\" { fail(58) }",
+        "var net_b = net_req.bytes()",
+        "if oren_is_err(net_b) || bytes.len(net_b) != 2 || bytes.get_u8(net_b, 0) != 111 || bytes.get_u8(net_b, 1) != 107 { fail(59) }",
+        "var net_j = net_avm_http.get(\"j\").json()",
+        "if oren_is_err(net_j) || net_j[\"t\"] != \"object\" || net_j[\"o\"][\"a\"][\"i\"] != 1 { fail(60) }"
+      ]
+    },
+    {
+      "module": "std:net/avm/socket",
+      "alias": "net_avm_socket",
+      "probes": [
+        "if net_avm_socket.poll_read(-1, 0) == nil { fail(67) }"
       ]
     },
     {

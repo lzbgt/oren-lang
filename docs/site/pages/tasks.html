@@ -120,9 +120,10 @@
 <p>     mounts for real app-owned file reads/writes during OBC execution, OBC run, stdout capture,</p>
 <p>     verifier proof that interactive <code>std:time.sleep_ms</code> blocks the AVM worker on</p>
 <p>     wall-clock time, an allowlisted <code>URLSession</code> prefetch bridge, and an</p>
-<p>     interactive-default live NET callback for OBC <code>std:net/avm.try_get_text(url)</code></p>
+<p>     interactive-default live NET callback for OBC <code>http.get(url).text()</code> /</p>
+<p>     <code>http.get(url).bytes()</code> through <code>std:net/avm/http</code></p>
 <p>     backed by dynamic SDK enable/restrict/disable controls and a reusable SDK</p>
-<p>     session, plus first <code>std:net/avm.session_open/write/read/select/accept/close</code> TCP/UDP/WebSocket virtual</p>
+<p>     session, plus first <code>std:net/avm/socket.open/write/read/select/accept/close</code> TCP/UDP/WebSocket virtual</p>
 <p>     session handles and <code>std:net/avm/tcp</code> / <code>std:net/avm/udp</code> convenience facades</p>
 <p>     plus <code>std:net/avm/ws</code> over host-owned iOS sockets with readiness selection,</p>
 <p>     plus the native <code>std:avm/events</code></p>

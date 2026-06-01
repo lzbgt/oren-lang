@@ -25,6 +25,12 @@ import codegen_bytecode "codegen_bytecode.oren"
 //       u16 name_len, name bytes (UTF-8)
 //       u32 pos (byte offset into code where a u32 address must be patched)
 //       u8  kind (0=CALL32 target, 1=PUSH_FUNC32 target)
+//   optional surface section:
+//     "SURF"
+//     u16 function_return_count
+//       repeated: u16 name_len/name, u16 ret_len/ret
+//     u16 impl_count
+//       repeated: u16 trait_len/trait, u16 type_len/type, u16 method_len/method, u16 fn_len/fn
 //
 // Notes:
 // - `addr` and `pos` are always module-local, and are rebased by the linker.
@@ -89,6 +95,16 @@ fn _push_u64_le(out, v) {
     return nil
 }
 
+fn _push_ascii(out, s) {
+    var bs = oren_bytes_from_string(s)
+    var i = 0
+    while i < oren_list_len(bs) {
+        oren_list_push(out, bs[i] & 255)
+        i = i + 1
+    }
+    return nil
+}
+
 fn _bytes_starts_with(bs, prefix_str) {
     if bs == nil { return false }
     var p = oren_bytes_from_string(prefix_str)
@@ -100,6 +116,12 @@ fn _bytes_starts_with(bs, prefix_str) {
         i = i + 1
     }
     return true
+}
+
+fn _metadata_json_from_bytes(bs) {
+    if !_bytes_starts_with(bs, "OREN_META\n1\n") { return nil }
+    var prefix_len = _bytes_len(oren_bytes_from_string("OREN_META\n1\n"))
+    return oren_string_from_bytes_slice(bs, prefix_len, _bytes_len(bs) - prefix_len)
 }
 
 fn _decode_string_u16(bs, pos) {
@@ -120,7 +142,7 @@ fn _encode_string_u16(out, s) {
     return nil
 }
 
-fn obx_encode(module_name, exports, relocs) {
+fn obx_encode(module_name, exports, relocs, surface) {
     if module_name == nil { module_name = "" }
     if exports == nil { exports = {} }
     if relocs == nil { relocs = [] }
@@ -172,6 +194,38 @@ fn obx_encode(module_name, exports, relocs) {
         ri = ri + 1
     }
 
+    if surface != nil {
+        _push_ascii(out, "SURF")
+        var fr = surface["function_returns"]
+        if fr == nil { fr = {} }
+        var ret_keys = []
+        for rk in fr {
+            oren_list_push(ret_keys, rk)
+        }
+        ret_keys = _sort_strings(ret_keys)
+        _push_u16_le(out, oren_list_len(ret_keys))
+        var fki = 0
+        while fki < oren_list_len(ret_keys) {
+            var fname = ret_keys[fki]
+            _encode_string_u16(out, fname)
+            _encode_string_u16(out, fr[fname])
+            fki = fki + 1
+        }
+
+        var impls = surface["impls"]
+        if impls == nil { impls = [] }
+        _push_u16_le(out, oren_list_len(impls))
+        var ii = 0
+        while ii < oren_list_len(impls) {
+            var im = impls[ii]
+            _encode_string_u16(out, im["trait"])
+            _encode_string_u16(out, im["type"])
+            _encode_string_u16(out, im["method"])
+            _encode_string_u16(out, im["name"])
+            ii = ii + 1
+        }
+    }
+
     return out
 }
 
@@ -213,7 +267,54 @@ fn obx_decode(obx_bytes) {
         j = j + 1
     }
 
-    return {"module": module_name, "exports": exports, "relocs": relocs}
+    var surface = {"function_returns": {}, "impl_methods": {}, "impl_trait_methods": {}, "traits": []}
+    if pos + 4 <= _bytes_len(obx_bytes) {
+        if _u8_at(obx_bytes, pos) == 83 && _u8_at(obx_bytes, pos + 1) == 85 && _u8_at(obx_bytes, pos + 2) == 82 && _u8_at(obx_bytes, pos + 3) == 70 {
+            pos = pos + 4
+            var n_returns = _u16_le_at(obx_bytes, pos)
+            pos = pos + 2
+            var ri2 = 0
+            while ri2 < n_returns {
+                var rn = _decode_string_u16(obx_bytes, pos)
+                var fn_name = rn["value"]
+                pos = rn["next"]
+                var rr = _decode_string_u16(obx_bytes, pos)
+                var ret_name = rr["value"]
+                pos = rr["next"]
+                surface["function_returns"][fn_name] = ret_name
+                ri2 = ri2 + 1
+            }
+
+            var n_impls = _u16_le_at(obx_bytes, pos)
+            pos = pos + 2
+            var ii2 = 0
+            while ii2 < n_impls {
+                var it = _decode_string_u16(obx_bytes, pos)
+                var trait_name = it["value"]
+                pos = it["next"]
+                var ity = _decode_string_u16(obx_bytes, pos)
+                var type_name = ity["value"]
+                pos = ity["next"]
+                var imn = _decode_string_u16(obx_bytes, pos)
+                var method_name = imn["value"]
+                pos = imn["next"]
+                var ifn = _decode_string_u16(obx_bytes, pos)
+                var impl_fn = ifn["value"]
+                pos = ifn["next"]
+
+                if surface["impl_methods"][type_name] == nil { surface["impl_methods"][type_name] = {} }
+                surface["impl_methods"][type_name][method_name] = impl_fn
+                if trait_name != nil && trait_name != "" {
+                    if surface["impl_trait_methods"][trait_name] == nil { surface["impl_trait_methods"][trait_name] = {} }
+                    if surface["impl_trait_methods"][trait_name][type_name] == nil { surface["impl_trait_methods"][trait_name][type_name] = {} }
+                    surface["impl_trait_methods"][trait_name][type_name][method_name] = impl_fn
+                }
+                ii2 = ii2 + 1
+            }
+        }
+    }
+
+    return {"module": module_name, "exports": exports, "relocs": relocs, "surface": surface}
 }
 
 fn _sort_strings(xs) {
@@ -329,6 +430,7 @@ fn obc_parse_bytes(bs) {
     pos = pos + 2
     var consts = []
     var obx = nil
+    var metadata_json = nil
 
     var i = 0
     while i < n_consts {
@@ -373,6 +475,8 @@ fn obc_parse_bytes(bs) {
                                 // detect OBX payload
                                 var d = obx_decode(bb)
                                 if d != nil { obx = d }
+                                var mj = _metadata_json_from_bytes(bb)
+                                if mj != nil { metadata_json = mj }
                                 oren_list_push(consts, {"type": "Bytes", "value": bb})
                             } else {
                                 return {"error": "unknown const tag: " + oren_int_to_string(tag)}
@@ -392,7 +496,7 @@ fn obc_parse_bytes(bs) {
     }
 
     var g = obc_global_count(code)
-    return {"constants": consts, "code": code, "obx": obx, "global_count": g}
+    return {"constants": consts, "code": code, "obx": obx, "metadata_json": metadata_json, "global_count": g}
 }
 
 fn obc_read_file(path) {

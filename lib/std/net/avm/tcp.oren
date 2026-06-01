@@ -4,44 +4,44 @@
 // allowlist policy, readiness reactor, and lifecycle.
 
 import events "std:avm/events"
-import net "std:net/avm"
+import socket "std:net/avm/socket"
 
 fn event_read() { return events.event_read() }
 fn event_write() { return events.event_write() }
 fn event_read_write() { return events.event_read_write() }
 
 fn connect(host, port, timeout_ms) {
-    return net.session_open_tcp(host, port, timeout_ms)
+    return socket.open_tcp(host, port, timeout_ms)
 }
 
 fn connect_spec(spec, timeout_ms) {
     if spec == nil { return oren_err(4, "std:net/avm/tcp.connect_spec: spec is nil") }
-    return net.session_open(spec, timeout_ms)
+    return socket.open(spec, timeout_ms)
 }
 
 fn listen(host, port, timeout_ms) {
-    return net.session_listen_tcp(host, port, timeout_ms)
+    return socket.listen_tcp(host, port, timeout_ms)
 }
 
 fn listen_spec(spec, timeout_ms) {
     if spec == nil { return oren_err(4, "std:net/avm/tcp.listen_spec: spec is nil") }
-    return net.session_open(spec, timeout_ms)
+    return socket.open(spec, timeout_ms)
 }
 
 fn accept(listener_session_id, timeout_ms) {
-    return net.session_accept(listener_session_id, timeout_ms)
+    return socket.accept(listener_session_id, timeout_ms)
 }
 
 fn write(session_id, data, timeout_ms) {
-    return net.session_write(session_id, data, timeout_ms)
+    return socket.write(session_id, data, timeout_ms)
 }
 
 fn read(session_id, max_len, timeout_ms) {
-    return net.session_read(session_id, max_len, timeout_ms)
+    return socket.read(session_id, max_len, timeout_ms)
 }
 
 fn close(session_id) {
-    return net.session_close(session_id)
+    return socket.close(session_id)
 }
 
 fn select(session_id, event_mask, timeout_ms) {

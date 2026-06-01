@@ -246,7 +246,7 @@ fn test_http_helpers() {
     // - URL parsing (host/port/path)
     // - request formatting (GET)
     //
-    // Full loopback `http.get_text` should live in a separate suite once we have
+    // Full loopback `http.get(...).text()` should live in a separate suite once we have
     // a Tier‑1 cross‑OS concurrency primitive (thread/spawn) for Windows.
 
     var pu = http._parse_http_url("http://127.0.0.1:8080/abc")

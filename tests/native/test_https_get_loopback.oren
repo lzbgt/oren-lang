@@ -174,20 +174,18 @@ fn main_client() {
     // Exercise ALPN client offer plumbing (provider may ignore it). Even if "h2" is offered,
     // this loopback server only speaks HTTP/1.1, so negotiation should fall back cleanly.
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var rr = http.get_response_opts(url, 5000, {"tls": tls_opts})
+    var rr = http.get_opts(url, 5000, {"tls": tls_opts})
     free(url)
 
-    var okv = oren_map_get_str(rr, "ok")
-    if okv != 1 {
-        var errv = oren_map_get_str(rr, "err")
-        if errv != 0 { print("https_loopback: FAIL: " + oren_intern_cstr(errv)) }
+    if oren_is_err(rr) {
+        print("https_loopback: FAIL: " + oren_err_msg(rr))
         exit(8)
     }
-    if oren_map_get_str(rr, "status") != 200 {
+    if rr.status != 200 {
         http.response_free(rr)
         exit(9)
     }
-    var body = oren_map_get_str(rr, "body")
+    var body = rr.text()
     if body == 0 || _str_eq_bytes(body, "HELLO") != true {
         http.response_free(rr)
         exit(10)
@@ -264,20 +262,18 @@ fn main_client() {
     var url = "https://127.0.0.1:" + oren_int_to_string(port) + "/"
     // Exercise ALPN client offer plumbing (provider may ignore it).
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var rr = http.get_response_opts(url, 5000, {"tls": tls_opts})
+    var rr = http.get_opts(url, 5000, {"tls": tls_opts})
     free(url)
 
-    var okv = oren_map_get_str(rr, "ok")
-    if okv != 1 {
-        var errv = oren_map_get_str(rr, "err")
-        if errv != 0 { print("https_loopback: FAIL: " + oren_intern_cstr(errv)) }
+    if oren_is_err(rr) {
+        print("https_loopback: FAIL: " + oren_err_msg(rr))
         exit(8)
     }
-    if oren_map_get_str(rr, "status") != 200 {
+    if rr.status != 200 {
         http.response_free(rr)
         exit(9)
     }
-    var body = oren_map_get_str(rr, "body")
+    var body = rr.text()
     if body == 0 || _str_eq_bytes(body, "HELLO") != true {
         http.response_free(rr)
         exit(10)
@@ -300,20 +296,18 @@ fn _https_client_impl(port, expected_leaf_sha256_hex) {
     var url = "https://127.0.0.1:" + oren_int_to_string(port) + "/"
     // Exercise ALPN client offer plumbing (provider may ignore it).
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var rr = http.get_response_opts(url, 5000, {"tls": tls_opts})
+    var rr = http.get_opts(url, 5000, {"tls": tls_opts})
     free(url)
 
-    var okv = oren_map_get_str(rr, "ok")
-    if okv != 1 {
-        var errv = oren_map_get_str(rr, "err")
-        if errv != 0 { print("https_loopback: FAIL: " + oren_intern_cstr(errv)) }
+    if oren_is_err(rr) {
+        print("https_loopback: FAIL: " + oren_err_msg(rr))
         return 8
     }
-    if oren_map_get_str(rr, "status") != 200 {
+    if rr.status != 200 {
         http.response_free(rr)
         return 9
     }
-    var body = oren_map_get_str(rr, "body")
+    var body = rr.text()
     if body == 0 || _str_eq_bytes(body, "HELLO") != true {
         http.response_free(rr)
         return 10

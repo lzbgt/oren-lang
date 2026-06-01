@@ -4,7 +4,7 @@
 // - HTTP/1.1 over TCP
 // - IPv4 literal URLs (no DNS needed)
 // - Hostname URLs via DNS A lookup:
-//   - either pass an explicit resolver config (`http.get_text_resolver`)
+//   - either pass an explicit resolver config (`http.get_resolver`)
 //   - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
 // - Content-Length and Transfer-Encoding: chunked bodies
 // - https:// via `std:net/tls` when a TLS provider exists for the target OS (see docs/DESIGN.md#tls-provider-availability)
@@ -15,6 +15,22 @@
 import tcp "std:net/tcp"
 import tls "std:net/tls"
 import hostutil "std:net/host"
+import json_std "std:json"
+
+struct Response {
+    method,
+    url,
+    status,
+    headers,
+    body
+}
+
+trait BodyReader {
+    fn text(self);
+    fn json(self);
+    fn bytes(self);
+    fn free(self);
+}
 
 fn _err_result(r, fallback) {
     var msg = r["err"]
@@ -320,7 +336,7 @@ fn _decode_chunked_into_string(body_ptr, body_len) {
 }
 
 fn headers_get(headers, name) {
-    // Convenience helper: fetch a header value from a `headers` list returned by `get_response*`.
+    // Convenience helper: fetch a header value from a `headers` list returned by `http.get*`.
     //
     // - `headers` is a list of pairs: [[name:string, value:string], ...]
     // - Matching is ASCII case-insensitive on `name`.
@@ -357,15 +373,15 @@ fn headers_get(headers, name) {
 }
 
 fn response_free(resp) {
-    // Free owned allocations inside a response returned by `get_response*`.
+    // Free owned allocations inside a response returned by `http.get*`.
     //
     // Contract:
     // - after calling `response_free(resp)`, the caller must not use `resp` (or its nested fields).
     // - this does not free the response map/list containers (GC-managed); it only frees the owned strings.
     if resp == nil { return nil }
-    var body = resp["body"]
+    var body = resp.body
     if body != nil && body != 0 { free(body) }
-    var hs = resp["headers"]
+    var hs = resp.headers
     if hs != nil {
         var n = oren_list_len(hs)
         var i = 0
@@ -383,7 +399,7 @@ fn response_free(resp) {
     return nil
 }
 
-fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
+fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     // Structured HTTP/1.1 response (v0):
     //
     // Returns:
@@ -402,7 +418,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     var pu = _parse_http_url(url)
-    if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_response: " + pu["err"]} }
+    if pu["ok"] != 1 { return {"ok": 0, "err": "http.request: " + pu["err"]} }
 
     var is_tls = 0
     if pu["scheme"] == "https" { is_tls = 1 }
@@ -414,7 +430,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if rh["ok"] != 1 {
         free(host)
         free(path)
-        return {"ok": 0, "err": "http.get_response: " + rh["err"]}
+        return {"ok": 0, "err": "http.request: " + rh["err"]}
     }
     var ip = rh["ip"]
     var owned_ip = rh["owned"]
@@ -424,7 +440,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if fd < 0 {
         free(host)
         free(path)
-        return {"ok": 0, "err": "http.get_response: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+        return {"ok": 0, "err": "http.request: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
 
     var tls_conn = 0
@@ -444,14 +460,14 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
             tcp.close(fd)
             free(host)
             free(path)
-            return {"ok": 0, "err": "http.get_response: " + oren_map_get_str(cr, "err")}
+            return {"ok": 0, "err": "http.request: " + oren_map_get_str(cr, "err")}
         }
         tls_conn = oren_map_get_str(cr, "conn")
         if tls_conn == 0 {
             tcp.close(fd)
             free(host)
             free(path)
-            return {"ok": 0, "err": "http.get_response: tls.wrap_client returned nil conn"}
+            return {"ok": 0, "err": "http.request: tls.wrap_client returned nil conn"}
         }
 
         // NOTE: deterministic pinning is enforced by `std:net/tls` itself when
@@ -463,7 +479,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     free(path)
     if req == 0 {
         if is_tls == 1 { tls.close(tls_conn) } else { tcp.close(fd) }
-        return {"ok": 0, "err": "http.get_response: request build failed"}
+        return {"ok": 0, "err": "http.request: request build failed"}
     }
 
     var req_len = oren_string_len(req)
@@ -473,14 +489,15 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     free(req)
     if wr < 0 {
         if is_tls == 1 { tls.close(tls_conn) } else { tcp.close(fd) }
-        return {"ok": 0, "err": "http.get_response: write failed (errno=" + oren_int_to_string(0 - wr) + ")"} }
+        return {"ok": 0, "err": "http.request: write failed (errno=" + oren_int_to_string(0 - wr) + ")"}
+    }
 
     var cap = 8192
     var used = 0
     var buf = malloc(cap)
     if buf == 0 {
         tcp.close(fd)
-        return {"ok": 0, "err": "http.get_response: malloc failed"}
+        return {"ok": 0, "err": "http.request: malloc failed"}
     }
 
     var headers = [] // [[name,value], ...] (owned strings)
@@ -615,12 +632,12 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if header_done == 0 {
         free(buf)
         response_free({"headers": headers, "body": nil})
-        return {"ok": 0, "err": "http.get_response: missing header terminator (used=" + oren_int_to_string(used) + " last_n=" + oren_int_to_string(last_n) + ")"}
+        return {"ok": 0, "err": "http.request: missing header terminator (used=" + oren_int_to_string(used) + " last_n=" + oren_int_to_string(last_n) + ")"}
     }
     if status_code < 0 {
         free(buf)
         response_free({"headers": headers, "body": nil})
-        return {"ok": 0, "err": "http.get_response: failed to parse status line"}
+        return {"ok": 0, "err": "http.request: failed to parse status line"}
     }
 
     if body_off > used { body_off = used }
@@ -638,7 +655,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
         free(buf)
         if outc == 0 {
             response_free({"headers": headers, "body": nil})
-            return {"ok": 0, "err": "http.get_response: chunked decode failed"}
+            return {"ok": 0, "err": "http.request: chunked decode failed"}
         }
         return {"ok": 1, "status": status_code, "headers": headers, "body": outc}
     }
@@ -647,7 +664,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if out == 0 {
         free(buf)
         response_free({"headers": headers, "body": nil})
-        return {"ok": 0, "err": "http.get_response: malloc body failed"}
+        return {"ok": 0, "err": "http.request: malloc body failed"}
     }
     if body_len > 0 { oren_memcpy(out, buf + body_off, body_len) }
     ptr_set_byte(out + body_len, 0)
@@ -655,72 +672,67 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     return {"ok": 1, "status": status_code, "headers": headers, "body": out}
 }
 
-fn get_response_resolver(url, timeout_ms, resolver) {
-    return get_response_resolver_opts(url, timeout_ms, resolver, 0)
+fn request_resolver_opts(method, url, timeout_ms, resolver, opts): Response {
+    if method == nil { return oren_err(4, "http.request: method is nil") }
+    if method != "GET" { return oren_err(4, "http.request: only GET is supported by std:net/http v0") }
+    var r = _fetch_response_resolver_opts(url, timeout_ms, resolver, opts)
+    if r["ok"] != 1 { return _err_result(r, "http.request failed") }
+    return Response("GET", url, r["status"], r["headers"], r["body"])
 }
 
-fn try_get_response_resolver_opts(url, timeout_ms, resolver, opts) {
-    var r = get_response_resolver_opts(url, timeout_ms, resolver, opts)
-    if r["ok"] == 1 {
-        return {"status": r["status"], "headers": r["headers"], "body": r["body"]}
-    }
-    return _err_result(r, "http.get_response failed")
+fn request(method, url, timeout_ms, opts): Response {
+    return request_resolver_opts(method, url, timeout_ms, 0, opts)
 }
 
-fn try_get_response_resolver(url, timeout_ms, resolver) {
-    return try_get_response_resolver_opts(url, timeout_ms, resolver, 0)
+fn get_resolver_opts(url, timeout_ms, resolver, opts): Response {
+    return request_resolver_opts("GET", url, timeout_ms, resolver, opts)
 }
 
-fn get_response_opts(url, timeout_ms, opts) {
-    return get_response_resolver_opts(url, timeout_ms, 0, opts)
+fn get_resolver(url, timeout_ms, resolver): Response {
+    return get_resolver_opts(url, timeout_ms, resolver, 0)
 }
 
-fn try_get_response_opts(url, timeout_ms, opts) {
-    return try_get_response_resolver_opts(url, timeout_ms, 0, opts)
+fn get_opts(url, timeout_ms, opts): Response {
+    return get_resolver_opts(url, timeout_ms, 0, opts)
 }
 
-fn get_response(url, timeout_ms) {
-    return get_response_resolver_opts(url, timeout_ms, 0, 0)
-}
-
-fn try_get_response(url, timeout_ms) {
-    return try_get_response_resolver_opts(url, timeout_ms, 0, 0)
-}
-
-fn get_text_resolver(url, timeout_ms, resolver) {
-    // Returns:
-    //   {"ok":1,"v":string} on success
-    //   {"ok":0,"err":string} on failure
-    //
-    var rr = get_response_resolver_opts(url, timeout_ms, resolver, 0)
-    if rr["ok"] != 1 { return {"ok": 0, "err": rr["err"]} }
-    var body = rr["body"]
-    // Free headers immediately; return only the body (legacy API).
-    response_free({"headers": rr["headers"], "body": nil})
-    return {"ok": 1, "v": body}
-}
-
-fn try_get_text_resolver(url, timeout_ms, resolver) {
-    var r = get_text_resolver(url, timeout_ms, resolver)
-    if r["ok"] == 1 { return r["v"] }
-    return _err_result(r, "http.get_text failed")
-}
-
-fn get_text(url, timeout_ms) {
+fn get(url, timeout_ms): Response {
     // Default behavior:
     // - IPv4 literal hosts work without DNS
     // - hostname hosts use `dns.default_resolver` (env `OREN_DNS_SERVER` or `/etc/resolv.conf`)
-    return get_text_resolver(url, timeout_ms, 0)
+    return get_resolver_opts(url, timeout_ms, 0, 0)
 }
 
-fn try_get_text(url, timeout_ms) {
-    return try_get_text_resolver(url, timeout_ms, 0)
+fn status(resp: Response) {
+    if resp == nil { return oren_err(4, "http.status: response is nil") }
+    return resp.status
 }
 
-fn get(url) {
-    // Legacy convenience API: return body string pointer, or 0 on failure.
-    // Prefer `get_text(url, timeout_ms)` for errors.
-    var r = get_text(url, 5000)
-    if r["ok"] != 1 { return 0 }
-    return r["v"]
+fn headers(resp: Response) {
+    if resp == nil { return oren_err(4, "http.headers: response is nil") }
+    return resp.headers
+}
+
+fn text(resp: Response) {
+    if resp == nil { return oren_err(4, "http.text: response is nil") }
+    return resp.body
+}
+
+fn bytes(resp: Response) {
+    var body = text(resp)
+    if oren_is_err(body) { return body }
+    return oren_bytes_from_string(body)
+}
+
+fn json(resp: Response) {
+    var body = text(resp)
+    if oren_is_err(body) { return body }
+    return json_std.try_decode(body)
+}
+
+impl BodyReader for Response {
+    fn text(self) { return text(self) }
+    fn json(self) { return json(self) }
+    fn bytes(self) { return bytes(self) }
+    fn free(self) { return response_free(self) }
 }

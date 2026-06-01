@@ -1,6 +1,6 @@
 import time "std:time"
-import net_avm "std:net/avm"
 import net_dns "std:net/avm/dns"
+import net_http "std:net/avm/http"
 import net_tcp "std:net/avm/tcp"
 import net_udp "std:net/avm/udp"
 import net_ws "std:net/avm/ws"
@@ -21,7 +21,9 @@ fn main() {
     var w = oren_write_file("out.txt", args[1] + ":" + s)
     if oren_is_err(w) { oren_exit(13) }
     if oren_is_err(oren_write_file("export.txt", "export:" + mounted)) { oren_exit(56) }
-    var body = net_avm.try_get_bytes(args[2])
+    var req = net_http.get(args[2])
+    if oren_is_err(req) { oren_exit(14) }
+    var body = req.bytes()
     if oren_is_err(body) { oren_exit(14) }
     if bytes.len(body) != 6 { oren_exit(14) }
     if bytes.get_u8(body, 0) != 110 || bytes.get_u8(body, 5) != 107 { oren_exit(14) }
