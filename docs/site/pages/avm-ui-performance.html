@@ -326,7 +326,8 @@
 </ul>
 <p>  <code>commands_from_binary_file(path)</code> load the byte-native <code>OS3D01</code> package asset</p>
 <p>  format: little-endian mesh/material/model/draw counts, retained mesh payload</p>
-<p>  byte slices, RGBA u32 colors, model transforms, draw ids, and a destroy flag;</p>
+<p>  byte slices, RGBA u32 colors, optional scene-level camera depth windows, model</p>
+<p>  transforms, draw ids, and a destroy flag;</p>
 <ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>
@@ -542,6 +543,11 @@
 </ol>
 <p>    update the store demo generator so the committed JSON scene source is</p>
 <p>    converted into a bundled <code>.os3d</code> runtime asset.</p>
+<ol>
+<li>Done: extend <code>std:ui/scene3d</code> JSON and <code>OS3D01</code> package assets with</li>
+</ol>
+<p>    scene-level camera depth windows so packaged 3D scenes can carry view state</p>
+<p>    without host-side renderer objects.</p>
 <ol>
 <li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
 </ol>

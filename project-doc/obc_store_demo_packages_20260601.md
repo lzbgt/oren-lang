@@ -47,9 +47,9 @@ can show or ignore source independently from the executable OBC. The manifest
 declares the source in both `assets` and `sources`; the store index declares the
 ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime
 assets; `scene3d-asset-demo` derives a byte-native `.os3d` asset from the
-reviewable JSON source, declares a read-only `assets/` VFS mount, and proves OBC
-can load retained UI scene metadata from package assets without JSON parsing in
-the hot path.
+reviewable JSON source, including scene-level camera depth metadata, declares a
+read-only `assets/` VFS mount, and proves OBC can load retained UI scene metadata
+from package assets without JSON parsing in the hot path.
 
 These generated package artifacts are intentionally not committed. They can be
 published to `store.hubstack.cn` after live deployment/signing credentials are

@@ -54,6 +54,14 @@ fn draw_model(id) {
     return {"op": "draw_model3d", "id": id}
 }
 
+fn push_camera_ortho(near_z, far_z) {
+    return {"op": "push_camera_ortho", "near_z": near_z, "far_z": far_z}
+}
+
+fn pop_camera() {
+    return {"op": "pop_camera"}
+}
+
 fn destroy_model(id) {
     return {"op": "destroy_model3d", "id": id}
 }
@@ -89,6 +97,15 @@ fn _push_draws(out, xs) {
         i = i + 1
     }
     return 0
+}
+
+fn _push_camera(out, camera) {
+    if camera == nil { return false }
+    var near_z = camera["near_z"]
+    var far_z = camera["far_z"]
+    if near_z == nil || far_z == nil { return false }
+    list.push(out, push_camera_ortho(near_z, far_z))
+    return true
 }
 
 fn _push_destroy(out, xs, destroy_fn) {
@@ -245,6 +262,12 @@ fn scene_from_binary(data) {
     r = _bin_u32(data, off); if oren_is_err(r) { return r }; var model_count = r[0]; off = r[1]
     r = _bin_u32(data, off); if oren_is_err(r) { return r }; var draw_count = r[0]; off = r[1]
     r = _bin_u32(data, off); if oren_is_err(r) { return r }; var flags = r[0]; off = r[1]
+    var camera = nil
+    if (flags / 2) % 2 == 1 {
+        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var near_z = r[0]; off = r[1]
+        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var far_z = r[0]; off = r[1]
+        camera = {"near_z": near_z, "far_z": far_z}
+    }
 
     var meshes = []
     var mi = 0
@@ -310,6 +333,7 @@ fn scene_from_binary(data) {
         "meshes": meshes,
         "materials": materials,
         "models": models,
+        "camera": camera,
         "draw": draws,
         "destroy": (flags % 2) == 1
     }
@@ -339,6 +363,7 @@ fn scene_from_asset(asset) {
         "meshes": meshes,
         "materials": materials,
         "models": models,
+        "camera": asset["camera"],
         "draw": asset["draw"],
         "destroy": asset["destroy"]
     }
@@ -385,7 +410,9 @@ fn commands(scene) {
     _push_all(out, meshes)
     _push_all(out, materials)
     _push_all(out, models)
+    var camera_active = _push_camera(out, scene["camera"])
     _push_draws(out, scene["draw"])
+    if camera_active { list.push(out, pop_camera()) }
     if scene["destroy"] != nil && scene["destroy"] != 0 {
         _push_destroy(out, models, destroy_model)
         _push_destroy(out, materials, destroy_material)

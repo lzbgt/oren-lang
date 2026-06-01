@@ -21,6 +21,7 @@
   "models": [
     {"id": 19, "mesh_id": 17, "material_id": 18, "x": 1, "y": 1, "z": 0, "scale_milli": 1000}
   ],
+  "camera": {"near_z": 0, "far_z": 2},
   "draw": [19],
   "destroy": true
 }

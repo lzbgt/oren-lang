@@ -70,8 +70,14 @@ def scene3d_bin_v0(scene_bytes):
     materials = scene.get("materials", [])
     models = scene.get("models", [])
     draws = scene.get("draw", [])
+    camera = scene.get("camera")
     out += u32(len(meshes)) + u32(len(materials)) + u32(len(models)) + u32(len(draws))
-    out += u32(1 if scene.get("destroy") else 0)
+    flags = 1 if scene.get("destroy") else 0
+    if camera is not None:
+        flags |= 2
+    out += u32(flags)
+    if camera is not None:
+        out += i32(camera.get("near_z", 0)) + i32(camera.get("far_z", 0))
     for mesh in meshes:
         kind = mesh.get("kind", "triangles")
         if kind == "indexed":

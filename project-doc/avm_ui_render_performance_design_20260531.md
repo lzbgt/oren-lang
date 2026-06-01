@@ -248,7 +248,8 @@ High-volume 2D and 3D need retained resources:
 - `std:ui/scene3d.commands_from_binary(...)` and
   `commands_from_binary_file(path)` load the byte-native `OS3D01` package asset
   format: little-endian mesh/material/model/draw counts, retained mesh payload
-  byte slices, RGBA u32 colors, model transforms, draw ids, and a destroy flag;
+  byte slices, RGBA u32 colors, optional scene-level camera depth windows, model
+  transforms, draw ids, and a destroy flag;
 - orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
   and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
   range without exposing host camera objects or Metal depth buffers to OBC;
@@ -396,6 +397,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 27. Done: add byte-native `OS3D01` scene asset loading for `std:ui/scene3d` and
     update the store demo generator so the committed JSON scene source is
     converted into a bundled `.os3d` runtime asset.
+28. Done: extend `std:ui/scene3d` JSON and `OS3D01` package assets with
+    scene-level camera depth windows so packaged 3D scenes can carry view state
+    without host-side renderer objects.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.
