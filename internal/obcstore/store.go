@@ -184,6 +184,7 @@ func New(cfg Config) (*Service, error) {
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleSiteHome)
+	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/ops", s.handleSiteOps)
 	mux.HandleFunc("/packages/", s.handleSitePackage)
 	mux.HandleFunc("/api/v0/health", s.handleHealth)
@@ -199,8 +200,16 @@ func (s *Service) Handler() http.Handler {
 	return mux
 }
 
-func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "schema": indexSchema})
+func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"schema":  indexSchema,
+		"service": "obc-store",
+	})
 }
 
 func (s *Service) handleSiteHome(w http.ResponseWriter, r *http.Request) {
@@ -1496,7 +1505,8 @@ const siteOpsHTML = `<!doctype html>
 <title>OBC Store Operator Guide</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Operator Guide</h1><p>Minimal publish and token lifecycle reference.</p></header>
 <main>
-<section class="card"><h2>Public endpoints</h2><pre>GET /api/v0/health
+<section class="card"><h2>Public endpoints</h2><pre>GET /healthz
+GET /api/v0/health
 GET /api/v0/index.json
 	GET /api/v0/index.json.sig
 	GET /api/v0/packages?query=plot&amp;capability=GFX</pre>

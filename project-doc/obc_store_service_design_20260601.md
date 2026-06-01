@@ -87,7 +87,7 @@ Implemented in this repo:
 - Publisher tokens can be rotated or revoked through
   `POST`/`DELETE /api/v0/publishers/{publisher}/token` using either admin auth or
   the current publisher token.
-- Public endpoints expose health, package list/search, package/version metadata,
+- Public endpoints expose `/healthz`/`/api/v0/health`, package list/search, package/version metadata,
   `index.json`, package manifests, `program.obc`, deterministic `.obc.zip`
   release bundles, assets, and hash-addressed artifact lookup.
 - Packages are public by default. Publishers or admins can set package visibility
@@ -161,6 +161,7 @@ All public machine APIs should be stable JSON over HTTPS.
 GET /
 GET /packages/{publisher}/{name}
 GET /ops
+GET /healthz
 GET /api/v0/health
 GET /api/v0/trust/bundle.json
 GET /api/v0/index.json

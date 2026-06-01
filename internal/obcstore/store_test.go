@@ -40,6 +40,12 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if got := request(t, ts, http.MethodGet, "/api/v0/health", nil, false); got.Code != http.StatusOK {
 		t.Fatalf("health status=%d body=%s", got.Code, got.Body.String())
 	}
+	if got := request(t, ts, http.MethodGet, "/healthz", nil, false); got.Code != http.StatusOK {
+		t.Fatalf("healthz status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodPost, "/healthz", nil, false); got.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("healthz post status=%d body=%s", got.Code, got.Body.String())
+	}
 	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs"}, false); got.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized publisher status=%d", got.Code)
 	}
@@ -132,7 +138,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("detail page missing release links: %s", detail)
 	}
 	ops := string(rawGet(t, ts, "/ops"))
-	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") {
+	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") || !strings.Contains(ops, "/healthz") {
 		t.Fatalf("ops page missing operator endpoints: %s", ops)
 	}
 
