@@ -253,8 +253,10 @@ Default NET adapter.
   fixture/replay support, and any compatibility aliases needed for non-AVM
   `std:net/tcp` / `std:net/udp` callers.
 - Hot app-facing network paths should remain byte-first. Text convenience helpers
-  may exist, but cleanup should remove legacy list-of-byte string conversion from
-  hot stdlib paths and keep conversions explicit at API boundaries.
+  may exist, but conversions should stay explicit at API boundaries. Current
+  cleanup includes byte-native `std:net/avm.try_get_bytes`, UI `text_bytes`, and
+  direct `std:bytes.to_string` byte-slice conversion instead of legacy list
+  materialization.
 
 ### OrenAVMProcessProvider
 

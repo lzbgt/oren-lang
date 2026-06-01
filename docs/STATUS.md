@@ -310,9 +310,10 @@ Facts from the 2026-05-28 implementation pass:
   the virtual backend path there. Future real work dispatch should be a reviewed
   host-backed virtual job/app-command provider with cancellation and budgets, not
   raw process/thread creation exposed to OBC.
-- AVM app-facing stdlib still needs a cleanup pass to remove legacy
-  list-of-byte string conversion from hot paths. Raw bytes are the performance
-  path; text helpers can exist but should convert only at explicit boundaries.
+- AVM app-facing stdlib hot paths now prefer raw bytes: `std:ui/avm` has
+  `text_bytes`, `std:net/avm` has `try_get_bytes`, and `std:bytes.to_string`
+  now uses direct byte-slice conversion instead of list materialization. Further
+  cleanup should keep text helpers explicit at API boundaries.
 - `lib/avm/avm.h` still exposes fixed global/frame/stack limits and rolling
   capability/budget fields.
 - `lib/avm/avm_alloc.c` uses global allocation-owner state, which is not a polished
