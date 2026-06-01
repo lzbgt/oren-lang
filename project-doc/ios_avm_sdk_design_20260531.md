@@ -87,15 +87,15 @@ Retained SDK slices on 2026-05-31:
   binary pointer event through the SDK, and clears the frame.
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
 	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
-		  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`,
-		  `fill_triangle`, `text_resource`, `draw_text`, `destroy_text`,
+		  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`,
+		  `ellipse`, `fill_triangle`, `text_resource`, `draw_text`, `destroy_text`,
 		  `image_rgba`, `draw_image`, `destroy_image`, and
 		  `draw_image_rect`/`draw_image_rects`) and enqueues pointer events back through the `OGE0` input
   mailbox. This is the default 2D fallback.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
 		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
 		  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-		  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal
+		  stroke-line, stroke-rect, circle, ellipse, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
@@ -295,8 +295,9 @@ Current GUI adapter boundary.
 - Does not expose UIKit or Metal objects directly to Oren code.
 - Current SDK implementation retrieves and clears binary frame payloads, enqueues
   binary pointer events, and renders the current `fill_rect`/`text`/
-  `stroke_line`/`circle` subset. Resize/media/key/text event helpers are implemented;
-  IME/composition helpers, richer drawing ops, and Metal are the next slices.
+  `stroke_line`/`stroke_rect`/`circle`/`ellipse` subset. Resize/media/key/text,
+  IME/composition, and Metal helpers are implemented; richer drawing ops remain
+  the next slices.
 
 ### OrenAVMPackageStore
 

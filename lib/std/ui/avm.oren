@@ -39,6 +39,13 @@ fn _push_color_rgba(out, s) {
     return 0
 }
 
+fn _truthy_flag(v) {
+    if v == nil { return false }
+    if v == false { return false }
+    if v == 0 { return false }
+    return true
+}
+
 fn _append_bytes(out, bs) {
     var n = bytes.try_len(bs)
     if oren_is_err(n) { return n }
@@ -113,12 +120,28 @@ fn _push_cmd(out, c) {
         var fill = c["fill"]
         if fill == nil { fill = true }
         var flags = 0
-        if fill != 0 { flags = flags | 1 }
+        if _truthy_flag(fill) { flags = flags | 1 }
         _push_op_header(out, 4, 20)
         _push_u32_le(out, c["cx"])
         _push_u32_le(out, c["cy"])
         _push_u32_le(out, c["r"])
         _push_u32_le(out, flags)
+        return _push_color_rgba(out, c["color"])
+    }
+    if op == "ellipse" {
+        var efill = c["fill"]
+        if efill == nil { efill = true }
+        var eflags = 0
+        if _truthy_flag(efill) { eflags = eflags | 1 }
+        var elw = c["width"]
+        if elw == nil { elw = 1 }
+        _push_op_header(out, 7, 28)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        _push_u32_le(out, elw)
+        _push_u32_le(out, eflags)
         return _push_color_rgba(out, c["color"])
     }
     if op == "fill_triangle" {

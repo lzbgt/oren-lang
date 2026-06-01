@@ -468,6 +468,23 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                 CGContextSetStrokeColorWithColor(ctx, color.CGColor);
                 CGContextStrokeEllipseInRect(ctx, oval);
             }
+        } else if (opcode == 7 && payloadLen == 28) {
+            uint32_t x = OrenAVMGfxReadU32LE(payload);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
+            uint32_t flags = OrenAVMGfxReadU32LE(payload + 20);
+            UIColor* color = OrenAVMGfxColor(payload + 24);
+            CGRect oval = CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h);
+            if ((flags & 1u) != 0) {
+                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                CGContextFillEllipseInRect(ctx, oval);
+            } else {
+                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
+                CGContextStrokeEllipseInRect(ctx, oval);
+            }
         } else if (opcode == 5 && payloadLen == 28) {
             uint32_t x1 = OrenAVMGfxReadU32LE(payload);
             uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);

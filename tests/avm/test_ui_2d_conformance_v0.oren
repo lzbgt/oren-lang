@@ -43,6 +43,7 @@ fn main() {
         {"op": "stroke_rect", "x": 1, "y": 1, "w": 4, "h": 3, "width": 1, "color": "#ffff00"},
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 5, "y2": 0, "width": 1, "color": "#2020ff"},
         {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#20ff20"},
+        {"op": "ellipse", "x": 2, "y": 0, "w": 4, "h": 3, "fill": false, "width": 1, "color": "#40ffff"},
         {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 2, "y2": 4, "x3": 0, "y3": 2, "color": "#ff2020"},
         {"op": "text_bytes", "x": 3, "y": 4, "data": text_bytes_data, "color": "#ff00ff"},
         {"op": "text_resource", "id": 10, "data": text_data, "color": "#00ffff"},
@@ -58,7 +59,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "c5cecfef627c3b4d6a8f4007053ac7e5e340f89286fef87fa89ebef7b6ddc2fe")
+    assert_eq(got, "8202b4e7f0f031257932d6645873777cbaefd53882cf57bccb529eebb8937155")
     exit(0)
 }
 

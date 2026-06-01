@@ -143,8 +143,8 @@
 <li>The first default iOS renderer is implemented as <code>OrenAVMGraphicsView</code>, a</li>
 </ul>
 <p>	  UIKit/CoreGraphics <code>UIView</code> that decodes the current <code>OGF0</code> binary frame subset</p>
-<p>		  (<code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>,</p>
-<p>		  <code>fill_triangle</code>, <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>,</p>
+<p>		  (<code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>,</p>
+<p>		  <code>ellipse</code>, <code>fill_triangle</code>, <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>,</p>
 <p>		  <code>image_rgba</code>, <code>draw_image</code>, <code>destroy_image</code>, and</p>
 <p>		  <code>draw_image_rect</code>/<code>draw_image_rects</code>) and enqueues pointer events back through the <code>OGE0</code> input</p>
 <p>  mailbox. This is the default 2D fallback.</p>
@@ -153,7 +153,7 @@
 </ul>
 <p>		  <code>MTKView</code> adapter that owns the Metal draw loop, publishes host screen/media</p>
 <p>		  state, forwards touch events to OBC, and renders current <code>OGF0</code> fill-rect,</p>
-<p>		  stroke-line, circle, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal</p>
+<p>		  stroke-line, stroke-rect, circle, ellipse, fill-triangle, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained text payloads through Metal</p>
 <p>		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect</p>
 <p>	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal</p>
 <p>	  renderers also expose retained image count/pixel limits and counters so host apps</p>
@@ -394,8 +394,9 @@
 <li>Current SDK implementation retrieves and clears binary frame payloads, enqueues</li>
 </ul>
 <p>  binary pointer events, and renders the current <code>fill_rect</code>/<code>text</code>/</p>
-<p>  <code>stroke_line</code>/<code>circle</code> subset. Resize/media/key/text event helpers are implemented;</p>
-<p>  IME/composition helpers, richer drawing ops, and Metal are the next slices.</p>
+<p>  <code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code> subset. Resize/media/key/text,</p>
+<p>  IME/composition, and Metal helpers are implemented; richer drawing ops remain</p>
+<p>  the next slices.</p>
 <h3 id="orenavmpackagestore">OrenAVMPackageStore</h3>
 <p>Public OBC store helper.</p>
 <ul>

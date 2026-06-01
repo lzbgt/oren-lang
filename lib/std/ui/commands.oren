@@ -114,6 +114,16 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if cx - cr < 0 || cy - cr < 0 || cx + cr >= w || cy + cr >= h { return oren_err(4, "ui.validate: circle out of bounds") }
             }
+        } else if op == "ellipse" {
+            var ex = c["x"]; var ey = c["y"]; var ew = c["w"]; var eh = c["h"]; var elw = c["width"]; var ecol = c["color"]
+            if _is_int(ex) == false || _is_int(ey) == false || _is_int(ew) == false || _is_int(eh) == false { return oren_err(4, "ui.validate: ellipse expects int x,y,w,h") }
+            if elw == nil { elw = 1 }
+            if _is_int(elw) == false || elw < 1 { return oren_err(4, "ui.validate: ellipse invalid width") }
+            if ew < 1 || eh < 1 { return oren_err(4, "ui.validate: ellipse invalid size") }
+            if _hex_ok(ecol) == false { return oren_err(4, "ui.validate: ellipse invalid color") }
+            if strict {
+                if ex < 0 || ey < 0 || ex + ew > w || ey + eh > h { return oren_err(4, "ui.validate: ellipse out of bounds") }
+            }
         } else if op == "fill_triangle" {
             var tx1 = c["x1"]; var ty1 = c["y1"]; var tx2 = c["x2"]; var ty2 = c["y2"]; var tx3 = c["x3"]; var ty3 = c["y3"]; var tcol = c["color"]
             if _is_int(tx1) == false || _is_int(ty1) == false || _is_int(tx2) == false || _is_int(ty2) == false || _is_int(tx3) == false || _is_int(ty3) == false {

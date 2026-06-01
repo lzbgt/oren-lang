@@ -77,7 +77,7 @@ This file is the concise task view. Detailed implementation status lives in
      host-injected pointer/resize/key/text events with Oren-side decoded
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
-     `stroke_line`/`circle` subset, plus OBC-safe virtual DNS through
+     `stroke_line`/`stroke_rect`/`circle`/`ellipse` subset, plus OBC-safe virtual DNS through
      `std:net/avm/dns` and the iOS live-NET resolver callback, and SDK-enforced
      live VNET session-count/per-session-byte limits, plus host-requested VM
      cancellation through the embed/iOS SDK APIs, plus an
