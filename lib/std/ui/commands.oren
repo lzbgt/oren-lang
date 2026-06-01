@@ -56,6 +56,12 @@ fn validate(cmds, w, h, opts) {
     var image_bytes = 0
     var image_count = 0
     var clip_depth = 0
+    var transform_depth = 0
+    var transform_stack = {}
+    var state_depth = 0
+    var state_stack = {}
+    var tx = 0
+    var ty = 0
     if max_image_bytes != nil && (_is_int(max_image_bytes) == false || max_image_bytes < 0) {
         return oren_err(4, "ui.validate: invalid max_image_bytes")
     }
@@ -86,20 +92,50 @@ fn validate(cmds, w, h, opts) {
             if rw < 0 || rh < 0 { return oren_err(4, "ui.validate: fill_rect negative size") }
             if _hex_ok(col) == false { return oren_err(4, "ui.validate: fill_rect invalid color") }
             if strict {
-                if x < 0 || y < 0 || x + rw > w || y + rh > h { return oren_err(4, "ui.validate: fill_rect out of bounds") }
+                var x_t = x + tx; var y_t = y + ty
+                if x_t < 0 || y_t < 0 || x_t + rw > w || y_t + rh > h { return oren_err(4, "ui.validate: fill_rect out of bounds") }
             }
         } else if op == "push_clip_rect" {
             var cx = c["x"]; var cy = c["y"]; var cw = c["w"]; var ch = c["h"]
             if _is_int(cx) == false || _is_int(cy) == false || _is_int(cw) == false || _is_int(ch) == false { return oren_err(4, "ui.validate: push_clip_rect expects int x,y,w,h") }
             if cw < 1 || ch < 1 { return oren_err(4, "ui.validate: push_clip_rect invalid size") }
             if strict {
-                if cx < 0 || cy < 0 || cx + cw > w || cy + ch > h { return oren_err(4, "ui.validate: push_clip_rect out of bounds") }
+                var cx_t = cx + tx; var cy_t = cy + ty
+                if cx_t < 0 || cy_t < 0 || cx_t + cw > w || cy_t + ch > h { return oren_err(4, "ui.validate: push_clip_rect out of bounds") }
             }
             clip_depth = clip_depth + 1
             if clip_depth > 64 { return oren_err(4, "ui.validate: clip stack too deep") }
+            state_stack[oren_int_to_string(state_depth)] = "clip"
+            state_depth = state_depth + 1
+            if state_depth > 64 { return oren_err(4, "ui.validate: state stack too deep") }
         } else if op == "pop_clip" {
             if clip_depth <= 0 { return oren_err(4, "ui.validate: clip stack underflow") }
+            var cstate_i = state_depth - 1
+            if cstate_i < 0 || state_stack[oren_int_to_string(cstate_i)] != "clip" { return oren_err(4, "ui.validate: clip stack order mismatch") }
+            state_stack[oren_int_to_string(cstate_i)] = nil
+            state_depth = cstate_i
             clip_depth = clip_depth - 1
+        } else if op == "push_translate" {
+            var dx_t = c["dx"]; var dy_t = c["dy"]
+            if _is_int(dx_t) == false || _is_int(dy_t) == false { return oren_err(4, "ui.validate: push_translate expects int dx,dy") }
+            transform_stack[oren_int_to_string(transform_depth)] = [tx, ty]
+            transform_depth = transform_depth + 1
+            if transform_depth > 64 { return oren_err(4, "ui.validate: transform stack too deep") }
+            state_stack[oren_int_to_string(state_depth)] = "transform"
+            state_depth = state_depth + 1
+            if state_depth > 64 { return oren_err(4, "ui.validate: state stack too deep") }
+            tx = tx + dx_t
+            ty = ty + dy_t
+        } else if op == "pop_transform" {
+            if transform_depth <= 0 { return oren_err(4, "ui.validate: transform stack underflow") }
+            var tstate_i = state_depth - 1
+            if tstate_i < 0 || state_stack[oren_int_to_string(tstate_i)] != "transform" { return oren_err(4, "ui.validate: transform stack order mismatch") }
+            state_stack[oren_int_to_string(tstate_i)] = nil
+            state_depth = tstate_i
+            transform_depth = transform_depth - 1
+            var tprev = transform_stack[oren_int_to_string(transform_depth)]
+            tx = tprev[0]
+            ty = tprev[1]
         } else if op == "stroke_line" {
             var x1 = c["x1"]; var y1 = c["y1"]; var x2 = c["x2"]; var y2 = c["y2"]; var lw = c["width"]; var lcol = c["color"]
             if _is_int(x1) == false || _is_int(y1) == false || _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: stroke_line expects int x1,y1,x2,y2") }
@@ -107,7 +143,8 @@ fn validate(cmds, w, h, opts) {
             if _is_int(lw) == false || lw < 1 { return oren_err(4, "ui.validate: stroke_line invalid width") }
             if _hex_ok(lcol) == false { return oren_err(4, "ui.validate: stroke_line invalid color") }
             if strict {
-                if x1 < 0 || y1 < 0 || x1 >= w || y1 >= h || x2 < 0 || y2 < 0 || x2 >= w || y2 >= h { return oren_err(4, "ui.validate: stroke_line out of bounds") }
+                var x1_t = x1 + tx; var y1_t = y1 + ty; var x2_t = x2 + tx; var y2_t = y2 + ty
+                if x1_t < 0 || y1_t < 0 || x1_t >= w || y1_t >= h || x2_t < 0 || y2_t < 0 || x2_t >= w || y2_t >= h { return oren_err(4, "ui.validate: stroke_line out of bounds") }
             }
         } else if op == "stroke_rect" {
             var sx = c["x"]; var sy = c["y"]; var sw = c["w"]; var sh = c["h"]; var slw = c["width"]; var scol = c["color"]
@@ -117,7 +154,8 @@ fn validate(cmds, w, h, opts) {
             if sw < 1 || sh < 1 { return oren_err(4, "ui.validate: stroke_rect invalid size") }
             if _hex_ok(scol) == false { return oren_err(4, "ui.validate: stroke_rect invalid color") }
             if strict {
-                if sx < 0 || sy < 0 || sx + sw > w || sy + sh > h { return oren_err(4, "ui.validate: stroke_rect out of bounds") }
+                var sx_t = sx + tx; var sy_t = sy + ty
+                if sx_t < 0 || sy_t < 0 || sx_t + sw > w || sy_t + sh > h { return oren_err(4, "ui.validate: stroke_rect out of bounds") }
             }
         } else if op == "circle" {
             var cx = c["cx"]; var cy = c["cy"]; var cr = c["r"]; var ccol = c["color"]
@@ -125,7 +163,8 @@ fn validate(cmds, w, h, opts) {
             if cr < 0 { return oren_err(4, "ui.validate: circle negative radius") }
             if _hex_ok(ccol) == false { return oren_err(4, "ui.validate: circle invalid color") }
             if strict {
-                if cx - cr < 0 || cy - cr < 0 || cx + cr >= w || cy + cr >= h { return oren_err(4, "ui.validate: circle out of bounds") }
+                var ccx_t = cx + tx; var ccy_t = cy + ty
+                if ccx_t - cr < 0 || ccy_t - cr < 0 || ccx_t + cr >= w || ccy_t + cr >= h { return oren_err(4, "ui.validate: circle out of bounds") }
             }
         } else if op == "ellipse" {
             var ex = c["x"]; var ey = c["y"]; var ew = c["w"]; var eh = c["h"]; var elw = c["width"]; var ecol = c["color"]
@@ -135,7 +174,8 @@ fn validate(cmds, w, h, opts) {
             if ew < 1 || eh < 1 { return oren_err(4, "ui.validate: ellipse invalid size") }
             if _hex_ok(ecol) == false { return oren_err(4, "ui.validate: ellipse invalid color") }
             if strict {
-                if ex < 0 || ey < 0 || ex + ew > w || ey + eh > h { return oren_err(4, "ui.validate: ellipse out of bounds") }
+                var ex_t = ex + tx; var ey_t = ey + ty
+                if ex_t < 0 || ey_t < 0 || ex_t + ew > w || ey_t + eh > h { return oren_err(4, "ui.validate: ellipse out of bounds") }
             }
         } else if op == "polyline" {
             var plw = c["width"]; var pcol = c["color"]; var points = c["points"]
@@ -151,7 +191,8 @@ fn validate(cmds, w, h, opts) {
                     var px = bytes.try_get_u32_le(points, poff)
                     var py = bytes.try_get_u32_le(points, poff + 4)
                     if oren_is_err(px) || oren_is_err(py) { return oren_err(4, "ui.validate: polyline malformed point") }
-                    if px >= w || py >= h { return oren_err(4, "ui.validate: polyline out of bounds") }
+                    var px_t = px + tx; var py_t = py + ty
+                    if px_t < 0 || py_t < 0 || px_t >= w || py_t >= h { return oren_err(4, "ui.validate: polyline out of bounds") }
                     poff = poff + 8
                 }
             }
@@ -162,7 +203,8 @@ fn validate(cmds, w, h, opts) {
             }
             if _hex_ok(tcol) == false { return oren_err(4, "ui.validate: fill_triangle invalid color") }
             if strict {
-                if tx1 < 0 || ty1 < 0 || tx1 >= w || ty1 >= h || tx2 < 0 || ty2 < 0 || tx2 >= w || ty2 >= h || tx3 < 0 || ty3 < 0 || tx3 >= w || ty3 >= h {
+                var tx1_t = tx1 + tx; var ty1_t = ty1 + ty; var tx2_t = tx2 + tx; var ty2_t = ty2 + ty; var tx3_t = tx3 + tx; var ty3_t = ty3 + ty
+                if tx1_t < 0 || ty1_t < 0 || tx1_t >= w || ty1_t >= h || tx2_t < 0 || ty2_t < 0 || tx2_t >= w || ty2_t >= h || tx3_t < 0 || ty3_t < 0 || tx3_t >= w || ty3_t >= h {
                     return oren_err(4, "ui.validate: fill_triangle out of bounds")
                 }
             }
@@ -173,7 +215,8 @@ fn validate(cmds, w, h, opts) {
             if _hex_ok(col2) == false { return oren_err(4, "ui.validate: text invalid color") }
             if strict {
                 var ln = oren_string_len(s)
-                if y2 < 0 || y2 >= h || x2 < 0 || x2 + ln > w { return oren_err(4, "ui.validate: text out of bounds") }
+                var x2_t = x2 + tx; var y2_t = y2 + ty
+                if y2_t < 0 || y2_t >= h || x2_t < 0 || x2_t + ln > w { return oren_err(4, "ui.validate: text out of bounds") }
             }
         } else if op == "text_bytes" {
             var bx = c["x"]; var by = c["y"]; var bd = c["data"]; var bcol = c["color"]
@@ -183,7 +226,8 @@ fn validate(cmds, w, h, opts) {
             if blen > 65519 { return oren_err(4, "ui.validate: text_bytes data too large") }
             if _hex_ok(bcol) == false { return oren_err(4, "ui.validate: text_bytes invalid color") }
             if strict {
-                if by < 0 || by >= h || bx < 0 || bx + blen > w { return oren_err(4, "ui.validate: text_bytes out of bounds") }
+                var bx_t = bx + tx; var by_t = by + ty
+                if by_t < 0 || by_t >= h || bx_t < 0 || bx_t + blen > w { return oren_err(4, "ui.validate: text_bytes out of bounds") }
             }
         } else if op == "text_resource" {
             var tid = c["id"]; var td = c["data"]; var tcolr = c["color"]
@@ -197,7 +241,8 @@ fn validate(cmds, w, h, opts) {
             if _is_int(dtid) == false || dtid < 1 { return oren_err(4, "ui.validate: draw_text invalid id") }
             if _is_int(dtx) == false || _is_int(dty) == false { return oren_err(4, "ui.validate: draw_text expects int x,y") }
             if strict {
-                if dtx < 0 || dty < 0 || dtx >= w || dty >= h { return oren_err(4, "ui.validate: draw_text out of bounds") }
+                var dtx_t = dtx + tx; var dty_t = dty + ty
+                if dtx_t < 0 || dty_t < 0 || dtx_t >= w || dty_t >= h { return oren_err(4, "ui.validate: draw_text out of bounds") }
             }
         } else if op == "destroy_text" {
             var xtid = c["id"]
@@ -222,7 +267,8 @@ fn validate(cmds, w, h, opts) {
             }
             if dw < 1 || dh < 1 { return oren_err(4, "ui.validate: draw_image invalid size") }
             if strict {
-                if dx < 0 || dy < 0 || dx + dw > w || dy + dh > h { return oren_err(4, "ui.validate: draw_image out of bounds") }
+                var dx_t = dx + tx; var dy_t = dy + ty
+                if dx_t < 0 || dy_t < 0 || dx_t + dw > w || dy_t + dh > h { return oren_err(4, "ui.validate: draw_image out of bounds") }
             }
         } else if op == "draw_image_rect" {
             var rid = c["id"]; var rsx = c["sx"]; var rsy = c["sy"]; var rsw = c["sw"]; var rsh = c["sh"]
@@ -236,7 +282,8 @@ fn validate(cmds, w, h, opts) {
                 return oren_err(4, "ui.validate: draw_image_rect invalid rect")
             }
             if strict {
-                if rx < 0 || ry < 0 || rx + rw > w || ry + rh > h { return oren_err(4, "ui.validate: draw_image_rect out of bounds") }
+                var rx_t = rx + tx; var ry_t = ry + ty
+                if rx_t < 0 || ry_t < 0 || rx_t + rw > w || ry_t + rh > h { return oren_err(4, "ui.validate: draw_image_rect out of bounds") }
             }
         } else if op == "draw_image_rects" {
             var bid = c["id"]; var rects = c["rects"]
@@ -263,7 +310,8 @@ fn validate(cmds, w, h, opts) {
                     return oren_err(4, "ui.validate: draw_image_rects invalid rect")
                 }
                 if strict {
-                    if bx + bw > w || by + bh > h { return oren_err(4, "ui.validate: draw_image_rects out of bounds") }
+                    var bx_t = bx + tx; var by_t = by + ty
+                    if bx_t < 0 || by_t < 0 || bx_t + bw > w || by_t + bh > h { return oren_err(4, "ui.validate: draw_image_rects out of bounds") }
                 }
                 roff = roff + 32
             }
@@ -278,6 +326,8 @@ fn validate(cmds, w, h, opts) {
     }
 
     if clip_depth != 0 { return oren_err(4, "ui.validate: unbalanced clip stack") }
+    if transform_depth != 0 { return oren_err(4, "ui.validate: unbalanced transform stack") }
+    if state_depth != 0 { return oren_err(4, "ui.validate: unbalanced state stack") }
 
     return 0
 }

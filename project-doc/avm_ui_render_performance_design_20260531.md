@@ -80,12 +80,12 @@ Implemented as of 2026-05-31:
   selection range so IME state remains host-driven while OBC can render/edit
   composition UI through virtual input events.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
-  `fill_rect`, `push_clip_rect`/`pop_clip`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
+  `fill_rect`, `push_clip_rect`/`pop_clip`, `push_translate`/`pop_transform`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
   `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
+  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -214,6 +214,9 @@ High-volume 2D and 3D need retained resources:
 - balanced clipping records: `push_clip_rect {x,y,w,h}` and `pop_clip`
   express a virtual scissor stack for nested game UI panels while the host maps
   it to CoreGraphics state or Metal scissor rectangles;
+- balanced translation records: `push_translate {dx,dy}` and `pop_transform`
+  express nested coordinate spaces for game UI nodes while the host maps them to
+  CoreGraphics CTM state or Metal vertex/scissor offsets;
 - path/shape handles;
 - vertex/index buffers for plots and meshes;
 - transform, clip, layer, and canvas records;
@@ -329,6 +332,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     binary frames, AVM protocol checks, deterministic raster, CoreGraphics
     fallback, Metal scissor rectangles, iOS verifier, and the 2D conformance
     scene.
-22. Add richer text atlas batching and mesh rendering on the Metal path.
-23. Add richer 2D and 3D command sets.
-24. Add game/app package smoke in the Note host or iOS SDK harness.
+22. Done: add balanced `push_translate` / `pop_transform` translation across
+    validation, binary frames, AVM protocol checks, deterministic raster,
+    CoreGraphics CTM state, Metal vertex/scissor offsets, iOS verifier, and the
+    2D conformance scene.
+23. Add richer text atlas batching and mesh rendering on the Metal path.
+24. Add richer 2D and 3D command sets.
+25. Add game/app package smoke in the Note host or iOS SDK harness.

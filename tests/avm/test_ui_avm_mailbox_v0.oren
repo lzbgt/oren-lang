@@ -80,6 +80,23 @@ fn main() {
         17, 0, 0, 0
     ])
 
+    var transform_frame = ui_avm.frame_bytes([
+        {"op": "push_translate", "dx": 1, "dy": 1},
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 2, "h": 1, "color": "#112233"},
+        {"op": "pop_transform"}
+    ], 4, 3, {"strict_bounds": true})
+    assert_bytes_eq(transform_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        18, 0, 8, 0,
+        1, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 20, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0,
+        17, 34, 51, 255,
+        19, 0, 0, 0
+    ])
+
     var ellipse_frame = ui_avm.frame_bytes([{"op": "ellipse", "x": 1, "y": 0, "w": 3, "h": 2, "width": 1, "fill": false, "color": "#00ffff"}], 4, 2, {"strict_bounds": true})
     assert_bytes_eq(ellipse_frame, [
         79, 71, 70, 48, 1, 0, 40, 0,

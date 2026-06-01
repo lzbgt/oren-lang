@@ -412,6 +412,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     size_t off = headerLen;
     size_t len = frame.length;
     uint32_t clipDepth = 0;
+    uint32_t stateDepth = 0;
     for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
@@ -435,10 +436,23 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             CGContextSaveGState(ctx);
             CGContextClipToRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
             clipDepth++;
+            stateDepth++;
         } else if (opcode == 17 && payloadLen == 0) {
             if (clipDepth > 0) {
                 CGContextRestoreGState(ctx);
                 clipDepth--;
+                if (stateDepth > 0) stateDepth--;
+            }
+        } else if (opcode == 18 && payloadLen == 8) {
+            int32_t dx = (int32_t)OrenAVMGfxReadU32LE(payload);
+            int32_t dy = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
+            CGContextSaveGState(ctx);
+            CGContextTranslateCTM(ctx, (CGFloat)dx, (CGFloat)dy);
+            stateDepth++;
+        } else if (opcode == 19 && payloadLen == 0) {
+            if (stateDepth > 0) {
+                CGContextRestoreGState(ctx);
+                stateDepth--;
             }
         } else if (opcode == 3 && payloadLen == 24) {
             uint32_t x1 = OrenAVMGfxReadU32LE(payload);
@@ -644,9 +658,9 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 
         off += payloadLen;
     }
-    while (clipDepth > 0) {
+    while (stateDepth > 0) {
         CGContextRestoreGState(ctx);
-        clipDepth--;
+        stateDepth--;
     }
 }
 

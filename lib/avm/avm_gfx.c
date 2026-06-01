@@ -54,6 +54,9 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
 
     size_t off = (size_t)header_len;
     uint32_t clip_depth = 0u;
+    uint32_t transform_depth = 0u;
+    uint8_t state_stack[64];
+    uint32_t state_depth = 0u;
     for (uint32_t i = 0; i < op_count; i++) {
         if (off + 4u > len) {
             avm_gfx_err(err, err_cap, "invalid OGF0 frame: truncated op header");
@@ -82,10 +85,11 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 return 0;
             }
             clip_depth++;
-            if (clip_depth > 64u) {
+            if (clip_depth > 64u || state_depth >= 64u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: clip stack too deep");
                 return 0;
             }
+            state_stack[state_depth++] = 1u;
         } else if (opcode == 17u) {
             if (payload_len != 0u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad pop_clip payload");
@@ -95,7 +99,38 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: clip stack underflow");
                 return 0;
             }
+            if (state_depth == 0u || state_stack[state_depth - 1u] != 1u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: clip stack order mismatch");
+                return 0;
+            }
+            state_depth--;
             clip_depth--;
+        } else if (opcode == 18u) {
+            if (payload_len != 8u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_translate payload");
+                return 0;
+            }
+            transform_depth++;
+            if (transform_depth > 64u || state_depth >= 64u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: transform stack too deep");
+                return 0;
+            }
+            state_stack[state_depth++] = 2u;
+        } else if (opcode == 19u) {
+            if (payload_len != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad pop_transform payload");
+                return 0;
+            }
+            if (transform_depth == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: transform stack underflow");
+                return 0;
+            }
+            if (state_depth == 0u || state_stack[state_depth - 1u] != 2u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: transform stack order mismatch");
+                return 0;
+            }
+            state_depth--;
+            transform_depth--;
         } else if (opcode == 2u) {
             if (payload_len < 16u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text payload");
@@ -230,6 +265,14 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     }
     if (clip_depth != 0u) {
         avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced clip stack");
+        return 0;
+    }
+    if (transform_depth != 0u) {
+        avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced transform stack");
+        return 0;
+    }
+    if (state_depth != 0u) {
+        avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced state stack");
         return 0;
     }
     return 1;

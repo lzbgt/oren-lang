@@ -16,6 +16,8 @@
 // - {"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"push_clip_rect","x":int,"y":int,"w":int,"h":int}
 // - {"op":"pop_clip"}
+// - {"op":"push_translate","dx":int,"dy":int}
+// - {"op":"pop_transform"}
 // - {"op":"stroke_line","x1":int,"y1":int,"x2":int,"y2":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"stroke_rect","x":int,"y":int,"w":int,"h":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
@@ -46,6 +48,8 @@ var _clip_x = 0
 var _clip_y = 0
 var _clip_w = 0
 var _clip_h = 0
+var _tx = 0
+var _ty = 0
 
 fn _max_i(a, b) {
     if a > b { return a }
@@ -93,6 +97,8 @@ fn _clip_push(x, y, cw, ch) {
 }
 
 fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
+    x = x + _tx
+    y = y + _ty
     if x < 0 || y < 0 || x >= w || y >= h { return 0 }
     if _clip_enabled != 0 {
         if x < _clip_x || y < _clip_y || x >= _clip_x + _clip_w || y >= _clip_y + _clip_h { return 0 }
@@ -306,8 +312,12 @@ fn rasterize(cmds, w, h, opts) {
     if cmds == nil { return buf }
 
     _clip_enabled = 0
+    _tx = 0
+    _ty = 0
     var clip_stack = {}
     var clip_depth = 0
+    var transform_stack = {}
+    var transform_depth = 0
     var images = {}
     var texts = {}
     var ci = 0
@@ -317,13 +327,26 @@ fn rasterize(cmds, w, h, opts) {
         if op == "push_clip_rect" {
             clip_stack[oren_int_to_string(clip_depth)] = _clip_snapshot()
             clip_depth = clip_depth + 1
-            _clip_push(opm["x"], opm["y"], opm["w"], opm["h"])
+            _clip_push(opm["x"] + _tx, opm["y"] + _ty, opm["w"], opm["h"])
         } else if op == "pop_clip" {
             if clip_depth <= 0 { return oren_err(4, "rasterize: clip stack underflow") }
             clip_depth = clip_depth - 1
             var ckey = oren_int_to_string(clip_depth)
             _clip_restore(clip_stack[ckey])
             clip_stack[ckey] = nil
+        } else if op == "push_translate" {
+            transform_stack[oren_int_to_string(transform_depth)] = [_tx, _ty]
+            transform_depth = transform_depth + 1
+            _tx = _tx + opm["dx"]
+            _ty = _ty + opm["dy"]
+        } else if op == "pop_transform" {
+            if transform_depth <= 0 { return oren_err(4, "rasterize: transform stack underflow") }
+            transform_depth = transform_depth - 1
+            var tkey = oren_int_to_string(transform_depth)
+            var prev = transform_stack[tkey]
+            _tx = prev[0]
+            _ty = prev[1]
+            transform_stack[tkey] = nil
         } else if op == "fill_rect" {
             var c = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(c) { return result.with_context(c, "rasterize: fill_rect color") }

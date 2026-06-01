@@ -146,6 +146,41 @@ fn main() {
     assert_true(oren_is_err(r12))
     assert_true(oren_err_code(r12) == 4)
 
+    var transform_underflow = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        19, 0, 0, 0
+    ])
+    var r13 = ui_avm.present_bytes(transform_underflow)
+    assert_true(oren_is_err(r13))
+    assert_true(oren_err_code(r13) == 4)
+
+    var transform_unbalanced = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        18, 0, 8, 0,
+        1, 0, 0, 0, 1, 0, 0, 0
+    ])
+    var r14 = ui_avm.present_bytes(transform_unbalanced)
+    assert_true(oren_is_err(r14))
+    assert_true(oren_err_code(r14) == 4)
+
+    var state_mismatch = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        16, 0, 16, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        18, 0, 8, 0,
+        1, 0, 0, 0, 1, 0, 0, 0,
+        17, 0, 0, 0
+    ])
+    var r15 = ui_avm.present_bytes(state_mismatch)
+    assert_true(oren_is_err(r15))
+    assert_true(oren_err_code(r15) == 4)
+
     exit(0)
 }
 

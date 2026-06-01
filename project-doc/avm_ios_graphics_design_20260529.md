@@ -258,6 +258,7 @@ Keep v0 small and deterministic:
 - `clear {color}`
 - `fill_rect {x,y,w,h,color}`
 - `push_clip_rect {x,y,w,h}` and `pop_clip` for a balanced virtual scissor stack
+- `push_translate {dx,dy}` and `pop_transform` for a balanced virtual translation stack
 - `stroke_line {x1,y1,x2,y2,color,width}`
 - `stroke_rect {x,y,w,h,color,width}`
 - `ellipse {x,y,w,h,fill,color,width}`
@@ -344,7 +345,7 @@ Required gates before Note integration should be called production-ready:
     FIFO pointer down/move/up ordering gates.
 11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
     Metal draw loop, publishes screen state, forwards touch input, and renders the
-    current `fill_rect`/`push_clip_rect`/`pop_clip`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry records plus
+    current `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry records plus
     retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text
     upload/draw/destroy records.
 12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
@@ -355,7 +356,11 @@ Required gates before Note integration should be called production-ready:
 15. Done: add a balanced OBC-visible `push_clip_rect` / `pop_clip` scissor stack
     across validation, `OGF0`, AVM protocol checks, deterministic raster,
     CoreGraphics, Metal scissor rectangles, and iOS verifier coverage.
-16. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` records for sprite/text/mesh rendering
+16. Done: add a balanced OBC-visible `push_translate` / `pop_transform`
+    translation stack across validation, `OGF0`, AVM protocol checks,
+    deterministic raster, CoreGraphics CTM state, Metal vertex/scissor offsets,
+    and iOS verifier coverage.
+17. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` records for sprite/text/mesh rendering
     on the Metal path.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the

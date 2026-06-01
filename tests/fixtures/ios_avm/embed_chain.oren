@@ -104,6 +104,9 @@ fn main() {
     ])
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
+        {"op": "push_translate", "dx": 1, "dy": 0},
+        {"op": "fill_rect", "x": 0, "y": 2, "w": 1, "h": 1, "color": "#404040"},
+        {"op": "pop_transform"},
         {"op": "push_clip_rect", "x": 0, "y": 0, "w": 4, "h": 3},
         {"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"},
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},

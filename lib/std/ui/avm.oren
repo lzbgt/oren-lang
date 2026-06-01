@@ -106,6 +106,16 @@ fn _push_cmd(out, c) {
         _push_op_header(out, 17, 0)
         return 0
     }
+    if op == "push_translate" {
+        _push_op_header(out, 18, 8)
+        _push_u32_le(out, c["dx"])
+        _push_u32_le(out, c["dy"])
+        return 0
+    }
+    if op == "pop_transform" {
+        _push_op_header(out, 19, 0)
+        return 0
+    }
     if op == "stroke_line" {
         var lw = c["width"]
         if lw == nil { lw = 1 }
