@@ -65,6 +65,10 @@ fn main() {
         255, 0, 0, 255
     ])
     assert_true(oren_is_err(triangles3d_depth) == false)
+    var mesh3d_indices = bytes.try_pack([
+        0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
+    ])
+    assert_true(oren_is_err(mesh3d_indices) == false)
     var rects = bytes.try_pack([
         0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
@@ -92,6 +96,9 @@ fn main() {
         {"op": "mesh3d", "id": 12, "triangles": triangles3d, "color": "#8040ff"},
         {"op": "draw_mesh3d", "id": 12},
         {"op": "destroy_mesh3d", "id": 12},
+        {"op": "mesh3d_indexed", "id": 14, "vertices": triangles3d, "indices": mesh3d_indices, "color": "#3366ff"},
+        {"op": "draw_mesh3d_at", "id": 14, "x": 1, "y": 0, "z": 0, "scale_milli": 1000},
+        {"op": "destroy_mesh3d", "id": 14},
         {"op": "mesh3d_rgba", "id": 13, "triangles": triangles3d_depth},
         {"op": "push_camera_ortho", "near_z": 0, "far_z": 8},
         {"op": "draw_mesh3d", "id": 13},
@@ -119,7 +126,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "5534ee51ac140d505707b3d00b8653ef2837e39a3bb7cd78ebbd93dc4b5462c1")
+    assert_eq(got, "4acc5e8e4e5682515d3d156348c4a10a800544eb96ad70ad983a63fecd4feb00")
     exit(0)
 }
 

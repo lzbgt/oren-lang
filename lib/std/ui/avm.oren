@@ -283,6 +283,25 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, mesh3d_rgba_n / 40)
         return _append_bytes(out, mesh3d_rgba_tris)
     }
+    if op == "mesh3d_indexed" {
+        var mesh3d_vertices = c["vertices"]
+        var mesh3d_vertices_n = bytes.try_len(mesh3d_vertices)
+        if oren_is_err(mesh3d_vertices_n) { return mesh3d_vertices_n }
+        var mesh3d_indices = c["indices"]
+        var mesh3d_indices_n = bytes.try_len(mesh3d_indices)
+        if oren_is_err(mesh3d_indices_n) { return mesh3d_indices_n }
+        if mesh3d_vertices_n < 36 || mesh3d_vertices_n > 65508 || mesh3d_vertices_n % 12 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid vertex bytes") }
+        if mesh3d_indices_n < 12 || mesh3d_indices_n > 65508 || mesh3d_indices_n % 12 != 0 || mesh3d_vertices_n + mesh3d_indices_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid index bytes") }
+        _push_op_header(out, 88, 16 + mesh3d_vertices_n + mesh3d_indices_n)
+        _push_u32_le(out, c["id"])
+        var mesh3d_indexed_col = _push_color_rgba(out, c["color"])
+        if oren_is_err(mesh3d_indexed_col) { return mesh3d_indexed_col }
+        _push_u32_le(out, mesh3d_vertices_n / 12)
+        _push_u32_le(out, mesh3d_indices_n / 4)
+        var mesh3d_indexed_vr = _append_bytes(out, mesh3d_vertices)
+        if oren_is_err(mesh3d_indexed_vr) { return mesh3d_indexed_vr }
+        return _append_bytes(out, mesh3d_indices)
+    }
     if op == "draw_mesh3d" {
         _push_op_header(out, 84, 4)
         _push_u32_le(out, c["id"])

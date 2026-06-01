@@ -38,6 +38,7 @@
 //   orthographic XY and deterministic painter-depth order (higher average Z first).
 // - {"op":"mesh3d_rgba","id":int,"triangles":bytes} where each triangle is
 //   three i32le x,y,z vertices plus RGBA bytes.
+// - {"op":"mesh3d_indexed","id":int,"vertices":bytes,"indices":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"draw_mesh3d","id":int}
 // - {"op":"draw_mesh3d_at","id":int,"x":int,"y":int,"z":int,"scale_milli":int}
 // - {"op":"destroy_mesh3d","id":int}
@@ -406,6 +407,18 @@ fn _mesh3d_rgba_zsum_model(tris, off, mz, scale_milli) {
     return (zsum * scale_milli) / 1000 + mz * 3
 }
 
+fn _mesh3d_indexed_zsum_model(vertices, indices, off, mz, scale_milli) {
+    var i1 = bytes.try_get_u32_le(indices, off)
+    var i2 = bytes.try_get_u32_le(indices, off + 4)
+    var i3 = bytes.try_get_u32_le(indices, off + 8)
+    if oren_is_err(i1) || oren_is_err(i2) || oren_is_err(i3) { return oren_err(4, "rasterize: mesh3d_indexed malformed index") }
+    var z1 = bytes.try_get_i32_le(vertices, i1 * 12 + 8)
+    var z2 = bytes.try_get_i32_le(vertices, i2 * 12 + 8)
+    var z3 = bytes.try_get_i32_le(vertices, i3 * 12 + 8)
+    if oren_is_err(z1) || oren_is_err(z2) || oren_is_err(z3) { return oren_err(4, "rasterize: mesh3d_indexed malformed z") }
+    return ((z1 + z2 + z3) * scale_milli) / 1000 + mz * 3
+}
+
 fn _depth_zsum_visible(zsum, depth_enabled, near_z, far_z) {
     if depth_enabled == 0 { return true }
     return zsum >= near_z * 3 && zsum <= far_z * 3
@@ -441,6 +454,66 @@ fn _draw_triangle3d_at_model(buf, w, h, tris, off, c, err_prefix, mx, my, mz, sc
 
 fn _draw_triangle3d_at(buf, w, h, tris, off, c, err_prefix) {
     return _draw_triangle3d_at_model(buf, w, h, tris, off, c, err_prefix, 0, 0, 0, 1000)
+}
+
+fn _draw_triangle3d_indexed_at_model(buf, w, h, vertices, indices, off, c, err_prefix, mx, my, mz, scale_milli) {
+    var i1 = bytes.try_get_u32_le(indices, off)
+    var i2 = bytes.try_get_u32_le(indices, off + 4)
+    var i3 = bytes.try_get_u32_le(indices, off + 8)
+    if oren_is_err(i1) || oren_is_err(i2) || oren_is_err(i3) { return oren_err(4, err_prefix + " malformed index") }
+    var v1 = i1 * 12; var v2 = i2 * 12; var v3 = i3 * 12
+    var tx1 = bytes.try_get_i32_le(vertices, v1)
+    var ty1 = bytes.try_get_i32_le(vertices, v1 + 4)
+    var tz1 = bytes.try_get_i32_le(vertices, v1 + 8)
+    var tx2 = bytes.try_get_i32_le(vertices, v2)
+    var ty2 = bytes.try_get_i32_le(vertices, v2 + 4)
+    var tz2 = bytes.try_get_i32_le(vertices, v2 + 8)
+    var tx3 = bytes.try_get_i32_le(vertices, v3)
+    var ty3 = bytes.try_get_i32_le(vertices, v3 + 4)
+    var tz3 = bytes.try_get_i32_le(vertices, v3 + 8)
+    if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tz1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tz2) || oren_is_err(tx3) || oren_is_err(ty3) || oren_is_err(tz3) {
+        return oren_err(4, err_prefix + " malformed vertex")
+    }
+    _draw_fill_triangle(buf, w, h,
+        _model_coord(tx1, mx, scale_milli),
+        _model_coord(ty1, my, scale_milli),
+        _model_coord(tx2, mx, scale_milli),
+        _model_coord(ty2, my, scale_milli),
+        _model_coord(tx3, mx, scale_milli),
+        _model_coord(ty3, my, scale_milli),
+        c)
+    return 0
+}
+
+fn _draw_triangle3d_indexed_bytes_model(buf, w, h, vertices, indices, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
+    var index_len = bytes.try_len(indices)
+    if oren_is_err(index_len) { return result.with_context(index_len, err_prefix) }
+    var triangle_count = index_len / 12
+    var drawn = {}
+    var drawn_count = 0
+    while drawn_count < triangle_count {
+        var best = -1
+        var best_z = -9223372036854775807
+        var ti = 0
+        while ti < triangle_count {
+            var key = oren_int_to_string(ti)
+            if drawn[key] == nil {
+                var zsum = _mesh3d_indexed_zsum_model(vertices, indices, ti * 12, mz, scale_milli)
+                if oren_is_err(zsum) { return result.with_context(zsum, err_prefix) }
+                if _depth_zsum_visible(zsum, depth_enabled, near_z, far_z) && (best < 0 || zsum > best_z) {
+                    best = ti
+                    best_z = zsum
+                }
+            }
+            ti = ti + 1
+        }
+        if best < 0 { return 0 }
+        var dr = _draw_triangle3d_indexed_at_model(buf, w, h, vertices, indices, best * 12, c, err_prefix, mx, my, mz, scale_milli)
+        if oren_is_err(dr) { return dr }
+        drawn[oren_int_to_string(best)] = true
+        drawn_count = drawn_count + 1
+    }
+    return 0
 }
 
 fn _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
@@ -527,6 +600,9 @@ fn _draw_mesh3d_resource(buf, w, h, mesh3d, err_prefix, mx, my, mz, scale_milli,
     }
     var m3c = ui_color.try_parse_hex(mesh3d["color"])
     if oren_is_err(m3c) { return result.with_context(m3c, err_prefix + " mesh3d color") }
+    if mesh3d["op"] == "mesh3d_indexed" {
+        return _draw_triangle3d_indexed_bytes_model(buf, w, h, mesh3d["vertices"], mesh3d["indices"], m3c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
+    }
     return _draw_triangle3d_bytes_model(buf, w, h, mesh3d["triangles"], m3c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
 }
 
@@ -736,6 +812,8 @@ fn rasterize(cmds, w, h, opts) {
         } else if op == "mesh3d" {
             meshes[oren_int_to_string(opm["id"])] = opm
         } else if op == "mesh3d_rgba" {
+            meshes[oren_int_to_string(opm["id"])] = opm
+        } else if op == "mesh3d_indexed" {
             meshes[oren_int_to_string(opm["id"])] = opm
         } else if op == "draw_mesh3d" {
             var mesh3d = meshes[oren_int_to_string(opm["id"])]

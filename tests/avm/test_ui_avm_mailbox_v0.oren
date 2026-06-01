@@ -252,6 +252,26 @@ fn main() {
         87, 0, 20, 0,
         5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0
     ])
+    var mesh3d_indexed_frame = ui_avm.frame_bytes([
+        {"op": "mesh3d_indexed", "id": 6, "vertices": triangle3d, "indices": bytes.try_pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
+        {"op": "draw_mesh3d", "id": 6},
+        {"op": "destroy_mesh3d", "id": 6}
+    ], 4, 3, {"strict_bounds": true})
+    assert_bytes_eq(mesh3d_indexed_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        88, 0, 64, 0,
+        6, 0, 0, 0, 51, 102, 255, 255, 3, 0, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
+        84, 0, 4, 0,
+        6, 0, 0, 0,
+        85, 0, 4, 0,
+        6, 0, 0, 0
+    ])
     var camera_frame = ui_avm.frame_bytes([
         {"op": "push_camera_ortho", "near_z": 0, "far_z": 2},
         {"op": "pop_camera"}

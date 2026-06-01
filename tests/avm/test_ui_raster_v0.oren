@@ -171,6 +171,21 @@ fn test_raster_mesh3d_depth() {
     assert_eq(_px(far_buf, 3, 0, 0, 0), 255)
     assert_eq(_px(far_buf, 3, 0, 0, 1), 0)
 
+    var indexed_cmds = [
+        {"op": "mesh3d_indexed", "id": 23, "vertices": bytes.try_pack([
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+        ]), "indices": bytes.try_pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
+        {"op": "draw_mesh3d", "id": 23},
+        {"op": "destroy_mesh3d", "id": 23}
+    ]
+    var indexed_buf = ui_raster.try_rasterize(indexed_cmds, 3, 3, {"strict_bounds": true})
+    assert_true(oren_is_err(indexed_buf) == false)
+    assert_eq(_px(indexed_buf, 3, 0, 0, 0), 51)
+    assert_eq(_px(indexed_buf, 3, 0, 0, 1), 102)
+    assert_eq(_px(indexed_buf, 3, 0, 0, 2), 255)
+
     var model_cmds = [
         {"op": "mesh3d_rgba", "id": 21, "triangles": tris},
         {"op": "draw_mesh3d_at", "id": 21, "x": 1, "y": 1, "z": 0, "scale_milli": 1000},

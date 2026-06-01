@@ -80,8 +80,11 @@ typedef struct {
 
 @interface OrenAVMMetalMesh3DResource : NSObject
 @property(nonatomic, strong) NSData* triangles;
+@property(nonatomic, strong) NSData* vertices;
+@property(nonatomic, strong) NSData* indices;
 @property(nonatomic, strong) NSData* rgba;
 @property(nonatomic) uint32_t triangleCount;
+@property(nonatomic) uint32_t indexCount;
 @property(nonatomic) uint32_t stride;
 @end
 
@@ -126,6 +129,21 @@ static int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, u
 static BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ) {
     if (!depthEnabled) return YES;
     return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
+}
+
+static int64_t OrenAVMMetalMesh3DIndexedZSumModel(const uint8_t* vertices,
+                                                  const uint8_t* indices,
+                                                  uint32_t triangle,
+                                                  int32_t offset,
+                                                  uint32_t scaleMilli) {
+    const uint8_t* tri = indices + ((size_t)triangle * 12u);
+    uint32_t i1 = OrenAVMMetalReadU32LE(tri);
+    uint32_t i2 = OrenAVMMetalReadU32LE(tri + 4);
+    uint32_t i3 = OrenAVMMetalReadU32LE(tri + 8);
+    int64_t z = (int64_t)(int32_t)OrenAVMMetalReadU32LE(vertices + ((size_t)i1 * 12u) + 8) +
+                (int64_t)(int32_t)OrenAVMMetalReadU32LE(vertices + ((size_t)i2 * 12u) + 8) +
+                (int64_t)(int32_t)OrenAVMMetalReadU32LE(vertices + ((size_t)i3 * 12u) + 8);
+    return (z * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
 }
 
 static float OrenAVMMetalMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli) {
@@ -1338,6 +1356,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20)) {
             OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(OrenAVMMetalReadU32LE(payload))];
             const uint8_t* tris = mesh.triangles.bytes;
+            const uint8_t* verts = mesh.vertices.bytes;
+            const uint8_t* idx = mesh.indices.bytes;
             uint32_t meshStride = mesh.stride == 0 ? 36u : mesh.stride;
             int32_t modelX = 0;
             int32_t modelY = 0;
@@ -1349,7 +1369,42 @@ static NSData* OrenAVMMetalTextQuad(float x,
                 modelZ = (int32_t)OrenAVMMetalReadU32LE(payload + 12);
                 scaleMilli = OrenAVMMetalReadU32LE(payload + 16);
             }
-            if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
+            if (verts && idx && mesh.rgba.length == 4 && scaleMilli != 0 && mesh.indexCount == mesh.indices.length / 4u) {
+                NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:mesh.indexCount / 3u];
+                for (uint32_t di = 0; di < mesh.indexCount / 3u; di++) {
+                    uint32_t best = 0;
+                    BOOL found = NO;
+                    int64_t bestZ = -9223372036854775807LL;
+                    for (uint32_t ti = 0; ti < mesh.indexCount / 3u; ti++) {
+                        NSNumber* key = @(ti);
+                        if ([drawn containsObject:key]) continue;
+                        int64_t z = OrenAVMMetalMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
+                        if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
+                        if (!found || z > bestZ) {
+                            best = ti;
+                            bestZ = z;
+                            found = YES;
+                        }
+                    }
+                    if (!found) break;
+                    [drawn addObject:@(best)];
+                    const uint8_t* tri = idx + ((size_t)best * 12u);
+                    const uint8_t* v1 = verts + ((size_t)OrenAVMMetalReadU32LE(tri) * 12u);
+                    const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
+                    const uint8_t* v3 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 8) * 12u);
+                    OrenAVMMetalRGBAWithOpacity(mesh.rgba.bytes, opacity, rgba);
+                    OrenAVMMetalAppendTriangle(vertices,
+                                               OrenAVMMetalMesh3DModelCoord(v1, modelX, scaleMilli) + tx,
+                                               OrenAVMMetalMesh3DModelCoord(v1 + 4, modelY, scaleMilli) + ty,
+                                               OrenAVMMetalMesh3DModelCoord(v2, modelX, scaleMilli) + tx,
+                                               OrenAVMMetalMesh3DModelCoord(v2 + 4, modelY, scaleMilli) + ty,
+                                               OrenAVMMetalMesh3DModelCoord(v3, modelX, scaleMilli) + tx,
+                                               OrenAVMMetalMesh3DModelCoord(v3 + 4, modelY, scaleMilli) + ty,
+                                               (float)logicalW,
+                                               (float)logicalH,
+                                               rgba);
+                }
+            } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
                 NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:mesh.triangleCount];
                 for (uint32_t di = 0; di < mesh.triangleCount; di++) {
                     uint32_t best = 0;
@@ -1394,6 +1449,27 @@ static NSData* OrenAVMMetalTextQuad(float x,
                 mesh.triangles = [NSData dataWithBytes:payload + 8 length:(NSUInteger)payloadLen - 8u];
                 mesh.triangleCount = triangleCount;
                 mesh.stride = 40u;
+                self.orenMeshes3D[@(meshID)] = mesh;
+            }
+        } else if (opcode == 88 && payloadLen >= 64) {
+            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+            uint32_t vertexCount = OrenAVMMetalReadU32LE(payload + 8);
+            uint32_t indexCount = OrenAVMMetalReadU32LE(payload + 12);
+            size_t vertexBytes = (size_t)vertexCount * 12u;
+            size_t indexBytes = (size_t)indexCount * 4u;
+            BOOL indicesOK = meshID != 0 && vertexCount >= 3u && indexCount >= 3u && indexCount % 3u == 0 &&
+                16u + vertexBytes + indexBytes == (size_t)payloadLen;
+            for (uint32_t ii = 0; indicesOK && ii < indexCount; ii++) {
+                if (OrenAVMMetalReadU32LE(payload + 16 + vertexBytes + ((size_t)ii * 4u)) >= vertexCount) {
+                    indicesOK = NO;
+                }
+            }
+            if (indicesOK) {
+                OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
+                mesh.rgba = [NSData dataWithBytes:payload + 4 length:4];
+                mesh.vertices = [NSData dataWithBytes:payload + 16 length:vertexBytes];
+                mesh.indices = [NSData dataWithBytes:payload + 16 + vertexBytes length:indexBytes];
+                mesh.indexCount = indexCount;
                 self.orenMeshes3D[@(meshID)] = mesh;
             }
         } else if (opcode == 2 && payloadLen >= 16) {

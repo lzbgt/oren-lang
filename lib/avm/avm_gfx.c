@@ -273,6 +273,32 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d_rgba count");
                 return 0;
             }
+        } else if (opcode == 88u) {
+            if (payload_len < 64u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d_indexed payload");
+                return 0;
+            }
+            uint32_t vertex_count = avm_gfx_u32le(payload + 8);
+            uint32_t index_count = avm_gfx_u32le(payload + 12);
+            if (avm_gfx_u32le(payload) == 0u || vertex_count < 3u || index_count < 3u ||
+                (index_count % 3u) != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d_indexed count");
+                return 0;
+            }
+            size_t vertex_bytes = (size_t)vertex_count * 12u;
+            size_t index_bytes = (size_t)index_count * 4u;
+            if (vertex_bytes / 12u != vertex_count || index_bytes / 4u != index_count ||
+                16u + vertex_bytes + index_bytes != (size_t)payload_len) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d_indexed size");
+                return 0;
+            }
+            const uint8_t* indices = payload + 16u + vertex_bytes;
+            for (uint32_t ii = 0u; ii < index_count; ii++) {
+                if (avm_gfx_u32le(indices + ((size_t)ii * 4u)) >= vertex_count) {
+                    avm_gfx_err(err, err_cap, "invalid OGF0 frame: mesh3d_indexed index out of range");
+                    return 0;
+                }
+            }
         } else if (opcode == 87u) {
             if (payload_len != 20u || avm_gfx_u32le(payload) == 0u || avm_gfx_u32le(payload + 16) == 0u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_mesh3d_at payload");

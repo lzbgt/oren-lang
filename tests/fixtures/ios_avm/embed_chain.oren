@@ -125,6 +125,9 @@ fn main() {
         1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
         128, 64, 255, 255
     ])
+    var mesh3d_indices = bytes.pack([
+        0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
+    ])
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
         {"op": "push_translate", "dx": 1, "dy": 0},
@@ -148,6 +151,9 @@ fn main() {
         {"op": "mesh3d", "id": 4, "triangles": triangle3d, "color": "#8040ff"},
         {"op": "draw_mesh3d", "id": 4},
         {"op": "destroy_mesh3d", "id": 4},
+        {"op": "mesh3d_indexed", "id": 6, "vertices": triangle3d, "indices": mesh3d_indices, "color": "#3366ff"},
+        {"op": "draw_mesh3d", "id": 6},
+        {"op": "destroy_mesh3d", "id": 6},
         {"op": "push_camera_ortho", "near_z": 0, "far_z": 8},
         {"op": "mesh3d_rgba", "id": 5, "triangles": triangle3d_rgba},
         {"op": "draw_mesh3d", "id": 5},

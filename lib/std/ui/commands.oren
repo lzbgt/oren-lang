@@ -352,6 +352,36 @@ fn validate(cmds, w, h, opts) {
                     m3roff = m3roff + 40
                 }
             }
+        } else if op == "mesh3d_indexed" {
+            var m3iid = c["id"]; var m3iverts = c["vertices"]; var m3iidx = c["indices"]; var m3icol = c["color"]
+            if _is_int(m3iid) == false || m3iid < 1 { return oren_err(4, "ui.validate: mesh3d_indexed invalid id") }
+            if _hex_ok(m3icol) == false { return oren_err(4, "ui.validate: mesh3d_indexed invalid color") }
+            var m3iverts_len = bytes.try_len(m3iverts)
+            if oren_is_err(m3iverts_len) { return oren_err(4, "ui.validate: mesh3d_indexed expects byte vertices") }
+            if m3iverts_len < 36 || m3iverts_len > 65508 || m3iverts_len % 12 != 0 { return oren_err(4, "ui.validate: mesh3d_indexed invalid vertex bytes") }
+            var m3iidx_len = bytes.try_len(m3iidx)
+            if oren_is_err(m3iidx_len) { return oren_err(4, "ui.validate: mesh3d_indexed expects byte indices") }
+            if m3iidx_len < 12 || m3iidx_len > 65508 || m3iidx_len % 12 != 0 || m3iverts_len + m3iidx_len > 65519 { return oren_err(4, "ui.validate: mesh3d_indexed invalid index bytes") }
+            var m3ivc = m3iverts_len / 12
+            var m3iioff = 0
+            while m3iioff < m3iidx_len {
+                var m3ii = bytes.try_get_u32_le(m3iidx, m3iioff)
+                if oren_is_err(m3ii) { return oren_err(4, "ui.validate: mesh3d_indexed malformed index") }
+                if m3ii < 0 || m3ii >= m3ivc { return oren_err(4, "ui.validate: mesh3d_indexed index out of range") }
+                m3iioff = m3iioff + 4
+            }
+            if strict {
+                var m3ivoff = 0
+                while m3ivoff < m3iverts_len {
+                    var m3ix = bytes.try_get_i32_le(m3iverts, m3ivoff)
+                    var m3iy = bytes.try_get_i32_le(m3iverts, m3ivoff + 4)
+                    var m3iz = bytes.try_get_i32_le(m3iverts, m3ivoff + 8)
+                    if oren_is_err(m3ix) || oren_is_err(m3iy) || oren_is_err(m3iz) { return oren_err(4, "ui.validate: mesh3d_indexed malformed vertex") }
+                    var m3ix_t = m3ix + tx; var m3iy_t = m3iy + ty
+                    if m3ix_t < 0 || m3iy_t < 0 || m3ix_t >= w || m3iy_t >= h { return oren_err(4, "ui.validate: mesh3d_indexed projected out of bounds") }
+                    m3ivoff = m3ivoff + 12
+                }
+            }
         } else if op == "draw_mesh3d" {
             var dm3id = c["id"]
             if _is_int(dm3id) == false || dm3id < 1 { return oren_err(4, "ui.validate: draw_mesh3d invalid id") }
