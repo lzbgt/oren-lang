@@ -48,24 +48,6 @@ static BOOL OrenAVMKitAssignSDKError(NSError** error, NSInteger code, NSString* 
     return NO;
 }
 
-static void OrenAVMKitPutU32LE(uint8_t* dst, uint32_t v) {
-    dst[0] = (uint8_t)(v & 255u);
-    dst[1] = (uint8_t)((v >> 8) & 255u);
-    dst[2] = (uint8_t)((v >> 16) & 255u);
-    dst[3] = (uint8_t)((v >> 24) & 255u);
-}
-
-static void OrenAVMKitPutU64LE(uint8_t* dst, uint64_t v) {
-    dst[0] = (uint8_t)(v & 255u);
-    dst[1] = (uint8_t)((v >> 8) & 255u);
-    dst[2] = (uint8_t)((v >> 16) & 255u);
-    dst[3] = (uint8_t)((v >> 24) & 255u);
-    dst[4] = (uint8_t)((v >> 32) & 255u);
-    dst[5] = (uint8_t)((v >> 40) & 255u);
-    dst[6] = (uint8_t)((v >> 48) & 255u);
-    dst[7] = (uint8_t)((v >> 56) & 255u);
-}
-
 static uint16_t OrenAVMKitReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -80,18 +62,6 @@ static uint32_t OrenAVMKitReadU32LE(const uint8_t* p) {
 static NSString* OrenAVMKitUTF8Field(const uint8_t* bytes, NSUInteger len) {
     if (len == 0) return @"";
     return [[NSString alloc] initWithBytes:bytes length:len encoding:NSUTF8StringEncoding];
-}
-
-static NSData* OrenAVMKitMakeGFXEvent(uint8_t opcode, const uint8_t* payload, uint16_t payloadLen) {
-    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)12u + (NSUInteger)payloadLen];
-    uint8_t* buf = (uint8_t*)data.mutableBytes;
-    buf[0] = 'O'; buf[1] = 'G'; buf[2] = 'E'; buf[3] = '0';
-    buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 0;
-    buf[8] = opcode; buf[9] = 0;
-    buf[10] = (uint8_t)(payloadLen & 255u);
-    buf[11] = (uint8_t)((payloadLen >> 8) & 255u);
-    if (payloadLen > 0 && payload) memcpy(buf + 12, payload, payloadLen);
-    return data;
 }
 
 static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
@@ -1782,26 +1752,6 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return YES;
 }
 
-- (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError**)error {
-    uint8_t payload[12];
-    uint32_t ux = (uint32_t)x;
-    uint32_t uy = (uint32_t)y;
-    OrenAVMKitPutU32LE(payload, ux);
-    OrenAVMKitPutU32LE(payload + 4, uy);
-    OrenAVMKitPutU32LE(payload + 8, pointerId);
-    NSData* data = OrenAVMKitMakeGFXEvent(kind, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsResizeEventWithWidth:(uint32_t)width height:(uint32_t)height scaleMilli:(uint32_t)scaleMilli error:(NSError**)error {
-    uint8_t payload[12];
-    OrenAVMKitPutU32LE(payload, width);
-    OrenAVMKitPutU32LE(payload + 4, height);
-    OrenAVMKitPutU32LE(payload + 8, scaleMilli);
-    NSData* data = OrenAVMKitMakeGFXEvent(16, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
 - (BOOL)setGraphicsScreenWithID:(uint32_t)screenID
                            width:(uint32_t)width
                           height:(uint32_t)height
@@ -1824,118 +1774,6 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                       &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set GFX screen state", &result);
     return YES;
-}
-
-- (BOOL)putGraphicsMediaEventWithWidth:(uint32_t)width
-                                 height:(uint32_t)height
-                             scaleMilli:(uint32_t)scaleMilli
-                          drawableWidth:(uint32_t)drawableWidth
-                         drawableHeight:(uint32_t)drawableHeight
-                          targetHzMilli:(uint32_t)targetHzMilli
-                                  flags:(uint32_t)flags
-                                  error:(NSError**)error {
-    uint8_t payload[28];
-    OrenAVMKitPutU32LE(payload, width);
-    OrenAVMKitPutU32LE(payload + 4, height);
-    OrenAVMKitPutU32LE(payload + 8, scaleMilli);
-    OrenAVMKitPutU32LE(payload + 12, drawableWidth);
-    OrenAVMKitPutU32LE(payload + 16, drawableHeight);
-    OrenAVMKitPutU32LE(payload + 20, targetHzMilli);
-    OrenAVMKitPutU32LE(payload + 24, flags);
-    NSData* data = OrenAVMKitMakeGFXEvent(17, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsFrameTickEventWithSequence:(uint32_t)sequence
-                                        nowNs:(uint64_t)nowNs
-                                      deltaNs:(uint64_t)deltaNs
-                                targetHzMilli:(uint32_t)targetHzMilli
-                                        flags:(uint32_t)flags
-                                        error:(NSError**)error {
-    uint8_t payload[28];
-    OrenAVMKitPutU32LE(payload, sequence);
-    OrenAVMKitPutU64LE(payload + 4, nowNs);
-    OrenAVMKitPutU64LE(payload + 12, deltaNs);
-    OrenAVMKitPutU32LE(payload + 20, targetHzMilli);
-    OrenAVMKitPutU32LE(payload + 24, flags);
-    NSData* data = OrenAVMKitMakeGFXEvent(18, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsKeyEventWithKind:(uint8_t)kind keyCode:(uint32_t)keyCode modifiers:(uint32_t)modifiers error:(NSError**)error {
-    uint8_t payload[8];
-    OrenAVMKitPutU32LE(payload, keyCode);
-    OrenAVMKitPutU32LE(payload + 4, modifiers);
-    NSData* data = OrenAVMKitMakeGFXEvent(kind, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsTextInputString:(NSString*)text error:(NSError**)error {
-    NSData* utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
-    if (!utf8) {
-        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                        @"GFX text input must be valid UTF-8");
-    }
-    if (utf8.length > UINT16_MAX - 4u) {
-        return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                        @"GFX text input event is too large");
-    }
-    NSMutableData* payload = [NSMutableData dataWithLength:4u + utf8.length];
-    uint8_t* out = (uint8_t*)payload.mutableBytes;
-    OrenAVMKitPutU32LE(out, (uint32_t)utf8.length);
-    if (utf8.length > 0) memcpy(out + 4, utf8.bytes, utf8.length);
-    NSData* data = OrenAVMKitMakeGFXEvent(48, payload.bytes, (uint16_t)payload.length);
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsGamepadEventWithControllerID:(uint32_t)controllerID
-                                        buttons:(uint32_t)buttons
-                                        lxMilli:(int32_t)lxMilli
-                                        lyMilli:(int32_t)lyMilli
-                                        rxMilli:(int32_t)rxMilli
-                                        ryMilli:(int32_t)ryMilli
-                                          error:(NSError**)error {
-    uint8_t payload[24];
-    OrenAVMKitPutU32LE(payload, controllerID);
-    OrenAVMKitPutU32LE(payload + 4, buttons);
-    OrenAVMKitPutU32LE(payload + 8, (uint32_t)lxMilli);
-    OrenAVMKitPutU32LE(payload + 12, (uint32_t)lyMilli);
-    OrenAVMKitPutU32LE(payload + 16, (uint32_t)rxMilli);
-    OrenAVMKitPutU32LE(payload + 20, (uint32_t)ryMilli);
-    NSData* data = OrenAVMKitMakeGFXEvent(64, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsMotionEventWithSourceID:(uint32_t)sourceID
-                                  sequence:(uint32_t)sequence
-                               timestampNs:(uint64_t)timestampNs
-                              accelXMilli:(int32_t)accelXMilli
-                              accelYMilli:(int32_t)accelYMilli
-                              accelZMilli:(int32_t)accelZMilli
-                               gyroXMilli:(int32_t)gyroXMilli
-                               gyroYMilli:(int32_t)gyroYMilli
-                               gyroZMilli:(int32_t)gyroZMilli
-                                     error:(NSError**)error {
-    uint8_t payload[40];
-    OrenAVMKitPutU32LE(payload, sourceID);
-    OrenAVMKitPutU32LE(payload + 4, sequence);
-    OrenAVMKitPutU64LE(payload + 8, timestampNs);
-    OrenAVMKitPutU32LE(payload + 16, (uint32_t)accelXMilli);
-    OrenAVMKitPutU32LE(payload + 20, (uint32_t)accelYMilli);
-    OrenAVMKitPutU32LE(payload + 24, (uint32_t)accelZMilli);
-    OrenAVMKitPutU32LE(payload + 28, (uint32_t)gyroXMilli);
-    OrenAVMKitPutU32LE(payload + 32, (uint32_t)gyroYMilli);
-    OrenAVMKitPutU32LE(payload + 36, (uint32_t)gyroZMilli);
-    NSData* data = OrenAVMKitMakeGFXEvent(96, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
-}
-
-- (BOOL)putGraphicsFocusEventWithKind:(uint8_t)kind focusID:(uint32_t)focusID flags:(uint32_t)flags error:(NSError**)error {
-    uint8_t payload[8];
-    OrenAVMKitPutU32LE(payload, focusID);
-    OrenAVMKitPutU32LE(payload + 4, flags);
-    NSData* data = OrenAVMKitMakeGFXEvent(kind, payload, sizeof(payload));
-    return [self putGraphicsInputEventData:data error:error];
 }
 
 - (BOOL)putVirtualEventWithKind:(NSString*)kind action:(NSString*)action detail:(NSString*)detail flags:(uint32_t)flags error:(NSError**)error {
