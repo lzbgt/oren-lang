@@ -26,51 +26,7 @@ test -f "$OUT_ROOT/include/avm_embed.h"
 test -f "$OUT_ROOT/include/module.modulemap"
 test -f "$OUT_ROOT/include/OrenAVMKit/OrenAVMKit.h"
 
-nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q '_avm_embed_open'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q '_avm_embed_open'
-for sym in \
-  _avm_embed_set_argv \
-  _avm_embed_config_interactive_default \
-  _avm_embed_vfs_put \
-  _avm_embed_vfs_get \
-  _avm_embed_vfs_snapshot \
-  _avm_embed_fs_mount_read \
-  _avm_embed_fs_mount_write \
-  _avm_embed_fs_mount \
-  _avm_embed_vnet_put \
-  _avm_embed_set_net_fetch_callback \
-  _avm_embed_set_net_session_callbacks \
-  _avm_embed_set_net_resolve_callback \
-  _avm_embed_vproc_put \
-  _avm_embed_vproc_set_default_exit \
-  _avm_embed_set_output_capture \
-  _avm_embed_output_get \
-  _avm_embed_output_clear \
-  _avm_embed_gfx_frame_get \
-  _avm_embed_gfx_frame_clear \
-  _avm_embed_gfx_input_put \
-  _avm_embed_gfx_screen_set \
-  _avm_embed_permission_request_get \
-  _avm_embed_permission_request_clear \
-  _avm_embed_cancel \
-  _avm_embed_clear_cancel \
-  _avm_embed_free_bytes; do
-  nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
-  nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
-done
-
-nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMRuntime'
-nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMCompilerKit'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMCompilerKit'
-nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPackageStore'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPackageStore'
-nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPermissionGrantStore'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMPermissionGrantStore'
-nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMGraphicsView'
-nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMMetalView'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_OrenAVMMetalView'
+./scripts/verify_libavm_ios_symbols.sh "$OUT_ROOT"
 
 OREN_SRC="$TMP_DIR/embed_chain.oren"
 OBC_OUT="$TMP_DIR/embed_chain.obc"

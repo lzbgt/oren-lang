@@ -1,5 +1,7 @@
 #import "OrenAVMKit.h"
 
+#include <string.h>
+
 static void OrenAVMGFXInputPutU32LE(uint8_t* dst, uint32_t v) {
     dst[0] = (uint8_t)(v & 255u);
     dst[1] = (uint8_t)((v >> 8) & 255u);

@@ -151,8 +151,6 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (nullable NSDictionary<NSString*, id>*)getPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsInputEventData:(NSData*)data error:(NSError* _Nullable* _Nullable)error;
-- (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError* _Nullable* _Nullable)error;
-- (BOOL)putGraphicsResizeEventWithWidth:(uint32_t)width height:(uint32_t)height scaleMilli:(uint32_t)scaleMilli error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)setGraphicsScreenWithID:(uint32_t)screenID
                            width:(uint32_t)width
                           height:(uint32_t)height
@@ -162,6 +160,18 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                    targetHzMilli:(uint32_t)targetHzMilli
                            flags:(uint32_t)flags
                            error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putVirtualEventWithKind:(NSString*)kind
+                         action:(NSString*)action
+                         detail:(NSString*)detail
+                          flags:(uint32_t)flags
+                          error:(NSError* _Nullable* _Nullable)error;
+
+@end
+
+@interface OrenAVMRuntime (GFXInput)
+
+- (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsResizeEventWithWidth:(uint32_t)width height:(uint32_t)height scaleMilli:(uint32_t)scaleMilli error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putGraphicsMediaEventWithWidth:(uint32_t)width
                                  height:(uint32_t)height
                              scaleMilli:(uint32_t)scaleMilli
@@ -199,11 +209,6 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                focusID:(uint32_t)focusID
                                  flags:(uint32_t)flags
                                  error:(NSError* _Nullable* _Nullable)error;
-- (BOOL)putVirtualEventWithKind:(NSString*)kind
-                         action:(NSString*)action
-                         detail:(NSString*)detail
-                          flags:(uint32_t)flags
-                          error:(NSError* _Nullable* _Nullable)error;
 
 @end
 
