@@ -479,13 +479,15 @@
 <p>	  <code>digest</code> / <code>hex</code> / receiver-method APIs, and process virtual padding via</p>
 <p>	  indexed byte access instead of unpacking the whole message to a list. Base64</p>
 <p>	  encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
-<p>	  intermediate Oren list. NET cleanup now covers native and AVM session</p>
-<p>	  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
-<p>	  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
-<p>	  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
-<p>	  expose <code>.recv_text(...)</code> / <code>.send_text_client(...)</code>, and AVM virtual</p>
-<p>	  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
-<p>	  waits, accept, and close receiver methods.</p>
+<p>		  intermediate Oren list. NET cleanup now covers native and AVM session</p>
+<p>		  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
+<p>		  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
+<p>		  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
+<p>		  expose <code>.recv_text(...)</code> / <code>.send_text_client(...)</code>, and AVM virtual</p>
+<p>		  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
+<p>		  waits, accept, and close receiver methods. Native HTTP/2 client state now</p>
+<p>		  uses a typed <code>Client</code> receiver with <code>client.request(...).text()</code> /</p>
+<p>		  <code>.bytes()</code> response methods instead of a raw-map <code>try_request</code> helper.</p>
 <p>  buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits</p>
 <p>  instead of truncating fractional values through integer byte writes. Further</p>
 <p>  cleanup should keep text helpers explicit at API boundaries.</p>
