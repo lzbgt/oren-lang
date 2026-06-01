@@ -247,7 +247,8 @@ High-volume 2D and 3D need retained resources:
   same scene shape from JSON package assets mounted into VirtualFS. Reviewable
   JSON assets can use `name` fields, `mesh`/`material` string references,
   `model_templates`, `instances`, string draw entries, human-readable
-  `position_xyz` model transforms, human-readable `vertices_xyz` / `faces`
+  `position_xyz` model transforms or nested `transform` objects,
+  human-readable `vertices_xyz` / `faces`
   arrays for indexed meshes, `triangles_xyz` arrays for direct triangle meshes,
   `triangles_xyz_rgba` arrays for per-triangle colors, or transform keyframes
   sampled by `commands_from_*_at(..., time_milli)`. Materials accept `color` or
@@ -261,7 +262,8 @@ High-volume 2D and 3D need retained resources:
   format: little-endian mesh/material/model/draw counts, retained mesh payload
   byte slices, RGBA u32 colors, optional scene-level camera depth windows, model
   transforms, draw ids, and a destroy flag. The `.os3d` builder resolves named
-  JSON references, templates, position arrays, coordinate-array meshes, and
+  JSON references, templates, position arrays, nested transform objects,
+  coordinate-array meshes, and
   per-triangle RGBA colors at package-build time, and it lowers richer material
   fields to v0 RGBA colors. If `animations` and `sample_time_milli` are present,
   the builder samples transform keyframes into static model records so the

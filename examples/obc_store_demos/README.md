@@ -14,8 +14,8 @@ live under `build/obc-store-demos/` and are not committed.
 
 The `scene3d-asset-demo` package derives `assets/scene3d_card.os3d` from the
 reviewable JSON source in this directory. The JSON can use named mesh/material
-references, model templates, instances, human-readable `position_xyz` model
-transforms, human-readable `vertices_xyz` / `faces` coordinate arrays,
+references, model templates, instances, human-readable `position_xyz` or nested
+`transform` model transforms, human-readable `vertices_xyz` / `faces` coordinate arrays,
 per-triangle `triangles_xyz_rgba` colors, richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform
 keyframes. The build helper validates face indices/material scalar ranges and

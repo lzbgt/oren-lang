@@ -37,18 +37,18 @@
     {"id": 32, "name": "card-green", "base_color": "#00ff00ff", "opacity_milli": 1000, "roughness_milli": 350, "metallic_milli": 0}
   ],
   "model_templates": [
-    {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "position_xyz": [0, 0, 0], "scale_milli": 1000}
+    {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instances": [
-    {"id": 33, "name": "card", "template": "card-template", "position_xyz": [1, 1, 0]},
-    {"id": 35, "name": "accent", "mesh": "accent-mesh", "position_xyz": [0, 0, 0], "scale_milli": 1000}
+    {"id": 33, "name": "card", "template": "card-template", "transform": {"position_xyz": [1, 1, 0]}},
+    {"id": 35, "name": "accent", "mesh": "accent-mesh", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "animations": [
     {
       "target": "card",
       "keyframes": [
-        {"time_milli": 0, "position_xyz": [0, 1, 0], "scale_milli": 1000},
-        {"time_milli": 1000, "position_xyz": [1, 1, 0], "scale_milli": 1000}
+        {"time_milli": 0, "transform": {"position_xyz": [0, 1, 0], "scale_milli": 1000}},
+        {"time_milli": 1000, "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}}
       ]
     }
   ],

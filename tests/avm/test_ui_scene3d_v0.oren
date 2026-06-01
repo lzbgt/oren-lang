@@ -190,13 +190,13 @@ fn main() {
                 "color": "#00ff00"
             }
         ],
-        "models": [{"id": 58, "name": "moving-card", "mesh_id": 57, "position_xyz": [0, 0, 0]}],
+        "models": [{"id": 58, "name": "moving-card", "mesh_id": 57, "transform": {"position_xyz": [0, 0, 0]}}],
         "animations": [
             {
                 "target": "moving-card",
                 "keyframes": [
-                    {"time_milli": 0, "position_xyz": [0, 0, 0], "scale_milli": 1000},
-                    {"time_milli": 1000, "position_xyz": [2, 0, 0], "scale_milli": 1000}
+                    {"time_milli": 0, "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
+                    {"time_milli": 1000, "transform": {"position_xyz": [2, 0, 0], "scale_milli": 1000}}
                 ]
             }
         ],
@@ -257,6 +257,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instances\":[{\"id\":1,\"template\":\"missing\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"indexed\",\"id\":1,\"vertices_xyz\":[[0,0,0]],\"faces\":[[0,1,2]],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"position_xyz\":[1,2]}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"transform\":{\"scale_milli\":0}}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles_rgba\",\"id\":1,\"triangles_xyz_rgba\":[{\"vertices\":[[0,0,0],[1,0,0],[0,1,0]],\"color\":\"nope\"}]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json_at("{\"schema\":\"oren.ui.scene3d.v0\",\"animations\":[{\"target\":\"missing\",\"keyframes\":[{\"time_milli\":0,\"position_xyz\":[0,0,0]}]}]}", 0)) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"materials\":[{\"id\":1,\"base_color\":\"#ffffff\",\"opacity_milli\":1200}]}")) == true)

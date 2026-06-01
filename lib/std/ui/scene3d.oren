@@ -197,9 +197,20 @@ fn _vertex_count_from_bytes(vertices, ctx) {
 
 fn _position_axis(m, axis) {
     var pos = m["position_xyz"]
+    var transform = m["transform"]
+    if pos == nil && transform != nil { pos = transform["position_xyz"] }
     if pos == nil { return nil }
     if oren_list_len(pos) != 3 { return oren_err(4, "ui.scene3d: position_xyz must be [x,y,z]") }
     return pos[axis]
+}
+
+fn _scale_milli(m, fallback, ctx) {
+    var v = m["scale_milli"]
+    var transform = m["transform"]
+    if v == nil && transform != nil { v = transform["scale_milli"] }
+    if v == nil { return fallback }
+    if _is_int(v) == false || v <= 0 { return oren_err(4, ctx + ": invalid scale_milli") }
+    return v
 }
 
 fn _pack_triangles_xyz(triangles, ctx) {
@@ -355,7 +366,8 @@ fn _asset_model(m, mesh_names, material_names) {
     if px != nil { x = px }
     if py != nil { y = py }
     if pz != nil { z = pz }
-    var scale_milli = m["scale_milli"]; if scale_milli == nil { scale_milli = 1000 }
+    var scale_milli = _scale_milli(m, 1000, "ui.scene3d model")
+    if oren_is_err(scale_milli) { return scale_milli }
     var out = model(m["id"], mesh_id, material_id, x, y, z, scale_milli)
     if m["name"] != nil { oren_map_set_str(out, "name", m["name"]) }
     return out
@@ -376,6 +388,7 @@ fn _asset_instance(inst, templates, mesh_names, material_names) {
     var material_id = inst["material_id"]; if material_id == nil { material_id = tpl["material_id"] }
     var material_name = inst["material"]; if material_name == nil { material_name = tpl["material"] }
     var position = inst["position_xyz"]; if position == nil { position = tpl["position_xyz"] }
+    var transform = inst["transform"]; if transform == nil { transform = tpl["transform"] }
     var x = inst["x"]; if x == nil { x = tpl["x"] }
     var y = inst["y"]; if y == nil { y = tpl["y"] }
     var z = inst["z"]; if z == nil { z = tpl["z"] }
@@ -387,6 +400,7 @@ fn _asset_instance(inst, templates, mesh_names, material_names) {
     if material_id != nil { oren_map_set_str(m, "material_id", material_id) }
     if material_name != nil { oren_map_set_str(m, "material", material_name) }
     if position != nil { oren_map_set_str(m, "position_xyz", position) }
+    if transform != nil { oren_map_set_str(m, "transform", transform) }
     if x != nil { oren_map_set_str(m, "x", x) }
     if y != nil { oren_map_set_str(m, "y", y) }
     if z != nil { oren_map_set_str(m, "z", z) }
@@ -402,6 +416,8 @@ fn _keyframe_time(k, ctx) {
 
 fn _key_axis(k, axis, key, fallback, ctx) {
     var pos = k["position_xyz"]
+    var transform = k["transform"]
+    if pos == nil && transform != nil { pos = transform["position_xyz"] }
     if pos != nil {
         if oren_list_len(pos) != 3 { return oren_err(4, ctx + ": position_xyz must be [x,y,z]") }
         return pos[axis]
@@ -414,6 +430,8 @@ fn _key_axis(k, axis, key, fallback, ctx) {
 
 fn _key_scale(k, fallback, ctx) {
     var v = k["scale_milli"]
+    var transform = k["transform"]
+    if v == nil && transform != nil { v = transform["scale_milli"] }
     if v == nil { return fallback }
     if _is_int(v) == false || v <= 0 { return oren_err(4, ctx + ": invalid scale_milli") }
     return v

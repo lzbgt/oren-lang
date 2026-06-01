@@ -126,12 +126,26 @@ def resolve_id(item, id_key, name_key, names, fallback=None):
 
 
 def apply_position(model):
-    pos = model.get("position_xyz")
+    transform = model.get("transform") or {}
+    if not isinstance(transform, dict):
+        raise SystemExit("scene transform must be an object")
+    pos = model.get("position_xyz", transform.get("position_xyz"))
     if pos is None:
         return
     if not isinstance(pos, list) or len(pos) != 3:
         raise SystemExit("scene position_xyz must be [x,y,z]")
     model["x"], model["y"], model["z"] = pos
+
+
+def apply_transform(model):
+    transform = model.get("transform") or {}
+    if not isinstance(transform, dict):
+        raise SystemExit("scene transform must be an object")
+    apply_position(model)
+    if model.get("scale_milli") is None and transform.get("scale_milli") is not None:
+        model["scale_milli"] = transform["scale_milli"]
+    if int(model.get("scale_milli", 1000)) <= 0:
+        raise SystemExit("scene scale_milli must be positive")
 
 
 def lerp_int(a, b, num, den):
@@ -141,7 +155,10 @@ def lerp_int(a, b, num, den):
 
 
 def key_axis(keyframe, axis, key, fallback):
-    pos = keyframe.get("position_xyz")
+    transform = keyframe.get("transform") or {}
+    if not isinstance(transform, dict):
+        raise SystemExit("scene animation transform must be an object")
+    pos = keyframe.get("position_xyz", transform.get("position_xyz"))
     if pos is not None:
         if not isinstance(pos, list) or len(pos) != 3:
             raise SystemExit("scene animation position_xyz must be [x,y,z]")
@@ -150,7 +167,10 @@ def key_axis(keyframe, axis, key, fallback):
 
 
 def key_scale(keyframe, fallback):
-    scale = keyframe.get("scale_milli", fallback)
+    transform = keyframe.get("transform") or {}
+    if not isinstance(transform, dict):
+        raise SystemExit("scene animation transform must be an object")
+    scale = keyframe.get("scale_milli", transform.get("scale_milli", fallback))
     if int(scale) <= 0:
         raise SystemExit("scene animation scale_milli must be positive")
     return scale
@@ -227,7 +247,7 @@ def normalize_scene(scene):
         m = dict(model)
         m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
         m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
-        apply_position(m)
+        apply_transform(m)
         models.append(m)
 
     for inst in scene.get("instances", []):
@@ -238,7 +258,7 @@ def normalize_scene(scene):
         m.update(inst)
         m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
         m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
-        apply_position(m)
+        apply_transform(m)
         models.append(m)
 
     if scene.get("animations") is not None:

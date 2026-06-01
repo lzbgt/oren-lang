@@ -49,7 +49,8 @@ ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime
 assets; `scene3d-asset-demo` derives a byte-native `.os3d` asset from the
 reviewable JSON source with `scripts/make_scene3d_bin_v0.py`, including
 scene-level camera depth metadata, named mesh/material references, model
-templates, instances, human-readable `position_xyz` model transforms,
+templates, instances, human-readable `position_xyz` or nested `transform`
+model transforms,
 human-readable `vertices_xyz` / `faces` coordinate arrays, and per-triangle
 `triangles_xyz_rgba` colors, richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), plus sampled transform

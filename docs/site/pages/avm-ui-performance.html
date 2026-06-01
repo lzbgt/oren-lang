@@ -323,7 +323,8 @@
 <p>  same scene shape from JSON package assets mounted into VirtualFS. Reviewable</p>
 <p>  JSON assets can use <code>name</code> fields, <code>mesh</code>/<code>material</code> string references,</p>
 <p>  <code>model_templates</code>, <code>instances</code>, string draw entries, human-readable</p>
-<p>  <code>position_xyz</code> model transforms, human-readable <code>vertices_xyz</code> / <code>faces</code></p>
+<p>  <code>position_xyz</code> model transforms or nested <code>transform</code> objects,</p>
+<p>  human-readable <code>vertices_xyz</code> / <code>faces</code></p>
 <p>  arrays for indexed meshes, <code>triangles_xyz</code> arrays for direct triangle meshes,</p>
 <p>  <code>triangles_xyz_rgba</code> arrays for per-triangle colors, or transform keyframes</p>
 <p>  sampled by <code>commands_from_*_at(..., time_milli)</code>. Materials accept <code>color</code> or</p>
@@ -339,7 +340,8 @@
 <p>  format: little-endian mesh/material/model/draw counts, retained mesh payload</p>
 <p>  byte slices, RGBA u32 colors, optional scene-level camera depth windows, model</p>
 <p>  transforms, draw ids, and a destroy flag. The <code>.os3d</code> builder resolves named</p>
-<p>  JSON references, templates, position arrays, coordinate-array meshes, and</p>
+<p>  JSON references, templates, position arrays, nested transform objects,</p>
+<p>  coordinate-array meshes, and</p>
 <p>  per-triangle RGBA colors at package-build time, and it lowers richer material</p>
 <p>  fields to v0 RGBA colors. If <code>animations</code> and <code>sample_time_milli</code> are present,</p>
 <p>  the builder samples transform keyframes into static model records so the</p>
