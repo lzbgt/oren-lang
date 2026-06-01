@@ -895,7 +895,7 @@ fn send_text_client(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 1)
 }
 
-fn try_send_text_client(conn, text, timeout_ms) {
+fn _send_text_client_result(conn, text, timeout_ms) {
     var rc = send_text_client(conn, text, timeout_ms)
     if rc >= 0 { return 0 }
     return _errno_result(rc, "ws.send_text_client failed")
@@ -905,7 +905,7 @@ fn send_text_server(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 0)
 }
 
-fn try_send_text_server(conn, text, timeout_ms) {
+fn _send_text_server_result(conn, text, timeout_ms) {
     var rc = send_text_server(conn, text, timeout_ms)
     if rc >= 0 { return 0 }
     return _errno_result(rc, "ws.send_text_server failed")
@@ -1043,15 +1043,15 @@ fn recv_text(conn, timeout_ms) {
     }
 }
 
-fn try_recv_text(conn, timeout_ms) {
+fn _recv_text_result(conn, timeout_ms) {
     var r = recv_text(conn, timeout_ms)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
     return _err_result(r, "ws.recv_text failed")
 }
 
 impl WebSocketConn for Conn {
-    fn send_text_client(self, text, timeout_ms) { return try_send_text_client(self, text, timeout_ms) }
-    fn send_text_server(self, text, timeout_ms) { return try_send_text_server(self, text, timeout_ms) }
-    fn recv_text(self, timeout_ms) { return try_recv_text(self, timeout_ms) }
+    fn send_text_client(self, text, timeout_ms) { return _send_text_client_result(self, text, timeout_ms) }
+    fn send_text_server(self, text, timeout_ms) { return _send_text_server_result(self, text, timeout_ms) }
+    fn recv_text(self, timeout_ms) { return _recv_text_result(self, timeout_ms) }
     fn close(self) { return close(self) }
 }
