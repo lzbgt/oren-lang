@@ -21,20 +21,6 @@ fn _validate_i32_or_err(v, ctx) { return common._validate_i32_or_err(v, ctx) }
 fn _validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
 fn _validate_passthru_or_err(v, ctx) { return common._validate_passthru_or_err(v, ctx) }
 
-fn _u8_buf_unpack(src, ctx) {
-    var n = oren_buf_len(src)
-    if n == nil || oren_is_err(n) { return _err_invalid(ctx + ": expects []u8") }
-    var out = []
-    var i = 0
-    while i < n {
-        var v = oren_buf_load_u8(src, i)
-        if oren_is_err(v) { return _err_invalid(ctx + ": expects []u8") }
-        oren_list_push(out, v)
-        i = i + 1
-    }
-    return out
-}
-
 fn _u8_view_unpack(load_fn, view, n, ctx) {
     return _view_unpack(load_fn, view, n, ctx)
 }
@@ -140,15 +126,15 @@ fn _validate_int_or_err(v, ctx) {
 }
 
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
-    var xs = bytesm.try_unpack(bytes)
-    if oren_is_err(xs) { return xs }
-    return _u8_view_copy_from_list(store_fn, view, n, xs, ctx)
+    var src = bytesm.try_to_u8_buf(bytes)
+    if oren_is_err(src) { return src }
+    return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
 }
 
 fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
-    var bs = bytesm.try_slice(bytes, off, count)
-    if oren_is_err(bs) { return bs }
-    return _u8_view_copy_from_bytes(store_fn, view, n, bs, ctx)
+    var src = bytesm.try_to_u8_buf_slice(bytes, off, count)
+    if oren_is_err(src) { return src }
+    return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
 }
 
 fn _u8_view_copy_from_string(store_fn, view, n, s, ctx) {
@@ -164,9 +150,18 @@ fn _u8_view_copy_from_string_slice(store_fn, view, n, s, off, count, ctx) {
 }
 
 fn _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx) {
-    var xs = _u8_buf_unpack(src, ctx)
-    if oren_is_err(xs) { return xs }
-    return _u8_view_copy_from_list(store_fn, view, n, xs, ctx)
+    var ns = oren_buf_len(src)
+    if ns == nil || oren_is_err(ns) { return _err_invalid(ctx + ": src must be []u8") }
+    if ns != n { return _err_invalid(ctx + ": length mismatch") }
+    var i = 0
+    while i < n {
+        var v = oren_buf_load_u8(src, i)
+        if oren_is_err(v) { return v }
+        var rc = store_fn(view, i, v)
+        if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
+        i = i + 1
+    }
+    return view[0]
 }
 
 fn slice_new(buf, off, n) {
