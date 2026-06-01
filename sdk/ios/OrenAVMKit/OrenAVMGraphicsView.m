@@ -39,6 +39,11 @@ static int64_t OrenAVMGfxMesh3DZSumModel(const uint8_t* tri, int32_t offset, uin
     return (OrenAVMGfxMesh3DZSum(tri) * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
 }
 
+static BOOL OrenAVMGfxMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ) {
+    if (!depthEnabled) return YES;
+    return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
+}
+
 static CGFloat OrenAVMGfxMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli) {
     int32_t v = (int32_t)OrenAVMGfxReadU32LE(p);
     return (CGFloat)(((int64_t)v * (int64_t)scaleMilli) / 1000 + (int64_t)offset);
@@ -291,6 +296,13 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     CGFloat opacity = 1.0;
     CGFloat opacityStack[64];
     uint32_t opacityDepth = 0;
+    BOOL depthEnabled = NO;
+    int32_t nearZ = 0;
+    int32_t farZ = 0;
+    BOOL depthEnabledStack[64];
+    int32_t nearZStack[64];
+    int32_t farZStack[64];
+    uint32_t cameraDepth = 0;
     for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
@@ -345,6 +357,25 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             if (opacityDepth > 0 && stateDepth > 0) {
                 CGContextRestoreGState(ctx);
                 opacity = opacityStack[--opacityDepth];
+                stateDepth--;
+            }
+        } else if (opcode == 22 && payloadLen == 8) {
+            if (cameraDepth < 64) {
+                depthEnabledStack[cameraDepth] = depthEnabled;
+                nearZStack[cameraDepth] = nearZ;
+                farZStack[cameraDepth] = farZ;
+                cameraDepth++;
+                depthEnabled = YES;
+                nearZ = (int32_t)OrenAVMGfxReadU32LE(payload);
+                farZ = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
+                stateDepth++;
+            }
+        } else if (opcode == 23 && payloadLen == 0) {
+            if (cameraDepth > 0 && stateDepth > 0) {
+                cameraDepth--;
+                depthEnabled = depthEnabledStack[cameraDepth];
+                nearZ = nearZStack[cameraDepth];
+                farZ = farZStack[cameraDepth];
                 stateDepth--;
             }
         } else if (opcode == 3 && payloadLen == 24) {
@@ -540,6 +571,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                         NSNumber* key = @(ti);
                         if ([drawn containsObject:key]) continue;
                         int64_t z = OrenAVMGfxMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
+                        if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
                         if (!found || z > bestZ) {
                             best = ti;
                             bestZ = z;

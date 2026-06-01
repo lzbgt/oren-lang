@@ -128,7 +128,7 @@
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
 <p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>push_translate</code>/<code>pop_transform</code>,</p>
-<p>  <code>push_opacity</code>/<code>pop_opacity</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>,</p>
+<p>  <code>push_opacity</code>/<code>pop_opacity</code>, <code>push_camera_ortho</code>/<code>pop_camera</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>,</p>
 <p>  <code>stroke_rect</code>, <code>round_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>, <code>fill_triangles</code>,</p>
 <p>  <code>mesh2d</code>, <code>draw_mesh2d</code>, <code>destroy_mesh2d</code>, <code>mesh3d</code>, <code>mesh3d_rgba</code>, <code>draw_mesh3d</code>, <code>draw_mesh3d_at</code>, <code>destroy_mesh3d</code>, <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
@@ -136,7 +136,7 @@
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code> geometry, retained 2D mesh draws, retained 3D mesh draws with orthographic XY default projection, deterministic painter-depth ordering, and per-draw model translation/uniform scale, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>push_camera_ortho</code>/<code>pop_camera</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code> geometry, retained 2D mesh draws, retained 3D mesh draws with orthographic XY default projection, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -300,6 +300,11 @@
 <p>  projection and painter-depth order, drawing higher average Z first so lower-Z</p>
 <p>  triangles win overlaps, while preserving Z in the frame protocol for future</p>
 <p>  camera/depth renderers;</p>
+<ul>
+<li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
+</ul>
+<p>  and <code>pop_camera</code> bound subsequent retained 3D draws to an inclusive transformed-Z</p>
+<p>  range without exposing host camera objects or Metal depth buffers to OBC;</p>
 <ul>
 <li>balanced clipping records: <code>push_clip_rect {x,y,w,h}</code> and <code>pop_clip</code></li>
 </ul>
@@ -471,7 +476,8 @@
 <ol>
 <li>Done: add retained 3D mesh resource records (<code>mesh3d</code>, <code>mesh3d_rgba</code>,</li>
 </ol>
-<p>    <code>draw_mesh3d</code>, <code>draw_mesh3d_at</code>, <code>destroy_mesh3d</code>) across validation, binary frames, AVM protocol checks,</p>
+<p>    <code>draw_mesh3d</code>, <code>draw_mesh3d_at</code>, <code>destroy_mesh3d</code>, <code>push_camera_ortho</code>,</p>
+<p>    <code>pop_camera</code>) across validation, binary frames, AVM protocol checks,</p>
 <p>    deterministic raster, CoreGraphics fallback, Metal geometry draws, iOS</p>
 <p>    verifier coverage, and release conformance through orthographic projection and deterministic depth ordering.</p>
 <ol>

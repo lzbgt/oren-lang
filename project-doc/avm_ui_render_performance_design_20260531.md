@@ -81,13 +81,13 @@ Implemented as of 2026-05-31:
   composition UI through virtual input events.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `push_clip_rect`/`pop_clip`, `push_translate`/`pop_transform`,
-  `push_opacity`/`pop_opacity`, `text`/`text_bytes`, `stroke_line`,
+  `push_opacity`/`pop_opacity`, `push_camera_ortho`/`pop_camera`, `text`/`text_bytes`, `stroke_line`,
   `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`,
   `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `mesh3d_rgba`, `draw_mesh3d`, `draw_mesh3d_at`, `destroy_mesh3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained 2D mesh draws, retained 3D mesh draws with orthographic XY default projection, deterministic painter-depth ordering, and per-draw model translation/uniform scale, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
+  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained 2D mesh draws, retained 3D mesh draws with orthographic XY default projection, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -230,6 +230,9 @@ High-volume 2D and 3D need retained resources:
   projection and painter-depth order, drawing higher average Z first so lower-Z
   triangles win overlaps, while preserving Z in the frame protocol for future
   camera/depth renderers;
+- orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
+  and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
+  range without exposing host camera objects or Metal depth buffers to OBC;
 - balanced clipping records: `push_clip_rect {x,y,w,h}` and `pop_clip`
   express a virtual scissor stack for nested game UI panels while the host maps
   it to CoreGraphics state or Metal scissor rectangles;
@@ -349,7 +352,8 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     deterministic raster, CoreGraphics fallback, Metal geometry draws, and iOS
     verifier coverage.
 20. Done: add retained 3D mesh resource records (`mesh3d`, `mesh3d_rgba`,
-    `draw_mesh3d`, `draw_mesh3d_at`, `destroy_mesh3d`) across validation, binary frames, AVM protocol checks,
+    `draw_mesh3d`, `draw_mesh3d_at`, `destroy_mesh3d`, `push_camera_ortho`,
+    `pop_camera`) across validation, binary frames, AVM protocol checks,
     deterministic raster, CoreGraphics fallback, Metal geometry draws, iOS
     verifier coverage, and release conformance through orthographic projection and deterministic depth ordering.
 21. Done: add a release-manifest 2D conformance fixture that hashes one

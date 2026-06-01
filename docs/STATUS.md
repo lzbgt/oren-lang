@@ -269,7 +269,7 @@ Facts from the 2026-05-28 implementation pass:
   event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
   UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/
   `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
-  `push_opacity`/`pop_opacity`/`text`/`text_bytes`/`text_resource`/
+  `push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`text`/`text_bytes`/`text_resource`/
   `draw_text`/`draw_texts`/`destroy_text`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/
   `polyline`/`fill_triangle`/`fill_triangles`/`mesh2d`/`draw_mesh2d`/`destroy_mesh2d`/
   `mesh3d`/`mesh3d_rgba`/`draw_mesh3d`/`draw_mesh3d_at`/`destroy_mesh3d`/`image_rgba`/`draw_image`/`destroy_image`/
@@ -280,8 +280,8 @@ Facts from the 2026-05-28 implementation pass:
   consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/
-  clip-stack/translation-stack/opacity-stack/stroke-line/stroke-rect/round-rect/circle/
-  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, per-triangle RGBA payloads, deterministic painter-depth ordering, and per-draw model translation/uniform scale, retained RGBA image upload/draw/
+  clip-stack/translation-stack/opacity-stack/camera-depth-window/stroke-line/stroke-rect/round-rect/circle/
+  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, per-triangle RGBA payloads, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit orthographic camera depth windows, retained RGBA image upload/draw/
   destroy/sub-rect and batched atlas records, and byte-native/retained text
   payloads through Metal pipelines. Its `targetHzMilli` setting
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
@@ -312,7 +312,7 @@ Facts from the 2026-05-28 implementation pass:
   `project-doc/avm_ui_render_performance_design_20260531.md`.
   The AVM release manifest also includes a whole-frame 2D/3D-projection raster conformance hash
 	  covering geometry including `stroke_rect`, `round_rect`, `ellipse`, `polyline`, clip and translation stacks, retained text, retained images, atlas sub-rects, batched
-	  sprites, retained 2D meshes, retained 3D meshes through orthographic projection and painter-depth ordering, and draw ordering in one scene.
+	  sprites, retained 2D meshes, retained 3D meshes through orthographic projection, painter-depth ordering, camera depth-window culling, and draw ordering in one scene.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

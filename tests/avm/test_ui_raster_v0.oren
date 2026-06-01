@@ -159,6 +159,18 @@ fn test_raster_mesh3d_depth() {
     assert_eq(_px(buf, 3, 0, 0, 1), 255)
     assert_eq(_px(buf, 3, 0, 0, 3), 255)
 
+    var far_cmds = [
+        {"op": "mesh3d_rgba", "id": 22, "triangles": tris},
+        {"op": "push_camera_ortho", "near_z": 8, "far_z": 10},
+        {"op": "draw_mesh3d", "id": 22},
+        {"op": "pop_camera"},
+        {"op": "destroy_mesh3d", "id": 22}
+    ]
+    var far_buf = ui_raster.try_rasterize(far_cmds, 3, 3, {"strict_bounds": true})
+    assert_true(oren_is_err(far_buf) == false)
+    assert_eq(_px(far_buf, 3, 0, 0, 0), 255)
+    assert_eq(_px(far_buf, 3, 0, 0, 1), 0)
+
     var model_cmds = [
         {"op": "mesh3d_rgba", "id": 21, "triangles": tris},
         {"op": "draw_mesh3d_at", "id": 21, "x": 1, "y": 1, "z": 0, "scale_milli": 1000},

@@ -20,6 +20,8 @@
 // - {"op":"pop_transform"}
 // - {"op":"push_opacity","alpha_milli":int} where 1000 is fully opaque
 // - {"op":"pop_opacity"}
+// - {"op":"push_camera_ortho","near_z":int,"far_z":int}
+// - {"op":"pop_camera"}
 // - {"op":"stroke_line","x1":int,"y1":int,"x2":int,"y2":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"stroke_rect","x":int,"y":int,"w":int,"h":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"round_rect","x":int,"y":int,"w":int,"h":int,"r":int,"fill":bool,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
@@ -404,6 +406,11 @@ fn _mesh3d_rgba_zsum_model(tris, off, mz, scale_milli) {
     return (zsum * scale_milli) / 1000 + mz * 3
 }
 
+fn _depth_zsum_visible(zsum, depth_enabled, near_z, far_z) {
+    if depth_enabled == 0 { return true }
+    return zsum >= near_z * 3 && zsum <= far_z * 3
+}
+
 fn _model_coord(v, offset, scale_milli) {
     return (v * scale_milli) / 1000 + offset
 }
@@ -436,7 +443,7 @@ fn _draw_triangle3d_at(buf, w, h, tris, off, c, err_prefix) {
     return _draw_triangle3d_at_model(buf, w, h, tris, off, c, err_prefix, 0, 0, 0, 1000)
 }
 
-fn _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, mx, my, mz, scale_milli) {
+fn _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
     var tris_len = bytes.try_len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
     var triangle_count = tris_len / 36
@@ -451,14 +458,14 @@ fn _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, mx, my, mz, scal
             if drawn[key] == nil {
                 var zsum = _mesh3d_zsum_model(tris, ti * 36, mz, scale_milli)
                 if oren_is_err(zsum) { return result.with_context(zsum, err_prefix) }
-                if best < 0 || zsum > best_z {
+                if _depth_zsum_visible(zsum, depth_enabled, near_z, far_z) && (best < 0 || zsum > best_z) {
                     best = ti
                     best_z = zsum
                 }
             }
             ti = ti + 1
         }
-        if best < 0 { return oren_err(4, err_prefix + " depth sort failed") }
+        if best < 0 { return 0 }
         var dr = _draw_triangle3d_at_model(buf, w, h, tris, best * 36, c, err_prefix, mx, my, mz, scale_milli)
         if oren_is_err(dr) { return dr }
         drawn[oren_int_to_string(best)] = true
@@ -468,10 +475,10 @@ fn _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, mx, my, mz, scal
 }
 
 fn _draw_triangle3d_bytes(buf, w, h, tris, c, err_prefix) {
-    return _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, 0, 0, 0, 1000)
+    return _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, 0, 0, 0, 1000, 0, 0, 0)
 }
 
-fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, scale_milli) {
+fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
     var tris_len = bytes.try_len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
     var triangle_count = tris_len / 40
@@ -486,14 +493,14 @@ fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, sc
             if drawn[key] == nil {
                 var zsum = _mesh3d_rgba_zsum_model(tris, ti * 40, mz, scale_milli)
                 if oren_is_err(zsum) { return result.with_context(zsum, err_prefix) }
-                if best < 0 || zsum > best_z {
+                if _depth_zsum_visible(zsum, depth_enabled, near_z, far_z) && (best < 0 || zsum > best_z) {
                     best = ti
                     best_z = zsum
                 }
             }
             ti = ti + 1
         }
-        if best < 0 { return oren_err(4, err_prefix + " depth sort failed") }
+        if best < 0 { return 0 }
         var off = best * 40
         var c = {
             "r": bytes.try_get_u8(tris, off + 36),
@@ -510,17 +517,17 @@ fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, sc
 }
 
 fn _draw_triangle3d_rgba_bytes(buf, w, h, tris, err_prefix) {
-    return _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, 0, 0, 0, 1000)
+    return _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, 0, 0, 0, 1000, 0, 0, 0)
 }
 
-fn _draw_mesh3d_resource(buf, w, h, mesh3d, err_prefix, mx, my, mz, scale_milli) {
+fn _draw_mesh3d_resource(buf, w, h, mesh3d, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
     if mesh3d == nil { return oren_err(4, err_prefix + " missing mesh") }
     if mesh3d["op"] == "mesh3d_rgba" {
-        return _draw_triangle3d_rgba_bytes_model(buf, w, h, mesh3d["triangles"], err_prefix, mx, my, mz, scale_milli)
+        return _draw_triangle3d_rgba_bytes_model(buf, w, h, mesh3d["triangles"], err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
     }
     var m3c = ui_color.try_parse_hex(mesh3d["color"])
     if oren_is_err(m3c) { return result.with_context(m3c, err_prefix + " mesh3d color") }
-    return _draw_triangle3d_bytes_model(buf, w, h, mesh3d["triangles"], m3c, err_prefix, mx, my, mz, scale_milli)
+    return _draw_triangle3d_bytes_model(buf, w, h, mesh3d["triangles"], m3c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
 }
 
 fn rasterize(cmds, w, h, opts) {
@@ -575,6 +582,11 @@ fn rasterize(cmds, w, h, opts) {
     var transform_depth = 0
     var opacity_stack = {}
     var opacity_depth = 0
+    var camera_stack = {}
+    var camera_depth = 0
+    var depth_enabled = 0
+    var near_z = 0
+    var far_z = 0
     var images = {}
     var texts = {}
     var meshes = {}
@@ -617,6 +629,21 @@ fn rasterize(cmds, w, h, opts) {
             var okey = oren_int_to_string(opacity_depth)
             _opacity_milli = opacity_stack[okey]
             opacity_stack[okey] = nil
+        } else if op == "push_camera_ortho" {
+            camera_stack[oren_int_to_string(camera_depth)] = [depth_enabled, near_z, far_z]
+            camera_depth = camera_depth + 1
+            depth_enabled = 1
+            near_z = opm["near_z"]
+            far_z = opm["far_z"]
+        } else if op == "pop_camera" {
+            if camera_depth <= 0 { return oren_err(4, "rasterize: camera stack underflow") }
+            camera_depth = camera_depth - 1
+            var dkey = oren_int_to_string(camera_depth)
+            var dprev = camera_stack[dkey]
+            depth_enabled = dprev[0]
+            near_z = dprev[1]
+            far_z = dprev[2]
+            camera_stack[dkey] = nil
         } else if op == "fill_rect" {
             var c = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(c) { return result.with_context(c, "rasterize: fill_rect color") }
@@ -712,11 +739,11 @@ fn rasterize(cmds, w, h, opts) {
             meshes[oren_int_to_string(opm["id"])] = opm
         } else if op == "draw_mesh3d" {
             var mesh3d = meshes[oren_int_to_string(opm["id"])]
-            var m3r = _draw_mesh3d_resource(buf, w, h, mesh3d, "rasterize: draw_mesh3d", 0, 0, 0, 1000)
+            var m3r = _draw_mesh3d_resource(buf, w, h, mesh3d, "rasterize: draw_mesh3d", 0, 0, 0, 1000, depth_enabled, near_z, far_z)
             if oren_is_err(m3r) { return m3r }
         } else if op == "draw_mesh3d_at" {
             var mesh3da = meshes[oren_int_to_string(opm["id"])]
-            var m3ar = _draw_mesh3d_resource(buf, w, h, mesh3da, "rasterize: draw_mesh3d_at", opm["x"], opm["y"], opm["z"], opm["scale_milli"])
+            var m3ar = _draw_mesh3d_resource(buf, w, h, mesh3da, "rasterize: draw_mesh3d_at", opm["x"], opm["y"], opm["z"], opm["scale_milli"], depth_enabled, near_z, far_z)
             if oren_is_err(m3ar) { return m3ar }
         } else if op == "destroy_mesh3d" {
             meshes[oren_int_to_string(opm["id"])] = nil

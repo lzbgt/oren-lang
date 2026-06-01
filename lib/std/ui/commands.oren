@@ -59,6 +59,7 @@ fn validate(cmds, w, h, opts) {
     var transform_depth = 0
     var transform_stack = {}
     var opacity_depth = 0
+    var camera_depth = 0
     var state_depth = 0
     var state_stack = {}
     var tx = 0
@@ -155,6 +156,22 @@ fn validate(cmds, w, h, opts) {
             state_stack[oren_int_to_string(ostate_i)] = nil
             state_depth = ostate_i
             opacity_depth = opacity_depth - 1
+        } else if op == "push_camera_ortho" {
+            var near_z = c["near_z"]; var far_z = c["far_z"]
+            if _is_int(near_z) == false || _is_int(far_z) == false { return oren_err(4, "ui.validate: push_camera_ortho expects int near_z,far_z") }
+            if near_z > far_z { return oren_err(4, "ui.validate: push_camera_ortho invalid depth range") }
+            camera_depth = camera_depth + 1
+            if camera_depth > 64 { return oren_err(4, "ui.validate: camera stack too deep") }
+            state_stack[oren_int_to_string(state_depth)] = "camera"
+            state_depth = state_depth + 1
+            if state_depth > 64 { return oren_err(4, "ui.validate: state stack too deep") }
+        } else if op == "pop_camera" {
+            if camera_depth <= 0 { return oren_err(4, "ui.validate: camera stack underflow") }
+            var dstate_i = state_depth - 1
+            if dstate_i < 0 || state_stack[oren_int_to_string(dstate_i)] != "camera" { return oren_err(4, "ui.validate: camera stack order mismatch") }
+            state_stack[oren_int_to_string(dstate_i)] = nil
+            state_depth = dstate_i
+            camera_depth = camera_depth - 1
         } else if op == "stroke_line" {
             var x1 = c["x1"]; var y1 = c["y1"]; var x2 = c["x2"]; var y2 = c["y2"]; var lw = c["width"]; var lcol = c["color"]
             if _is_int(x1) == false || _is_int(y1) == false || _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: stroke_line expects int x1,y1,x2,y2") }
@@ -483,6 +500,7 @@ fn validate(cmds, w, h, opts) {
     if clip_depth != 0 { return oren_err(4, "ui.validate: unbalanced clip stack") }
     if transform_depth != 0 { return oren_err(4, "ui.validate: unbalanced transform stack") }
     if opacity_depth != 0 { return oren_err(4, "ui.validate: unbalanced opacity stack") }
+    if camera_depth != 0 { return oren_err(4, "ui.validate: unbalanced camera stack") }
     if state_depth != 0 { return oren_err(4, "ui.validate: unbalanced state stack") }
 
     return 0

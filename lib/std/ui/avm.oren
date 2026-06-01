@@ -127,6 +127,16 @@ fn _push_cmd(out, c) {
         _push_op_header(out, 21, 0)
         return 0
     }
+    if op == "push_camera_ortho" {
+        _push_op_header(out, 22, 8)
+        _push_u32_le(out, c["near_z"])
+        _push_u32_le(out, c["far_z"])
+        return 0
+    }
+    if op == "pop_camera" {
+        _push_op_header(out, 23, 0)
+        return 0
+    }
     if op == "stroke_line" {
         var lw = c["width"]
         if lw == nil { lw = 1 }

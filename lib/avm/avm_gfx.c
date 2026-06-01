@@ -56,6 +56,7 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     uint32_t clip_depth = 0u;
     uint32_t transform_depth = 0u;
     uint32_t opacity_depth = 0u;
+    uint32_t camera_depth = 0u;
     uint8_t state_stack[64];
     uint32_t state_depth = 0u;
     for (uint32_t i = 0; i < op_count; i++) {
@@ -162,6 +163,38 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
             }
             state_depth--;
             opacity_depth--;
+        } else if (opcode == 22u) {
+            if (payload_len != 8u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_camera_ortho payload");
+                return 0;
+            }
+            int32_t near_z = (int32_t)avm_gfx_u32le(payload);
+            int32_t far_z = (int32_t)avm_gfx_u32le(payload + 4);
+            if (near_z > far_z) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_camera_ortho range");
+                return 0;
+            }
+            camera_depth++;
+            if (camera_depth > 64u || state_depth >= 64u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: camera stack too deep");
+                return 0;
+            }
+            state_stack[state_depth++] = 4u;
+        } else if (opcode == 23u) {
+            if (payload_len != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad pop_camera payload");
+                return 0;
+            }
+            if (camera_depth == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: camera stack underflow");
+                return 0;
+            }
+            if (state_depth == 0u || state_stack[state_depth - 1u] != 4u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: camera stack order mismatch");
+                return 0;
+            }
+            state_depth--;
+            camera_depth--;
         } else if (opcode == 2u) {
             if (payload_len < 16u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text payload");
@@ -386,6 +419,10 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     }
     if (opacity_depth != 0u) {
         avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced opacity stack");
+        return 0;
+    }
+    if (camera_depth != 0u) {
+        avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced camera stack");
         return 0;
     }
     if (state_depth != 0u) {

@@ -123,6 +123,11 @@ static int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, u
     return (OrenAVMMetalMesh3DZSum(tri) * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
 }
 
+static BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ) {
+    if (!depthEnabled) return YES;
+    return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
+}
+
 static float OrenAVMMetalMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli) {
     int32_t v = (int32_t)OrenAVMMetalReadU32LE(p);
     return (float)(((int64_t)v * (int64_t)scaleMilli) / 1000 + (int64_t)offset);
@@ -1056,6 +1061,13 @@ static NSData* OrenAVMMetalTextQuad(float x,
     float opacity = 1.0f;
     float opacityStack[64];
     uint32_t opacityDepth = 0;
+    BOOL depthEnabled = NO;
+    int32_t nearZ = 0;
+    int32_t farZ = 0;
+    BOOL depthEnabledStack[64];
+    int32_t nearZStack[64];
+    int32_t farZStack[64];
+    uint32_t cameraDepth = 0;
     uint8_t rgba[4];
     for (uint32_t i = 0; i < opCount && off + 4 <= frame.length; i++) {
         uint8_t opcode = data[off];
@@ -1122,6 +1134,25 @@ static NSData* OrenAVMMetalTextQuad(float x,
         } else if (opcode == 21 && payloadLen == 0) {
             OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
             if (opacityDepth > 0) opacity = opacityStack[--opacityDepth];
+        } else if (opcode == 22 && payloadLen == 8) {
+            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            if (cameraDepth < 64) {
+                depthEnabledStack[cameraDepth] = depthEnabled;
+                nearZStack[cameraDepth] = nearZ;
+                farZStack[cameraDepth] = farZ;
+                cameraDepth++;
+                depthEnabled = YES;
+                nearZ = (int32_t)OrenAVMMetalReadU32LE(payload);
+                farZ = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
+            }
+        } else if (opcode == 23 && payloadLen == 0) {
+            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            if (cameraDepth > 0) {
+                cameraDepth--;
+                depthEnabled = depthEnabledStack[cameraDepth];
+                nearZ = nearZStack[cameraDepth];
+                farZ = farZStack[cameraDepth];
+            }
         } else if (opcode == 3 && payloadLen == 24) {
             uint32_t x1 = OrenAVMMetalReadU32LE(payload);
             uint32_t y1 = OrenAVMMetalReadU32LE(payload + 4);
@@ -1328,6 +1359,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
                         NSNumber* key = @(ti);
                         if ([drawn containsObject:key]) continue;
                         int64_t z = OrenAVMMetalMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
+                        if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
                         if (!found || z > bestZ) {
                             best = ti;
                             bestZ = z;
