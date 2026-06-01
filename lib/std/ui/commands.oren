@@ -124,6 +124,24 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if ex < 0 || ey < 0 || ex + ew > w || ey + eh > h { return oren_err(4, "ui.validate: ellipse out of bounds") }
             }
+        } else if op == "polyline" {
+            var plw = c["width"]; var pcol = c["color"]; var points = c["points"]
+            if plw == nil { plw = 1 }
+            if _is_int(plw) == false || plw < 1 { return oren_err(4, "ui.validate: polyline invalid width") }
+            if _hex_ok(pcol) == false { return oren_err(4, "ui.validate: polyline invalid color") }
+            var plen = bytes.try_len(points)
+            if oren_is_err(plen) { return oren_err(4, "ui.validate: polyline expects byte points") }
+            if plen < 16 || plen > 65520 || plen % 8 != 0 { return oren_err(4, "ui.validate: polyline invalid point bytes") }
+            if strict {
+                var poff = 0
+                while poff < plen {
+                    var px = bytes.try_get_u32_le(points, poff)
+                    var py = bytes.try_get_u32_le(points, poff + 4)
+                    if oren_is_err(px) || oren_is_err(py) { return oren_err(4, "ui.validate: polyline malformed point") }
+                    if px >= w || py >= h { return oren_err(4, "ui.validate: polyline out of bounds") }
+                    poff = poff + 8
+                }
+            }
         } else if op == "fill_triangle" {
             var tx1 = c["x1"]; var ty1 = c["y1"]; var tx2 = c["x2"]; var ty2 = c["y2"]; var tx3 = c["x3"]; var ty3 = c["y3"]; var tcol = c["color"]
             if _is_int(tx1) == false || _is_int(ty1) == false || _is_int(tx2) == false || _is_int(ty2) == false || _is_int(tx3) == false || _is_int(ty3) == false {

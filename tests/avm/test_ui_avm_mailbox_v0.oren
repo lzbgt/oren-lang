@@ -72,6 +72,22 @@ fn main() {
         1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255
     ])
+    var poly_points = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0,
+        3, 0, 0, 0, 1, 0, 0, 0
+    ])
+    var polyline_frame = ui_avm.frame_bytes([{"op": "polyline", "points": poly_points, "width": 2, "color": "#123456"}], 4, 2, {"strict_bounds": true})
+    assert_bytes_eq(polyline_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        8, 0, 36, 0,
+        2, 0, 0, 0, 3, 0, 0, 0, 18, 52, 86, 255,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0,
+        3, 0, 0, 0, 1, 0, 0, 0
+    ])
 
     var text_data = bytes.try_pack([65, 66])
     var text_frame = ui_avm.frame_bytes([{"op": "text_bytes", "x": 1, "y": 0, "data": text_data, "color": "#ffffff"}], 4, 1, {"strict_bounds": true})

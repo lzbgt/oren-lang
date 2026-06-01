@@ -144,6 +144,20 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, eflags)
         return _push_color_rgba(out, c["color"])
     }
+    if op == "polyline" {
+        var points = c["points"]
+        var pn = bytes.try_len(points)
+        if oren_is_err(pn) { return pn }
+        if pn < 16 || pn > 65520 || pn % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: polyline invalid point bytes") }
+        var plw = c["width"]
+        if plw == nil { plw = 1 }
+        _push_op_header(out, 8, 12 + pn)
+        _push_u32_le(out, plw)
+        _push_u32_le(out, pn / 8)
+        var prc = _push_color_rgba(out, c["color"])
+        if oren_is_err(prc) { return prc }
+        return _append_bytes(out, points)
+    }
     if op == "fill_triangle" {
         _push_op_header(out, 5, 28)
         _push_u32_le(out, c["x1"])

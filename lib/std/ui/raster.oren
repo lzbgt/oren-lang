@@ -18,6 +18,7 @@
 // - {"op":"stroke_rect","x":int,"y":int,"w":int,"h":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"ellipse","x":int,"y":int,"w":int,"h":int,"fill":bool,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"polyline","points":bytes,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"} where each point is u32le x,y
 // - {"op":"fill_triangle","x1":int,"y1":int,"x2":int,"y2":int,"x3":int,"y3":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
@@ -136,6 +137,25 @@ fn _draw_ellipse(buf, w, h, x, y, ew, eh, lw, fill, c) {
             xx = xx + 1
         }
         yy = yy + 1
+    }
+    return 0
+}
+
+fn _draw_polyline(buf, w, h, points, lw, c) {
+    var plen = bytes.try_len(points)
+    if oren_is_err(plen) { return plen }
+    var last_x = bytes.try_get_u32_le(points, 0)
+    var last_y = bytes.try_get_u32_le(points, 4)
+    if oren_is_err(last_x) || oren_is_err(last_y) { return oren_err(4, "rasterize: polyline malformed point") }
+    var off = 8
+    while off < plen {
+        var x = bytes.try_get_u32_le(points, off)
+        var y = bytes.try_get_u32_le(points, off + 4)
+        if oren_is_err(x) || oren_is_err(y) { return oren_err(4, "rasterize: polyline malformed point") }
+        _draw_line(buf, w, h, last_x, last_y, x, y, lw, c)
+        last_x = x
+        last_y = y
+        off = off + 8
     }
     return 0
 }
@@ -289,6 +309,13 @@ fn rasterize(cmds, w, h, opts) {
             var elw = opm["width"]
             if elw == nil { elw = 1 }
             _draw_ellipse(buf, w, h, opm["x"], opm["y"], opm["w"], opm["h"], elw, efill, ec)
+        } else if op == "polyline" {
+            var pc = ui_color.try_parse_hex(opm["color"])
+            if oren_is_err(pc) { return result.with_context(pc, "rasterize: polyline color") }
+            var plw = opm["width"]
+            if plw == nil { plw = 1 }
+            var pr = _draw_polyline(buf, w, h, opm["points"], plw, pc)
+            if oren_is_err(pr) { return result.with_context(pr, "rasterize: polyline") }
         } else if op == "fill_triangle" {
             var tc = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(tc) { return result.with_context(tc, "rasterize: fill_triangle color") }

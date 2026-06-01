@@ -77,6 +77,28 @@ fn test_validate_ellipse() {
     assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
 }
 
+fn test_validate_polyline() {
+    var points = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0,
+        3, 0, 0, 0, 2, 0, 0, 0
+    ])
+    assert_true(oren_is_err(points) == false)
+    var cmds = [{"op": "polyline", "points": points, "width": 1, "color": "#00ffff"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
+    var bad_width = [{"op": "polyline", "points": points, "width": 0, "color": "#00ffff"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_width, 4, 3, nil)) == true)
+    var bad_points = bytes.try_pack([0, 0, 0, 0, 0, 0, 0, 0])
+    assert_true(oren_is_err(bad_points) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "polyline", "points": bad_points, "color": "#00ffff"}], 4, 3, nil)) == true)
+    var bad_bounds = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0,
+        4, 0, 0, 0, 1, 0, 0, 0
+    ])
+    assert_true(oren_is_err(bad_bounds) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "polyline", "points": bad_bounds, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == true)
+}
+
 fn test_validate_text_bytes() {
     var data = bytes.try_pack([65, 66, 67])
     assert_true(oren_is_err(data) == false)
@@ -148,6 +170,7 @@ fn main() {
     test_validate_triangle()
     test_validate_stroke_rect()
     test_validate_ellipse()
+    test_validate_polyline()
     test_validate_text_bytes()
     test_validate_text_resource()
     test_validate_image()

@@ -485,6 +485,22 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                 CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
                 CGContextStrokeEllipseInRect(ctx, oval);
             }
+        } else if (opcode == 8 && payloadLen >= 28 && ((payloadLen - 12) % 8) == 0) {
+            uint32_t width = OrenAVMGfxReadU32LE(payload);
+            uint32_t pointCount = OrenAVMGfxReadU32LE(payload + 4);
+            if (pointCount == ((uint32_t)payloadLen - 12u) / 8u && pointCount >= 2) {
+                UIColor* color = OrenAVMGfxColor(payload + 8);
+                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
+                const uint8_t* points = payload + 12;
+                CGContextBeginPath(ctx);
+                CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(points), (CGFloat)OrenAVMGfxReadU32LE(points + 4));
+                for (uint32_t pi = 1; pi < pointCount; pi++) {
+                    const uint8_t* point = points + ((size_t)pi * 8u);
+                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(point), (CGFloat)OrenAVMGfxReadU32LE(point + 4));
+                }
+                CGContextStrokePath(ctx);
+            }
         } else if (opcode == 5 && payloadLen == 28) {
             uint32_t x1 = OrenAVMGfxReadU32LE(payload);
             uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);

@@ -881,6 +881,31 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                       (float)logicalW,
                                       (float)logicalH,
                                       payload + 24);
+        } else if (opcode == 8 && payloadLen >= 28 && ((payloadLen - 12) % 8) == 0) {
+            uint32_t width = OrenAVMMetalReadU32LE(payload);
+            uint32_t pointCount = OrenAVMMetalReadU32LE(payload + 4);
+            const uint8_t* rgba = payload + 8;
+            const uint8_t* points = payload + 12;
+            if (pointCount == ((uint32_t)payloadLen - 12u) / 8u && pointCount >= 2) {
+                uint32_t lastX = OrenAVMMetalReadU32LE(points);
+                uint32_t lastY = OrenAVMMetalReadU32LE(points + 4);
+                for (uint32_t pi = 1; pi < pointCount; pi++) {
+                    const uint8_t* point = points + ((size_t)pi * 8u);
+                    uint32_t x = OrenAVMMetalReadU32LE(point);
+                    uint32_t y = OrenAVMMetalReadU32LE(point + 4);
+                    OrenAVMMetalAppendLine(vertices,
+                                           (float)lastX,
+                                           (float)lastY,
+                                           (float)x,
+                                           (float)y,
+                                           (float)(width == 0 ? 1u : width),
+                                           (float)logicalW,
+                                           (float)logicalH,
+                                           rgba);
+                    lastX = x;
+                    lastY = y;
+                }
+            }
         } else if (opcode == 5 && payloadLen == 28) {
             uint32_t x1 = OrenAVMMetalReadU32LE(payload);
             uint32_t y1 = OrenAVMMetalReadU32LE(payload + 4);

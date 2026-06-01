@@ -80,12 +80,12 @@ Implemented as of 2026-05-31:
   selection range so IME state remains host-driven while OBC can render/edit
   composition UI through virtual input events.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
-  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`, `ellipse`, `fill_triangle`,
+  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
   `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -282,7 +282,7 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 5. Done: add latest-frame replacement/clear, high-resolution resize scale, and
    FIFO pointer down/move/up ordering gates in the iOS embed verifier.
 6. Done: add first SDK Metal/`MTKView` adapter for the current low-level
-   `OGF0` fill-rect/stroke-line/circle/ellipse/text records, touch forwarding, host screen
+   `OGF0` fill-rect/stroke-line/circle/ellipse/polyline/text records, touch forwarding, host screen
    state, and target-refresh pacing through `MTKView.preferredFramesPerSecond`.
 7. Done: add compact coalesced `OGE0` `frame_tick` events and OBC decoding so
    display-paced loops can consume host timing through the virtual event stream.
@@ -319,6 +319,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 19. Done: add `ellipse {x,y,w,h,fill,width,color}` across validation, binary
     frames, AVM protocol checks, deterministic raster, CoreGraphics fallback,
     Metal, iOS verifier, and the 2D conformance scene.
-20. Add richer text atlas batching and mesh rendering on the Metal path.
-21. Add richer 2D and 3D command sets.
+20. Done: add byte-native `polyline {points,width,color}` across validation,
+    binary frames, AVM protocol checks, deterministic raster, CoreGraphics
+    fallback, Metal, iOS verifier, and the 2D conformance scene.
+21. Add richer text atlas batching and mesh rendering on the Metal path.
+22. Add richer 2D and 3D command sets.
 21. Add game/app package smoke in the Note host or iOS SDK harness.

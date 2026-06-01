@@ -111,6 +111,17 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad ellipse dimensions");
                 return 0;
             }
+        } else if (opcode == 8u) {
+            if (payload_len < 28u || ((payload_len - 12u) % 8u) != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad polyline payload");
+                return 0;
+            }
+            uint32_t point_count = avm_gfx_u32le(payload + 4);
+            if (avm_gfx_u32le(payload) == 0u || point_count < 2u ||
+                point_count != ((uint32_t)payload_len - 12u) / 8u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad polyline points");
+                return 0;
+            }
         } else if (opcode == 68u) {
             if (payload_len < 12u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text_resource payload");
