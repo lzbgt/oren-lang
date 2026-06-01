@@ -19,6 +19,8 @@ fn assert_err(x, code, msg) {
 var encoded = base64.try_encode_bytes([77, 97, 110])
 assert_true(oren_is_err(encoded) != true, 10, "try_encode_bytes ok")
 assert_true(encoded == "TWFu", 11, "try_encode_bytes value")
+assert_true(base64.encode(bytes.from_string("Man")) == "TWFu", 12, "encode canonical value")
+assert_true(bytes.from_string("Man").base64() == "TWFu", 13, "bytes base64 method value")
 
 var decoded = base64.try_decode_bytes("TWFu")
 assert_true(oren_is_err(decoded) != true, 20, "try_decode_bytes ok")
@@ -35,6 +37,9 @@ assert_true(bytes.try_get_u8(decoded_ws, 0) == 77, 32, "try_decode_bytes whitesp
 var strict_ok = base64.try_decode_bytes_strict("TQ==")
 assert_true(oren_is_err(strict_ok) != true, 40, "try_decode_bytes_strict ok")
 assert_true(bytes.try_get_u8(strict_ok, 0) == 77, 41, "try_decode_bytes_strict byte")
+assert_true(base64.decode("TWFu").text() == "Man", 42, "decode canonical text")
+assert_true("TWFu".base64_bytes().text() == "Man", 43, "string base64 bytes method")
+assert_true("TWFu".base64_bytes_strict().text() == "Man", 44, "string base64 strict method")
 
 assert_err(base64.try_encode_bytes(123), 50, "try_encode_bytes invalid input")
 assert_err(base64.try_decode_bytes("!!!"), 51, "try_decode_bytes invalid alphabet")

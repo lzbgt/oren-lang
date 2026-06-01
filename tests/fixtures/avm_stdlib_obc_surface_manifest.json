@@ -243,10 +243,11 @@
       "module": "std:encoding/base64",
       "alias": "base64",
       "probes": [
-        "if base64.try_encode_bytes([77, 97, 110]) != \"TWFu\" { fail(22) }",
-        "var b64 = base64.try_decode_bytes_strict(\"TQ==\")",
-        "if oren_is_err(b64) { fail(23) }",
-        "if bytes.try_len(b64) != 1 || bytes.try_get_u8(b64, 0) != 77 { fail(24) }"
+        "if base64.encode(bytes.from_string(\"Man\")) != \"TWFu\" { fail(22) }",
+        "if bytes.from_string(\"Man\").base64() != \"TWFu\" { fail(23) }",
+        "var b64 = \"TQ==\".base64_bytes_strict()",
+        "if oren_is_err(b64) { fail(24) }",
+        "if bytes.try_len(b64) != 1 || bytes.try_get_u8(b64, 0) != 77 { fail(25) }"
       ]
     },
     {
@@ -263,14 +264,16 @@
       "module": "std:crypto/sha1",
       "alias": "sha1",
       "probes": [
-        "if sha1.sha1_hex(bytes.pack([97, 98, 99])) != \"a9993e364706816aba3e25717850c26c9cd0d89d\" { fail(46) }"
+        "if sha1.hex(bytes.from_string(\"abc\")) != \"a9993e364706816aba3e25717850c26c9cd0d89d\" { fail(46) }",
+        "if bytes.from_string(\"abc\").sha1().hex() != \"a9993e364706816aba3e25717850c26c9cd0d89d\" { fail(48) }"
       ]
     },
     {
       "module": "std:crypto/sha256",
       "alias": "sha256",
       "probes": [
-        "if sha256.sha256_hex(bytes.pack([97, 98, 99])) != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { fail(47) }"
+        "if sha256.hex(bytes.from_string(\"abc\")) != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { fail(47) }",
+        "if bytes.from_string(\"abc\").sha256().hex() != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { fail(50) }"
       ]
     },
     {

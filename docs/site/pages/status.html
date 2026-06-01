@@ -457,16 +457,25 @@
 <p>	  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>
 <p>	  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
 <p>	  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>
-<p>	  <code>cbor.cint(7).bytes().cbor()</code>, and <code>&quot;hi&quot;.bytes().text()</code> work through</p>
-<p>	  source and stdlib-OBC metadata paths without explicit local annotations.</p>
+<p>	  <code>cbor.cint(7).bytes().cbor()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
+<p>	  <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
+<p>	  <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> work through source and</p>
+<p>	  stdlib-OBC metadata paths without explicit local annotations.</p>
+<p>	  The module renamer now preserves builtin annotation names such as <code>bytes</code></p>
+<p>	  even when an import alias uses the same spelling, so trait impls for builtin</p>
+<p>	  types stay available to chained method lowering instead of becoming</p>
+<p>	  accidental module-local alias types.</p>
 <p>	  <code>std:xml</code> / <code>std:html</code> add deterministic DOM/query APIs plus streaming</p>
 <p>	  readers for memory-budgeted payloads. Native <code>std:net/http</code> composes</p>
 <p>	  response objects with <code>.html()</code>, <code>.xml()</code>, <code>.html_reader()</code>, and</p>
 <p>	  <code>.xml_reader()</code>; AVM/OBC keeps the default bundle lean and composes through</p>
 <p>	  explicit codec imports such as <code>http.get(url).text().html_reader()</code> when a</p>
 <p>	  package opts into HTML/XML parsing.</p>
-<p>	  Pure Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via</p>
-<p>	  indexed byte access instead of unpacking the whole message to a list. The same</p>
+<p>	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical</p>
+<p>	  <code>digest</code> / <code>hex</code> / receiver-method APIs, and process virtual padding via</p>
+<p>	  indexed byte access instead of unpacking the whole message to a list. Base64</p>
+<p>	  encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
+<p>	  intermediate Oren list. The same</p>
 <p>  buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits</p>
 <p>  instead of truncating fractional values through integer byte writes. Further</p>
 <p>  cleanup should keep text helpers explicit at API boundaries.</p>

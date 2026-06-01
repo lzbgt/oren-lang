@@ -182,10 +182,15 @@ Constraints:
   should remain available when they are the clear module operation
   (`json.text(value)`, `http.text(response)`), but rolling user-facing examples
   should favor object/method style when it reads better:
-  `http.get(url).text()`, `"{}".json().text()`, `"hi".bytes().text()`,
+  `http.get(url).text()`, `"{}".json().text()`, `"hi".bytes().base64()`,
+  `"TWFu".base64_bytes().text()`, `bytes.from_string("abc").sha256_hex()`,
   and `cbor.cint(7).bytes().cbor()`.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
+- Builtin annotation names (`bytes`, `string`, `int`, buffers, etc.) are reserved
+  for type/method lowering even if a module imports an alias with the same
+  spelling. That keeps trait-backed method syntax from depending on fragile local
+  alias choices.
 - “Small” in implementation means resource-efficient, not feature-poor. For
   large payload formats such as XML/HTML, stdlib APIs should offer streaming
   readers for bounded memory and DOM/query layers on top for ergonomic cases.

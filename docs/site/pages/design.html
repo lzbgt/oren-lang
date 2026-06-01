@@ -211,12 +211,19 @@
 <p>  should remain available when they are the clear module operation</p>
 <p>  (<code>json.text(value)</code>, <code>http.text(response)</code>), but rolling user-facing examples</p>
 <p>  should favor object/method style when it reads better:</p>
-<p>  <code>http.get(url).text()</code>, <code>&quot;{}&quot;.json().text()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
+<p>  <code>http.get(url).text()</code>, <code>&quot;{}&quot;.json().text()</code>, <code>&quot;hi&quot;.bytes().base64()</code>,</p>
+<p>  <code>&quot;TWFu&quot;.base64_bytes().text()</code>, <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code>,</p>
 <p>  and <code>cbor.cint(7).bytes().cbor()</code>.</p>
 <ul>
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>
 <p>  domain object/scope first, then expose <code>request</code>/<code>response</code>/<code>value</code> methods.</p>
+<ul>
+<li>Builtin annotation names (<code>bytes</code>, <code>string</code>, <code>int</code>, buffers, etc.) are reserved</li>
+</ul>
+<p>  for type/method lowering even if a module imports an alias with the same</p>
+<p>  spelling. That keeps trait-backed method syntax from depending on fragile local</p>
+<p>  alias choices.</p>
 <ul>
 <li>“Small” in implementation means resource-efficient, not feature-poor. For</li>
 </ul>

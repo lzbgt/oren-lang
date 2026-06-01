@@ -46,6 +46,10 @@ fn _rename_ann_type(pairs, ann) {
         i = i + 1
     }
 
+    if _ann_base_is_builtin(base) == true {
+        return stars + slices + base + suffix
+    }
+
     // Fast path: plain name.
     var mapped = rename_lookup(pairs, base)
     if mapped != "" {
@@ -68,6 +72,23 @@ fn _rename_ann_type(pairs, ann) {
     }
 
     return stars + slices + base + suffix
+}
+
+fn _ann_base_is_builtin(base) {
+    if base == "any" { return true }
+    if base == "bool" { return true }
+    if base == "bytes" { return true }
+    if base == "buf" { return true }
+    if base == "float" { return true }
+    if base == "int" { return true }
+    if base == "list" { return true }
+    if base == "map" { return true }
+    if base == "nil" { return true }
+    if base == "string" { return true }
+    if base == "i8" || base == "i16" || base == "i32" || base == "i64" || base == "i128" { return true }
+    if base == "u8" || base == "u16" || base == "u32" || base == "u64" || base == "u128" { return true }
+    if base == "f32" || base == "f64" { return true }
+    return false
 }
 
 fn collect_toplevel_rename_pairs(prog, prefix) {

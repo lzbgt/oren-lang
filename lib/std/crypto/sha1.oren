@@ -4,23 +4,28 @@
 // - Deterministic, correctness-first SHA-1 for workflows that need it (WebSocket handshake, etc).
 // - Not optimized; avoid using this in hot perf paths until we have profiling + SIMD plans.
 //
-// API:
-// - `sha1_bytes(input_bytes)` -> BYTES (len=20)
-// - `sha1_hex(input_bytes)` -> lowercase hex string
-// - `try_sha1_bytes(...)` / `try_sha1_hex(...)` validate byte-like inputs and return `oren_err`.
+// Canonical API:
+// - `digest(input_bytes)` / `input_bytes.sha1()` -> BYTES (len=20)
+// - `hex(input_bytes)` / `input_bytes.sha1_hex()` -> lowercase hex string
+// - `try_digest(...)` / `try_hex(...)` validate byte-like inputs and return `oren_err`.
 
 import list "std:list"
-import bytes "std:bytes"
+import bytesm "std:bytes"
+
+trait Sha1Bytes {
+    fn sha1(self): bytes;
+    fn sha1_hex(self);
+}
 
 fn _input_bytes_or_err(input_bytes, ctx) {
     if input_bytes == nil { return oren_bytes_pack([]) }
-    var n = bytes.try_len(input_bytes)
+    var n = bytesm.try_len(input_bytes)
     if oren_is_err(n) {
         return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
     }
     var i = 0
     while i < n {
-        var b = bytes.try_get_u8(input_bytes, i)
+        var b = bytesm.try_get_u8(input_bytes, i)
         if oren_is_err(b) {
             return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
         }
@@ -47,7 +52,7 @@ fn _padded_len(orig_len) {
 }
 
 fn _padded_byte_at(input_bytes, orig_len, bit_len, pos) {
-    if pos < orig_len { return bytes.try_get_u8(input_bytes, pos) }
+    if pos < orig_len { return bytesm.try_get_u8(input_bytes, pos) }
     if pos == orig_len { return 128 }
     var len_start = _padded_len(orig_len) - 8
     if pos < len_start { return 0 }
@@ -78,7 +83,7 @@ fn sha1_bytes(input_bytes) {
         input_bytes = oren_bytes_pack([])
     }
 
-    var orig_len = bytes.try_len(input_bytes)
+    var orig_len = bytesm.try_len(input_bytes)
     if oren_is_err(orig_len) { return orig_len }
     var bit_len = orig_len * 8
     var total_len = _padded_len(orig_len)
@@ -160,6 +165,10 @@ fn sha1_hex(input_bytes) {
     return oren_bytes_to_hex(sha1_bytes(input_bytes))
 }
 
+fn digest(input_bytes): bytes { return sha1_bytes(input_bytes) }
+
+fn hex(input_bytes) { return sha1_hex(input_bytes) }
+
 fn try_sha1_bytes(input_bytes) {
     var checked = _input_bytes_or_err(input_bytes, "sha1.try_sha1_bytes")
     if oren_is_err(checked) { return checked }
@@ -170,4 +179,13 @@ fn try_sha1_hex(input_bytes) {
     var d = try_sha1_bytes(input_bytes)
     if oren_is_err(d) { return d }
     return oren_bytes_to_hex(d)
+}
+
+fn try_digest(input_bytes): bytes { return try_sha1_bytes(input_bytes) }
+
+fn try_hex(input_bytes) { return try_sha1_hex(input_bytes) }
+
+impl Sha1Bytes for bytes {
+    fn sha1(self): bytes { return digest(self) }
+    fn sha1_hex(self) { return hex(self) }
 }

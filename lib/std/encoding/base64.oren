@@ -4,14 +4,21 @@
 // - Minimal encode surface used by protocols like WebSocket (Sec-WebSocket-Accept).
 // - This is not a streaming API (v0); keep it small and predictable.
 //
-// API:
-// - `encode_bytes(input_bytes)` -> string
-// - `try_encode_bytes(input_bytes)` -> string or oren_err
-// - `decode_bytes(b64_string)` -> bytes (u8_buf)
-// - `try_decode_bytes(b64_string)` -> bytes (u8_buf) or oren_err
-// - `try_decode_bytes_strict(b64_string)` -> bytes (u8_buf) or oren_err
+// Canonical API:
+// - `encode(input_bytes)` / `input_bytes.base64()` -> string
+// - `decode(b64_string)` / `b64_string.base64_bytes()` -> bytes (u8_buf)
+// - `decode_strict(b64_string)` / `b64_string.base64_bytes_strict()` -> bytes
 
-import list "std:list"
+import bytesm "std:bytes"
+
+trait Base64Bytes {
+    fn base64(self);
+}
+
+trait Base64Text {
+    fn base64_bytes(self): bytes;
+    fn base64_bytes_strict(self): bytes;
+}
 
 fn _str_byte(s, i) {
     return oren_string_char_code_at(s, i) & 255
@@ -35,29 +42,42 @@ fn b64_is_ws(c) {
     return 0
 }
 
+fn _set_out(out, idx, v) {
+    var rc = oren_bytes_set_u8(out, idx, v)
+    if oren_is_err(rc) { return rc }
+    return nil
+}
+
 fn encode_bytes(input_bytes) {
     if input_bytes == nil {
         input_bytes = oren_bytes_pack([])
     }
 
-    var xs = input_bytes
-    if oren_type_tag(input_bytes) != 6 {
-        xs = oren_bytes_unpack(input_bytes) // list<u8>
-        if oren_is_err(xs) { return xs }
-    }
-    var n = list.len(xs)
-    if n == nil || oren_is_err(n) { return oren_err(4, "base64.encode_bytes: input must be list<int> or u8_buf") }
+    var n = bytesm.try_len(input_bytes)
+    if oren_is_err(n) { return oren_err(4, "base64.encode_bytes: input must be list<int> or u8_buf") }
 
-    var out = [] // list<u8> ascii
+    var out_len = ((n + 2) / 3) * 4
+    var out = oren_u8_buf_new_uninit(out_len)
+    if oren_is_err(out) { return out }
     var i = 0
+    var oi = 0
     while i < n {
-        var b0 = xs[i] & 255
+        var b0 = bytesm.try_get_u8(input_bytes, i)
+        if oren_is_err(b0) { return b0 }
         var b1 = 0
         var b2 = 0
         var have1 = 0
         var have2 = 0
-        if i + 1 < n { b1 = xs[i + 1] & 255; have1 = 1 }
-        if i + 2 < n { b2 = xs[i + 2] & 255; have2 = 1 }
+        if i + 1 < n {
+            b1 = bytesm.try_get_u8(input_bytes, i + 1)
+            if oren_is_err(b1) { return b1 }
+            have1 = 1
+        }
+        if i + 2 < n {
+            b2 = bytesm.try_get_u8(input_bytes, i + 2)
+            if oren_is_err(b2) { return b2 }
+            have2 = 1
+        }
 
         var triple = (b0 << 16) | (b1 << 8) | b2
         var c0 = (triple >> 18) & 63
@@ -65,18 +85,27 @@ fn encode_bytes(input_bytes) {
         var c2 = (triple >> 6) & 63
         var c3 = triple & 63
 
-        list.push(out, _b64_char(c0))
-        list.push(out, _b64_char(c1))
-        if have1 == 1 { list.push(out, _b64_char(c2)) }
-        else { list.push(out, 61) } // '='
-        if have2 == 1 { list.push(out, _b64_char(c3)) }
-        else { list.push(out, 61) } // '='
+        var rc0 = _set_out(out, oi, _b64_char(c0))
+        if oren_is_err(rc0) { return rc0 }
+        var rc1 = _set_out(out, oi + 1, _b64_char(c1))
+        if oren_is_err(rc1) { return rc1 }
+        var rc2 = nil
+        if have1 == 1 { rc2 = _set_out(out, oi + 2, _b64_char(c2)) }
+        else { rc2 = _set_out(out, oi + 2, 61) } // '='
+        if oren_is_err(rc2) { return rc2 }
+        var rc3 = nil
+        if have2 == 1 { rc3 = _set_out(out, oi + 3, _b64_char(c3)) }
+        else { rc3 = _set_out(out, oi + 3, 61) } // '='
+        if oren_is_err(rc3) { return rc3 }
 
         i = i + 3
+        oi = oi + 4
     }
 
-    return oren_string_from_bytes(out)
+    return oren_string_from_bytes_slice(out, 0, out_len)
 }
+
+fn encode(input_bytes) { return encode_bytes(input_bytes) }
 
 fn try_encode_bytes(input_bytes) {
     return encode_bytes(input_bytes)
@@ -219,11 +248,13 @@ fn try_decode_bytes(s) {
     return decode_bytes(s)
 }
 
+fn decode(s): bytes { return decode_bytes(s) }
+
 fn decode_bytes_strict(s) {
     // Strict variant: rejects any whitespace (for protocols that require exact base64).
     if s == nil { return oren_err(4, "base64.decode_bytes_strict: string is nil") }
     var n = oren_string_len(s)
-    if n == nil || oren_is_err(n) { return oren_err(4, "base64.decode_bytes_strict: s must be string") }
+    if oren_is_err(n) { return oren_err(4, "base64.decode_bytes_strict: s must be string") }
     var i = 0
     while i < n {
         var c = _str_byte(s, i)
@@ -235,4 +266,15 @@ fn decode_bytes_strict(s) {
 
 fn try_decode_bytes_strict(s) {
     return decode_bytes_strict(s)
+}
+
+fn decode_strict(s): bytes { return decode_bytes_strict(s) }
+
+impl Base64Bytes for bytes {
+    fn base64(self) { return encode(self) }
+}
+
+impl Base64Text for string {
+    fn base64_bytes(self): bytes { return decode(self) }
+    fn base64_bytes_strict(self): bytes { return decode_strict(self) }
 }

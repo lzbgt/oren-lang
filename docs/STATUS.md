@@ -365,16 +365,25 @@ Facts from the 2026-05-28 implementation pass:
 	  direct byte slice helpers reject out-of-bounds spans before native conversion.
 	  Codec and byte APIs now expose trait-backed method surfaces for the rolling
 	  stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
-	  `cbor.cint(7).bytes().cbor()`, and `"hi".bytes().text()` work through
-	  source and stdlib-OBC metadata paths without explicit local annotations.
+	  `cbor.cint(7).bytes().cbor()`, `"hi".bytes().text()`,
+	  `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
+	  `bytes.from_string("abc").sha256_hex()` work through source and
+	  stdlib-OBC metadata paths without explicit local annotations.
+	  The module renamer now preserves builtin annotation names such as `bytes`
+	  even when an import alias uses the same spelling, so trait impls for builtin
+	  types stay available to chained method lowering instead of becoming
+	  accidental module-local alias types.
 	  `std:xml` / `std:html` add deterministic DOM/query APIs plus streaming
 	  readers for memory-budgeted payloads. Native `std:net/http` composes
 	  response objects with `.html()`, `.xml()`, `.html_reader()`, and
 	  `.xml_reader()`; AVM/OBC keeps the default bundle lean and composes through
 	  explicit codec imports such as `http.get(url).text().html_reader()` when a
 	  package opts into HTML/XML parsing.
-	  Pure Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via
-	  indexed byte access instead of unpacking the whole message to a list. The same
+	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical
+	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
+	  indexed byte access instead of unpacking the whole message to a list. Base64
+	  encoding now writes exact-size `u8_buf` output instead of materializing an
+	  intermediate Oren list. The same
   buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits
   instead of truncating fractional values through integer byte writes. Further
   cleanup should keep text helpers explicit at API boundaries.

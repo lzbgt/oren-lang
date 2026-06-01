@@ -163,11 +163,15 @@
 </ul>
 <p>	     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers</p>
 <p>	     may convert at the boundary but must not force list-of-byte round trips.</p>
-<p>	     Rolling API design now favors scoped objects and method chaining over</p>
-<p>	     root-level convenience helpers: NET uses <code>http.get(url).text()</code> /</p>
-<p>	     socket scopes, and codecs/bytes expose <code>&quot;{}&quot;.json().text()</code>,</p>
-<p>	     <code>&quot;a: 1\n&quot;.yaml().text()</code>, <code>cbor.cint(7).bytes().cbor()</code>, and</p>
-<p>	     <code>&quot;hi&quot;.bytes().text()</code> through stdlib source and OBC metadata.</p>
+<p>		     Rolling API design now favors scoped objects and method chaining over</p>
+<p>		     root-level convenience helpers: NET uses <code>http.get(url).text()</code> /</p>
+<p>		     socket scopes, and codecs/bytes expose <code>&quot;{}&quot;.json().text()</code>,</p>
+<p>		     <code>&quot;a: 1\n&quot;.yaml().text()</code>, <code>cbor.cint(7).bytes().cbor()</code>, and</p>
+<p>		     <code>&quot;hi&quot;.bytes().text()</code> through stdlib source and OBC metadata.</p>
+<p>		     Base64 and crypto hashes now follow the same rule with</p>
+<p>		     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
+<p>		     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
+<p>		     path on exact-size <code>u8_buf</code> output.</p>
 <p>	     XML/HTML follow the same rule with streaming readers first for large OBC</p>
 <p>	     payloads and DOM/query convenience on top. Native HTTP can use</p>
 <p>	     <code>response.html_reader()</code> / <code>response.html().find(&quot;title&quot;).text()</code>;</p>
