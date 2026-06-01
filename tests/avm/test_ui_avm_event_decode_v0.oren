@@ -114,6 +114,15 @@ fn main() {
     assert_eq(motion["gyro_y_milli"], -50)
     assert_eq(motion["gyro_z_milli"], 60)
 
+    var focus = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 112, 0, 8, 0,
+        4, 0, 0, 0, 1, 0, 0, 0
+    ]))
+    assert_eq(focus["kind"], "focus")
+    assert_eq(focus["phase"], "gained")
+    assert_eq(focus["focus_id"], 4)
+    assert_eq(focus["flags"], 1)
+
     assert_eq(ui_avm.next_event(), nil)
     exit(0)
 }

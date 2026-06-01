@@ -249,6 +249,8 @@ fn main() {
     if ev9["kind"] != "motion" || ev9["source_id"] != 2 || ev9["sequence"] != 7 || ev9["timestamp_ns"] != 1234 { oren_exit(101) }
     if ev9["accel_x_milli"] != -10 || ev9["accel_y_milli"] != 20 || ev9["accel_z_milli"] != -30 { oren_exit(102) }
     if ev9["gyro_x_milli"] != 40 || ev9["gyro_y_milli"] != -50 || ev9["gyro_z_milli"] != 60 { oren_exit(103) }
+    var ev10 = ui_avm.next_event()
+    if ev10["kind"] != "focus" || ev10["phase"] != "gained" || ev10["focus_id"] != 4 || ev10["flags"] != 1 { oren_exit(104) }
     if ui_avm.next_event() != nil { oren_exit(52) }
     var fs_ev = avm_events.select_once([avm_events.watch_fs("fs0")])
     if fs_ev == nil || fs_ev["kind"] != "fs" || fs_ev["id"] != "fs0" || fs_ev["action"] != "write" || fs_ev["detail"] != "host/out.txt" || fs_ev["flags"] != 7 || fs_ev["source"] != "host" { oren_exit(96) }
@@ -583,6 +585,10 @@ int main(void) {
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
     };
+    static const uint8_t focus_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 112, 0, 8, 0,
+        4, 0, 0, 0, 1, 0, 0, 0
+    };
     static const uint8_t bad_event[] = {
         79, 71, 69, 48, 0, 0, 0, 0, 1, 0, 8, 0,
         1, 0, 0, 0, 2, 0, 0, 0
@@ -628,6 +634,7 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, gamepad_event, sizeof(gamepad_event), &result) != AVM_EMBED_OK) return 70;
     if (avm_embed_gfx_input_put(handle, stale_motion_event, sizeof(stale_motion_event), &result) != AVM_EMBED_OK) return 72;
     if (avm_embed_gfx_input_put(handle, motion_event, sizeof(motion_event), &result) != AVM_EMBED_OK) return 71;
+    if (avm_embed_gfx_input_put(handle, focus_event, sizeof(focus_event), &result) != AVM_EMBED_OK) return 73;
     if (avm_embed_event_put(handle, "fs", "write", "host/out.txt", 7, &result) != AVM_EMBED_OK) return 68;
     if (avm_embed_event_put(handle, "package", "installed", "oren-labs/sdk-package-smoke/0.1.0", 0, &result) != AVM_EMBED_OK) return 69;
     if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
@@ -705,6 +712,7 @@ int main(void) {
     if (avm_embed_gfx_input_put(handle, gamepad_event, sizeof(gamepad_event), &result) != AVM_EMBED_OK) return 70;
     if (avm_embed_gfx_input_put(handle, stale_motion_event, sizeof(stale_motion_event), &result) != AVM_EMBED_OK) return 72;
     if (avm_embed_gfx_input_put(handle, motion_event, sizeof(motion_event), &result) != AVM_EMBED_OK) return 71;
+    if (avm_embed_gfx_input_put(handle, focus_event, sizeof(focus_event), &result) != AVM_EMBED_OK) return 73;
     if (avm_embed_event_put(handle, "fs", "write", "host/out.txt", 7, &result) != AVM_EMBED_OK) return 68;
     if (avm_embed_event_put(handle, "package", "installed", "oren-labs/sdk-package-smoke/0.1.0", 0, &result) != AVM_EMBED_OK) return 69;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
@@ -829,6 +837,7 @@ int main(void) {
         if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
         if (![runtime putGraphicsGamepadEventWithControllerID:3 buttons:5 lxMilli:-1000 lyMilli:1000 rxMilli:0 ryMilli:-250 error:&error]) return 153;
         if (![runtime putGraphicsMotionEventWithSourceID:2 sequence:7 timestampNs:1234 accelXMilli:-10 accelYMilli:20 accelZMilli:-30 gyroXMilli:40 gyroYMilli:-50 gyroZMilli:60 error:&error]) return 154;
+        if (![runtime putGraphicsFocusEventWithKind:112 focusID:4 flags:1 error:&error]) return 155;
         if (![runtime putVirtualEventWithKind:@"fs" action:@"write" detail:@"host/out.txt" flags:7 error:&error]) return 151;
         if (![runtime putVirtualEventWithKind:@"package" action:@"installed" detail:@"oren-labs/sdk-package-smoke/0.1.0" flags:0 error:&error]) return 152;
 

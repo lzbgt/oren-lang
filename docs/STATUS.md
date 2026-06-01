@@ -284,9 +284,10 @@ Facts from the 2026-05-28 implementation pass:
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
   pointer events instead of dropping all but one touch. The `OGE0` stream also has
-  compact gamepad/controller state records and coalesced high-rate motion records,
-  with iOS SDK helpers for controller id, button bitmask, signed milli-normalized
-  analog axes, and accelerometer/gyroscope samples.
+  compact gamepad/controller state records, coalesced high-rate motion records,
+  and focus gained/lost records, with iOS SDK helpers for controller id, button
+  bitmask, signed milli-normalized analog axes, accelerometer/gyroscope samples,
+  and focus routing.
   Bidirectional UI is a hard requirement for
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and

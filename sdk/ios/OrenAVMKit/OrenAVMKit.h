@@ -195,6 +195,10 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                gyroYMilli:(int32_t)gyroYMilli
                                gyroZMilli:(int32_t)gyroZMilli
                                      error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsFocusEventWithKind:(uint8_t)kind
+                               focusID:(uint32_t)focusID
+                                 flags:(uint32_t)flags
+                                 error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putVirtualEventWithKind:(NSString*)kind
                          action:(NSString*)action
                          detail:(NSString*)detail

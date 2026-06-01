@@ -62,8 +62,8 @@ Implemented as of 2026-05-31:
 - `std:ui/avm.pull_event_bytes()` pulls host-injected input; `poll_event_bytes()`
   remains only as a compatibility alias during rolling development.
 - `std:ui/avm.next_event()` decodes `OGE0`
-  pointer/resize/key/text/gamepad/motion records into Oren maps so OBC programs
-  do not have to parse bytes manually.
+  pointer/resize/key/text/gamepad/motion/focus records into Oren maps so OBC
+  programs do not have to parse bytes manually.
 - `OGE0` also carries `frame_tick` records with sequence, host tick time,
   delta time, target refresh, and flags. Host renderers such as `OrenAVMMetalView`
   emit these records from the display draw loop so OBC game loops can pace
@@ -74,6 +74,8 @@ Implemented as of 2026-05-31:
 - High-rate `motion` records carry source id, sequence, host timestamp, and
   signed milli-unit accelerometer/gyroscope samples. AVM coalesces pending motion
   records by source so sensor updates cannot flood the FIFO.
+- `focus` records carry gained/lost phase plus focus id and flags so OBC menus
+  and input routers can respond to host focus changes without raw UIKit objects.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
   `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
@@ -96,7 +98,7 @@ Implemented as of 2026-05-31:
   resending repeated UTF-8 labels every frame; richer glyph atlas batching and
   mesh resources remain the next performance steps.
 - Host helpers can enqueue pointer, resize, key, UTF-8 text, compact
-  gamepad/controller state, and coalesced motion input events.
+  gamepad/controller state, coalesced motion, and focus input events.
 - iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch
   set, assign stable compact pointer IDs for active touches, release IDs on
   end/cancel, and expose batch pointer-event helpers, so multi-finger input maps
@@ -119,9 +121,9 @@ Implemented as of 2026-05-31:
   app integration.
 
 This baseline proves bidirectional transport for the current 2D subset. It is not
-yet game-complete: richer input such as multitouch gestures, focus, and IME
-composition still need compact event records and iOS SDK helpers before game OBC
-packages should rely on them.
+yet game-complete: richer input such as multitouch gestures and IME composition
+still need compact event records and iOS SDK helpers before game OBC packages
+should rely on them.
 
 Runtime media query must be host-populated state, not a consumed event only.
 OBC should not query `UIScreen`, `MTKView`, or any host object directly. The host

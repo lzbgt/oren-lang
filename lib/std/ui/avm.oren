@@ -321,6 +321,12 @@ fn _key_phase(opcode) {
     return "unknown"
 }
 
+fn _focus_phase(opcode) {
+    if opcode == 112 { return "gained" }
+    if opcode == 113 { return "lost" }
+    return "unknown"
+}
+
 fn decode_event_bytes(ev) {
     if ev == nil { return nil }
     var n = bytes.try_len(ev)
@@ -489,6 +495,15 @@ fn decode_event_bytes(ev) {
             "gyro_y_milli": _signed_u32(gy),
             "gyro_z_milli": _signed_u32(gz)
         }
+    }
+
+    if opcode == 112 || opcode == 113 {
+        if payload_len != 8 { return oren_err(4, "ui.avm.decode_event_bytes: bad focus payload") }
+        var focus_id = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var focus_flags = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        if oren_is_err(focus_id) { return focus_id }
+        if oren_is_err(focus_flags) { return focus_flags }
+        return {"kind": "focus", "phase": _focus_phase(opcode), "opcode": opcode, "focus_id": focus_id, "flags": focus_flags}
     }
 
     return {"kind": "unknown", "opcode": opcode, "payload_len": payload_len}

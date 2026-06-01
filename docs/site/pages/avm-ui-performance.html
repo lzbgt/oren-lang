@@ -99,8 +99,8 @@
 <ul>
 <li><code>std:ui/avm.next_event()</code> decodes <code>OGE0</code></li>
 </ul>
-<p>  pointer/resize/key/text/gamepad/motion records into Oren maps so OBC programs</p>
-<p>  do not have to parse bytes manually.</p>
+<p>  pointer/resize/key/text/gamepad/motion/focus records into Oren maps so OBC</p>
+<p>  programs do not have to parse bytes manually.</p>
 <ul>
 <li><code>OGE0</code> also carries <code>frame_tick</code> records with sequence, host tick time,</li>
 </ul>
@@ -115,6 +115,10 @@
 </ul>
 <p>  signed milli-unit accelerometer/gyroscope samples. AVM coalesces pending motion</p>
 <p>  records by source so sensor updates cannot flood the FIFO.</p>
+<ul>
+<li><code>focus</code> records carry gained/lost phase plus focus id and flags so OBC menus</li>
+</ul>
+<p>  and input routers can respond to host focus changes without raw UIKit objects.</p>
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
@@ -143,7 +147,7 @@
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>
-<p>  gamepad/controller state, and coalesced motion input events.</p>
+<p>  gamepad/controller state, coalesced motion, and focus input events.</p>
 <ul>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
 </ul>
@@ -175,9 +179,9 @@
 <p>  it in AVM, so GUI app dependencies fail in the repo gate instead of later in</p>
 <p>  app integration.</p>
 <p>This baseline proves bidirectional transport for the current 2D subset. It is not</p>
-<p>yet game-complete: richer input such as multitouch gestures, focus, and IME</p>
-<p>composition still need compact event records and iOS SDK helpers before game OBC</p>
-<p>packages should rely on them.</p>
+<p>yet game-complete: richer input such as multitouch gestures and IME composition</p>
+<p>still need compact event records and iOS SDK helpers before game OBC packages</p>
+<p>should rely on them.</p>
 <p>Runtime media query must be host-populated state, not a consumed event only.</p>
 <p>OBC should not query <code>UIScreen</code>, <code>MTKView</code>, or any host object directly. The host</p>
 <p>publishes persistent screen state with logical width/height, <code>scale_milli</code>,</p>

@@ -260,6 +260,13 @@ int avm_gfx_validate_event(const uint8_t* data, size_t len, char* err, size_t er
         }
         return 1;
     }
+    if (opcode == 112u || opcode == 113u) {
+        if (payload_len != 8u) {
+            avm_gfx_err(err, err_cap, "invalid OGE0 event: bad focus payload");
+            return 0;
+        }
+        return 1;
+    }
     avm_gfx_err(err, err_cap, "invalid OGE0 event: unsupported opcode");
     return 0;
 }

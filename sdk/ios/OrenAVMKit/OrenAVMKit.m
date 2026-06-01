@@ -1930,6 +1930,14 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return [self putGraphicsInputEventData:data error:error];
 }
 
+- (BOOL)putGraphicsFocusEventWithKind:(uint8_t)kind focusID:(uint32_t)focusID flags:(uint32_t)flags error:(NSError**)error {
+    uint8_t payload[8];
+    OrenAVMKitPutU32LE(payload, focusID);
+    OrenAVMKitPutU32LE(payload + 4, flags);
+    NSData* data = OrenAVMKitMakeGFXEvent(kind, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
 - (BOOL)putVirtualEventWithKind:(NSString*)kind action:(NSString*)action detail:(NSString*)detail flags:(uint32_t)flags error:(NSError**)error {
     if (kind.length == 0 || action.length == 0) {
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
