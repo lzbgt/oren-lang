@@ -18,6 +18,8 @@
 // - {"op":"pop_clip"}
 // - {"op":"push_translate","dx":int,"dy":int}
 // - {"op":"pop_transform"}
+// - {"op":"push_opacity","alpha_milli":int} where 1000 is fully opaque
+// - {"op":"pop_opacity"}
 // - {"op":"stroke_line","x1":int,"y1":int,"x2":int,"y2":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"stroke_rect","x":int,"y":int,"w":int,"h":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
@@ -50,6 +52,7 @@ var _clip_w = 0
 var _clip_h = 0
 var _tx = 0
 var _ty = 0
+var _opacity_milli = 1000
 
 fn _max_i(a, b) {
     if a > b { return a }
@@ -103,6 +106,7 @@ fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
     if _clip_enabled != 0 {
         if x < _clip_x || y < _clip_y || x >= _clip_x + _clip_w || y >= _clip_y + _clip_h { return 0 }
     }
+    a = (a * _opacity_milli) / 1000
     var idx = (y * w + x) * 4
     oren_buf_store_u8(buf, idx + 0, r)
     oren_buf_store_u8(buf, idx + 1, g)
@@ -287,6 +291,11 @@ fn rasterize(cmds, w, h, opts) {
     var buf = oren_u8_buf_new(n)
     if oren_is_err(buf) { return buf }
 
+    _clip_enabled = 0
+    _tx = 0
+    _ty = 0
+    _opacity_milli = 1000
+
     // Clear to transparent black by default.
     var i = 0
     while i < n {
@@ -311,13 +320,12 @@ fn rasterize(cmds, w, h, opts) {
 
     if cmds == nil { return buf }
 
-    _clip_enabled = 0
-    _tx = 0
-    _ty = 0
     var clip_stack = {}
     var clip_depth = 0
     var transform_stack = {}
     var transform_depth = 0
+    var opacity_stack = {}
+    var opacity_depth = 0
     var images = {}
     var texts = {}
     var ci = 0
@@ -347,6 +355,18 @@ fn rasterize(cmds, w, h, opts) {
             _tx = prev[0]
             _ty = prev[1]
             transform_stack[tkey] = nil
+        } else if op == "push_opacity" {
+            opacity_stack[oren_int_to_string(opacity_depth)] = _opacity_milli
+            opacity_depth = opacity_depth + 1
+            var alpha_milli = opm["alpha_milli"]
+            if alpha_milli == nil { alpha_milli = opm["alpha"] }
+            _opacity_milli = (_opacity_milli * alpha_milli) / 1000
+        } else if op == "pop_opacity" {
+            if opacity_depth <= 0 { return oren_err(4, "rasterize: opacity stack underflow") }
+            opacity_depth = opacity_depth - 1
+            var okey = oren_int_to_string(opacity_depth)
+            _opacity_milli = opacity_stack[okey]
+            opacity_stack[okey] = nil
         } else if op == "fill_rect" {
             var c = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(c) { return result.with_context(c, "rasterize: fill_rect color") }

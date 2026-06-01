@@ -55,6 +55,7 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     size_t off = (size_t)header_len;
     uint32_t clip_depth = 0u;
     uint32_t transform_depth = 0u;
+    uint32_t opacity_depth = 0u;
     uint8_t state_stack[64];
     uint32_t state_depth = 0u;
     for (uint32_t i = 0; i < op_count; i++) {
@@ -131,6 +132,36 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
             }
             state_depth--;
             transform_depth--;
+        } else if (opcode == 20u) {
+            if (payload_len != 4u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_opacity payload");
+                return 0;
+            }
+            if (avm_gfx_u32le(payload) > 1000u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad push_opacity alpha");
+                return 0;
+            }
+            opacity_depth++;
+            if (opacity_depth > 64u || state_depth >= 64u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: opacity stack too deep");
+                return 0;
+            }
+            state_stack[state_depth++] = 3u;
+        } else if (opcode == 21u) {
+            if (payload_len != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad pop_opacity payload");
+                return 0;
+            }
+            if (opacity_depth == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: opacity stack underflow");
+                return 0;
+            }
+            if (state_depth == 0u || state_stack[state_depth - 1u] != 3u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: opacity stack order mismatch");
+                return 0;
+            }
+            state_depth--;
+            opacity_depth--;
         } else if (opcode == 2u) {
             if (payload_len < 16u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text payload");
@@ -269,6 +300,10 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
     }
     if (transform_depth != 0u) {
         avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced transform stack");
+        return 0;
+    }
+    if (opacity_depth != 0u) {
+        avm_gfx_err(err, err_cap, "invalid OGF0 frame: unbalanced opacity stack");
         return 0;
     }
     if (state_depth != 0u) {

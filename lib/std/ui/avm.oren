@@ -116,6 +116,17 @@ fn _push_cmd(out, c) {
         _push_op_header(out, 19, 0)
         return 0
     }
+    if op == "push_opacity" {
+        var alpha_milli = c["alpha_milli"]
+        if alpha_milli == nil { alpha_milli = c["alpha"] }
+        _push_op_header(out, 20, 4)
+        _push_u32_le(out, alpha_milli)
+        return 0
+    }
+    if op == "pop_opacity" {
+        _push_op_header(out, 21, 0)
+        return 0
+    }
     if op == "stroke_line" {
         var lw = c["width"]
         if lw == nil { lw = 1 }

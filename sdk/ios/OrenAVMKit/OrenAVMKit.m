@@ -413,6 +413,9 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     size_t len = frame.length;
     uint32_t clipDepth = 0;
     uint32_t stateDepth = 0;
+    CGFloat opacity = 1.0;
+    CGFloat opacityStack[64];
+    uint32_t opacityDepth = 0;
     for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
@@ -452,6 +455,21 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
         } else if (opcode == 19 && payloadLen == 0) {
             if (stateDepth > 0) {
                 CGContextRestoreGState(ctx);
+                stateDepth--;
+            }
+        } else if (opcode == 20 && payloadLen == 4) {
+            uint32_t alphaMilli = OrenAVMGfxReadU32LE(payload);
+            if (opacityDepth < 64) {
+                opacityStack[opacityDepth++] = opacity;
+                opacity = opacity * ((CGFloat)alphaMilli / 1000.0);
+                CGContextSaveGState(ctx);
+                CGContextSetAlpha(ctx, opacity);
+                stateDepth++;
+            }
+        } else if (opcode == 21 && payloadLen == 0) {
+            if (opacityDepth > 0 && stateDepth > 0) {
+                CGContextRestoreGState(ctx);
+                opacity = opacityStack[--opacityDepth];
                 stateDepth--;
             }
         } else if (opcode == 3 && payloadLen == 24) {

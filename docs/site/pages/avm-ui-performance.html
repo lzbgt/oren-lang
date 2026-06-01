@@ -127,14 +127,16 @@
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
-<p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>push_translate</code>/<code>pop_transform</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
+<p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>push_translate</code>/<code>pop_transform</code>,</p>
+<p>  <code>push_opacity</code>/<code>pop_opacity</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>,</p>
+<p>  <code>stroke_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>,</p>
 <p>  <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -285,6 +287,11 @@
 </ul>
 <p>  express nested coordinate spaces for game UI nodes while the host maps them to</p>
 <p>  CoreGraphics CTM state or Metal vertex/scissor offsets;</p>
+<ul>
+<li>balanced opacity records: <code>push_opacity {alpha_milli}</code> and <code>pop_opacity</code></li>
+</ul>
+<p>  express nested UI transparency while the host maps them to CoreGraphics alpha</p>
+<p>  state or Metal geometry/texture fragment opacity;</p>
 <ul>
 <li>path/shape handles;</li>
 <li>vertex/index buffers for plots and meshes;</li>
@@ -454,6 +461,12 @@
 <p>    validation, binary frames, AVM protocol checks, deterministic raster,</p>
 <p>    CoreGraphics CTM state, Metal vertex/scissor offsets, iOS verifier, and the</p>
 <p>    2D conformance scene.</p>
+<ol>
+<li>Done: add balanced <code>push_opacity</code> / <code>pop_opacity</code> alpha state across</li>
+</ol>
+<p>    validation, binary frames, AVM protocol checks, deterministic raster,</p>
+<p>    CoreGraphics alpha state, Metal geometry/image/text opacity, iOS verifier,</p>
+<p>    and the 2D conformance scene.</p>
 <ol>
 <li>Add richer text atlas batching and mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>

@@ -181,6 +181,53 @@ fn main() {
     assert_true(oren_is_err(r15))
     assert_true(oren_err_code(r15) == 4)
 
+    var opacity_underflow = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        21, 0, 0, 0
+    ])
+    var r16 = ui_avm.present_bytes(opacity_underflow)
+    assert_true(oren_is_err(r16))
+    assert_true(oren_err_code(r16) == 4)
+
+    var opacity_unbalanced = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        20, 0, 4, 0,
+        244, 1, 0, 0
+    ])
+    var r17 = ui_avm.present_bytes(opacity_unbalanced)
+    assert_true(oren_is_err(r17))
+    assert_true(oren_err_code(r17) == 4)
+
+    var opacity_bad_alpha = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 2, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        20, 0, 4, 0,
+        233, 3, 0, 0,
+        21, 0, 0, 0
+    ])
+    var r18 = ui_avm.present_bytes(opacity_bad_alpha)
+    assert_true(oren_is_err(r18))
+    assert_true(oren_err_code(r18) == 4)
+
+    var opacity_state_mismatch = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        16, 0, 16, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        20, 0, 4, 0,
+        244, 1, 0, 0,
+        17, 0, 0, 0
+    ])
+    var r19 = ui_avm.present_bytes(opacity_state_mismatch)
+    assert_true(oren_is_err(r19))
+    assert_true(oren_err_code(r19) == 4)
+
     exit(0)
 }
 

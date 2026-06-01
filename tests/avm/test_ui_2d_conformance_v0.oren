@@ -63,6 +63,9 @@ fn main() {
         {"op": "draw_image", "id": 1, "x": 0, "y": 1, "w": 2, "h": 2},
         {"op": "draw_image_rect", "id": 1, "sx": 1, "sy": 0, "sw": 1, "sh": 1, "x": 3, "y": 2, "w": 1, "h": 1},
         {"op": "draw_image_rects", "id": 1, "rects": rects},
+        {"op": "push_opacity", "alpha_milli": 500},
+        {"op": "fill_rect", "x": 5, "y": 4, "w": 1, "h": 1, "color": "#ffffff"},
+        {"op": "pop_opacity"},
         {"op": "push_translate", "dx": 4, "dy": 4},
         {"op": "fill_rect", "x": 0, "y": 0, "w": 1, "h": 1, "color": "#808080"},
         {"op": "pop_transform"},
@@ -72,7 +75,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "76b9980a24a86316a853c0bf978519ea96955db349bad9b2c3ce68323b9dbaee")
+    assert_eq(got, "a5f37d5855cb70c106ce60faa12b4e6db6267d683434e9954d13afe08edea776")
     exit(0)
 }
 

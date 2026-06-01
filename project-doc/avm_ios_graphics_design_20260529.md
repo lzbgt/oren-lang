@@ -37,7 +37,9 @@ The first retained implementation slices exist as of 2026-05-31:
   pointer-event helper.
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
-  `text`/`text_bytes`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`image_rgba`/
+  `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
+  `push_opacity`/`pop_opacity`/`text`/`text_bytes`/`stroke_line`/
+  `stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`image_rgba`/
   `draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` plus retained
   `text_resource`/`draw_text`/`destroy_text` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
@@ -259,6 +261,7 @@ Keep v0 small and deterministic:
 - `fill_rect {x,y,w,h,color}`
 - `push_clip_rect {x,y,w,h}` and `pop_clip` for a balanced virtual scissor stack
 - `push_translate {dx,dy}` and `pop_transform` for a balanced virtual translation stack
+- `push_opacity {alpha_milli}` and `pop_opacity` for a balanced virtual alpha stack
 - `stroke_line {x1,y1,x2,y2,color,width}`
 - `stroke_rect {x,y,w,h,color,width}`
 - `ellipse {x,y,w,h,fill,color,width}`
@@ -345,7 +348,7 @@ Required gates before Note integration should be called production-ready:
     FIFO pointer down/move/up ordering gates.
 11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
     Metal draw loop, publishes screen state, forwards touch input, and renders the
-    current `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry records plus
+    current `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry records plus
     retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text
     upload/draw/destroy records.
 12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
@@ -360,7 +363,11 @@ Required gates before Note integration should be called production-ready:
     translation stack across validation, `OGF0`, AVM protocol checks,
     deterministic raster, CoreGraphics CTM state, Metal vertex/scissor offsets,
     and iOS verifier coverage.
-17. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` records for sprite/text/mesh rendering
+17. Done: add a balanced OBC-visible `push_opacity` / `pop_opacity`
+    alpha stack across validation, `OGF0`, AVM protocol checks, deterministic
+    raster alpha multiplication, CoreGraphics global alpha state, Metal geometry
+    alpha, texture/text fragment opacity, and iOS verifier coverage.
+18. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` records for sprite/text/mesh rendering
     on the Metal path.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
