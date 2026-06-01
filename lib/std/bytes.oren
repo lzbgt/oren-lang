@@ -58,6 +58,17 @@ fn _check_nonneg_int(v, ctx, label) {
     return v
 }
 
+fn _check_slice_span(bytes, off, n, ctx) {
+    var ok_off = _check_nonneg_int(off, ctx, "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, ctx, "len")
+    if oren_is_err(ok_n) { return ok_n }
+    var nb = _len_or_err(bytes, ctx)
+    if oren_is_err(nb) { return nb }
+    if off + n > nb { return oren_err(4, ctx + ": slice out of bounds") }
+    return nb
+}
+
 fn _bytes_to_int_list(bytes, ctx) {
     if oren_type_tag(bytes) == 6 {
         var n2 = oren_list_len(bytes)
@@ -141,13 +152,8 @@ fn try_unpack(bytes) {
 }
 
 fn try_slice(bytes, off, n) {
-    var ok_off = _check_nonneg_int(off, "bytes.try_slice", "off")
-    if oren_is_err(ok_off) { return ok_off }
-    var ok_n = _check_nonneg_int(n, "bytes.try_slice", "len")
-    if oren_is_err(ok_n) { return ok_n }
-    var nb = _len_or_err(bytes, "bytes.try_slice")
-    if oren_is_err(nb) { return nb }
-    if off + n > nb { return oren_err(4, "bytes.try_slice: slice out of bounds") }
+    var ok = _check_slice_span(bytes, off, n, "bytes.try_slice")
+    if oren_is_err(ok) { return ok }
     return oren_u8_buf_from_bytes_slice(bytes, off, n)
 }
 
@@ -212,18 +218,14 @@ fn try_to_u8_buf(bytes) {
 }
 
 fn try_to_string_slice(bytes, off, n) {
-    var ok_off = _check_nonneg_int(off, "bytes.try_to_string_slice", "off")
-    if oren_is_err(ok_off) { return ok_off }
-    var ok_n = _check_nonneg_int(n, "bytes.try_to_string_slice", "len")
-    if oren_is_err(ok_n) { return ok_n }
+    var ok = _check_slice_span(bytes, off, n, "bytes.try_to_string_slice")
+    if oren_is_err(ok) { return ok }
     return oren_string_from_bytes_slice(bytes, off, n)
 }
 
 fn try_to_u8_buf_slice(bytes, off, n) {
-    var ok_off = _check_nonneg_int(off, "bytes.try_to_u8_buf_slice", "off")
-    if oren_is_err(ok_off) { return ok_off }
-    var ok_n = _check_nonneg_int(n, "bytes.try_to_u8_buf_slice", "len")
-    if oren_is_err(ok_n) { return ok_n }
+    var ok = _check_slice_span(bytes, off, n, "bytes.try_to_u8_buf_slice")
+    if oren_is_err(ok) { return ok }
     return oren_u8_buf_from_bytes_slice(bytes, off, n)
 }
 

@@ -447,8 +447,9 @@
 <p>  <code>std:net/avm</code> has <code>try_get_bytes</code>, and <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization. <code>std:buffer</code></p>
 <p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
-<p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first. Pure</p>
-<p>  Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via</p>
+<p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
+<p>  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>
+<p>  Pure Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via</p>
 <p>  indexed byte access instead of unpacking the whole message to a list. The same</p>
 <p>  buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits</p>
 <p>  instead of truncating fractional values through integer byte writes. Further</p>

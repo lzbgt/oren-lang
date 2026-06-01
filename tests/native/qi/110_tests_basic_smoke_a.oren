@@ -176,6 +176,8 @@ fn test_std_bytes_smoke() {
     assert_streq(bufferm.try_u8_to_string(slice_buf), "ell", 7959)
     assert_true(oren_is_err(bytesm.try_to_string_slice("nope", 0, 1)), 7960)
     assert_true(oren_is_err(bytesm.try_to_u8_buf_slice("nope", 0, 1)), 7961)
+    assert_true(oren_is_err(bytesm.try_to_string_slice(bytesm.try_from_string("hi"), 1, 2)), 7962)
+    assert_true(oren_is_err(bytesm.try_to_u8_buf_slice(bytesm.try_from_string("hi"), 1, 2)), 7963)
     return 0
 }
 

@@ -85,6 +85,8 @@ fn test_bytes_u8_buf_to_string() {
     assert_true(oren_is_err(bytesm.try_to_u8_buf(123)))
     assert_true(oren_is_err(bytesm.try_to_string_slice("nope", 0, 1)))
     assert_true(oren_is_err(bytesm.try_to_u8_buf_slice("nope", 0, 1)))
+    assert_true(oren_is_err(bytesm.try_to_string_slice(bytesm.try_from_string("hi"), 1, 2)))
+    assert_true(oren_is_err(bytesm.try_to_u8_buf_slice(bytesm.try_from_string("hi"), 1, 2)))
 }
 
 fn test_assert_streq_portable() {
