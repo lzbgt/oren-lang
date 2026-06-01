@@ -528,9 +528,7 @@ fn from_string(s) { return oren_bytes_from_string(s) }
 fn from_u8_buf(buf) { return try_from_u8_buf(buf) }
 
 fn to_string(bytes) {
-    var xs = _bytes_to_int_list(bytes, "bytes.to_string")
-    if oren_is_err(xs) { return xs }
-    return oren_string_from_bytes(xs)
+    return try_to_string(bytes)
 }
 
 fn to_u8_buf(bytes) { return try_to_u8_buf(bytes) }
