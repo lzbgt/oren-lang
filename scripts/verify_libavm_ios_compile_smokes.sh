@@ -133,6 +133,7 @@ clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK
   "$TMP_DIR/sdk_smoke.m" sdk/ios/OrenAVMKit/OrenAVMKit.m "${HOST_SOURCES[@]}" \
   sdk/ios/OrenAVMKit/OrenAVMCompilerKit.m \
   sdk/ios/OrenAVMKit/OrenAVMGFXInput.m \
+  sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m \
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m \
   sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m \
   sdk/ios/OrenAVMKit/OrenAVMRuntimeTypes.m \

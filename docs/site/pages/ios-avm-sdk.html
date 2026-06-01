@@ -67,7 +67,8 @@
 <li><code>sdk/ios/OrenAVMKit/OrenAVMKit.h</code> plus focused <code>.m</code> implementation files</li>
 </ul>
 <p>  provide an Objective-C API usable from Swift/Objective-C apps. Runtime</p>
-<p>  configuration/result value types live in <code>OrenAVMRuntimeTypes.m</code> so the core</p>
+<p>  configuration/result value types live in <code>OrenAVMRuntimeTypes.m</code>, and the</p>
+<p>  UIKit/CoreGraphics renderer lives in <code>OrenAVMGraphicsView.m</code>, so the core</p>
 <p>  runtime file stays below the source-size guardrail as providers grow.</p>
 <ul>
 <li><code>OrenAVMRuntimeConfig deterministicDefaults</code> keeps deterministic virtual TIME</li>

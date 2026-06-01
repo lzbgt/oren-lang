@@ -461,9 +461,10 @@
 <ul>
 <li>The iOS SDK implementation is split so <code>OrenAVMRuntimeConfig</code> and</li>
 </ul>
-<p>  <code>OrenAVMRunResult</code> live in <code>OrenAVMRuntimeTypes.m</code>; this keeps the core</p>
-<p>  runtime file below the 2000-line source guardrail while GUI/NET/FS providers</p>
-<p>  continue to grow.</p>
+<p>  <code>OrenAVMRunResult</code> live in <code>OrenAVMRuntimeTypes.m</code>, while</p>
+<p>  <code>OrenAVMGraphicsView</code> lives in its own UIKit/CoreGraphics implementation file;</p>
+<p>  this keeps the core runtime file below the 2000-line source guardrail while</p>
+<p>  GUI/NET/FS providers continue to grow.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

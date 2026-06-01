@@ -81,6 +81,11 @@
 <p>  <code>OrenAVMRuntimeTypes.m</code>, keeping the core runtime implementation below the</p>
 <p>  2000-line source guardrail as more iOS AVM providers are added.</p>
 <ul>
+<li><code>OrenAVMGraphicsView</code> now lives in its own UIKit/CoreGraphics implementation</li>
+</ul>
+<p>  file, keeping the runtime file focused on AVM execution/host bridges and</p>
+<p>  restoring guardrail headroom for future GUI provider work.</p>
+<ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>
 <p>  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,</p>

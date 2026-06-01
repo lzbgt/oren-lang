@@ -40,6 +40,9 @@ design evidence lives under `project-doc/`.
 - `OrenAVMRuntimeConfig` and `OrenAVMRunResult` live in
   `OrenAVMRuntimeTypes.m`, keeping the core runtime implementation below the
   2000-line source guardrail as more iOS AVM providers are added.
+- `OrenAVMGraphicsView` now lives in its own UIKit/CoreGraphics implementation
+  file, keeping the runtime file focused on AVM execution/host bridges and
+  restoring guardrail headroom for future GUI provider work.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,
   `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,

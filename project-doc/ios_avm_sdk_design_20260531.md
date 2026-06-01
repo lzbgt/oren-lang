@@ -35,7 +35,8 @@ Retained SDK slices on 2026-05-31:
   `LibAVM.xcframework`.
 - `sdk/ios/OrenAVMKit/OrenAVMKit.h` plus focused `.m` implementation files
   provide an Objective-C API usable from Swift/Objective-C apps. Runtime
-  configuration/result value types live in `OrenAVMRuntimeTypes.m` so the core
+  configuration/result value types live in `OrenAVMRuntimeTypes.m`, and the
+  UIKit/CoreGraphics renderer lives in `OrenAVMGraphicsView.m`, so the core
   runtime file stays below the source-size guardrail as providers grow.
 - `OrenAVMRuntimeConfig deterministicDefaults` keeps deterministic virtual TIME
   and virtual FS/NET/PROC.
