@@ -96,6 +96,10 @@
 <p>  such as <code>buf.slice(1, 3).text()</code> and <code>buf.matrix(2, 3).row(1).text()</code> while</p>
 <p>  retaining the existing low-level root helpers as primitives.</p>
 <ul>
+<li><code>make verify-stdlib-api-shape</code> is part of the fast <code>make test</code> path and blocks</li>
+</ul>
+<p>  known bad root-helper regressions such as <code>try_get_text</code> / <code>try_get_bytes</code>.</p>
+<ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>
 <p>  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,</p>

@@ -177,6 +177,9 @@
 <p>			     <code>buf.slice(1, 3).text()</code> and</p>
 <p>			     <code>buf.matrix(2, 3).row(1).text()</code> instead of routing through</p>
 <p>			     root-level projection helpers.</p>
+<p>			     <code>make verify-stdlib-api-shape</code> now blocks known bad</p>
+<p>			     root-helper regressions such as <code>try_get_text</code>,</p>
+<p>			     <code>try_get_bytes</code>, and public WebSocket <code>try_*_text</code> helpers.</p>
 <p>			     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket</p>
 <p>		     now follow the same session/object rule with examples like</p>
 <p>		     <code>conn.read_into(...)</code>, <code>socket.send_to(...)</code>,</p>

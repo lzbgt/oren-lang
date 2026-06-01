@@ -194,6 +194,8 @@ Constraints:
   code. Raw syscall-first forms may remain as internal/performance primitives.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
+  `make verify-stdlib-api-shape` guards the known bad root-helper names so the
+  rolling stdlib does not drift back toward bag-of-functions APIs.
 - Buffer/matrix views should expose small wrapper values over zero-copy slices and
   strides, so callers can chain receiver methods without allocating list-of-byte
   intermediates.

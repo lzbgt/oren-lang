@@ -227,6 +227,8 @@
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>
 <p>  domain object/scope first, then expose <code>request</code>/<code>response</code>/<code>value</code> methods.</p>
+<p>  <code>make verify-stdlib-api-shape</code> guards the known bad root-helper names so the</p>
+<p>  rolling stdlib does not drift back toward bag-of-functions APIs.</p>
 <ul>
 <li>Buffer/matrix views should expose small wrapper values over zero-copy slices and</li>
 </ul>
