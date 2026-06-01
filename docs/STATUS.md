@@ -352,8 +352,9 @@ Facts from the 2026-05-28 implementation pass:
   raw process/thread creation exposed to OBC.
 - AVM app-facing stdlib hot paths now prefer raw bytes: `std:ui/avm` has
   `text_bytes` plus direct text/composition event payload string slicing,
-  `std:net/avm` has `try_get_bytes`, and `std:bytes.to_string` now uses direct
-  byte-slice conversion instead of list materialization. `std:buffer`
+  `std:ui/scene3d` lowers coordinate/face/color package assets through exact-size
+  `u8_buf` builders, `std:net/avm` has `try_get_bytes`, and `std:bytes.to_string`
+  now uses direct byte-slice conversion instead of list materialization. `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
   direct byte slice helpers reject out-of-bounds spans before native conversion.
