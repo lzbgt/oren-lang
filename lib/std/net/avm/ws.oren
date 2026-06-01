@@ -6,16 +6,31 @@
 import events "std:avm/events"
 import socket "std:net/avm/socket"
 
+struct Session {
+    id
+}
+
+trait WebSocketSession {
+    fn send(self, data, timeout_ms);
+    fn send_text(self, text, timeout_ms);
+    fn recv(self, max_len, timeout_ms);
+    fn recv_text(self, max_len, timeout_ms);
+    fn close(self);
+    fn select(self, event_mask, timeout_ms);
+    fn wait_readable(self, timeout_ms);
+    fn wait_writable(self, timeout_ms);
+}
+
 fn event_read() { return events.event_read() }
 fn event_write() { return events.event_write() }
 fn event_read_write() { return events.event_read_write() }
 
-fn connect_spec(spec, timeout_ms) {
+fn connect_spec(spec, timeout_ms): Session {
     if spec == nil { return oren_err(4, "std:net/avm/ws.connect_spec: spec is nil") }
     return socket.open(spec, timeout_ms)
 }
 
-fn connect(host, port, path, timeout_ms) {
+fn connect(host, port, path, timeout_ms): Session {
     if host == nil { return oren_err(4, "std:net/avm/ws.connect: host is nil") }
     var p = path
     if p == nil || p == "" { p = "/" }
@@ -68,4 +83,15 @@ fn wait_writable(session_id, timeout_ms) {
     if ev == nil { return 0 }
     if (ev["ready"] & events.event_write()) != 0 { return 1 }
     return 0
+}
+
+impl WebSocketSession for Session {
+    fn send(self, data, timeout_ms) { return send(self, data, timeout_ms) }
+    fn send_text(self, text, timeout_ms) { return send_text(self, text, timeout_ms) }
+    fn recv(self, max_len, timeout_ms) { return recv(self, max_len, timeout_ms) }
+    fn recv_text(self, max_len, timeout_ms) { return recv_text(self, max_len, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn select(self, event_mask, timeout_ms) { return select(self, event_mask, timeout_ms) }
+    fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
+    fn wait_writable(self, timeout_ms) { return wait_writable(self, timeout_ms) }
 }

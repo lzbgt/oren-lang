@@ -176,21 +176,21 @@ fn server(listen_fd) {
     }
     if conn == 0 { return 11 }
 
-    var s = ws.try_recv_text(conn, 10000)
+    var s = conn.try_recv_text(10000)
     if oren_is_err(s) {
         print("ws_echo_loopback: server recv FAIL: " + oren_err_msg(s))
         return 12
     }
     if s == 0 { return 13 }
 
-    var wr = ws.try_send_text_server(conn, s, 10000)
+    var wr = conn.try_send_text_server(s, 10000)
     free(s)
     if oren_is_err(wr) {
         print("ws_echo_loopback: server send FAIL: " + oren_err_msg(wr))
         return 14
     }
 
-    ws.close(conn)
+    conn.close()
     return 0
 }
 
@@ -233,12 +233,12 @@ fn run_one(listen_fd, url, resolver) {
 
         if rc == 0 {
             var text = "PING"
-            var wr = ws.try_send_text_client(conn, text, 5000)
+            var wr = conn.try_send_text_client(text, 5000)
             if oren_is_err(wr) {
                 print("ws_echo_loopback: FAIL send: " + oren_err_msg(wr))
                 rc = 21
             } else {
-                var body = ws.try_recv_text(conn, 10000)
+                var body = conn.try_recv_text(10000)
                 if oren_is_err(body) {
                     print("ws_echo_loopback: FAIL recv: " + oren_err_msg(body))
                     rc = 22
@@ -257,7 +257,7 @@ fn run_one(listen_fd, url, resolver) {
         }
     }
 
-    if conn != 0 { ws.close(conn) }
+    if conn != 0 { conn.close() }
 
     var sr = oren_join_timeout(h, 15000)
     if sr != 0 && rc == 0 {

@@ -172,7 +172,10 @@
 <p>		     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
 <p>		     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
 <p>		     path on exact-size <code>u8_buf</code> output.</p>
-<p>	     XML/HTML follow the same rule with streaming readers first for large OBC</p>
+<p>		     WebSocket now follows the same session/object rule with native</p>
+<p>		     <code>conn.recv_text(...)</code> / <code>conn.send_text_client(...)</code> / <code>conn.close()</code></p>
+<p>		     and AVM virtual <code>session.recv_text(...)</code> / <code>session.send_text(...)</code>.</p>
+<p>		     XML/HTML follow the same rule with streaming readers first for large OBC</p>
 <p>	     payloads and DOM/query convenience on top. Native HTTP can use</p>
 <p>	     <code>response.html_reader()</code> / <code>response.html().find(&quot;title&quot;).text()</code>;</p>
 <p>	     AVM/OBC packages should opt into the parser explicitly and compose</p>

@@ -476,6 +476,11 @@
 <p>	  indexed byte access instead of unpacking the whole message to a list. Base64</p>
 <p>	  encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>	  intermediate Oren list. The same</p>
+<p>	  NET cleanup now covers WebSocket session objects: native <code>std:net/ws</code></p>
+<p>	  connection records expose <code>.recv_text(...)</code>, <code>.try_recv_text(...)</code>,</p>
+<p>	  <code>.send_text_client(...)</code>, <code>.send_text_server(...)</code>, and <code>.close()</code>, while</p>
+<p>	  AVM virtual WebSocket sessions expose <code>.send_text(...)</code>, <code>.recv_text(...)</code>,</p>
+<p>	  readiness waits, and <code>.close()</code> on the session handle.</p>
 <p>  buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits</p>
 <p>  instead of truncating fractional values through integer byte writes. Further</p>
 <p>  cleanup should keep text helpers explicit at API boundaries.</p>

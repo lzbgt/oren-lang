@@ -1,0 +1,26 @@
+import bytes "std:bytes"
+
+fn choose(flag) {
+    var out = 0
+    if flag {
+        out = bytes.from_string("yes")
+    } else {
+        out = bytes.from_string("no")
+    }
+    return out.hex()
+}
+
+fn main() {
+    if choose(true) != "796573" {
+        print("method assignment inference FAIL true")
+        exit(1)
+    }
+    if choose(false) != "6e6f" {
+        print("method assignment inference FAIL false")
+        exit(2)
+    }
+    print("method assignment inference OK")
+    exit(0)
+}
+
+main()

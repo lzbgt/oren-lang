@@ -249,12 +249,30 @@ fn type_env_set(env, name, tname) {
     return nil
 }
 
+fn type_env_assign(env, name, tname) {
+    if env == nil || name == nil || tname == nil { return nil }
+    var cur = env
+    while cur != nil {
+        var f = cur["frame"]
+        if f != nil && f[name] != nil {
+            f[name] = tname
+            return nil
+        }
+        cur = cur["parent"]
+    }
+    return type_env_set(env, name, tname)
+}
+
 fn type_env_get(env, name) {
     if name == nil { return nil }
     var cur = env
     while cur != nil {
         var m = cur["frame"]
-        if m != nil && m[name] != nil { return m[name] }
+        if m != nil && m[name] != nil {
+            var tv = m[name]
+            if tv == "__oren_unknown_type__" { return nil }
+            return tv
+        }
         cur = cur["parent"]
     }
     return nil
@@ -284,12 +302,30 @@ fn kind_env_set(env, name, kind) {
     return nil
 }
 
+fn kind_env_assign(env, name, kind) {
+    if env == nil || name == nil || kind == nil { return nil }
+    var cur = env
+    while cur != nil {
+        var f = cur["frame"]
+        if f != nil && f[name] != nil {
+            f[name] = kind
+            return nil
+        }
+        cur = cur["parent"]
+    }
+    return kind_env_set(env, name, kind)
+}
+
 fn kind_env_get(env, name) {
     if name == nil { return nil }
     var cur = env
     while cur != nil {
         var m = cur["frame"]
-        if m != nil && m[name] != nil { return m[name] }
+        if m != nil && m[name] != nil {
+            var kv = m[name]
+            if kv == "__oren_unknown_kind__" { return nil }
+            return kv
+        }
         cur = cur["parent"]
     }
     return nil
@@ -960,11 +996,13 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
             if nm != nil && nm["type"] == "Identifier" {
                 var inferred_type = infer_expr_type(stmt["value"], regs, env)
                 if inferred_type != nil { type_env_set(env, nm["value"], inferred_type) }
+                else { type_env_set(env, nm["value"], "__oren_unknown_type__") }
             }
         }
         if nm != nil && nm["type"] == "Identifier" {
             var k = infer_container_kind(stmt["value"], kind_env)
             if k != nil { kind_env_set(kind_env, nm["value"], k) }
+            else { kind_env_set(kind_env, nm["value"], "__oren_unknown_kind__") }
         }
         return nil
     }
@@ -973,9 +1011,9 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
         var nm2 = stmt["name"]
         if nm2 != nil && nm2["type"] == "Identifier" {
             var inferred_type2 = infer_expr_type(stmt["value"], regs, env)
-            if inferred_type2 != nil { type_env_set(env, nm2["value"], inferred_type2) }
+            if inferred_type2 != nil { type_env_assign(env, nm2["value"], inferred_type2) }
             var k2 = infer_container_kind(stmt["value"], kind_env)
-            if k2 != nil { kind_env_set(kind_env, nm2["value"], k2) }
+            if k2 != nil { kind_env_assign(kind_env, nm2["value"], k2) }
         }
         return nil
     }
@@ -1039,6 +1077,12 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
                 }
             }
         }
+        return nil
+    }
+    if t == "If" {
+        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, kind_env, errs)
+        lower_stmt_in_place(stmt["consq"], regs, trait_set, env, kind_env, errs)
+        lower_stmt_in_place(stmt["alt"], regs, trait_set, env, kind_env, errs)
         return nil
     }
     if t == "Return" {

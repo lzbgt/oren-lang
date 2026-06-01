@@ -1392,6 +1392,21 @@ run_step_checked "trait iterable smoke (native for-in impl hook)" "$iterable_tra
   "$compiler" test "$iterable_trait_src" --backend native
 tail -n 5 "$iterable_trait_log"
 
+echo "== method inference smoke (branch assignment receiver type) =="
+method_assign_src="tests/modules/test_method_assignment_inference.oren"
+method_assign_log="build/logs/${compiler_base}_method_assignment_inference.log"
+rm -f "$method_assign_log" 2>/dev/null || true
+
+run_step_checked "method inference smoke (native)" "$method_assign_log" \
+  "$compiler" build "$method_assign_src" --backend native --platform "$platform" -o "build/tmp/${compiler_base}_method_assignment_inference.native"
+run_step_checked "method inference smoke (native run)" "$method_assign_log" \
+  "build/tmp/${compiler_base}_method_assignment_inference.native"
+run_step_checked "method inference smoke (bytecode)" "$method_assign_log" \
+  "$compiler" build "$method_assign_src" --backend bytecode --platform "$platform" -o "build/tmp/${compiler_base}_method_assignment_inference.obc"
+run_step_checked "method inference smoke (bytecode run)" "$method_assign_log" \
+  ./avm "build/tmp/${compiler_base}_method_assignment_inference.obc"
+tail -n 8 "$method_assign_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

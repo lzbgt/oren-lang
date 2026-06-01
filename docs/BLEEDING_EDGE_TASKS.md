@@ -114,7 +114,10 @@ This file is the concise task view. Detailed implementation status lives in
 		     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
 		     `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
 		     path on exact-size `u8_buf` output.
-	     XML/HTML follow the same rule with streaming readers first for large OBC
+		     WebSocket now follows the same session/object rule with native
+		     `conn.recv_text(...)` / `conn.send_text_client(...)` / `conn.close()`
+		     and AVM virtual `session.recv_text(...)` / `session.send_text(...)`.
+		     XML/HTML follow the same rule with streaming readers first for large OBC
 	     payloads and DOM/query convenience on top. Native HTTP can use
 	     `response.html_reader()` / `response.html().find("title").text()`;
 	     AVM/OBC packages should opt into the parser explicitly and compose

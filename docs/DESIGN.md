@@ -185,6 +185,10 @@ Constraints:
   `http.get(url).text()`, `"{}".json().text()`, `"hi".bytes().base64()`,
   `"TWFu".base64_bytes().text()`, `bytes.from_string("abc").sha256_hex()`,
   and `cbor.cint(7).bytes().cbor()`.
+- Session-oriented network protocols should put IO operations on session/connection
+  values. For example, WebSocket callers should prefer `conn.recv_text(...)`,
+  `conn.send_text_client(...)`, `conn.close()`, or AVM
+  `session.recv_text(...)` over root-level text helpers.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
 - Builtin annotation names (`bytes`, `string`, `int`, buffers, etc.) are reserved

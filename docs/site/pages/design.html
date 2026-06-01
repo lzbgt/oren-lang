@@ -215,6 +215,12 @@
 <p>  <code>&quot;TWFu&quot;.base64_bytes().text()</code>, <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code>,</p>
 <p>  and <code>cbor.cint(7).bytes().cbor()</code>.</p>
 <ul>
+<li>Session-oriented network protocols should put IO operations on session/connection</li>
+</ul>
+<p>  values. For example, WebSocket callers should prefer <code>conn.recv_text(...)</code>,</p>
+<p>  <code>conn.send_text_client(...)</code>, <code>conn.close()</code>, or AVM</p>
+<p>  <code>session.recv_text(...)</code> over root-level text helpers.</p>
+<ul>
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>
 <p>  domain object/scope first, then expose <code>request</code>/<code>response</code>/<code>value</code> methods.</p>
