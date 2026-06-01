@@ -696,9 +696,7 @@ fn decode_event_bytes(ev) {
         var text_len = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
         if oren_is_err(text_len) { return text_len }
         if text_len != payload_len - 4 { return oren_err(4, "ui.avm.decode_event_bytes: text length mismatch") }
-        var text_bytes = bytes.try_slice(ev, 16, text_len)
-        if oren_is_err(text_bytes) { return text_bytes }
-        var text = bytes.try_to_string(text_bytes)
+        var text = bytes.try_to_string_slice(ev, 16, text_len)
         if oren_is_err(text) { return text }
         return {"kind": "text", "opcode": opcode, "text": text}
     }
@@ -782,9 +780,7 @@ fn decode_event_bytes(ev) {
         if oren_is_err(sel_start) { return sel_start }
         if oren_is_err(sel_end) { return sel_end }
         if comp_len != payload_len - 12 { return oren_err(4, "ui.avm.decode_event_bytes: composition length mismatch") }
-        var comp_bytes = bytes.try_slice(ev, 24, comp_len)
-        if oren_is_err(comp_bytes) { return comp_bytes }
-        var comp_text = bytes.try_to_string(comp_bytes)
+        var comp_text = bytes.try_to_string_slice(ev, 24, comp_len)
         if oren_is_err(comp_text) { return comp_text }
         return {
             "kind": "composition",
