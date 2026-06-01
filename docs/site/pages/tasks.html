@@ -161,8 +161,19 @@
 <ul>
 <li>High-priority cleanup: remove legacy stdlib byte/string conversion paths from</li>
 </ul>
-<p>     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers</p>
-<p>     may convert at the boundary but must not force list-of-byte round trips.</p>
+<p>	     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers</p>
+<p>	     may convert at the boundary but must not force list-of-byte round trips.</p>
+<p>	     Rolling API design now favors scoped objects and method chaining over</p>
+<p>	     root-level convenience helpers: NET uses <code>http.get(url).text()</code> /</p>
+<p>	     socket scopes, and codecs/bytes expose <code>&quot;{}&quot;.json().text()</code>,</p>
+<p>	     <code>&quot;a: 1\n&quot;.yaml().text()</code>, <code>cbor.cint(7).bytes().cbor()</code>, and</p>
+<p>	     <code>&quot;hi&quot;.bytes().text()</code> through stdlib source and OBC metadata.</p>
+<p>	     XML/HTML follow the same rule with streaming readers first for large OBC</p>
+<p>	     payloads and DOM/query convenience on top. Native HTTP can use</p>
+<p>	     <code>response.html_reader()</code> / <code>response.html().find(&quot;title&quot;).text()</code>;</p>
+<p>	     AVM/OBC packages should opt into the parser explicitly and compose</p>
+<p>	     <code>response.text().html_reader()</code> to keep the default stdlib bundle inside</p>
+<p>	     iOS CompilerKit memory budgets.</p>
 <p>     Design notes: <code>project-doc/ios_avm_sdk_design_20260531.md</code>,</p>
 <p>     <code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
 <ul>

@@ -42,9 +42,24 @@ fn test_try_decode() {
     assert(oren_is_err(e) == true, "try_decode err")
 }
 
+fn test_method_json() {
+    var v = "{\"x\":5}".json()
+    assert(oren_is_err(v) != true, "string literal json method")
+    assert(v["o"]["x"]["i"] == 5, "string literal json value")
+
+    var s = "{\"y\":6}"
+    var v2 = s.json()
+    assert(oren_is_err(v2) != true, "inferred string json method")
+    assert(v2["o"]["y"]["i"] == 6, "inferred string json value")
+
+    var out = "{\"z\":7}".json().text()
+    assert(strings.streq(out, "{\"z\":7}"), "json value text chain")
+}
+
 test_decode_encode()
 test_int_zero_not_null()
 test_nested()
 test_try_decode()
+test_method_json()
 print("ok")
 exit(0)

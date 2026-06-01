@@ -22,7 +22,9 @@
       "probes": [
         "var bs = bytes.pack([104, 105])",
         "if bytes.to_hex(bs) != \"6869\" { fail(20) }",
-        "if bytes.to_string(bs) != \"hi\" { fail(21) }"
+        "if bytes.to_string(bs) != \"hi\" { fail(21) }",
+        "if \"hi\".bytes().text() != \"hi\" { fail(22) }",
+        "if bytes.from_string(\"h\").concat(bytes.from_string(\"i\")).text() != \"hi\" { fail(23) }"
       ]
     },
     {
@@ -33,7 +35,11 @@
         "if oren_is_err(cb) { fail(36) }",
         "var cbr = cbor.try_decode(cb)",
         "if oren_is_err(cbr) { fail(37) }",
-        "if cbr[\"i\"] != 7 { fail(38) }"
+        "if cbr[\"i\"] != 7 { fail(38) }",
+        "var cb2 = cbor.cint(8).bytes()",
+        "if oren_is_err(cb2) { fail(92) }",
+        "var cbr2 = cb2.cbor()",
+        "if oren_is_err(cbr2) || cbr2[\"i\"] != 8 { fail(93) }"
       ]
     },
     {
@@ -130,7 +136,8 @@
         "if oren_is_err(jv) { fail(30) }",
         "if jv[\"t\"] != \"object\" { fail(31) }",
         "if jv[\"o\"][\"a\"][\"i\"] != 1 { fail(32) }",
-        "if json.encode(json.jarray([json.jint(1), json.jstring(\"x\")])) != \"[1,\\\"x\\\"]\" { fail(33) }"
+        "if json.encode(json.jarray([json.jint(1), json.jstring(\"x\")])) != \"[1,\\\"x\\\"]\" { fail(33) }",
+        "if \"{\\\"m\\\":2}\".json().text() != \"{\\\"m\\\":2}\" { fail(94) }"
       ]
     },
     {
@@ -189,7 +196,10 @@
       "probes": [
         "var yv = yaml.try_decode(\"a: 1\\nb: x\\n\")",
         "if oren_is_err(yv) { fail(34) }",
-        "if yv[\"o\"][\"a\"][\"i\"] != 1 || yv[\"o\"][\"b\"][\"s\"] != \"x\" { fail(35) }"
+        "if yv[\"o\"][\"a\"][\"i\"] != 1 || yv[\"o\"][\"b\"][\"s\"] != \"x\" { fail(35) }",
+        "var yv2 = \"a: 1\\n\".yaml()",
+        "if oren_is_err(yv2) || yv2[\"o\"][\"a\"][\"i\"] != 1 { fail(95) }",
+        "if yv2.text() != \"a: 1\\n\" { fail(96) }"
       ]
     },
     {

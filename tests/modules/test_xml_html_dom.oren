@@ -1,0 +1,51 @@
+import html "../../lib/std/html.oren"
+import xml "../../lib/std/xml.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn test_xml_dom() {
+    var doc = "<feed><entry id=\"a\"><title>Hello</title></entry><entry id=\"b\" class=\"hot item\"/></feed>".xml()
+    assert(doc.find("feed").tag() == "feed", "xml find tag")
+    assert(doc.find("#a").find("title").text() == "Hello", "xml chained find text")
+    assert(doc.find("#b").attr("class") == "hot item", "xml attr")
+    assert(doc.find(".hot").attr("id") == "b", "xml class selector")
+    assert(oren_list_len(doc.find_all("entry")) == 2, "xml find_all")
+}
+
+fn test_html_dom() {
+    var page = "<html><head><title>Hi</title></head><body><a id=\"home\" class=\"nav primary\" href=\"/\">Home</a></body></html>".html()
+    assert(page.find("title").text() == "Hi", "html title text")
+    assert(page.select_one("#home").attr("href") == "/", "html select_one id")
+    assert(page.find(".primary").text() == "Home", "html class text")
+    assert(oren_list_len(page.select("a")) == 1, "html select tag")
+}
+
+fn test_stream_reader() {
+    var r = "<root><item id=\"1\">A</item><item id=\"2\">B</item></root>".xml_reader()
+    var starts = 0
+    var text = ""
+    var ev = r.next()
+    while ev != nil {
+        if ev["kind"] == "start" && ev["tag"] == "item" { starts = starts + 1 }
+        if ev["kind"] == "text" { text = text + ev["text"] }
+        ev = r.next()
+    }
+    assert(starts == 2, "xml stream item count")
+    assert(text == "AB", "xml stream text")
+
+    var hr = "<div><a href=\"/\">Home</a></div>".html_reader()
+    assert(hr.next()["tag"] == "div", "html stream first start")
+    var a = hr.next()
+    assert(a["tag"] == "a" && a["attrs"]["href"] == "/", "html stream attrs")
+}
+
+test_xml_dom()
+test_html_dom()
+test_stream_reader()
+print("ok")
+exit(0)

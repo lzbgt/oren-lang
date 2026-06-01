@@ -16,6 +16,8 @@ import tcp "std:net/tcp"
 import tls "std:net/tls"
 import hostutil "std:net/host"
 import json_std "std:json"
+import html_std "std:html"
+import xml_std "std:xml"
 
 struct Response {
     method,
@@ -28,6 +30,10 @@ struct Response {
 trait BodyReader {
     fn text(self);
     fn json(self);
+    fn html(self): html_std.HtmlNode;
+    fn xml(self): xml_std.XmlNode;
+    fn html_reader(self): html_std.HtmlReader;
+    fn xml_reader(self): xml_std.XmlReader;
     fn bytes(self);
     fn free(self);
 }
@@ -730,9 +736,37 @@ fn json(resp: Response) {
     return json_std.try_decode(body)
 }
 
+fn html(resp: Response): html_std.HtmlNode {
+    var body = text(resp)
+    if oren_is_err(body) { return body }
+    return html_std.parse(body)
+}
+
+fn xml(resp: Response): xml_std.XmlNode {
+    var body = text(resp)
+    if oren_is_err(body) { return body }
+    return xml_std.parse(body)
+}
+
+fn html_reader(resp: Response): html_std.HtmlReader {
+    var body = text(resp)
+    if oren_is_err(body) { return body }
+    return html_std.reader(body)
+}
+
+fn xml_reader(resp: Response): xml_std.XmlReader {
+    var body = text(resp)
+    if oren_is_err(body) { return body }
+    return xml_std.reader(body)
+}
+
 impl BodyReader for Response {
     fn text(self) { return text(self) }
     fn json(self) { return json(self) }
+    fn html(self): html_std.HtmlNode { return html(self) }
+    fn xml(self): xml_std.XmlNode { return xml(self) }
+    fn html_reader(self): html_std.HtmlReader { return html_reader(self) }
+    fn xml_reader(self): xml_std.XmlReader { return xml_reader(self) }
     fn bytes(self) { return bytes(self) }
     fn free(self) { return response_free(self) }
 }

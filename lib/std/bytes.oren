@@ -8,6 +8,18 @@
 
 import raw "std:buffer/raw"
 
+trait ByteText {
+    fn bytes(self): bytes;
+}
+
+trait ByteSeq {
+    fn text(self);
+    fn hex(self);
+    fn slice(self, off, n): bytes;
+    fn concat(self, other): bytes;
+    fn u8_buf(self);
+}
+
 fn len(bytes) { return oren_bytes_len(bytes) }
 
 fn _is_int(v) {
@@ -121,12 +133,12 @@ fn try_set_u8(bytes, idx, v) {
     return oren_bytes_set_u8(bytes, idx, v)
 }
 
-fn try_from_hex(s) {
+fn try_from_hex(s): bytes {
     if oren_type_tag(s) != 4 { return oren_err(4, "bytes.try_from_hex: s must be string") }
     return oren_bytes_from_hex(s)
 }
 
-fn try_from_string(s) {
+fn try_from_string(s): bytes {
     if oren_type_tag(s) != 4 { return oren_err(4, "bytes.try_from_string: s must be string") }
     return oren_bytes_from_string(s)
 }
@@ -143,7 +155,7 @@ fn try_to_string(bytes) {
     return oren_string_from_bytes_slice(bytes, 0, n)
 }
 
-fn try_pack(xs) {
+fn try_pack(xs): bytes {
     return oren_bytes_pack(xs)
 }
 
@@ -151,13 +163,13 @@ fn try_unpack(bytes) {
     return _bytes_to_int_list(bytes, "bytes.try_unpack")
 }
 
-fn try_slice(bytes, off, n) {
+fn try_slice(bytes, off, n): bytes {
     var ok = _check_slice_span(bytes, off, n, "bytes.try_slice")
     if oren_is_err(ok) { return ok }
     return oren_u8_buf_from_bytes_slice(bytes, off, n)
 }
 
-fn try_concat(a, b) {
+fn try_concat(a, b): bytes {
     var na = _len_or_err(a, "bytes.try_concat")
     if oren_is_err(na) { return na }
     var nb = _len_or_err(b, "bytes.try_concat")
@@ -205,7 +217,7 @@ fn try_copy_into(dst, dst_off, src, src_off, n) {
     return dst
 }
 
-fn try_from_u8_buf(buf) {
+fn try_from_u8_buf(buf): bytes {
     var n = oren_buf_len(buf)
     if n == nil || oren_is_err(n) { return oren_err(4, "bytes.try_from_u8_buf: buf must be []u8") }
     return oren_u8_buf_from_bytes_slice(buf, 0, n)
@@ -511,23 +523,23 @@ fn try_put_i64_le(bytes, idx, v) {
     return bytes
 }
 
-fn from_hex(s) { return oren_bytes_from_hex(s) }
+fn from_hex(s): bytes { return oren_bytes_from_hex(s) }
 
 fn to_hex(bytes) { return oren_bytes_to_hex(bytes) }
 
-fn pack(xs) { return oren_bytes_pack(xs) }
+fn pack(xs): bytes { return oren_bytes_pack(xs) }
 
 fn unpack(bytes) { return _bytes_to_int_list(bytes, "bytes.unpack") }
 
-fn slice(bytes, off, n) { return try_slice(bytes, off, n) }
+fn slice(bytes, off, n): bytes { return try_slice(bytes, off, n) }
 
-fn concat(a, b) { return try_concat(a, b) }
+fn concat(a, b): bytes { return try_concat(a, b) }
 
 fn copy_into(dst, dst_off, src, src_off, n) { return try_copy_into(dst, dst_off, src, src_off, n) }
 
-fn from_string(s) { return oren_bytes_from_string(s) }
+fn from_string(s): bytes { return oren_bytes_from_string(s) }
 
-fn from_u8_buf(buf) { return try_from_u8_buf(buf) }
+fn from_u8_buf(buf): bytes { return try_from_u8_buf(buf) }
 
 fn to_string(bytes) {
     return try_to_string(bytes)
@@ -538,6 +550,18 @@ fn to_u8_buf(bytes) { return try_to_u8_buf(bytes) }
 fn to_string_slice(bytes, off, n) { return try_to_string_slice(bytes, off, n) }
 
 fn to_u8_buf_slice(bytes, off, n) { return try_to_u8_buf_slice(bytes, off, n) }
+
+impl ByteText for string {
+    fn bytes(self): bytes { return from_string(self) }
+}
+
+impl ByteSeq for bytes {
+    fn text(self) { return to_string(self) }
+    fn hex(self) { return to_hex(self) }
+    fn slice(self, off, n): bytes { return try_slice(self, off, n) }
+    fn concat(self, other): bytes { return try_concat(self, other) }
+    fn u8_buf(self) { return to_u8_buf(self) }
+}
 
 fn get_u8(bytes, idx) { return oren_bytes_get_u8(bytes, idx) }
 

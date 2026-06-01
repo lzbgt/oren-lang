@@ -24,19 +24,37 @@
 
 import list "std:list"
 
-fn cnull() { return {"t": "null"} }
+struct CborValue {
+    t,
+    b,
+    i,
+    bs,
+    s,
+    a,
+    m
+}
+
+fn cnull(): CborValue { return {"t": "null"} }
 fn _bool_int01(b) {
     if b == true { return 1 }
     if b == 1 { return 1 }
     return 0
 }
 
-fn cbool(b) { return {"t": "bool", "b": _bool_int01(b)} }
-fn cint(i) { return {"t": "int", "i": i} }
-fn cbytes(bs) { return {"t": "bytes", "bs": bs} }
-fn cstring(s) { return {"t": "string", "s": s} }
-fn carray(a) { return {"t": "array", "a": a} }
-fn cmap(m) { return {"t": "map", "m": m} }
+fn cbool(b): CborValue { return {"t": "bool", "b": _bool_int01(b)} }
+fn cint(i): CborValue { return {"t": "int", "i": i} }
+fn cbytes(bs): CborValue { return {"t": "bytes", "bs": bs} }
+fn cstring(s): CborValue { return {"t": "string", "s": s} }
+fn carray(a): CborValue { return {"t": "array", "a": a} }
+fn cmap(m): CborValue { return {"t": "map", "m": m} }
+
+trait CborBytes {
+    fn cbor(self): CborValue;
+}
+
+trait CborValueCodec {
+    fn bytes(self): bytes;
+}
 
 fn _streq(a, b) {
     if a == nil || b == nil { return false }
@@ -228,13 +246,13 @@ fn _encode_value(out, v) {
     return nil
 }
 
-fn encode(v) {
+fn encode(v): bytes {
     var out = []
     _encode_value(out, v)
     return out
 }
 
-fn try_encode(v) {
+fn try_encode(v): bytes {
     return encode(v)
 }
 
@@ -385,10 +403,22 @@ fn _decode_err(r) {
     return oren_err(4, msg)
 }
 
-fn try_decode(bs) {
+fn try_decode(bs): CborValue {
     var r = decode(bs)
     if r["ok"] == 1 { return r["v"] }
     return _decode_err(r)
+}
+
+fn parse(bs): CborValue { return try_decode(bs) }
+
+fn bytes(v: CborValue): bytes { return encode(v) }
+
+impl CborBytes for bytes {
+    fn cbor(self): CborValue { return parse(self) }
+}
+
+impl CborValueCodec for CborValue {
+    fn bytes(self): bytes { return encode(self) }
 }
 
 // Streaming / sequence API (RFC 8742)

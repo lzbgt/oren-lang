@@ -34,12 +34,29 @@ import json "std:json"
 
 import list "std:list"
 
-fn ynull() { return {"t": "null"} }
-fn ybool(b) { return {"t": "bool", "b": b} }
-fn yint(i) { return {"t": "int", "i": i} }
-fn ystring(s) { return {"t": "string", "s": s} }
-fn yarray(a) { return {"t": "array", "a": a} }
-fn yobject(o) { return {"t": "object", "o": o} }
+struct YamlValue {
+    t,
+    b,
+    i,
+    s,
+    a,
+    o
+}
+
+fn ynull(): YamlValue { return {"t": "null"} }
+fn ybool(b): YamlValue { return {"t": "bool", "b": b} }
+fn yint(i): YamlValue { return {"t": "int", "i": i} }
+fn ystring(s): YamlValue { return {"t": "string", "s": s} }
+fn yarray(a): YamlValue { return {"t": "array", "a": a} }
+fn yobject(o): YamlValue { return {"t": "object", "o": o} }
+
+trait YamlText {
+    fn yaml(self): YamlValue;
+}
+
+trait YamlValueCodec {
+    fn text(self);
+}
 
 fn _err(msg, line) { return {"ok": 0, "err": msg, "line": line} }
 fn _ok(v) { return {"ok": 1, "v": v} }
@@ -475,7 +492,7 @@ fn decode(s) {
     return {"ok": 1, "v": r["v"]}
 }
 
-fn try_decode(s) {
+fn try_decode(s): YamlValue {
     var r = decode(s)
     if r["ok"] == 1 { return r["v"] }
     var msg = r["err"]
@@ -693,4 +710,16 @@ fn encode(v) {
 
 fn try_encode(v) {
     return encode(v)
+}
+
+fn parse(s): YamlValue { return try_decode(s) }
+
+fn text(v: YamlValue) { return encode(v) }
+
+impl YamlText for string {
+    fn yaml(self): YamlValue { return parse(self) }
+}
+
+impl YamlValueCodec for YamlValue {
+    fn text(self) { return encode(self) }
 }

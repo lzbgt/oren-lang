@@ -175,6 +175,25 @@ Constraints:
 
 - Syscall-first for native runtime (no libc dependency for core services).
 - Deterministic behavior for AVM and capability-scoped effects.
+- Public stdlib modules should smell like stable domain scopes, not bags of
+  convenience wrappers. Prefer scoped modules such as `std:net/avm/http` and
+  `std:net/avm/socket`, typed/tagged value records for resources, and
+  trait-backed receiver methods for common object operations. Functional forms
+  should remain available when they are the clear module operation
+  (`json.text(value)`, `http.text(response)`), but rolling user-facing examples
+  should favor object/method style when it reads better:
+  `http.get(url).text()`, `"{}".json().text()`, `"hi".bytes().text()`,
+  and `cbor.cint(7).bytes().cbor()`.
+- Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
+  domain object/scope first, then expose `request`/`response`/`value` methods.
+- “Small” in implementation means resource-efficient, not feature-poor. For
+  large payload formats such as XML/HTML, stdlib APIs should offer streaming
+  readers for bounded memory and DOM/query layers on top for ergonomic cases.
+  Native HTTP may expose `response.html()` / `response.xml()` convenience
+  methods, but large OBC programs should compose explicitly through
+  `response.text().html_reader()` / `response.text().xml_reader()` and avoid
+  pulling DOM parsers into the default AVM stdlib bundle unless the package
+  actually needs them.
 
 Evidence:
 

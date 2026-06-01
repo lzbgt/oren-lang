@@ -1,0 +1,68 @@
+// std/html (rolling)
+//
+// BeautifulSoup-style convenience facade over the portable std/xml DOM parser.
+// v0 selectors are intentionally small and deterministic: tag, #id, and .class.
+
+import xml "std:xml"
+
+struct HtmlNode {
+    kind,
+    tag,
+    attrs,
+    children,
+    text
+}
+
+struct HtmlReader {
+    bytes,
+    pos
+}
+
+trait HtmlText {
+    fn html(self): HtmlNode;
+    fn html_reader(self): HtmlReader;
+}
+
+trait HtmlNodeQuery {
+    fn find(self, selector): HtmlNode;
+    fn find_all(self, selector);
+    fn select(self, selector);
+    fn select_one(self, selector): HtmlNode;
+    fn text(self);
+    fn attr(self, name);
+    fn tag(self);
+}
+
+trait HtmlReaderStream {
+    fn next(self);
+}
+
+fn parse(s): HtmlNode { return xml.parse(s) }
+fn try_parse(s): HtmlNode { return parse(s) }
+fn reader(s): HtmlReader { return xml.reader(s) }
+fn find(n, selector): HtmlNode { return xml.find(n, selector) }
+fn find_all(n, selector) { return xml.find_all(n, selector) }
+fn select(n, selector) { return xml.select(n, selector) }
+fn select_one(n, selector): HtmlNode { return find(n, selector) }
+fn text(n) { return xml.text(n) }
+fn attr(n, name) { return xml.attr(n, name) }
+fn tag(n) { return xml.tag(n) }
+
+impl HtmlText for string {
+    fn html(self): HtmlNode { return parse(self) }
+    fn html_reader(self): HtmlReader { return reader(self) }
+}
+
+impl HtmlNodeQuery for HtmlNode {
+    fn find(self, selector): HtmlNode { return find(self, selector) }
+    fn find_all(self, selector) { return find_all(self, selector) }
+    fn select(self, selector) { return select(self, selector) }
+    fn select_one(self, selector): HtmlNode { return select_one(self, selector) }
+    fn text(self) { return text(self) }
+    fn attr(self, name) { return attr(self, name) }
+    fn tag(self) { return tag(self) }
+}
+
+impl HtmlReaderStream for HtmlReader {
+    fn next(self) { return xml.read_next(self) }
+}

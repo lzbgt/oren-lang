@@ -102,9 +102,20 @@ This file is the concise task view. Detailed implementation status lives in
      rejection, the host input queue depth cap, non-1000 resize scale propagation,
      latest-frame replacement/clear semantics, and FIFO pointer down/move/up
      ordering before mixed key/text events.
-   - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
-     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
-     may convert at the boundary but must not force list-of-byte round trips.
+	   - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
+	     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
+	     may convert at the boundary but must not force list-of-byte round trips.
+	     Rolling API design now favors scoped objects and method chaining over
+	     root-level convenience helpers: NET uses `http.get(url).text()` /
+	     socket scopes, and codecs/bytes expose `"{}".json().text()`,
+	     `"a: 1\n".yaml().text()`, `cbor.cint(7).bytes().cbor()`, and
+	     `"hi".bytes().text()` through stdlib source and OBC metadata.
+	     XML/HTML follow the same rule with streaming readers first for large OBC
+	     payloads and DOM/query convenience on top. Native HTTP can use
+	     `response.html_reader()` / `response.html().find("title").text()`;
+	     AVM/OBC packages should opt into the parser explicitly and compose
+	     `response.text().html_reader()` to keep the default stdlib bundle inside
+	     iOS CompilerKit memory budgets.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated

@@ -465,6 +465,7 @@ fn infer_container_kind(expr, kind_env) {
 fn infer_expr_type(expr, regs, env) {
     if expr == nil { return nil }
     if expr["type"] == "Identifier" { return type_env_get(env, expr["value"]) }
+    if expr["type"] == "String" { return "string" }
     if expr["type"] != "Call" { return nil }
 
     var fnn = expr["fn"]

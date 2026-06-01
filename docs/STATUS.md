@@ -358,13 +358,23 @@ Facts from the 2026-05-28 implementation pass:
   `text_bytes`, direct text/composition event payload string slicing, and
   exact-size `u8_buf` OGF0 frame encoding instead of final list-to-byte packing,
   `std:ui/scene3d` lowers coordinate/face/color package assets through exact-size
-  `u8_buf` builders, `std:net/avm/http` has request/response helpers, and `std:bytes.to_string`
-  now uses direct byte-slice conversion instead of list materialization. `std:buffer`
-  `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
-  through `u8_buf` byte slices instead of unpacking to Oren lists first, and
-  direct byte slice helpers reject out-of-bounds spans before native conversion.
-  Pure Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via
-  indexed byte access instead of unpacking the whole message to a list. The same
+	  `u8_buf` builders, `std:net/avm/http` has request/response helpers, and `std:bytes.to_string`
+	  now uses direct byte-slice conversion instead of list materialization. `std:buffer`
+	  `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
+	  through `u8_buf` byte slices instead of unpacking to Oren lists first, and
+	  direct byte slice helpers reject out-of-bounds spans before native conversion.
+	  Codec and byte APIs now expose trait-backed method surfaces for the rolling
+	  stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
+	  `cbor.cint(7).bytes().cbor()`, and `"hi".bytes().text()` work through
+	  source and stdlib-OBC metadata paths without explicit local annotations.
+	  `std:xml` / `std:html` add deterministic DOM/query APIs plus streaming
+	  readers for memory-budgeted payloads. Native `std:net/http` composes
+	  response objects with `.html()`, `.xml()`, `.html_reader()`, and
+	  `.xml_reader()`; AVM/OBC keeps the default bundle lean and composes through
+	  explicit codec imports such as `http.get(url).text().html_reader()` when a
+	  package opts into HTML/XML parsing.
+	  Pure Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via
+	  indexed byte access instead of unpacking the whole message to a list. The same
   buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits
   instead of truncating fractional values through integer byte writes. Further
   cleanup should keep text helpers explicit at API boundaries.

@@ -203,7 +203,30 @@
 <ul>
 <li>Syscall-first for native runtime (no libc dependency for core services).</li>
 <li>Deterministic behavior for AVM and capability-scoped effects.</li>
+<li>Public stdlib modules should smell like stable domain scopes, not bags of</li>
 </ul>
+<p>  convenience wrappers. Prefer scoped modules such as <code>std:net/avm/http</code> and</p>
+<p>  <code>std:net/avm/socket</code>, typed/tagged value records for resources, and</p>
+<p>  trait-backed receiver methods for common object operations. Functional forms</p>
+<p>  should remain available when they are the clear module operation</p>
+<p>  (<code>json.text(value)</code>, <code>http.text(response)</code>), but rolling user-facing examples</p>
+<p>  should favor object/method style when it reads better:</p>
+<p>  <code>http.get(url).text()</code>, <code>&quot;{}&quot;.json().text()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
+<p>  and <code>cbor.cint(7).bytes().cbor()</code>.</p>
+<ul>
+<li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
+</ul>
+<p>  domain object/scope first, then expose <code>request</code>/<code>response</code>/<code>value</code> methods.</p>
+<ul>
+<li>“Small” in implementation means resource-efficient, not feature-poor. For</li>
+</ul>
+<p>  large payload formats such as XML/HTML, stdlib APIs should offer streaming</p>
+<p>  readers for bounded memory and DOM/query layers on top for ergonomic cases.</p>
+<p>  Native HTTP may expose <code>response.html()</code> / <code>response.xml()</code> convenience</p>
+<p>  methods, but large OBC programs should compose explicitly through</p>
+<p>  <code>response.text().html_reader()</code> / <code>response.text().xml_reader()</code> and avoid</p>
+<p>  pulling DOM parsers into the default AVM stdlib bundle unless the package</p>
+<p>  actually needs them.</p>
 <p>Evidence:</p>
 <ul>
 <li>Runtime behavior: <code>tests/native/test_*</code> and fixtures under <code>tests/native/fixtures/</code>.</li>

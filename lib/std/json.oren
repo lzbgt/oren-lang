@@ -14,12 +14,29 @@
 
 import list "std:list"
 
-fn jnull() { return {"t": "null"} }
-fn jbool(b) { return {"t": "bool", "b": b} }
-fn jint(i) { return {"t": "int", "i": i} }
-fn jstring(s) { return {"t": "string", "s": s} }
-fn jarray(a) { return {"t": "array", "a": a} }
-fn jobject(o) { return {"t": "object", "o": o} }
+struct JsonValue {
+    t,
+    b,
+    i,
+    s,
+    a,
+    o
+}
+
+fn jnull(): JsonValue { return {"t": "null"} }
+fn jbool(b): JsonValue { return {"t": "bool", "b": b} }
+fn jint(i): JsonValue { return {"t": "int", "i": i} }
+fn jstring(s): JsonValue { return {"t": "string", "s": s} }
+fn jarray(a): JsonValue { return {"t": "array", "a": a} }
+fn jobject(o): JsonValue { return {"t": "object", "o": o} }
+
+trait JsonText {
+    fn json(self): JsonValue;
+}
+
+trait JsonValueCodec {
+    fn text(self);
+}
 
 fn _is_ws(b) {
     return b == 32 || b == 9 || b == 10 || b == 13
@@ -314,7 +331,7 @@ fn decode(s) {
     return r
 }
 
-fn try_decode(s) {
+fn try_decode(s): JsonValue {
     var r = decode(s)
     if r["ok"] == 1 { return r["v"] }
     var msg = r["err"]
@@ -398,4 +415,16 @@ fn encode(jv) {
 
 fn try_encode(jv) {
     return encode(jv)
+}
+
+fn parse(s): JsonValue { return try_decode(s) }
+
+fn text(jv: JsonValue) { return encode(jv) }
+
+impl JsonText for string {
+    fn json(self): JsonValue { return parse(self) }
+}
+
+impl JsonValueCodec for JsonValue {
+    fn text(self) { return encode(self) }
 }
