@@ -31,6 +31,10 @@
 // - {"op":"mesh2d","id":int,"triangles":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"draw_mesh2d","id":int}
 // - {"op":"destroy_mesh2d","id":int}
+// - {"op":"mesh3d","id":int,"triangles":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
+//   where each triangle is three i32le x,y,z vertices; v0 raster uses orthographic XY.
+// - {"op":"draw_mesh3d","id":int}
+// - {"op":"destroy_mesh3d","id":int}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
@@ -368,6 +372,29 @@ fn _draw_triangle_bytes(buf, w, h, tris, c, err_prefix) {
     return 0
 }
 
+fn _draw_triangle3d_bytes(buf, w, h, tris, c, err_prefix) {
+    var tris_len = bytes.try_len(tris)
+    if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
+    var toff = 0
+    while toff < tris_len {
+        var tx1 = bytes.try_get_i32_le(tris, toff)
+        var ty1 = bytes.try_get_i32_le(tris, toff + 4)
+        var tz1 = bytes.try_get_i32_le(tris, toff + 8)
+        var tx2 = bytes.try_get_i32_le(tris, toff + 12)
+        var ty2 = bytes.try_get_i32_le(tris, toff + 16)
+        var tz2 = bytes.try_get_i32_le(tris, toff + 20)
+        var tx3 = bytes.try_get_i32_le(tris, toff + 24)
+        var ty3 = bytes.try_get_i32_le(tris, toff + 28)
+        var tz3 = bytes.try_get_i32_le(tris, toff + 32)
+        if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tz1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tz2) || oren_is_err(tx3) || oren_is_err(ty3) || oren_is_err(tz3) {
+            return oren_err(4, err_prefix + " malformed triangle")
+        }
+        _draw_fill_triangle(buf, w, h, tx1, ty1, tx2, ty2, tx3, ty3, c)
+        toff = toff + 36
+    }
+    return 0
+}
+
 fn rasterize(cmds, w, h, opts) {
     if opts == nil { opts = {} }
     if w < 0 || h < 0 { return oren_err(4, "rasterize: invalid size") }
@@ -550,6 +577,17 @@ fn rasterize(cmds, w, h, opts) {
             var mr = _draw_triangle_bytes(buf, w, h, mesh2d["triangles"], mc, "rasterize: draw_mesh2d")
             if oren_is_err(mr) { return mr }
         } else if op == "destroy_mesh2d" {
+            meshes[oren_int_to_string(opm["id"])] = nil
+        } else if op == "mesh3d" {
+            meshes[oren_int_to_string(opm["id"])] = opm
+        } else if op == "draw_mesh3d" {
+            var mesh3d = meshes[oren_int_to_string(opm["id"])]
+            if mesh3d == nil { return oren_err(4, "rasterize: draw_mesh3d missing mesh") }
+            var m3c = ui_color.try_parse_hex(mesh3d["color"])
+            if oren_is_err(m3c) { return result.with_context(m3c, "rasterize: mesh3d color") }
+            var m3r = _draw_triangle3d_bytes(buf, w, h, mesh3d["triangles"], m3c, "rasterize: draw_mesh3d")
+            if oren_is_err(m3r) { return m3r }
+        } else if op == "destroy_mesh3d" {
             meshes[oren_int_to_string(opm["id"])] = nil
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.

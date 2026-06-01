@@ -290,6 +290,35 @@ fn validate(cmds, w, h, opts) {
         } else if op == "destroy_mesh2d" {
             var xmid = c["id"]
             if _is_int(xmid) == false || xmid < 1 { return oren_err(4, "ui.validate: destroy_mesh2d invalid id") }
+        } else if op == "mesh3d" {
+            var m3id = c["id"]; var m3tris = c["triangles"]; var m3col = c["color"]
+            if _is_int(m3id) == false || m3id < 1 { return oren_err(4, "ui.validate: mesh3d invalid id") }
+            if _hex_ok(m3col) == false { return oren_err(4, "ui.validate: mesh3d invalid color") }
+            var m3tris_len = bytes.try_len(m3tris)
+            if oren_is_err(m3tris_len) { return oren_err(4, "ui.validate: mesh3d expects byte triangles") }
+            if m3tris_len == 0 || m3tris_len > 65520 || m3tris_len % 36 != 0 { return oren_err(4, "ui.validate: mesh3d invalid triangle bytes") }
+            if strict {
+                var m3off = 0
+                while m3off < m3tris_len {
+                    var m3vi = 0
+                    while m3vi < 3 {
+                        var m3x = bytes.try_get_i32_le(m3tris, m3off + m3vi * 12)
+                        var m3y = bytes.try_get_i32_le(m3tris, m3off + m3vi * 12 + 4)
+                        var m3z = bytes.try_get_i32_le(m3tris, m3off + m3vi * 12 + 8)
+                        if oren_is_err(m3x) || oren_is_err(m3y) || oren_is_err(m3z) { return oren_err(4, "ui.validate: mesh3d malformed vertex") }
+                        var m3x_t = m3x + tx; var m3y_t = m3y + ty
+                        if m3x_t < 0 || m3y_t < 0 || m3x_t >= w || m3y_t >= h { return oren_err(4, "ui.validate: mesh3d projected out of bounds") }
+                        m3vi = m3vi + 1
+                    }
+                    m3off = m3off + 36
+                }
+            }
+        } else if op == "draw_mesh3d" {
+            var dm3id = c["id"]
+            if _is_int(dm3id) == false || dm3id < 1 { return oren_err(4, "ui.validate: draw_mesh3d invalid id") }
+        } else if op == "destroy_mesh3d" {
+            var xm3id = c["id"]
+            if _is_int(xm3id) == false || xm3id < 1 { return oren_err(4, "ui.validate: destroy_mesh3d invalid id") }
         } else if op == "text" {
             var x2 = c["x"]; var y2 = c["y"]; var s = c["text"]; var col2 = c["color"]
             if _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: text expects int x,y") }

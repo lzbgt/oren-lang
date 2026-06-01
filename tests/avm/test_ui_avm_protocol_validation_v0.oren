@@ -104,6 +104,31 @@ fn main() {
     assert_true(oren_is_err(r5d))
     assert_true(oren_err_code(r5d) == 4)
 
+    var bad_mesh3d = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        83, 0, 48, 0,
+        4, 0, 0, 0, 255, 0, 0, 255, 2, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
+    ])
+    var r5e = ui_avm.present_bytes(bad_mesh3d)
+    assert_true(oren_is_err(r5e))
+    assert_true(oren_err_code(r5e) == 4)
+
+    var bad_draw_mesh3d = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        84, 0, 4, 0,
+        0, 0, 0, 0
+    ])
+    var r5f = ui_avm.present_bytes(bad_draw_mesh3d)
+    assert_true(oren_is_err(r5f))
+    assert_true(oren_err_code(r5f) == 4)
+
     var bad_round_rect = bytes.try_pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 4, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,

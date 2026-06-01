@@ -78,6 +78,15 @@ typedef struct {
 @implementation OrenAVMMetalMesh2DResource
 @end
 
+@interface OrenAVMMetalMesh3DResource : NSObject
+@property(nonatomic, strong) NSData* triangles;
+@property(nonatomic, strong) NSData* rgba;
+@property(nonatomic) uint32_t triangleCount;
+@end
+
+@implementation OrenAVMMetalMesh3DResource
+@end
+
 @interface OrenAVMMetalTextCacheEntry : NSObject
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic) CGSize logicalSize;
@@ -551,6 +560,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -600,6 +610,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
     if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
+    if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
     if (!self.orenImageTextures) self.orenImageTextures = [NSMutableDictionary dictionary];
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
@@ -1266,6 +1277,37 @@ static NSData* OrenAVMMetalTextQuad(float x,
             }
         } else if (opcode == 82 && payloadLen == 4) {
             [self.orenMeshes removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];
+        } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
+            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+            uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 8);
+            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
+                OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
+                mesh.rgba = [NSData dataWithBytes:payload + 4 length:4];
+                mesh.triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                mesh.triangleCount = triangleCount;
+                self.orenMeshes3D[@(meshID)] = mesh;
+            }
+        } else if (opcode == 84 && payloadLen == 4) {
+            OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(OrenAVMMetalReadU32LE(payload))];
+            const uint8_t* tris = mesh.triangles.bytes;
+            if (mesh.rgba.length == 4 && tris && mesh.triangleCount == mesh.triangles.length / 36u) {
+                OrenAVMMetalRGBAWithOpacity(mesh.rgba.bytes, opacity, rgba);
+                for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
+                    const uint8_t* tri = tris + ((size_t)ti * 36u);
+                    OrenAVMMetalAppendTriangle(vertices,
+                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri) + tx,
+                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 4) + ty,
+                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 12) + tx,
+                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 16) + ty,
+                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 24) + tx,
+                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 28) + ty,
+                                               (float)logicalW,
+                                               (float)logicalH,
+                                               rgba);
+                }
+            }
+        } else if (opcode == 85 && payloadLen == 4) {
+            [self.orenMeshes3D removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMMetalReadU32LE(payload);
             uint32_t y = OrenAVMMetalReadU32LE(payload + 4);

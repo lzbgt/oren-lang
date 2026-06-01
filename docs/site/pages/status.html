@@ -356,7 +356,7 @@
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>/<code>text</code>/<code>text_bytes</code>/<code>text_resource</code>/</p>
 <p>  <code>draw_text</code>/<code>draw_texts</code>/<code>destroy_text</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/</p>
 <p>  <code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code>/<code>mesh2d</code>/<code>draw_mesh2d</code>/<code>destroy_mesh2d</code>/</p>
-<p>  <code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/</p>
+<p>  <code>mesh3d</code>/<code>draw_mesh3d</code>/<code>destroy_mesh3d</code>/<code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/</p>
 <p>  <code>draw_image_rect</code>/<code>draw_image_rects</code> frame subset and can enqueue pointer, resize, key, and</p>
 <p>  text events plus host-populated persistent screen state and runtime media-query</p>
 <p>  events with logical size, native drawable size, device scale, target refresh,</p>
@@ -365,7 +365,7 @@
 <p>  adapter: it owns the Metal draw loop, publishes host screen state, forwards touch</p>
 <p>  events into the <code>OGE0</code> mailbox, and renders current <code>OGF0</code> fill-rect/</p>
 <p>  clip-stack/translation-stack/opacity-stack/stroke-line/stroke-rect/round-rect/circle/</p>
-<p>  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained RGBA image upload/draw/</p>
+<p>  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, retained RGBA image upload/draw/</p>
 <p>  destroy/sub-rect and batched atlas records, and byte-native/retained text</p>
 <p>  payloads through Metal pipelines. Its <code>targetHzMilli</code> setting</p>
 <p>  drives <code>MTKView.preferredFramesPerSecond</code>. Current text rendering uses a bounded</p>
@@ -375,7 +375,7 @@
 <p>  event path instead of polling raw platform clocks. Frame ticks are coalesced so</p>
 <p>  stale timing records cannot fill the input FIFO and starve real input. The Metal</p>
 <p>  view exposes SDK-side frame metrics for rendered frame count, CPU encode time,</p>
-<p>  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D mesh resources avoid resending repeated triangle geometry, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels and reduce per-label opcode overhead, while richer glyph atlas batching remains next. UIKit/CoreGraphics</p>
+<p>  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels and reduce per-label opcode overhead, while richer glyph atlas batching remains next. UIKit/CoreGraphics</p>
 <p>  and Metal views now forward every touch in a UIKit touch set, assign stable compact</p>
 <p>  pointer IDs for each active touch, release IDs on end/cancel, and expose batch</p>
 <p>  pointer-event helpers, so multi-finger input reaches OBC as multiple virtual</p>
@@ -394,9 +394,9 @@
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>
 <p>  and Metal/<code>MTKView</code> conformance gates are documented in</p>
 <p>  <code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
-<p>  The AVM release manifest also includes a whole-frame 2D raster conformance hash</p>
+<p>  The AVM release manifest also includes a whole-frame 2D/3D-projection raster conformance hash</p>
 <p>	  covering geometry including <code>stroke_rect</code>, <code>round_rect</code>, <code>ellipse</code>, <code>polyline</code>, clip and translation stacks, retained text, retained images, atlas sub-rects, batched</p>
-<p>	  sprites, retained 2D meshes, and draw ordering in one scene.</p>
+<p>	  sprites, retained 2D meshes, retained 3D meshes through orthographic projection, and draw ordering in one scene.</p>
 <ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>

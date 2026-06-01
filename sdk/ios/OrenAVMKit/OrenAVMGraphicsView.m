@@ -486,6 +486,37 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             }
         } else if (opcode == 82 && payloadLen == 4) {
             [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
+        } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
+            uint32_t meshID = OrenAVMGfxReadU32LE(payload);
+            uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
+            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
+                NSData* triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                self.orenMeshes[@(meshID)] = @{@"color": OrenAVMGfxColor(payload + 4),
+                                               @"triangles": triangles,
+                                               @"count": @(triangleCount),
+                                               @"stride": @36};
+            }
+        } else if (opcode == 84 && payloadLen == 4) {
+            NSDictionary<NSString*, id>* mesh = self.orenMeshes[@(OrenAVMGfxReadU32LE(payload))];
+            UIColor* color = mesh[@"color"];
+            NSData* triangles = mesh[@"triangles"];
+            NSNumber* count = mesh[@"count"];
+            NSNumber* stride = mesh[@"stride"];
+            const uint8_t* tris = triangles.bytes;
+            if (color && tris && stride.unsignedIntValue == 36u && count.unsignedIntValue == triangles.length / 36u) {
+                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                for (uint32_t ti = 0; ti < count.unsignedIntValue; ti++) {
+                    const uint8_t* tri = tris + ((size_t)ti * 36u);
+                    CGContextBeginPath(ctx);
+                    CGContextMoveToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 4));
+                    CGContextAddLineToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 12), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 16));
+                    CGContextAddLineToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 24), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 28));
+                    CGContextClosePath(ctx);
+                    CGContextFillPath(ctx);
+                }
+            }
+        } else if (opcode == 85 && payloadLen == 4) {
+            [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);

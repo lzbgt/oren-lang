@@ -251,6 +251,28 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["id"])
         return 0
     }
+    if op == "mesh3d" {
+        var mesh3d_tris = c["triangles"]
+        var mesh3d_tris_n = bytes.try_len(mesh3d_tris)
+        if oren_is_err(mesh3d_tris_n) { return mesh3d_tris_n }
+        if mesh3d_tris_n == 0 || mesh3d_tris_n > 65520 || mesh3d_tris_n % 36 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d invalid triangle bytes") }
+        _push_op_header(out, 83, 12 + mesh3d_tris_n)
+        _push_u32_le(out, c["id"])
+        var mesh3d_col = _push_color_rgba(out, c["color"])
+        if oren_is_err(mesh3d_col) { return mesh3d_col }
+        _push_u32_le(out, mesh3d_tris_n / 36)
+        return _append_bytes(out, mesh3d_tris)
+    }
+    if op == "draw_mesh3d" {
+        _push_op_header(out, 84, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
+    if op == "destroy_mesh3d" {
+        _push_op_header(out, 85, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
     if op == "text" {
         var tb = bytes.try_from_string(c["text"])
         if oren_is_err(tb) { return tb }

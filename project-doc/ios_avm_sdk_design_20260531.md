@@ -91,14 +91,14 @@ Retained SDK slices on 2026-05-31:
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
 	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
 		  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`,
-			  `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`, `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`,
+			  `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`, `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `draw_mesh3d`, `destroy_mesh3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`,
 		  `image_rgba`, `draw_image`, `destroy_image`, and
 		  `draw_image_rect`/`draw_image_rects`) and enqueues pointer events back through the `OGE0` input
   mailbox. This is the default 2D fallback.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
 		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
 			  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-			  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained 2D mesh records, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
+			  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained 2D mesh records, first retained 3D mesh records using orthographic XY default projection, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
