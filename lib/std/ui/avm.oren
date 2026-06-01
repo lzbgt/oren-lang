@@ -456,6 +456,41 @@ fn decode_event_bytes(ev) {
         }
     }
 
+    if opcode == 96 {
+        if payload_len != 40 { return oren_err(4, "ui.avm.decode_event_bytes: bad motion payload") }
+        var source_id = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
+        var motion_seq = _read_u32_le(ev, 16, "ui.avm.decode_event_bytes")
+        var ts_ns = _read_u64_le(ev, 20, "ui.avm.decode_event_bytes")
+        var ax = _read_u32_le(ev, 28, "ui.avm.decode_event_bytes")
+        var ay = _read_u32_le(ev, 32, "ui.avm.decode_event_bytes")
+        var az = _read_u32_le(ev, 36, "ui.avm.decode_event_bytes")
+        var gx = _read_u32_le(ev, 40, "ui.avm.decode_event_bytes")
+        var gy = _read_u32_le(ev, 44, "ui.avm.decode_event_bytes")
+        var gz = _read_u32_le(ev, 48, "ui.avm.decode_event_bytes")
+        if oren_is_err(source_id) { return source_id }
+        if oren_is_err(motion_seq) { return motion_seq }
+        if oren_is_err(ts_ns) { return ts_ns }
+        if oren_is_err(ax) { return ax }
+        if oren_is_err(ay) { return ay }
+        if oren_is_err(az) { return az }
+        if oren_is_err(gx) { return gx }
+        if oren_is_err(gy) { return gy }
+        if oren_is_err(gz) { return gz }
+        return {
+            "kind": "motion",
+            "opcode": opcode,
+            "source_id": source_id,
+            "sequence": motion_seq,
+            "timestamp_ns": ts_ns,
+            "accel_x_milli": _signed_u32(ax),
+            "accel_y_milli": _signed_u32(ay),
+            "accel_z_milli": _signed_u32(az),
+            "gyro_x_milli": _signed_u32(gx),
+            "gyro_y_milli": _signed_u32(gy),
+            "gyro_z_milli": _signed_u32(gz)
+        }
+    }
+
     return {"kind": "unknown", "opcode": opcode, "payload_len": payload_len}
 }
 

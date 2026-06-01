@@ -185,6 +185,16 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                         rxMilli:(int32_t)rxMilli
                                         ryMilli:(int32_t)ryMilli
                                           error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)putGraphicsMotionEventWithSourceID:(uint32_t)sourceID
+                                  sequence:(uint32_t)sequence
+                               timestampNs:(uint64_t)timestampNs
+                              accelXMilli:(int32_t)accelXMilli
+                              accelYMilli:(int32_t)accelYMilli
+                              accelZMilli:(int32_t)accelZMilli
+                               gyroXMilli:(int32_t)gyroXMilli
+                               gyroYMilli:(int32_t)gyroYMilli
+                               gyroZMilli:(int32_t)gyroZMilli
+                                     error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)putVirtualEventWithKind:(NSString*)kind
                          action:(NSString*)action
                          detail:(NSString*)detail

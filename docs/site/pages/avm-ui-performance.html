@@ -97,9 +97,10 @@
 </ul>
 <p>  remains only as a compatibility alias during rolling development.</p>
 <ul>
-<li><code>std:ui/avm.next_event()</code> decodes <code>OGE0</code> pointer/resize/key/text/gamepad records</li>
+<li><code>std:ui/avm.next_event()</code> decodes <code>OGE0</code></li>
 </ul>
-<p>  into Oren maps so OBC programs do not have to parse bytes manually.</p>
+<p>  pointer/resize/key/text/gamepad/motion records into Oren maps so OBC programs</p>
+<p>  do not have to parse bytes manually.</p>
 <ul>
 <li><code>OGE0</code> also carries <code>frame_tick</code> records with sequence, host tick time,</li>
 </ul>
@@ -109,6 +110,11 @@
 <p>  is coalesced by AVM so a slow or paused OBC consumer keeps only the newest</p>
 <p>  tick and cannot starve pointer/key/text events by filling the FIFO with stale</p>
 <p>  timing records.</p>
+<ul>
+<li>High-rate <code>motion</code> records carry source id, sequence, host timestamp, and</li>
+</ul>
+<p>  signed milli-unit accelerometer/gyroscope samples. AVM coalesces pending motion</p>
+<p>  records by source so sensor updates cannot flood the FIFO.</p>
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
@@ -135,9 +141,9 @@
 <p>  resending repeated UTF-8 labels every frame; richer glyph atlas batching and</p>
 <p>  mesh resources remain the next performance steps.</p>
 <ul>
-<li>Host helpers can enqueue pointer, resize, key, UTF-8 text, and compact</li>
+<li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>
-<p>  gamepad/controller state input events.</p>
+<p>  gamepad/controller state, and coalesced motion input events.</p>
 <ul>
 <li>iOS UIKit/CoreGraphics and Metal views forward all touches in each UIKit touch</li>
 </ul>
@@ -169,9 +175,9 @@
 <p>  it in AVM, so GUI app dependencies fail in the repo gate instead of later in</p>
 <p>  app integration.</p>
 <p>This baseline proves bidirectional transport for the current 2D subset. It is not</p>
-<p>yet game-complete: richer input such as multitouch gestures, focus, IME composition,</p>
-<p>and high-rate motion data still need compact event records and iOS SDK helpers</p>
-<p>before game OBC packages should rely on them.</p>
+<p>yet game-complete: richer input such as multitouch gestures, focus, and IME</p>
+<p>composition still need compact event records and iOS SDK helpers before game OBC</p>
+<p>packages should rely on them.</p>
 <p>Runtime media query must be host-populated state, not a consumed event only.</p>
 <p>OBC should not query <code>UIScreen</code>, <code>MTKView</code>, or any host object directly. The host</p>
 <p>publishes persistent screen state with logical width/height, <code>scale_milli</code>,</p>

@@ -97,6 +97,23 @@ fn main() {
     assert_eq(gamepad["rx_milli"], 0)
     assert_eq(gamepad["ry_milli"], -250)
 
+    var motion = ui_avm.decode_event_bytes(event([
+        79, 71, 69, 48, 0, 0, 0, 0, 96, 0, 40, 0,
+        2, 0, 0, 0, 7, 0, 0, 0, 210, 4, 0, 0, 0, 0, 0, 0,
+        246, 255, 255, 255, 20, 0, 0, 0, 226, 255, 255, 255,
+        40, 0, 0, 0, 206, 255, 255, 255, 60, 0, 0, 0
+    ]))
+    assert_eq(motion["kind"], "motion")
+    assert_eq(motion["source_id"], 2)
+    assert_eq(motion["sequence"], 7)
+    assert_eq(motion["timestamp_ns"], 1234)
+    assert_eq(motion["accel_x_milli"], -10)
+    assert_eq(motion["accel_y_milli"], 20)
+    assert_eq(motion["accel_z_milli"], -30)
+    assert_eq(motion["gyro_x_milli"], 40)
+    assert_eq(motion["gyro_y_milli"], -50)
+    assert_eq(motion["gyro_z_milli"], 60)
+
     assert_eq(ui_avm.next_event(), nil)
     exit(0)
 }

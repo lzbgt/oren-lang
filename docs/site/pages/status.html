@@ -368,13 +368,14 @@
 <p>  pointer IDs for each active touch, release IDs on end/cancel, and expose batch</p>
 <p>  pointer-event helpers, so multi-finger input reaches OBC as multiple virtual</p>
 <p>  pointer events instead of dropping all but one touch. The <code>OGE0</code> stream also has</p>
-<p>  a compact gamepad/controller state record, with an iOS SDK helper for controller</p>
-<p>  id, button bitmask, and signed milli-normalized analog axes.</p>
+<p>  compact gamepad/controller state records and coalesced high-rate motion records,</p>
+<p>  with iOS SDK helpers for controller id, button bitmask, signed milli-normalized</p>
+<p>  analog axes, and accelerometer/gyroscope samples.</p>
 <p>  Bidirectional UI is a hard requirement for</p>
 <p>  game-level OBC packages: OBC must publish frames and consume host-originated input</p>
 <p>  through the same virtual protocol, while the host owns platform event APIs and</p>
 <p>		  rendering devices. Remaining game-grade work is text atlas/sprite/mesh</p>
-<p>			  records, motion input, IME/composition helpers,</p>
+<p>			  records, IME/composition helpers,</p>
 <p>	  and richer 2D/3D command sets. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>

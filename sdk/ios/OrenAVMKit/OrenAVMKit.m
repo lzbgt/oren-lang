@@ -1906,6 +1906,30 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return [self putGraphicsInputEventData:data error:error];
 }
 
+- (BOOL)putGraphicsMotionEventWithSourceID:(uint32_t)sourceID
+                                  sequence:(uint32_t)sequence
+                               timestampNs:(uint64_t)timestampNs
+                              accelXMilli:(int32_t)accelXMilli
+                              accelYMilli:(int32_t)accelYMilli
+                              accelZMilli:(int32_t)accelZMilli
+                               gyroXMilli:(int32_t)gyroXMilli
+                               gyroYMilli:(int32_t)gyroYMilli
+                               gyroZMilli:(int32_t)gyroZMilli
+                                     error:(NSError**)error {
+    uint8_t payload[40];
+    OrenAVMKitPutU32LE(payload, sourceID);
+    OrenAVMKitPutU32LE(payload + 4, sequence);
+    OrenAVMKitPutU64LE(payload + 8, timestampNs);
+    OrenAVMKitPutU32LE(payload + 16, (uint32_t)accelXMilli);
+    OrenAVMKitPutU32LE(payload + 20, (uint32_t)accelYMilli);
+    OrenAVMKitPutU32LE(payload + 24, (uint32_t)accelZMilli);
+    OrenAVMKitPutU32LE(payload + 28, (uint32_t)gyroXMilli);
+    OrenAVMKitPutU32LE(payload + 32, (uint32_t)gyroYMilli);
+    OrenAVMKitPutU32LE(payload + 36, (uint32_t)gyroZMilli);
+    NSData* data = OrenAVMKitMakeGFXEvent(96, payload, sizeof(payload));
+    return [self putGraphicsInputEventData:data error:error];
+}
+
 - (BOOL)putVirtualEventWithKind:(NSString*)kind action:(NSString*)action detail:(NSString*)detail flags:(uint32_t)flags error:(NSError**)error {
     if (kind.length == 0 || action.length == 0) {
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,

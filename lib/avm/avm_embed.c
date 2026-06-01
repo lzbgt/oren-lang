@@ -216,6 +216,10 @@ static int avm_embed_write_u32_le(uint8_t* out, size_t cap, size_t* pos, uint32_
     return 1;
 }
 
+static uint32_t avm_embed_read_u32_le_raw(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
 static void avm_embed_apply_config(AvmVM* vm, const AvmEmbedConfig* config) {
     vm->deterministic = config->deterministic ? 1 : 0;
     vm->allowed_native_domains = config->allowed_native_domains;
@@ -698,11 +702,16 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, s
         if (!q) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM GFX input queue");
         handle->vm->gfx_input_queue = q;
     }
-    if (event_data[8] == 18u && q->count > 0 && q->entries) {
+    if ((event_data[8] == 18u || event_data[8] == 96u) && q->count > 0 && q->entries) {
+        uint32_t motion_source = event_data[8] == 96u ? avm_embed_read_u32_le_raw(event_data + 12) : 0u;
         uint32_t dst = 0;
         for (uint32_t src = 0; src < q->count; src++) {
             AvmGfxInputEntry entry = q->entries[src];
-            if (entry.len >= 12u && entry.data && entry.data[8] == 18u) {
+            int replace = entry.len >= 12u && entry.data && entry.data[8] == event_data[8];
+            if (replace && event_data[8] == 96u) {
+                replace = entry.len >= 16u && avm_embed_read_u32_le_raw(entry.data + 12) == motion_source;
+            }
+            if (replace) {
                 free(entry.data);
                 continue;
             }

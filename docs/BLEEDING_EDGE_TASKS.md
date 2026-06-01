@@ -89,8 +89,8 @@ This file is the concise task view. Detailed implementation status lives in
      package, signed package-store support, and the game-grade GUI path:
      display-link pacing, retained resource handles, budget gates, low-latency
 	     input ordering, Metal/`MTKView`, richer drawing ops, compact gamepad/controller
-	     events, and richer bidirectional input records for motion, focus, and
-	     IME/composition helpers. The `OGF0` frame header now includes
+	     and coalesced motion events, plus richer bidirectional input records for
+	     focus and IME/composition helpers. The `OGF0` frame header now includes
      sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
      frames plus `OGE0` host input/media-query events before accepting them. OBC
      can read host-populated screen attributes at runtime through
