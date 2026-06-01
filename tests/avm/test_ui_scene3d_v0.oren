@@ -4,6 +4,7 @@ import scene3d "std:ui/scene3d"
 import ui_cmds "std:ui/commands"
 import ui_raster "std:ui/raster"
 import bytes "std:bytes"
+import list "std:list"
 
 fn fail() {
     var a = [1]
@@ -23,6 +24,48 @@ fn assert_eq(a, b) {
 
 fn _px(buf, w, x, y, chan) {
     return oren_bytes_get_u8(buf, (y * w + x) * 4 + chan)
+}
+
+fn push_u32(out, v) {
+    list.push(out, v % 256)
+    list.push(out, (v / 256) % 256)
+    list.push(out, (v / 65536) % 256)
+    list.push(out, (v / 16777216) % 256)
+}
+
+fn push_bytes(out, bs) {
+    var i = 0
+    while i < bytes.try_len(bs) {
+        list.push(out, bytes.try_get_u8(bs, i))
+        i = i + 1
+    }
+}
+
+fn scene_binary(vertices, indices) {
+    var out = [79, 83, 51, 68, 48, 49, 0, 0]
+    push_u32(out, 1) // meshes
+    push_u32(out, 1) // materials
+    push_u32(out, 1) // models
+    push_u32(out, 1) // draws
+    push_u32(out, 1) // destroy
+    push_u32(out, 27) // mesh id
+    push_u32(out, 1) // indexed mesh
+    push_u32(out, 862388223)
+    push_u32(out, bytes.try_len(vertices))
+    push_u32(out, bytes.try_len(indices))
+    push_bytes(out, vertices)
+    push_bytes(out, indices)
+    push_u32(out, 28) // material id
+    push_u32(out, 16711935)
+    push_u32(out, 29) // model id
+    push_u32(out, 27) // model mesh
+    push_u32(out, 28) // model material
+    push_u32(out, 1) // x
+    push_u32(out, 1) // y
+    push_u32(out, 0) // z
+    push_u32(out, 1000)
+    push_u32(out, 29)
+    return bytes.try_pack(out)
 }
 
 fn main() {
@@ -75,6 +118,23 @@ fn main() {
     assert_eq(_px(asset_buf, 4, 1, 1, 0), 0)
     assert_eq(_px(asset_buf, 4, 1, 1, 1), 255)
     assert_eq(_px(asset_buf, 4, 1, 1, 2), 0)
+
+    var bin = scene_binary(vertices, indices)
+    assert_true(oren_is_err(bin) == false)
+    var from_bin = scene3d.commands_from_binary(bin)
+    assert_true(oren_is_err(from_bin) == false)
+    assert_eq(oren_list_len(from_bin), 7)
+    assert_eq(from_bin[0]["op"], "mesh3d_indexed")
+    assert_eq(from_bin[1]["op"], "material3d")
+    assert_eq(from_bin[2]["op"], "model3d")
+    assert_eq(from_bin[3]["op"], "draw_model3d")
+    assert_true(ui_cmds.try_validate(from_bin, 4, 4, {"strict_bounds": true}) == 0)
+    var bin_buf = ui_raster.try_rasterize(from_bin, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(bin_buf) == false)
+    assert_eq(_px(bin_buf, 4, 1, 1, 0), 0)
+    assert_eq(_px(bin_buf, 4, 1, 1, 1), 255)
+    assert_eq(_px(bin_buf, 4, 1, 1, 2), 0)
+    assert_true(oren_is_err(scene3d.commands_from_binary(bytes.try_pack([79, 83]))) == true)
 
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"bad\"}")) == true)
     assert_true(oren_is_err(scene3d.commands(nil)) == true)

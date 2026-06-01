@@ -14,7 +14,7 @@ fn px(buf, w, x, y, chan) {
 }
 
 fn main() {
-    var cmds = scene3d.commands_from_file("assets/scene3d_card.json")
+    var cmds = scene3d.commands_from_binary_file("assets/scene3d_card.os3d")
     if oren_is_err(cmds) { fail(oren_err_msg(cmds)) }
     var valid = ui_cmds.try_validate(cmds, 4, 4, {"strict_bounds": true})
     if oren_is_err(valid) { fail(oren_err_msg(valid)) }

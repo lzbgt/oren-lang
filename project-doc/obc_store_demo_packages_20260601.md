@@ -39,15 +39,17 @@ build/obc-store-demos/bundles/<publisher>__<name>__<version>.obc.zip
 build/obc-store-demos/packages/<publisher>/<name>/<version>/package.json
 build/obc-store-demos/packages/<publisher>/<name>/<version>/program.obc
 build/obc-store-demos/packages/<publisher>/<name>/<version>/assets/source/main.oren
-build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.json
+build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.os3d
 ```
 
 Official demo packages always bundle source code as a package asset so host apps
 can show or ignore source independently from the executable OBC. The manifest
 declares the source in both `assets` and `sources`; the store index declares the
 ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime
-assets; `scene3d-asset-demo` declares a read-only `assets/` VFS mount and proves
-OBC can load retained UI scene metadata from package assets.
+assets; `scene3d-asset-demo` derives a byte-native `.os3d` asset from the
+reviewable JSON source, declares a read-only `assets/` VFS mount, and proves OBC
+can load retained UI scene metadata from package assets without JSON parsing in
+the hot path.
 
 These generated package artifacts are intentionally not committed. They can be
 published to `store.hubstack.cn` after live deployment/signing credentials are

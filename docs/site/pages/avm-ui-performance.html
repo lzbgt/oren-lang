@@ -322,6 +322,12 @@
 <p>  <code>std:ui/avm</code> encodes them into OGF0, and <code>commands_from_file(path)</code> loads the</p>
 <p>  same scene shape from JSON package assets mounted into VirtualFS;</p>
 <ul>
+<li><code>std:ui/scene3d.commands_from_binary(...)</code> and</li>
+</ul>
+<p>  <code>commands_from_binary_file(path)</code> load the byte-native <code>OS3D01</code> package asset</p>
+<p>  format: little-endian mesh/material/model/draw counts, retained mesh payload</p>
+<p>  byte slices, RGBA u32 colors, model transforms, draw ids, and a destroy flag;</p>
+<ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>
 <p>  and <code>pop_camera</code> bound subsequent retained 3D draws to an inclusive transformed-Z</p>
@@ -529,8 +535,13 @@
 <ol>
 <li>Done: add JSON/package-asset scene loading for <code>std:ui/scene3d</code> plus a</li>
 </ol>
-<p>    first-party OBC store demo that bundles <code>assets/scene3d_card.json</code> and reads</p>
-<p>    it through a read-only package VFS mount.</p>
+<p>    first-party OBC store demo that bundles scene metadata and reads it through</p>
+<p>    a read-only package VFS mount.</p>
+<ol>
+<li>Done: add byte-native <code>OS3D01</code> scene asset loading for <code>std:ui/scene3d</code> and</li>
+</ol>
+<p>    update the store demo generator so the committed JSON scene source is</p>
+<p>    converted into a bundled <code>.os3d</code> runtime asset.</p>
 <ol>
 <li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
 </ol>

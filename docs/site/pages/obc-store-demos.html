@@ -61,13 +61,15 @@ build/obc-store-demos/bundles/&lt;publisher&gt;__&lt;name&gt;__&lt;version&gt;.o
 build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/package.json
 build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/program.obc
 build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/assets/source/main.oren
-build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.json</code></pre>
+build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.os3d</code></pre>
 <p>Official demo packages always bundle source code as a package asset so host apps</p>
 <p>can show or ignore source independently from the executable OBC. The manifest</p>
 <p>declares the source in both <code>assets</code> and <code>sources</code>; the store index declares the</p>
 <p>ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime</p>
-<p>assets; <code>scene3d-asset-demo</code> declares a read-only <code>assets/</code> VFS mount and proves</p>
-<p>OBC can load retained UI scene metadata from package assets.</p>
+<p>assets; <code>scene3d-asset-demo</code> derives a byte-native <code>.os3d</code> asset from the</p>
+<p>reviewable JSON source, declares a read-only <code>assets/</code> VFS mount, and proves OBC</p>
+<p>can load retained UI scene metadata from package assets without JSON parsing in</p>
+<p>the hot path.</p>
 <p>These generated package artifacts are intentionally not committed. They can be</p>
 <p>published to <code>store.hubstack.cn</code> after live deployment/signing credentials are</p>
 <p>available.</p>
