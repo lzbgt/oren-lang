@@ -20,6 +20,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 4, 4, {"strict_bounds": true})
     if oren_is_err(buf) { fail(oren_err_msg(buf)) }
     if px(buf, 4, 1, 1, 1) != 255 { fail("scene3d package pixel") }
+    if px(buf, 4, 2, 2, 0) != 255 { fail("scene3d package rgba triangle pixel") }
     print("scene3d:ok")
     oren_exit(9)
 }

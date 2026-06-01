@@ -311,16 +311,17 @@ Facts from the 2026-05-28 implementation pass:
   through the same virtual protocol, while the host owns platform event APIs and
   rendering devices. `std:ui/scene3d` now provides pure OBC-side builders for
   retained mesh/material/model scene command lists and can load JSON or
-	  byte-native `.os3d` scene assets from package-mounted VirtualFS paths,
-	  including scene-level camera depth windows. Reviewable JSON scene assets can
-	  now use named mesh/material/model references plus model templates and
-	  instances, human-readable `position_xyz` model transforms, and human-readable
-	  `vertices_xyz` / `faces` coordinate arrays; the package builder validates
-	  face indices and resolves them into numeric byte-native `.os3d` assets so
-	  the hot runtime path stays compact. The iOS SDK verifier now also
-	  runs an `OrenAVMPackageStore` package that mounts a bundled `.os3d` scene
-	  asset and raster-checks it through OBC. `OrenAVMMetalView` now exposes
-	  drawable-independent `prepareFrameResourcesWithError:` so host apps and
+  byte-native `.os3d` scene assets from package-mounted VirtualFS paths,
+  including scene-level camera depth windows. Reviewable JSON scene assets can
+  now use named mesh/material/model references plus model templates and
+  instances, human-readable `position_xyz` model transforms, human-readable
+  `vertices_xyz` / `faces` coordinate arrays, and per-triangle
+  `triangles_xyz_rgba` colors; the package builder validates face indices and
+  resolves them into numeric byte-native `.os3d` assets so the hot runtime path
+  stays compact. The iOS SDK verifier now also
+  runs an `OrenAVMPackageStore` package that mounts a bundled `.os3d` scene
+  asset and raster-checks it through OBC. `OrenAVMMetalView` now exposes
+  drawable-independent `prepareFrameResourcesWithError:` so host apps and
 	  headless verifiers can parse retained 3D/resource frames and inspect vertex,
 	  text-run, and image-run metrics even when no `CAMetalDrawable` is available.
 		  Remaining game-grade work is live-device 3D performance capture and broader

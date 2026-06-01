@@ -14,6 +14,16 @@ def color_u32(s):
     return int(s[1:], 16)
 
 
+def color_rgba_bytes(s):
+    rgba = color_u32(s)
+    return bytes([
+        (rgba >> 24) & 0xFF,
+        (rgba >> 16) & 0xFF,
+        (rgba >> 8) & 0xFF,
+        rgba & 0xFF,
+    ])
+
+
 def u32(v):
     return int(v).to_bytes(4, "little", signed=False)
 
@@ -48,6 +58,22 @@ def pack_triangles_xyz(triangles):
         if not isinstance(tri, list) or len(tri) != 3:
             raise SystemExit("scene triangles_xyz entries must contain 3 vertices")
         out += pack_vertices_xyz(tri)
+    return bytes(out)
+
+
+def pack_triangles_xyz_rgba(triangles):
+    out = bytearray()
+    for tri in triangles:
+        if not isinstance(tri, dict):
+            raise SystemExit("scene triangles_xyz_rgba entries must be objects")
+        verts = tri.get("vertices")
+        color = tri.get("color")
+        if not isinstance(verts, list) or len(verts) != 3:
+            raise SystemExit("scene triangles_xyz_rgba vertices must contain 3 points")
+        if color is None:
+            raise SystemExit("scene triangles_xyz_rgba entries must include color")
+        out += pack_vertices_xyz(verts)
+        out += color_rgba_bytes(color)
     return bytes(out)
 
 
@@ -161,7 +187,11 @@ def scene3d_bin_v0(scene_bytes):
             indices = b""
         elif kind == "triangles_rgba":
             kind_id = 3
-            payload = bytes(mesh["triangles"])
+            payload = (
+                pack_triangles_xyz_rgba(mesh["triangles_xyz_rgba"])
+                if mesh.get("triangles_xyz_rgba") is not None
+                else bytes(mesh["triangles"])
+            )
             indices = b""
         else:
             raise SystemExit(f"unsupported scene mesh kind: {kind}")

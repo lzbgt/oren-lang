@@ -49,9 +49,10 @@ ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime
 assets; `scene3d-asset-demo` derives a byte-native `.os3d` asset from the
 reviewable JSON source with `scripts/make_scene3d_bin_v0.py`, including
 scene-level camera depth metadata, named mesh/material references, model
-templates, instances, human-readable `position_xyz` model transforms, and
-human-readable `vertices_xyz` / `faces` coordinate arrays. The builder validates
-face indices, resolves that authoring form into compact numeric `.os3d` records,
+templates, instances, human-readable `position_xyz` model transforms,
+human-readable `vertices_xyz` / `faces` coordinate arrays, and per-triangle
+`triangles_xyz_rgba` colors. The builder validates face indices, resolves that
+authoring form into compact numeric `.os3d` records,
 the package declares a read-only `assets/` VFS mount, and OBC proves it can load
 retained UI scene metadata from package assets without JSON parsing in the hot
 path. `make verify-libavm-ios` also carries an SDK-local

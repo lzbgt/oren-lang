@@ -21,6 +21,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 4, 4, {"strict_bounds": true})
     if oren_is_err(buf) { fail(oren_err_msg(buf)) }
     if px(buf, 4, 1, 1, 1) != 255 { fail("scene pixel") }
+    if px(buf, 4, 2, 2, 0) != 255 { fail("scene rgba triangle pixel") }
     var rc = ui_avm.present_frame(cmds, 4, 4, {
         "sequence": 1,
         "scale_milli": 3000,

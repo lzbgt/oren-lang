@@ -10,6 +10,7 @@
 import list "std:list"
 import bytes "std:bytes"
 import json "std:json"
+import ui_color "std:ui/color"
 
 fn _is_int(v) {
     if v == nil { return false }
@@ -222,6 +223,42 @@ fn _pack_triangles_xyz(triangles, ctx) {
     return bytes.try_pack(out)
 }
 
+fn _push_rgba(out, color, ctx) {
+    var c = ui_color.try_parse_hex(color)
+    if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
+    list.push(out, c["r"])
+    list.push(out, c["g"])
+    list.push(out, c["b"])
+    list.push(out, c["a"])
+    return 0
+}
+
+fn _pack_triangles_xyz_rgba(triangles, ctx) {
+    if triangles == nil { return oren_err(4, ctx + ": missing triangles_xyz_rgba") }
+    var out = []
+    var i = 0
+    while i < oren_list_len(triangles) {
+        var tri = triangles[i]
+        var verts = tri["vertices"]
+        var color = tri["color"]
+        if verts == nil || color == nil { return oren_err(4, ctx + ": triangle must have vertices and color") }
+        if oren_list_len(verts) != 3 { return oren_err(4, ctx + ": triangle must have 3 vertices") }
+        var j = 0
+        while j < 3 {
+            var p = verts[j]
+            if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": triangle vertex must be [x,y,z]") }
+            var rc = _push_i32_le(out, p[0], ctx + ".x"); if oren_is_err(rc) { return rc }
+            rc = _push_i32_le(out, p[1], ctx + ".y"); if oren_is_err(rc) { return rc }
+            rc = _push_i32_le(out, p[2], ctx + ".z"); if oren_is_err(rc) { return rc }
+            j = j + 1
+        }
+        var cr = _push_rgba(out, color, ctx + ".color")
+        if oren_is_err(cr) { return cr }
+        i = i + 1
+    }
+    return bytes.try_pack(out)
+}
+
 fn _asset_mesh(m) {
     if m == nil { return oren_err(4, "ui.scene3d: mesh is nil") }
     var id = m["id"]
@@ -238,7 +275,12 @@ fn _asset_mesh(m) {
         return mesh(id, tris, m["color"])
     }
     if kind == "triangles_rgba" {
-        var tris_rgba = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles_rgba")
+        var tris_rgba = nil
+        if m["triangles_xyz_rgba"] != nil {
+            tris_rgba = _pack_triangles_xyz_rgba(m["triangles_xyz_rgba"], "ui.scene3d mesh.triangles_xyz_rgba")
+        } else {
+            tris_rgba = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles_rgba")
+        }
         if oren_is_err(tris_rgba) { return tris_rgba }
         return mesh_rgba(id, tris_rgba)
     }

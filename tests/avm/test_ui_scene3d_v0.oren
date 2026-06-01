@@ -157,6 +157,29 @@ fn main() {
     assert_true(oren_is_err(coord_buf) == false)
     assert_eq(_px(coord_buf, 4, 0, 0, 0), 255)
 
+    var from_rgba_coords = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles_rgba",
+                "id": 47,
+                "triangles_xyz_rgba": [
+                    {
+                        "vertices": [[1, 1, 0], [2, 1, 0], [1, 2, 0]],
+                        "color": "#0000ffff"
+                    }
+                ]
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 47}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_rgba_coords) == false)
+    assert_eq(from_rgba_coords[0]["op"], "mesh3d_rgba")
+    assert_true(ui_cmds.try_validate(from_rgba_coords, 4, 4, {"strict_bounds": true}) == 0)
+    var rgba_coord_buf = ui_raster.try_rasterize(from_rgba_coords, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(rgba_coord_buf) == false)
+    assert_eq(_px(rgba_coord_buf, 4, 1, 1, 2), 255)
+
     var bin = scene_binary(vertices, indices, true)
     assert_true(oren_is_err(bin) == false)
     var from_bin = scene3d.commands_from_binary(bin)
@@ -180,6 +203,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instances\":[{\"id\":1,\"template\":\"missing\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"indexed\",\"id\":1,\"vertices_xyz\":[[0,0,0]],\"faces\":[[0,1,2]],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"position_xyz\":[1,2]}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles_rgba\",\"id\":1,\"triangles_xyz_rgba\":[{\"vertices\":[[0,0,0],[1,0,0],[0,1,0]],\"color\":\"nope\"}]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands(nil)) == true)
     exit(0)
 }
