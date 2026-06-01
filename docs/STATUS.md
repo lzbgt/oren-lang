@@ -131,6 +131,10 @@ Facts from the 2026-05-28 implementation pass:
   remains for local bring-up. Publisher package/version/release writes also
   accept publisher-scoped bearer tokens limited to that publisher id, with JSON
   APIs for token rotation and revocation.
+  `scripts/deploy_obc_store_service.sh` now supports an opt-in systemd service
+  install/restart path, configurable loopback listen address for Traefik, and an
+  optional remote `/api/v0/health` probe; actual `store.hubstack.cn` deployment
+  still requires accepted SSH auth from the operator environment.
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
   install and package run from that endpoint. The release bundle format is

@@ -122,8 +122,14 @@ Remaining service work before deployment:
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
   cross-builds the Go binary, uploads external admin env values, and copies the
-  index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`;
-- deployment unit/Traefik route config and health smoke on `store.hubstack.cn`;
+  index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`. It can also
+  install/restart `oren-obc-store.service` when `OBC_STORE_INSTALL_SYSTEMD=1`,
+  bind the service to `OBC_STORE_LISTEN_ADDR` for the Traefik backend, and run a
+  remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`. Operators can inspect
+  the generated unit without SSH via
+  `scripts/deploy_obc_store_service.sh --print-systemd-unit`;
+- live deployment, Traefik route config, and public health smoke on
+  `store.hubstack.cn`;
   the cloud host Traefik layer owns automatic DNS and HTTPS certificate handling,
   so this repo should not manage TLS cert material;
 

@@ -4,6 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 usage: scripts/deploy_obc_store_service.sh
+       scripts/deploy_obc_store_service.sh --print-systemd-unit
 
 Deploys the OBC store Go service binary to a SSH host. This script does not
 create private keys and does not copy signing keys unless explicitly requested.
@@ -14,20 +15,83 @@ Required:
 Optional:
   OBC_STORE_REMOTE_DIR=/opt/oren/obc-store
   OBC_STORE_REMOTE_DATA_DIR=/srv/oren/obc-store
+  OBC_STORE_LISTEN_ADDR=127.0.0.1:8080
   OBC_STORE_ADMIN_ENV=../oren-ca/obc-store-admin.env
   OBC_STORE_ADMIN_TOKEN_SHA256_HEX=<sha256 hex of deploy bearer token>
   OBC_STORE_INDEX_SIGN_KEY_PEM=../oren-ca/private/store_oren-store-dev_p256.pem
   OBC_STORE_COPY_INDEX_SIGNING_KEY=1
   OBC_STORE_SSH_OPTS="-o BatchMode=yes"
+  OBC_STORE_INSTALL_SYSTEMD=1
+  OBC_STORE_SYSTEMD_SERVICE=oren-obc-store.service
+  OBC_STORE_SYSTEMD_SUDO="sudo -n"
+  OBC_STORE_REMOTE_HEALTHCHECK=1
+  OBC_STORE_REMOTE_HEALTH_URL=http://127.0.0.1:8080/api/v0/health
 
 The cloud host Traefik layer owns DNS and HTTPS for store.hubstack.cn. Configure
 its route to the service listener chosen by the host operator after deployment.
 USAGE
 }
 
+emit_systemd_unit() {
+  cat <<EOF
+[Unit]
+Description=Oren OBC Store Service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$remote_dir
+EnvironmentFile=$remote_dir/obc-store.env
+ExecStart=$remote_dir/obc-store-server -addr $listen_addr -data-dir $remote_data_dir
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=$remote_data_dir $remote_dir
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
+fi
+
+remote_dir="${OBC_STORE_REMOTE_DIR:-/opt/oren/obc-store}"
+remote_data_dir="${OBC_STORE_REMOTE_DATA_DIR:-/srv/oren/obc-store}"
+listen_addr="${OBC_STORE_LISTEN_ADDR:-127.0.0.1:8080}"
+admin_env="${OBC_STORE_ADMIN_ENV:-../oren-ca/obc-store-admin.env}"
+ssh_opts="${OBC_STORE_SSH_OPTS:-}"
+copy_index_key="${OBC_STORE_COPY_INDEX_SIGNING_KEY:-0}"
+index_key="${OBC_STORE_INDEX_SIGN_KEY_PEM:-}"
+install_systemd="${OBC_STORE_INSTALL_SYSTEMD:-0}"
+systemd_service="${OBC_STORE_SYSTEMD_SERVICE:-oren-obc-store.service}"
+systemd_sudo="${OBC_STORE_SYSTEMD_SUDO:-sudo -n}"
+remote_healthcheck="${OBC_STORE_REMOTE_HEALTHCHECK:-0}"
+remote_health_port="${listen_addr##*:}"
+if [[ -z "$remote_health_port" || "$remote_health_port" == "$listen_addr" ]]; then
+  remote_health_port="8080"
+fi
+remote_health_url="${OBC_STORE_REMOTE_HEALTH_URL:-http://127.0.0.1:$remote_health_port/api/v0/health}"
+
+if [[ "$systemd_service" != *.service || "$systemd_service" == */* ]]; then
+  echo "ERROR: OBC_STORE_SYSTEMD_SERVICE must be a bare *.service unit name" >&2
+  exit 2
+fi
+
+if [[ "${1:-}" == "--print-systemd-unit" ]]; then
+  emit_systemd_unit
+  exit 0
+fi
+if [[ -n "${1:-}" ]]; then
+  usage >&2
+  echo "ERROR: unsupported argument: $1" >&2
+  exit 2
 fi
 
 ssh_target="${OBC_STORE_SSH_TARGET:-}"
@@ -36,13 +100,6 @@ if [[ -z "$ssh_target" ]]; then
   echo "ERROR: OBC_STORE_SSH_TARGET is required" >&2
   exit 2
 fi
-
-remote_dir="${OBC_STORE_REMOTE_DIR:-/opt/oren/obc-store}"
-remote_data_dir="${OBC_STORE_REMOTE_DATA_DIR:-/srv/oren/obc-store}"
-admin_env="${OBC_STORE_ADMIN_ENV:-../oren-ca/obc-store-admin.env}"
-ssh_opts="${OBC_STORE_SSH_OPTS:-}"
-copy_index_key="${OBC_STORE_COPY_INDEX_SIGNING_KEY:-0}"
-index_key="${OBC_STORE_INDEX_SIGN_KEY_PEM:-}"
 
 if [[ ! -f "$admin_env" ]]; then
   echo "ERROR: missing admin env: $admin_env" >&2
@@ -104,13 +161,36 @@ env_tmp="$tmp_dir/obc-store.env"
 scp $ssh_opts "$env_tmp" "$ssh_target:$remote_dir/obc-store.env.new"
 ssh $ssh_opts "$ssh_target" "chmod 600 '$remote_dir/obc-store.env.new' && mv '$remote_dir/obc-store.env.new' '$remote_dir/obc-store.env'"
 
+if [[ "$install_systemd" == "1" ]]; then
+  unit_tmp="$tmp_dir/$systemd_service"
+  emit_systemd_unit > "$unit_tmp"
+  scp $ssh_opts "$unit_tmp" "$ssh_target:$remote_dir/$systemd_service.new"
+  ssh $ssh_opts "$ssh_target" "$systemd_sudo install -m 0644 '$remote_dir/$systemd_service.new' '/etc/systemd/system/$systemd_service' && rm -f '$remote_dir/$systemd_service.new' && $systemd_sudo systemctl daemon-reload && $systemd_sudo systemctl enable --now '$systemd_service' && $systemd_sudo systemctl restart '$systemd_service'"
+fi
+
+if [[ "$remote_healthcheck" == "1" ]]; then
+  ssh $ssh_opts "$ssh_target" "for i in 1 2 3 4 5; do curl -fsS '$remote_health_url' >/dev/null && exit 0; sleep 1; done; curl -fsS '$remote_health_url' >/dev/null"
+fi
+
 cat <<EOF
 OBC store binary deployed.
   target:    $ssh_target
   binary:    $remote_dir/obc-store-server
   env:       $remote_dir/obc-store.env
   data dir:  $remote_data_dir
+  listen:    $listen_addr
 
 Run command on host:
-  cd '$remote_dir' && set -a && . ./obc-store.env && set +a && ./obc-store-server -addr :8080 -data-dir '$remote_data_dir'
+  cd '$remote_dir' && set -a && . ./obc-store.env && set +a && ./obc-store-server -addr '$listen_addr' -data-dir '$remote_data_dir'
 EOF
+
+if [[ "$install_systemd" == "1" ]]; then
+  cat <<EOF
+
+Systemd service installed:
+  $systemd_service
+
+Traefik should route store.hubstack.cn to:
+  http://127.0.0.1:${listen_addr##*:}
+EOF
+fi
