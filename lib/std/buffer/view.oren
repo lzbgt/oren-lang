@@ -325,13 +325,11 @@ fn _try_view_copy_from_typed_buf(try_storef, is_viewf, kind_label, s, src, ctx, 
 }
 
 fn _try_u8_view_to_bytes(try_loadf, is_viewf, kind_label, s, ctx) {
-    var xs = _try_u8_view_unpack(try_loadf, is_viewf, kind_label, s, ctx)
-    if oren_is_err(xs) { return xs }
-    return bytesm.try_pack(xs)
+    return _try_u8_view_to_u8_buf(try_loadf, is_viewf, kind_label, s, ctx)
 }
 
-fn _try_u8_view_to_string(to_bytesf, s) {
-    var bs = to_bytesf(s)
+fn _try_u8_view_to_string(try_loadf, is_viewf, kind_label, s, ctx) {
+    var bs = _try_u8_view_to_u8_buf(try_loadf, is_viewf, kind_label, s, ctx)
     if oren_is_err(bs) { return bs }
     return bytesm.try_to_string(bs)
 }
@@ -388,7 +386,7 @@ fn try_strided_unpack_u8(s) { return _try_u8_view_unpack(try_strided_load_u8, _s
 fn strided_unpack_u8(s) { return try_strided_unpack_u8(s) }
 fn try_strided_to_u8_buf(s) { return _try_u8_view_to_u8_buf(try_strided_load_u8, _strided_is_list, "strided", s, "buffer.try_strided_to_u8_buf") }
 fn strided_to_u8_buf(s) { return try_strided_to_u8_buf(s) }
-fn try_strided_to_string(s) { return _try_u8_view_to_string(try_strided_to_bytes, s) }
+fn try_strided_to_string(s) { return _try_u8_view_to_string(try_strided_load_u8, _strided_is_list, "strided", s, "buffer.try_strided_to_string") }
 fn strided_to_string(s) { return try_strided_to_string(s) }
 fn try_strided_copy_from_bytes(s, bytes) { return _try_u8_view_copy_from_bytes(try_strided_store_u8, _strided_is_list, "strided", s, bytes, "buffer.try_strided_copy_from_bytes") }
 fn strided_copy_from_bytes(s, bytes) { return try_strided_copy_from_bytes(s, bytes) }
@@ -467,7 +465,7 @@ fn try_slice_unpack_u8(s) { return _try_u8_view_unpack(try_slice_load_u8, _slice
 fn slice_unpack_u8(s) { return try_slice_unpack_u8(s) }
 fn try_slice_to_u8_buf(s) { return _try_u8_view_to_u8_buf(try_slice_load_u8, _slice_is_list, "slice", s, "buffer.try_slice_to_u8_buf") }
 fn slice_to_u8_buf(s) { return try_slice_to_u8_buf(s) }
-fn try_slice_to_string(s) { return _try_u8_view_to_string(try_slice_to_bytes, s) }
+fn try_slice_to_string(s) { return _try_u8_view_to_string(try_slice_load_u8, _slice_is_list, "slice", s, "buffer.try_slice_to_string") }
 fn slice_to_string(s) { return try_slice_to_string(s) }
 fn try_slice_copy_from_bytes(s, bytes) { return _try_u8_view_copy_from_bytes(try_slice_store_u8, _slice_is_list, "slice", s, bytes, "buffer.try_slice_copy_from_bytes") }
 fn slice_copy_from_bytes(s, bytes) { return try_slice_copy_from_bytes(s, bytes) }

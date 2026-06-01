@@ -104,14 +104,15 @@ fn _store_f32_unchecked_direct(buf, idx, v: f64) {
 fn _store_f64_unchecked_direct(buf, idx, v: f64) {
     var data = oren_buf_data_ptr_unchecked(buf)
     var off = idx * 8
-    ptr_set_byte(data + off + 0, v & 255)
-    ptr_set_byte(data + off + 1, (v >> 8) & 255)
-    ptr_set_byte(data + off + 2, (v >> 16) & 255)
-    ptr_set_byte(data + off + 3, (v >> 24) & 255)
-    ptr_set_byte(data + off + 4, (v >> 32) & 255)
-    ptr_set_byte(data + off + 5, (v >> 40) & 255)
-    ptr_set_byte(data + off + 6, (v >> 48) & 255)
-    ptr_set_byte(data + off + 7, (v >> 56) & 255)
+    var bits = oren_f64_to_u64_bits(v)
+    ptr_set_byte(data + off + 0, bits & 255)
+    ptr_set_byte(data + off + 1, (bits >> 8) & 255)
+    ptr_set_byte(data + off + 2, (bits >> 16) & 255)
+    ptr_set_byte(data + off + 3, (bits >> 24) & 255)
+    ptr_set_byte(data + off + 4, (bits >> 32) & 255)
+    ptr_set_byte(data + off + 5, (bits >> 40) & 255)
+    ptr_set_byte(data + off + 6, (bits >> 48) & 255)
+    ptr_set_byte(data + off + 7, (bits >> 56) & 255)
     return buf
 }
 
@@ -395,9 +396,9 @@ fn u8_from_string(s) {
 }
 
 fn try_u8_to_string(buf: []u8) {
-    var xs = try_u8_unpack(buf)
-    if oren_is_err(xs) { return xs }
-    return oren_string_from_bytes(xs)
+    var n = oren_buf_len(buf)
+    if n == nil || oren_is_err(n) { return oren_err(4, "buffer.try_u8_to_string: buf must be []u8") }
+    return oren_string_from_bytes_slice(buf, 0, n)
 }
 
 fn u8_to_string(buf: []u8) {

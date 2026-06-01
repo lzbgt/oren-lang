@@ -352,9 +352,13 @@ Facts from the 2026-05-28 implementation pass:
   raw process/thread creation exposed to OBC.
 - AVM app-facing stdlib hot paths now prefer raw bytes: `std:ui/avm` has
   `text_bytes`, `std:net/avm` has `try_get_bytes`, and `std:bytes.to_string`
-  now uses direct byte-slice conversion instead of list materialization. Pure
-  Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via
-  indexed byte access instead of unpacking the whole message to a list. Further
+  now uses direct byte-slice conversion instead of list materialization. `std:buffer`
+  `[]u8` and u8 slice/strided view string/byte conversions now lower through
+  `u8_buf` byte slices instead of unpacking to Oren lists first. Pure Oren
+  SHA-1/SHA-256 now validate bytes in place and process virtual padding via
+  indexed byte access instead of unpacking the whole message to a list. The same
+  buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits
+  instead of truncating fractional values through integer byte writes. Further
   cleanup should keep text helpers explicit at API boundaries.
 - `lib/avm/avm.h` still exposes fixed global/frame/stack limits and rolling
   capability/budget fields.
