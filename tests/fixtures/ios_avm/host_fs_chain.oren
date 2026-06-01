@@ -1,0 +1,11 @@
+fn main() {
+    var s = oren_read_file("host/input.txt")
+    if oren_is_err(s) { oren_exit(70) }
+    if s != "host-in" { oren_exit(71) }
+    var w = oren_write_file("host/out.txt", "host-out:" + s)
+    if oren_is_err(w) { oren_exit(72) }
+    var b = oren_read_bytes("host/input.txt")
+    if oren_is_err(b) || oren_list_len(b) != 7 { oren_exit(73) }
+    oren_exit(9)
+}
+main()

@@ -1,0 +1,10 @@
+import events "std:avm/events"
+
+fn main() {
+    var ev = events.select([events.watch_cancel("stop")], 5000)
+    if oren_is_err(ev) { oren_exit(90) }
+    if ev == nil { oren_exit(91) }
+    if ev["kind"] != "cancel" || ev["id"] != "stop" || ev["source"] != "host" { oren_exit(92) }
+    oren_exit(9)
+}
+main()

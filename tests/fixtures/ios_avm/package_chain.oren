@@ -1,0 +1,8 @@
+fn main() {
+    var s = oren_read_file("assets/config.txt")
+    if oren_is_err(s) { oren_exit(95) }
+    if s != "pkg-asset" { oren_exit(96) }
+    print("pkg:" + s)
+    oren_exit(9)
+}
+main()

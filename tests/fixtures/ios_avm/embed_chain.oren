@@ -1,0 +1,201 @@
+import time "std:time"
+import net_avm "std:net/avm"
+import net_dns "std:net/avm/dns"
+import net_tcp "std:net/avm/tcp"
+import net_udp "std:net/avm/udp"
+import net_ws "std:net/avm/ws"
+import avm_events "std:avm/events"
+import ui_avm "std:ui/avm"
+import perm "std:avm/permission"
+import bytes "std:bytes"
+
+fn main() {
+    var args = oren_args()
+    if oren_list_len(args) != 5 { oren_exit(10) }
+    var s = oren_read_file("input.txt")
+    if oren_is_err(s) { oren_exit(11) }
+    if s != "abc" { oren_exit(12) }
+    var mounted = oren_read_file("assets/config.txt")
+    if oren_is_err(mounted) { oren_exit(54) }
+    if mounted != "mount-ok" { oren_exit(55) }
+    var w = oren_write_file("out.txt", args[1] + ":" + s)
+    if oren_is_err(w) { oren_exit(13) }
+    if oren_is_err(oren_write_file("export.txt", "export:" + mounted)) { oren_exit(56) }
+    var body = net_avm.try_get_bytes(args[2])
+    if oren_is_err(body) { oren_exit(14) }
+    if bytes.len(body) != 6 { oren_exit(14) }
+    if bytes.get_u8(body, 0) != 110 || bytes.get_u8(body, 5) != 107 { oren_exit(14) }
+    if args[3] != "session-none" {
+        var is_udp = false
+        if oren_string_len(args[3]) >= 6 && oren_string_slice(args[3], 0, 6) == "udp://" { is_udp = true }
+        var is_ws = false
+        if oren_string_len(args[3]) >= 5 && oren_string_slice(args[3], 0, 5) == "ws://" { is_ws = true }
+        var sid = nil
+        if is_ws {
+            sid = net_ws.connect_spec(args[3], 5000)
+        } else if is_udp {
+            sid = net_udp.connect_spec(args[3], 5000)
+        } else {
+            sid = net_tcp.connect_spec(args[3], 5000)
+        }
+        if oren_is_err(sid) { oren_exit(57) }
+        var first_ip = net_dns.resolve_first("localhost", 5000)
+        if oren_is_err(first_ip) || oren_string_len(first_ip) <= 0 { oren_exit(65) }
+        var pw = nil
+        if is_ws {
+            pw = net_ws.select(sid, net_ws.event_write(), 5000)
+        } else if is_udp {
+            pw = net_udp.select(sid, net_udp.event_write(), 5000)
+        } else {
+            pw = net_tcp.select(sid, net_tcp.event_write(), 5000)
+        }
+        if oren_is_err(pw) || pw == nil || pw["kind"] != "net" || (pw["ready"] & 2) == 0 { oren_exit(63) }
+        var wn = nil
+        if is_ws { wn = net_ws.send_text(sid, "ping", 5000) } else if is_udp { wn = net_udp.send(sid, "ping", 5000) } else { wn = net_tcp.write(sid, "ping", 5000) }
+        if is_ws && oren_is_err(wn) { oren_exit(66) }
+        if oren_is_err(wn) || wn != 4 { oren_exit(58) }
+        var pr = nil
+        if is_ws {
+            pr = net_ws.select(sid, net_ws.event_read(), 5000)
+        } else if is_udp {
+            pr = net_udp.select(sid, net_udp.event_read(), 5000)
+        } else {
+            pr = net_tcp.select(sid, net_tcp.event_read(), 5000)
+        }
+        if oren_is_err(pr) || pr == nil || pr["kind"] != "net" || (pr["ready"] & 1) == 0 { oren_exit(64) }
+        var rb = nil
+        if is_ws { rb = net_ws.recv_text(sid, 4, 5000) } else if is_udp { rb = net_udp.recv(sid, 4, 5000) } else { rb = net_tcp.read(sid, 4, 5000) }
+        if is_ws && oren_is_err(rb) { oren_exit(67) }
+        if oren_is_err(rb) { oren_exit(59) }
+        if is_ws {
+            if rb != "pong" { oren_exit(60) }
+        } else {
+            if bytes.to_string(rb) != "pong" { oren_exit(60) }
+        }
+        var cr = nil
+        if is_ws { cr = net_ws.close(sid) } else if is_udp { cr = net_udp.close(sid) } else { cr = net_tcp.close(sid) }
+        if oren_is_err(cr) || cr != 0 { oren_exit(61) }
+    }
+    if args[4] != "listen-none" {
+        var listener = net_tcp.listen_spec(args[4], 5000)
+        if oren_is_err(listener) { oren_exit(89) }
+        var lr = net_tcp.select(listener, net_tcp.event_read(), 5000)
+        if oren_is_err(lr) || lr == nil || lr["kind"] != "net" || (lr["ready"] & 1) == 0 { oren_exit(90) }
+        var child = net_tcp.accept(listener, 5000)
+        if oren_is_err(child) { oren_exit(91) }
+        var inb = net_tcp.read(child, 4, 5000)
+        if oren_is_err(inb) || bytes.to_string(inb) != "ping" { oren_exit(92) }
+        var outn = net_tcp.write(child, "pong", 5000)
+        if oren_is_err(outn) || outn != 4 { oren_exit(93) }
+        if net_tcp.close(child) != 0 { oren_exit(94) }
+        if net_tcp.close(listener) != 0 { oren_exit(95) }
+    }
+    print("stdout:" + bytes.to_string(body))
+    var sprite = bytes.pack([255, 0, 0, 255])
+    var label = bytes.pack([72, 105])
+    var sprite_batch = bytes.pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
+    ])
+    var poly_points = bytes.pack([
+        0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 1, 0, 0, 0,
+        3, 0, 0, 0, 2, 0, 0, 0
+    ])
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
+        {"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"},
+        {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 3, "y2": 2, "width": 1, "color": "#ff0000"},
+        {"op": "circle", "cx": 2, "cy": 1, "r": 1, "fill": true, "color": "#00ff00"},
+        {"op": "ellipse", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "fill": false, "color": "#00ffff"},
+        {"op": "polyline", "points": poly_points, "width": 1, "color": "#ffffff"},
+        {"op": "fill_triangle", "x1": 0, "y1": 2, "x2": 1, "y2": 1, "x3": 3, "y3": 2, "color": "#0000ff"},
+        {"op": "text_resource", "id": 2, "data": label, "color": "#ffffff"},
+        {"op": "draw_text", "id": 2, "x": 0, "y": 2},
+        {"op": "destroy_text", "id": 2},
+        {"op": "image_rgba", "id": 1, "w": 1, "h": 1, "data": sprite},
+        {"op": "draw_image", "id": 1, "x": 3, "y": 0, "w": 1, "h": 1},
+        {"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 1, "sh": 1, "x": 2, "y": 0, "w": 1, "h": 1},
+        {"op": "draw_image_rects", "id": 1, "rects": sprite_batch},
+        {"op": "destroy_image", "id": 1}
+    ]
+    var gr = ui_avm.present_frame(cmds, 4, 3, {
+        "strict_bounds": true,
+        "scale_milli": 3000,
+        "sequence": 7,
+        "drawable_w": 12,
+        "drawable_h": 9,
+        "target_hz_milli": 120000
+    })
+    if gr != 0 { oren_exit(19) }
+    var screen0 = ui_avm.screen0()
+    if screen0 == nil { oren_exit(62) }
+    if screen0["width"] != 4 || screen0["height"] != 3 || screen0["scale_milli"] != 3000 { oren_exit(63) }
+    if screen0["drawable_w"] != 12 || screen0["drawable_h"] != 9 || screen0["target_hz_milli"] != 120000 || screen0["flags"] != 5 { oren_exit(65) }
+    if ui_avm.screen_available(0) != true || ui_avm.screen(1) != nil { oren_exit(66) }
+    var ev_ready = avm_events.select_once([{"kind": "ui", "id": "input"}])
+    if oren_is_err(ev_ready) || ev_ready == nil || ev_ready["kind"] != "ui" || ev_ready["id"] != "input" { oren_exit(32) }
+    var ev = ev_ready["event"]
+    if ev["kind"] != "pointer" || ev["phase"] != "down" { oren_exit(33) }
+    if ev["x"] != 1 || ev["y"] != 2 || ev["pointer_id"] != 7 { oren_exit(34) }
+    var ev2 = ui_avm.next_event()
+    if ev2["kind"] != "pointer" || ev2["phase"] != "move" { oren_exit(35) }
+    if ev2["x"] != 2 || ev2["y"] != 3 || ev2["pointer_id"] != 7 { oren_exit(36) }
+    var ev3 = ui_avm.next_event()
+    if ev3["kind"] != "pointer" || ev3["phase"] != "up" { oren_exit(37) }
+    if ev3["x"] != 3 || ev3["y"] != 4 || ev3["pointer_id"] != 7 { oren_exit(38) }
+    var ev4 = ui_avm.next_event()
+    if ev4["kind"] != "resize" { oren_exit(39) }
+    if ev4["width"] != 4 || ev4["height"] != 3 || ev4["scale_milli"] != 3000 { oren_exit(40) }
+    var ev5 = ui_avm.next_event()
+    if ev5["kind"] != "media" { oren_exit(53) }
+    if ev5["width"] != 4 || ev5["height"] != 3 || ev5["scale_milli"] != 3000 { oren_exit(54) }
+    if ev5["drawable_w"] != 12 || ev5["drawable_h"] != 9 || ev5["target_hz_milli"] != 120000 || ev5["flags"] != 5 { oren_exit(55) }
+    var evtick = ui_avm.next_event()
+    if evtick["kind"] != "frame_tick" || evtick["sequence"] != 9 { oren_exit(67) }
+    if evtick["now_ns"] != 1000 || evtick["delta_ns"] != 16 || evtick["target_hz_milli"] != 120000 || evtick["flags"] != 5 { oren_exit(68) }
+    var ev6 = ui_avm.next_event()
+    if ev6["kind"] != "key" || ev6["phase"] != "down" { oren_exit(44) }
+    if ev6["key_code"] != 65 || ev6["modifiers"] != 1 { oren_exit(45) }
+    var ev7 = ui_avm.next_event()
+    if ev7["kind"] != "text" || ev7["text"] != "hi" { oren_exit(48) }
+    var ev8 = ui_avm.next_event()
+    if ev8["kind"] != "gamepad" || ev8["controller_id"] != 3 || ev8["buttons"] != 5 { oren_exit(99) }
+    if ev8["lx_milli"] != -1000 || ev8["ly_milli"] != 1000 || ev8["rx_milli"] != 0 || ev8["ry_milli"] != -250 { oren_exit(100) }
+    var ev9 = ui_avm.next_event()
+    if ev9["kind"] != "motion" || ev9["source_id"] != 2 || ev9["sequence"] != 7 || ev9["timestamp_ns"] != 1234 { oren_exit(101) }
+    if ev9["accel_x_milli"] != -10 || ev9["accel_y_milli"] != 20 || ev9["accel_z_milli"] != -30 { oren_exit(102) }
+    if ev9["gyro_x_milli"] != 40 || ev9["gyro_y_milli"] != -50 || ev9["gyro_z_milli"] != 60 { oren_exit(103) }
+    var ev10 = ui_avm.next_event()
+    if ev10["kind"] != "focus" || ev10["phase"] != "gained" || ev10["focus_id"] != 4 || ev10["flags"] != 1 { oren_exit(104) }
+    var ev11 = ui_avm.next_event()
+    if ev11["kind"] != "composition" || ev11["phase"] != "update" || ev11["text"] != "abc" { oren_exit(105) }
+    if ev11["selection_start"] != 1 || ev11["selection_end"] != 2 { oren_exit(106) }
+    if ui_avm.next_event() != nil { oren_exit(52) }
+    var fs_ev = avm_events.select_once([avm_events.watch_fs("fs0")])
+    if fs_ev == nil || fs_ev["kind"] != "fs" || fs_ev["id"] != "fs0" || fs_ev["action"] != "write" || fs_ev["detail"] != "host/out.txt" || fs_ev["flags"] != 7 || fs_ev["source"] != "host" { oren_exit(96) }
+    var pkg_ev = avm_events.select_once([avm_events.watch_package("pkg0")])
+    if pkg_ev == nil || pkg_ev["kind"] != "package" || pkg_ev["id"] != "pkg0" || pkg_ev["action"] != "installed" || pkg_ev["detail"] != "oren-labs/sdk-package-smoke/0.1.0" { oren_exit(97) }
+    if avm_events.select_once([{"kind": "package", "action": "installed"}]) != nil { oren_exit(98) }
+    var gr2 = ui_avm.present_frame(cmds, 4, 3, {
+        "strict_bounds": true,
+        "scale_milli": 4000,
+        "sequence": 8,
+        "drawable_w": 16,
+        "drawable_h": 12,
+        "target_hz_milli": 90000
+    })
+    if gr2 != 0 { oren_exit(57) }
+    var rc1 = oren_system("probe-ok")
+    if rc1 != 21 { oren_exit(15) }
+    var rc2 = oren_system("missing-proc")
+    if rc2 != 44 { oren_exit(16) }
+    var t0 = time.now_ns()
+    var sr = time.sleep_ms(25)
+    if sr != 0 { oren_exit(17) }
+    if time.now_unix_ns() < t0 { oren_exit(18) }
+    var pr = perm.request_net("connect", args[3])
+    if oren_is_err(pr) || pr <= 0 { oren_exit(62) }
+    oren_exit(9)
+}
+main()

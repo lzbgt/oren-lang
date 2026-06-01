@@ -71,6 +71,11 @@
 <p>  GFX/input, package store, trust bundle, permission grant persistence, and</p>
 <p>  compiler-in-AVM smoke paths through <code>make verify-libavm-ios</code>.</p>
 <ul>
+<li>The main iOS verifier keeps reusable OBC smoke sources under</li>
+</ul>
+<p>  <code>tests/fixtures/ios_avm/</code> instead of embedding large heredocs, preserving</p>
+<p>  line-guardrail headroom for more GUI/Metal gates.</p>
+<ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>
 <p>  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,</p>
