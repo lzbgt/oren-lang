@@ -1,0 +1,68 @@
+// AVM headless UI test: std:ui/scene3d retained scene helpers.
+
+import scene3d "std:ui/scene3d"
+import ui_cmds "std:ui/commands"
+import ui_raster "std:ui/raster"
+import bytes "std:bytes"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn _px(buf, w, x, y, chan) {
+    return oren_bytes_get_u8(buf, (y * w + x) * 4 + chan)
+}
+
+fn main() {
+    var vertices = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+    ])
+    assert_true(oren_is_err(vertices) == false)
+    var indices = bytes.try_pack([
+        0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
+    ])
+    assert_true(oren_is_err(indices) == false)
+    var scene = {
+        "meshes": [scene3d.mesh_indexed(7, vertices, indices, "#3366ff")],
+        "materials": [scene3d.material(8, "#ffff00")],
+        "models": [scene3d.model(9, 7, 8, 1, 1, 0, 1000)],
+        "draw": [9],
+        "destroy": true
+    }
+    var cmds = scene3d.commands(scene)
+    assert_true(oren_is_err(cmds) == false)
+    assert_eq(oren_list_len(cmds), 7)
+    assert_eq(cmds[0]["op"], "mesh3d_indexed")
+    assert_eq(cmds[2]["op"], "model3d")
+    assert_eq(cmds[3]["op"], "draw_model3d")
+    assert_eq(cmds[4]["op"], "destroy_model3d")
+    assert_true(ui_cmds.try_validate(cmds, 4, 4, {"strict_bounds": true}) == 0)
+    var buf = ui_raster.try_rasterize(cmds, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(buf) == false)
+    assert_eq(_px(buf, 4, 1, 1, 0), 255)
+    assert_eq(_px(buf, 4, 1, 1, 1), 255)
+    assert_eq(_px(buf, 4, 1, 1, 2), 0)
+
+    var direct = scene3d.commands({"models": [scene3d.model_default(2, 7)], "draw": [scene3d.draw_model(2)]})
+    assert_true(oren_is_err(direct) == false)
+    assert_eq(direct[0]["material_id"], 0)
+    assert_eq(direct[1]["op"], "draw_model3d")
+    assert_true(oren_is_err(scene3d.commands(nil)) == true)
+    exit(0)
+}
+
+main()

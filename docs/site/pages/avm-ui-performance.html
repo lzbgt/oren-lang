@@ -316,6 +316,11 @@
 <p>  color), and model transform; <code>draw_model3d {id}</code> draws by model handle and</p>
 <p>  <code>destroy_model3d {id}</code> releases the virtual model handle;</p>
 <ul>
+<li><code>std:ui/scene3d</code> is a pure OBC-side helper layer that builds ordered retained</li>
+</ul>
+<p>  mesh/material/model command lists from ordinary maps/lists before</p>
+<p>  <code>std:ui/avm</code> encodes them into OGF0;</p>
+<ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>
 <p>  and <code>pop_camera</code> bound subsequent retained 3D draws to an inclusive transformed-Z</p>
@@ -515,6 +520,11 @@
 </ol>
 <p>    <code>destroy_model3d</code>) so OBC can draw a mesh/material/transform tuple by</p>
 <p>    handle instead of resending transform/material fields every frame.</p>
+<ol>
+<li>Done: add <code>std:ui/scene3d</code> retained-scene command builders and an AVM</li>
+</ol>
+<p>    raster fixture so OBC packages can construct model scenes without host</p>
+<p>    objects or hand-written low-level command ordering.</p>
 <ol>
 <li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
 </ol>

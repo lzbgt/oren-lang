@@ -307,6 +307,15 @@
         "if ui_avm.screen_available(0) != false { fail(71) }",
         "if ui_avm.present_frame(cmds, 2, 2, {\"strict_bounds\": true, \"sequence\": 1}) != 0 { fail(70) }"
       ]
+    },
+    {
+      "module": "std:ui/scene3d",
+      "alias": "ui_scene3d",
+      "probes": [
+        "var scene_cmds = ui_scene3d.commands({\"models\": [ui_scene3d.model_default(1, 2)], \"draw\": [1]})",
+        "if oren_is_err(scene_cmds) || oren_list_len(scene_cmds) != 2 { fail(97) }",
+        "if scene_cmds[0][\"op\"] != \"model3d\" || scene_cmds[1][\"op\"] != \"draw_model3d\" { fail(98) }"
+      ]
     }
   ],
   "host_only_exclusions": [

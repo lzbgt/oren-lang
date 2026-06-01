@@ -1,0 +1,121 @@
+// std:ui/scene3d (rolling)
+//
+// Small retained-3D scene helpers for the AVM UI command protocol.
+//
+// This module stays host-neutral: it returns ordinary `std:ui` command maps.
+// `std:ui/avm` encodes them into OGF0 bytes and host SDK renderers map them to
+// CoreGraphics/Metal. The v0 scene shape is intentionally simple so OBC packages
+// can bundle scene metadata without depending on host objects.
+
+import list "std:list"
+
+fn _is_int(v) {
+    if v == nil { return false }
+    return oren_type_tag(v) == 1
+}
+
+fn mesh(id, triangles, color) {
+    return {"op": "mesh3d", "id": id, "triangles": triangles, "color": color}
+}
+
+fn mesh_rgba(id, triangles) {
+    return {"op": "mesh3d_rgba", "id": id, "triangles": triangles}
+}
+
+fn mesh_indexed(id, vertices, indices, color) {
+    return {"op": "mesh3d_indexed", "id": id, "vertices": vertices, "indices": indices, "color": color}
+}
+
+fn material(id, color) {
+    return {"op": "material3d", "id": id, "color": color}
+}
+
+fn model(id, mesh_id, material_id, x, y, z, scale_milli) {
+    if material_id == nil { material_id = 0 }
+    return {
+        "op": "model3d",
+        "id": id,
+        "mesh_id": mesh_id,
+        "material_id": material_id,
+        "x": x,
+        "y": y,
+        "z": z,
+        "scale_milli": scale_milli
+    }
+}
+
+fn model_default(id, mesh_id) {
+    return model(id, mesh_id, 0, 0, 0, 0, 1000)
+}
+
+fn draw_model(id) {
+    return {"op": "draw_model3d", "id": id}
+}
+
+fn destroy_model(id) {
+    return {"op": "destroy_model3d", "id": id}
+}
+
+fn destroy_mesh(id) {
+    return {"op": "destroy_mesh3d", "id": id}
+}
+
+fn destroy_material(id) {
+    return {"op": "destroy_material3d", "id": id}
+}
+
+fn _push_all(out, xs) {
+    if xs == nil { return 0 }
+    var i = 0
+    while i < oren_list_len(xs) {
+        list.push(out, xs[i])
+        i = i + 1
+    }
+    return 0
+}
+
+fn _push_draws(out, xs) {
+    if xs == nil { return 0 }
+    var i = 0
+    while i < oren_list_len(xs) {
+        var d = xs[i]
+        if _is_int(d) {
+            list.push(out, draw_model(d))
+        } else {
+            list.push(out, d)
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn _push_destroy(out, xs, destroy_fn) {
+    if xs == nil { return 0 }
+    var i = oren_list_len(xs) - 1
+    while i >= 0 {
+        var item = xs[i]
+        var id = item
+        if _is_int(item) == false && item["id"] != nil { id = item["id"] }
+        list.push(out, destroy_fn(id))
+        i = i - 1
+    }
+    return 0
+}
+
+fn commands(scene) {
+    if scene == nil { return oren_err(4, "ui.scene3d.commands: scene is nil") }
+    var out = []
+    var meshes = scene["meshes"]
+    var materials = scene["materials"]
+    var models = scene["models"]
+    _push_all(out, meshes)
+    _push_all(out, materials)
+    _push_all(out, models)
+    _push_draws(out, scene["draw"])
+    if scene["destroy"] != nil && scene["destroy"] != 0 {
+        _push_destroy(out, models, destroy_model)
+        _push_destroy(out, materials, destroy_material)
+        _push_destroy(out, meshes, destroy_mesh)
+    }
+    return out
+}

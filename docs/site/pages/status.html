@@ -388,8 +388,9 @@
 <p>  Bidirectional UI is a hard requirement for</p>
 <p>  game-level OBC packages: OBC must publish frames and consume host-originated input</p>
 <p>  through the same virtual protocol, while the host owns platform event APIs and</p>
-<p>  rendering devices. Remaining game-grade work is broader 3D SDK conformance and</p>
-<p>  higher-level scene/model package loading. The next GUI contract is</p>
+<p>  rendering devices. <code>std:ui/scene3d</code> now provides pure OBC-side builders for</p>
+<p>  retained mesh/material/model scene command lists. Remaining game-grade work is</p>
+<p>  broader 3D SDK conformance and package-scene asset loading. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>
 <p>  and Metal/<code>MTKView</code> conformance gates are documented in</p>
