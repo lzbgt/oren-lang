@@ -129,6 +129,21 @@ fn main() {
     assert_true(oren_is_err(r5f))
     assert_true(oren_err_code(r5f) == 4)
 
+    var bad_mesh3d_rgba = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        86, 0, 48, 0,
+        4, 0, 0, 0, 2, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
+        255, 0, 0, 255
+    ])
+    var r5g = ui_avm.present_bytes(bad_mesh3d_rgba)
+    assert_true(oren_is_err(r5g))
+    assert_true(oren_err_code(r5g) == 4)
+
     var bad_round_rect = bytes.try_pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 4, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,

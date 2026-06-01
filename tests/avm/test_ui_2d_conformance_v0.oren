@@ -54,6 +54,17 @@ fn main() {
         1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(triangles3d) == false)
+    var triangles3d_depth = bytes.try_pack([
+        4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
+        5, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        0, 255, 0, 255,
+        4, 0, 0, 0, 4, 0, 0, 0, 9, 0, 0, 0,
+        5, 0, 0, 0, 4, 0, 0, 0, 9, 0, 0, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0,
+        255, 0, 0, 255
+    ])
+    assert_true(oren_is_err(triangles3d_depth) == false)
     var rects = bytes.try_pack([
         0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
@@ -81,6 +92,9 @@ fn main() {
         {"op": "mesh3d", "id": 12, "triangles": triangles3d, "color": "#8040ff"},
         {"op": "draw_mesh3d", "id": 12},
         {"op": "destroy_mesh3d", "id": 12},
+        {"op": "mesh3d_rgba", "id": 13, "triangles": triangles3d_depth},
+        {"op": "draw_mesh3d", "id": 13},
+        {"op": "destroy_mesh3d", "id": 13},
         {"op": "text_bytes", "x": 3, "y": 4, "data": text_bytes_data, "color": "#ff00ff"},
         {"op": "text_resource", "id": 10, "data": text_data, "color": "#00ffff"},
         {"op": "draw_text", "id": 10, "x": 2, "y": 1},
@@ -102,7 +116,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "800569549a8cf76e5d731f951d44b8f97bb5ea584e0a296f82b15c4f3c48a2cd")
+    assert_eq(got, "5534ee51ac140d505707b3d00b8653ef2837e39a3bb7cd78ebbd93dc4b5462c1")
     exit(0)
 }
 

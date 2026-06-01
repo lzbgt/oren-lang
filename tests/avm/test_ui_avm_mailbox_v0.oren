@@ -216,6 +216,32 @@ fn main() {
         85, 0, 4, 0,
         4, 0, 0, 0
     ])
+    var triangle3d_rgba = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
+        1, 2, 3, 255
+    ])
+    var mesh3d_rgba_frame = ui_avm.frame_bytes([
+        {"op": "mesh3d_rgba", "id": 5, "triangles": triangle3d_rgba},
+        {"op": "draw_mesh3d", "id": 5},
+        {"op": "destroy_mesh3d", "id": 5}
+    ], 4, 3, {"strict_bounds": true})
+    assert_bytes_eq(mesh3d_rgba_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        86, 0, 48, 0,
+        5, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
+        1, 2, 3, 255,
+        84, 0, 4, 0,
+        5, 0, 0, 0,
+        85, 0, 4, 0,
+        5, 0, 0, 0
+    ])
 
     var text_data = bytes.try_pack([65, 66])
     var text_frame = ui_avm.frame_bytes([{"op": "text_bytes", "x": 1, "y": 0, "data": text_data, "color": "#ffffff"}], 4, 1, {"strict_bounds": true})

@@ -134,6 +134,32 @@ fn test_raster_shapes() {
     assert_eq(_px(buf, 5, 4, 4, 2), 255)
 }
 
+fn test_raster_mesh3d_depth() {
+    // Two identical projected triangles: green z=0 should be nearer than red z=9
+    // even though green appears first in the byte payload.
+    var tris = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        0, 255, 0, 255,
+        0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 9, 0, 0, 0,
+        255, 0, 0, 255
+    ])
+    assert_true(oren_is_err(tris) == false)
+    var cmds = [
+        {"op": "mesh3d_rgba", "id": 20, "triangles": tris},
+        {"op": "draw_mesh3d", "id": 20},
+        {"op": "destroy_mesh3d", "id": 20}
+    ]
+    var buf = ui_raster.try_rasterize(cmds, 3, 3, {"strict_bounds": true})
+    assert_true(oren_is_err(buf) == false)
+    assert_eq(_px(buf, 3, 0, 0, 0), 0)
+    assert_eq(_px(buf, 3, 0, 0, 1), 255)
+    assert_eq(_px(buf, 3, 0, 0, 3), 255)
+}
+
 fn test_raster_text_bytes() {
     var data = bytes.try_pack([65, 66, 67])
     assert_true(oren_is_err(data) == false)
@@ -188,6 +214,7 @@ fn main() {
     test_raster_simple()
     test_raster_err_context()
     test_raster_shapes()
+    test_raster_mesh3d_depth()
     test_raster_text_bytes()
     test_raster_image()
     exit(0)

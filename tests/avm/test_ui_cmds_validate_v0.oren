@@ -100,6 +100,16 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d", "id": 8, "triangles": bad_tris, "color": "#ff00ff"}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d", "id": 0}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh3d", "id": 0}], 4, 3, nil)) == true)
+    var tris3d_rgba = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
+        255, 0, 255, 255
+    ])
+    assert_true(oren_is_err(tris3d_rgba) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 9, "triangles": tris3d_rgba}], 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 0, "triangles": tris3d_rgba}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 9, "triangles": bad_tris}], 4, 3, nil)) == true)
 }
 
 fn test_validate_clip_stack() {

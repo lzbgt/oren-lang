@@ -229,6 +229,17 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d handle payload");
                 return 0;
             }
+        } else if (opcode == 86u) {
+            if (payload_len < 48u || ((payload_len - 8u) % 40u) != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d_rgba payload");
+                return 0;
+            }
+            uint32_t triangle_count = avm_gfx_u32le(payload + 4);
+            if (avm_gfx_u32le(payload) == 0u || triangle_count == 0u ||
+                triangle_count != ((uint32_t)payload_len - 8u) / 40u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d_rgba count");
+                return 0;
+            }
         } else if (opcode == 6u) {
             if (payload_len != 24u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad stroke_rect payload");

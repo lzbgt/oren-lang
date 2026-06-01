@@ -29,6 +29,12 @@ static uint32_t OrenAVMGfxReadU32LE(const uint8_t* p) {
         ((uint32_t)p[3] << 24);
 }
 
+static int64_t OrenAVMGfxMesh3DZSum(const uint8_t* tri) {
+    return (int64_t)(int32_t)OrenAVMGfxReadU32LE(tri + 8) +
+        (int64_t)(int32_t)OrenAVMGfxReadU32LE(tri + 20) +
+        (int64_t)(int32_t)OrenAVMGfxReadU32LE(tri + 32);
+}
+
 static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     return [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
                            green:(CGFloat)rgba[1] / 255.0
@@ -503,10 +509,30 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             NSNumber* count = mesh[@"count"];
             NSNumber* stride = mesh[@"stride"];
             const uint8_t* tris = triangles.bytes;
-            if (color && tris && stride.unsignedIntValue == 36u && count.unsignedIntValue == triangles.length / 36u) {
-                CGContextSetFillColorWithColor(ctx, color.CGColor);
-                for (uint32_t ti = 0; ti < count.unsignedIntValue; ti++) {
-                    const uint8_t* tri = tris + ((size_t)ti * 36u);
+            uint32_t meshStride = stride.unsignedIntValue;
+            uint32_t triangleCount = count.unsignedIntValue;
+            if (tris && (meshStride == 36u || meshStride == 40u) && triangleCount == triangles.length / meshStride) {
+                NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:triangleCount];
+                for (uint32_t di = 0; di < triangleCount; di++) {
+                    uint32_t best = 0;
+                    BOOL found = NO;
+                    int64_t bestZ = -9223372036854775807LL;
+                    for (uint32_t ti = 0; ti < triangleCount; ti++) {
+                        NSNumber* key = @(ti);
+                        if ([drawn containsObject:key]) continue;
+                        int64_t z = OrenAVMGfxMesh3DZSum(tris + ((size_t)ti * meshStride));
+                        if (!found || z > bestZ) {
+                            best = ti;
+                            bestZ = z;
+                            found = YES;
+                        }
+                    }
+                    if (!found) break;
+                    [drawn addObject:@(best)];
+                    const uint8_t* tri = tris + ((size_t)best * meshStride);
+                    UIColor* drawColor = meshStride == 40u ? OrenAVMGfxColor(tri + 36) : color;
+                    if (!drawColor) continue;
+                    CGContextSetFillColorWithColor(ctx, drawColor.CGColor);
                     CGContextBeginPath(ctx);
                     CGContextMoveToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 4));
                     CGContextAddLineToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 12), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 16));
@@ -517,6 +543,15 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             }
         } else if (opcode == 85 && payloadLen == 4) {
             [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
+        } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
+            uint32_t meshID = OrenAVMGfxReadU32LE(payload);
+            uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 4);
+            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
+                NSData* triangles = [NSData dataWithBytes:payload + 8 length:(NSUInteger)payloadLen - 8u];
+                self.orenMeshes[@(meshID)] = @{@"triangles": triangles,
+                                               @"count": @(triangleCount),
+                                               @"stride": @40};
+            }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);

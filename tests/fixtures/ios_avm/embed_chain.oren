@@ -119,6 +119,12 @@ fn main() {
         3, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
     ])
+    var triangle3d_rgba = bytes.pack([
+        0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
+        128, 64, 255, 255
+    ])
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 2, "color": "#102030"},
         {"op": "push_translate", "dx": 1, "dy": 0},
@@ -142,6 +148,9 @@ fn main() {
         {"op": "mesh3d", "id": 4, "triangles": triangle3d, "color": "#8040ff"},
         {"op": "draw_mesh3d", "id": 4},
         {"op": "destroy_mesh3d", "id": 4},
+        {"op": "mesh3d_rgba", "id": 5, "triangles": triangle3d_rgba},
+        {"op": "draw_mesh3d", "id": 5},
+        {"op": "destroy_mesh3d", "id": 5},
         {"op": "pop_clip"},
         {"op": "text_resource", "id": 2, "data": label, "color": "#ffffff"},
         {"op": "draw_text", "id": 2, "x": 0, "y": 2},

@@ -313,6 +313,28 @@ fn validate(cmds, w, h, opts) {
                     m3off = m3off + 36
                 }
             }
+        } else if op == "mesh3d_rgba" {
+            var m3rid = c["id"]; var m3rtris = c["triangles"]
+            if _is_int(m3rid) == false || m3rid < 1 { return oren_err(4, "ui.validate: mesh3d_rgba invalid id") }
+            var m3rtris_len = bytes.try_len(m3rtris)
+            if oren_is_err(m3rtris_len) { return oren_err(4, "ui.validate: mesh3d_rgba expects byte triangles") }
+            if m3rtris_len == 0 || m3rtris_len > 65520 || m3rtris_len % 40 != 0 { return oren_err(4, "ui.validate: mesh3d_rgba invalid triangle bytes") }
+            if strict {
+                var m3roff = 0
+                while m3roff < m3rtris_len {
+                    var m3rvi = 0
+                    while m3rvi < 3 {
+                        var m3rx = bytes.try_get_i32_le(m3rtris, m3roff + m3rvi * 12)
+                        var m3ry = bytes.try_get_i32_le(m3rtris, m3roff + m3rvi * 12 + 4)
+                        var m3rz = bytes.try_get_i32_le(m3rtris, m3roff + m3rvi * 12 + 8)
+                        if oren_is_err(m3rx) || oren_is_err(m3ry) || oren_is_err(m3rz) { return oren_err(4, "ui.validate: mesh3d_rgba malformed vertex") }
+                        var m3rx_t = m3rx + tx; var m3ry_t = m3ry + ty
+                        if m3rx_t < 0 || m3ry_t < 0 || m3rx_t >= w || m3ry_t >= h { return oren_err(4, "ui.validate: mesh3d_rgba projected out of bounds") }
+                        m3rvi = m3rvi + 1
+                    }
+                    m3roff = m3roff + 40
+                }
+            }
         } else if op == "draw_mesh3d" {
             var dm3id = c["id"]
             if _is_int(dm3id) == false || dm3id < 1 { return oren_err(4, "ui.validate: draw_mesh3d invalid id") }

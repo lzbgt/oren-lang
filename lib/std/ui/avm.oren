@@ -263,6 +263,16 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, mesh3d_tris_n / 36)
         return _append_bytes(out, mesh3d_tris)
     }
+    if op == "mesh3d_rgba" {
+        var mesh3d_rgba_tris = c["triangles"]
+        var mesh3d_rgba_n = bytes.try_len(mesh3d_rgba_tris)
+        if oren_is_err(mesh3d_rgba_n) { return mesh3d_rgba_n }
+        if mesh3d_rgba_n == 0 || mesh3d_rgba_n > 65520 || mesh3d_rgba_n % 40 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_rgba invalid triangle bytes") }
+        _push_op_header(out, 86, 8 + mesh3d_rgba_n)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, mesh3d_rgba_n / 40)
+        return _append_bytes(out, mesh3d_rgba_tris)
+    }
     if op == "draw_mesh3d" {
         _push_op_header(out, 84, 4)
         _push_u32_le(out, c["id"])

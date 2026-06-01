@@ -272,7 +272,7 @@ Facts from the 2026-05-28 implementation pass:
   `push_opacity`/`pop_opacity`/`text`/`text_bytes`/`text_resource`/
   `draw_text`/`draw_texts`/`destroy_text`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/
   `polyline`/`fill_triangle`/`fill_triangles`/`mesh2d`/`draw_mesh2d`/`destroy_mesh2d`/
-  `mesh3d`/`draw_mesh3d`/`destroy_mesh3d`/`image_rgba`/`draw_image`/`destroy_image`/
+  `mesh3d`/`mesh3d_rgba`/`draw_mesh3d`/`destroy_mesh3d`/`image_rgba`/`draw_image`/`destroy_image`/
   `draw_image_rect`/`draw_image_rects` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
   events with logical size, native drawable size, device scale, target refresh,
@@ -281,7 +281,7 @@ Facts from the 2026-05-28 implementation pass:
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/
   clip-stack/translation-stack/opacity-stack/stroke-line/stroke-rect/round-rect/circle/
-  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, retained RGBA image upload/draw/
+  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, per-triangle RGBA payloads, and deterministic painter-depth ordering, retained RGBA image upload/draw/
   destroy/sub-rect and batched atlas records, and byte-native/retained text
   payloads through Metal pipelines. Its `targetHzMilli` setting
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
@@ -312,7 +312,7 @@ Facts from the 2026-05-28 implementation pass:
   `project-doc/avm_ui_render_performance_design_20260531.md`.
   The AVM release manifest also includes a whole-frame 2D/3D-projection raster conformance hash
 	  covering geometry including `stroke_rect`, `round_rect`, `ellipse`, `polyline`, clip and translation stacks, retained text, retained images, atlas sub-rects, batched
-	  sprites, retained 2D meshes, retained 3D meshes through orthographic projection, and draw ordering in one scene.
+	  sprites, retained 2D meshes, retained 3D meshes through orthographic projection and painter-depth ordering, and draw ordering in one scene.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;
