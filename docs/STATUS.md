@@ -316,8 +316,9 @@ Facts from the 2026-05-28 implementation pass:
   retained mesh/material/model scene command lists and can load JSON or
   byte-native `.os3d` scene assets from package-mounted VirtualFS paths,
   including scene-level camera depth windows. Reviewable JSON scene assets can
-  now use named mesh/material/model references plus model templates and
-  instances, per-draw model/material/transform override objects that lower to
+	  now use named mesh/material/model references plus model templates,
+	  instances, grouped instances with parent transform composition, and
+	  per-draw model/material/transform override objects that lower to
   generated retained models, human-readable `position_xyz` or nested `transform` records,
   human-readable
   `vertices_xyz` / `faces` coordinate arrays, and per-triangle

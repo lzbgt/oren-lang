@@ -40,8 +40,15 @@
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instances": [
-    {"id": 33, "name": "card", "template": "card-template", "transform": {"position_xyz": [1, 1, 0]}},
-    {"id": 35, "name": "accent", "mesh": "accent-mesh", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+    {"id": 33, "name": "card", "template": "card-template", "transform": {"position_xyz": [1, 1, 0]}}
+  ],
+  "instance_groups": [
+    {
+      "transform": {"position_xyz": [-1, 0, 0], "scale_milli": 1000},
+      "instances": [
+        {"id": 35, "name": "accent", "mesh": "accent-mesh", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+      ]
+    }
   ],
   "animations": [
     {

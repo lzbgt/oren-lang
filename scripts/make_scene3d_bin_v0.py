@@ -148,6 +148,35 @@ def apply_transform(model):
         raise SystemExit("scene scale_milli must be positive")
 
 
+def normalize_instance(inst, templates, mesh_names, material_names):
+    tpl = templates.get(inst.get("template"), {})
+    if inst.get("template") is not None and not tpl:
+        raise SystemExit(f"unknown scene template: {inst.get('template')!r}")
+    m = dict(tpl)
+    m.update(inst)
+    m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
+    m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
+    apply_transform(m)
+    return m
+
+
+def compose_group_model(model, group):
+    g = dict(group)
+    apply_transform(g)
+    gx = int(g.get("x", 0))
+    gy = int(g.get("y", 0))
+    gz = int(g.get("z", 0))
+    gscale = int(g.get("scale_milli", 1000))
+    scale = (int(model.get("scale_milli", 1000)) * gscale) // 1000
+    if scale <= 0:
+        raise SystemExit("scene instance_group composed scale_milli must be positive")
+    model["x"] = gx + (int(model.get("x", 0)) * gscale) // 1000
+    model["y"] = gy + (int(model.get("y", 0)) * gscale) // 1000
+    model["z"] = gz + (int(model.get("z", 0)) * gscale) // 1000
+    model["scale_milli"] = scale
+    return model
+
+
 def lerp_int(a, b, num, den):
     if den <= 0:
         return int(a)
@@ -275,15 +304,17 @@ def normalize_scene(scene):
         models.append(m)
 
     for inst in scene.get("instances", []):
-        tpl = templates.get(inst.get("template"), {})
-        if inst.get("template") is not None and not tpl:
-            raise SystemExit(f"unknown scene template: {inst.get('template')!r}")
-        m = dict(tpl)
-        m.update(inst)
-        m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
-        m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
-        apply_transform(m)
-        models.append(m)
+        models.append(normalize_instance(inst, templates, mesh_names, material_names))
+
+    for group in scene.get("instance_groups", []):
+        instances = group.get("instances")
+        if not isinstance(instances, list):
+            raise SystemExit("scene instance_group must contain instances")
+        for inst in instances:
+            models.append(compose_group_model(
+                normalize_instance(inst, templates, mesh_names, material_names),
+                group,
+            ))
 
     if scene.get("animations") is not None:
         apply_animations(models, scene.get("animations"), int(scene.get("sample_time_milli", 0)))

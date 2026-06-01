@@ -425,6 +425,23 @@ fn _asset_instance(inst, templates, mesh_names, material_names) {
     return _asset_model(m, mesh_names, material_names)
 }
 
+fn _compose_group_model(m, gx, gy, gz, gscale, ctx) {
+    var x = m["x"]
+    var y = m["y"]
+    var z = m["z"]
+    var scale = m["scale_milli"]
+    if _is_int(x) == false || _is_int(y) == false || _is_int(z) == false || _is_int(scale) == false {
+        return oren_err(4, ctx + ": model transform must be integer")
+    }
+    var out_scale = (scale * gscale) / 1000
+    if out_scale <= 0 { return oren_err(4, ctx + ": composed scale_milli must be positive") }
+    oren_map_set_str(m, "x", gx + (x * gscale) / 1000)
+    oren_map_set_str(m, "y", gy + (y * gscale) / 1000)
+    oren_map_set_str(m, "z", gz + (z * gscale) / 1000)
+    oren_map_set_str(m, "scale_milli", out_scale)
+    return m
+}
+
 fn _keyframe_time(k, ctx) {
     var t = k["time_milli"]
     if _is_int(t) == false || t < 0 { return oren_err(4, ctx + ": invalid time_milli") }
@@ -613,6 +630,36 @@ fn _push_asset_instances(out, xs, templates, mesh_names, material_names) {
         if oren_is_err(item) { return item }
         list.push(out, item)
         i = i + 1
+    }
+    return 0
+}
+
+fn _push_asset_instance_groups(out, groups, templates, mesh_names, material_names) {
+    if groups == nil { return 0 }
+    var gi = 0
+    while gi < oren_list_len(groups) {
+        var g = groups[gi]
+        if g == nil { return oren_err(4, "ui.scene3d: instance_group is nil") }
+        var gx = _position_axis(g, 0); if oren_is_err(gx) { return gx }
+        var gy = _position_axis(g, 1); if oren_is_err(gy) { return gy }
+        var gz = _position_axis(g, 2); if oren_is_err(gz) { return gz }
+        if gx == nil { gx = 0 }
+        if gy == nil { gy = 0 }
+        if gz == nil { gz = 0 }
+        var gscale = _scale_milli(g, 1000, "ui.scene3d instance_group")
+        if oren_is_err(gscale) { return gscale }
+        var xs = g["instances"]
+        if xs == nil { return oren_err(4, "ui.scene3d: instance_group missing instances") }
+        var i = 0
+        while i < oren_list_len(xs) {
+            var item = _asset_instance(xs[i], templates, mesh_names, material_names)
+            if oren_is_err(item) { return item }
+            item = _compose_group_model(item, gx, gy, gz, gscale, "ui.scene3d instance_group")
+            if oren_is_err(item) { return item }
+            list.push(out, item)
+            i = i + 1
+        }
+        gi = gi + 1
     }
     return 0
 }
@@ -840,6 +887,8 @@ fn scene_from_asset_at(asset, time_milli) {
     if oren_is_err(model_push) { return model_push }
     var instance_push = _push_asset_instances(models, asset["instances"], templates, mesh_names, material_names)
     if oren_is_err(instance_push) { return instance_push }
+    var group_push = _push_asset_instance_groups(models, asset["instance_groups"], templates, mesh_names, material_names)
+    if oren_is_err(group_push) { return group_push }
     if time_milli != nil {
         var anim_push = _apply_animations(models, asset["animations"], time_milli)
         if oren_is_err(anim_push) { return anim_push }
