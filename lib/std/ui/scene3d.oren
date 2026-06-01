@@ -510,6 +510,55 @@ fn _find_model(models, target, target_id) {
     return nil
 }
 
+fn _max_model_id(models) {
+    var out = 0
+    var i = 0
+    while i < oren_list_len(models) {
+        var m = models[i]
+        if m != nil && m["id"] != nil && m["id"] > out { out = m["id"] }
+        i = i + 1
+    }
+    return out
+}
+
+fn _draw_model_override(d, models, model_names, mesh_names, material_names, generated_id) {
+    var target = d["model"]
+    var target_id = d["model_id"]
+    var base = _find_model(models, target, target_id)
+    if (target != nil || target_id != nil) && base == nil { return oren_err(4, "ui.scene3d: unknown draw model") }
+    var mesh_id = _resolve_named_id(d, "mesh_id", "mesh", mesh_names, nil)
+    if oren_is_err(mesh_id) { return mesh_id }
+    var material_id = _resolve_named_id(d, "material_id", "material", material_names, nil)
+    if oren_is_err(material_id) { return material_id }
+    var x = d["x"]; var y = d["y"]; var z = d["z"]; var scale = d["scale_milli"]
+    if base != nil {
+        if mesh_id == nil { mesh_id = base["mesh_id"] }
+        if material_id == nil { material_id = base["material_id"] }
+        if x == nil { x = base["x"] }
+        if y == nil { y = base["y"] }
+        if z == nil { z = base["z"] }
+        if scale == nil { scale = base["scale_milli"] }
+    }
+    if mesh_id == nil { return oren_err(4, "ui.scene3d: draw object missing mesh/model") }
+    if material_id == nil { material_id = 0 }
+    if x == nil { x = 0 }
+    if y == nil { y = 0 }
+    if z == nil { z = 0 }
+    var px = _position_axis(d, 0); if oren_is_err(px) { return px }
+    var py = _position_axis(d, 1); if oren_is_err(py) { return py }
+    var pz = _position_axis(d, 2); if oren_is_err(pz) { return pz }
+    if px != nil { x = px }
+    if py != nil { y = py }
+    if pz != nil { z = pz }
+    scale = _scale_milli(d, scale, "ui.scene3d draw")
+    if oren_is_err(scale) { return scale }
+    var id = d["id"]
+    if id == nil { id = generated_id }
+    var out = model(id, mesh_id, material_id, x, y, z, scale)
+    if d["name"] != nil { oren_map_set_str(out, "name", d["name"]) }
+    return out
+}
+
 fn _apply_animations(models, animations, time_milli) {
     if animations == nil { return 0 }
     var i = 0
@@ -800,12 +849,24 @@ fn scene_from_asset_at(asset, time_milli) {
     var raw_draws = asset["draw"]
     if raw_draws != nil {
         var di = 0
+        var next_draw_model_id = _max_model_id(models) + 1
         while di < oren_list_len(raw_draws) {
             var d = raw_draws[di]
             if oren_type_tag(d) == 4 {
                 var draw_id = oren_map_get_str(model_names, d)
                 if draw_id == nil { return oren_err(4, "ui.scene3d: unknown draw model") }
                 list.push(draws, draw_id)
+            } else if _is_int(d) {
+                list.push(draws, d)
+            } else if d["op"] != nil {
+                list.push(draws, d)
+            } else if d["model"] != nil || d["model_id"] != nil || d["mesh"] != nil || d["mesh_id"] != nil {
+                var draw_model = _draw_model_override(d, models, model_names, mesh_names, material_names, next_draw_model_id)
+                if oren_is_err(draw_model) { return draw_model }
+                list.push(models, draw_model)
+                if draw_model["name"] != nil { oren_map_set_str(model_names, draw_model["name"], draw_model["id"]) }
+                list.push(draws, draw_model["id"])
+                if d["id"] == nil { next_draw_model_id = next_draw_model_id + 1 }
             } else {
                 list.push(draws, d)
             }

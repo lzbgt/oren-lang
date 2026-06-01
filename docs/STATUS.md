@@ -317,7 +317,8 @@ Facts from the 2026-05-28 implementation pass:
   byte-native `.os3d` scene assets from package-mounted VirtualFS paths,
   including scene-level camera depth windows. Reviewable JSON scene assets can
   now use named mesh/material/model references plus model templates and
-  instances, human-readable `position_xyz` or nested `transform` records,
+  instances, per-draw model/material/transform override objects that lower to
+  generated retained models, human-readable `position_xyz` or nested `transform` records,
   human-readable
   `vertices_xyz` / `faces` coordinate arrays, and per-triangle
   `triangles_xyz_rgba` colors. Material authoring accepts `color` or

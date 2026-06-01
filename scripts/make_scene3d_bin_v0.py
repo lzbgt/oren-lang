@@ -235,6 +235,30 @@ def apply_animations(models, animations, time_milli):
         model.update(sample_keyframes(anim.get("keyframes"), time_milli, model))
 
 
+def draw_model_override(draw, models, model_names, mesh_names, material_names, generated_id):
+    target = draw.get("model")
+    target_id = draw.get("model_id")
+    base = None
+    if target_id is not None:
+        base = next((m for m in models if m.get("id") == target_id), None)
+    elif target is not None:
+        base_id = model_names.get(target)
+        base = next((m for m in models if m.get("id") == base_id), None)
+    if (target is not None or target_id is not None) and base is None:
+        raise SystemExit("unknown scene draw model")
+
+    m = dict(base or {})
+    m.update(draw)
+    if m.get("mesh_id") is None and m.get("mesh") is None:
+        raise SystemExit("scene draw object missing mesh/model")
+    m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
+    m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
+    if m.get("id") is None:
+        m["id"] = generated_id
+    apply_transform(m)
+    return m
+
+
 def normalize_scene(scene):
     meshes = scene.get("meshes", [])
     materials = scene.get("materials", [])
@@ -266,11 +290,24 @@ def normalize_scene(scene):
 
     model_names = index_names(models)
     draws = []
+    next_draw_model_id = max([0] + [int(m.get("id", 0)) for m in models]) + 1
     for draw in scene.get("draw", []):
         if isinstance(draw, str):
             if draw not in model_names:
                 raise SystemExit(f"unknown scene draw model: {draw!r}")
             draws.append(model_names[draw])
+        elif isinstance(draw, int):
+            draws.append(draw)
+        elif isinstance(draw, dict):
+            if draw.get("op") is not None:
+                raise SystemExit("scene binary draw objects must use model/mesh references, not op commands")
+            m = draw_model_override(draw, models, model_names, mesh_names, material_names, next_draw_model_id)
+            models.append(m)
+            if m.get("name") is not None:
+                model_names[m["name"]] = m["id"]
+            draws.append(m["id"])
+            if draw.get("id") is None:
+                next_draw_model_id += 1
         else:
             draws.append(draw)
 

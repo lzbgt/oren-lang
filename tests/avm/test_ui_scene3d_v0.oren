@@ -234,6 +234,36 @@ fn main() {
     assert_eq(from_rich_material[0]["color"], "#010203ff")
     assert_eq(from_rich_material[1]["color"], "#3366ff7f")
 
+    var from_draw_override = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "indexed",
+                "id": 77,
+                "name": "override-mesh",
+                "vertices_xyz": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+                "faces": [[0, 1, 2]],
+                "color": "#00ff00"
+            }
+        ],
+        "materials": [
+            {"id": 78, "name": "override-blue", "base_color": "#0000ffff"}
+        ],
+        "models": [{"id": 79, "name": "override-base", "mesh": "override-mesh"}],
+        "draw": [
+            {"model": "override-base", "material": "override-blue", "transform": {"position_xyz": [1, 0, 0], "scale_milli": 1000}}
+        ]
+    })
+    assert_true(oren_is_err(from_draw_override) == false)
+    assert_eq(from_draw_override[2]["id"], 79)
+    assert_eq(from_draw_override[3]["op"], "model3d")
+    assert_eq(from_draw_override[3]["id"], 80)
+    assert_eq(from_draw_override[3]["material_id"], 78)
+    assert_eq(from_draw_override[3]["x"], 1)
+    assert_eq(from_draw_override[4]["id"], 80)
+    var override_buf = ui_raster.try_rasterize(from_draw_override, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(override_buf) == false)
+    assert_eq(_px(override_buf, 4, 1, 0, 2), 255)
+
     var bin = scene_binary(vertices, indices, true)
     assert_true(oren_is_err(bin) == false)
     var from_bin = scene3d.commands_from_binary(bin)
