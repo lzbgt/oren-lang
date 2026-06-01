@@ -907,6 +907,11 @@ int main(void) {
         OrenAVMMetalView* metalView = [[OrenAVMMetalView alloc] initWithRuntime:runtime];
         if (!metalView) return 127;
         metalView.frameData = frame;
+        if (![metalView prepareFrameResourcesWithError:&error]) return 162;
+        if (metalView.lastFrameVertexCount < 140u) return 163;
+        if (metalView.lastFrameTextRunCount != 3u) return 164;
+        if (metalView.lastFrameImageRunCount != 3u) return 165;
+        if (metalView.retainedImageCount != 0 || metalView.retainedImagePixelCount != 0) return 166;
         metalView.targetHzMilli = 120000;
         metalView.mediaFlags = 5;
         if (metalView.preferredFramesPerSecond != 120) return 129;
@@ -924,7 +929,7 @@ int main(void) {
         metalView.targetHzMilli = 120000;
         [metalView resetFrameMetrics];
         if (metalView.renderedFrameCount != 0 || metalView.lastFrameCPUNs != 0) return 133;
-        if (metalView.lastFrameBudgetUsagePermille != 0 || metalView.lastFrameOverBudget) return 141;
+        if (metalView.lastFrameBudgetUsagePermille != 0 || metalView.lastFrameOverBudget || metalView.lastFrameImageRunCount != 0) return 141;
         metalView.retainedImageCountLimit = 0;
         [metalView clearImageTextureCache];
         if (metalView.retainedImageCount != 0 || metalView.retainedImagePixelCount != 0) return 144;

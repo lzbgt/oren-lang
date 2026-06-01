@@ -612,6 +612,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, readwrite) uint64_t lastFrameTargetBudgetNs;
 @property(nonatomic, readwrite) uint32_t lastFrameVertexCount;
 @property(nonatomic, readwrite) uint32_t lastFrameTextRunCount;
+@property(nonatomic, readwrite) uint32_t lastFrameImageRunCount;
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
 @end
@@ -762,6 +763,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     self.lastFrameVertexCount = 0;
     self.lastFrameTextRunCount = 0;
+    self.lastFrameImageRunCount = 0;
 }
 
 - (uint32_t)lastFrameBudgetUsagePermille {
@@ -1712,6 +1714,32 @@ static NSData* OrenAVMMetalTextQuad(float x,
     return vertexRuns;
 }
 
+- (BOOL)prepareFrameResourcesWithError:(NSError**)error {
+    if (!self.frameData && self.runtime && ![self reloadFrameWithError:error]) return NO;
+    if (!self.frameData) {
+        return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                       @"metal view has no frame data");
+    }
+    uint64_t cpuStartNs = OrenAVMMetalNowNs();
+    MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
+    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray array];
+    NSArray<OrenAVMMetalVertexRun*>* vertexRuns = [self orenVertexRunsForFrame:self.frameData
+                                                                    clearColor:&clearColor
+                                                                      textRuns:textRuns
+                                                                     imageRuns:imageRuns];
+    uint32_t vertexCount = 0;
+    for (OrenAVMMetalVertexRun* run in vertexRuns) {
+        vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
+    }
+    self.lastFrameVertexCount = vertexCount;
+    self.lastFrameTextRunCount = (uint32_t)textRuns.count;
+    self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
+    self.lastFrameCPUNs = OrenAVMMetalNowNs() - cpuStartNs;
+    self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
+    return YES;
+}
+
 - (void)drawInMTKView:(MTKView*)view {
     (void)view;
     if (!self.device || !self.orenCommandQueue) return;
@@ -1722,7 +1750,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
 
     id<CAMetalDrawable> drawable = self.currentDrawable;
     MTLRenderPassDescriptor* pass = self.currentRenderPassDescriptor;
-    if (!drawable || !pass) return;
+    if (!drawable || !pass) {
+        (void)[self prepareFrameResourcesWithError:nil];
+        return;
+    }
 
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
     NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
@@ -1737,6 +1768,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     }
     self.lastFrameVertexCount = vertexCount;
     self.lastFrameTextRunCount = (uint32_t)textRuns.count;
+    self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
     pass.colorAttachments[0].clearColor = clearColor;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;

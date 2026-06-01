@@ -100,7 +100,10 @@ Retained SDK slices on 2026-05-31:
 			  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
 						  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained 2D mesh records, retained 3D triangle and indexed mesh records using orthographic XY default projection, byte-native per-triangle RGBA payloads, retained 3D material resources, retained 3D model resources, pure OBC-side `std:ui/scene3d` retained-scene builders with JSON and byte-native `.os3d` package-asset loading plus scene-level camera depth windows, iOS SDK package-store conformance for mounted `.os3d` scene assets, material override draws, deterministic painter-depth ordering, per-draw and retained model translation/uniform scale, and camera depth-window culling with dedicated release-manifest 3D conformance, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
-	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
+		  over-budget frames without reading raw Metal timing APIs. It also exposes
+		  `prepareFrameResourcesWithError:` for drawable-independent frame preparation,
+		  so host apps and CI can parse retained 3D/resource frames and inspect vertex,
+		  text-run, and image-run counts without requiring a live drawable. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
 		  can bound sprite/atlas memory. Retained text records now avoid resending
 		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.

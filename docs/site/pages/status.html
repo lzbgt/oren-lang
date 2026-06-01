@@ -393,7 +393,11 @@
 <p>	  byte-native <code>.os3d</code> scene assets from package-mounted VirtualFS paths,</p>
 <p>	  including scene-level camera depth windows. The iOS SDK verifier now also</p>
 <p>	  runs an <code>OrenAVMPackageStore</code> package that mounts a bundled <code>.os3d</code> scene</p>
-<p>	  asset and raster-checks it through OBC. Remaining game-grade work is broader 3D SDK conformance and richer package-scene</p>
+<p>	  asset and raster-checks it through OBC. <code>OrenAVMMetalView</code> now exposes</p>
+<p>	  drawable-independent <code>prepareFrameResourcesWithError:</code> so host apps and</p>
+<p>	  headless verifiers can parse retained 3D/resource frames and inspect vertex,</p>
+<p>	  text-run, and image-run metrics even when no <code>CAMetalDrawable</code> is available.</p>
+<p>	  Remaining game-grade work is richer package-scene</p>
 <p>  material/model formats. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>

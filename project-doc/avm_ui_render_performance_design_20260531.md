@@ -404,6 +404,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     mounts a bundled `.os3d` scene asset through VirtualFS and raster-checks it
     from OBC, proving the package-store install/run path covers binary scene
     assets and not only standalone stdlib/store-demo fixtures.
+30. Done: add drawable-independent `OrenAVMMetalView` frame preparation metrics
+    so headless iOS SDK verification can parse retained 3D/resource frames,
+    update resource state, and assert vertex/text/image run counts without a
+    live `CAMetalDrawable`.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.

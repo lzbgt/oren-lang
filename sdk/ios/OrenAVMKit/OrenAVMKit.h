@@ -403,6 +403,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 @property(nonatomic, readonly) BOOL lastFrameOverBudget;
 @property(nonatomic, readonly) uint32_t lastFrameVertexCount;
 @property(nonatomic, readonly) uint32_t lastFrameTextRunCount;
+@property(nonatomic, readonly) uint32_t lastFrameImageRunCount;
 @property(nonatomic, readonly) NSUInteger retainedImagePixelCount;
 @property(nonatomic, readonly) NSUInteger retainedImageCount;
 
@@ -413,6 +414,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (void)clearTextTextureCache;
 - (void)clearImageTextureCache;
 - (void)resetFrameMetrics;
+- (BOOL)prepareFrameResourcesWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)frameCPUNsExceedsBudget:(uint64_t)cpuNs;
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind
                            point:(CGPoint)point
