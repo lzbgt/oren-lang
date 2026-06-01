@@ -443,7 +443,8 @@
 <ul>
 <li>AVM app-facing stdlib hot paths now prefer raw bytes: <code>std:ui/avm</code> has</li>
 </ul>
-<p>  <code>text_bytes</code> plus direct text/composition event payload string slicing,</p>
+<p>  <code>text_bytes</code>, direct text/composition event payload string slicing, and</p>
+<p>  exact-size <code>u8_buf</code> OGF0 frame encoding instead of final list-to-byte packing,</p>
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/color package assets through exact-size</p>
 <p>  <code>u8_buf</code> builders, <code>std:net/avm</code> has <code>try_get_bytes</code>, and <code>std:bytes.to_string</code></p>
 <p>  now uses direct byte-slice conversion instead of list materialization. <code>std:buffer</code></p>

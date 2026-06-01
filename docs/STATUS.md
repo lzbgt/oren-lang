@@ -351,7 +351,8 @@ Facts from the 2026-05-28 implementation pass:
   host-backed virtual job/app-command provider with cancellation and budgets, not
   raw process/thread creation exposed to OBC.
 - AVM app-facing stdlib hot paths now prefer raw bytes: `std:ui/avm` has
-  `text_bytes` plus direct text/composition event payload string slicing,
+  `text_bytes`, direct text/composition event payload string slicing, and
+  exact-size `u8_buf` OGF0 frame encoding instead of final list-to-byte packing,
   `std:ui/scene3d` lowers coordinate/face/color package assets through exact-size
   `u8_buf` builders, `std:net/avm` has `try_get_bytes`, and `std:bytes.to_string`
   now uses direct byte-slice conversion instead of list materialization. `std:buffer`

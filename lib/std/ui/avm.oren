@@ -6,14 +6,28 @@
 import ui_cmds "std:ui/commands"
 import ui_color "std:ui/color"
 import bytes "std:bytes"
+import raw "std:buffer/raw"
 
-fn _push_u8(out, v) {
-    oren_list_push(out, v & 255)
+fn _writer(buf) {
+    return [buf, 0]
 }
 
-fn _push_u16_le(out, v) {
-    _push_u8(out, v)
-    _push_u8(out, v >> 8)
+fn _writer_buf(wr) {
+    return wr[0]
+}
+
+fn _writer_pos(wr) {
+    return wr[1]
+}
+
+fn _push_u8(wr, v) {
+    raw._store_u8_buf_unchecked_direct(wr[0], wr[1], v & 255)
+    wr[1] = wr[1] + 1
+}
+
+fn _push_u16_le(wr, v) {
+    _push_u8(wr, v)
+    _push_u8(wr, v >> 8)
 }
 
 fn _u32_bits(v) {
@@ -21,21 +35,21 @@ fn _u32_bits(v) {
     return v
 }
 
-fn _push_u32_le(out, v) {
+fn _push_u32_le(wr, v) {
     var x = _u32_bits(v)
-    _push_u8(out, x)
-    _push_u8(out, x >> 8)
-    _push_u8(out, x >> 16)
-    _push_u8(out, x >> 24)
+    _push_u8(wr, x)
+    _push_u8(wr, x >> 8)
+    _push_u8(wr, x >> 16)
+    _push_u8(wr, x >> 24)
 }
 
-fn _push_color_rgba(out, s) {
+fn _push_color_rgba(wr, s) {
     var c = ui_color.parse_hex(s)
     if oren_is_err(c) { return c }
-    _push_u8(out, c["r"])
-    _push_u8(out, c["g"])
-    _push_u8(out, c["b"])
-    _push_u8(out, c["a"])
+    _push_u8(wr, c["r"])
+    _push_u8(wr, c["g"])
+    _push_u8(wr, c["b"])
+    _push_u8(wr, c["a"])
     return 0
 }
 
@@ -46,42 +60,168 @@ fn _truthy_flag(v) {
     return true
 }
 
-fn _append_bytes(out, bs) {
+fn _append_bytes(wr, bs) {
     var n = bytes.try_len(bs)
     if oren_is_err(n) { return n }
     var i = 0
     while i < n {
         var b = bytes.try_get_u8(bs, i)
         if oren_is_err(b) { return b }
-        _push_u8(out, b)
+        _push_u8(wr, b)
         i = i + 1
     }
     return 0
 }
 
-fn _push_frame_header(out, w, h, scale_milli, op_count, sequence, drawable_w, drawable_h, target_hz_milli) {
+fn _push_frame_header(wr, w, h, scale_milli, op_count, sequence, drawable_w, drawable_h, target_hz_milli) {
     // Magic "OGF0", version=1, flags=0, header_len=40.
-    _push_u8(out, 79)
-    _push_u8(out, 71)
-    _push_u8(out, 70)
-    _push_u8(out, 48)
-    _push_u8(out, 1)
-    _push_u8(out, 0)
-    _push_u16_le(out, 40)
-    _push_u32_le(out, w)
-    _push_u32_le(out, h)
-    _push_u32_le(out, scale_milli)
-    _push_u32_le(out, op_count)
-    _push_u32_le(out, sequence)
-    _push_u32_le(out, drawable_w)
-    _push_u32_le(out, drawable_h)
-    _push_u32_le(out, target_hz_milli)
+    _push_u8(wr, 79)
+    _push_u8(wr, 71)
+    _push_u8(wr, 70)
+    _push_u8(wr, 48)
+    _push_u8(wr, 1)
+    _push_u8(wr, 0)
+    _push_u16_le(wr, 40)
+    _push_u32_le(wr, w)
+    _push_u32_le(wr, h)
+    _push_u32_le(wr, scale_milli)
+    _push_u32_le(wr, op_count)
+    _push_u32_le(wr, sequence)
+    _push_u32_le(wr, drawable_w)
+    _push_u32_le(wr, drawable_h)
+    _push_u32_le(wr, target_hz_milli)
 }
 
-fn _push_op_header(out, opcode, payload_len) {
-    _push_u8(out, opcode)
-    _push_u8(out, 0)
-    _push_u16_le(out, payload_len)
+fn _push_op_header(wr, opcode, payload_len) {
+    _push_u8(wr, opcode)
+    _push_u8(wr, 0)
+    _push_u16_le(wr, payload_len)
+}
+
+fn _cmd_frame_len(c) {
+    var op = c["op"]
+    if op == "fill_rect" { return 24 }
+    if op == "push_clip_rect" { return 20 }
+    if op == "pop_clip" { return 4 }
+    if op == "push_translate" { return 12 }
+    if op == "pop_transform" { return 4 }
+    if op == "push_opacity" { return 8 }
+    if op == "pop_opacity" { return 4 }
+    if op == "push_camera_ortho" { return 12 }
+    if op == "pop_camera" { return 4 }
+    if op == "stroke_line" { return 28 }
+    if op == "stroke_rect" { return 28 }
+    if op == "round_rect" { return 36 }
+    if op == "circle" { return 24 }
+    if op == "ellipse" { return 32 }
+    if op == "polyline" {
+        var pn = bytes.try_len(c["points"])
+        if oren_is_err(pn) { return pn }
+        if pn < 16 || pn > 65520 || pn % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: polyline invalid point bytes") }
+        return 16 + pn
+    }
+    if op == "fill_triangle" { return 32 }
+    if op == "fill_triangles" {
+        var tris_n = bytes.try_len(c["triangles"])
+        if oren_is_err(tris_n) { return tris_n }
+        if tris_n == 0 || tris_n > 65512 || tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: fill_triangles invalid triangle bytes") }
+        return 12 + tris_n
+    }
+    if op == "mesh2d" {
+        var mesh_tris_n = bytes.try_len(c["triangles"])
+        if oren_is_err(mesh_tris_n) { return mesh_tris_n }
+        if mesh_tris_n == 0 || mesh_tris_n > 65504 || mesh_tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh2d invalid triangle bytes") }
+        return 16 + mesh_tris_n
+    }
+    if op == "draw_mesh2d" { return 8 }
+    if op == "destroy_mesh2d" { return 8 }
+    if op == "mesh3d" {
+        var mesh3d_tris_n = bytes.try_len(c["triangles"])
+        if oren_is_err(mesh3d_tris_n) { return mesh3d_tris_n }
+        if mesh3d_tris_n == 0 || mesh3d_tris_n > 65520 || mesh3d_tris_n % 36 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d invalid triangle bytes") }
+        return 16 + mesh3d_tris_n
+    }
+    if op == "mesh3d_rgba" {
+        var mesh3d_rgba_n = bytes.try_len(c["triangles"])
+        if oren_is_err(mesh3d_rgba_n) { return mesh3d_rgba_n }
+        if mesh3d_rgba_n == 0 || mesh3d_rgba_n > 65520 || mesh3d_rgba_n % 40 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_rgba invalid triangle bytes") }
+        return 12 + mesh3d_rgba_n
+    }
+    if op == "mesh3d_indexed" {
+        var mesh3d_vertices_n = bytes.try_len(c["vertices"])
+        if oren_is_err(mesh3d_vertices_n) { return mesh3d_vertices_n }
+        var mesh3d_indices_n = bytes.try_len(c["indices"])
+        if oren_is_err(mesh3d_indices_n) { return mesh3d_indices_n }
+        if mesh3d_vertices_n < 36 || mesh3d_vertices_n > 65508 || mesh3d_vertices_n % 12 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid vertex bytes") }
+        if mesh3d_indices_n < 12 || mesh3d_indices_n > 65508 || mesh3d_indices_n % 12 != 0 || mesh3d_vertices_n + mesh3d_indices_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid index bytes") }
+        return 20 + mesh3d_vertices_n + mesh3d_indices_n
+    }
+    if op == "draw_mesh3d" { return 8 }
+    if op == "draw_mesh3d_at" { return 24 }
+    if op == "material3d" { return 12 }
+    if op == "draw_mesh3d_material" { return 12 }
+    if op == "draw_mesh3d_at_material" { return 28 }
+    if op == "model3d" { return 32 }
+    if op == "draw_model3d" { return 8 }
+    if op == "destroy_model3d" { return 8 }
+    if op == "destroy_mesh3d" { return 8 }
+    if op == "destroy_material3d" { return 8 }
+    if op == "text" {
+        var tb = bytes.try_from_string(c["text"])
+        if oren_is_err(tb) { return tb }
+        var tn = bytes.try_len(tb)
+        if oren_is_err(tn) { return tn }
+        if tn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text too large") }
+        return 20 + tn
+    }
+    if op == "text_bytes" {
+        var tn2 = bytes.try_len(c["data"])
+        if oren_is_err(tn2) { return tn2 }
+        if tn2 > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_bytes too large") }
+        return 20 + tn2
+    }
+    if op == "text_resource" {
+        var trn = bytes.try_len(c["data"])
+        if oren_is_err(trn) { return trn }
+        if trn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_resource too large") }
+        return 16 + trn
+    }
+    if op == "draw_text" { return 16 }
+    if op == "draw_texts" {
+        var pos_n = bytes.try_len(c["positions"])
+        if oren_is_err(pos_n) { return pos_n }
+        if pos_n == 0 || pos_n > 65520 || pos_n % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_texts invalid position bytes") }
+        return 12 + pos_n
+    }
+    if op == "destroy_text" { return 8 }
+    if op == "image_rgba" {
+        var image_n = bytes.try_len(c["data"])
+        if oren_is_err(image_n) { return image_n }
+        if image_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: image_rgba too large") }
+        return 20 + image_n
+    }
+    if op == "draw_image" { return 24 }
+    if op == "destroy_image" { return 8 }
+    if op == "draw_image_rect" { return 40 }
+    if op == "draw_image_rects" {
+        var rn = bytes.try_len(c["rects"])
+        if oren_is_err(rn) { return rn }
+        if rn == 0 || rn > 65504 || rn % 32 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_image_rects invalid rect bytes") }
+        return 12 + rn
+    }
+    return oren_err(4, "ui.avm.frame_bytes: unsupported op")
+}
+
+fn _frame_len(cmds) {
+    var total = 40
+    var i = 0
+    while i < oren_list_len(cmds) {
+        var n = _cmd_frame_len(cmds[i])
+        if oren_is_err(n) { return n }
+        total = total + n
+        i = i + 1
+    }
+    return total
 }
 
 fn _push_cmd(out, c) {
@@ -499,16 +639,21 @@ fn frame_bytes(cmds, w, h, opts) {
     if drawable_h == nil { drawable_h = h }
     var target_hz_milli = opts["target_hz_milli"]
     if target_hz_milli == nil { target_hz_milli = 0 }
-    var out = []
-    _push_frame_header(out, w, h, scale_milli, oren_list_len(cmds), sequence, drawable_w, drawable_h, target_hz_milli)
+    var frame_len = _frame_len(cmds)
+    if oren_is_err(frame_len) { return frame_len }
+    var out = raw.u8_new_uninit(frame_len)
+    if oren_is_err(out) { return out }
+    var wr = _writer(out)
+    _push_frame_header(wr, w, h, scale_milli, oren_list_len(cmds), sequence, drawable_w, drawable_h, target_hz_milli)
 
     var i = 0
     while i < oren_list_len(cmds) {
-        var rc = _push_cmd(out, cmds[i])
+        var rc = _push_cmd(wr, cmds[i])
         if oren_is_err(rc) { return rc }
         i = i + 1
     }
-    return bytes.try_pack(out)
+    if _writer_pos(wr) != frame_len { return oren_err(4, "ui.avm.frame_bytes: internal size mismatch") }
+    return bytes.try_from_u8_buf(_writer_buf(wr))
 }
 
 fn present_bytes(frame) {
