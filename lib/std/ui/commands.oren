@@ -338,6 +338,11 @@ fn validate(cmds, w, h, opts) {
         } else if op == "draw_mesh3d" {
             var dm3id = c["id"]
             if _is_int(dm3id) == false || dm3id < 1 { return oren_err(4, "ui.validate: draw_mesh3d invalid id") }
+        } else if op == "draw_mesh3d_at" {
+            var dm3aid = c["id"]; var dm3ax = c["x"]; var dm3ay = c["y"]; var dm3az = c["z"]; var dm3as = c["scale_milli"]
+            if _is_int(dm3aid) == false || dm3aid < 1 { return oren_err(4, "ui.validate: draw_mesh3d_at invalid id") }
+            if _is_int(dm3ax) == false || _is_int(dm3ay) == false || _is_int(dm3az) == false { return oren_err(4, "ui.validate: draw_mesh3d_at expects int x,y,z") }
+            if _is_int(dm3as) == false || dm3as <= 0 { return oren_err(4, "ui.validate: draw_mesh3d_at invalid scale_milli") }
         } else if op == "destroy_mesh3d" {
             var xm3id = c["id"]
             if _is_int(xm3id) == false || xm3id < 1 { return oren_err(4, "ui.validate: destroy_mesh3d invalid id") }

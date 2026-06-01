@@ -35,6 +35,15 @@ static int64_t OrenAVMGfxMesh3DZSum(const uint8_t* tri) {
         (int64_t)(int32_t)OrenAVMGfxReadU32LE(tri + 32);
 }
 
+static int64_t OrenAVMGfxMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli) {
+    return (OrenAVMGfxMesh3DZSum(tri) * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
+}
+
+static CGFloat OrenAVMGfxMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli) {
+    int32_t v = (int32_t)OrenAVMGfxReadU32LE(p);
+    return (CGFloat)(((int64_t)v * (int64_t)scaleMilli) / 1000 + (int64_t)offset);
+}
+
 static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     return [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
                            green:(CGFloat)rgba[1] / 255.0
@@ -502,7 +511,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                                                @"count": @(triangleCount),
                                                @"stride": @36};
             }
-        } else if (opcode == 84 && payloadLen == 4) {
+        } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20)) {
             NSDictionary<NSString*, id>* mesh = self.orenMeshes[@(OrenAVMGfxReadU32LE(payload))];
             UIColor* color = mesh[@"color"];
             NSData* triangles = mesh[@"triangles"];
@@ -511,7 +520,17 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             const uint8_t* tris = triangles.bytes;
             uint32_t meshStride = stride.unsignedIntValue;
             uint32_t triangleCount = count.unsignedIntValue;
-            if (tris && (meshStride == 36u || meshStride == 40u) && triangleCount == triangles.length / meshStride) {
+            int32_t modelX = 0;
+            int32_t modelY = 0;
+            int32_t modelZ = 0;
+            uint32_t scaleMilli = 1000u;
+            if (opcode == 87) {
+                modelX = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
+                modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
+                modelZ = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
+                scaleMilli = OrenAVMGfxReadU32LE(payload + 16);
+            }
+            if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && triangleCount == triangles.length / meshStride) {
                 NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:triangleCount];
                 for (uint32_t di = 0; di < triangleCount; di++) {
                     uint32_t best = 0;
@@ -520,7 +539,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                     for (uint32_t ti = 0; ti < triangleCount; ti++) {
                         NSNumber* key = @(ti);
                         if ([drawn containsObject:key]) continue;
-                        int64_t z = OrenAVMGfxMesh3DZSum(tris + ((size_t)ti * meshStride));
+                        int64_t z = OrenAVMGfxMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
                         if (!found || z > bestZ) {
                             best = ti;
                             bestZ = z;
@@ -534,9 +553,15 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                     if (!drawColor) continue;
                     CGContextSetFillColorWithColor(ctx, drawColor.CGColor);
                     CGContextBeginPath(ctx);
-                    CGContextMoveToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 4));
-                    CGContextAddLineToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 12), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 16));
-                    CGContextAddLineToPoint(ctx, (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 24), (CGFloat)(int32_t)OrenAVMGfxReadU32LE(tri + 28));
+                    CGContextMoveToPoint(ctx,
+                                         OrenAVMGfxMesh3DModelCoord(tri, modelX, scaleMilli),
+                                         OrenAVMGfxMesh3DModelCoord(tri + 4, modelY, scaleMilli));
+                    CGContextAddLineToPoint(ctx,
+                                            OrenAVMGfxMesh3DModelCoord(tri + 12, modelX, scaleMilli),
+                                            OrenAVMGfxMesh3DModelCoord(tri + 16, modelY, scaleMilli));
+                    CGContextAddLineToPoint(ctx,
+                                            OrenAVMGfxMesh3DModelCoord(tri + 24, modelX, scaleMilli),
+                                            OrenAVMGfxMesh3DModelCoord(tri + 28, modelY, scaleMilli));
                     CGContextClosePath(ctx);
                     CGContextFillPath(ctx);
                 }

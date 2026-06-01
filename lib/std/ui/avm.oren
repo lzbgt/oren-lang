@@ -278,6 +278,15 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["id"])
         return 0
     }
+    if op == "draw_mesh3d_at" {
+        _push_op_header(out, 87, 20)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["z"])
+        _push_u32_le(out, c["scale_milli"])
+        return 0
+    }
     if op == "destroy_mesh3d" {
         _push_op_header(out, 85, 4)
         _push_u32_le(out, c["id"])

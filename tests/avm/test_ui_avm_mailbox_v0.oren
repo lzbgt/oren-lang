@@ -242,6 +242,16 @@ fn main() {
         85, 0, 4, 0,
         5, 0, 0, 0
     ])
+    var mesh3d_at_frame = ui_avm.frame_bytes([
+        {"op": "draw_mesh3d_at", "id": 5, "x": 1, "y": 0, "z": 2, "scale_milli": 1000}
+    ], 4, 3, {"strict_bounds": true})
+    assert_bytes_eq(mesh3d_at_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        87, 0, 20, 0,
+        5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0
+    ])
 
     var text_data = bytes.try_pack([65, 66])
     var text_frame = ui_avm.frame_bytes([{"op": "text_bytes", "x": 1, "y": 0, "data": text_data, "color": "#ffffff"}], 4, 1, {"strict_bounds": true})

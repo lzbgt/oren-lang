@@ -94,6 +94,7 @@ fn main() {
         {"op": "destroy_mesh3d", "id": 12},
         {"op": "mesh3d_rgba", "id": 13, "triangles": triangles3d_depth},
         {"op": "draw_mesh3d", "id": 13},
+        {"op": "draw_mesh3d_at", "id": 13, "x": 1, "y": 0, "z": 0, "scale_milli": 1000},
         {"op": "destroy_mesh3d", "id": 13},
         {"op": "text_bytes", "x": 3, "y": 4, "data": text_bytes_data, "color": "#ff00ff"},
         {"op": "text_resource", "id": 10, "data": text_data, "color": "#00ffff"},

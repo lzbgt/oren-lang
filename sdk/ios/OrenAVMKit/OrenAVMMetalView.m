@@ -119,6 +119,15 @@ static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {
            (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 32);
 }
 
+static int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli) {
+    return (OrenAVMMetalMesh3DZSum(tri) * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
+}
+
+static float OrenAVMMetalMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli) {
+    int32_t v = (int32_t)OrenAVMMetalReadU32LE(p);
+    return (float)(((int64_t)v * (int64_t)scaleMilli) / 1000 + (int64_t)offset);
+}
+
 static uint64_t OrenAVMMetalNowNs(void) {
     return (uint64_t)llround(CACurrentMediaTime() * 1000000000.0);
 }
@@ -1295,11 +1304,21 @@ static NSData* OrenAVMMetalTextQuad(float x,
                 mesh.stride = 36u;
                 self.orenMeshes3D[@(meshID)] = mesh;
             }
-        } else if (opcode == 84 && payloadLen == 4) {
+        } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20)) {
             OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(OrenAVMMetalReadU32LE(payload))];
             const uint8_t* tris = mesh.triangles.bytes;
             uint32_t meshStride = mesh.stride == 0 ? 36u : mesh.stride;
-            if (tris && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
+            int32_t modelX = 0;
+            int32_t modelY = 0;
+            int32_t modelZ = 0;
+            uint32_t scaleMilli = 1000u;
+            if (opcode == 87) {
+                modelX = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
+                modelY = (int32_t)OrenAVMMetalReadU32LE(payload + 8);
+                modelZ = (int32_t)OrenAVMMetalReadU32LE(payload + 12);
+                scaleMilli = OrenAVMMetalReadU32LE(payload + 16);
+            }
+            if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
                 NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:mesh.triangleCount];
                 for (uint32_t di = 0; di < mesh.triangleCount; di++) {
                     uint32_t best = 0;
@@ -1308,7 +1327,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
                     for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
                         NSNumber* key = @(ti);
                         if ([drawn containsObject:key]) continue;
-                        int64_t z = OrenAVMMetalMesh3DZSum(tris + ((size_t)ti * meshStride));
+                        int64_t z = OrenAVMMetalMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
                         if (!found || z > bestZ) {
                             best = ti;
                             bestZ = z;
@@ -1322,12 +1341,12 @@ static NSData* OrenAVMMetalTextQuad(float x,
                     if (!triRGBA) continue;
                     OrenAVMMetalRGBAWithOpacity(triRGBA, opacity, rgba);
                     OrenAVMMetalAppendTriangle(vertices,
-                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri) + tx,
-                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 4) + ty,
-                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 12) + tx,
-                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 16) + ty,
-                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 24) + tx,
-                                               (float)(int32_t)OrenAVMMetalReadU32LE(tri + 28) + ty,
+                                               OrenAVMMetalMesh3DModelCoord(tri, modelX, scaleMilli) + tx,
+                                               OrenAVMMetalMesh3DModelCoord(tri + 4, modelY, scaleMilli) + ty,
+                                               OrenAVMMetalMesh3DModelCoord(tri + 12, modelX, scaleMilli) + tx,
+                                               OrenAVMMetalMesh3DModelCoord(tri + 16, modelY, scaleMilli) + ty,
+                                               OrenAVMMetalMesh3DModelCoord(tri + 24, modelX, scaleMilli) + tx,
+                                               OrenAVMMetalMesh3DModelCoord(tri + 28, modelY, scaleMilli) + ty,
                                                (float)logicalW,
                                                (float)logicalH,
                                                rgba);
