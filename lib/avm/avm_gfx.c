@@ -320,6 +320,17 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_mesh3d_at_material payload");
                 return 0;
             }
+        } else if (opcode == 93u) {
+            if (payload_len != 28u || avm_gfx_u32le(payload) == 0u ||
+                avm_gfx_u32le(payload + 4) == 0u || avm_gfx_u32le(payload + 24) == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad model3d payload");
+                return 0;
+            }
+        } else if (opcode == 94u || opcode == 95u) {
+            if (payload_len != 4u || avm_gfx_u32le(payload) == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad model3d handle payload");
+                return 0;
+            }
         } else if (opcode == 6u) {
             if (payload_len != 24u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad stroke_rect payload");

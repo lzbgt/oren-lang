@@ -83,11 +83,11 @@ Implemented as of 2026-05-31:
   `fill_rect`, `push_clip_rect`/`pop_clip`, `push_translate`/`pop_transform`,
   `push_opacity`/`pop_opacity`, `push_camera_ortho`/`pop_camera`, `text`/`text_bytes`, `stroke_line`,
   `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`,
-  `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `material3d`, `draw_mesh3d`, `draw_mesh3d_at`, `draw_mesh3d_material`, `draw_mesh3d_at_material`, `destroy_mesh3d`, `destroy_material3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
+  `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `material3d`, `model3d`, `draw_mesh3d`, `draw_mesh3d_at`, `draw_mesh3d_material`, `draw_mesh3d_at_material`, `draw_model3d`, `destroy_mesh3d`, `destroy_material3d`, `destroy_model3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained 2D mesh draws, retained 3D triangle and indexed mesh draws with orthographic XY default projection, retained material resources and material override draws, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
+  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained 2D mesh draws, retained 3D triangle and indexed mesh draws with orthographic XY default projection, retained material resources, retained model resources, material override draws, deterministic painter-depth ordering, per-draw and retained model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -237,6 +237,10 @@ High-volume 2D and 3D need retained resources:
   `draw_mesh3d_at_material {id,material_id,x,y,z,scale_milli}` draw retained
   3D meshes with a material override without resending mesh vertices, and
   `destroy_material3d {id}` releases the virtual material handle;
+- retained 3D model records: `model3d {id,mesh_id,material_id,x,y,z,scale_milli}`
+  captures a mesh handle, optional material handle (`0` keeps mesh/per-triangle
+  color), and model transform; `draw_model3d {id}` draws by model handle and
+  `destroy_model3d {id}` releases the virtual model handle;
 - orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
   and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
   range without exposing host camera objects or Metal depth buffers to OBC;
@@ -372,6 +376,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 23. Done: add retained 3D material records and material override draw commands
     across validation, binary frames, AVM protocol checks, deterministic raster,
     CoreGraphics fallback, Metal, iOS verifier, and 3D conformance.
+24. Done: add retained 3D model records (`model3d`, `draw_model3d`,
+    `destroy_model3d`) so OBC can draw a mesh/material/transform tuple by
+    handle instead of resending transform/material fields every frame.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.

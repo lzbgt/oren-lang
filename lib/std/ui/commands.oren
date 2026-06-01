@@ -404,6 +404,20 @@ fn validate(cmds, w, h, opts) {
             if _is_int(dm3ammat) == false || dm3ammat < 1 { return oren_err(4, "ui.validate: draw_mesh3d_at_material invalid material_id") }
             if _is_int(dm3amx) == false || _is_int(dm3amy) == false || _is_int(dm3amz) == false { return oren_err(4, "ui.validate: draw_mesh3d_at_material expects int x,y,z") }
             if _is_int(dm3ams) == false || dm3ams <= 0 { return oren_err(4, "ui.validate: draw_mesh3d_at_material invalid scale_milli") }
+        } else if op == "model3d" {
+            var modid = c["id"]; var modmesh = c["mesh_id"]; var modmat = c["material_id"]; var modx = c["x"]; var mody = c["y"]; var modz = c["z"]; var mods = c["scale_milli"]
+            if _is_int(modid) == false || modid < 1 { return oren_err(4, "ui.validate: model3d invalid id") }
+            if _is_int(modmesh) == false || modmesh < 1 { return oren_err(4, "ui.validate: model3d invalid mesh_id") }
+            if modmat == nil { modmat = 0 }
+            if _is_int(modmat) == false || modmat < 0 { return oren_err(4, "ui.validate: model3d invalid material_id") }
+            if _is_int(modx) == false || _is_int(mody) == false || _is_int(modz) == false { return oren_err(4, "ui.validate: model3d expects int x,y,z") }
+            if _is_int(mods) == false || mods <= 0 { return oren_err(4, "ui.validate: model3d invalid scale_milli") }
+        } else if op == "draw_model3d" {
+            var dmodid = c["id"]
+            if _is_int(dmodid) == false || dmodid < 1 { return oren_err(4, "ui.validate: draw_model3d invalid id") }
+        } else if op == "destroy_model3d" {
+            var xmodid = c["id"]
+            if _is_int(xmodid) == false || xmodid < 1 { return oren_err(4, "ui.validate: destroy_model3d invalid id") }
         } else if op == "destroy_mesh3d" {
             var xm3id = c["id"]
             if _is_int(xm3id) == false || xm3id < 1 { return oren_err(4, "ui.validate: destroy_mesh3d invalid id") }

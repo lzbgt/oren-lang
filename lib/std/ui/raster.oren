@@ -46,6 +46,9 @@
 // - {"op":"draw_mesh3d_material","id":int,"material_id":int}
 // - {"op":"draw_mesh3d_at_material","id":int,"material_id":int,"x":int,"y":int,"z":int,"scale_milli":int}
 // - {"op":"destroy_material3d","id":int}
+// - {"op":"model3d","id":int,"mesh_id":int,"material_id":int|0,"x":int,"y":int,"z":int,"scale_milli":int}
+// - {"op":"draw_model3d","id":int}
+// - {"op":"destroy_model3d","id":int}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
@@ -711,6 +714,7 @@ fn rasterize(cmds, w, h, opts) {
     var texts = {}
     var meshes = {}
     var materials = {}
+    var models = {}
     var ci = 0
     while ci < oren_list_len(cmds) {
         var opm = cmds[ci]
@@ -882,6 +886,22 @@ fn rasterize(cmds, w, h, opts) {
             if mat3dam == nil { return oren_err(4, "rasterize: draw_mesh3d_at_material missing material") }
             var m3amr = _draw_mesh3d_resource(buf, w, h, mesh3dam, mat3dam, "rasterize: draw_mesh3d_at_material", opm["x"], opm["y"], opm["z"], opm["scale_milli"], depth_enabled, near_z, far_z)
             if oren_is_err(m3amr) { return m3amr }
+        } else if op == "model3d" {
+            models[oren_int_to_string(opm["id"])] = opm
+        } else if op == "draw_model3d" {
+            var model3d = models[oren_int_to_string(opm["id"])]
+            if model3d == nil { return oren_err(4, "rasterize: draw_model3d missing model") }
+            var model_mesh = meshes[oren_int_to_string(model3d["mesh_id"])]
+            var model_mat = nil
+            var model_mat_id = model3d["material_id"]
+            if model_mat_id != nil && model_mat_id != 0 {
+                model_mat = materials[oren_int_to_string(model_mat_id)]
+                if model_mat == nil { return oren_err(4, "rasterize: draw_model3d missing material") }
+            }
+            var modelr = _draw_mesh3d_resource(buf, w, h, model_mesh, model_mat, "rasterize: draw_model3d", model3d["x"], model3d["y"], model3d["z"], model3d["scale_milli"], depth_enabled, near_z, far_z)
+            if oren_is_err(modelr) { return modelr }
+        } else if op == "destroy_model3d" {
+            models[oren_int_to_string(opm["id"])] = nil
         } else if op == "destroy_mesh3d" {
             meshes[oren_int_to_string(opm["id"])] = nil
         } else if op == "destroy_material3d" {

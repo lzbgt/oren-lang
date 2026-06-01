@@ -601,6 +601,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSData*>* orenMaterials3D;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -652,6 +653,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
+    if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
     if (!self.orenImageTextures) self.orenImageTextures = [NSMutableDictionary dictionary];
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
@@ -1356,11 +1358,34 @@ static NSData* OrenAVMMetalTextQuad(float x,
                 self.orenMeshes3D[@(meshID)] = mesh;
             }
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
-                   (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24)) {
-            OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(OrenAVMMetalReadU32LE(payload))];
+                   (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
+                   (opcode == 94 && payloadLen == 4)) {
+            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+            uint32_t materialID = 0;
+            int32_t modelX = 0;
+            int32_t modelY = 0;
+            int32_t modelZ = 0;
+            uint32_t scaleMilli = 1000u;
+            if (opcode == 94) {
+                NSDictionary<NSString*, NSNumber*>* model = self.orenModels3D[@(meshID)];
+                if (!model) {
+                    off += payloadLen;
+                    continue;
+                }
+                meshID = model[@"mesh_id"].unsignedIntValue;
+                materialID = model[@"material_id"].unsignedIntValue;
+                modelX = model[@"x"].intValue;
+                modelY = model[@"y"].intValue;
+                modelZ = model[@"z"].intValue;
+                scaleMilli = model[@"scale_milli"].unsignedIntValue;
+            }
+            OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(meshID)];
             NSData* materialRGBA = nil;
             if (opcode == 90 || opcode == 91) {
-                materialRGBA = self.orenMaterials3D[@(OrenAVMMetalReadU32LE(payload + 4))];
+                materialID = OrenAVMMetalReadU32LE(payload + 4);
+            }
+            if (materialID != 0) {
+                materialRGBA = self.orenMaterials3D[@(materialID)];
                 if (!materialRGBA) {
                     off += payloadLen;
                     continue;
@@ -1370,10 +1395,6 @@ static NSData* OrenAVMMetalTextQuad(float x,
             const uint8_t* verts = mesh.vertices.bytes;
             const uint8_t* idx = mesh.indices.bytes;
             uint32_t meshStride = mesh.stride == 0 ? 36u : mesh.stride;
-            int32_t modelX = 0;
-            int32_t modelY = 0;
-            int32_t modelZ = 0;
-            uint32_t scaleMilli = 1000u;
             if (opcode == 87) {
                 modelX = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
                 modelY = (int32_t)OrenAVMMetalReadU32LE(payload + 8);
@@ -1462,6 +1483,22 @@ static NSData* OrenAVMMetalTextQuad(float x,
             if (materialID != 0) self.orenMaterials3D[@(materialID)] = [NSData dataWithBytes:payload + 4 length:4];
         } else if (opcode == 92 && payloadLen == 4) {
             [self.orenMaterials3D removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];
+        } else if (opcode == 93 && payloadLen == 28) {
+            uint32_t modelID = OrenAVMMetalReadU32LE(payload);
+            uint32_t meshID = OrenAVMMetalReadU32LE(payload + 4);
+            uint32_t scaleMilli = OrenAVMMetalReadU32LE(payload + 24);
+            if (modelID != 0 && meshID != 0 && scaleMilli != 0) {
+                self.orenModels3D[@(modelID)] = @{
+                    @"mesh_id": @(meshID),
+                    @"material_id": @(OrenAVMMetalReadU32LE(payload + 8)),
+                    @"x": @((int32_t)OrenAVMMetalReadU32LE(payload + 12)),
+                    @"y": @((int32_t)OrenAVMMetalReadU32LE(payload + 16)),
+                    @"z": @((int32_t)OrenAVMMetalReadU32LE(payload + 20)),
+                    @"scale_milli": @(scaleMilli)
+                };
+            }
+        } else if (opcode == 95 && payloadLen == 4) {
+            [self.orenModels3D removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];
         } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
             uint32_t meshID = OrenAVMMetalReadU32LE(payload);
             uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 4);

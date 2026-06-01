@@ -205,12 +205,17 @@ fn test_raster_mesh3d_depth() {
 
     var model_cmds = [
         {"op": "mesh3d_rgba", "id": 21, "triangles": tris},
-        {"op": "draw_mesh3d_at", "id": 21, "x": 1, "y": 1, "z": 0, "scale_milli": 1000},
+        {"op": "material3d", "id": 4, "color": "#00ffff"},
+        {"op": "model3d", "id": 30, "mesh_id": 21, "material_id": 4, "x": 1, "y": 1, "z": 0, "scale_milli": 1000},
+        {"op": "draw_model3d", "id": 30},
+        {"op": "destroy_model3d", "id": 30},
+        {"op": "destroy_material3d", "id": 4},
         {"op": "destroy_mesh3d", "id": 21}
     ]
     var model_buf = ui_raster.try_rasterize(model_cmds, 4, 4, {"strict_bounds": true})
     assert_true(oren_is_err(model_buf) == false)
     assert_eq(_px(model_buf, 4, 1, 1, 1), 255)
+    assert_eq(_px(model_buf, 4, 1, 1, 2), 255)
     assert_eq(_px(model_buf, 4, 0, 0, 3), 0)
 }
 

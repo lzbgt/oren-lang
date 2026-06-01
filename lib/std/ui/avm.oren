@@ -337,6 +337,29 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["scale_milli"])
         return 0
     }
+    if op == "model3d" {
+        _push_op_header(out, 93, 28)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["mesh_id"])
+        var model_mat = c["material_id"]
+        if model_mat == nil { model_mat = 0 }
+        _push_u32_le(out, model_mat)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["z"])
+        _push_u32_le(out, c["scale_milli"])
+        return 0
+    }
+    if op == "draw_model3d" {
+        _push_op_header(out, 94, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
+    if op == "destroy_model3d" {
+        _push_op_header(out, 95, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
     if op == "destroy_mesh3d" {
         _push_op_header(out, 85, 4)
         _push_u32_le(out, c["id"])

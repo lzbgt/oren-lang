@@ -39,7 +39,7 @@ The first retained implementation slices exist as of 2026-05-31:
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
   `push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`text`/`text_bytes`/`stroke_line`/
-  `stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles`/`mesh2d`/`draw_mesh2d`/`destroy_mesh2d`/`mesh3d`/`mesh3d_rgba`/`mesh3d_indexed`/`material3d`/`draw_mesh3d`/`draw_mesh3d_at`/`draw_mesh3d_material`/`draw_mesh3d_at_material`/`destroy_mesh3d`/`destroy_material3d`/`image_rgba`/
+  `stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles`/`mesh2d`/`draw_mesh2d`/`destroy_mesh2d`/`mesh3d`/`mesh3d_rgba`/`mesh3d_indexed`/`material3d`/`model3d`/`draw_mesh3d`/`draw_mesh3d_at`/`draw_mesh3d_material`/`draw_mesh3d_at_material`/`draw_model3d`/`destroy_mesh3d`/`destroy_material3d`/`destroy_model3d`/`image_rgba`/
   `draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` plus retained
   `text_resource`/`draw_text`/`draw_texts`/`destroy_text` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
@@ -174,7 +174,7 @@ logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
 cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`,
-	`mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `push_camera_ortho`, `pop_camera`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `material3d`, `draw_mesh3d`, `draw_mesh3d_at`, `draw_mesh3d_material`, `draw_mesh3d_at_material`, `destroy_mesh3d`, `destroy_material3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
+	`mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `push_camera_ortho`, `pop_camera`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `material3d`, `model3d`, `draw_mesh3d`, `draw_mesh3d_at`, `draw_mesh3d_material`, `draw_mesh3d_at_material`, `draw_model3d`, `destroy_mesh3d`, `destroy_material3d`, `destroy_model3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
 `destroy_image`, `draw_image_rect`, `draw_image_rects`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.

@@ -130,13 +130,13 @@
 <p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>push_translate</code>/<code>pop_transform</code>,</p>
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>, <code>push_camera_ortho</code>/<code>pop_camera</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>,</p>
 <p>  <code>stroke_rect</code>, <code>round_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>, <code>fill_triangles</code>,</p>
-<p>  <code>mesh2d</code>, <code>draw_mesh2d</code>, <code>destroy_mesh2d</code>, <code>mesh3d</code>, <code>mesh3d_rgba</code>, <code>mesh3d_indexed</code>, <code>material3d</code>, <code>draw_mesh3d</code>, <code>draw_mesh3d_at</code>, <code>draw_mesh3d_material</code>, <code>draw_mesh3d_at_material</code>, <code>destroy_mesh3d</code>, <code>destroy_material3d</code>, <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
+<p>  <code>mesh2d</code>, <code>draw_mesh2d</code>, <code>destroy_mesh2d</code>, <code>mesh3d</code>, <code>mesh3d_rgba</code>, <code>mesh3d_indexed</code>, <code>material3d</code>, <code>model3d</code>, <code>draw_mesh3d</code>, <code>draw_mesh3d_at</code>, <code>draw_mesh3d_material</code>, <code>draw_mesh3d_at_material</code>, <code>draw_model3d</code>, <code>destroy_mesh3d</code>, <code>destroy_material3d</code>, <code>destroy_model3d</code>, <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>push_camera_ortho</code>/<code>pop_camera</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code> geometry, retained 2D mesh draws, retained 3D triangle and indexed mesh draws with orthographic XY default projection, retained material resources and material override draws, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>push_camera_ortho</code>/<code>pop_camera</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code> geometry, retained 2D mesh draws, retained 3D triangle and indexed mesh draws with orthographic XY default projection, retained material resources, retained model resources, material override draws, deterministic painter-depth ordering, per-draw and retained model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -309,6 +309,12 @@
 <p>  <code>draw_mesh3d_at_material {id,material_id,x,y,z,scale_milli}</code> draw retained</p>
 <p>  3D meshes with a material override without resending mesh vertices, and</p>
 <p>  <code>destroy_material3d {id}</code> releases the virtual material handle;</p>
+<ul>
+<li>retained 3D model records: <code>model3d {id,mesh_id,material_id,x,y,z,scale_milli}</code></li>
+</ul>
+<p>  captures a mesh handle, optional material handle (<code>0</code> keeps mesh/per-triangle</p>
+<p>  color), and model transform; <code>draw_model3d {id}</code> draws by model handle and</p>
+<p>  <code>destroy_model3d {id}</code> releases the virtual model handle;</p>
 <ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>
@@ -504,6 +510,11 @@
 </ol>
 <p>    across validation, binary frames, AVM protocol checks, deterministic raster,</p>
 <p>    CoreGraphics fallback, Metal, iOS verifier, and 3D conformance.</p>
+<ol>
+<li>Done: add retained 3D model records (<code>model3d</code>, <code>draw_model3d</code>,</li>
+</ol>
+<p>    <code>destroy_model3d</code>) so OBC can draw a mesh/material/transform tuple by</p>
+<p>    handle instead of resending transform/material fields every frame.</p>
 <ol>
 <li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
 </ol>

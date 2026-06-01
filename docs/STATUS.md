@@ -272,7 +272,7 @@ Facts from the 2026-05-28 implementation pass:
   `push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`text`/`text_bytes`/`text_resource`/
   `draw_text`/`draw_texts`/`destroy_text`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/
   `polyline`/`fill_triangle`/`fill_triangles`/`mesh2d`/`draw_mesh2d`/`destroy_mesh2d`/
-  `mesh3d`/`mesh3d_rgba`/`mesh3d_indexed`/`material3d`/`draw_mesh3d`/`draw_mesh3d_at`/`draw_mesh3d_material`/`draw_mesh3d_at_material`/`destroy_mesh3d`/`destroy_material3d`/`image_rgba`/`draw_image`/`destroy_image`/
+  `mesh3d`/`mesh3d_rgba`/`mesh3d_indexed`/`material3d`/`model3d`/`draw_mesh3d`/`draw_mesh3d_at`/`draw_mesh3d_material`/`draw_mesh3d_at_material`/`draw_model3d`/`destroy_mesh3d`/`destroy_material3d`/`destroy_model3d`/`image_rgba`/`draw_image`/`destroy_image`/
   `draw_image_rect`/`draw_image_rects` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
   events with logical size, native drawable size, device scale, target refresh,
@@ -281,7 +281,7 @@ Facts from the 2026-05-28 implementation pass:
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/
   clip-stack/translation-stack/opacity-stack/camera-depth-window/stroke-line/stroke-rect/round-rect/circle/
-  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, per-triangle RGBA payloads, indexed shared-vertex meshes, retained material resources, deterministic painter-depth ordering, per-draw model translation/uniform scale, material override draws, and explicit orthographic camera depth windows, retained RGBA image upload/draw/
+  ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, per-triangle RGBA payloads, indexed shared-vertex meshes, retained material resources, retained model resources, deterministic painter-depth ordering, per-draw and retained model translation/uniform scale, material override draws, and explicit orthographic camera depth windows, retained RGBA image upload/draw/
   destroy/sub-rect and batched atlas records, and byte-native/retained text
   payloads through Metal pipelines. Its `targetHzMilli` setting
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
@@ -304,15 +304,15 @@ Facts from the 2026-05-28 implementation pass:
   Bidirectional UI is a hard requirement for
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and
-  rendering devices. Remaining game-grade work is richer material/model-resource
-  commands and broader 3D SDK conformance. The next GUI contract is
+  rendering devices. Remaining game-grade work is broader 3D SDK conformance and
+  higher-level scene/model package loading. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in
   `project-doc/avm_ui_render_performance_design_20260531.md`.
   The AVM release manifest also includes a whole-frame 2D/3D-projection raster conformance hash
 	  covering geometry including `stroke_rect`, `round_rect`, `ellipse`, `polyline`, clip and translation stacks, retained text, retained images, atlas sub-rects, batched
-	  sprites, retained 2D meshes, retained 3D triangle and indexed meshes through orthographic projection, painter-depth ordering, camera depth-window culling, and draw ordering in one scene. A dedicated 3D conformance fixture separately hashes retained 3D resource behavior across camera depth windows, model translation/scale/Z, per-triangle RGBA depth ordering, indexed shared-vertex meshes, and material override draws.
+	  sprites, retained 2D meshes, retained 3D triangle and indexed meshes through orthographic projection, painter-depth ordering, camera depth-window culling, and draw ordering in one scene. A dedicated 3D conformance fixture separately hashes retained 3D resource behavior across camera depth windows, model translation/scale/Z, per-triangle RGBA depth ordering, indexed shared-vertex meshes, material override draws, and retained model-resource draws.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;

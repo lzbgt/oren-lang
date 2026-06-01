@@ -73,6 +73,9 @@ fn main() {
         {"op": "draw_mesh3d_at", "id": 3, "x": 4, "y": 4, "z": 1, "scale_milli": 1000},
         {"op": "pop_camera"},
         {"op": "draw_mesh3d_at_material", "id": 2, "material_id": 4, "x": 3, "y": 3, "z": 0, "scale_milli": 1000},
+        {"op": "model3d", "id": 5, "mesh_id": 3, "material_id": 4, "x": 4, "y": 0, "z": 0, "scale_milli": 1000},
+        {"op": "draw_model3d", "id": 5},
+        {"op": "destroy_model3d", "id": 5},
         {"op": "destroy_mesh3d", "id": 1},
         {"op": "destroy_mesh3d", "id": 2},
         {"op": "destroy_mesh3d", "id": 3},
@@ -87,8 +90,10 @@ fn main() {
     assert_eq(_px(buf, 6, 4, 4, 1), 0)
     assert_eq(_px(buf, 6, 3, 3, 0), 255)
     assert_eq(_px(buf, 6, 3, 3, 2), 255)
+    assert_eq(_px(buf, 6, 4, 0, 0), 255)
+    assert_eq(_px(buf, 6, 4, 0, 2), 255)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "c14d72dc1d809cc65726de8a4889bdfcba595f4cdeb42d212bf115fe52f4e556")
+    assert_eq(got, "34d5ea8c5dad331389b91c2fa0181abb572b825522deb33ccca23b56b9ae386e")
     exit(0)
 }
 
