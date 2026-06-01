@@ -90,6 +90,11 @@ typedef NS_ENUM(NSInteger, OrenAVMPackageInstallPolicy) {
 
 @interface OrenAVMCompilerKit : NSObject
 
+@property(nonatomic) uint64_t compilerGasLimit;
+@property(nonatomic) uint64_t compilerHeapLimitBytes;
+@property(nonatomic) uint64_t compilerIOLimitBytes;
+@property(nonatomic) uint32_t compilerFrameLimit;
+
 - (instancetype)initWithCompilerOBCData:(NSData*)compilerOBCData
                          stdlibOBCData:(NSData*)stdlibOBCData NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;

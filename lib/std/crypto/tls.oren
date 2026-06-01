@@ -19,11 +19,31 @@
 
 import tls "std:net/tls"
 
+struct Conn {
+    fd,
+    ssl,
+    ctx,
+    mode
+}
+
+trait TlsConn {
+    fn read_into(self, buf, cap, timeout_ms);
+    fn try_read_into(self, buf, cap, timeout_ms);
+    fn write_from(self, ptr0, len, timeout_ms);
+    fn try_write_from(self, ptr0, len, timeout_ms);
+    fn close(self);
+    fn try_close(self);
+    fn peer_cert_sha256_hex(self);
+    fn try_peer_cert_sha256_hex(self);
+    fn negotiated_alpn(self);
+    fn try_negotiated_alpn(self);
+}
+
 fn connect(host_or_ip, port, timeout_ms, opts) {
     return tls.connect(host_or_ip, port, timeout_ms, opts)
 }
 
-fn try_connect(host_or_ip, port, timeout_ms, opts) {
+fn try_connect(host_or_ip, port, timeout_ms, opts): Conn {
     return tls.try_connect(host_or_ip, port, timeout_ms, opts)
 }
 
@@ -31,7 +51,7 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
     return tls.wrap_client(fd, server_name, timeout_ms, opts)
 }
 
-fn try_wrap_client(fd, server_name, timeout_ms, opts) {
+fn try_wrap_client(fd, server_name, timeout_ms, opts): Conn {
     return tls.try_wrap_client(fd, server_name, timeout_ms, opts)
 }
 
@@ -39,7 +59,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     return tls.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
 }
 
-fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts): Conn {
     return tls.try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
 }
 
@@ -86,4 +106,17 @@ fn try_negotiated_alpn(conn) {
 fn win_cleanup() {
     // Mirrors `std:net/tls.win_cleanup` for callers that treat TLS as a crypto concern.
     return tls.win_cleanup()
+}
+
+impl TlsConn for Conn {
+    fn read_into(self, buf, cap, timeout_ms) { return read_into(self, buf, cap, timeout_ms) }
+    fn try_read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
+    fn write_from(self, ptr0, len, timeout_ms) { return write_from(self, ptr0, len, timeout_ms) }
+    fn try_write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn try_close(self) { return try_close(self) }
+    fn peer_cert_sha256_hex(self) { return peer_cert_sha256_hex(self) }
+    fn try_peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
+    fn negotiated_alpn(self) { return negotiated_alpn(self) }
+    fn try_negotiated_alpn(self) { return try_negotiated_alpn(self) }
 }

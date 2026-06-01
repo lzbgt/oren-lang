@@ -217,9 +217,11 @@
 <ul>
 <li>Session-oriented network protocols should put IO operations on session/connection</li>
 </ul>
-<p>  values. For example, WebSocket callers should prefer <code>conn.recv_text(...)</code>,</p>
-<p>  <code>conn.send_text_client(...)</code>, <code>conn.close()</code>, or AVM</p>
-<p>  <code>session.recv_text(...)</code> over root-level text helpers.</p>
+<p>  values. For example, TCP/UDP/TLS/WebSocket callers should prefer</p>
+<p>  <code>conn.try_read_into(...)</code>, <code>socket.try_send_to(...)</code>, <code>conn.try_write_from(...)</code>,</p>
+<p>  <code>conn.recv_text(...)</code>, <code>conn.close()</code>, or AVM <code>session.read(...)</code> /</p>
+<p>  <code>session.recv_text(...)</code> over root-level fd/session helper calls in user-facing</p>
+<p>  code. Raw syscall-first forms may remain as internal/performance primitives.</p>
 <ul>
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>

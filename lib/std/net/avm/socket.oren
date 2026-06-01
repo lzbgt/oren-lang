@@ -3,22 +3,39 @@
 // This is the low-level OBC socket-like surface: programs see only virtual
 // session ids. The host app owns real sockets, allowlists, readiness, and budgets.
 
-fn open(spec, timeout_ms) {
+struct Session {
+    id
+}
+
+trait VirtualSocketSession {
+    fn write(self, data, timeout_ms);
+    fn read(self, max_len, timeout_ms);
+    fn poll(self, events, timeout_ms);
+    fn select(self, events, timeout_ms);
+    fn poll_read(self, timeout_ms);
+    fn poll_write(self, timeout_ms);
+    fn select_read(self, timeout_ms);
+    fn select_write(self, timeout_ms);
+    fn accept(self, timeout_ms): Session;
+    fn close(self);
+}
+
+fn open(spec, timeout_ms): Session {
     if spec == nil { return oren_err(4, "std:net/avm/socket.open: spec is nil") }
     return oren_vnet_session_open(spec, timeout_ms)
 }
 
-fn open_tcp(host, port, timeout_ms) {
+fn open_tcp(host, port, timeout_ms): Session {
     if host == nil { return oren_err(4, "std:net/avm/socket.open_tcp: host is nil") }
     return open("tcp://" + host + ":" + oren_int_to_string(port), timeout_ms)
 }
 
-fn listen_tcp(host, port, timeout_ms) {
+fn listen_tcp(host, port, timeout_ms): Session {
     if host == nil { return oren_err(4, "std:net/avm/socket.listen_tcp: host is nil") }
     return open("tcp-listen://" + host + ":" + oren_int_to_string(port), timeout_ms)
 }
 
-fn open_udp(host, port, timeout_ms) {
+fn open_udp(host, port, timeout_ms): Session {
     if host == nil { return oren_err(4, "std:net/avm/socket.open_udp: host is nil") }
     return open("udp://" + host + ":" + oren_int_to_string(port), timeout_ms)
 }
@@ -61,4 +78,17 @@ fn accept(listener_session_id, timeout_ms) {
 
 fn close(session_id) {
     return oren_vnet_session_close(session_id)
+}
+
+impl VirtualSocketSession for Session {
+    fn write(self, data, timeout_ms) { return write(self, data, timeout_ms) }
+    fn read(self, max_len, timeout_ms) { return read(self, max_len, timeout_ms) }
+    fn poll(self, events, timeout_ms) { return poll(self, events, timeout_ms) }
+    fn select(self, events, timeout_ms) { return select(self, events, timeout_ms) }
+    fn poll_read(self, timeout_ms) { return poll_read(self, timeout_ms) }
+    fn poll_write(self, timeout_ms) { return poll_write(self, timeout_ms) }
+    fn select_read(self, timeout_ms) { return select_read(self, timeout_ms) }
+    fn select_write(self, timeout_ms) { return select_write(self, timeout_ms) }
+    fn accept(self, timeout_ms): Session { return accept(self, timeout_ms) }
+    fn close(self) { return close(self) }
 }

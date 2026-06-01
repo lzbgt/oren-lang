@@ -67,6 +67,10 @@ int main(void) {
                                                                        stdlibOBCURL:[NSURL fileURLWithPath:@"build/plugins/stdlib_bundle.obc"]
                                                                              error:&error];
         if (!kit) { fprintf(stderr, "CompilerKit load failed: %s\n", error.localizedDescription.UTF8String); return 10; }
+        if (kit.compilerHeapLimitBytes < 384ull * 1024ull * 1024ull) {
+            fprintf(stderr, "CompilerKit heap default too small: %llu\n", (unsigned long long)kit.compilerHeapLimitBytes);
+            return 15;
+        }
         NSString* source =
             @"import list \"std:list\"\n"
              "import time \"std:time\"\n"

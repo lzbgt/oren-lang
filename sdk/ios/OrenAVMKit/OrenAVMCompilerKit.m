@@ -1,6 +1,10 @@
 #import "OrenAVMKit.h"
 
 static NSString* const OrenAVMCompilerKitErrorDomain = @"org.oren.avmkit";
+static const uint64_t OrenAVMCompilerKitDefaultGasLimit = 500000000ull;
+static const uint64_t OrenAVMCompilerKitDefaultHeapLimitBytes = 384ull * 1024ull * 1024ull;
+static const uint64_t OrenAVMCompilerKitDefaultIOLimitBytes = 128ull * 1024ull * 1024ull;
+static const uint32_t OrenAVMCompilerKitDefaultFrameLimit = 65536u;
 
 static BOOL OrenAVMCompilerKitAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
@@ -53,6 +57,10 @@ static BOOL OrenAVMCompilerKitSafeVFSPath(NSString* path) {
     if (self) {
         _compilerOBCData = [compilerOBCData copy];
         _stdlibOBCData = [stdlibOBCData copy];
+        _compilerGasLimit = OrenAVMCompilerKitDefaultGasLimit;
+        _compilerHeapLimitBytes = OrenAVMCompilerKitDefaultHeapLimitBytes;
+        _compilerIOLimitBytes = OrenAVMCompilerKitDefaultIOLimitBytes;
+        _compilerFrameLimit = OrenAVMCompilerKitDefaultFrameLimit;
     }
     return self;
 }
@@ -104,10 +112,10 @@ static BOOL OrenAVMCompilerKitSafeVFSPath(NSString* path) {
     OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig deterministicDefaults];
     cfg.allowedDomains = OrenAVMDomainCore | OrenAVMDomainFS | OrenAVMDomainTime | OrenAVMDomainExit;
     cfg.fsBackend = OrenAVMVirtualBackendVirtual;
-    cfg.gasLimit = 500000000;
-    cfg.heapLimitBytes = 256ull * 1024ull * 1024ull;
-    cfg.ioLimitBytes = 128ull * 1024ull * 1024ull;
-    cfg.frameLimit = 65536u;
+    cfg.gasLimit = self.compilerGasLimit > 0 ? self.compilerGasLimit : OrenAVMCompilerKitDefaultGasLimit;
+    cfg.heapLimitBytes = self.compilerHeapLimitBytes > 0 ? self.compilerHeapLimitBytes : OrenAVMCompilerKitDefaultHeapLimitBytes;
+    cfg.ioLimitBytes = self.compilerIOLimitBytes > 0 ? self.compilerIOLimitBytes : OrenAVMCompilerKitDefaultIOLimitBytes;
+    cfg.frameLimit = self.compilerFrameLimit > 0 ? self.compilerFrameLimit : OrenAVMCompilerKitDefaultFrameLimit;
 
     OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
     if (!runtime) {

@@ -93,16 +93,16 @@ fn server_impl(listen_fd, pfx_b64) {
     if conn == 0 { return 13 }
 
     var buf = malloc(16)
-    if buf == 0 { tls.close(conn); return 14 }
-    var n = tls.try_read_into(conn, buf, 4, 5000)
+    if buf == 0 { conn.close(); return 14 }
+    var n = conn.try_read_into(buf, 4, 5000)
     if oren_is_err(n) || n != 4 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         return 15
     }
-    var wr = tls.try_write_from(conn, buf, 4, 5000)
+    var wr = conn.try_write_from(buf, 4, 5000)
     free(buf)
-    tls.close(conn)
+    conn.close()
     if oren_is_err(wr) || wr != 4 { return 16 }
     return 0
 }
@@ -136,55 +136,55 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
     if conn == 0 { return 10 }
 
     // Windows Schannel: server selects "http/1.1" from the client offer.
-    var ap = tls.try_negotiated_alpn(conn)
+    var ap = conn.try_negotiated_alpn()
     if oren_is_err(ap) {
-        tls.close(conn)
+        conn.close()
         return 11
     }
     if ap == nil || _str_eq_bytes(ap, "http/1.1") != true {
-        tls.close(conn)
+        conn.close()
         return 12
     }
 
     var msg = "PING"
-    var wr = tls.try_write_from(conn, msg, 4, 5000)
+    var wr = conn.try_write_from(msg, 4, 5000)
     if oren_is_err(wr) || wr != 4 {
-        tls.close(conn)
+        conn.close()
         return 20
     }
     var buf = malloc(16)
     if buf == 0 {
-        tls.close(conn)
+        conn.close()
         return 21
     }
-    var rn = tls.try_read_into(conn, buf, 4, 5000)
+    var rn = conn.try_read_into(buf, 4, 5000)
     if oren_is_err(rn) || rn != 4 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         return 22
     }
     if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         return 23
     }
     free(buf)
 
     // Cross-check leaf hash query works (pinning is enforced already).
-    var hv = tls.try_peer_cert_sha256_hex(conn)
+    var hv = conn.try_peer_cert_sha256_hex()
     if oren_is_err(hv) {
-        tls.close(conn)
+        conn.close()
         return 30
     }
     if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
         print("tls_loopback: FAIL cert pin mismatch")
         print("got=" + hv)
         print("want=" + expected_leaf_sha256_hex)
-        tls.close(conn)
+        conn.close()
         return 31
     }
 
-    tls.close(conn)
+    conn.close()
     return 0
 }
 
@@ -275,48 +275,48 @@ fn main_client() {
     if conn == 0 { exit(10) }
 
     // Linux OpenSSL: server selects "http/1.1" from the client offer.
-    var ap = tls.try_negotiated_alpn(conn)
-    if oren_is_err(ap) { tls.close(conn); exit(11) }
-    if ap == nil || _str_eq_bytes(ap, "http/1.1") != true { tls.close(conn); exit(12) }
+    var ap = conn.try_negotiated_alpn()
+    if oren_is_err(ap) { conn.close(); exit(11) }
+    if ap == nil || _str_eq_bytes(ap, "http/1.1") != true { conn.close(); exit(12) }
 
     var msg = "PING"
-    var wr = tls.try_write_from(conn, msg, 4, 5000)
+    var wr = conn.try_write_from(msg, 4, 5000)
     if oren_is_err(wr) || wr != 4 {
-        tls.close(conn)
+        conn.close()
         exit(20)
     }
     var buf = malloc(16)
     if buf == 0 {
-        tls.close(conn)
+        conn.close()
         exit(21)
     }
-    var rn = tls.try_read_into(conn, buf, 4, 5000)
+    var rn = conn.try_read_into(buf, 4, 5000)
     if oren_is_err(rn) || rn != 4 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         exit(22)
     }
     if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         exit(23)
     }
     free(buf)
 
-    var hv = tls.try_peer_cert_sha256_hex(conn)
+    var hv = conn.try_peer_cert_sha256_hex()
     if oren_is_err(hv) {
-        tls.close(conn)
+        conn.close()
         exit(30)
     }
     if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
         print("tls_loopback: FAIL cert pin mismatch")
         print("got=" + hv)
         print("want=" + expected_leaf_sha256_hex)
-        tls.close(conn)
+        conn.close()
         exit(31)
     }
 
-    tls.close(conn)
+    conn.close()
     // Wait for the server process to exit; require status==0.
     var status_ptr = malloc(8)
     if status_ptr == 0 { exit(40) }
@@ -414,58 +414,58 @@ fn main_client() {
 
     // macOS SecureTransport: ALPN negotiation/observation is currently treated as best-effort;
     // the loopback fixture does not assert a negotiated protocol yet (tracked in docs/DESIGN.md#tls-provider-availability).
-    var ap = tls.try_negotiated_alpn(conn)
+    var ap = conn.try_negotiated_alpn()
     if oren_is_err(ap) {
-        tls.close(conn)
+        conn.close()
         exit(11)
     }
     if ap != nil {
         // Best-effort: if the provider reports a negotiated protocol, ensure it matches the
         // server's advertised single-protocol list ("http/1.1") for this fixture.
         if _str_eq_bytes(ap, "http/1.1") != true {
-            tls.close(conn)
+            conn.close()
             exit(12)
         }
     }
 
     var msg = "PING"
-    var wr = tls.try_write_from(conn, msg, 4, 5000)
+    var wr = conn.try_write_from(msg, 4, 5000)
     if oren_is_err(wr) || wr != 4 {
-        tls.close(conn)
+        conn.close()
         exit(20)
     }
     var buf = malloc(16)
     if buf == 0 {
-        tls.close(conn)
+        conn.close()
         exit(21)
     }
-    var rn = tls.try_read_into(conn, buf, 4, 5000)
+    var rn = conn.try_read_into(buf, 4, 5000)
     if oren_is_err(rn) || rn != 4 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         exit(22)
     }
     if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
         free(buf)
-        tls.close(conn)
+        conn.close()
         exit(23)
     }
     free(buf)
 
-    var hv = tls.try_peer_cert_sha256_hex(conn)
+    var hv = conn.try_peer_cert_sha256_hex()
     if oren_is_err(hv) {
-        tls.close(conn)
+        conn.close()
         exit(30)
     }
     if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
         print("tls_loopback: FAIL cert pin mismatch")
         print("got=" + hv)
         print("want=" + expected_leaf_sha256_hex)
-        tls.close(conn)
+        conn.close()
         exit(31)
     }
 
-    tls.close(conn)
+    conn.close()
     // Wait for the server process to exit; require status==0.
     var status_ptr = malloc(8)
     if status_ptr == 0 { exit(40) }

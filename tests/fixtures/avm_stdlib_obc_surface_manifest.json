@@ -159,7 +159,8 @@
       "module": "std:net/avm/socket",
       "alias": "net_avm_socket",
       "probes": [
-        "if net_avm_socket.poll_read(-1, 0) == nil { fail(67) }"
+        "if net_avm_socket.poll_read(-1, 0) == nil { fail(67) }",
+        "if false { var sock_s = net_avm_socket.open_tcp(\"127.0.0.1\", 9, 1); sock_s.write(bytes.from_string(\"x\"), 1); sock_s.read(1, 1); sock_s.select_read(1); sock_s.close() }"
       ]
     },
     {
@@ -173,14 +174,16 @@
       "module": "std:net/avm/tcp",
       "alias": "net_avm_tcp",
       "probes": [
-        "if net_avm_tcp.event_read_write() != 3 { fail(59) }"
+        "if net_avm_tcp.event_read_write() != 3 { fail(59) }",
+        "if false { var tcp_s = net_avm_tcp.connect(\"127.0.0.1\", 9, 1); tcp_s.write(bytes.from_string(\"x\"), 1); tcp_s.read(1, 1); tcp_s.close(); var tcp_l = net_avm_tcp.listen(\"127.0.0.1\", 0, 1); tcp_l.accept(1); tcp_l.close() }"
       ]
     },
     {
       "module": "std:net/avm/udp",
       "alias": "net_avm_udp",
       "probes": [
-        "if net_avm_udp.event_write() != 2 { fail(62) }"
+        "if net_avm_udp.event_write() != 2 { fail(62) }",
+        "if false { var udp_s = net_avm_udp.connect(\"127.0.0.1\", 9, 1); udp_s.send(bytes.from_string(\"x\"), 1); udp_s.recv(1, 1); udp_s.close() }"
       ]
     },
     {

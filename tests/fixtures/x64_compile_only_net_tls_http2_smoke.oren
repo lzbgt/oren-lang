@@ -91,6 +91,7 @@ fn main() {
         // TLS symbol reference (type surface).
         var cr = tls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
         var _try_conn = tls.try_connect("127.0.0.1", 443, 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+        var _try_conn_alpn = _try_conn.try_negotiated_alpn()
         var ok = oren_map_get_str(cr, "ok")
         if ok == 1 {
             var conn = oren_map_get_str(cr, "conn")
@@ -99,6 +100,7 @@ fn main() {
             // Crypto-facing TLS facade path (should remain a stable import; currently an alias layer).
             var _cr2 = ctls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
             var _tcr2 = ctls.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+            var _tcr2_alpn = _tcr2.try_negotiated_alpn()
             var _ptr = _provider_try_refs(fd, conn)
 
             // HTTP/1.1 surface (TLS-backed request/response helper).

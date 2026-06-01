@@ -114,9 +114,11 @@ This file is the concise task view. Detailed implementation status lives in
 		     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
 		     `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
 		     path on exact-size `u8_buf` output.
-		     WebSocket now follows the same session/object rule with native
-		     `conn.recv_text(...)` / `conn.send_text_client(...)` / `conn.close()`
-		     and AVM virtual `session.recv_text(...)` / `session.send_text(...)`.
+		     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket
+		     now follow the same session/object rule with examples like
+		     `conn.try_read_into(...)`, `socket.try_send_to(...)`,
+		     `conn.try_write_from(...)`, `conn.recv_text(...)`,
+		     `listener.accept(...)`, and `session.recv_text(...)`.
 		     XML/HTML follow the same rule with streaming readers first for large OBC
 	     payloads and DOM/query convenience on top. Native HTTP can use
 	     `response.html_reader()` / `response.html().find("title").text()`;

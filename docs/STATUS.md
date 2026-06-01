@@ -200,9 +200,13 @@ Facts from the 2026-05-28 implementation pass:
 - `std:net/avm/http`, `std:net/avm/socket`, `std:net/avm/tcp`, `std:net/avm/udp`,
   and `std:net/avm/ws` now follow the same split as Python/Go network libraries:
   request/response HTTP helpers are separate from socket/session primitives, and
-  protocol facades wrap the lower-level virtual socket module. The iOS verifier
-  exercises TCP/UDP/WebSocket through live host-backed virtual sockets, so app code
-  does not need to call `std:net/avm/socket` directly for common client/server flows.
+  protocol facades wrap the lower-level virtual socket module. Virtual socket/TCP/UDP
+  sessions expose receiver methods (`session.read(...)`, `session.write(...)`,
+  `listener.accept(...)`, `session.send(...)`, `session.recv(...)`, readiness waits,
+  and `session.close()`) while retaining raw integer session ids as the OBC ABI for
+  low memory overhead. The iOS verifier exercises TCP/UDP/WebSocket through live
+  host-backed virtual sockets, so app code does not need to call `std:net/avm/socket`
+  directly for common client/server flows.
 - `std:net/avm/dns` now provides an OBC-safe DNS facade over AVM NET op 6.
   Embedders install `avm_embed_set_net_resolve_callback`; the iOS SDK maps that
   virtual DNS request to `getaddrinfo` under the same dynamic live-NET allowlist
@@ -383,12 +387,13 @@ Facts from the 2026-05-28 implementation pass:
 	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
 	  indexed byte access instead of unpacking the whole message to a list. Base64
 	  encoding now writes exact-size `u8_buf` output instead of materializing an
-	  intermediate Oren list. The same
-	  NET cleanup now covers WebSocket session objects: native `std:net/ws`
-	  connection records expose `.recv_text(...)`, `.try_recv_text(...)`,
-	  `.send_text_client(...)`, `.send_text_server(...)`, and `.close()`, while
-	  AVM virtual WebSocket sessions expose `.send_text(...)`, `.recv_text(...)`,
-	  readiness waits, and `.close()` on the session handle.
+	  intermediate Oren list. NET cleanup now covers native and AVM session
+	  objects: native TCP/UDP/TLS handles expose `.try_read_into(...)`,
+	  `.try_write_from(...)`, `.try_send_to(...)`, `.try_recv_from_into(...)`,
+	  TLS certificate/ALPN methods, and `.close()`, native WebSocket records
+	  expose `.recv_text(...)` / `.send_text_client(...)`, and AVM virtual
+	  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness
+	  waits, accept, and close receiver methods.
   buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits
   instead of truncating fractional values through integer byte writes. Further
   cleanup should keep text helpers explicit at API boundaries.
@@ -428,8 +433,9 @@ Working evidence:
   GUI/NET/FS providers continue to grow.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
-  VFS `write_bytes` support for BYTES, and current CLI args (`--platform`,
-  `--no-cache`) for embedded compiler runs.
+  VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
+  `--no-cache`) for embedded compiler runs, and SDK-visible CompilerKit compile
+  budgets so host apps can size full-stdlib OBC compilation deliberately.
 
 Missing for production:
 

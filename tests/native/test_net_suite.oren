@@ -62,19 +62,19 @@ fn test_tcp_loopback() {
     var cfd2 = tcp.try_connect("127.0.0.1", port, 2000)
     if oren_is_err(cfd2) { fail(605) }
 
-    var cfd = tcp.try_accept(lfd, 2000)
+    var cfd = lfd.try_accept(2000)
     if oren_is_err(cfd) { fail(604) }
 
     // Client -> server: "hello"
     var outb2 = malloc(5)
     if outb2 == 0 { fail(610) }
     fill5(outb2, 104, 101, 108, 108, 111) // "hello"
-    var wn2 = tcp.try_write_from(cfd2, outb2, 5, 2000)
+    var wn2 = cfd2.try_write_from(outb2, 5, 2000)
     if oren_is_err(wn2) || wn2 != 5 { fail(611) }
 
     var inb = malloc(5)
     if inb == 0 { fail(612) }
-    var rn = tcp.try_read_into(cfd, inb, 5, 2000)
+    var rn = cfd.try_read_into(inb, 5, 2000)
     if oren_is_err(rn) || rn != 5 { fail(613) }
     if eq5(inb, 104, 101, 108, 108, 111) == 0 { fail(614) } // "hello"
 
@@ -82,18 +82,18 @@ fn test_tcp_loopback() {
     var outb = malloc(5)
     if outb == 0 { fail(615) }
     fill5(outb, 119, 111, 114, 108, 100) // "world"
-    var wn = tcp.try_write_from(cfd, outb, 5, 2000)
+    var wn = cfd.try_write_from(outb, 5, 2000)
     if oren_is_err(wn) || wn != 5 { fail(616) }
 
     var inb2 = malloc(5)
     if inb2 == 0 { fail(617) }
-    var rn2 = tcp.try_read_into(cfd2, inb2, 5, 2000)
+    var rn2 = cfd2.try_read_into(inb2, 5, 2000)
     if oren_is_err(rn2) || rn2 != 5 { fail(618) }
     if eq5(inb2, 119, 111, 114, 108, 100) == 0 { fail(619) } // "world"
 
-    oren_tcp_close(cfd2)
-    oren_tcp_close(cfd)
-    oren_tcp_close(lfd)
+    cfd2.close()
+    cfd.close()
+    lfd.close()
     return 0
 }
 
@@ -362,18 +362,18 @@ fn test_udp_loopback() {
 
     var rfd = udp.try_bind_local(0)
     if oren_is_err(rfd) { fail(1100) }
-    var rport = udp.try_sockname_port(rfd)
+    var rport = rfd.try_sockname_port()
     if oren_is_err(rport) || rport <= 0 { fail(1101) }
 
     var sfd = udp.try_bind_local(0)
     if oren_is_err(sfd) { fail(1102) }
-    var sport = udp.try_sockname_port(sfd)
+    var sport = sfd.try_sockname_port()
     if oren_is_err(sport) || sport <= 0 { fail(1103) }
 
     var outb = malloc(4)
     if outb == 0 { fail(1104) }
     fill5(outb, 112, 105, 110, 103, 0) // "ping" + NUL (we only send 4 bytes)
-    var wn = udp.try_send_to(sfd, "127.0.0.1", rport, outb, 4, 2000)
+    var wn = sfd.try_send_to("127.0.0.1", rport, outb, 4, 2000)
     if oren_is_err(wn) || wn != 4 { fail(1105) }
 
     var inb = malloc(4)
@@ -386,7 +386,7 @@ fn test_udp_loopback() {
     if lenp == 0 { fail(1108) }
     ptr_set(lenp, 16)
 
-    var rn = udp.try_recv_from_into(rfd, inb, 4, 2000, sa, lenp)
+    var rn = rfd.try_recv_from_into(inb, 4, 2000, sa, lenp)
     if oren_is_err(rn) || rn != 4 { fail(1109) }
     if ptr_get_byte(inb + 0) != 112 { fail(1110) } // p
     if ptr_get_byte(inb + 1) != 105 { fail(1111) } // i
@@ -407,11 +407,11 @@ fn test_udp_loopback() {
     free(lenp)
 
     // Ensure timeouts are enforced on empty reads.
-    var rn2 = udp.try_recv_into(rfd, inb, 4, 10)
+    var rn2 = rfd.try_recv_into(inb, 4, 10)
     if oren_is_err(rn2) != true { fail(1117) } // ETIMEDOUT
 
-    if oren_is_err(udp.try_close(sfd)) { fail(1118) }
-    if oren_is_err(udp.try_close(rfd)) { fail(1119) }
+    if oren_is_err(sfd.try_close()) { fail(1118) }
+    if oren_is_err(rfd.try_close()) { fail(1119) }
 }
 
 fn _net_fd_wait_readable_then_recv(ch, rfd) {

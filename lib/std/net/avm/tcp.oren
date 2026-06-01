@@ -6,29 +6,53 @@
 import events "std:avm/events"
 import socket "std:net/avm/socket"
 
+struct Session {
+    id
+}
+
+struct Listener {
+    id
+}
+
+trait TcpSession {
+    fn write(self, data, timeout_ms);
+    fn read(self, max_len, timeout_ms);
+    fn close(self);
+    fn select(self, event_mask, timeout_ms);
+    fn wait_readable(self, timeout_ms);
+    fn wait_writable(self, timeout_ms);
+}
+
+trait TcpListener {
+    fn accept(self, timeout_ms): Session;
+    fn close(self);
+    fn select(self, event_mask, timeout_ms);
+    fn wait_readable(self, timeout_ms);
+}
+
 fn event_read() { return events.event_read() }
 fn event_write() { return events.event_write() }
 fn event_read_write() { return events.event_read_write() }
 
-fn connect(host, port, timeout_ms) {
+fn connect(host, port, timeout_ms): Session {
     return socket.open_tcp(host, port, timeout_ms)
 }
 
-fn connect_spec(spec, timeout_ms) {
+fn connect_spec(spec, timeout_ms): Session {
     if spec == nil { return oren_err(4, "std:net/avm/tcp.connect_spec: spec is nil") }
     return socket.open(spec, timeout_ms)
 }
 
-fn listen(host, port, timeout_ms) {
+fn listen(host, port, timeout_ms): Listener {
     return socket.listen_tcp(host, port, timeout_ms)
 }
 
-fn listen_spec(spec, timeout_ms) {
+fn listen_spec(spec, timeout_ms): Listener {
     if spec == nil { return oren_err(4, "std:net/avm/tcp.listen_spec: spec is nil") }
     return socket.open(spec, timeout_ms)
 }
 
-fn accept(listener_session_id, timeout_ms) {
+fn accept(listener_session_id, timeout_ms): Session {
     return socket.accept(listener_session_id, timeout_ms)
 }
 
@@ -66,4 +90,20 @@ fn wait_writable(session_id, timeout_ms) {
     if ev == nil { return 0 }
     if (ev["ready"] & events.event_write()) != 0 { return 1 }
     return 0
+}
+
+impl TcpSession for Session {
+    fn write(self, data, timeout_ms) { return write(self, data, timeout_ms) }
+    fn read(self, max_len, timeout_ms) { return read(self, max_len, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn select(self, event_mask, timeout_ms) { return select(self, event_mask, timeout_ms) }
+    fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
+    fn wait_writable(self, timeout_ms) { return wait_writable(self, timeout_ms) }
+}
+
+impl TcpListener for Listener {
+    fn accept(self, timeout_ms): Session { return accept(self, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn select(self, event_mask, timeout_ms) { return select(self, event_mask, timeout_ms) }
+    fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
 }

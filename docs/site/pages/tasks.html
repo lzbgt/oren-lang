@@ -172,9 +172,11 @@
 <p>		     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
 <p>		     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
 <p>		     path on exact-size <code>u8_buf</code> output.</p>
-<p>		     WebSocket now follows the same session/object rule with native</p>
-<p>		     <code>conn.recv_text(...)</code> / <code>conn.send_text_client(...)</code> / <code>conn.close()</code></p>
-<p>		     and AVM virtual <code>session.recv_text(...)</code> / <code>session.send_text(...)</code>.</p>
+<p>		     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket</p>
+<p>		     now follow the same session/object rule with examples like</p>
+<p>		     <code>conn.try_read_into(...)</code>, <code>socket.try_send_to(...)</code>,</p>
+<p>		     <code>conn.try_write_from(...)</code>, <code>conn.recv_text(...)</code>,</p>
+<p>		     <code>listener.accept(...)</code>, and <code>session.recv_text(...)</code>.</p>
 <p>		     XML/HTML follow the same rule with streaming readers first for large OBC</p>
 <p>	     payloads and DOM/query convenience on top. Native HTTP can use</p>
 <p>	     <code>response.html_reader()</code> / <code>response.html().find(&quot;title&quot;).text()</code>;</p>
