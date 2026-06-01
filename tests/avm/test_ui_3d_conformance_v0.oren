@@ -1,0 +1,90 @@
+// AVM UI 3D conformance: one golden scene covering retained 3D mesh
+// resources, per-triangle RGBA depth ordering, indexed meshes, model
+// translation/scale/Z, and orthographic camera depth windows.
+
+import ui_raster "std:ui/raster"
+import bytes "std:bytes"
+import sha256 "std:crypto/sha256"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn _px(buf, w, x, y, chan) {
+    return oren_bytes_get_u8(buf, (y * w + x) * 4 + chan)
+}
+
+fn main() {
+    var layered = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        0, 255, 0, 255,
+        0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 9, 0, 0, 0,
+        255, 0, 0, 255
+    ])
+    assert_true(oren_is_err(layered) == false)
+    var shared_vertices = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0
+    ])
+    assert_true(oren_is_err(shared_vertices) == false)
+    var shared_indices = bytes.try_pack([
+        0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
+    ])
+    assert_true(oren_is_err(shared_indices) == false)
+    var scaled = bytes.try_pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
+    ])
+    assert_true(oren_is_err(scaled) == false)
+    var cmds = [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 6, "h": 6, "color": "#000000"},
+        {"op": "mesh3d_rgba", "id": 1, "triangles": layered},
+        {"op": "mesh3d_indexed", "id": 2, "vertices": shared_vertices, "indices": shared_indices, "color": "#3366ff"},
+        {"op": "mesh3d", "id": 3, "triangles": scaled, "color": "#ffff00"},
+        {"op": "push_camera_ortho", "near_z": 0, "far_z": 8},
+        {"op": "draw_mesh3d", "id": 1},
+        {"op": "pop_camera"},
+        {"op": "push_camera_ortho", "near_z": 8, "far_z": 10},
+        {"op": "draw_mesh3d_at", "id": 1, "x": 3, "y": 0, "z": 0, "scale_milli": 1000},
+        {"op": "pop_camera"},
+        {"op": "push_camera_ortho", "near_z": 0, "far_z": 6},
+        {"op": "draw_mesh3d_at", "id": 2, "x": 0, "y": 3, "z": 0, "scale_milli": 1000},
+        {"op": "pop_camera"},
+        {"op": "push_camera_ortho", "near_z": 0, "far_z": 3},
+        {"op": "draw_mesh3d_at", "id": 3, "x": 4, "y": 4, "z": 1, "scale_milli": 1000},
+        {"op": "pop_camera"},
+        {"op": "destroy_mesh3d", "id": 1},
+        {"op": "destroy_mesh3d", "id": 2},
+        {"op": "destroy_mesh3d", "id": 3}
+    ]
+    var buf = ui_raster.try_rasterize(cmds, 6, 6, {"strict_bounds": true})
+    assert_true(oren_is_err(buf) == false)
+    assert_eq(_px(buf, 6, 0, 0, 1), 255)
+    assert_eq(_px(buf, 6, 3, 0, 0), 255)
+    assert_eq(_px(buf, 6, 0, 3, 2), 255)
+    assert_eq(_px(buf, 6, 4, 4, 0), 255)
+    assert_eq(_px(buf, 6, 4, 4, 1), 255)
+    var got = sha256.sha256_hex(buf)
+    assert_eq(got, "7c82129ebdb06ab718fc512b8bc813211a2ab715b57db8ea0079a824e6ccab4f")
+    exit(0)
+}
+
+main()

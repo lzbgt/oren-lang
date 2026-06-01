@@ -98,7 +98,7 @@ Retained SDK slices on 2026-05-31:
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
 		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
 			  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
-				  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained 2D mesh records, retained 3D triangle and indexed mesh records using orthographic XY default projection, byte-native per-triangle RGBA payloads, deterministic painter-depth ordering, per-draw model translation/uniform scale, and camera depth-window culling, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
+				  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained 2D mesh records, retained 3D triangle and indexed mesh records using orthographic XY default projection, byte-native per-triangle RGBA payloads, deterministic painter-depth ordering, per-draw model translation/uniform scale, and camera depth-window culling with dedicated release-manifest 3D conformance, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 	  over-budget frames without reading raw Metal timing APIs. CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps

@@ -331,7 +331,10 @@ Required gates before Note integration should be called production-ready:
 6. Deterministic headless raster test compares software raster output for geometry-only ops.
    Done: `test_ui_2d_conformance_v0.oren` now hashes one combined retained
    image/text/atlas/geometry scene in the AVM release manifest.
-7. 3D smoke renders a single indexed triangle/mesh through the host Metal renderer.
+7. 3D conformance hashes camera depth windows, model translation/scale/Z,
+   per-triangle RGBA depth ordering, and indexed shared-vertex meshes.
+   Done: `test_ui_3d_conformance_v0.oren` is included in the AVM release
+   manifest.
 
 ## Implementation Order
 

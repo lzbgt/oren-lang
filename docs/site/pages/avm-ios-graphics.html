@@ -379,8 +379,11 @@ fn main() {
 <p>   Done: <code>test_ui_2d_conformance_v0.oren</code> now hashes one combined retained</p>
 <p>   image/text/atlas/geometry scene in the AVM release manifest.</p>
 <ol>
-<li>3D smoke renders a single indexed triangle/mesh through the host Metal renderer.</li>
+<li>3D conformance hashes camera depth windows, model translation/scale/Z,</li>
 </ol>
+<p>   per-triangle RGBA depth ordering, and indexed shared-vertex meshes.</p>
+<p>   Done: <code>test_ui_3d_conformance_v0.oren</code> is included in the AVM release</p>
+<p>   manifest.</p>
 <h2 id="implementation-order">Implementation Order</h2>
 <ol>
 <li>Done: define <code>oren.gfx.frame.bin1</code> for existing <code>std:ui</code> v0 commands and add AVM-side mailbox storage plus C embed getter/clearer.</li>

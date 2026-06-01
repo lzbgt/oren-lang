@@ -361,6 +361,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 21. Done: add a release-manifest 2D conformance fixture that hashes one
     deterministic raster scene covering retained text, retained images, atlas
     sub-rects, batched sprites, geometry, and draw ordering.
+22. Done: add a release-manifest 3D conformance fixture that hashes retained
+    triangle, RGBA-depth, indexed shared-vertex, model transform, and camera
+    depth-window behavior in `test_ui_3d_conformance_v0.oren`.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.
