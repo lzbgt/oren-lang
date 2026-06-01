@@ -98,6 +98,17 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, lw)
         return _push_color_rgba(out, c["color"])
     }
+    if op == "stroke_rect" {
+        var rw = c["width"]
+        if rw == nil { rw = 1 }
+        _push_op_header(out, 6, 24)
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["w"])
+        _push_u32_le(out, c["h"])
+        _push_u32_le(out, rw)
+        return _push_color_rgba(out, c["color"])
+    }
     if op == "circle" {
         var fill = c["fill"]
         if fill == nil { fill = true }

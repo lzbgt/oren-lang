@@ -96,6 +96,16 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 if x1 < 0 || y1 < 0 || x1 >= w || y1 >= h || x2 < 0 || y2 < 0 || x2 >= w || y2 >= h { return oren_err(4, "ui.validate: stroke_line out of bounds") }
             }
+        } else if op == "stroke_rect" {
+            var sx = c["x"]; var sy = c["y"]; var sw = c["w"]; var sh = c["h"]; var slw = c["width"]; var scol = c["color"]
+            if _is_int(sx) == false || _is_int(sy) == false || _is_int(sw) == false || _is_int(sh) == false { return oren_err(4, "ui.validate: stroke_rect expects int x,y,w,h") }
+            if slw == nil { slw = 1 }
+            if _is_int(slw) == false || slw < 1 { return oren_err(4, "ui.validate: stroke_rect invalid width") }
+            if sw < 1 || sh < 1 { return oren_err(4, "ui.validate: stroke_rect invalid size") }
+            if _hex_ok(scol) == false { return oren_err(4, "ui.validate: stroke_rect invalid color") }
+            if strict {
+                if sx < 0 || sy < 0 || sx + sw > w || sy + sh > h { return oren_err(4, "ui.validate: stroke_rect out of bounds") }
+            }
         } else if op == "circle" {
             var cx = c["cx"]; var cy = c["cy"]; var cr = c["r"]; var ccol = c["color"]
             if _is_int(cx) == false || _is_int(cy) == false || _is_int(cr) == false { return oren_err(4, "ui.validate: circle expects int cx,cy,r") }

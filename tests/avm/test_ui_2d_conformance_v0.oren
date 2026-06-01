@@ -40,6 +40,7 @@ fn main() {
 
     var cmds = [
         {"op": "fill_rect", "x": 0, "y": 0, "w": 6, "h": 5, "color": "#101010"},
+        {"op": "stroke_rect", "x": 1, "y": 1, "w": 4, "h": 3, "width": 1, "color": "#ffff00"},
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 5, "y2": 0, "width": 1, "color": "#2020ff"},
         {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#20ff20"},
         {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 2, "y2": 4, "x3": 0, "y3": 2, "color": "#ff2020"},
@@ -57,7 +58,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "5e778433bde1fdefe1b615afad0bdb7d65ff32fc24939bbfc456c30f4a9457bc")
+    assert_eq(got, "c5cecfef627c3b4d6a8f4007053ac7e5e340f89286fef87fa89ebef7b6ddc2fe")
     exit(0)
 }
 

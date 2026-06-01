@@ -15,6 +15,7 @@
 // Supported ops (v0):
 // - {"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"stroke_line","x1":int,"y1":int,"x2":int,"y2":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"stroke_rect","x":int,"y":int,"w":int,"h":int,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"circle","cx":int,"cy":int,"r":int,"fill":bool,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"fill_triangle","x1":int,"y1":int,"x2":int,"y2":int,"x3":int,"y3":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
@@ -220,6 +221,23 @@ fn rasterize(cmds, w, h, opts) {
             var lw = opm["width"]
             if lw == nil { lw = 1 }
             _draw_line(buf, w, h, opm["x1"], opm["y1"], opm["x2"], opm["y2"], lw, lc)
+        } else if op == "stroke_rect" {
+            var sc = ui_color.try_parse_hex(opm["color"])
+            if oren_is_err(sc) { return result.with_context(sc, "rasterize: stroke_rect color") }
+            var slw = opm["width"]
+            if slw == nil { slw = 1 }
+            var sx = opm["x"]
+            var sy = opm["y"]
+            var sw = opm["w"]
+            var sh = opm["h"]
+            var si = 0
+            while si < slw {
+                _draw_line(buf, w, h, sx + si, sy + si, sx + sw - 1 - si, sy + si, 1, sc)
+                _draw_line(buf, w, h, sx + si, sy + sh - 1 - si, sx + sw - 1 - si, sy + sh - 1 - si, 1, sc)
+                _draw_line(buf, w, h, sx + si, sy + si, sx + si, sy + sh - 1 - si, 1, sc)
+                _draw_line(buf, w, h, sx + sw - 1 - si, sy + si, sx + sw - 1 - si, sy + sh - 1 - si, 1, sc)
+                si = si + 1
+            }
         } else if op == "circle" {
             var cc = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(cc) { return result.with_context(cc, "rasterize: circle color") }

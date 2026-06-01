@@ -438,6 +438,17 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
             CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
             CGContextStrokePath(ctx);
+        } else if (opcode == 6 && payloadLen == 24) {
+            uint32_t x = OrenAVMGfxReadU32LE(payload);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
+            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
+            uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
+            UIColor* color = OrenAVMGfxColor(payload + 20);
+            CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+            CGContextStrokeRectWithWidth(ctx,
+                                         CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h),
+                                         (CGFloat)(width == 0 ? 1 : width));
         } else if (opcode == 4 && payloadLen == 20) {
             uint32_t cx = OrenAVMGfxReadU32LE(payload);
             uint32_t cy = OrenAVMGfxReadU32LE(payload + 4);

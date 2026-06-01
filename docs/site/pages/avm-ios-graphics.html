@@ -81,7 +81,7 @@
 <li><code>sdk/ios/OrenAVMKit</code> also exposes <code>OrenAVMGraphicsView</code>, a default</li>
 </ul>
 <p>  UIKit/CoreGraphics <code>UIView</code> renderer for the current <code>OGF0</code> <code>fill_rect</code>/</p>
-<p>  <code>text</code>/<code>text_bytes</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code>/<code>image_rgba</code>/</p>
+<p>  <code>text</code>/<code>text_bytes</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>fill_triangle</code>/<code>image_rgba</code>/</p>
 <p>  <code>draw_image</code>/<code>destroy_image</code>/<code>draw_image_rect</code>/<code>draw_image_rects</code> plus retained</p>
 <p>  <code>text_resource</code>/<code>draw_text</code>/<code>destroy_text</code> subset. It decodes frame bytes on the host side</p>
 <p>  and enqueues pointer events back into AVM.</p>
@@ -215,7 +215,7 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>logical height, <code>scale_milli</code>, op-count, sequence, native drawable width, native</p>
 <p>drawable height, target refresh milli-Hz, then opcode records. Current input payloads use <code>oren.gfx.event.bin0</code>:</p>
 <p>magic <code>OGE0</code>, version/flags/reserved, then opcode records. The retained v0 opcodes</p>
-<p>cover <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
+<p>cover <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
 <p><code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p><code>destroy_image</code>, <code>draw_image_rect</code>, <code>draw_image_rects</code>, pointer, resize, media-query, key, and text</p>
 <p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
@@ -304,6 +304,7 @@ fn main() {
 <li><code>clear {color}</code></li>
 <li><code>fill_rect {x,y,w,h,color}</code></li>
 <li><code>stroke_line {x1,y1,x2,y2,color,width}</code></li>
+<li><code>stroke_rect {x,y,w,h,color,width}</code></li>
 <li><code>fill_triangle {x1,y1,x2,y2,x3,y3,color}</code></li>
 <li><code>polyline {points,color,width}</code></li>
 <li><code>path {verbs,coords,fill,stroke,width}</code></li>
@@ -394,7 +395,7 @@ fn main() {
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>
 <p>    Metal draw loop, publishes screen state, forwards touch input, and renders the</p>
-<p>    current <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry records plus</p>
+<p>    current <code>fill_rect</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>fill_triangle</code> geometry records plus</p>
 <p>    retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text</p>
 <p>    upload/draw/destroy records.</p>
 <ol>

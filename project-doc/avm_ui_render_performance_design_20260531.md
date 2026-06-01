@@ -80,12 +80,12 @@ Implemented as of 2026-05-31:
   selection range so IME state remains host-driven while OBC can render/edit
   composition UI through virtual input events.
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
-  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `circle`, `fill_triangle`,
+  `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`, `fill_triangle`,
   `text_resource`, `draw_text`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`stroke_line`/`circle`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
+  and renders current `OGF0` `fill_rect`/`stroke_line`/`stroke_rect`/`circle`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -313,6 +313,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 17. Done: add a release-manifest 2D conformance fixture that hashes one
     deterministic raster scene covering retained text, retained images, atlas
     sub-rects, batched sprites, geometry, and draw ordering.
-18. Add richer text atlas batching and mesh rendering on the Metal path.
-19. Add richer 2D and 3D command sets.
-20. Add game/app package smoke in the Note host or iOS SDK harness.
+18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
+    checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
+    and the 2D conformance scene.
+19. Add richer text atlas batching and mesh rendering on the Metal path.
+20. Add richer 2D and 3D command sets.
+21. Add game/app package smoke in the Note host or iOS SDK harness.

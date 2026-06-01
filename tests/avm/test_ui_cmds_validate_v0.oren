@@ -56,6 +56,16 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(r2) == true)
 }
 
+fn test_validate_stroke_rect() {
+    var cmds = [{"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"}]
+    var r = ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})
+    assert_true(oren_is_err(r) == false)
+    var bad = [{"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 0, "color": "#ffff00"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad, 4, 3, {"strict_bounds": true})) == true)
+    var bad_bounds = [{"op": "stroke_rect", "x": 1, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"}]
+    assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
+}
+
 fn test_validate_text_bytes() {
     var data = bytes.try_pack([65, 66, 67])
     assert_true(oren_is_err(data) == false)
@@ -125,6 +135,7 @@ fn main() {
     test_validate_bad_color()
     test_validate_bad_framebuffer_size_type()
     test_validate_triangle()
+    test_validate_stroke_rect()
     test_validate_text_bytes()
     test_validate_text_resource()
     test_validate_image()

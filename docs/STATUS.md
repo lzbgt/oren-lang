@@ -264,14 +264,14 @@ Facts from the 2026-05-28 implementation pass:
   publishes a binary frame, retrieves it through the SDK, injects a binary pointer
   event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
 		  UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/`text`/
-			  `text_bytes`/`text_resource`/`draw_text`/`destroy_text`/`stroke_line`/`circle`/`fill_triangle`/`image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` frame subset and can enqueue pointer, resize, key, and
+			  `text_bytes`/`text_resource`/`draw_text`/`destroy_text`/`stroke_line`/`stroke_rect`/`circle`/`fill_triangle`/`image_rgba`/`draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
   events with logical size, native drawable size, device scale, target refresh,
   and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
   consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
-  events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/stroke-line/
-			  circle/fill-triangle geometry, retained RGBA image upload/draw/destroy/sub-rect and batched atlas records, and byte-native/retained text payloads through Metal pipelines. Its `targetHzMilli` setting
+	  events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/stroke-line/
+				  stroke-rect/circle/fill-triangle geometry, retained RGBA image upload/draw/destroy/sub-rect and batched atlas records, and byte-native/retained text payloads through Metal pipelines. Its `targetHzMilli` setting
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels, and host apps can clear that cache
   on memory pressure. The UI input stream now also carries validated `frame_tick`
@@ -299,7 +299,7 @@ Facts from the 2026-05-28 implementation pass:
   and Metal/`MTKView` conformance gates are documented in
   `project-doc/avm_ui_render_performance_design_20260531.md`.
   The AVM release manifest also includes a whole-frame 2D raster conformance hash
-  covering geometry, retained text, retained images, atlas sub-rects, batched
+	  covering geometry including `stroke_rect`, retained text, retained images, atlas sub-rects, batched
   sprites, and draw ordering in one scene.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.

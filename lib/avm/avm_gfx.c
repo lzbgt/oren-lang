@@ -96,6 +96,11 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangle payload");
                 return 0;
             }
+        } else if (opcode == 6u) {
+            if (payload_len != 24u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad stroke_rect payload");
+                return 0;
+            }
         } else if (opcode == 68u) {
             if (payload_len < 12u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad text_resource payload");

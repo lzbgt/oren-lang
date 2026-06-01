@@ -127,14 +127,14 @@
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> renders the current CoreGraphics fallback subset:</li>
 </ul>
-<p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
+<p>  <code>fill_rect</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>, <code>stroke_rect</code>, <code>circle</code>, <code>fill_triangle</code>,</p>
 <p>  <code>text_resource</code>, <code>draw_text</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>circle</code>/<code>fill_triangle</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -417,6 +417,11 @@
 </ol>
 <p>    deterministic raster scene covering retained text, retained images, atlas</p>
 <p>    sub-rects, batched sprites, geometry, and draw ordering.</p>
+<ol>
+<li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
+</ol>
+<p>    checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,</p>
+<p>    and the 2D conformance scene.</p>
 <ol>
 <li>Add richer text atlas batching and mesh rendering on the Metal path.</li>
 <li>Add richer 2D and 3D command sets.</li>
