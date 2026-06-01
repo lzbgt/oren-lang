@@ -20,10 +20,10 @@
     {"id": 32, "name": "card-green", "color": "#00ff00"}
   ],
   "model_templates": [
-    {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "z": 0, "scale_milli": 1000}
+    {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "position_xyz": [0, 0, 0], "scale_milli": 1000}
   ],
   "instances": [
-    {"id": 33, "name": "card", "template": "card-template", "x": 1, "y": 1}
+    {"id": 33, "name": "card", "template": "card-template", "position_xyz": [1, 1, 0]}
   ],
   "camera": {"near_z": 0, "far_z": 2},
   "draw": ["card"],

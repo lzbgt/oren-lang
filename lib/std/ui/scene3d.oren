@@ -164,19 +164,41 @@ fn _pack_vertices_xyz(points, ctx) {
     return bytes.try_pack(out)
 }
 
-fn _pack_faces(faces, ctx) {
+fn _pack_faces(faces, vertex_count, ctx) {
     if faces == nil { return oren_err(4, ctx + ": missing faces") }
     var out = []
     var i = 0
     while i < oren_list_len(faces) {
         var f = faces[i]
         if f == nil || oren_list_len(f) != 3 { return oren_err(4, ctx + ": face must be [a,b,c]") }
+        if _is_int(f[0]) == false || _is_int(f[1]) == false || _is_int(f[2]) == false {
+            return oren_err(4, ctx + ": face index not int")
+        }
+        if vertex_count >= 0 {
+            if f[0] >= vertex_count || f[1] >= vertex_count || f[2] >= vertex_count {
+                return oren_err(4, ctx + ": face index out of bounds")
+            }
+        }
         var rc = _push_u32_le(out, f[0], ctx + ".a"); if oren_is_err(rc) { return rc }
         rc = _push_u32_le(out, f[1], ctx + ".b"); if oren_is_err(rc) { return rc }
         rc = _push_u32_le(out, f[2], ctx + ".c"); if oren_is_err(rc) { return rc }
         i = i + 1
     }
     return bytes.try_pack(out)
+}
+
+fn _vertex_count_from_bytes(vertices, ctx) {
+    var n = bytes.try_len(vertices)
+    if oren_is_err(n) { return oren_err(4, ctx + ": expected vertex bytes") }
+    if n % 12 != 0 { return oren_err(4, ctx + ": vertex byte length must be multiple of 12") }
+    return n / 12
+}
+
+fn _position_axis(m, axis) {
+    var pos = m["position_xyz"]
+    if pos == nil { return nil }
+    if oren_list_len(pos) != 3 { return oren_err(4, "ui.scene3d: position_xyz must be [x,y,z]") }
+    return pos[axis]
 }
 
 fn _pack_triangles_xyz(triangles, ctx) {
@@ -222,15 +244,21 @@ fn _asset_mesh(m) {
     }
     if kind == "indexed" {
         var vertices = nil
+        var vertex_count = -1
         if m["vertices_xyz"] != nil {
             vertices = _pack_vertices_xyz(m["vertices_xyz"], "ui.scene3d mesh.vertices_xyz")
+            vertex_count = oren_list_len(m["vertices_xyz"])
         } else {
             vertices = _pack_bytes(m["vertices"], "ui.scene3d mesh.vertices")
         }
         if oren_is_err(vertices) { return vertices }
+        if vertex_count < 0 {
+            vertex_count = _vertex_count_from_bytes(vertices, "ui.scene3d mesh.vertices")
+            if oren_is_err(vertex_count) { return vertex_count }
+        }
         var indices = nil
         if m["faces"] != nil {
-            indices = _pack_faces(m["faces"], "ui.scene3d mesh.faces")
+            indices = _pack_faces(m["faces"], vertex_count, "ui.scene3d mesh.faces")
         } else {
             indices = _pack_bytes(m["indices"], "ui.scene3d mesh.indices")
         }
@@ -275,6 +303,12 @@ fn _asset_model(m, mesh_names, material_names) {
     var x = m["x"]; if x == nil { x = 0 }
     var y = m["y"]; if y == nil { y = 0 }
     var z = m["z"]; if z == nil { z = 0 }
+    var px = _position_axis(m, 0); if oren_is_err(px) { return px }
+    var py = _position_axis(m, 1); if oren_is_err(py) { return py }
+    var pz = _position_axis(m, 2); if oren_is_err(pz) { return pz }
+    if px != nil { x = px }
+    if py != nil { y = py }
+    if pz != nil { z = pz }
     var scale_milli = m["scale_milli"]; if scale_milli == nil { scale_milli = 1000 }
     var out = model(m["id"], mesh_id, material_id, x, y, z, scale_milli)
     if m["name"] != nil { oren_map_set_str(out, "name", m["name"]) }
@@ -295,6 +329,7 @@ fn _asset_instance(inst, templates, mesh_names, material_names) {
     var mesh_name = inst["mesh"]; if mesh_name == nil { mesh_name = tpl["mesh"] }
     var material_id = inst["material_id"]; if material_id == nil { material_id = tpl["material_id"] }
     var material_name = inst["material"]; if material_name == nil { material_name = tpl["material"] }
+    var position = inst["position_xyz"]; if position == nil { position = tpl["position_xyz"] }
     var x = inst["x"]; if x == nil { x = tpl["x"] }
     var y = inst["y"]; if y == nil { y = tpl["y"] }
     var z = inst["z"]; if z == nil { z = tpl["z"] }
@@ -305,6 +340,7 @@ fn _asset_instance(inst, templates, mesh_names, material_names) {
     if mesh_name != nil { oren_map_set_str(m, "mesh", mesh_name) }
     if material_id != nil { oren_map_set_str(m, "material_id", material_id) }
     if material_name != nil { oren_map_set_str(m, "material", material_name) }
+    if position != nil { oren_map_set_str(m, "position_xyz", position) }
     if x != nil { oren_map_set_str(m, "x", x) }
     if y != nil { oren_map_set_str(m, "y", y) }
     if z != nil { oren_map_set_str(m, "z", z) }

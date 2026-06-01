@@ -314,9 +314,10 @@ Facts from the 2026-05-28 implementation pass:
 	  byte-native `.os3d` scene assets from package-mounted VirtualFS paths,
 	  including scene-level camera depth windows. Reviewable JSON scene assets can
 	  now use named mesh/material/model references plus model templates and
-	  instances and human-readable `vertices_xyz` / `faces` coordinate arrays; the
-	  package builder resolves them into numeric byte-native `.os3d` assets so the
-	  hot runtime path stays compact. The iOS SDK verifier now also
+	  instances, human-readable `position_xyz` model transforms, and human-readable
+	  `vertices_xyz` / `faces` coordinate arrays; the package builder validates
+	  face indices and resolves them into numeric byte-native `.os3d` assets so
+	  the hot runtime path stays compact. The iOS SDK verifier now also
 	  runs an `OrenAVMPackageStore` package that mounts a bundled `.os3d` scene
 	  asset and raster-checks it through OBC. `OrenAVMMetalView` now exposes
 	  drawable-independent `prepareFrameResourcesWithError:` so host apps and

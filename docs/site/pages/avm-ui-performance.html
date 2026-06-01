@@ -322,10 +322,11 @@
 <p>  <code>std:ui/avm</code> encodes them into OGF0, and <code>commands_from_file(path)</code> loads the</p>
 <p>  same scene shape from JSON package assets mounted into VirtualFS. Reviewable</p>
 <p>  JSON assets can use <code>name</code> fields, <code>mesh</code>/<code>material</code> string references,</p>
-<p>  <code>model_templates</code>, <code>instances</code>, string draw entries, and human-readable</p>
-<p>  <code>vertices_xyz</code> / <code>faces</code> arrays for indexed meshes or <code>triangles_xyz</code> arrays</p>
-<p>  for direct triangle meshes; these resolve to existing numeric retained</p>
-<p>  commands before encoding;</p>
+<p>  <code>model_templates</code>, <code>instances</code>, string draw entries, human-readable</p>
+<p>  <code>position_xyz</code> model transforms, and human-readable <code>vertices_xyz</code> / <code>faces</code></p>
+<p>  arrays for indexed meshes or <code>triangles_xyz</code> arrays for direct triangle</p>
+<p>  meshes; face indices are validated while these resolve to existing numeric</p>
+<p>  retained commands before encoding;</p>
 <ul>
 <li><code>std:ui/scene3d.commands_from_binary(...)</code> and</li>
 </ul>
@@ -333,8 +334,8 @@
 <p>  format: little-endian mesh/material/model/draw counts, retained mesh payload</p>
 <p>  byte slices, RGBA u32 colors, optional scene-level camera depth windows, model</p>
 <p>  transforms, draw ids, and a destroy flag. The <code>.os3d</code> builder resolves named</p>
-<p>  JSON references, templates, and coordinate-array meshes at package-build time</p>
-<p>  so the runtime format stays id-based and compact;</p>
+<p>  JSON references, templates, position arrays, and coordinate-array meshes at</p>
+<p>  package-build time so the runtime format stays id-based and compact;</p>
 <ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>

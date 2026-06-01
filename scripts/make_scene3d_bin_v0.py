@@ -31,11 +31,13 @@ def pack_vertices_xyz(points):
     return bytes(out)
 
 
-def pack_faces(faces):
+def pack_faces(faces, vertex_count):
     out = bytearray()
     for face in faces:
         if not isinstance(face, list) or len(face) != 3:
             raise SystemExit("scene faces entries must be [a,b,c]")
+        if any(int(idx) < 0 or int(idx) >= vertex_count for idx in face):
+            raise SystemExit("scene face index out of bounds")
         out += u32(face[0]) + u32(face[1]) + u32(face[2])
     return bytes(out)
 
@@ -70,6 +72,15 @@ def resolve_id(item, id_key, name_key, names, fallback=None):
     return names[name]
 
 
+def apply_position(model):
+    pos = model.get("position_xyz")
+    if pos is None:
+        return
+    if not isinstance(pos, list) or len(pos) != 3:
+        raise SystemExit("scene position_xyz must be [x,y,z]")
+    model["x"], model["y"], model["z"] = pos
+
+
 def normalize_scene(scene):
     meshes = scene.get("meshes", [])
     materials = scene.get("materials", [])
@@ -82,6 +93,7 @@ def normalize_scene(scene):
         m = dict(model)
         m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
         m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
+        apply_position(m)
         models.append(m)
 
     for inst in scene.get("instances", []):
@@ -92,6 +104,7 @@ def normalize_scene(scene):
         m.update(inst)
         m["mesh_id"] = resolve_id(m, "mesh_id", "mesh", mesh_names)
         m["material_id"] = resolve_id(m, "material_id", "material", material_names, 0)
+        apply_position(m)
         models.append(m)
 
     model_names = index_names(models)
@@ -134,7 +147,10 @@ def scene3d_bin_v0(scene_bytes):
                 if mesh.get("vertices_xyz") is not None
                 else bytes(mesh["vertices"])
             )
-            indices = pack_faces(mesh["faces"]) if mesh.get("faces") is not None else bytes(mesh["indices"])
+            if len(payload) % 12 != 0:
+                raise SystemExit("scene indexed mesh vertex bytes must be multiple of 12")
+            vertex_count = len(payload) // 12
+            indices = pack_faces(mesh["faces"], vertex_count) if mesh.get("faces") is not None else bytes(mesh["indices"])
         elif kind == "triangles":
             kind_id = 2
             payload = (
