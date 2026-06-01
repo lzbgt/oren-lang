@@ -401,10 +401,11 @@
 <p>  host-backed virtual job/app-command provider with cancellation and budgets, not</p>
 <p>  raw process/thread creation exposed to OBC.</p>
 <ul>
-<li>AVM app-facing stdlib still needs a cleanup pass to remove legacy</li>
+<li>AVM app-facing stdlib hot paths now prefer raw bytes: <code>std:ui/avm</code> has</li>
 </ul>
-<p>  list-of-byte string conversion from hot paths. Raw bytes are the performance</p>
-<p>  path; text helpers can exist but should convert only at explicit boundaries.</p>
+<p>  <code>text_bytes</code>, <code>std:net/avm</code> has <code>try_get_bytes</code>, and <code>std:bytes.to_string</code></p>
+<p>  now uses direct byte-slice conversion instead of list materialization. Further</p>
+<p>  cleanup should keep text helpers explicit at API boundaries.</p>
 <ul>
 <li><code>lib/avm/avm.h</code> still exposes fixed global/frame/stack limits and rolling</li>
 </ul>
