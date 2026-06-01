@@ -440,7 +440,9 @@
 <li>AVM app-facing stdlib hot paths now prefer raw bytes: <code>std:ui/avm</code> has</li>
 </ul>
 <p>  <code>text_bytes</code>, <code>std:net/avm</code> has <code>try_get_bytes</code>, and <code>std:bytes.to_string</code></p>
-<p>  now uses direct byte-slice conversion instead of list materialization. Further</p>
+<p>  now uses direct byte-slice conversion instead of list materialization. Pure</p>
+<p>  Oren SHA-1/SHA-256 now validate bytes in place and process virtual padding via</p>
+<p>  indexed byte access instead of unpacking the whole message to a list. Further</p>
 <p>  cleanup should keep text helpers explicit at API boundaries.</p>
 <ul>
 <li><code>lib/avm/avm.h</code> still exposes fixed global/frame/stack limits and rolling</li>

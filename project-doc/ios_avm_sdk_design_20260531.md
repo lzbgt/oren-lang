@@ -261,8 +261,8 @@ Default NET adapter.
 - Hot app-facing network paths should remain byte-first. Text convenience helpers
   may exist, but conversions should stay explicit at API boundaries. Current
   cleanup includes byte-native `std:net/avm.try_get_bytes`, UI `text_bytes`, and
-  direct `std:bytes.to_string` byte-slice conversion instead of legacy list
-  materialization.
+  direct `std:bytes.to_string` byte-slice conversion plus SHA-1/SHA-256 indexed
+  byte processing instead of legacy whole-buffer list materialization.
 
 ### OrenAVMProcessProvider
 

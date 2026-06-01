@@ -46,6 +46,9 @@ fn main() {
     assert_eq(got1, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "abc")
     var got1_try = sha256.try_sha256_hex(oren_bytes_pack(abc))
     assert_eq(got1_try, got1, "abc try")
+    var multiblock = oren_bytes_from_string("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
+    var got2 = sha256.try_sha256_hex(oren_bytes_pack(multiblock))
+    assert_eq(got2, "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1", "sha256 multiblock try")
     var bad = sha256.try_sha256_hex(123)
     if oren_is_err(bad) != true {
         fail("try_sha256_hex bad input should return err")
@@ -57,6 +60,8 @@ fn main() {
 
     var sha1_abc = sha1.try_sha1_hex(oren_bytes_pack(abc))
     assert_eq(sha1_abc, "a9993e364706816aba3e25717850c26c9cd0d89d", "sha1 abc try")
+    var sha1_multiblock = sha1.try_sha1_hex(oren_bytes_pack(multiblock))
+    assert_eq(sha1_multiblock, "84983e441c3bd26ebaae4aa1f95129e5e54670f1", "sha1 multiblock try")
     var sha1_bad = sha1.try_sha1_bytes(123)
     if oren_is_err(sha1_bad) != true {
         fail("try_sha1_bytes bad input should return err")

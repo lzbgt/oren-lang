@@ -8,9 +8,17 @@ import bytes "std:bytes"
 
 fn _input_bytes_or_err(input_bytes, ctx) {
     if input_bytes == nil { return oren_bytes_pack([]) }
-    var xs = bytes.try_unpack(input_bytes)
-    if oren_is_err(xs) {
+    var n = bytes.try_len(input_bytes)
+    if oren_is_err(n) {
         return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
+    }
+    var i = 0
+    while i < n {
+        var b = bytes.try_get_u8(input_bytes, i)
+        if oren_is_err(b) {
+            return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
+        }
+        i = i + 1
     }
     return input_bytes
 }
@@ -38,12 +46,27 @@ fn _bsig1(x) { return _u32(_rotr32(x, 6) ^ _rotr32(x, 11) ^ _rotr32(x, 25)) }
 fn _ssig0(x) { return _u32(_rotr32(x, 7) ^ _rotr32(x, 18) ^ _shr32(x, 3)) }
 fn _ssig1(x) { return _u32(_rotr32(x, 17) ^ _rotr32(x, 19) ^ _shr32(x, 10)) }
 
-fn _u32_be_at(xs, pos) {
-    // xs: list<u8>
-    var b0 = xs[pos + 0] & 255
-    var b1 = xs[pos + 1] & 255
-    var b2 = xs[pos + 2] & 255
-    var b3 = xs[pos + 3] & 255
+fn _padded_len(orig_len) {
+    var total = orig_len + 1 + 8
+    var rem = total % 64
+    if rem != 0 { total = total + (64 - rem) }
+    return total
+}
+
+fn _padded_byte_at(input_bytes, orig_len, bit_len, pos) {
+    if pos < orig_len { return bytes.try_get_u8(input_bytes, pos) }
+    if pos == orig_len { return 128 }
+    var len_start = _padded_len(orig_len) - 8
+    if pos < len_start { return 0 }
+    var shift = (7 - (pos - len_start)) * 8
+    return (bit_len >> shift) & 255
+}
+
+fn _u32_be_at(input_bytes, orig_len, bit_len, pos) {
+    var b0 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 0) & 255
+    var b1 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 1) & 255
+    var b2 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 2) & 255
+    var b3 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 3) & 255
     return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 }
 
@@ -62,24 +85,10 @@ fn sha256_bytes(input_bytes) {
         input_bytes = oren_bytes_pack([])
     }
 
-    var msg = oren_bytes_unpack(input_bytes) // list<u8>
-    var orig_len = list.len(msg)
+    var orig_len = bytes.try_len(input_bytes)
+    if oren_is_err(orig_len) { return orig_len }
     var bit_len = orig_len * 8
-
-    // Padding: append 0x80, then 0x00 until (len + 8) % 64 == 0, then append bit_len (u64 BE)
-    list.push(msg, 128)
-    var pad = (list.len(msg) + 8) % 64
-    while pad != 0 {
-        list.push(msg, 0)
-        pad = (pad + 1) % 64
-    }
-
-    // u64 big-endian bit length
-    var i = 7
-    while i >= 0 {
-        list.push(msg, (bit_len >> (i * 8)) & 255)
-        i = i - 1
-    }
+    var total_len = _padded_len(orig_len)
 
     // Initial hash values
     var h0 = 1779033703
@@ -112,12 +121,12 @@ fn sha256_bytes(input_bytes) {
     ]
 
     var off = 0
-    while off < list.len(msg) {
+    while off < total_len {
         // message schedule
         var w = []
         var t = 0
         while t < 16 {
-            list.push(w, _u32_be_at(msg, off + t * 4))
+            list.push(w, _u32_be_at(input_bytes, orig_len, bit_len, off + t * 4))
             t = t + 1
         }
         while t < 64 {
