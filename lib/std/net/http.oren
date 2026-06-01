@@ -44,6 +44,15 @@ fn _err_result(r, fallback) {
     return oren_err(4, msg)
 }
 
+fn _timeout_or_default(timeout_ms, default_ms, ctx) {
+    var tag = oren_type_tag(timeout_ms)
+    if tag == 0 { return default_ms }
+    if tag != 1 { return oren_err(4, ctx + ": timeout_ms must be int") }
+    // Omitted optional arguments currently lower as 0 in native codegen.
+    if timeout_ms <= 0 { return default_ms }
+    return timeout_ms
+}
+
 fn _trim_right_ws_in_buf(buf, start, end) {
     var i = end
     while i > start {
@@ -421,7 +430,11 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     // - HTTPS/WSS (TLS layer)
     // - streaming bodies
     // - HTTP/2 framing
-    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
+    var timeout0 = _timeout_or_default(timeout_ms, 5000, "http.request")
+    if oren_is_err(timeout0) {
+        return {"ok": 0, "err": oren_err_msg(timeout0)}
+    }
+    timeout_ms = timeout0
 
     var pu = _parse_http_url(url)
     if pu["ok"] != 1 { return {"ok": 0, "err": "http.request: " + pu["err"]} }

@@ -326,7 +326,9 @@ fn run_case(mode) {
 
     var h0c = spawn server(listen_fd, mode)
     var urlc = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
-    var tb_resp = http.get(urlc, 2000)
+    // Canonical object-style API: default timeout plus receiver text method.
+    // Keep the response bound so native-owned response allocations are freed.
+    var tb_resp = http.get(urlc)
     free(urlc)
     if oren_is_err(tb_resp) {
         print("http_get_loopback: FAIL chained http.get: " + oren_err_msg(tb_resp))
