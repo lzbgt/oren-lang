@@ -41,6 +41,12 @@ fn main() {
         3, 0, 0, 0, 4, 0, 0, 0
     ])
     assert_true(oren_is_err(points) == false)
+    var triangles = bytes.try_pack([
+        3, 0, 0, 0, 4, 0, 0, 0,
+        5, 0, 0, 0, 4, 0, 0, 0,
+        5, 0, 0, 0, 2, 0, 0, 0
+    ])
+    assert_true(oren_is_err(triangles) == false)
     var rects = bytes.try_pack([
         0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
@@ -61,6 +67,7 @@ fn main() {
         {"op": "ellipse", "x": 2, "y": 0, "w": 4, "h": 3, "fill": false, "width": 1, "color": "#40ffff"},
         {"op": "polyline", "points": points, "width": 1, "color": "#ffffff"},
         {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 2, "y2": 4, "x3": 0, "y3": 2, "color": "#ff2020"},
+        {"op": "fill_triangles", "triangles": triangles, "color": "#00a0ff"},
         {"op": "text_bytes", "x": 3, "y": 4, "data": text_bytes_data, "color": "#ff00ff"},
         {"op": "text_resource", "id": 10, "data": text_data, "color": "#00ffff"},
         {"op": "draw_text", "id": 10, "x": 2, "y": 1},
@@ -82,7 +89,7 @@ fn main() {
     var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "07cd8a1480f6241f611c57f315ca7f038150f00eceecb5802d6a9cf8ccae742a")
+    assert_eq(got, "1ac58994797887d2dae6fddf0afb0a632f10d76dc8729da145c7ee85f803fb53")
     exit(0)
 }
 

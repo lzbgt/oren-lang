@@ -581,6 +581,22 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             CGContextAddLineToPoint(ctx, (CGFloat)x3, (CGFloat)y3);
             CGContextClosePath(ctx);
             CGContextFillPath(ctx);
+        } else if (opcode == 10 && payloadLen >= 32 && ((payloadLen - 8) % 24) == 0) {
+            uint32_t triangleCount = OrenAVMGfxReadU32LE(payload);
+            UIColor* color = OrenAVMGfxColor(payload + 4);
+            const uint8_t* tris = payload + 8;
+            if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
+                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                for (uint32_t ti = 0; ti < triangleCount; ti++) {
+                    const uint8_t* tri = tris + ((size_t)ti * 24u);
+                    CGContextBeginPath(ctx);
+                    CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri), (CGFloat)OrenAVMGfxReadU32LE(tri + 4));
+                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 8), (CGFloat)OrenAVMGfxReadU32LE(tri + 12));
+                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 16), (CGFloat)OrenAVMGfxReadU32LE(tri + 20));
+                    CGContextClosePath(ctx);
+                    CGContextFillPath(ctx);
+                }
+            }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);

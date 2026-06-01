@@ -27,6 +27,7 @@
 // - {"op":"ellipse","x":int,"y":int,"w":int,"h":int,"fill":bool,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"polyline","points":bytes,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"} where each point is u32le x,y
 // - {"op":"fill_triangle","x1":int,"y1":int,"x2":int,"y2":int,"x3":int,"y3":int,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"fill_triangles","triangles":bytes,"color":"#RRGGBB"|"#RRGGBBAA"} where each triangle is three u32le x,y vertices
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
@@ -510,6 +511,26 @@ fn rasterize(cmds, w, h, opts) {
             var tc = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(tc) { return result.with_context(tc, "rasterize: fill_triangle color") }
             _draw_fill_triangle(buf, w, h, opm["x1"], opm["y1"], opm["x2"], opm["y2"], opm["x3"], opm["y3"], tc)
+        } else if op == "fill_triangles" {
+            var btc = ui_color.try_parse_hex(opm["color"])
+            if oren_is_err(btc) { return result.with_context(btc, "rasterize: fill_triangles color") }
+            var tris = opm["triangles"]
+            var tris_len = bytes.try_len(tris)
+            if oren_is_err(tris_len) { return result.with_context(tris_len, "rasterize: fill_triangles triangles") }
+            var toff = 0
+            while toff < tris_len {
+                var tx1 = bytes.try_get_u32_le(tris, toff)
+                var ty1 = bytes.try_get_u32_le(tris, toff + 4)
+                var tx2 = bytes.try_get_u32_le(tris, toff + 8)
+                var ty2 = bytes.try_get_u32_le(tris, toff + 12)
+                var tx3 = bytes.try_get_u32_le(tris, toff + 16)
+                var ty3 = bytes.try_get_u32_le(tris, toff + 20)
+                if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tx3) || oren_is_err(ty3) {
+                    return oren_err(4, "rasterize: fill_triangles malformed triangle")
+                }
+                _draw_fill_triangle(buf, w, h, tx1, ty1, tx2, ty2, tx3, ty3, btc)
+                toff = toff + 24
+            }
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
             var c2 = ui_color.try_parse_hex(opm["color"])

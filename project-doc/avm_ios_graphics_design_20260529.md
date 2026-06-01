@@ -39,7 +39,7 @@ The first retained implementation slices exist as of 2026-05-31:
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
   `push_opacity`/`pop_opacity`/`text`/`text_bytes`/`stroke_line`/
-  `stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`image_rgba`/
+  `stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles`/`image_rgba`/
   `draw_image`/`destroy_image`/`draw_image_rect`/`draw_image_rects` plus retained
   `text_resource`/`draw_text`/`draw_texts`/`destroy_text` subset. It decodes frame bytes on the host side
   and enqueues pointer events back into AVM.
@@ -173,7 +173,7 @@ All three functions are implemented. Current frame payloads use
 logical height, `scale_milli`, op-count, sequence, native drawable width, native
 drawable height, target refresh milli-Hz, then opcode records. Current input payloads use `oren.gfx.event.bin0`:
 magic `OGE0`, version/flags/reserved, then opcode records. The retained v0 opcodes
-cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
+cover `fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`,
 `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
 `destroy_image`, `draw_image_rect`, `draw_image_rects`, pointer, resize, media-query, key, and text
 input events; later geometry, mesh, image, material, and IME/composition opcodes

@@ -99,12 +99,19 @@ fn test_raster_shapes() {
         4, 0, 0, 0, 4, 0, 0, 0
     ])
     assert_true(oren_is_err(points) == false)
+    var tris = bytes.try_pack([
+        2, 0, 0, 0, 4, 0, 0, 0,
+        4, 0, 0, 0, 4, 0, 0, 0,
+        2, 0, 0, 0, 4, 0, 0, 0
+    ])
+    assert_true(oren_is_err(tris) == false)
     var cmds = [
         {"op": "stroke_line", "x1": 0, "y1": 0, "x2": 4, "y2": 0, "width": 1, "color": "#0000ff"},
         {"op": "circle", "cx": 2, "cy": 2, "r": 1, "fill": true, "color": "#00ff00"},
         {"op": "ellipse", "x": 1, "y": 0, "w": 4, "h": 2, "fill": false, "width": 1, "color": "#00ffff"},
         {"op": "polyline", "points": points, "width": 1, "color": "#ff00ff"},
         {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 1, "y2": 4, "x3": 0, "y3": 3, "color": "#ff0000"},
+        {"op": "fill_triangles", "triangles": tris, "color": "#00a0ff"},
         {"op": "stroke_rect", "x": 1, "y": 1, "w": 3, "h": 3, "width": 1, "color": "#ffff00"}
     ]
     var buf = ui_raster.try_rasterize(cmds, 5, 5, {"strict_bounds": true})

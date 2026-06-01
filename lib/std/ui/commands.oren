@@ -241,6 +241,27 @@ fn validate(cmds, w, h, opts) {
                     return oren_err(4, "ui.validate: fill_triangle out of bounds")
                 }
             }
+        } else if op == "fill_triangles" {
+            var tris = c["triangles"]; var tris_col = c["color"]
+            if _hex_ok(tris_col) == false { return oren_err(4, "ui.validate: fill_triangles invalid color") }
+            var tris_len = bytes.try_len(tris)
+            if oren_is_err(tris_len) { return oren_err(4, "ui.validate: fill_triangles expects byte triangles") }
+            if tris_len == 0 || tris_len > 65512 || tris_len % 24 != 0 { return oren_err(4, "ui.validate: fill_triangles invalid triangle bytes") }
+            if strict {
+                var toff = 0
+                while toff < tris_len {
+                    var vi = 0
+                    while vi < 3 {
+                        var vx = bytes.try_get_u32_le(tris, toff + vi * 8)
+                        var vy = bytes.try_get_u32_le(tris, toff + vi * 8 + 4)
+                        if oren_is_err(vx) || oren_is_err(vy) { return oren_err(4, "ui.validate: fill_triangles malformed vertex") }
+                        var vx_t = vx + tx; var vy_t = vy + ty
+                        if vx_t < 0 || vy_t < 0 || vx_t >= w || vy_t >= h { return oren_err(4, "ui.validate: fill_triangles out of bounds") }
+                        vi = vi + 1
+                    }
+                    toff = toff + 24
+                }
+            }
         } else if op == "text" {
             var x2 = c["x"]; var y2 = c["y"]; var s = c["text"]; var col2 = c["color"]
             if _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: text expects int x,y") }

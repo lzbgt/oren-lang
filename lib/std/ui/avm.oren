@@ -218,6 +218,17 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["y3"])
         return _push_color_rgba(out, c["color"])
     }
+    if op == "fill_triangles" {
+        var tris = c["triangles"]
+        var tris_n = bytes.try_len(tris)
+        if oren_is_err(tris_n) { return tris_n }
+        if tris_n == 0 || tris_n > 65512 || tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: fill_triangles invalid triangle bytes") }
+        _push_op_header(out, 10, 8 + tris_n)
+        _push_u32_le(out, tris_n / 24)
+        var trc = _push_color_rgba(out, c["color"])
+        if oren_is_err(trc) { return trc }
+        return _append_bytes(out, tris)
+    }
     if op == "text" {
         var tb = bytes.try_from_string(c["text"])
         if oren_is_err(tb) { return tb }

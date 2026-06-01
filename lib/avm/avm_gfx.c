@@ -187,6 +187,16 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangle payload");
                 return 0;
             }
+        } else if (opcode == 10u) {
+            if (payload_len < 32u || ((payload_len - 8u) % 24u) != 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangles payload");
+                return 0;
+            }
+            uint32_t triangle_count = avm_gfx_u32le(payload);
+            if (triangle_count == 0u || triangle_count != ((uint32_t)payload_len - 8u) / 24u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad fill_triangles count");
+                return 0;
+            }
         } else if (opcode == 6u) {
             if (payload_len != 24u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad stroke_rect payload");

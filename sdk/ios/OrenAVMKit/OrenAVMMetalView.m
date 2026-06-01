@@ -1205,6 +1205,25 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                        (float)logicalW,
                                        (float)logicalH,
                                        rgba);
+        } else if (opcode == 10 && payloadLen >= 32 && ((payloadLen - 8) % 24) == 0) {
+            uint32_t triangleCount = OrenAVMMetalReadU32LE(payload);
+            OrenAVMMetalRGBAWithOpacity(payload + 4, opacity, rgba);
+            const uint8_t* tris = payload + 8;
+            if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
+                for (uint32_t ti = 0; ti < triangleCount; ti++) {
+                    const uint8_t* tri = tris + ((size_t)ti * 24u);
+                    OrenAVMMetalAppendTriangle(vertices,
+                                               (float)OrenAVMMetalReadU32LE(tri) + tx,
+                                               (float)OrenAVMMetalReadU32LE(tri + 4) + ty,
+                                               (float)OrenAVMMetalReadU32LE(tri + 8) + tx,
+                                               (float)OrenAVMMetalReadU32LE(tri + 12) + ty,
+                                               (float)OrenAVMMetalReadU32LE(tri + 16) + tx,
+                                               (float)OrenAVMMetalReadU32LE(tri + 20) + ty,
+                                               (float)logicalW,
+                                               (float)logicalH,
+                                               rgba);
+                }
+            }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMMetalReadU32LE(payload);
             uint32_t y = OrenAVMMetalReadU32LE(payload + 4);

@@ -82,12 +82,12 @@ Implemented as of 2026-05-31:
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `push_clip_rect`/`pop_clip`, `push_translate`/`pop_transform`,
   `push_opacity`/`pop_opacity`, `text`/`text_bytes`, `stroke_line`,
-  `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`,
+  `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`,
   `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
+  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -214,6 +214,9 @@ High-volume 2D and 3D need retained resources:
   `draw_text {id,x,y}` draws one virtual text handle placement, `draw_texts
   {id,positions}` draws many packed little-endian `x,y` placements from the same
   handle, and `destroy_text {id}` releases the host-side retained label;
+- batched triangle record: `fill_triangles {triangles,color}` draws many packed
+  little-endian triangle vertices with one color, stepping toward larger mesh
+  resources without exposing host GPU handles;
 - balanced clipping records: `push_clip_rect {x,y,w,h}` and `pop_clip`
   express a virtual scissor stack for nested game UI panels while the host maps
   it to CoreGraphics state or Metal scissor rectangles;
@@ -325,7 +328,10 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 17. Done: add retained text batch draws (`draw_texts`) so repeated labels can be
     placed with one retained text handle and packed positions instead of one
     opcode per label.
-18. Done: add a release-manifest 2D conformance fixture that hashes one
+18. Done: add byte-native batched triangle draws (`fill_triangles`) across
+    validation, binary frames, AVM protocol checks, deterministic raster,
+    CoreGraphics fallback, Metal geometry draws, and iOS verifier coverage.
+19. Done: add a release-manifest 2D conformance fixture that hashes one
     deterministic raster scene covering retained text, retained images, atlas
     sub-rects, batched sprites, geometry, and draw ordering.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
