@@ -366,6 +366,25 @@ fn run_case(mode) {
     var sr0d = oren_join_timeout(h0d, 5000)
     if sr0d != 0 { return 66 }
 
+    var h0e = spawn server(listen_fd, mode)
+    var urle = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var req_resp = http.request("GET", urle)
+    free(urle)
+    if oren_is_err(req_resp) {
+        print("http_get_loopback: FAIL default request: " + oren_err_msg(req_resp))
+        oren_join_timeout(h0e, 5000)
+        return 68
+    }
+    if req_resp.status != 200 || req_resp.text() == 0 || strcmp(req_resp.text(), "HELLO") != 0 {
+        print("http_get_loopback: FAIL default request payload")
+        req_resp.free()
+        oren_join_timeout(h0e, 5000)
+        return 69
+    }
+    req_resp.free()
+    var sr0e = oren_join_timeout(h0e, 5000)
+    if sr0e != 0 { return 70 }
+
     var te = http.get(nil, 0)
     if oren_is_err(te) != true { return 67 }
 

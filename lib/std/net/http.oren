@@ -699,7 +699,12 @@ fn request_resolver_opts(method, url, timeout_ms, resolver, opts): Response {
     return Response("GET", url, r["status"], r["headers"], r["body"])
 }
 
-fn request(method, url, timeout_ms, opts): Response {
+fn request(method, url, ...args): Response {
+    var timeout_ms = nil
+    var opts = 0
+    var n = oren_list_len(args)
+    if n > 0 { timeout_ms = args[0] }
+    if n > 1 { opts = args[1] }
     return request_resolver_opts(method, url, timeout_ms, 0, opts)
 }
 
@@ -715,10 +720,12 @@ fn get_opts(url, timeout_ms, opts): Response {
     return get_resolver_opts(url, timeout_ms, 0, opts)
 }
 
-fn get(url, timeout_ms): Response {
+fn get(url, ...args): Response {
     // Default behavior:
     // - IPv4 literal hosts work without DNS
     // - hostname hosts use `dns.default_resolver` (env `OREN_DNS_SERVER` or `/etc/resolv.conf`)
+    var timeout_ms = nil
+    if oren_list_len(args) > 0 { timeout_ms = args[0] }
     return get_resolver_opts(url, timeout_ms, 0, 0)
 }
 
