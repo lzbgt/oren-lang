@@ -133,6 +133,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -147,6 +148,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
+    if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
@@ -522,6 +524,35 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                     CGContextFillPath(ctx);
                 }
             }
+        } else if (opcode == 80 && payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
+            uint32_t meshID = OrenAVMGfxReadU32LE(payload);
+            uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
+            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
+                NSData* triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                self.orenMeshes[@(meshID)] = @{@"color": OrenAVMGfxColor(payload + 4),
+                                               @"triangles": triangles,
+                                               @"count": @(triangleCount)};
+            }
+        } else if (opcode == 81 && payloadLen == 4) {
+            NSDictionary<NSString*, id>* mesh = self.orenMeshes[@(OrenAVMGfxReadU32LE(payload))];
+            UIColor* color = mesh[@"color"];
+            NSData* triangles = mesh[@"triangles"];
+            NSNumber* count = mesh[@"count"];
+            const uint8_t* tris = triangles.bytes;
+            if (color && tris && count.unsignedIntValue == triangles.length / 24u) {
+                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                for (uint32_t ti = 0; ti < count.unsignedIntValue; ti++) {
+                    const uint8_t* tri = tris + ((size_t)ti * 24u);
+                    CGContextBeginPath(ctx);
+                    CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri), (CGFloat)OrenAVMGfxReadU32LE(tri + 4));
+                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 8), (CGFloat)OrenAVMGfxReadU32LE(tri + 12));
+                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 16), (CGFloat)OrenAVMGfxReadU32LE(tri + 20));
+                    CGContextClosePath(ctx);
+                    CGContextFillPath(ctx);
+                }
+            }
+        } else if (opcode == 82 && payloadLen == 4) {
+            [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);

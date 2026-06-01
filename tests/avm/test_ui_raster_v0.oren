@@ -112,6 +112,9 @@ fn test_raster_shapes() {
         {"op": "polyline", "points": points, "width": 1, "color": "#ff00ff"},
         {"op": "fill_triangle", "x1": 0, "y1": 4, "x2": 1, "y2": 4, "x3": 0, "y3": 3, "color": "#ff0000"},
         {"op": "fill_triangles", "triangles": tris, "color": "#00a0ff"},
+        {"op": "mesh2d", "id": 9, "triangles": tris, "color": "#00ff80"},
+        {"op": "draw_mesh2d", "id": 9},
+        {"op": "destroy_mesh2d", "id": 9},
         {"op": "stroke_rect", "x": 1, "y": 1, "w": 3, "h": 3, "width": 1, "color": "#ffff00"}
     ]
     var buf = ui_raster.try_rasterize(cmds, 5, 5, {"strict_bounds": true})

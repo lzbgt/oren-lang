@@ -74,6 +74,16 @@ fn test_validate_triangle() {
     ])
     assert_true(oren_is_err(bad_tri_bounds) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "fill_triangles", "triangles": bad_tri_bounds, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == true)
+    var mesh_cmds = [
+        {"op": "mesh2d", "id": 7, "triangles": tris, "color": "#00ffff"},
+        {"op": "draw_mesh2d", "id": 7},
+        {"op": "destroy_mesh2d", "id": 7}
+    ]
+    assert_true(oren_is_err(ui_cmds.try_validate(mesh_cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh2d", "id": 0, "triangles": tris, "color": "#00ffff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh2d", "id": 7, "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh2d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh2d", "id": 0}], 4, 3, nil)) == true)
 }
 
 fn test_validate_clip_stack() {

@@ -262,6 +262,34 @@ fn validate(cmds, w, h, opts) {
                     toff = toff + 24
                 }
             }
+        } else if op == "mesh2d" {
+            var mid = c["id"]; var mesh_tris = c["triangles"]; var mesh_col = c["color"]
+            if _is_int(mid) == false || mid < 1 { return oren_err(4, "ui.validate: mesh2d invalid id") }
+            if _hex_ok(mesh_col) == false { return oren_err(4, "ui.validate: mesh2d invalid color") }
+            var mesh_tris_len = bytes.try_len(mesh_tris)
+            if oren_is_err(mesh_tris_len) { return oren_err(4, "ui.validate: mesh2d expects byte triangles") }
+            if mesh_tris_len == 0 || mesh_tris_len > 65504 || mesh_tris_len % 24 != 0 { return oren_err(4, "ui.validate: mesh2d invalid triangle bytes") }
+            if strict {
+                var moff = 0
+                while moff < mesh_tris_len {
+                    var mvi = 0
+                    while mvi < 3 {
+                        var mvx = bytes.try_get_u32_le(mesh_tris, moff + mvi * 8)
+                        var mvy = bytes.try_get_u32_le(mesh_tris, moff + mvi * 8 + 4)
+                        if oren_is_err(mvx) || oren_is_err(mvy) { return oren_err(4, "ui.validate: mesh2d malformed vertex") }
+                        var mvx_t = mvx + tx; var mvy_t = mvy + ty
+                        if mvx_t < 0 || mvy_t < 0 || mvx_t >= w || mvy_t >= h { return oren_err(4, "ui.validate: mesh2d out of bounds") }
+                        mvi = mvi + 1
+                    }
+                    moff = moff + 24
+                }
+            }
+        } else if op == "draw_mesh2d" {
+            var dmid = c["id"]
+            if _is_int(dmid) == false || dmid < 1 { return oren_err(4, "ui.validate: draw_mesh2d invalid id") }
+        } else if op == "destroy_mesh2d" {
+            var xmid = c["id"]
+            if _is_int(xmid) == false || xmid < 1 { return oren_err(4, "ui.validate: destroy_mesh2d invalid id") }
         } else if op == "text" {
             var x2 = c["x"]; var y2 = c["y"]; var s = c["text"]; var col2 = c["color"]
             if _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: text expects int x,y") }

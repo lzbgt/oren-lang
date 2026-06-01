@@ -229,6 +229,28 @@ fn _push_cmd(out, c) {
         if oren_is_err(trc) { return trc }
         return _append_bytes(out, tris)
     }
+    if op == "mesh2d" {
+        var mesh_tris = c["triangles"]
+        var mesh_tris_n = bytes.try_len(mesh_tris)
+        if oren_is_err(mesh_tris_n) { return mesh_tris_n }
+        if mesh_tris_n == 0 || mesh_tris_n > 65504 || mesh_tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh2d invalid triangle bytes") }
+        _push_op_header(out, 80, 12 + mesh_tris_n)
+        _push_u32_le(out, c["id"])
+        var mesh_col = _push_color_rgba(out, c["color"])
+        if oren_is_err(mesh_col) { return mesh_col }
+        _push_u32_le(out, mesh_tris_n / 24)
+        return _append_bytes(out, mesh_tris)
+    }
+    if op == "draw_mesh2d" {
+        _push_op_header(out, 81, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
+    if op == "destroy_mesh2d" {
+        _push_op_header(out, 82, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
     if op == "text" {
         var tb = bytes.try_from_string(c["text"])
         if oren_is_err(tb) { return tb }

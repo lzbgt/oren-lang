@@ -79,6 +79,31 @@ fn main() {
     assert_true(oren_is_err(r5a))
     assert_true(oren_err_code(r5a) == 4)
 
+    var bad_mesh2d = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        80, 0, 36, 0,
+        4, 0, 0, 0, 255, 0, 0, 255, 2, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 0, 0,
+        2, 0, 0, 0, 2, 0, 0, 0
+    ])
+    var r5c = ui_avm.present_bytes(bad_mesh2d)
+    assert_true(oren_is_err(r5c))
+    assert_true(oren_err_code(r5c) == 4)
+
+    var bad_draw_mesh2d = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        81, 0, 4, 0,
+        0, 0, 0, 0
+    ])
+    var r5d = ui_avm.present_bytes(bad_draw_mesh2d)
+    assert_true(oren_is_err(r5d))
+    assert_true(oren_err_code(r5d) == 4)
+
     var bad_round_rect = bytes.try_pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 4, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,

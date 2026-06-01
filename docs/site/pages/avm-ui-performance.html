@@ -130,13 +130,13 @@
 <p>  <code>fill_rect</code>, <code>push_clip_rect</code>/<code>pop_clip</code>, <code>push_translate</code>/<code>pop_transform</code>,</p>
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>, <code>text</code>/<code>text_bytes</code>, <code>stroke_line</code>,</p>
 <p>  <code>stroke_rect</code>, <code>round_rect</code>, <code>circle</code>, <code>ellipse</code>, <code>polyline</code>, <code>fill_triangle</code>, <code>fill_triangles</code>,</p>
-<p>  <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
+<p>  <code>mesh2d</code>, <code>draw_mesh2d</code>, <code>destroy_mesh2d</code>, <code>text_resource</code>, <code>draw_text</code>, <code>draw_texts</code>, <code>destroy_text</code>, <code>image_rgba</code>, <code>draw_image</code>,</p>
 <p>  <code>destroy_image</code>, <code>draw_image_rect</code>, and <code>draw_image_rects</code>.</p>
 <ul>
 <li>iOS <code>OrenAVMMetalView</code> is the first Metal/<code>MTKView</code> path: it owns the Metal draw</li>
 </ul>
 <p>  loop, publishes host-populated screen state, forwards touch input into <code>OGE0</code>,</p>
-<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code> geometry, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
+<p>  and renders current <code>OGF0</code> <code>fill_rect</code>/<code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/<code>push_opacity</code>/<code>pop_opacity</code>/<code>stroke_line</code>/<code>stroke_rect</code>/<code>round_rect</code>/<code>circle</code>/<code>ellipse</code>/<code>polyline</code>/<code>fill_triangle</code>/<code>fill_triangles</code> geometry, retained 2D mesh draws, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text</p>
 <p>  through Metal pipelines. Its <code>targetHzMilli</code> setting drives</p>
 <p>  <code>MTKView.preferredFramesPerSecond</code> so hosts can request 60/90/120 Hz pacing</p>
 <p>  without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded</p>
@@ -283,6 +283,11 @@
 </ul>
 <p>  little-endian triangle vertices with one color, stepping toward larger mesh</p>
 <p>  resources without exposing host GPU handles;</p>
+<ul>
+<li>retained 2D mesh records: <code>mesh2d {id,triangles,color}</code> uploads packed</li>
+</ul>
+<p>  little-endian triangle geometry once, <code>draw_mesh2d {id}</code> reuses it, and</p>
+<p>  <code>destroy_mesh2d {id}</code> releases the virtual resource;</p>
 <ul>
 <li>balanced clipping records: <code>push_clip_rect {x,y,w,h}</code> and <code>pop_clip</code></li>
 </ul>
@@ -445,6 +450,12 @@
 </ol>
 <p>    validation, binary frames, AVM protocol checks, deterministic raster,</p>
 <p>    CoreGraphics fallback, Metal geometry draws, and iOS verifier coverage.</p>
+<ol>
+<li>Done: add retained 2D mesh resource records (<code>mesh2d</code>, <code>draw_mesh2d</code>,</li>
+</ol>
+<p>    <code>destroy_mesh2d</code>) across validation, binary frames, AVM protocol checks,</p>
+<p>    deterministic raster, CoreGraphics fallback, Metal geometry draws, and iOS</p>
+<p>    verifier coverage.</p>
 <ol>
 <li>Done: add a release-manifest 2D conformance fixture that hashes one</li>
 </ol>

@@ -28,6 +28,9 @@
 // - {"op":"polyline","points":bytes,"width":int,"color":"#RRGGBB"|"#RRGGBBAA"} where each point is u32le x,y
 // - {"op":"fill_triangle","x1":int,"y1":int,"x2":int,"y2":int,"x3":int,"y3":int,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"fill_triangles","triangles":bytes,"color":"#RRGGBB"|"#RRGGBBAA"} where each triangle is three u32le x,y vertices
+// - {"op":"mesh2d","id":int,"triangles":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"draw_mesh2d","id":int}
+// - {"op":"destroy_mesh2d","id":int}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
@@ -345,6 +348,26 @@ fn _draw_fill_triangle(buf, w, h, x1, y1, x2, y2, x3, y3, c) {
     return 0
 }
 
+fn _draw_triangle_bytes(buf, w, h, tris, c, err_prefix) {
+    var tris_len = bytes.try_len(tris)
+    if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
+    var toff = 0
+    while toff < tris_len {
+        var tx1 = bytes.try_get_u32_le(tris, toff)
+        var ty1 = bytes.try_get_u32_le(tris, toff + 4)
+        var tx2 = bytes.try_get_u32_le(tris, toff + 8)
+        var ty2 = bytes.try_get_u32_le(tris, toff + 12)
+        var tx3 = bytes.try_get_u32_le(tris, toff + 16)
+        var ty3 = bytes.try_get_u32_le(tris, toff + 20)
+        if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tx3) || oren_is_err(ty3) {
+            return oren_err(4, err_prefix + " malformed triangle")
+        }
+        _draw_fill_triangle(buf, w, h, tx1, ty1, tx2, ty2, tx3, ty3, c)
+        toff = toff + 24
+    }
+    return 0
+}
+
 fn rasterize(cmds, w, h, opts) {
     if opts == nil { opts = {} }
     if w < 0 || h < 0 { return oren_err(4, "rasterize: invalid size") }
@@ -399,6 +422,7 @@ fn rasterize(cmds, w, h, opts) {
     var opacity_depth = 0
     var images = {}
     var texts = {}
+    var meshes = {}
     var ci = 0
     while ci < oren_list_len(cmds) {
         var opm = cmds[ci]
@@ -514,23 +538,19 @@ fn rasterize(cmds, w, h, opts) {
         } else if op == "fill_triangles" {
             var btc = ui_color.try_parse_hex(opm["color"])
             if oren_is_err(btc) { return result.with_context(btc, "rasterize: fill_triangles color") }
-            var tris = opm["triangles"]
-            var tris_len = bytes.try_len(tris)
-            if oren_is_err(tris_len) { return result.with_context(tris_len, "rasterize: fill_triangles triangles") }
-            var toff = 0
-            while toff < tris_len {
-                var tx1 = bytes.try_get_u32_le(tris, toff)
-                var ty1 = bytes.try_get_u32_le(tris, toff + 4)
-                var tx2 = bytes.try_get_u32_le(tris, toff + 8)
-                var ty2 = bytes.try_get_u32_le(tris, toff + 12)
-                var tx3 = bytes.try_get_u32_le(tris, toff + 16)
-                var ty3 = bytes.try_get_u32_le(tris, toff + 20)
-                if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tx3) || oren_is_err(ty3) {
-                    return oren_err(4, "rasterize: fill_triangles malformed triangle")
-                }
-                _draw_fill_triangle(buf, w, h, tx1, ty1, tx2, ty2, tx3, ty3, btc)
-                toff = toff + 24
-            }
+            var btr = _draw_triangle_bytes(buf, w, h, opm["triangles"], btc, "rasterize: fill_triangles")
+            if oren_is_err(btr) { return btr }
+        } else if op == "mesh2d" {
+            meshes[oren_int_to_string(opm["id"])] = opm
+        } else if op == "draw_mesh2d" {
+            var mesh2d = meshes[oren_int_to_string(opm["id"])]
+            if mesh2d == nil { return oren_err(4, "rasterize: draw_mesh2d missing mesh") }
+            var mc = ui_color.try_parse_hex(mesh2d["color"])
+            if oren_is_err(mc) { return result.with_context(mc, "rasterize: mesh2d color") }
+            var mr = _draw_triangle_bytes(buf, w, h, mesh2d["triangles"], mc, "rasterize: draw_mesh2d")
+            if oren_is_err(mr) { return mr }
+        } else if op == "destroy_mesh2d" {
+            meshes[oren_int_to_string(opm["id"])] = nil
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
             var c2 = ui_color.try_parse_hex(opm["color"])
