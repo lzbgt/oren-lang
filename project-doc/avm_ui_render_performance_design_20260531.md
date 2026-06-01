@@ -243,7 +243,8 @@ High-volume 2D and 3D need retained resources:
   `destroy_model3d {id}` releases the virtual model handle;
 - `std:ui/scene3d` is a pure OBC-side helper layer that builds ordered retained
   mesh/material/model command lists from ordinary maps/lists before
-  `std:ui/avm` encodes them into OGF0;
+  `std:ui/avm` encodes them into OGF0, and `commands_from_file(path)` loads the
+  same scene shape from JSON package assets mounted into VirtualFS;
 - orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
   and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
   range without exposing host camera objects or Metal depth buffers to OBC;
@@ -385,6 +386,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 25. Done: add `std:ui/scene3d` retained-scene command builders and an AVM
     raster fixture so OBC packages can construct model scenes without host
     objects or hand-written low-level command ordering.
+26. Done: add JSON/package-asset scene loading for `std:ui/scene3d` plus a
+    first-party OBC store demo that bundles `assets/scene3d_card.json` and reads
+    it through a read-only package VFS mount.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.

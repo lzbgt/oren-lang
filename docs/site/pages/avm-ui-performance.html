@@ -319,7 +319,8 @@
 <li><code>std:ui/scene3d</code> is a pure OBC-side helper layer that builds ordered retained</li>
 </ul>
 <p>  mesh/material/model command lists from ordinary maps/lists before</p>
-<p>  <code>std:ui/avm</code> encodes them into OGF0;</p>
+<p>  <code>std:ui/avm</code> encodes them into OGF0, and <code>commands_from_file(path)</code> loads the</p>
+<p>  same scene shape from JSON package assets mounted into VirtualFS;</p>
 <ul>
 <li>orthographic camera depth-window records: <code>push_camera_ortho {near_z,far_z}</code></li>
 </ul>
@@ -525,6 +526,11 @@
 </ol>
 <p>    raster fixture so OBC packages can construct model scenes without host</p>
 <p>    objects or hand-written low-level command ordering.</p>
+<ol>
+<li>Done: add JSON/package-asset scene loading for <code>std:ui/scene3d</code> plus a</li>
+</ol>
+<p>    first-party OBC store demo that bundles <code>assets/scene3d_card.json</code> and reads</p>
+<p>    it through a read-only package VFS mount.</p>
 <ol>
 <li>Done: add <code>stroke_rect</code> across validation, binary frames, AVM protocol</li>
 </ol>

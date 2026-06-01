@@ -305,8 +305,9 @@ Facts from the 2026-05-28 implementation pass:
   game-level OBC packages: OBC must publish frames and consume host-originated input
   through the same virtual protocol, while the host owns platform event APIs and
   rendering devices. `std:ui/scene3d` now provides pure OBC-side builders for
-  retained mesh/material/model scene command lists. Remaining game-grade work is
-  broader 3D SDK conformance and package-scene asset loading. The next GUI contract is
+  retained mesh/material/model scene command lists and can load JSON scene assets
+  from package-mounted VirtualFS paths. Remaining game-grade work is broader 3D
+  SDK conformance and richer package-scene asset formats. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in

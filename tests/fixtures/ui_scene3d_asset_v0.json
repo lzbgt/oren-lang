@@ -1,0 +1,26 @@
+{
+  "schema": "oren.ui.scene3d.v0",
+  "meshes": [
+    {
+      "kind": "indexed",
+      "id": 17,
+      "vertices": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+      ],
+      "indices": [
+        0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
+      ],
+      "color": "#3366ff"
+    }
+  ],
+  "materials": [
+    {"id": 18, "color": "#00ff00"}
+  ],
+  "models": [
+    {"id": 19, "mesh_id": 17, "material_id": 18, "x": 1, "y": 1, "z": 0, "scale_milli": 1000}
+  ],
+  "draw": [19],
+  "destroy": true
+}

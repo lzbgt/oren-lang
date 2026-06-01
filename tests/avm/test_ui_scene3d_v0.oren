@@ -61,6 +61,22 @@ fn main() {
     assert_true(oren_is_err(direct) == false)
     assert_eq(direct[0]["material_id"], 0)
     assert_eq(direct[1]["op"], "draw_model3d")
+
+    var from_asset = scene3d.commands_from_file("tests/fixtures/ui_scene3d_asset_v0.json")
+    assert_true(oren_is_err(from_asset) == false)
+    assert_eq(oren_list_len(from_asset), 7)
+    assert_eq(from_asset[0]["op"], "mesh3d_indexed")
+    assert_eq(from_asset[1]["op"], "material3d")
+    assert_eq(from_asset[2]["op"], "model3d")
+    assert_eq(from_asset[3]["op"], "draw_model3d")
+    assert_true(ui_cmds.try_validate(from_asset, 4, 4, {"strict_bounds": true}) == 0)
+    var asset_buf = ui_raster.try_rasterize(from_asset, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(asset_buf) == false)
+    assert_eq(_px(asset_buf, 4, 1, 1, 0), 0)
+    assert_eq(_px(asset_buf, 4, 1, 1, 1), 255)
+    assert_eq(_px(asset_buf, 4, 1, 1, 2), 0)
+
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"bad\"}")) == true)
     assert_true(oren_is_err(scene3d.commands(nil)) == true)
     exit(0)
 }

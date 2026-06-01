@@ -8,6 +8,8 @@
 // can bundle scene metadata without depending on host objects.
 
 import list "std:list"
+import bytes "std:bytes"
+import json "std:json"
 
 fn _is_int(v) {
     if v == nil { return false }
@@ -100,6 +102,140 @@ fn _push_destroy(out, xs, destroy_fn) {
         i = i - 1
     }
     return 0
+}
+
+fn _pack_bytes(v, ctx) {
+    if v == nil { return oren_err(4, ctx + ": missing byte array") }
+    if oren_type_tag(v) == 6 { return bytes.try_pack(v) }
+    var n = bytes.try_len(v)
+    if oren_is_err(n) { return oren_err(4, ctx + ": expected byte array") }
+    return v
+}
+
+fn _asset_mesh(m) {
+    if m == nil { return oren_err(4, "ui.scene3d: mesh is nil") }
+    var id = m["id"]
+    var kind = m["kind"]
+    if kind == nil { kind = "triangles" }
+    if kind == "triangles" {
+        var tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
+        if oren_is_err(tris) { return tris }
+        return mesh(id, tris, m["color"])
+    }
+    if kind == "triangles_rgba" {
+        var tris_rgba = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles_rgba")
+        if oren_is_err(tris_rgba) { return tris_rgba }
+        return mesh_rgba(id, tris_rgba)
+    }
+    if kind == "indexed" {
+        var vertices = _pack_bytes(m["vertices"], "ui.scene3d mesh.vertices")
+        if oren_is_err(vertices) { return vertices }
+        var indices = _pack_bytes(m["indices"], "ui.scene3d mesh.indices")
+        if oren_is_err(indices) { return indices }
+        return mesh_indexed(id, vertices, indices, m["color"])
+    }
+    return oren_err(4, "ui.scene3d: unsupported mesh kind")
+}
+
+fn _asset_model(m) {
+    if m == nil { return oren_err(4, "ui.scene3d: model is nil") }
+    var material_id = m["material_id"]
+    if material_id == nil { material_id = 0 }
+    var x = m["x"]; if x == nil { x = 0 }
+    var y = m["y"]; if y == nil { y = 0 }
+    var z = m["z"]; if z == nil { z = 0 }
+    var scale_milli = m["scale_milli"]; if scale_milli == nil { scale_milli = 1000 }
+    return model(m["id"], m["mesh_id"], material_id, x, y, z, scale_milli)
+}
+
+fn _map_list(xs, map_fn) {
+    var out = []
+    if xs == nil { return out }
+    var i = 0
+    while i < oren_list_len(xs) {
+        var item = map_fn(xs[i])
+        if oren_is_err(item) { return item }
+        list.push(out, item)
+        i = i + 1
+    }
+    return out
+}
+
+fn _json_to_plain(jv) {
+    if jv == nil { return nil }
+    var t = jv["t"]
+    if t == "null" { return nil }
+    if t == "bool" { return jv["b"] != 0 }
+    if t == "int" { return jv["i"] }
+    if t == "string" { return jv["s"] }
+    if t == "array" {
+        var a = jv["a"]
+        var out = []
+        var i = 0
+        while i < oren_list_len(a) {
+            list.push(out, _json_to_plain(a[i]))
+            i = i + 1
+        }
+        return out
+    }
+    if t == "object" {
+        var o = jv["o"]
+        var out2 = {}
+        for k in o {
+            oren_map_set_str(out2, k, _json_to_plain(oren_map_get_str(o, k)))
+        }
+        return out2
+    }
+    return oren_err(4, "ui.scene3d: invalid JSON value")
+}
+
+fn scene_from_asset(asset) {
+    if asset == nil { return oren_err(4, "ui.scene3d.scene_from_asset: asset is nil") }
+    var schema = asset["schema"]
+    if schema != nil && schema != "oren.ui.scene3d.v0" {
+        return oren_err(4, "ui.scene3d.scene_from_asset: unsupported schema")
+    }
+    var meshes = _map_list(asset["meshes"], _asset_mesh)
+    if oren_is_err(meshes) { return meshes }
+    var materials = []
+    var mats = asset["materials"]
+    if mats != nil {
+        var mi = 0
+        while mi < oren_list_len(mats) {
+            var mat = mats[mi]
+            list.push(materials, material(mat["id"], mat["color"]))
+            mi = mi + 1
+        }
+    }
+    var models = _map_list(asset["models"], _asset_model)
+    if oren_is_err(models) { return models }
+    return {
+        "meshes": meshes,
+        "materials": materials,
+        "models": models,
+        "draw": asset["draw"],
+        "destroy": asset["destroy"]
+    }
+}
+
+fn commands_from_asset(asset) {
+    var scene = scene_from_asset(asset)
+    if oren_is_err(scene) { return scene }
+    return commands(scene)
+}
+
+fn commands_from_json(s) {
+    var jv = json.try_decode(s)
+    if oren_is_err(jv) { return jv }
+    var asset = _json_to_plain(jv)
+    if oren_is_err(asset) { return asset }
+    return commands_from_asset(asset)
+}
+
+fn commands_from_file(path) {
+    var s = oren_read_file(path)
+    if oren_is_err(s) { return s }
+    return commands_from_json(s)
 }
 
 fn commands(scene) {

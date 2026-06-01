@@ -1,0 +1,37 @@
+import scene3d "std:ui/scene3d"
+import ui_cmds "std:ui/commands"
+import ui_raster "std:ui/raster"
+import ui_avm "std:ui/avm"
+
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn px(buf, w, x, y, chan) {
+    return oren_bytes_get_u8(buf, (y * w + x) * 4 + chan)
+}
+
+fn main() {
+    var cmds = scene3d.commands_from_file("assets/scene3d_card.json")
+    if oren_is_err(cmds) { fail(oren_err_msg(cmds)) }
+    var valid = ui_cmds.try_validate(cmds, 4, 4, {"strict_bounds": true})
+    if oren_is_err(valid) { fail(oren_err_msg(valid)) }
+    var buf = ui_raster.try_rasterize(cmds, 4, 4, {"strict_bounds": true})
+    if oren_is_err(buf) { fail(oren_err_msg(buf)) }
+    if px(buf, 4, 1, 1, 1) != 255 { fail("scene pixel") }
+    var rc = ui_avm.present_frame(cmds, 4, 4, {
+        "sequence": 1,
+        "scale_milli": 3000,
+        "drawable_w": 12,
+        "drawable_h": 12,
+        "target_hz_milli": 120000,
+        "strict_bounds": true
+    })
+    if oren_is_err(rc) { fail(oren_err_msg(rc)) }
+    print("scene3d-asset demo OK")
+    oren_exit(0)
+}
+
+main()

@@ -15,6 +15,7 @@ Sources live under `examples/obc_store_demos/`.
 | --- | --- | --- |
 | `oren-labs/science-calculator@0.1.0` | Deterministic `std:math.power(...)` and `std:linalg.dot_f64(...)` smoke for scientific calculation. | `CORE`, `EXIT` |
 | `oren-labs/ui-card-demo@0.1.0` | Publishes a compact binary `OGF0` UI frame for host-rendered iOS UI/GFX demos. | `CORE`, `GFX`, `EXIT` |
+| `oren-labs/scene3d-asset-demo@0.1.0` | Loads a bundled JSON `std:ui/scene3d` asset through package VFS, raster-checks it, and publishes the retained 3D frame. | `CORE`, `FS`, `GFX`, `EXIT` |
 
 ## Build Gate
 
@@ -38,12 +39,15 @@ build/obc-store-demos/bundles/<publisher>__<name>__<version>.obc.zip
 build/obc-store-demos/packages/<publisher>/<name>/<version>/package.json
 build/obc-store-demos/packages/<publisher>/<name>/<version>/program.obc
 build/obc-store-demos/packages/<publisher>/<name>/<version>/assets/source/main.oren
+build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.json
 ```
 
 Official demo packages always bundle source code as a package asset so host apps
 can show or ignore source independently from the executable OBC. The manifest
 declares the source in both `assets` and `sources`; the store index declares the
-ZIP bundle path, media type, and SHA-256.
+ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime
+assets; `scene3d-asset-demo` declares a read-only `assets/` VFS mount and proves
+OBC can load retained UI scene metadata from package assets.
 
 These generated package artifacts are intentionally not committed. They can be
 published to `store.hubstack.cn` after live deployment/signing credentials are

@@ -20,5 +20,24 @@
     "tags": ["ui", "gfx", "demo"],
     "capabilities": ["CORE", "GFX", "EXIT"],
     "run_allow_domains": "0,6,9"
+  },
+  {
+    "publisher": "oren-labs",
+    "name": "scene3d-asset-demo",
+    "version": "0.1.0",
+    "source": "examples/obc_store_demos/scene3d_asset.oren",
+    "title": "Scene3D Asset Demo",
+    "summary": "Loads a bundled JSON scene asset from package VFS and renders retained 3D commands.",
+    "tags": ["ui", "gfx", "scene3d", "asset"],
+    "capabilities": ["CORE", "FS", "GFX", "EXIT"],
+    "run_allow_domains": "0,1,6,9",
+    "assets": [
+      {
+        "source": "examples/obc_store_demos/assets/scene3d_card.json",
+        "path": "assets/scene3d_card.json",
+        "media_type": "application/vnd.oren.ui.scene3d+json",
+        "role": "scene3d"
+      }
+    ]
   }
 ]

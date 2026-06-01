@@ -67,6 +67,19 @@ for item in spec:
     source_asset.parent.mkdir(parents=True, exist_ok=True)
     source_bytes = source.read_bytes()
     source_asset.write_bytes(source_bytes)
+    extra_assets = []
+    for asset in item.get("assets", []):
+        asset_source = pathlib.Path(asset["source"])
+        asset_path = asset["path"]
+        if not asset_source.is_file():
+            raise SystemExit(f"missing asset source: {asset_source}")
+        if asset_path.startswith("/") or ".." in pathlib.PurePosixPath(asset_path).parts:
+            raise SystemExit(f"unsafe asset path: {asset_path}")
+        asset_out = pkg_dir / asset_path
+        asset_out.parent.mkdir(parents=True, exist_ok=True)
+        asset_bytes = asset_source.read_bytes()
+        asset_out.write_bytes(asset_bytes)
+        extra_assets.append((asset, asset_out, asset_bytes))
     obc_path = pkg_dir / "program.obc"
     build_log = log_dir / f"obc_store_demo_{item['publisher']}_{item['name']}_{item['version']}_build.log"
     run_log = log_dir / f"obc_store_demo_{item['publisher']}_{item['name']}_{item['version']}_run.log"
@@ -77,11 +90,38 @@ for item in spec:
             stdout=log,
             stderr=subprocess.STDOUT,
         )
+    run_cmd = [avm, "--deny-by-default", "--allow-domains", item["run_allow_domains"], "--print-run-json"]
+    if extra_assets:
+        run_cmd.extend([
+            "--fs-backend",
+            "host",
+            "--fs-allow-prefixes",
+            "assets/",
+            "--fs-mounts-read",
+            f"assets/={pkg_dir / 'assets'}/",
+        ])
+    run_cmd.append(str(obc_path))
     with run_log.open("wb") as log:
-        subprocess.check_call([avm, "--deny-by-default", "--allow-domains", item["run_allow_domains"], "--print-run-json", str(obc_path)], stdout=log, stderr=subprocess.STDOUT)
+        subprocess.check_call(run_cmd, stdout=log, stderr=subprocess.STDOUT)
 
     obc_sha = hashlib.sha256(obc_path.read_bytes()).hexdigest()
     source_sha = hashlib.sha256(source_bytes).hexdigest()
+    asset_entries = [
+        {
+            "path": "assets/source/main.oren",
+            "sha256": source_sha,
+            "media_type": "text/x-oren",
+            "role": "source",
+        }
+    ]
+    for asset, _asset_out, asset_bytes in extra_assets:
+        asset_entries.append({
+            "path": asset["path"],
+            "sha256": hashlib.sha256(asset_bytes).hexdigest(),
+            "media_type": asset.get("media_type", "application/octet-stream"),
+            "role": asset.get("role", "asset"),
+        })
+
     manifest = {
         "schema": "oren.obc.package.v0",
         "publisher": item["publisher"],
@@ -95,14 +135,7 @@ for item in spec:
         "avm_abi_min": 8,
         "capabilities": item["capabilities"],
         "tags": item["tags"],
-        "assets": [
-            {
-                "path": "assets/source/main.oren",
-                "sha256": source_sha,
-                "media_type": "text/x-oren",
-                "role": "source",
-            }
-        ],
+        "assets": asset_entries,
         "sources": [
             {
                 "path": "assets/source/main.oren",
@@ -118,15 +151,26 @@ for item in spec:
             "frame_commands": 1024,
         },
     }
+    if extra_assets:
+        manifest["vfs_mounts"] = [
+            {
+                "virtual": "assets/",
+                "package_path": "assets/",
+                "read_only": True,
+            }
+        ]
     manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
     (pkg_dir / "package.json").write_bytes(manifest_bytes)
     manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
     bundle_path = bundles_root / f"{item['publisher']}__{item['name']}__{item['version']}.obc.zip"
-    write_deterministic_zip(bundle_path, [
+    bundle_files = [
         ("assets/source/main.oren", source_asset),
         ("package.json", pkg_dir / "package.json"),
         ("program.obc", obc_path),
-    ])
+    ]
+    for asset, asset_out, _asset_bytes in extra_assets:
+        bundle_files.append((asset["path"], asset_out))
+    write_deterministic_zip(bundle_path, bundle_files)
     bundle_sha = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
     index_packages.append({
         "id": item["publisher"] + "/" + item["name"],
@@ -156,9 +200,10 @@ for entry in index_packages:
         raise SystemExit(f"bundle hash mismatch: {bundle_path}")
     with zipfile.ZipFile(bundle_path) as zf:
         names = sorted(zf.namelist())
-        if names != ["assets/source/main.oren", "package.json", "program.obc"]:
-            raise SystemExit(f"bad release bundle layout: {bundle_path}: {names}")
         manifest = json.loads(zf.read("package.json"))
+        expected_names = sorted(["package.json", "program.obc"] + [a["path"] for a in manifest.get("assets", [])])
+        if names != expected_names:
+            raise SystemExit(f"bad release bundle layout: {bundle_path}: {names}")
         if not any(a.get("role") == "source" and a.get("path") == "assets/source/main.oren" for a in manifest.get("assets", [])):
             raise SystemExit(f"missing source asset declaration: {bundle_path}")
         if not any(s.get("path") == "assets/source/main.oren" for s in manifest.get("sources", [])):
