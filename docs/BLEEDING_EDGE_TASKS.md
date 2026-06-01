@@ -102,37 +102,36 @@ This file is the concise task view. Detailed implementation status lives in
      rejection, the host input queue depth cap, non-1000 resize scale propagation,
      latest-frame replacement/clear semantics, and FIFO pointer down/move/up
      ordering before mixed key/text events.
-	   - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
-	     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
-	     may convert at the boundary but must not force list-of-byte round trips.
-		     Rolling API design now favors scoped objects and method chaining over
-		     root-level convenience helpers: NET uses `http.get(url).text()` /
-		     socket scopes, and codecs/bytes expose `"{}".json().text()`,
-		     `"a: 1\n".yaml().text()`, `cbor.cint(7).bytes().cbor()`, and
-		     `"hi".bytes().text()` through stdlib source and OBC metadata.
-			     Base64 and crypto hashes now follow the same rule with
-			     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
-			     `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
-			     path on exact-size `u8_buf` output.
-			     Buffer views now expose wrapper objects over zero-copy slices,
-			     strides, and matrices, so callers can write
-			     `buf.slice(1, 3).text()` and
-			     `buf.matrix(2, 3).row(1).text()` instead of routing through
-			     root-level projection helpers.
-			     `make verify-stdlib-api-shape` now blocks known bad
-			     root-helper regressions such as `try_get_text`,
-			     `try_get_bytes`, and public WebSocket `try_*_text` helpers.
-			     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket
-		     now follow the same session/object rule with examples like
-		     `conn.read_into(...)`, `socket.send_to(...)`,
-		     `conn.write_from(...)`, `conn.recv_text(...)`,
-		     `listener.accept(...)`, and `session.recv_text(...)`.
-		     XML/HTML follow the same rule with streaming readers first for large OBC
-	     payloads and DOM/query convenience on top. Native HTTP can use
-	     `response.html_reader()` / `response.html().find("title").text()`;
-	     AVM/OBC packages should opt into the parser explicitly and compose
-	     `response.text().html_reader()` to keep the default stdlib bundle inside
-	     iOS CompilerKit memory budgets.
+   - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
+     hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
+     may convert at the boundary but must not force list-of-byte round trips.
+     Rolling API design now favors scoped objects and method chaining over
+     root-level convenience helpers: NET uses `http.get(url).text()` /
+     socket scopes, and codecs/bytes expose `"{}".json().text()`,
+     `"a: 1\n".yaml().text()`, `cbor.cint(7).bytes().cbor()`, and
+     `"hi".bytes().text()` through stdlib source and OBC metadata.
+     Base64 and crypto hashes now follow the same rule with
+     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
+     `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
+     path on exact-size `u8_buf` output.
+     Buffer views now expose wrapper objects over zero-copy slices,
+     strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
+     `buf.matrix(2, 3).row(1).text()` instead of routing through root-level
+     projection helpers.
+     `make verify-stdlib-api-shape` now blocks known bad root-helper regressions
+     such as `try_get_text`, `try_get_bytes`, root HTTP/HTTP2 `try_request`, and
+     public WebSocket `try_*_text` helpers.
+     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket now
+     follow the same session/object rule with examples like `conn.read_into(...)`,
+     `socket.send_to(...)`, `conn.write_from(...)`, `conn.recv_text(...)`,
+     `listener.accept(...)`, `session.recv_text(...)`, and
+     `http2_client.try_new(...).request(...).text()`.
+     XML/HTML follow the same rule with streaming readers first for large OBC
+     payloads and DOM/query convenience on top. Native HTTP can use
+     `response.html_reader()` / `response.html().find("title").text()`; AVM/OBC
+     packages should opt into the parser explicitly and compose
+     `response.text().html_reader()` to keep the default stdlib bundle inside
+     iOS CompilerKit memory budgets.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated

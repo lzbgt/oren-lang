@@ -222,7 +222,9 @@
 <p>  <code>conn.read_into(...)</code>, <code>socket.send_to(...)</code>, <code>conn.write_from(...)</code>,</p>
 <p>  <code>conn.recv_text(...)</code>, <code>conn.close()</code>, or AVM <code>session.read(...)</code> /</p>
 <p>  <code>session.recv_text(...)</code> over root-level fd/session helper calls in user-facing</p>
-<p>  code. Raw syscall-first forms may remain as internal/performance primitives.</p>
+<p>  code. HTTP/2 follows the same rule: create a client/session value and call</p>
+<p>  <code>client.request(...).text()</code> or <code>.bytes()</code>. Raw syscall-first forms may remain</p>
+<p>  as internal/performance primitives.</p>
 <ul>
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>

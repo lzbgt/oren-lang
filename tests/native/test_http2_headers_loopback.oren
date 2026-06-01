@@ -296,15 +296,16 @@ fn _client_roundtrip(conn) {
     // Use stdlib HTTP/2 client facade to avoid re-embedding frame logic in tests.
     var c = h2c.try_new(conn, 5000, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
     if oren_is_err(c) { return 0 - 11 }
-    var rr = h2c.try_request(c, [
+    var rr = c.request([
         {"name": ":method", "value": "GET"},
         {"name": ":scheme", "value": "https"},
         {"name": ":path", "value": "/"},
         {"name": ":authority", "value": "oren.test", "index": "inc"}
     ], nil, {"split_headers_at": 8})
     if oren_is_err(rr) { return 0 - 12 }
-    if rr["status"] != 200 { return 0 - 13 }
-    return _expect_body_ok(rr["body"])
+    if rr.status != 200 { return 0 - 13 }
+    if rr.text() != "ok" { return 0 - 14 }
+    return _expect_body_ok(rr.bytes())
 }
 
 fn server_impl(listen_fd, pfx_b64) {

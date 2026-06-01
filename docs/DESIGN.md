@@ -191,7 +191,9 @@ Constraints:
   `conn.read_into(...)`, `socket.send_to(...)`, `conn.write_from(...)`,
   `conn.recv_text(...)`, `conn.close()`, or AVM `session.read(...)` /
   `session.recv_text(...)` over root-level fd/session helper calls in user-facing
-  code. Raw syscall-first forms may remain as internal/performance primitives.
+  code. HTTP/2 follows the same rule: create a client/session value and call
+  `client.request(...).text()` or `.bytes()`. Raw syscall-first forms may remain
+  as internal/performance primitives.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
   `make verify-stdlib-api-shape` guards the known bad root-helper names so the

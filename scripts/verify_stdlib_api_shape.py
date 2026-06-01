@@ -13,6 +13,7 @@ SCAN_DIRS = ("lib/std", "tests", "examples")
 BANNED_TOKENS = (
     "try_get_text",
     "try_get_bytes",
+    "try_request",
     "try_recv_text",
     "try_send_text",
     "try_send_text_client",

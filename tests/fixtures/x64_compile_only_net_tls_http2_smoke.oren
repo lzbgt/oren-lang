@@ -116,6 +116,14 @@ fn main() {
             // Client wrapper surface (http2_client).
             var _c = h2c.new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
             var _tc = h2c.try_new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
+            var _tc_state = _tc.raw_state()
+            var _tc_resp = _tc.request([
+                {"name": ":method", "value": "GET"},
+                {"name": ":scheme", "value": "https"},
+                {"name": ":path", "value": "/"},
+                {"name": ":authority", "value": "oren.test"}
+            ], nil, {})
+            var _tc_resp_text = _tc_resp.text()
         }
 
         // HTTP/2 framing surface.
