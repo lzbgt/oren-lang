@@ -102,6 +102,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -117,6 +118,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
+    if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
@@ -557,9 +559,18 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                                                @"count": @(triangleCount),
                                                @"stride": @36};
             }
-        } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20)) {
+        } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
+                   (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24)) {
             NSDictionary<NSString*, id>* mesh = self.orenMeshes[@(OrenAVMGfxReadU32LE(payload))];
-            UIColor* color = mesh[@"color"];
+            UIColor* materialColor = nil;
+            if (opcode == 90 || opcode == 91) {
+                materialColor = self.orenMaterials3D[@(OrenAVMGfxReadU32LE(payload + 4))];
+                if (!materialColor) {
+                    off += payloadLen;
+                    continue;
+                }
+            }
+            UIColor* color = materialColor ?: mesh[@"color"];
             NSData* triangles = mesh[@"triangles"];
             NSData* vertices = mesh[@"vertices"];
             NSData* indices = mesh[@"indices"];
@@ -579,6 +590,11 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                 modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
                 modelZ = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
                 scaleMilli = OrenAVMGfxReadU32LE(payload + 16);
+            } else if (opcode == 91) {
+                modelX = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
+                modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
+                modelZ = (int32_t)OrenAVMGfxReadU32LE(payload + 16);
+                scaleMilli = OrenAVMGfxReadU32LE(payload + 20);
             }
             if (verts && idx && color && scaleMilli != 0 && triangleCount == indices.length / 12u && vertices.length % 12u == 0) {
                 NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:triangleCount];
@@ -637,7 +653,7 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
                     if (!found) break;
                     [drawn addObject:@(best)];
                     const uint8_t* tri = tris + ((size_t)best * meshStride);
-                    UIColor* drawColor = meshStride == 40u ? OrenAVMGfxColor(tri + 36) : color;
+                    UIColor* drawColor = materialColor ?: (meshStride == 40u ? OrenAVMGfxColor(tri + 36) : color);
                     if (!drawColor) continue;
                     CGContextSetFillColorWithColor(ctx, drawColor.CGColor);
                     CGContextBeginPath(ctx);
@@ -656,6 +672,11 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
             }
         } else if (opcode == 85 && payloadLen == 4) {
             [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
+        } else if (opcode == 89 && payloadLen == 8) {
+            uint32_t materialID = OrenAVMGfxReadU32LE(payload);
+            if (materialID != 0) self.orenMaterials3D[@(materialID)] = OrenAVMGfxColor(payload + 4);
+        } else if (opcode == 92 && payloadLen == 4) {
+            [self.orenMaterials3D removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
         } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 4);

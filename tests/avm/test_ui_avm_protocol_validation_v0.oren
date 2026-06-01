@@ -140,6 +140,28 @@ fn main() {
     assert_true(oren_is_err(r5fa))
     assert_true(oren_err_code(r5fa) == 4)
 
+    var bad_material3d = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        89, 0, 8, 0,
+        0, 0, 0, 0, 255, 255, 0, 255
+    ])
+    var r5fm = ui_avm.present_bytes(bad_material3d)
+    assert_true(oren_is_err(r5fm))
+    assert_true(oren_err_code(r5fm) == 4)
+
+    var bad_draw_mesh3d_material = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        90, 0, 8, 0,
+        5, 0, 0, 0, 0, 0, 0, 0
+    ])
+    var r5fn = ui_avm.present_bytes(bad_draw_mesh3d_material)
+    assert_true(oren_is_err(r5fn))
+    assert_true(oren_err_code(r5fn) == 4)
+
     var bad_camera = bytes.try_pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,

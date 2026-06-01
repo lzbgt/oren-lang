@@ -316,8 +316,34 @@ fn _push_cmd(out, c) {
         _push_u32_le(out, c["scale_milli"])
         return 0
     }
+    if op == "material3d" {
+        _push_op_header(out, 89, 8)
+        _push_u32_le(out, c["id"])
+        return _push_color_rgba(out, c["color"])
+    }
+    if op == "draw_mesh3d_material" {
+        _push_op_header(out, 90, 8)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["material_id"])
+        return 0
+    }
+    if op == "draw_mesh3d_at_material" {
+        _push_op_header(out, 91, 24)
+        _push_u32_le(out, c["id"])
+        _push_u32_le(out, c["material_id"])
+        _push_u32_le(out, c["x"])
+        _push_u32_le(out, c["y"])
+        _push_u32_le(out, c["z"])
+        _push_u32_le(out, c["scale_milli"])
+        return 0
+    }
     if op == "destroy_mesh3d" {
         _push_op_header(out, 85, 4)
+        _push_u32_le(out, c["id"])
+        return 0
+    }
+    if op == "destroy_material3d" {
+        _push_op_header(out, 92, 4)
         _push_u32_le(out, c["id"])
         return 0
     }

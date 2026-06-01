@@ -257,9 +257,19 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d count");
                 return 0;
             }
-        } else if (opcode == 84u || opcode == 85u) {
+        } else if (opcode == 84u || opcode == 85u || opcode == 92u) {
             if (payload_len != 4u || avm_gfx_u32le(payload) == 0u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad mesh3d handle payload");
+                return 0;
+            }
+        } else if (opcode == 89u) {
+            if (payload_len != 8u || avm_gfx_u32le(payload) == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad material3d payload");
+                return 0;
+            }
+        } else if (opcode == 90u) {
+            if (payload_len != 8u || avm_gfx_u32le(payload) == 0u || avm_gfx_u32le(payload + 4) == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_mesh3d_material payload");
                 return 0;
             }
         } else if (opcode == 86u) {
@@ -302,6 +312,12 @@ int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t er
         } else if (opcode == 87u) {
             if (payload_len != 20u || avm_gfx_u32le(payload) == 0u || avm_gfx_u32le(payload + 16) == 0u) {
                 avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_mesh3d_at payload");
+                return 0;
+            }
+        } else if (opcode == 91u) {
+            if (payload_len != 24u || avm_gfx_u32le(payload) == 0u ||
+                avm_gfx_u32le(payload + 4) == 0u || avm_gfx_u32le(payload + 20) == 0u) {
+                avm_gfx_err(err, err_cap, "invalid OGF0 frame: bad draw_mesh3d_at_material payload");
                 return 0;
             }
         } else if (opcode == 6u) {

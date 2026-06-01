@@ -92,8 +92,12 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(tris3d) == false)
     var mesh3d_cmds = [
         {"op": "mesh3d", "id": 8, "triangles": tris3d, "color": "#ff00ff"},
+        {"op": "material3d", "id": 3, "color": "#ffff00"},
         {"op": "draw_mesh3d", "id": 8},
         {"op": "draw_mesh3d_at", "id": 8, "x": 1, "y": 0, "z": 2, "scale_milli": 1000},
+        {"op": "draw_mesh3d_material", "id": 8, "material_id": 3},
+        {"op": "draw_mesh3d_at_material", "id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 1000},
+        {"op": "destroy_material3d", "id": 3},
         {"op": "destroy_mesh3d", "id": 8}
     ]
     assert_true(oren_is_err(ui_cmds.try_validate(mesh3d_cmds, 4, 3, {"strict_bounds": true})) == false)
@@ -105,7 +109,12 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d", "id": 0}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_at", "id": 0, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_at", "id": 8, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "material3d", "id": 0, "color": "#ffff00"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "material3d", "id": 3, "color": "yellow"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_material", "id": 8, "material_id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_at_material", "id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh3d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_material3d", "id": 0}], 4, 3, nil)) == true)
     var tris3d_rgba = bytes.try_pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,

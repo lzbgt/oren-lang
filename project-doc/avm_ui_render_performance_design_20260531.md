@@ -83,11 +83,11 @@ Implemented as of 2026-05-31:
   `fill_rect`, `push_clip_rect`/`pop_clip`, `push_translate`/`pop_transform`,
   `push_opacity`/`pop_opacity`, `push_camera_ortho`/`pop_camera`, `text`/`text_bytes`, `stroke_line`,
   `stroke_rect`, `round_rect`, `circle`, `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`,
-  `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `draw_mesh3d`, `draw_mesh3d_at`, `destroy_mesh3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
+  `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `material3d`, `draw_mesh3d`, `draw_mesh3d_at`, `draw_mesh3d_material`, `draw_mesh3d_at_material`, `destroy_mesh3d`, `destroy_material3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`, `image_rgba`, `draw_image`,
   `destroy_image`, `draw_image_rect`, and `draw_image_rects`.
 - iOS `OrenAVMMetalView` is the first Metal/`MTKView` path: it owns the Metal draw
   loop, publishes host-populated screen state, forwards touch input into `OGE0`,
-  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained 2D mesh draws, retained 3D triangle and indexed mesh draws with orthographic XY default projection, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
+  and renders current `OGF0` `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle`/`fill_triangles` geometry, retained 2D mesh draws, retained 3D triangle and indexed mesh draws with orthographic XY default projection, retained material resources and material override draws, deterministic painter-depth ordering, per-draw model translation/uniform scale, and explicit camera depth-window culling, retained RGBA image draws/sub-rect and batched atlas draws, plus byte-native and retained/batched text
   through Metal pipelines. Its `targetHzMilli` setting drives
   `MTKView.preferredFramesPerSecond` so hosts can request 60/90/120 Hz pacing
   without exposing UIKit/Metal objects to OBC. Current text rendering uses a bounded
@@ -232,6 +232,11 @@ High-volume 2D and 3D need retained resources:
   and painter-depth order, drawing higher average Z first so lower-Z triangles
   win overlaps, while preserving Z in the frame protocol for future camera/depth
   renderers;
+- retained 3D material records: `material3d {id,color}` uploads a reusable
+  RGBA material, `draw_mesh3d_material {id,material_id}` and
+  `draw_mesh3d_at_material {id,material_id,x,y,z,scale_milli}` draw retained
+  3D meshes with a material override without resending mesh vertices, and
+  `destroy_material3d {id}` releases the virtual material handle;
 - orthographic camera depth-window records: `push_camera_ortho {near_z,far_z}`
   and `pop_camera` bound subsequent retained 3D draws to an inclusive transformed-Z
   range without exposing host camera objects or Metal depth buffers to OBC;
@@ -364,6 +369,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 22. Done: add a release-manifest 3D conformance fixture that hashes retained
     triangle, RGBA-depth, indexed shared-vertex, model transform, and camera
     depth-window behavior in `test_ui_3d_conformance_v0.oren`.
+23. Done: add retained 3D material records and material override draw commands
+    across validation, binary frames, AVM protocol checks, deterministic raster,
+    CoreGraphics fallback, Metal, iOS verifier, and 3D conformance.
 18. Done: add `stroke_rect` across validation, binary frames, AVM protocol
     checks, deterministic raster, CoreGraphics fallback, Metal, iOS verifier,
     and the 2D conformance scene.

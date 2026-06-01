@@ -382,6 +382,10 @@ fn validate(cmds, w, h, opts) {
                     m3ivoff = m3ivoff + 12
                 }
             }
+        } else if op == "material3d" {
+            var matid = c["id"]; var matcol = c["color"]
+            if _is_int(matid) == false || matid < 1 { return oren_err(4, "ui.validate: material3d invalid id") }
+            if _hex_ok(matcol) == false { return oren_err(4, "ui.validate: material3d invalid color") }
         } else if op == "draw_mesh3d" {
             var dm3id = c["id"]
             if _is_int(dm3id) == false || dm3id < 1 { return oren_err(4, "ui.validate: draw_mesh3d invalid id") }
@@ -390,9 +394,22 @@ fn validate(cmds, w, h, opts) {
             if _is_int(dm3aid) == false || dm3aid < 1 { return oren_err(4, "ui.validate: draw_mesh3d_at invalid id") }
             if _is_int(dm3ax) == false || _is_int(dm3ay) == false || _is_int(dm3az) == false { return oren_err(4, "ui.validate: draw_mesh3d_at expects int x,y,z") }
             if _is_int(dm3as) == false || dm3as <= 0 { return oren_err(4, "ui.validate: draw_mesh3d_at invalid scale_milli") }
+        } else if op == "draw_mesh3d_material" {
+            var dm3mid = c["id"]; var dm3mmid = c["material_id"]
+            if _is_int(dm3mid) == false || dm3mid < 1 { return oren_err(4, "ui.validate: draw_mesh3d_material invalid id") }
+            if _is_int(dm3mmid) == false || dm3mmid < 1 { return oren_err(4, "ui.validate: draw_mesh3d_material invalid material_id") }
+        } else if op == "draw_mesh3d_at_material" {
+            var dm3amid = c["id"]; var dm3ammat = c["material_id"]; var dm3amx = c["x"]; var dm3amy = c["y"]; var dm3amz = c["z"]; var dm3ams = c["scale_milli"]
+            if _is_int(dm3amid) == false || dm3amid < 1 { return oren_err(4, "ui.validate: draw_mesh3d_at_material invalid id") }
+            if _is_int(dm3ammat) == false || dm3ammat < 1 { return oren_err(4, "ui.validate: draw_mesh3d_at_material invalid material_id") }
+            if _is_int(dm3amx) == false || _is_int(dm3amy) == false || _is_int(dm3amz) == false { return oren_err(4, "ui.validate: draw_mesh3d_at_material expects int x,y,z") }
+            if _is_int(dm3ams) == false || dm3ams <= 0 { return oren_err(4, "ui.validate: draw_mesh3d_at_material invalid scale_milli") }
         } else if op == "destroy_mesh3d" {
             var xm3id = c["id"]
             if _is_int(xm3id) == false || xm3id < 1 { return oren_err(4, "ui.validate: destroy_mesh3d invalid id") }
+        } else if op == "destroy_material3d" {
+            var xmatid = c["id"]
+            if _is_int(xmatid) == false || xmatid < 1 { return oren_err(4, "ui.validate: destroy_material3d invalid id") }
         } else if op == "text" {
             var x2 = c["x"]; var y2 = c["y"]; var s = c["text"]; var col2 = c["color"]
             if _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: text expects int x,y") }

@@ -42,6 +42,10 @@
 // - {"op":"draw_mesh3d","id":int}
 // - {"op":"draw_mesh3d_at","id":int,"x":int,"y":int,"z":int,"scale_milli":int}
 // - {"op":"destroy_mesh3d","id":int}
+// - {"op":"material3d","id":int,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"draw_mesh3d_material","id":int,"material_id":int}
+// - {"op":"draw_mesh3d_at_material","id":int,"material_id":int,"x":int,"y":int,"z":int,"scale_milli":int}
+// - {"op":"destroy_material3d","id":int}
 // - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
 // - {"op":"text_bytes","x":int,"y":int,"data":bytes,"color":"#RRGGBB"|"#RRGGBBAA"}
 //   - v0 rasterizes text as a simple 1px-high run of pixels (one per byte/char),
@@ -551,6 +555,37 @@ fn _draw_triangle3d_bytes(buf, w, h, tris, c, err_prefix) {
     return _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, 0, 0, 0, 1000, 0, 0, 0)
 }
 
+fn _draw_triangle3d_stride_bytes_model(buf, w, h, tris, stride, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
+    var tris_len = bytes.try_len(tris)
+    if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
+    var triangle_count = tris_len / stride
+    var drawn = {}
+    var drawn_count = 0
+    while drawn_count < triangle_count {
+        var best = -1
+        var best_z = -9223372036854775807
+        var ti = 0
+        while ti < triangle_count {
+            var key = oren_int_to_string(ti)
+            if drawn[key] == nil {
+                var zsum = _mesh3d_zsum_model(tris, ti * stride, mz, scale_milli)
+                if oren_is_err(zsum) { return result.with_context(zsum, err_prefix) }
+                if _depth_zsum_visible(zsum, depth_enabled, near_z, far_z) && (best < 0 || zsum > best_z) {
+                    best = ti
+                    best_z = zsum
+                }
+            }
+            ti = ti + 1
+        }
+        if best < 0 { return 0 }
+        var dr = _draw_triangle3d_at_model(buf, w, h, tris, best * stride, c, err_prefix, mx, my, mz, scale_milli)
+        if oren_is_err(dr) { return dr }
+        drawn[oren_int_to_string(best)] = true
+        drawn_count = drawn_count + 1
+    }
+    return 0
+}
+
 fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
     var tris_len = bytes.try_len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
@@ -593,13 +628,22 @@ fn _draw_triangle3d_rgba_bytes(buf, w, h, tris, err_prefix) {
     return _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, 0, 0, 0, 1000, 0, 0, 0)
 }
 
-fn _draw_mesh3d_resource(buf, w, h, mesh3d, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
+fn _draw_mesh3d_resource(buf, w, h, mesh3d, material, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
     if mesh3d == nil { return oren_err(4, err_prefix + " missing mesh") }
+    var material_color = nil
+    if material != nil {
+        material_color = ui_color.try_parse_hex(material["color"])
+        if oren_is_err(material_color) { return result.with_context(material_color, err_prefix + " material color") }
+    }
     if mesh3d["op"] == "mesh3d_rgba" {
+        if material_color != nil {
+            return _draw_triangle3d_stride_bytes_model(buf, w, h, mesh3d["triangles"], 40, material_color, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
+        }
         return _draw_triangle3d_rgba_bytes_model(buf, w, h, mesh3d["triangles"], err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
     }
     var m3c = ui_color.try_parse_hex(mesh3d["color"])
     if oren_is_err(m3c) { return result.with_context(m3c, err_prefix + " mesh3d color") }
+    if material_color != nil { m3c = material_color }
     if mesh3d["op"] == "mesh3d_indexed" {
         return _draw_triangle3d_indexed_bytes_model(buf, w, h, mesh3d["vertices"], mesh3d["indices"], m3c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
     }
@@ -666,6 +710,7 @@ fn rasterize(cmds, w, h, opts) {
     var images = {}
     var texts = {}
     var meshes = {}
+    var materials = {}
     var ci = 0
     while ci < oren_list_len(cmds) {
         var opm = cmds[ci]
@@ -815,16 +860,32 @@ fn rasterize(cmds, w, h, opts) {
             meshes[oren_int_to_string(opm["id"])] = opm
         } else if op == "mesh3d_indexed" {
             meshes[oren_int_to_string(opm["id"])] = opm
+        } else if op == "material3d" {
+            materials[oren_int_to_string(opm["id"])] = opm
         } else if op == "draw_mesh3d" {
             var mesh3d = meshes[oren_int_to_string(opm["id"])]
-            var m3r = _draw_mesh3d_resource(buf, w, h, mesh3d, "rasterize: draw_mesh3d", 0, 0, 0, 1000, depth_enabled, near_z, far_z)
+            var m3r = _draw_mesh3d_resource(buf, w, h, mesh3d, nil, "rasterize: draw_mesh3d", 0, 0, 0, 1000, depth_enabled, near_z, far_z)
             if oren_is_err(m3r) { return m3r }
         } else if op == "draw_mesh3d_at" {
             var mesh3da = meshes[oren_int_to_string(opm["id"])]
-            var m3ar = _draw_mesh3d_resource(buf, w, h, mesh3da, "rasterize: draw_mesh3d_at", opm["x"], opm["y"], opm["z"], opm["scale_milli"], depth_enabled, near_z, far_z)
+            var m3ar = _draw_mesh3d_resource(buf, w, h, mesh3da, nil, "rasterize: draw_mesh3d_at", opm["x"], opm["y"], opm["z"], opm["scale_milli"], depth_enabled, near_z, far_z)
             if oren_is_err(m3ar) { return m3ar }
+        } else if op == "draw_mesh3d_material" {
+            var mesh3dm = meshes[oren_int_to_string(opm["id"])]
+            var mat3dm = materials[oren_int_to_string(opm["material_id"])]
+            if mat3dm == nil { return oren_err(4, "rasterize: draw_mesh3d_material missing material") }
+            var m3mr = _draw_mesh3d_resource(buf, w, h, mesh3dm, mat3dm, "rasterize: draw_mesh3d_material", 0, 0, 0, 1000, depth_enabled, near_z, far_z)
+            if oren_is_err(m3mr) { return m3mr }
+        } else if op == "draw_mesh3d_at_material" {
+            var mesh3dam = meshes[oren_int_to_string(opm["id"])]
+            var mat3dam = materials[oren_int_to_string(opm["material_id"])]
+            if mat3dam == nil { return oren_err(4, "rasterize: draw_mesh3d_at_material missing material") }
+            var m3amr = _draw_mesh3d_resource(buf, w, h, mesh3dam, mat3dam, "rasterize: draw_mesh3d_at_material", opm["x"], opm["y"], opm["z"], opm["scale_milli"], depth_enabled, near_z, far_z)
+            if oren_is_err(m3amr) { return m3amr }
         } else if op == "destroy_mesh3d" {
             meshes[oren_int_to_string(opm["id"])] = nil
+        } else if op == "destroy_material3d" {
+            materials[oren_int_to_string(opm["id"])] = nil
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
             var c2 = ui_color.try_parse_hex(opm["color"])

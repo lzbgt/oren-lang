@@ -59,6 +59,7 @@ fn main() {
         {"op": "mesh3d_rgba", "id": 1, "triangles": layered},
         {"op": "mesh3d_indexed", "id": 2, "vertices": shared_vertices, "indices": shared_indices, "color": "#3366ff"},
         {"op": "mesh3d", "id": 3, "triangles": scaled, "color": "#ffff00"},
+        {"op": "material3d", "id": 4, "color": "#ff00ff"},
         {"op": "push_camera_ortho", "near_z": 0, "far_z": 8},
         {"op": "draw_mesh3d", "id": 1},
         {"op": "pop_camera"},
@@ -71,9 +72,11 @@ fn main() {
         {"op": "push_camera_ortho", "near_z": 0, "far_z": 3},
         {"op": "draw_mesh3d_at", "id": 3, "x": 4, "y": 4, "z": 1, "scale_milli": 1000},
         {"op": "pop_camera"},
+        {"op": "draw_mesh3d_at_material", "id": 2, "material_id": 4, "x": 3, "y": 3, "z": 0, "scale_milli": 1000},
         {"op": "destroy_mesh3d", "id": 1},
         {"op": "destroy_mesh3d", "id": 2},
-        {"op": "destroy_mesh3d", "id": 3}
+        {"op": "destroy_mesh3d", "id": 3},
+        {"op": "destroy_material3d", "id": 4}
     ]
     var buf = ui_raster.try_rasterize(cmds, 6, 6, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
@@ -81,9 +84,11 @@ fn main() {
     assert_eq(_px(buf, 6, 3, 0, 0), 255)
     assert_eq(_px(buf, 6, 0, 3, 2), 255)
     assert_eq(_px(buf, 6, 4, 4, 0), 255)
-    assert_eq(_px(buf, 6, 4, 4, 1), 255)
+    assert_eq(_px(buf, 6, 4, 4, 1), 0)
+    assert_eq(_px(buf, 6, 3, 3, 0), 255)
+    assert_eq(_px(buf, 6, 3, 3, 2), 255)
     var got = sha256.sha256_hex(buf)
-    assert_eq(got, "7c82129ebdb06ab718fc512b8bc813211a2ab715b57db8ea0079a824e6ccab4f")
+    assert_eq(got, "c14d72dc1d809cc65726de8a4889bdfcba595f4cdeb42d212bf115fe52f4e556")
     exit(0)
 }
 

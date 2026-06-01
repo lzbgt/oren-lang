@@ -252,6 +252,26 @@ fn main() {
         87, 0, 20, 0,
         5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0
     ])
+    var material3d_frame = ui_avm.frame_bytes([
+        {"op": "material3d", "id": 7, "color": "#ffff00"},
+        {"op": "draw_mesh3d_material", "id": 5, "material_id": 7},
+        {"op": "draw_mesh3d_at_material", "id": 5, "material_id": 7, "x": 1, "y": 0, "z": 2, "scale_milli": 1000},
+        {"op": "destroy_material3d", "id": 7}
+    ], 4, 3, {"strict_bounds": true})
+    assert_bytes_eq(material3d_frame, [
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 4, 0, 0, 0,
+        0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        89, 0, 8, 0,
+        7, 0, 0, 0, 255, 255, 0, 255,
+        90, 0, 8, 0,
+        5, 0, 0, 0, 7, 0, 0, 0,
+        91, 0, 24, 0,
+        5, 0, 0, 0, 7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 232, 3, 0, 0,
+        92, 0, 4, 0,
+        7, 0, 0, 0
+    ])
     var mesh3d_indexed_frame = ui_avm.frame_bytes([
         {"op": "mesh3d_indexed", "id": 6, "vertices": triangle3d, "indices": bytes.try_pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
         {"op": "draw_mesh3d", "id": 6},
