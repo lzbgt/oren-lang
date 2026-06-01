@@ -14,6 +14,34 @@ if [[ ! -x "$OREN_COMPILER" ]]; then
   make oren > "$LOG_DIR/make_oren_for_libavm_ios_verify.log" 2>&1
 fi
 
+reserve_tcp_port() {
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+}
+
+reserve_udp_port() {
+  python3 - <<'PY'
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+}
+
+stop_pid() {
+  local pid="${1:-}"
+  if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+    kill "$pid" >/dev/null 2>&1 || true
+    wait "$pid" >/dev/null 2>&1 || true
+  fi
+}
+
 ./scripts/build_libavm_ios.sh > "$LOG_DIR/build_libavm_ios.log" 2>&1
 
 test -f "$OUT_ROOT/iphoneos-arm64/libavm.a"
@@ -1172,77 +1200,21 @@ mkdir -p "$NET_DIR"
 printf 'net-ok' > "$NET_DIR/net.txt"
 NET_READY="$TMP_DIR/net_server.ready"
 rm -f "$NET_READY"
-NET_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
+NET_PORT="$(reserve_tcp_port)"
 TCP_READY="$TMP_DIR/tcp_server.ready"
 rm -f "$TCP_READY"
-TCP_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
-TCP_LISTEN_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
+TCP_PORT="$(reserve_tcp_port)"
+TCP_LISTEN_PORT="$(reserve_tcp_port)"
 UDP_READY="$TMP_DIR/udp_server.ready"
 rm -f "$UDP_READY"
-UDP_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
+UDP_PORT="$(reserve_udp_port)"
 WS_READY="$TMP_DIR/ws_server.ready"
 rm -f "$WS_READY"
-WS_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
+WS_PORT="$(reserve_tcp_port)"
 PKG_READY="$TMP_DIR/package_http.ready"
 rm -f "$PKG_READY"
-PKG_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
-GO_STORE_PORT="$(
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1])
-s.close()
-PY
-)"
+PKG_PORT="$(reserve_tcp_port)"
+GO_STORE_PORT="$(reserve_tcp_port)"
 PACKAGE_DIR="$TMP_DIR/package_store/oren-labs/sdk-package-smoke/0.1.0"
 REMOTE_STORE_DIR="$TMP_DIR/remote_obc_store"
 GO_STORE_DIR="$TMP_DIR/go_obc_store"
@@ -1844,30 +1816,12 @@ post(
 )
 PY
 cleanup_net_server() {
-  if kill -0 "$NET_SERVER_PID" >/dev/null 2>&1; then
-    kill "$NET_SERVER_PID" >/dev/null 2>&1 || true
-    wait "$NET_SERVER_PID" >/dev/null 2>&1 || true
-  fi
-  if kill -0 "$TCP_SERVER_PID" >/dev/null 2>&1; then
-    kill "$TCP_SERVER_PID" >/dev/null 2>&1 || true
-    wait "$TCP_SERVER_PID" >/dev/null 2>&1 || true
-  fi
-  if kill -0 "$UDP_SERVER_PID" >/dev/null 2>&1; then
-    kill "$UDP_SERVER_PID" >/dev/null 2>&1 || true
-    wait "$UDP_SERVER_PID" >/dev/null 2>&1 || true
-  fi
-  if kill -0 "$WS_SERVER_PID" >/dev/null 2>&1; then
-    kill "$WS_SERVER_PID" >/dev/null 2>&1 || true
-    wait "$WS_SERVER_PID" >/dev/null 2>&1 || true
-  fi
-  if kill -0 "$PKG_SERVER_PID" >/dev/null 2>&1; then
-    kill "$PKG_SERVER_PID" >/dev/null 2>&1 || true
-    wait "$PKG_SERVER_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${GO_STORE_PID:-}" ]] && kill -0 "$GO_STORE_PID" >/dev/null 2>&1; then
-    kill "$GO_STORE_PID" >/dev/null 2>&1 || true
-    wait "$GO_STORE_PID" >/dev/null 2>&1 || true
-  fi
+  stop_pid "${NET_SERVER_PID:-}"
+  stop_pid "${TCP_SERVER_PID:-}"
+  stop_pid "${UDP_SERVER_PID:-}"
+  stop_pid "${WS_SERVER_PID:-}"
+  stop_pid "${PKG_SERVER_PID:-}"
+  stop_pid "${GO_STORE_PID:-}"
 }
 trap cleanup_net_server EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
