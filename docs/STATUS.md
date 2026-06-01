@@ -388,8 +388,8 @@ Facts from the 2026-05-28 implementation pass:
 	  indexed byte access instead of unpacking the whole message to a list. Base64
 	  encoding now writes exact-size `u8_buf` output instead of materializing an
 	  intermediate Oren list. NET cleanup now covers native and AVM session
-	  objects: native TCP/UDP/TLS handles expose `.try_read_into(...)`,
-	  `.try_write_from(...)`, `.try_send_to(...)`, `.try_recv_from_into(...)`,
+	  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,
+	  `.write_from(...)`, `.send_to(...)`, `.recv_from_into(...)`,
 	  TLS certificate/ALPN methods, and `.close()`, native WebSocket records
 	  expose `.recv_text(...)` / `.send_text_client(...)`, and AVM virtual
 	  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness

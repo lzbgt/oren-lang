@@ -319,7 +319,7 @@ fn server_impl(listen_fd, pfx_b64) {
     if oren_is_err(conn) { return 12 }
     if conn == 0 { return 13 }
 
-    var al = tls.try_negotiated_alpn(conn)
+    var al = conn.negotiated_alpn()
     if oren_is_err(al) != true {
         var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); return 14 }
@@ -415,7 +415,7 @@ fn _http2_headers_client_impl(port, expected_leaf_sha256_hex) {
     if oren_is_err(conn) { return 7 }
     if conn == 0 { return 8 }
 
-    var al = tls.try_negotiated_alpn(conn)
+    var al = conn.negotiated_alpn()
     if oren_is_err(al) != true {
         var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); return 9 }
@@ -501,7 +501,7 @@ fn main_client() {
     if oren_is_err(conn) { exit(9) }
     if conn == 0 { exit(10) }
 
-    var al = tls.try_negotiated_alpn(conn)
+    var al = conn.negotiated_alpn()
     if oren_is_err(al) != true {
         var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); exit(11) }
@@ -572,7 +572,7 @@ fn main_client() {
     if oren_is_err(conn) { exit(9) }
     if conn == 0 { exit(10) }
 
-    var al = tls.try_negotiated_alpn(conn)
+    var al = conn.negotiated_alpn()
     if oren_is_err(al) != true {
         var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); exit(11) }

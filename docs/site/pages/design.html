@@ -218,7 +218,7 @@
 <li>Session-oriented network protocols should put IO operations on session/connection</li>
 </ul>
 <p>  values. For example, TCP/UDP/TLS/WebSocket callers should prefer</p>
-<p>  <code>conn.try_read_into(...)</code>, <code>socket.try_send_to(...)</code>, <code>conn.try_write_from(...)</code>,</p>
+<p>  <code>conn.read_into(...)</code>, <code>socket.send_to(...)</code>, <code>conn.write_from(...)</code>,</p>
 <p>  <code>conn.recv_text(...)</code>, <code>conn.close()</code>, or AVM <code>session.read(...)</code> /</p>
 <p>  <code>session.recv_text(...)</code> over root-level fd/session helper calls in user-facing</p>
 <p>  code. Raw syscall-first forms may remain as internal/performance primitives.</p>

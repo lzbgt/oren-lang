@@ -71,7 +71,7 @@ Retained SDK slices on 2026-05-31:
   and return the body to bytecode. This is a convenience bridge for app integration,
   not raw socket authority.
 - The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,
-  and then runs the same `.obc` program against `std:net/avm.try_get_bytes(url)`,
+  and then runs the same `.obc` program against `std:net/avm/http.get(url).bytes()`,
   proving the real host-fetch-to-OBC-read chain. It also runs live callback mode
   against the same local server.
 - The first GFX bridge slices are implemented. `std:ui/avm` serializes validated
@@ -191,13 +191,13 @@ Default NET adapter.
   `liveNetworkAllowedHosts` or `enableLiveNetworkWithAllowedHosts:timeoutSeconds:`.
   OBC still has no raw host network authority.
 - The first VNET session protocol is implemented for TCP, UDP, WebSocket client
-  flows, and TCP listener/accept server flows:
-  `std:net/avm.session_open("tcp://host:port", timeout_ms)`,
-  `std:net/avm.session_open("tcp-listen://host:port", timeout_ms)`,
-  `std:net/avm.session_open("udp://host:port", timeout_ms)`,
-  `std:net/avm.session_open("ws://host:port/path", timeout_ms)`, `session_write`,
-  `session_read`, `session_select` / `session_poll`, `session_accept`, and `session_close` map to AVM
-  NET ops and embedder callbacks. The iOS SDK backs those virtual session IDs
+  flows, and TCP listener/accept server flows. OBC imports scoped modules and uses
+  receiver methods such as `std:net/avm/tcp.connect(host, port, timeout_ms)`,
+  `std:net/avm/tcp.listen(host, port, timeout_ms)`, `session.write(...)`,
+  `session.read(...)`, `session.select(...)`, `listener.accept(...)`,
+  `std:net/avm/udp.connect(...).send(...)`, and
+  `std:net/avm/ws.connect(...).recv_text(...)`. These map to AVM NET ops and
+  embedder callbacks. The iOS SDK backs those virtual session IDs
   with host-owned POSIX sockets and `select()` readiness polling under the
   live-NET allowlist and runtime enable/disable controls. For `ws://`, the SDK
   owns the HTTP upgrade and WebSocket masking/framing so OBC still sees only a
@@ -230,10 +230,10 @@ Default NET adapter.
   and return `{kind:"cancel", source:"host"}`; without that watch, the same host
   cancel remains a hard VM cancellation.
 - Naming note: Oren native/runtime code already has raw `sys_select` for OS file
-  descriptors. AVM uses virtual-session readiness; `session_select*` is the
-  preferred app-facing name and `session_poll*` remains the low-level alias for
-  the single-session VNET op. Neither exposes `fd_set`, file descriptors, or host
-  sockets to OBC.
+  descriptors. AVM uses virtual-session readiness; receiver-style
+  `session.select(...)` / `session.select_read(...)` is the preferred app-facing
+  shape and `poll*` remains the low-level single-session VNET alias. Neither
+  exposes `fd_set`, file descriptors, or host sockets to OBC.
 - The broader target is an AVM virtual-resource event bus: a `select`/`kqueue`-
   like reactor over virtual handles and mailboxes, not over OS descriptors. The
   bus multiplexes VNET sessions, GFX/input events, timers, cancellation, and
@@ -261,7 +261,7 @@ Default NET adapter.
   `std:net/tcp` / `std:net/udp` callers.
 - Hot app-facing network paths should remain byte-first. Text convenience helpers
   may exist, but conversions should stay explicit at API boundaries. Current
-  cleanup includes byte-native `std:net/avm.try_get_bytes`, UI `text_bytes`, and
+  cleanup includes byte-native `std:net/avm/http.get(...).bytes()`, UI `text_bytes`, and
   direct `std:bytes.to_string` byte-slice conversion plus SHA-1/SHA-256 indexed
   byte processing instead of legacy whole-buffer list materialization.
 

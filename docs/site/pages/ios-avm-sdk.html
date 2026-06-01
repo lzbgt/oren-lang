@@ -102,23 +102,24 @@
 <p>  provides the first app-usable NetworkProvider slice. The SDK owns the host</p>
 <p>  <code>URLSession</code> request, enforces an allowlisted host and timeout, then injects</p>
 <p>  the response bytes into VirtualNET under the original URL. OBC code uses the</p>
-<p>  portable <code>std:net/avm.try_get_bytes(url)</code> or boundary-only</p>
-<p>  <code>try_get_text(url)</code> facades; raw <code>oren_net_get*</code> calls are only the AVM substrate</p>
-<p>  and never grant host networking authority.</p>
+<p>  portable object-style <code>std:net/avm/http.get(url).bytes()</code> /</p>
+<p>  <code>std:net/avm/http.get(url).text()</code> response methods; raw <code>oren_net_get*</code> calls</p>
+<p>  and older root helpers are only the AVM substrate and never grant host</p>
+<p>  networking authority.</p>
 <ul>
 <li><code>OrenAVMRuntime enableLiveNetworkWithAllowedHosts:timeoutSeconds:error:</code> installs</li>
 </ul>
 <p>  or updates the embedder NET callback, and <code>disableLiveNetworkWithError:</code> removes</p>
 <p>  it. This lets the host app prompt users, grant/restrict/deny network policy, and</p>
 <p>  change that policy later while the same OBC program remains portable. When OBC</p>
-<p>  calls <code>std:net/avm.try_get_bytes(url)</code> for a URL not already in VirtualNET, the SDK</p>
-<p>  can synchronously perform an allowlisted <code>URLSession</code> fetch on the AVM worker and</p>
-<p>  return the body to bytecode. This is a convenience bridge for app integration,</p>
+<p>  asks <code>std:net/avm/http.get(url).bytes()</code> for a URL not already in VirtualNET, the</p>
+<p>  SDK can synchronously perform an allowlisted <code>URLSession</code> fetch on the AVM worker</p>
+<p>  and return the body to bytecode. This is a convenience bridge for app integration,</p>
 <p>  not raw socket authority.</p>
 <ul>
 <li>The iOS verifier runs a local HTTP server, prefetches that URL through the SDK,</li>
 </ul>
-<p>  and then runs the same <code>.obc</code> program against <code>std:net/avm.try_get_bytes(url)</code>,</p>
+<p>  and then runs the same <code>.obc</code> program against <code>std:net/avm/http.get(url).bytes()</code>,</p>
 <p>  proving the real host-fetch-to-OBC-read chain. It also runs live callback mode</p>
 <p>  against the same local server.</p>
 <ul>
@@ -249,9 +250,9 @@
 <li>The SDK maps responses back into the AVM NET surface with size/time budgets.</li>
 <li>Current implementation is prefetch-oriented: host code fetches allowlisted URLs</li>
 </ul>
-<p>  before or between AVM runs, then OBC reads the materialized body through</p>
-<p>  <code>std:net/avm.try_get_text(url)</code>. This preserves deterministic AVM execution and</p>
-<p>  keeps iOS networking policy in the host SDK.</p>
+<p>  before or between AVM runs, then OBC reads the materialized response through</p>
+<p>  <code>std:net/avm/http.get(url).text()</code> or <code>.bytes()</code>. This preserves deterministic</p>
+<p>  AVM execution and keeps iOS networking policy in the host SDK.</p>
 <ul>
 <li>Live callback mode is enabled by the interactive app defaults so useful OBC app</li>
 </ul>
@@ -264,13 +265,13 @@
 <ul>
 <li>The first VNET session protocol is implemented for TCP, UDP, WebSocket client</li>
 </ul>
-<p>  flows, and TCP listener/accept server flows:</p>
-<p>  <code>std:net/avm.session_open(&quot;tcp://host:port&quot;, timeout_ms)</code>,</p>
-<p>  <code>std:net/avm.session_open(&quot;tcp-listen://host:port&quot;, timeout_ms)</code>,</p>
-<p>  <code>std:net/avm.session_open(&quot;udp://host:port&quot;, timeout_ms)</code>,</p>
-<p>  <code>std:net/avm.session_open(&quot;ws://host:port/path&quot;, timeout_ms)</code>, <code>session_write</code>,</p>
-<p>  <code>session_read</code>, <code>session_select</code> / <code>session_poll</code>, <code>session_accept</code>, and <code>session_close</code> map to AVM</p>
-<p>  NET ops and embedder callbacks. The iOS SDK backs those virtual session IDs</p>
+<p>  flows, and TCP listener/accept server flows. OBC imports scoped modules and uses</p>
+<p>  receiver methods such as <code>std:net/avm/tcp.connect(host, port, timeout_ms)</code>,</p>
+<p>  <code>std:net/avm/tcp.listen(host, port, timeout_ms)</code>, <code>session.write(...)</code>,</p>
+<p>  <code>session.read(...)</code>, <code>session.select(...)</code>, <code>listener.accept(...)</code>,</p>
+<p>  <code>std:net/avm/udp.connect(...).send(...)</code>, and</p>
+<p>  <code>std:net/avm/ws.connect(...).recv_text(...)</code>. These map to AVM NET ops and</p>
+<p>  embedder callbacks. The iOS SDK backs those virtual session IDs</p>
 <p>  with host-owned POSIX sockets and <code>select()</code> readiness polling under the</p>
 <p>  live-NET allowlist and runtime enable/disable controls. For <code>ws://</code>, the SDK</p>
 <p>  owns the HTTP upgrade and WebSocket masking/framing so OBC still sees only a</p>
@@ -313,10 +314,10 @@
 <ul>
 <li>Naming note: Oren native/runtime code already has raw <code>sys_select</code> for OS file</li>
 </ul>
-<p>  descriptors. AVM uses virtual-session readiness; <code>session_select*</code> is the</p>
-<p>  preferred app-facing name and <code>session_poll*</code> remains the low-level alias for</p>
-<p>  the single-session VNET op. Neither exposes <code>fd_set</code>, file descriptors, or host</p>
-<p>  sockets to OBC.</p>
+<p>  descriptors. AVM uses virtual-session readiness; receiver-style</p>
+<p>  <code>session.select(...)</code> / <code>session.select_read(...)</code> is the preferred app-facing</p>
+<p>  shape and <code>poll*</code> remains the low-level single-session VNET alias. Neither</p>
+<p>  exposes <code>fd_set</code>, file descriptors, or host sockets to OBC.</p>
 <ul>
 <li>The broader target is an AVM virtual-resource event bus: a <code>select</code>/<code>kqueue</code>-</li>
 </ul>
@@ -356,7 +357,7 @@
 <li>Hot app-facing network paths should remain byte-first. Text convenience helpers</li>
 </ul>
 <p>  may exist, but conversions should stay explicit at API boundaries. Current</p>
-<p>  cleanup includes byte-native <code>std:net/avm.try_get_bytes</code>, UI <code>text_bytes</code>, and</p>
+<p>  cleanup includes byte-native <code>std:net/avm/http.get(...).bytes()</code>, UI <code>text_bytes</code>, and</p>
 <p>  direct <code>std:bytes.to_string</code> byte-slice conversion plus SHA-1/SHA-256 indexed</p>
 <p>  byte processing instead of legacy whole-buffer list materialization.</p>
 <h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>

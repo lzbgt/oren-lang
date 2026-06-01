@@ -187,7 +187,7 @@ Constraints:
   and `cbor.cint(7).bytes().cbor()`.
 - Session-oriented network protocols should put IO operations on session/connection
   values. For example, TCP/UDP/TLS/WebSocket callers should prefer
-  `conn.try_read_into(...)`, `socket.try_send_to(...)`, `conn.try_write_from(...)`,
+  `conn.read_into(...)`, `socket.send_to(...)`, `conn.write_from(...)`,
   `conn.recv_text(...)`, `conn.close()`, or AVM `session.read(...)` /
   `session.recv_text(...)` over root-level fd/session helper calls in user-facing
   code. Raw syscall-first forms may remain as internal/performance primitives.

@@ -12,8 +12,9 @@
 //   - `fd` / byte-count: `>= 0` on success
 //   - negative errno: `< 0` on failure
 //
-// If you prefer structured errors, use the `try_*` aliases or wrap with
-// `std/result.ok_or_errno`.
+// Root functions are raw performance primitives. Receiver methods return values
+// or `oren_err`; `try_*` root aliases expose the same structured behavior when a
+// caller cannot use method syntax.
 
 import result "std:result"
 
@@ -127,14 +128,14 @@ fn try_close(fd) {
 
 impl UdpSocket for Socket {
     fn raw_fd(self) { return self }
-    fn sockname_port(self) { return sockname_port(self) }
+    fn sockname_port(self) { return try_sockname_port(self) }
     fn try_sockname_port(self) { return try_sockname_port(self) }
-    fn send_to(self, ip, port, buf, len, timeout_ms) { return send_to(self, ip, port, buf, len, timeout_ms) }
+    fn send_to(self, ip, port, buf, len, timeout_ms) { return try_send_to(self, ip, port, buf, len, timeout_ms) }
     fn try_send_to(self, ip, port, buf, len, timeout_ms) { return try_send_to(self, ip, port, buf, len, timeout_ms) }
-    fn recv_into(self, buf, len, timeout_ms) { return recv_into(self, buf, len, timeout_ms) }
+    fn recv_into(self, buf, len, timeout_ms) { return try_recv_into(self, buf, len, timeout_ms) }
     fn try_recv_into(self, buf, len, timeout_ms) { return try_recv_into(self, buf, len, timeout_ms) }
-    fn recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) { return recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) }
+    fn recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) { return try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) }
     fn try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) { return try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) }
-    fn close(self) { return close(self) }
+    fn close(self) { return try_close(self) }
     fn try_close(self) { return try_close(self) }
 }

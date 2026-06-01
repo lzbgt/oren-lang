@@ -15,7 +15,8 @@
 // conceptually want “TLS is crypto”, while keeping existing tests and stdlib (HTTP/WS)
 // on the proven `std:net/tls` implementation.
 //
-// API surface is intentionally identical to `std:net/tls` for now.
+// API surface mirrors `std:net/tls`: root functions expose raw/structured
+// primitives, while receiver methods return values or `oren_err`.
 
 import tls "std:net/tls"
 
@@ -109,14 +110,14 @@ fn win_cleanup() {
 }
 
 impl TlsConn for Conn {
-    fn read_into(self, buf, cap, timeout_ms) { return read_into(self, buf, cap, timeout_ms) }
+    fn read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
     fn try_read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
-    fn write_from(self, ptr0, len, timeout_ms) { return write_from(self, ptr0, len, timeout_ms) }
+    fn write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
     fn try_write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
-    fn close(self) { return close(self) }
+    fn close(self) { return try_close(self) }
     fn try_close(self) { return try_close(self) }
-    fn peer_cert_sha256_hex(self) { return peer_cert_sha256_hex(self) }
+    fn peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
     fn try_peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
-    fn negotiated_alpn(self) { return negotiated_alpn(self) }
+    fn negotiated_alpn(self) { return try_negotiated_alpn(self) }
     fn try_negotiated_alpn(self) { return try_negotiated_alpn(self) }
 }

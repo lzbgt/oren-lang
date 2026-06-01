@@ -94,13 +94,13 @@ fn server_impl(listen_fd, pfx_b64) {
 
     var buf = malloc(16)
     if buf == 0 { conn.close(); return 14 }
-    var n = conn.try_read_into(buf, 4, 5000)
+    var n = conn.read_into(buf, 4, 5000)
     if oren_is_err(n) || n != 4 {
         free(buf)
         conn.close()
         return 15
     }
-    var wr = conn.try_write_from(buf, 4, 5000)
+    var wr = conn.write_from(buf, 4, 5000)
     free(buf)
     conn.close()
     if oren_is_err(wr) || wr != 4 { return 16 }
@@ -136,7 +136,7 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
     if conn == 0 { return 10 }
 
     // Windows Schannel: server selects "http/1.1" from the client offer.
-    var ap = conn.try_negotiated_alpn()
+    var ap = conn.negotiated_alpn()
     if oren_is_err(ap) {
         conn.close()
         return 11
@@ -147,7 +147,7 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
     }
 
     var msg = "PING"
-    var wr = conn.try_write_from(msg, 4, 5000)
+    var wr = conn.write_from(msg, 4, 5000)
     if oren_is_err(wr) || wr != 4 {
         conn.close()
         return 20
@@ -157,7 +157,7 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
         conn.close()
         return 21
     }
-    var rn = conn.try_read_into(buf, 4, 5000)
+    var rn = conn.read_into(buf, 4, 5000)
     if oren_is_err(rn) || rn != 4 {
         free(buf)
         conn.close()
@@ -171,7 +171,7 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
     free(buf)
 
     // Cross-check leaf hash query works (pinning is enforced already).
-    var hv = conn.try_peer_cert_sha256_hex()
+    var hv = conn.peer_cert_sha256_hex()
     if oren_is_err(hv) {
         conn.close()
         return 30
@@ -275,12 +275,12 @@ fn main_client() {
     if conn == 0 { exit(10) }
 
     // Linux OpenSSL: server selects "http/1.1" from the client offer.
-    var ap = conn.try_negotiated_alpn()
+    var ap = conn.negotiated_alpn()
     if oren_is_err(ap) { conn.close(); exit(11) }
     if ap == nil || _str_eq_bytes(ap, "http/1.1") != true { conn.close(); exit(12) }
 
     var msg = "PING"
-    var wr = conn.try_write_from(msg, 4, 5000)
+    var wr = conn.write_from(msg, 4, 5000)
     if oren_is_err(wr) || wr != 4 {
         conn.close()
         exit(20)
@@ -290,7 +290,7 @@ fn main_client() {
         conn.close()
         exit(21)
     }
-    var rn = conn.try_read_into(buf, 4, 5000)
+    var rn = conn.read_into(buf, 4, 5000)
     if oren_is_err(rn) || rn != 4 {
         free(buf)
         conn.close()
@@ -303,7 +303,7 @@ fn main_client() {
     }
     free(buf)
 
-    var hv = conn.try_peer_cert_sha256_hex()
+    var hv = conn.peer_cert_sha256_hex()
     if oren_is_err(hv) {
         conn.close()
         exit(30)
@@ -414,7 +414,7 @@ fn main_client() {
 
     // macOS SecureTransport: ALPN negotiation/observation is currently treated as best-effort;
     // the loopback fixture does not assert a negotiated protocol yet (tracked in docs/DESIGN.md#tls-provider-availability).
-    var ap = conn.try_negotiated_alpn()
+    var ap = conn.negotiated_alpn()
     if oren_is_err(ap) {
         conn.close()
         exit(11)
@@ -429,7 +429,7 @@ fn main_client() {
     }
 
     var msg = "PING"
-    var wr = conn.try_write_from(msg, 4, 5000)
+    var wr = conn.write_from(msg, 4, 5000)
     if oren_is_err(wr) || wr != 4 {
         conn.close()
         exit(20)
@@ -439,7 +439,7 @@ fn main_client() {
         conn.close()
         exit(21)
     }
-    var rn = conn.try_read_into(buf, 4, 5000)
+    var rn = conn.read_into(buf, 4, 5000)
     if oren_is_err(rn) || rn != 4 {
         free(buf)
         conn.close()
@@ -452,7 +452,7 @@ fn main_client() {
     }
     free(buf)
 
-    var hv = conn.try_peer_cert_sha256_hex()
+    var hv = conn.peer_cert_sha256_hex()
     if oren_is_err(hv) {
         conn.close()
         exit(30)

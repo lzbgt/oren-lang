@@ -12,8 +12,9 @@
 //   - `fd` / byte-count: `>= 0` on success
 //   - negative errno: `< 0` on failure
 //
-// If you prefer structured errors, use the `try_*` aliases or wrap with
-// `std/result.ok_or_errno`.
+// Root functions are raw performance primitives. Receiver methods return values
+// or `oren_err`; `try_*` root aliases expose the same structured behavior when a
+// caller cannot use method syntax.
 
 import result "std:result"
 
@@ -249,15 +250,15 @@ fn try_wait_any_writable(fds, timeout_ms) {
 
 impl TcpConn for Conn {
     fn raw_fd(self) { return self }
-    fn read_into(self, buf, len, timeout_ms) { return read_into(self, buf, len, timeout_ms) }
+    fn read_into(self, buf, len, timeout_ms) { return try_read_into(self, buf, len, timeout_ms) }
     fn try_read_into(self, buf, len, timeout_ms) { return try_read_into(self, buf, len, timeout_ms) }
-    fn write_from(self, buf, len, timeout_ms) { return write_from(self, buf, len, timeout_ms) }
+    fn write_from(self, buf, len, timeout_ms) { return try_write_from(self, buf, len, timeout_ms) }
     fn try_write_from(self, buf, len, timeout_ms) { return try_write_from(self, buf, len, timeout_ms) }
-    fn close(self) { return close(self) }
+    fn close(self) { return try_close(self) }
     fn try_close(self) { return try_close(self) }
-    fn set_keepalive(self, enable) { return set_keepalive(self, enable) }
+    fn set_keepalive(self, enable) { return try_set_keepalive(self, enable) }
     fn try_set_keepalive(self, enable) { return try_set_keepalive(self, enable) }
-    fn set_nodelay(self, enable) { return set_nodelay(self, enable) }
+    fn set_nodelay(self, enable) { return try_set_nodelay(self, enable) }
     fn try_set_nodelay(self, enable) { return try_set_nodelay(self, enable) }
     fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
     fn wait_writable(self, timeout_ms) { return wait_writable(self, timeout_ms) }
@@ -265,9 +266,9 @@ impl TcpConn for Conn {
 
 impl TcpListener for Listener {
     fn raw_fd(self) { return self }
-    fn accept(self, timeout_ms): Conn { return accept(self, timeout_ms) }
+    fn accept(self, timeout_ms): Conn { return try_accept(self, timeout_ms) }
     fn try_accept(self, timeout_ms): Conn { return try_accept(self, timeout_ms) }
-    fn close(self) { return close(self) }
+    fn close(self) { return try_close(self) }
     fn try_close(self) { return try_close(self) }
     fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
 }

@@ -116,8 +116,8 @@ This file is the concise task view. Detailed implementation status lives in
 		     path on exact-size `u8_buf` output.
 		     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket
 		     now follow the same session/object rule with examples like
-		     `conn.try_read_into(...)`, `socket.try_send_to(...)`,
-		     `conn.try_write_from(...)`, `conn.recv_text(...)`,
+		     `conn.read_into(...)`, `socket.send_to(...)`,
+		     `conn.write_from(...)`, `conn.recv_text(...)`,
 		     `listener.accept(...)`, and `session.recv_text(...)`.
 		     XML/HTML follow the same rule with streaming readers first for large OBC
 	     payloads and DOM/query convenience on top. Native HTTP can use

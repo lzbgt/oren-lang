@@ -18,7 +18,10 @@
 // - `read_into(conn, buf, cap, timeout_ms)` -> n or -errno
 // - `write_from(conn, ptr, len, timeout_ms)` -> n or -errno
 // - `close(conn)` -> 0 or -errno
-// - `try_read_into(...)` / `try_write_from(...)` / `try_close(...)` -> n/0 or `oren_err`
+// - Receiver methods (`conn.read_into(...)`, `conn.write_from(...)`,
+//   `conn.close()`, etc.) -> value or `oren_err`
+// - Root `try_read_into(...)` / `try_write_from(...)` / `try_close(...)` ->
+//   n/0 or `oren_err` for callers that cannot use method syntax
 // - `win_cleanup()` -> 0 (no-op on non-Windows; releases cached Schannel creds on Windows)
 // - `peer_cert_sha256_hex(conn)` -> {"ok":1,"v":string} or {"ok":0,"err":string}
 // - `negotiated_alpn(conn)` -> {"ok":1,"v":string|nil} or {"ok":0,"err":string}
@@ -364,14 +367,14 @@ fn negotiated_alpn(conn) {
 }
 
 impl TlsConn for Conn {
-    fn read_into(self, buf, cap, timeout_ms) { return read_into(self, buf, cap, timeout_ms) }
+    fn read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
     fn try_read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
-    fn write_from(self, ptr0, len, timeout_ms) { return write_from(self, ptr0, len, timeout_ms) }
+    fn write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
     fn try_write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
-    fn close(self) { return close(self) }
+    fn close(self) { return try_close(self) }
     fn try_close(self) { return try_close(self) }
-    fn peer_cert_sha256_hex(self) { return peer_cert_sha256_hex(self) }
+    fn peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
     fn try_peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
-    fn negotiated_alpn(self) { return negotiated_alpn(self) }
+    fn negotiated_alpn(self) { return try_negotiated_alpn(self) }
     fn try_negotiated_alpn(self) { return try_negotiated_alpn(self) }
 }
