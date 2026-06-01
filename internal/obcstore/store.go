@@ -89,6 +89,20 @@ type PackageListItem struct {
 	Tags      []string `json:"tags,omitempty"`
 }
 
+type SiteSourceLink struct {
+	Path     string
+	Language string
+	Role     string
+	URL      string
+}
+
+type SiteRelease struct {
+	ReleaseMeta
+	Capabilities            []string
+	Sources                 []SiteSourceLink
+	PermissionDefaultsCount int
+}
+
 type AssetUpload struct {
 	Path          string `json:"path"`
 	MediaType     string `json:"media_type,omitempty"`
@@ -316,9 +330,10 @@ func (s *Service) handleSitePackage(w http.ResponseWriter, r *http.Request) {
 			published = append(published, rel)
 		}
 	}
+	siteReleases := s.siteReleaseItems(pub, name, published)
 	renderHTML(w, sitePackageTemplate, map[string]any{
 		"Meta":     meta,
-		"Releases": published,
+		"Releases": siteReleases,
 	})
 }
 
@@ -965,6 +980,64 @@ func (s *Service) packageItemsForPublisher(publisherID string) ([]PackageListIte
 		})
 	}
 	return items, nil
+}
+
+func (s *Service) siteReleaseItems(pub, name string, releases []ReleaseMeta) []SiteRelease {
+	items := make([]SiteRelease, 0, len(releases))
+	for _, rel := range releases {
+		item := SiteRelease{ReleaseMeta: rel}
+		manifest, err := readJSONFile[map[string]any](filepath.Join(s.releaseDir(pub, name, rel.Version), "package.json"))
+		if err == nil {
+			item.Capabilities = stringListFromAny(manifest["capabilities"])
+			item.Sources = sourceLinksFromManifest(pub, name, rel.Version, manifest)
+			if defaults, ok := manifest["permission_defaults"].([]any); ok {
+				item.PermissionDefaultsCount = len(defaults)
+			}
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func stringListFromAny(raw any) []string {
+	xs, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(xs))
+	for _, rawItem := range xs {
+		if s, ok := rawItem.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func sourceLinksFromManifest(pub, name, version string, manifest map[string]any) []SiteSourceLink {
+	rawSources, ok := manifest["sources"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]SiteSourceLink, 0, len(rawSources))
+	for _, raw := range rawSources {
+		src, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		path, _ := src["path"].(string)
+		if !safeRelPath(path) || !strings.HasPrefix(path, "assets/") {
+			continue
+		}
+		lang, _ := src["language"].(string)
+		role, _ := src["role"].(string)
+		out = append(out, SiteSourceLink{
+			Path:     path,
+			Language: lang,
+			Role:     role,
+			URL:      fmt.Sprintf("/api/v0/packages/%s/%s/versions/%s/%s", pub, name, version, path),
+		})
+	}
+	return out
 }
 
 func (s *Service) getPackage(w http.ResponseWriter, r *http.Request, pub, name string) {
@@ -1677,12 +1750,15 @@ const sitePackageHTML = `<!doctype html>
 <p><a href="/">Browse packages</a> · <a href="/publishers/{{.Meta.Publisher}}">Publisher: {{.Meta.Publisher}}</a></p>
 <section class="card">
   <h2>Releases</h2>
-	  {{if .Releases}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Bundle</th><th>Status</th></tr>
+  {{if .Releases}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Bundle</th><th>Capabilities</th><th>Source</th><th>Permissions</th><th>Status</th></tr>
 	  {{range .Releases}}<tr>
 	    <td>{{.Version}}</td>
 	    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/package.json">package.json</a></td>
 	    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/program.obc">program.obc</a></td>
 	    <td>{{if .BundlePath}}<a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/bundle.obc.zip">bundle.obc.zip</a>{{else}}-{{end}}</td>
+	    <td>{{range .Capabilities}}<span class="pill">{{.}}</span>{{else}}-{{end}}</td>
+	    <td>{{range .Sources}}<a href="{{.URL}}">{{if .Role}}{{.Role}}{{else}}{{.Path}}{{end}}</a> {{else}}-{{end}}</td>
+	    <td>{{if .PermissionDefaultsCount}}{{.PermissionDefaultsCount}} default(s){{else}}-{{end}}</td>
 	    <td>{{.Status}}</td>
 	  </tr>{{end}}</table>{{else}}No published releases.{{end}}
 </section>

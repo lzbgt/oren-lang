@@ -84,11 +84,19 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 			"title":        "Plot Demo",
 			"summary":      "Interactive plot",
 			"capabilities": []string{"CORE", "GFX", "NET"},
+			"sources": []map[string]any{
+				{"path": "assets/source/main.oren", "language": "oren", "role": "main"},
+			},
 			"permission_defaults": []any{
 				map[string]any{"domain": "NET", "action": "connect", "detail": "https://api.example.invalid", "granted": false, "reason": "optional sync"},
 			},
 		},
 		"assets": []map[string]any{
+			{
+				"path":           "assets/source/main.oren",
+				"media_type":     "text/x-oren",
+				"content_base64": base64.StdEncoding.EncodeToString([]byte("print(\"demo\")\n")),
+			},
 			{
 				"path":           "assets/readme.txt",
 				"media_type":     "text/plain",
@@ -137,6 +145,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") || !strings.Contains(detail, "bundle.obc.zip") || !strings.Contains(detail, "/publishers/oren-labs") {
 		t.Fatalf("detail page missing release links: %s", detail)
 	}
+	if !strings.Contains(detail, "CORE") || !strings.Contains(detail, "GFX") || !strings.Contains(detail, "main") || !strings.Contains(detail, "1 default(s)") || !strings.Contains(detail, "/assets/source/main.oren") {
+		t.Fatalf("detail page missing manifest metadata: %s", detail)
+	}
 	publisher := string(rawGet(t, ts, "/publishers/oren-labs"))
 	if !strings.Contains(publisher, "Oren Labs") || !strings.Contains(publisher, "Plot Demo") || !strings.Contains(publisher, "/packages/oren-labs/plot-demo") {
 		t.Fatalf("publisher page missing public package: %s", publisher)
@@ -177,6 +188,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/readme.txt")); got != "asset-ok" {
 		t.Fatalf("asset=%q", got)
+	}
+	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/source/main.oren")); got != "print(\"demo\")\n" {
+		t.Fatalf("source asset=%q", got)
 	}
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/visibility", map[string]any{"visibility": "private"}, true); got.Code != http.StatusOK {
 		t.Fatalf("private visibility status=%d body=%s", got.Code, got.Body.String())
