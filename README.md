@@ -50,9 +50,9 @@ bytecode packages with source, screenshots, permissions, and installable
 
 | Showcase | What it proves | Store |
 | --- | --- | --- |
-| ![Science calculator preview](https://store.hubstack.cn/api/v0/packages/oren-labs/science-calculator/versions/0.1.0/screenshots/preview.png) | Numeric/linalg stdlib, deterministic OBC packaging, source assets, and portal presentation metadata. | [science-calculator](https://store.hubstack.cn/packages/oren-labs/science-calculator) |
-| ![UI card demo preview](https://store.hubstack.cn/api/v0/packages/oren-labs/ui-card-demo/versions/0.1.0/screenshots/preview.png) | Retained 2D UI commands, AVM raster conformance, iOS rendering paths, and rendered Oren source with AST outline. | [ui-card-demo](https://store.hubstack.cn/packages/oren-labs/ui-card-demo) |
-| ![Scene3D asset demo preview](https://store.hubstack.cn/api/v0/packages/oren-labs/scene3d-asset-demo/versions/0.1.0/screenshots/preview.png) | Byte-native `.os3d` package assets, retained Scene3D meshes/materials/models, camera metadata, and package VFS mounting. | [scene3d-asset-demo](https://store.hubstack.cn/packages/oren-labs/scene3d-asset-demo) |
+| ![Science calculator preview](docs/assets/showcases/science-calculator.png) | Numeric/linalg stdlib, deterministic OBC packaging, source assets, and portal presentation metadata. | [science-calculator](https://store.hubstack.cn/packages/oren-labs/science-calculator) |
+| ![UI card demo preview](docs/assets/showcases/ui-card-demo.png) | Retained 2D UI commands, AVM raster conformance, iOS rendering paths, and rendered Oren source with AST outline. | [ui-card-demo](https://store.hubstack.cn/packages/oren-labs/ui-card-demo) |
+| ![Scene3D asset demo preview](docs/assets/showcases/scene3d-asset-demo.png) | Byte-native `.os3d` package assets, retained Scene3D meshes/materials/models, camera metadata, and package VFS mounting. | [scene3d-asset-demo](https://store.hubstack.cn/packages/oren-labs/scene3d-asset-demo) |
 
 Screenshots are store presentation metadata, not client runtime assets: they are
 not declared in package manifests and are not included in downloaded OBC bundles.
