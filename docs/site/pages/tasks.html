@@ -174,11 +174,13 @@
 <p>     path on exact-size <code>u8_buf</code> output.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
-<p>     <code>buf.matrix(2, 3).row(1).text()</code> instead of routing through root-level</p>
-<p>     projection helpers.</p>
-<p>     <code>make verify-stdlib-api-shape</code> now blocks known bad root-helper regressions:</p>
-<p>     public fallible APIs should use the normal verb and return <code>value | oren_err</code>,</p>
-<p>     while syscall-style primitives use explicit <code>*_raw</code> names.</p>
+<p>	     <code>buf.matrix(2, 3).row(1).text()</code> instead of routing through root-level</p>
+<p>	     projection helpers.</p>
+<p>	     <code>make verify-stdlib-api-shape</code> now blocks known bad root-helper regressions:</p>
+<p>	     public fallible APIs should use the normal verb and return <code>value | oren_err</code>,</p>
+<p>	     while syscall-style primitives use explicit <code>*_raw</code> names. The guard now covers</p>
+<p>	     NET plus app-facing codec/parser/RNG helpers such as JSON/YAML/CBOR, Base64,</p>
+<p>	     regex, PEM/X509, time parsing, and crypto random bytes.</p>
 <p>     Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket now</p>
 <p>     follow the same session/object rule with examples like <code>conn.read_into(...)</code>,</p>
 <p>     <code>socket.send_to(...)</code>, <code>conn.write_from(...)</code>, <code>conn.recv_text(...)</code>,</p>

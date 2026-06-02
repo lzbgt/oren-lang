@@ -107,10 +107,6 @@ fn encode_bytes(input_bytes) {
 
 fn encode(input_bytes) { return encode_bytes(input_bytes) }
 
-fn try_encode_bytes(input_bytes) {
-    return encode_bytes(input_bytes)
-}
-
 fn _b64_val(c) {
     // Returns:
     // - 0..63 for valid alphabet
@@ -244,10 +240,6 @@ fn decode_bytes(s) {
     return out
 }
 
-fn try_decode_bytes(s) {
-    return decode_bytes(s)
-}
-
 fn decode(s): bytes { return decode_bytes(s) }
 
 fn decode_bytes_strict(s) {
@@ -262,10 +254,6 @@ fn decode_bytes_strict(s) {
         i = i + 1
     }
     return decode_bytes(s)
-}
-
-fn try_decode_bytes_strict(s) {
-    return decode_bytes_strict(s)
 }
 
 fn decode_strict(s): bytes { return decode_bytes_strict(s) }

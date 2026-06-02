@@ -9,7 +9,7 @@ fn _expect(cond, code) {
 fn main() {
     // Base64 of bytes [1,2,3,4] is "AQIDBA==".
     var s = "-----BEGIN TEST-----\nAQIDBA==\n-----END TEST-----\n"
-    var blocks = pem.try_decode_blocks(s)
+    var blocks = pem.decode_blocks(s)
     _expect(!oren_is_err(blocks), 10)
     _expect(oren_list_len(blocks) == 1, 11)
     var b0 = blocks[0]
@@ -24,9 +24,9 @@ fn main() {
     _expect((ptr_get_byte(p + 1) & 255) == 2, 18)
     _expect((ptr_get_byte(p + 2) & 255) == 3, 19)
     _expect((ptr_get_byte(p + 3) & 255) == 4, 20)
-    var strict = pem.try_decode_blocks_strict(s)
+    var strict = pem.decode_blocks_strict(s)
     _expect(!oren_is_err(strict), 21)
-    var bad = pem.try_decode_blocks_strict("-----BEGIN TEST-----\nAQID BA==\n-----END TEST-----\n")
+    var bad = pem.decode_blocks_strict("-----BEGIN TEST-----\nAQID BA==\n-----END TEST-----\n")
     _expect(oren_is_err(bad), 22)
     exit(0)
 }

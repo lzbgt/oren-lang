@@ -38,7 +38,6 @@ trait HtmlReaderStream {
 }
 
 fn parse(s): HtmlNode { return xml.parse(s) }
-fn try_parse(s): HtmlNode { return parse(s) }
 fn reader(s): HtmlReader { return xml.reader(s) }
 fn find(n, selector): HtmlNode { return xml.find(n, selector) }
 fn find_all(n, selector) { return xml.find_all(n, selector) }

@@ -840,7 +840,7 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
 
     var payload_off = 2 + ext
     if masked == 1 {
-        var rc_r = rand.fill(buf + payload_off, 4)
+        var rc_r = rand.fill_raw(buf + payload_off, 4)
         if rc_r < 0 { free(buf); return rc_r }
         mask0 = ptr_get_byte(buf + payload_off + 0) & 255
         mask1 = ptr_get_byte(buf + payload_off + 1) & 255

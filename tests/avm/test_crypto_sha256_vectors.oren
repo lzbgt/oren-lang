@@ -74,11 +74,11 @@ fn main() {
         fail("try_sha1_bytes bad input should return err")
     }
 
-    var x509_abc = x509.try_sha256_hex_der(oren_bytes_pack(abc))
+    var x509_abc = x509.sha256_hex_der(oren_bytes_pack(abc))
     assert_eq(x509_abc, got1, "x509 sha256 der try")
-    var x509_bad = x509.try_sha256_hex_der(123)
+    var x509_bad = x509.sha256_hex_der(123)
     if oren_is_err(x509_bad) != true {
-        fail("try_sha256_hex_der bad input should return err")
+        fail("sha256_hex_der bad input should return err")
     }
 
     print("sha256 vectors OK")

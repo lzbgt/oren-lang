@@ -65,7 +65,7 @@ fn text(resp: Response) {
 fn json(resp: Response) {
     var s = text(resp)
     if oren_is_err(s) { return s }
-    return json_std.try_decode(s)
+    return json_std.parse(s)
 }
 
 impl BodyReader for Response {

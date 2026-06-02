@@ -27,12 +27,12 @@ fn test_sequence_typed_roundtrip() {
 
     // Stream encode: concatenate a sequence of CBOR items.
     var bs = cbor.encode_sequence_typed(users, User__cbor_encode)
-    var bs_try = cbor.try_encode_sequence_typed(users, User__cbor_encode)
-    assert(oren_is_err(bs_try) != true, "try_encode_sequence_typed ok")
-    assert(oren_list_len(bs_try) == oren_list_len(bs), "try_encode_sequence_typed len")
+    var bs_try = cbor.encode_sequence_typed(users, User__cbor_encode)
+    assert(oren_is_err(bs_try) != true, "encode_sequence_typed ok")
+    assert(oren_list_len(bs_try) == oren_list_len(bs), "encode_sequence_typed len")
     var bi = 0
     while bi < oren_list_len(bs) {
-        assert(bs_try[bi] == bs[bi], "try_encode_sequence_typed byte")
+        assert(bs_try[bi] == bs[bi], "encode_sequence_typed byte")
         bi = bi + 1
     }
 

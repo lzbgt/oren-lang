@@ -949,7 +949,7 @@ fn commands_from_asset_at(asset, time_milli) {
 }
 
 fn commands_from_json(s) {
-    var jv = json.try_decode(s)
+    var jv = json.parse(s)
     if oren_is_err(jv) { return jv }
     var asset = _json_to_plain(jv)
     if oren_is_err(asset) { return asset }
@@ -957,7 +957,7 @@ fn commands_from_json(s) {
 }
 
 fn commands_from_json_at(s, time_milli) {
-    var jv = json.try_decode(s)
+    var jv = json.parse(s)
     if oren_is_err(jv) { return jv }
     var asset = _json_to_plain(jv)
     if oren_is_err(asset) { return asset }

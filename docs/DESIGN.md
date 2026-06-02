@@ -199,6 +199,11 @@ Constraints:
   `value | oren_err`; callers can branch with `oren_is_err(value)` or ignore the
   error path when the surrounding context proves success. Low-level numeric errno
   contracts must be explicit `*_raw` primitives.
+- Codec/parser/RNG APIs follow the same rule: use `json.parse`, `yaml.parse`,
+  `cbor.parse`, `cbor.sequence`, `base64.decode_bytes`, `regex.compile`,
+  `pem.decode_blocks`, `time.parse_iso8601_utc`, and `rand.bytes` as normal
+  fallible verbs; reserve `{ok,...}` result records for APIs where the success
+  metadata is part of the domain result, such as `argparse.parse`.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
   `make verify-stdlib-api-shape` guards the known bad root-helper names so the

@@ -252,10 +252,6 @@ fn encode(v): bytes {
     return out
 }
 
-fn try_encode(v): bytes {
-    return encode(v)
-}
-
 fn _need(bs, pos, n) {
     if pos + n > list.len(bs) { return 0 }
     return 1
@@ -403,13 +399,11 @@ fn _decode_err(r) {
     return oren_err(4, msg)
 }
 
-fn try_decode(bs): CborValue {
+fn parse(bs): CborValue {
     var r = decode(bs)
     if r["ok"] == 1 { return r["v"] }
     return _decode_err(r)
 }
-
-fn parse(bs): CborValue { return try_decode(bs) }
 
 fn bytes(v: CborValue): bytes { return encode(v) }
 
@@ -435,7 +429,7 @@ fn decode_next(bs, pos) {
     return _decode_value(bs, pos)
 }
 
-fn try_decode_next(bs, pos) {
+fn next(bs, pos) {
     var r = decode_next(bs, pos)
     if r["ok"] == 1 {
         return {"v": r["v"], "pos": r["pos"]}
@@ -455,7 +449,7 @@ fn decode_sequence(bs) {
     return {"ok": 1, "v": out, "pos": pos}
 }
 
-fn try_decode_sequence(bs) {
+fn sequence(bs) {
     var r = decode_sequence(bs)
     if r["ok"] == 1 { return r["v"] }
     return _decode_err(r)
@@ -465,10 +459,6 @@ fn encode_sequence(items) {
     var out = []
     if items != nil { for it in items { _encode_value(out, it) } }
     return out
-}
-
-fn try_encode_sequence(items) {
-    return encode_sequence(items)
 }
 
 // Typed helpers for serde-generated encode/decode functions.
@@ -492,10 +482,6 @@ fn encode_sequence_typed(items, encode_fn) {
     return encode_sequence(cvs)
 }
 
-fn try_encode_sequence_typed(items, encode_fn) {
-    return encode_sequence_typed(items, encode_fn)
-}
-
 fn decode_next_typed(bs, pos, decode_fn) {
     // decode_fn: CborValue -> {ok, err?, v?}
     var r = decode_next(bs, pos)
@@ -507,7 +493,7 @@ fn decode_next_typed(bs, pos, decode_fn) {
     return {"ok": 1, "v": rr["v"], "pos": r["pos"]}
 }
 
-fn try_decode_next_typed(bs, pos, decode_fn) {
+fn next_typed(bs, pos, decode_fn) {
     var r = decode_next_typed(bs, pos, decode_fn)
     if r["ok"] == 1 {
         return {"v": r["v"], "pos": r["pos"]}
@@ -527,7 +513,7 @@ fn decode_sequence_typed(bs, decode_fn) {
     return {"ok": 1, "v": out, "pos": pos}
 }
 
-fn try_decode_sequence_typed(bs, decode_fn) {
+fn sequence_typed(bs, decode_fn) {
     var r = decode_sequence_typed(bs, decode_fn)
     if r["ok"] == 1 { return r["v"] }
     return _decode_err(r)

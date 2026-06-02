@@ -753,7 +753,7 @@ fn bytes(resp: Response) {
 fn json(resp: Response) {
     var body = text(resp)
     if oren_is_err(body) { return body }
-    return json_std.try_decode(body)
+    return json_std.parse(body)
 }
 
 fn html(resp: Response): html_std.HtmlNode {

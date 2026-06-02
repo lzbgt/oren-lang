@@ -570,7 +570,7 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
     if q == 0 { return {"ok": 0, "err": "dns.query_a: malloc failed"} }
 
     // Fill transaction ID with OS entropy (2 bytes).
-    var rc = rand.fill(q, 2)
+    var rc = rand.fill_raw(q, 2)
     if rc < 0 {
         free(q)
         return {"ok": 0, "err": "dns.query_a: rand.fill failed (errno=" + oren_int_to_string(0 - rc) + ")"}

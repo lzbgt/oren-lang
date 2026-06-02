@@ -123,14 +123,14 @@ if s == "fallback" {
         print("Result FAIL (from_ok_map json err)")
         exit(1)
     }
-    var parsed_json2 = json.try_decode("{\"n\":4}")
+    var parsed_json2 = json.parse("{\"n\":4}")
     if r.is_err(parsed_json2) == true || parsed_json2["o"]["n"]["i"] != 4 {
-        print("Result FAIL (json.try_decode ok)")
+        print("Result FAIL (json.parse ok)")
         exit(1)
     }
-    var bad_json2 = json.try_decode("{")
+    var bad_json2 = json.parse("{")
     if r.is_err(bad_json2) != true || r.code(bad_json2) != 4 {
-        print("Result FAIL (json.try_decode err)")
+        print("Result FAIL (json.parse err)")
         exit(1)
     }
     var c = ui_color.try_parse_hex("red")

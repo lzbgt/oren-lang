@@ -31,8 +31,8 @@ fn test_roundtrip() {
     }
     assert(s == exp, "encode matches expected YAML")
 
-    var yv2 = yaml.try_decode(s)
-    assert(oren_is_err(yv2) != true, "yaml.try_decode ok")
+    var yv2 = yaml.parse(s)
+    assert(oren_is_err(yv2) != true, "yaml.parse ok")
     var rr = User__yaml_decode(yv2)
     assert(rr["ok"] == 1, "User__yaml_decode ok")
     var u2 = rr["v"]

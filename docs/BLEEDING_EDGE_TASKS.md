@@ -116,11 +116,13 @@ This file is the concise task view. Detailed implementation status lives in
      path on exact-size `u8_buf` output.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
-     `buf.matrix(2, 3).row(1).text()` instead of routing through root-level
-     projection helpers.
-     `make verify-stdlib-api-shape` now blocks known bad root-helper regressions:
-     public fallible APIs should use the normal verb and return `value | oren_err`,
-     while syscall-style primitives use explicit `*_raw` names.
+	     `buf.matrix(2, 3).row(1).text()` instead of routing through root-level
+	     projection helpers.
+	     `make verify-stdlib-api-shape` now blocks known bad root-helper regressions:
+	     public fallible APIs should use the normal verb and return `value | oren_err`,
+	     while syscall-style primitives use explicit `*_raw` names. The guard now covers
+	     NET plus app-facing codec/parser/RNG helpers such as JSON/YAML/CBOR, Base64,
+	     regex, PEM/X509, time parsing, and crypto random bytes.
      Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket now
      follow the same session/object rule with examples like `conn.read_into(...)`,
      `socket.send_to(...)`, `conn.write_from(...)`, `conn.recv_text(...)`,

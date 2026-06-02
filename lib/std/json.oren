@@ -331,7 +331,7 @@ fn decode(s) {
     return r
 }
 
-fn try_decode(s): JsonValue {
+fn parse(s): JsonValue {
     var r = decode(s)
     if r["ok"] == 1 { return r["v"] }
     var msg = r["err"]
@@ -412,12 +412,6 @@ fn encode(jv) {
     // Unknown tag: encode as null (rolling safety).
     return "null"
 }
-
-fn try_encode(jv) {
-    return encode(jv)
-}
-
-fn parse(s): JsonValue { return try_decode(s) }
 
 fn text(jv: JsonValue) { return encode(jv) }
 

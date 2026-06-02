@@ -93,30 +93,31 @@ fn test_parse() {
     assert(r["rest"][1] == "y", "rest y")
 }
 
-fn test_try_parse() {
+fn test_parse_result() {
     var p = ap.new_parser("tool", "demo tool")
     var c = ap.add_command(p, "run", "run the tool")
     ap.cmd_flag(c, "--verbose", "-v", "verbose mode")
     ap.cmd_option(c, "--out", "-o", "string", "a.out", "output path")
     ap.cmd_positional(c, "file", true, "input file")
 
-    var ok = ap.try_parse(p, ["run", "--verbose", "--out", "bin", "in.txt"])
-    assert(oren_is_err(ok) != true, "try_parse success is direct map")
-    assert(ok["ok"] == true, "try_parse ok flag")
-    assert(ok["opts"]["verbose"] == true, "try_parse verbose")
-    assert(ok["opts"]["out"] == "bin", "try_parse out")
-    assert(ok["pos"][0] == "in.txt", "try_parse positional")
+    var ok = ap.parse(p, ["run", "--verbose", "--out", "bin", "in.txt"])
+    assert(oren_is_err(ok) != true, "parse success is direct map")
+    assert(ok["ok"] == true, "parse ok flag")
+    assert(ok["opts"]["verbose"] == true, "parse verbose")
+    assert(ok["opts"]["out"] == "bin", "parse out")
+    assert(ok["pos"][0] == "in.txt", "parse positional")
 
-    var help = ap.try_parse(p, ["run", "--help"])
-    assert(oren_is_err(help) != true, "try_parse help is direct map")
-    assert(help["ok"] == false, "try_parse help ok=false")
-    assert(help["code"] == 0, "try_parse help code")
-    assert(help["help"] != nil, "try_parse help text")
+    var help = ap.parse(p, ["run", "--help"])
+    assert(oren_is_err(help) != true, "parse help is direct map")
+    assert(help["ok"] == false, "parse help ok=false")
+    assert(help["code"] == 0, "parse help code")
+    assert(help["help"] != nil, "parse help text")
 
-    var bad = ap.try_parse(p, ["run", "--missing", "in.txt"])
-    assert(oren_is_err(bad) == true, "try_parse parse error becomes oren_err")
-    assert(oren_err_code(bad) == 2, "try_parse parse error code")
-    assert(oren_err_msg(bad) != nil, "try_parse parse error message")
+    var bad = ap.parse(p, ["run", "--missing", "in.txt"])
+    assert(oren_is_err(bad) != true, "parse error is structured map")
+    assert(bad["ok"] == false, "parse error ok=false")
+    assert(bad["code"] == 2, "parse error code")
+    assert(bad["err"] != nil, "parse error message")
 }
 
 fn test_no_flag_sets_false() {
@@ -179,7 +180,7 @@ fn test_help_early_exit() {
 
 test_help_render()
 test_parse()
-test_try_parse()
+test_parse_result()
 test_no_flag_sets_false()
 test_counted_flags()
 test_all_opts_merge()

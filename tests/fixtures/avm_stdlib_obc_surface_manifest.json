@@ -31,9 +31,9 @@
       "module": "std:cbor",
       "alias": "cbor",
       "probes": [
-        "var cb = cbor.try_encode(cbor.cint(7))",
+        "var cb = cbor.encode(cbor.cint(7))",
         "if oren_is_err(cb) { fail(36) }",
-        "var cbr = cbor.try_decode(cb)",
+        "var cbr = cbor.parse(cb)",
         "if oren_is_err(cbr) { fail(37) }",
         "if cbr[\"i\"] != 7 { fail(38) }",
         "var cb2 = cbor.cint(8).bytes()",
@@ -108,7 +108,7 @@
       "module": "std:regex",
       "alias": "regex",
       "probes": [
-        "if regex.try_is_match(\"h.llo\", \"hello\") != true { fail(39) }"
+        "if regex.is_match(\"h.llo\", \"hello\") != true { fail(39) }"
       ]
     },
     {
@@ -132,7 +132,7 @@
       "module": "std:json",
       "alias": "json",
       "probes": [
-        "var jv = json.try_decode(\"{\\\"a\\\":1,\\\"b\\\":\\\"x\\\"}\")",
+        "var jv = json.parse(\"{\\\"a\\\":1,\\\"b\\\":\\\"x\\\"}\")",
         "if oren_is_err(jv) { fail(30) }",
         "if jv[\"t\"] != \"object\" { fail(31) }",
         "if jv[\"o\"][\"a\"][\"i\"] != 1 { fail(32) }",
@@ -198,7 +198,7 @@
       "module": "std:yaml",
       "alias": "yaml",
       "probes": [
-        "var yv = yaml.try_decode(\"a: 1\\nb: x\\n\")",
+        "var yv = yaml.parse(\"a: 1\\nb: x\\n\")",
         "if oren_is_err(yv) { fail(34) }",
         "if yv[\"o\"][\"a\"][\"i\"] != 1 || yv[\"o\"][\"b\"][\"s\"] != \"x\" { fail(35) }",
         "var yv2 = \"a: 1\\n\".yaml()",
@@ -221,7 +221,7 @@
       "probes": [
         "var parser = argparse.new_parser(\"probe\", \"probe parser\")",
         "argparse.cmd_flag(argparse.root(parser), \"--verbose\", \"-v\", \"verbose\")",
-        "var parsed = argparse.try_parse(parser, [\"--verbose\"])",
+        "var parsed = argparse.parse(parser, [\"--verbose\"])",
         "if oren_is_err(parsed) || parsed[\"ok\"] != true || parsed[\"all_opts\"][\"verbose\"] != true { fail(91) }"
       ]
     },
@@ -258,7 +258,7 @@
       "module": "std:crypto/pem",
       "alias": "pem",
       "probes": [
-        "var pem_blocks = pem.try_decode_blocks_strict(\"-----BEGIN CERT-----\\nTQ==\\n-----END CERT-----\\n\")",
+        "var pem_blocks = pem.decode_blocks_strict(\"-----BEGIN CERT-----\\nTQ==\\n-----END CERT-----\\n\")",
         "if oren_is_err(pem_blocks) { fail(44) }",
         "if pem_blocks[0][\"type\"] != \"CERT\" { fail(45) }",
         "if bytes.try_len(pem_blocks[0][\"bytes\"]) != 1 || bytes.try_get_u8(pem_blocks[0][\"bytes\"], 0) != 77 { fail(48) }"

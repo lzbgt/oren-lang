@@ -1187,19 +1187,19 @@ fn main() {
     if r.is_err(parsed_json) == true || parsed_json["t"] != "object" || parsed_json["o"]["n"]["i"] != 3 { return 1515 }
     var bad_json = r.from_ok_map(json.decode("{"))
     if r.is_err(bad_json) != true || r.code(bad_json) != 4 { return 1516 }
-    var json_encoded = json.try_encode(json.jobject({"n": json.jint(3)}))
+    var json_encoded = json.encode(json.jobject({"n": json.jint(3)}))
     if r.is_err(json_encoded) || strings.streq(json_encoded, "{\"n\":3}") != true { return 1534 }
-    var yaml_encoded = yaml.try_encode(yaml.yobject({"n": yaml.yint(3)}))
+    var yaml_encoded = yaml.encode(yaml.yobject({"n": yaml.yint(3)}))
     if r.is_err(yaml_encoded) || strings.streq(yaml_encoded, "n: 3\n") != true { return 1535 }
-    var cbor_encoded = cbor.try_encode(cbor.cint(7))
+    var cbor_encoded = cbor.encode(cbor.cint(7))
     if r.is_err(cbor_encoded) || list.try_len(cbor_encoded) != 1 || list.try_get(cbor_encoded, 0) != 7 { return 1536 }
-    var cbor_seq_encoded = cbor.try_encode_sequence([cbor.cint(1), cbor.cbool(1)])
+    var cbor_seq_encoded = cbor.encode_sequence([cbor.cint(1), cbor.cbool(1)])
     if r.is_err(cbor_seq_encoded) || list.try_len(cbor_seq_encoded) != 2 || list.try_get(cbor_seq_encoded, 0) != 1 || list.try_get(cbor_seq_encoded, 1) != 245 { return 1537 }
-    var compiled_regex = regex.try_compile("a+")
+    var compiled_regex = regex.compile("a+")
     if r.is_err(compiled_regex) == true { return 1517 }
     if regex.is_match_compiled(compiled_regex, "xxaaa") != true { return 1518 }
-    if regex.try_is_match("a+", "bbb") != false { return 1519 }
-    if r.is_err(regex.try_is_match("(", "x")) != true { return 1520 }
+    if regex.is_match("a+", "bbb") != false { return 1519 }
+    if r.is_err(regex.is_match("(", "x")) != true { return 1520 }
 
     // std:list structured error helpers
     var xs = [1, 2]
@@ -1264,19 +1264,19 @@ fn main() {
     if r.is_err(bad_slice) != true { return 13 }
 
     // std:encoding/base64 errors
-    var b64_bad = base64.try_decode_bytes("!!!")
+    var b64_bad = base64.decode_bytes("!!!")
     if r.is_err(b64_bad) != true { return 14 }
-    var b64_bad_in = base64.try_encode_bytes(123)
+    var b64_bad_in = base64.encode_bytes(123)
     if r.is_err(b64_bad_in) != true { return 15 }
-    var b64_ws = base64.try_decode_bytes_strict("TQ==\n")
+    var b64_ws = base64.decode_bytes_strict("TQ==\n")
     if r.is_err(b64_ws) != true { return 16 }
-    var b64_ok = base64.try_decode_bytes_strict("TQ==")
+    var b64_ok = base64.decode_bytes_strict("TQ==")
     if r.is_err(b64_ok) { return 17 }
     var b64_ok_len = bytes.try_len(b64_ok)
     if r.is_err(b64_ok_len) || b64_ok_len != 1 { return 18 }
-    var pem_bad = pem.try_decode_blocks_strict("-----BEGIN CERT-----\nTQ== \n-----END CERT-----\n")
+    var pem_bad = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ== \n-----END CERT-----\n")
     if r.is_err(pem_bad) != true { return 19 }
-    var pem_ok = pem.try_decode_blocks_strict("-----BEGIN CERT-----\nTQ==\n-----END CERT-----")
+    var pem_ok = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ==\n-----END CERT-----")
     if r.is_err(pem_ok) { return 20 }
 
     // std:strings structured errors

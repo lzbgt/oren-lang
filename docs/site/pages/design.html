@@ -233,6 +233,13 @@
 <p>  error path when the surrounding context proves success. Low-level numeric errno</p>
 <p>  contracts must be explicit <code>*_raw</code> primitives.</p>
 <ul>
+<li>Codec/parser/RNG APIs follow the same rule: use <code>json.parse</code>, <code>yaml.parse</code>,</li>
+</ul>
+<p>  <code>cbor.parse</code>, <code>cbor.sequence</code>, <code>base64.decode_bytes</code>, <code>regex.compile</code>,</p>
+<p>  <code>pem.decode_blocks</code>, <code>time.parse_iso8601_utc</code>, and <code>rand.bytes</code> as normal</p>
+<p>  fallible verbs; reserve <code>{ok,...}</code> result records for APIs where the success</p>
+<p>  metadata is part of the domain result, such as <code>argparse.parse</code>.</p>
+<ul>
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>
 <p>  domain object/scope first, then expose <code>request</code>/<code>response</code>/<code>value</code> methods.</p>

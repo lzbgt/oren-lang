@@ -385,8 +385,11 @@ Facts from the 2026-05-28 implementation pass:
 	  package opts into HTML/XML parsing.
 	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical
 	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
-	  indexed byte access instead of unpacking the whole message to a list. Base64
-	  encoding now writes exact-size `u8_buf` output instead of materializing an
+		  indexed byte access instead of unpacking the whole message to a list. JSON,
+		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, and crypto RNG now use
+		  canonical fallible verbs (`parse`, `encode`, `decode_bytes`, `compile`,
+		  `bytes`, etc.) instead of public `try_*` names, while raw errno-style
+		  internals are explicit `*_raw`. Base64 encoding now writes exact-size `u8_buf` output instead of materializing an
 		  intermediate Oren list. NET cleanup now covers native and AVM session
 		  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,
 		  `.write_from(...)`, `.send_to(...)`, `.recv_from_into(...)`,

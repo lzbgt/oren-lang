@@ -142,8 +142,8 @@ fn main() {
         var _dr = hpack.decode_header_block(t, hb)
 
         // Crypto helpers (host effects) - keep these behind a dead branch; we only want buildability.
-        var _rb = rand.try_bytes(16)
-        var _pem = pem.try_decode_blocks("-----BEGIN CERTIFICATE-----\\nZm9v\\n-----END CERTIFICATE-----\\n")
+        var _rb = rand.bytes(16)
+        var _pem = pem.decode_blocks("-----BEGIN CERTIFICATE-----\\nZm9v\\n-----END CERTIFICATE-----\\n")
 
         // (http2_client symbols referenced above)
     }

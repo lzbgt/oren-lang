@@ -193,8 +193,6 @@ fn parse(s): XmlNode {
     return document(r["children"])
 }
 
-fn try_parse(s): XmlNode { return parse(s) }
-
 fn reader(s): XmlReader {
     return {"bytes": oren_bytes_from_string(s), "pos": 0}
 }

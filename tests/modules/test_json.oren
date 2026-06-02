@@ -15,8 +15,8 @@ fn test_decode_encode() {
     var out = json.encode(r["v"])
     // keys are stored/iterated deterministically; encoder emits without spaces.
     assert(strings.streq(out, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}"), "encode deterministic + escapes")
-    var out2 = json.try_encode(r["v"])
-    assert(oren_is_err(out2) != true && strings.streq(out2, out), "try_encode deterministic + escapes")
+    var out2 = json.encode(r["v"])
+    assert(oren_is_err(out2) != true && strings.streq(out2, out), "encode deterministic + escapes")
 }
 
 fn test_int_zero_not_null() {
@@ -34,12 +34,12 @@ fn test_nested() {
     assert(strings.streq(out, "{\"x\":[true,false,null,3]}"), "nested roundtrip")
 }
 
-fn test_try_decode() {
-    var v = json.try_decode("{\"x\":5}")
-    assert(oren_is_err(v) != true, "try_decode ok")
-    assert(v["o"]["x"]["i"] == 5, "try_decode value")
-    var e = json.try_decode("{")
-    assert(oren_is_err(e) == true, "try_decode err")
+fn test_parse() {
+    var v = json.parse("{\"x\":5}")
+    assert(oren_is_err(v) != true, "parse ok")
+    assert(v["o"]["x"]["i"] == 5, "parse value")
+    var e = json.parse("{")
+    assert(oren_is_err(e) == true, "parse err")
 }
 
 fn test_method_json() {
@@ -59,7 +59,7 @@ fn test_method_json() {
 test_decode_encode()
 test_int_zero_not_null()
 test_nested()
-test_try_decode()
+test_parse()
 test_method_json()
 print("ok")
 exit(0)

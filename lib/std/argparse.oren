@@ -1304,21 +1304,3 @@ fn parse(p, argv) {
     res["rest"] = rest
     return res
 }
-
-fn try_parse(p, argv) {
-    // Structured-error bridge for new callers.
-    //
-    // `parse(...)` remains the compatibility surface and returns a legacy result map for
-    // success, help early-exit (`ok=false`, `code=0`), and parse errors. `try_parse(...)`
-    // returns the same successful/help maps, but converts parse failures into `oren_err`.
-    var r = parse(p, argv)
-    if r == nil { return oren_err(2, "argparse parse failed") }
-    if r["ok"] == true { return r }
-    if r["code"] == 0 { return r }
-
-    var code = r["code"]
-    if code == nil { code = 2 }
-    var msg = r["err"]
-    if msg == nil || _streq(msg, "") { msg = "argparse parse failed" }
-    return oren_err(code, msg)
-}

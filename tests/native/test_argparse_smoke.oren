@@ -8,18 +8,18 @@ fn main() {
     argparse.cmd_positional(sub, "file", true, "A required positional")
     argparse.cmd_option(sub, "--opt", "-o", "string", "", "An optional flag")
 
-    var parsed = argparse.try_parse(p, ["sub", "--opt", "value", "input.txt"])
+    var parsed = argparse.parse(p, ["sub", "--opt", "value", "input.txt"])
     if oren_is_err(parsed) {
-        print("argparse try_parse unexpectedly failed: " + oren_err_msg(parsed))
+        print("argparse parse unexpectedly failed: " + oren_err_msg(parsed))
         oren_exit(2)
     }
     if parsed["opts"]["opt"] != "value" {
-        print("argparse try_parse option mismatch")
+        print("argparse parse option mismatch")
         oren_exit(3)
     }
-    var bad = argparse.try_parse(p, ["sub", "--missing", "input.txt"])
-    if oren_is_err(bad) != true {
-        print("argparse try_parse did not return structured error")
+    var bad = argparse.parse(p, ["sub", "--missing", "input.txt"])
+    if oren_is_err(bad) == true || bad["ok"] != false || bad["code"] != 2 || bad["err"] == nil {
+        print("argparse parse did not return structured error")
         oren_exit(4)
     }
 
