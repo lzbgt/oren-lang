@@ -139,7 +139,9 @@ Facts from the 2026-05-28 implementation pass:
   remote `/api/v0/health` probe. The live cloud host currently runs
   `oren-obc-store.service` on `172.20.0.1:18080` and Dockerized Traefik routes
   `https://store.hubstack.cn/` to that backend; `/healthz` and `/api/v0/health`
-  are public smoke endpoints for browser/API reachability.
+  are public smoke endpoints for browser/API reachability. The live store is
+  populated with first-party `oren-labs` `science-calculator`, `ui-card-demo`,
+  and `scene3d-asset-demo` `.obc.zip` releases from `examples/obc_store_demos/`.
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
   install and package run from that endpoint. The release bundle format is

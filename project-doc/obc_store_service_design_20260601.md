@@ -134,6 +134,8 @@ Remaining service work before deployment:
 - live deployment now runs on the cloud host with `oren-obc-store.service`
   listening on the host bridge address `172.20.0.1:18080`, and Dockerized Traefik
   routes `https://store.hubstack.cn/` to that backend;
+  the public portal is populated with first-party `oren-labs` demo releases from
+  `examples/obc_store_demos/`;
   the cloud host Traefik layer owns automatic DNS and HTTPS certificate handling,
   so this repo should not manage TLS cert material;
 
