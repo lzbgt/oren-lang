@@ -126,19 +126,19 @@ fn _validate_int_or_err(v, ctx) {
 }
 
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
-    var src = bytesm.try_to_u8_buf(bytes)
+    var src = bytesm.to_u8_buf(bytes)
     if oren_is_err(src) { return src }
     return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
 }
 
 fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
-    var src = bytesm.try_to_u8_buf_slice(bytes, off, count)
+    var src = bytesm.to_u8_buf_slice(bytes, off, count)
     if oren_is_err(src) { return src }
     return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
 }
 
 fn _u8_view_copy_from_string(store_fn, view, n, s, ctx) {
-    var bs = bytesm.try_from_string(s)
+    var bs = bytesm.from_string(s)
     if oren_is_err(bs) { return bs }
     return _u8_view_copy_from_bytes(store_fn, view, n, bs, ctx)
 }
@@ -326,7 +326,7 @@ fn _try_u8_view_to_bytes(try_loadf, is_viewf, kind_label, s, ctx) {
 fn _try_u8_view_to_string(try_loadf, is_viewf, kind_label, s, ctx) {
     var bs = _try_u8_view_to_u8_buf(try_loadf, is_viewf, kind_label, s, ctx)
     if oren_is_err(bs) { return bs }
-    return bytesm.try_to_string(bs)
+    return bytesm.to_string(bs)
 }
 
 fn _try_u8_view_copy_from_bytes(try_storef, is_viewf, kind_label, s, bytes, ctx) {

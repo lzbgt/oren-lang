@@ -46,10 +46,11 @@ design evidence lives under `project-doc/`.
 - Fixed-arity direct calls now materialize omitted trailing arguments as real
   `nil` across C, native, and AVM backends; `tests/modules/test_omitted_args_nil.oren`
   is part of the native quick integration gate.
-- `std:buffer` now exposes chainable `Slice`/`Strided`/`Matrix` wrapper methods
-  such as `buf.slice(1, 3).text()` and `buf.matrix(2, 3).row(1).text()`, with
-  canonical public root verbs such as `load_i32` / `store_i32`; internal
-  `try_*` helpers stay private implementation details.
+- `std:bytes` and `std:buffer` now expose canonical fallible public verbs:
+  `bytes.pack`, `bytes.get_u32_le`, `bytes.put_u32_le`, `buffer.load_i32`,
+  `buffer.store_i32`, and chainable `buf.slice(1, 3).text()` /
+  `buf.matrix(2, 3).row(1).text()`. Internal `try_*` helpers stay private
+  implementation details.
 - `make verify-stdlib-api-shape` is part of the fast `make test` path and blocks
   known bad root-helper regressions. Public fallible stdlib APIs should use normal
   verbs returning `value | oren_err`; numeric errno contracts belong under

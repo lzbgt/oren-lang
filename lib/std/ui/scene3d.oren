@@ -125,8 +125,8 @@ fn _push_destroy(out, xs, destroy_fn) {
 
 fn _pack_bytes(v, ctx) {
     if v == nil { return oren_err(4, ctx + ": missing byte array") }
-    if oren_type_tag(v) == 6 { return bytes.try_pack(v) }
-    var n = bytes.try_len(v)
+    if oren_type_tag(v) == 6 { return bytes.pack(v) }
+    var n = bytes.len(v)
     if oren_is_err(n) { return oren_err(4, ctx + ": expected byte array") }
     return v
 }
@@ -167,7 +167,7 @@ fn _pack_vertices_xyz(points, ctx) {
         rc = _store_i32_le(out, off + 8, p[2], ctx + ".z"); if oren_is_err(rc) { return rc }
         i = i + 1
     }
-    return bytes.try_from_u8_buf(out)
+    return bytes.from_u8_buf(out)
 }
 
 fn _pack_faces(faces, vertex_count, ctx) {
@@ -194,11 +194,11 @@ fn _pack_faces(faces, vertex_count, ctx) {
         rc = _store_u32_le(out, off + 8, f[2], ctx + ".c"); if oren_is_err(rc) { return rc }
         i = i + 1
     }
-    return bytes.try_from_u8_buf(out)
+    return bytes.from_u8_buf(out)
 }
 
 fn _vertex_count_from_bytes(vertices, ctx) {
-    var n = bytes.try_len(vertices)
+    var n = bytes.len(vertices)
     if oren_is_err(n) { return oren_err(4, ctx + ": expected vertex bytes") }
     if n % 12 != 0 { return oren_err(4, ctx + ": vertex byte length must be multiple of 12") }
     return n / 12
@@ -244,7 +244,7 @@ fn _pack_triangles_xyz(triangles, ctx) {
         }
         i = i + 1
     }
-    return bytes.try_from_u8_buf(out)
+    return bytes.from_u8_buf(out)
 }
 
 fn _store_rgba(out, off, color, ctx) {
@@ -284,7 +284,7 @@ fn _pack_triangles_xyz_rgba(triangles, ctx) {
         if oren_is_err(cr) { return cr }
         i = i + 1
     }
-    return bytes.try_from_u8_buf(out)
+    return bytes.from_u8_buf(out)
 }
 
 fn _asset_mesh(m) {
@@ -734,37 +734,37 @@ fn _asset_color(m, ctx) {
 }
 
 fn _bin_u32(data, off) {
-    var v = bytes.try_get_u32_le(data, off)
+    var v = bytes.get_u32_le(data, off)
     if oren_is_err(v) { return v }
     return [v, off + 4]
 }
 
 fn _bin_i32(data, off) {
-    var v = bytes.try_get_i32_le(data, off)
+    var v = bytes.get_i32_le(data, off)
     if oren_is_err(v) { return v }
     return [v, off + 4]
 }
 
 fn _bin_slice(data, off, n) {
     if n < 0 { return oren_err(4, "ui.scene3d binary: negative slice") }
-    return bytes.try_slice(data, off, n)
+    return bytes.slice(data, off, n)
 }
 
 fn _bin_magic_ok(data) {
-    if bytes.try_len(data) < 28 { return false }
-    return bytes.try_get_u8(data, 0) == 79 &&
-        bytes.try_get_u8(data, 1) == 83 &&
-        bytes.try_get_u8(data, 2) == 51 &&
-        bytes.try_get_u8(data, 3) == 68 &&
-        bytes.try_get_u8(data, 4) == 48 &&
-        bytes.try_get_u8(data, 5) == 49 &&
-        bytes.try_get_u8(data, 6) == 0 &&
-        bytes.try_get_u8(data, 7) == 0
+    if bytes.len(data) < 28 { return false }
+    return bytes.get_u8(data, 0) == 79 &&
+        bytes.get_u8(data, 1) == 83 &&
+        bytes.get_u8(data, 2) == 51 &&
+        bytes.get_u8(data, 3) == 68 &&
+        bytes.get_u8(data, 4) == 48 &&
+        bytes.get_u8(data, 5) == 49 &&
+        bytes.get_u8(data, 6) == 0 &&
+        bytes.get_u8(data, 7) == 0
 }
 
 fn scene_from_binary(data) {
     if _bin_magic_ok(data) == false { return oren_err(4, "ui.scene3d.scene_from_binary: bad magic") }
-    var n = bytes.try_len(data)
+    var n = bytes.len(data)
     if oren_is_err(n) { return n }
     var off = 8
     var r = _bin_u32(data, off); if oren_is_err(r) { return r }; var mesh_count = r[0]; off = r[1]

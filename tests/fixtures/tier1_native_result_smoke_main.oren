@@ -52,12 +52,12 @@ fn smoke_buffer_slice_views(i32b) {
     var u8_slice_s = buffer.slice_to_string(u8_slice)
     if r.is_err(u8_slice_s) || u8_slice_s != "BCD" { return 212 }
     var u8_slice_b = buffer.slice_to_bytes(u8_slice)
-    if r.is_err(u8_slice_b) || bytes.try_to_string(u8_slice_b) != "BCD" { return 213 }
+    if r.is_err(u8_slice_b) || bytes.to_string(u8_slice_b) != "BCD" { return 213 }
     var u8_slice_list = buffer.slice_unpack_u8(u8_slice)
     if r.is_err(u8_slice_list) || oren_list_len(u8_slice_list) != 3 || u8_slice_list[0] != 66 || u8_slice_list[2] != 68 { return 240 }
     var u8_slice_buf = buffer.slice_to_u8_buf(u8_slice)
     if r.is_err(u8_slice_buf) || buffer.u8_to_string(u8_slice_buf) != "BCD" { return 226 }
-    var u8_slice_copy = buffer.slice_copy_from_bytes(u8_slice, bytes.try_from_string("xyz"))
+    var u8_slice_copy = buffer.slice_copy_from_bytes(u8_slice, bytes.from_string("xyz"))
     if r.is_err(u8_slice_copy) || u8_slice_copy != u8_view_buf { return 214 }
     var u8_view_s = buffer.u8_to_string(u8_view_buf)
     if r.is_err(u8_view_s) || u8_view_s != "AxyzE" { return 215 }
@@ -65,7 +65,7 @@ fn smoke_buffer_slice_views(i32b) {
     if r.is_err(u8_view_buf_slice) { return 1201 }
     var u8_slice_bytes = buffer.slice_new(u8_view_buf_slice, 1, 3)
     if r.is_err(u8_slice_bytes) { return 1202 }
-    var u8_slice_copy_bytes = buffer.slice_copy_from_bytes_slice(u8_slice_bytes, bytes.try_from_string("vwxyz"), 1, 3)
+    var u8_slice_copy_bytes = buffer.slice_copy_from_bytes_slice(u8_slice_bytes, bytes.from_string("vwxyz"), 1, 3)
     if r.is_err(u8_slice_copy_bytes) || u8_slice_copy_bytes != u8_view_buf_slice { return 1203 }
     var u8_view_slice_s = buffer.u8_to_string(u8_view_buf_slice)
     if r.is_err(u8_view_slice_s) || u8_view_slice_s != "AwxyE" { return 1204 }
@@ -97,9 +97,9 @@ fn smoke_buffer_slice_views(i32b) {
     if r.is_err(u8_view_s3) || u8_view_s3 != "ApqrE" { return 245 }
     var bad_u8_slice_s = buffer.slice_to_string("nope")
     if r.is_err(bad_u8_slice_s) != true { return 216 }
-    var bad_u8_slice_copy = buffer.slice_copy_from_bytes(u8_slice, bytes.try_from_string("xy"))
+    var bad_u8_slice_copy = buffer.slice_copy_from_bytes(u8_slice, bytes.from_string("xy"))
     if r.is_err(bad_u8_slice_copy) != true { return 217 }
-    var bad_u8_slice_copy_bytes = buffer.slice_copy_from_bytes_slice(u8_slice_bytes, bytes.try_from_string("vw"), 0, 2)
+    var bad_u8_slice_copy_bytes = buffer.slice_copy_from_bytes_slice(u8_slice_bytes, bytes.from_string("vw"), 0, 2)
     if r.is_err(bad_u8_slice_copy_bytes) != true { return 1205 }
     var bad_u8_slice_list = buffer.slice_unpack_u8("nope")
     if r.is_err(bad_u8_slice_list) != true { return 246 }
@@ -134,12 +134,12 @@ fn smoke_buffer_strided_views(i32b) {
     var u8_stride_s = buffer.strided_to_string(u8_stride)
     if r.is_err(u8_stride_s) || u8_stride_s != "ACE" { return 220 }
     var u8_stride_b = buffer.strided_to_bytes(u8_stride)
-    if r.is_err(u8_stride_b) || bytes.try_to_string(u8_stride_b) != "ACE" { return 221 }
+    if r.is_err(u8_stride_b) || bytes.to_string(u8_stride_b) != "ACE" { return 221 }
     var u8_stride_list = buffer.strided_unpack_u8(u8_stride)
     if r.is_err(u8_stride_list) || oren_list_len(u8_stride_list) != 3 || u8_stride_list[0] != 65 || u8_stride_list[2] != 69 { return 248 }
     var u8_stride_buf2 = buffer.strided_to_u8_buf(u8_stride)
     if r.is_err(u8_stride_buf2) || buffer.u8_to_string(u8_stride_buf2) != "ACE" { return 233 }
-    var u8_stride_copy = buffer.strided_copy_from_bytes(u8_stride, bytes.try_from_string("xyz"))
+    var u8_stride_copy = buffer.strided_copy_from_bytes(u8_stride, bytes.from_string("xyz"))
     if r.is_err(u8_stride_copy) || u8_stride_copy != u8_stride_buf { return 222 }
     var u8_stride_buf_s = buffer.u8_to_string(u8_stride_buf)
     if r.is_err(u8_stride_buf_s) || u8_stride_buf_s != "xByDz" { return 223 }
@@ -147,7 +147,7 @@ fn smoke_buffer_strided_views(i32b) {
     if r.is_err(u8_stride_buf_slice) { return 1206 }
     var u8_stride_bytes = buffer.strided_new(u8_stride_buf_slice, 0, 3, 2)
     if r.is_err(u8_stride_bytes) { return 1207 }
-    var u8_stride_copy_bytes = buffer.strided_copy_from_bytes_slice(u8_stride_bytes, bytes.try_from_string("uvwxy"), 1, 3)
+    var u8_stride_copy_bytes = buffer.strided_copy_from_bytes_slice(u8_stride_bytes, bytes.from_string("uvwxy"), 1, 3)
     if r.is_err(u8_stride_copy_bytes) || u8_stride_copy_bytes != u8_stride_buf_slice { return 1208 }
     var u8_stride_slice_s = buffer.u8_to_string(u8_stride_buf_slice)
     if r.is_err(u8_stride_slice_s) || u8_stride_slice_s != "vBwDx" { return 1209 }
@@ -179,9 +179,9 @@ fn smoke_buffer_strided_views(i32b) {
     if r.is_err(u8_stride_s3) || u8_stride_s3 != "rBsDt" { return 253 }
     var bad_u8_stride_s = buffer.strided_to_string("nope")
     if r.is_err(bad_u8_stride_s) != true { return 224 }
-    var bad_u8_stride_copy = buffer.strided_copy_from_bytes(u8_stride, bytes.try_from_string("xy"))
+    var bad_u8_stride_copy = buffer.strided_copy_from_bytes(u8_stride, bytes.from_string("xy"))
     if r.is_err(bad_u8_stride_copy) != true { return 225 }
-    var bad_u8_stride_copy_bytes = buffer.strided_copy_from_bytes_slice(u8_stride_bytes, bytes.try_from_string("uv"), 0, 2)
+    var bad_u8_stride_copy_bytes = buffer.strided_copy_from_bytes_slice(u8_stride_bytes, bytes.from_string("uv"), 0, 2)
     if r.is_err(bad_u8_stride_copy_bytes) != true { return 1210 }
     var bad_u8_stride_list = buffer.strided_unpack_u8("nope")
     if r.is_err(bad_u8_stride_list) != true { return 254 }
@@ -413,7 +413,7 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(u8matdiag_s) || u8matdiag_s != "AE" { return 311 }
     var u8mat_row0_bytes = buffer.mat_row_to_bytes(u8mat, 0)
     if r.is_err(u8mat_row0_bytes) { return 336 }
-    var u8mat_row0_s = bytes.try_to_string(u8mat_row0_bytes)
+    var u8mat_row0_s = bytes.to_string(u8mat_row0_bytes)
     if r.is_err(u8mat_row0_s) || u8mat_row0_s != "ABC" { return 337 }
     var u8mat_row1_buf = buffer.mat_row_to_u8_buf(u8mat, 1)
     if r.is_err(u8mat_row1_buf) { return 338 }
@@ -428,7 +428,7 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(u8mat_col1_buf_s) || u8mat_col1_buf_s != "BE" { return 343 }
     var u8mat_col1_bytes = buffer.mat_col_to_bytes(u8mat, 1)
     if r.is_err(u8mat_col1_bytes) { return 344 }
-    var u8mat_col1_s = bytes.try_to_string(u8mat_col1_bytes)
+    var u8mat_col1_s = bytes.to_string(u8mat_col1_bytes)
     if r.is_err(u8mat_col1_s) || u8mat_col1_s != "BE" { return 345 }
     var u8mat_col1_list = buffer.mat_col_unpack_u8(u8mat, 1)
     if r.is_err(u8mat_col1_list) { return 346 }
@@ -439,7 +439,7 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(diag_string_s) || diag_string_s != "AD" { return 611 }
     var diag_string_bytes = buffer.mat_diag_to_bytes(diag_string_mat)
     if r.is_err(diag_string_bytes) { return 612 }
-    var diag_string_bytes_s = bytes.try_to_string(diag_string_bytes)
+    var diag_string_bytes_s = bytes.to_string(diag_string_bytes)
     if r.is_err(diag_string_bytes_s) || diag_string_bytes_s != "AD" { return 613 }
     var diag_string_buf = buffer.mat_diag_to_u8_buf(diag_string_mat)
     if r.is_err(diag_string_buf) { return 614 }
@@ -453,12 +453,12 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.mat_diag_copy_from_string_slice(diag_string_mat, "vwxy", 1, 2)) { return 1229 }
     var diag_after_string_slice = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_string_slice) || diag_after_string_slice != "wx" { return 1230 }
-    var diag_string_bytes_src = bytes.try_from_string("pq")
+    var diag_string_bytes_src = bytes.from_string("pq")
     if r.is_err(diag_string_bytes_src) { return 619 }
     if r.is_err(buffer.mat_diag_copy_from_bytes(diag_string_mat, diag_string_bytes_src)) { return 620 }
     var diag_after_bytes = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_bytes) || diag_after_bytes != "pq" { return 621 }
-    var diag_string_bytes_slice_src = bytes.try_from_string("tuv")
+    var diag_string_bytes_slice_src = bytes.from_string("tuv")
     if r.is_err(diag_string_bytes_slice_src) { return 1211 }
     if r.is_err(buffer.mat_diag_copy_from_bytes_slice(diag_string_mat, diag_string_bytes_slice_src, 1, 2)) { return 1212 }
     var diag_after_bytes_slice = buffer.mat_diag_to_string(diag_string_mat)
@@ -637,12 +637,12 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.mat_col_copy_from_string_slice(packed_string_mat, 0, "spq", 1, 2)) { return 1233 }
     var packed_col_slice_s2 = buffer.mat_col_to_string(packed_string_mat, 0)
     if r.is_err(packed_col_slice_s2) || packed_col_slice_s2 != "pq" { return 1234 }
-    var uvw_bytes = bytes.try_from_string("uvw")
+    var uvw_bytes = bytes.from_string("uvw")
     if r.is_err(uvw_bytes) { return 354 }
     if r.is_err(buffer.mat_row_copy_from_bytes(packed_string_mat, 1, uvw_bytes)) { return 355 }
     var packed_row1_bytes = buffer.mat_row_to_bytes(packed_string_mat, 1)
     if r.is_err(packed_row1_bytes) { return 356 }
-    var packed_row1_s = bytes.try_to_string(packed_row1_bytes)
+    var packed_row1_s = bytes.to_string(packed_row1_bytes)
     if r.is_err(packed_row1_s) || packed_row1_s != "uvw" { return 357 }
     var pq_buf = buffer.u8_from_string("PQ")
     if r.is_err(pq_buf) { return 358 }
@@ -654,12 +654,12 @@ fn smoke_buffer_matrix_u8() {
     if packed_rows_after[0] != "P1Z" || packed_rows_after[1] != "Qvw" { return 362 }
     var packed_string_slice_mat = buffer.u8_mat_pack_strings(["ABC", "DEF"])
     if r.is_err(packed_string_slice_mat) { return 1214 }
-    var row_bytes_slice = bytes.try_from_string("tuvw")
+    var row_bytes_slice = bytes.from_string("tuvw")
     if r.is_err(row_bytes_slice) { return 1215 }
     if r.is_err(buffer.mat_row_copy_from_bytes_slice(packed_string_slice_mat, 0, row_bytes_slice, 1, 3)) { return 1216 }
     var packed_row_slice_s = buffer.mat_row_to_string(packed_string_slice_mat, 0)
     if r.is_err(packed_row_slice_s) || packed_row_slice_s != "uvw" { return 1217 }
-    var col_bytes_slice = bytes.try_from_string("tpq")
+    var col_bytes_slice = bytes.from_string("tpq")
     if r.is_err(col_bytes_slice) { return 1218 }
     if r.is_err(buffer.mat_col_copy_from_bytes_slice(packed_string_slice_mat, 0, col_bytes_slice, 1, 2)) { return 1219 }
     var packed_col_slice_s = buffer.mat_col_to_string(packed_string_slice_mat, 0)
@@ -668,7 +668,7 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(flat_mat) { return 363 }
     var flat_bytes = buffer.u8_mat_to_bytes(flat_mat)
     if r.is_err(flat_bytes) { return 364 }
-    var flat_bytes_s = bytes.try_to_string(flat_bytes)
+    var flat_bytes_s = bytes.to_string(flat_bytes)
     if r.is_err(flat_bytes_s) || flat_bytes_s != "ABCD" { return 365 }
     var flat_u8 = buffer.u8_mat_to_u8_buf(flat_mat)
     if r.is_err(flat_u8) { return 366 }
@@ -688,12 +688,12 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.u8_mat_copy_from_string_slice(flat_mat, "pqrst", 1, 4)) { return 1235 }
     var flat_rows1b = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows1b) || flat_rows1b[0] != "qr" || flat_rows1b[1] != "st" { return 1236 }
-    var qrst = bytes.try_from_string("qrst")
+    var qrst = bytes.from_string("qrst")
     if r.is_err(qrst) { return 373 }
     if r.is_err(buffer.u8_mat_copy_from_bytes(flat_mat, qrst)) { return 374 }
     var flat_rows2 = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows2) || flat_rows2[0] != "qr" || flat_rows2[1] != "st" { return 375 }
-    var pqrst = bytes.try_from_string("pqrst")
+    var pqrst = bytes.from_string("pqrst")
     if r.is_err(pqrst) { return 1221 }
     if r.is_err(buffer.u8_mat_copy_from_bytes_slice(flat_mat, pqrst, 1, 4)) { return 1222 }
     var flat_rows2b = buffer.u8_mat_unpack_strings(flat_mat)
@@ -714,7 +714,7 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(flat_rows4) || flat_rows4[0] != "aa" || flat_rows4[1] != "bb" { return 382 }
     if r.is_err(buffer.u8_mat_copy_from_string(flat_mat, "xyz")) != true { return 383 }
     if r.is_err(buffer.u8_mat_copy_from_string_slice(flat_mat, "xyz", 0, 3)) != true { return 1237 }
-    if r.is_err(buffer.u8_mat_copy_from_bytes_slice(flat_mat, bytes.try_from_string("uvw"), 0, 3)) != true { return 1224 }
+    if r.is_err(buffer.u8_mat_copy_from_bytes_slice(flat_mat, bytes.from_string("uvw"), 0, 3)) != true { return 1224 }
     if r.is_err(buffer.u8_mat_copy_from_flat(flat_mat, [1, 2, 3])) != true { return 671 }
     if r.is_err(buffer.u8_mat_copy_from_flat(flat_mat, [1, 2, 3, 256])) != true { return 672 }
     if r.is_err(buffer.u8_mat_copy_from_rows(flat_mat, [[1], [2]])) != true { return 384 }
@@ -960,110 +960,110 @@ fn smoke_buffer_matrix_numeric() {
 
 fn smoke_bytes_tail_and_bridge() {
     var buf8 = buffer.u8_new(8)
-    var w16 = bytes.try_put_u16_be(buf8, 0, 4660)
+    var w16 = bytes.put_u16_be(buf8, 0, 4660)
     if r.is_err(w16) { return 54 }
-    var r16 = bytes.try_get_u16_be(buf8, 0)
+    var r16 = bytes.get_u16_be(buf8, 0)
     if r.is_err(r16) || r16 != 4660 { return 55 }
-    var w32 = bytes.try_put_u32_le(buf8, 2, 16909060)
+    var w32 = bytes.put_u32_le(buf8, 2, 16909060)
     if r.is_err(w32) { return 56 }
-    var r32 = bytes.try_get_u32_le(buf8, 2)
+    var r32 = bytes.get_u32_le(buf8, 2)
     if r.is_err(r32) || r32 != 16909060 { return 57 }
-    var p16 = bytes.try_put_i16_le(buf8, 0, -2)
+    var p16 = bytes.put_i16_le(buf8, 0, -2)
     if r.is_err(p16) || p16 != buf8 { return 58 }
-    var g16 = bytes.try_get_i16_le(buf8, 0)
+    var g16 = bytes.get_i16_le(buf8, 0)
     if r.is_err(g16) || g16 != -2 { return 59 }
-    var p32 = bytes.try_put_i32_be(buf8, 0, -2)
+    var p32 = bytes.put_i32_be(buf8, 0, -2)
     if r.is_err(p32) || p32 != buf8 { return 60 }
-    var gp32 = bytes.try_get_i32_be(buf8, 0)
+    var gp32 = bytes.get_i32_be(buf8, 0)
     if r.is_err(gp32) || gp32 != -2 { return 61 }
-    var s32 = bytes.try_set_i32_le(buf8, 0, -2)
+    var s32 = bytes.set_i32_le(buf8, 0, -2)
     if r.is_err(s32) || s32 != -2 { return 62 }
-    var g32 = bytes.try_get_i32_le(buf8, 0)
+    var g32 = bytes.get_i32_le(buf8, 0)
     if r.is_err(g32) || g32 != -2 { return 63 }
-    var bad_put = bytes.try_put_u16_be(buf8, 7, 1)
+    var bad_put = bytes.put_u16_be(buf8, 7, 1)
     if r.is_err(bad_put) != true { return 64 }
-    var bad_put_i32 = bytes.try_put_i32_le(buf8, 5, 1)
+    var bad_put_i32 = bytes.put_i32_le(buf8, 5, 1)
     if r.is_err(bad_put_i32) != true { return 65 }
-    var bad_range = bytes.try_set_u16_be(buf8, 0, 70000)
+    var bad_range = bytes.set_u16_be(buf8, 0, 70000)
     if r.is_err(bad_range) != true { return 66 }
-    var s64 = bytes.try_set_u64_be(buf8, 0, 72623859790382856)
+    var s64 = bytes.set_u64_be(buf8, 0, 72623859790382856)
     if r.is_err(s64) || s64 != 72623859790382856 { return 67 }
-    var g64 = bytes.try_get_u64_be(buf8, 0)
+    var g64 = bytes.get_u64_be(buf8, 0)
     if r.is_err(g64) || g64 != 72623859790382856 { return 68 }
-    var p64 = bytes.try_put_u64_le(buf8, 0, 72623859790382856)
+    var p64 = bytes.put_u64_le(buf8, 0, 72623859790382856)
     if r.is_err(p64) || p64 != buf8 { return 69 }
-    var gp64 = bytes.try_get_u64_le(buf8, 0)
+    var gp64 = bytes.get_u64_le(buf8, 0)
     if r.is_err(gp64) || gp64 != 72623859790382856 { return 70 }
-    var pi64 = bytes.try_put_i64_be(buf8, 0, -2)
+    var pi64 = bytes.put_i64_be(buf8, 0, -2)
     if r.is_err(pi64) || pi64 != buf8 { return 71 }
-    var gi64 = bytes.try_get_i64_be(buf8, 0)
+    var gi64 = bytes.get_i64_be(buf8, 0)
     if r.is_err(gi64) || gi64 != -2 { return 72 }
-    var bad_put_u64 = bytes.try_put_u64_be(buf8, 0, -1)
+    var bad_put_u64 = bytes.put_u64_be(buf8, 0, -1)
     if r.is_err(bad_put_u64) != true { return 73 }
-    var bs = bytes.try_from_string("ok")
+    var bs = bytes.from_string("ok")
     if r.is_err(bs) { return 74 }
-    var s_ok = bytes.try_to_string(bs)
+    var s_ok = bytes.to_string(bs)
     if r.is_err(s_ok) || s_ok != "ok" { return 75 }
-    var packed = bytes.try_pack([1, 2, 3])
+    var packed = bytes.pack([1, 2, 3])
     if r.is_err(packed) { return 76 }
-    var unpacked = bytes.try_unpack(packed)
+    var unpacked = bytes.unpack(packed)
     if r.is_err(unpacked) || oren_list_len(unpacked) != 3 || unpacked[2] != 3 { return 77 }
-    var bad_str = bytes.try_from_string(123)
+    var bad_str = bytes.from_string(123)
     if r.is_err(bad_str) != true { return 78 }
-    var bad_pack2 = bytes.try_pack(123)
+    var bad_pack2 = bytes.pack(123)
     if r.is_err(bad_pack2) != true { return 79 }
-    var bad_unpack2 = bytes.try_unpack("nope")
+    var bad_unpack2 = bytes.unpack("nope")
     if r.is_err(bad_unpack2) != true { return 80 }
-    var sub = bytes.try_slice(bytes.try_from_string("hello"), 1, 3)
-    if r.is_err(sub) || bytes.try_to_string(sub) != "ell" { return 81 }
-    var bad_slice = bytes.try_slice(sub, -1, 1)
+    var sub = bytes.slice(bytes.from_string("hello"), 1, 3)
+    if r.is_err(sub) || bytes.to_string(sub) != "ell" { return 81 }
+    var bad_slice = bytes.slice(sub, -1, 1)
     if r.is_err(bad_slice) != true { return 82 }
-    var cat = bytes.try_concat(bytes.try_from_string("ab"), bytes.try_from_string("CD"))
-    if r.is_err(cat) || bytes.try_to_string(cat) != "abCD" { return 83 }
-    var bad_cat = bytes.try_concat(123, cat)
+    var cat = bytes.concat(bytes.from_string("ab"), bytes.from_string("CD"))
+    if r.is_err(cat) || bytes.to_string(cat) != "abCD" { return 83 }
+    var bad_cat = bytes.concat(123, cat)
     if r.is_err(bad_cat) != true { return 84 }
-    var dst = bytes.try_from_string("hello")
+    var dst = bytes.from_string("hello")
     if r.is_err(dst) { return 85 }
-    var copy = bytes.try_copy_into(dst, 1, bytes.try_from_string("XY"), 0, 2)
+    var copy = bytes.copy_into(dst, 1, bytes.from_string("XY"), 0, 2)
     if r.is_err(copy) || copy != dst { return 86 }
-    var dsts = bytes.try_to_string(dst)
+    var dsts = bytes.to_string(dst)
     if r.is_err(dsts) || dsts != "hXYlo" { return 87 }
-    var bad_copy = bytes.try_copy_into(dst, 4, bytes.try_from_string("XY"), 0, 2)
+    var bad_copy = bytes.copy_into(dst, 4, bytes.from_string("XY"), 0, 2)
     if r.is_err(bad_copy) != true { return 88 }
-    var bad_copy_ty = bytes.try_copy_into(dst, "x", bytes.try_from_string("XY"), 0, 1)
+    var bad_copy_ty = bytes.copy_into(dst, "x", bytes.from_string("XY"), 0, 1)
     if r.is_err(bad_copy_ty) != true { return 908 }
     var ub3 = buffer.u8_new(2)
     if r.is_err(ub3) { return 89 }
     if r.is_err(oren_buf_store_u8(ub3, 0, 65)) { return 90 }
     if r.is_err(oren_buf_store_u8(ub3, 1, 66)) { return 91 }
-    var us = bytes.try_to_string(ub3)
+    var us = bytes.to_string(ub3)
     if r.is_err(us) || us != "AB" { return 92 }
     var us2 = bytes.to_string(ub3)
     if r.is_err(us2) || us2 != "AB" { return 93 }
-    var from_buf = bytes.try_from_u8_buf(ub3)
-    if r.is_err(from_buf) || bytes.try_to_string(from_buf) != "AB" { return 94 }
-    var to_buf = bytes.try_to_u8_buf(bytes.try_from_string("CD"))
+    var from_buf = bytes.from_u8_buf(ub3)
+    if r.is_err(from_buf) || bytes.to_string(from_buf) != "AB" { return 94 }
+    var to_buf = bytes.to_u8_buf(bytes.from_string("CD"))
     if r.is_err(to_buf) || buffer.u8_to_string(to_buf) != "CD" { return 95 }
-    var bad_from_buf = bytes.try_from_u8_buf("nope")
+    var bad_from_buf = bytes.from_u8_buf("nope")
     if r.is_err(bad_from_buf) != true { return 96 }
-    var bad_to_buf = bytes.try_to_u8_buf(123)
+    var bad_to_buf = bytes.to_u8_buf(123)
     if r.is_err(bad_to_buf) != true { return 97 }
-    var str_slice = bytes.try_to_string_slice(bytes.try_from_string("hello"), 1, 3)
+    var str_slice = bytes.to_string_slice(bytes.from_string("hello"), 1, 3)
     if r.is_err(str_slice) || str_slice != "ell" { return 98 }
-    var buf_slice = bytes.try_to_u8_buf_slice(bytes.try_from_string("hello"), 1, 3)
+    var buf_slice = bytes.to_u8_buf_slice(bytes.from_string("hello"), 1, 3)
     if r.is_err(buf_slice) || buffer.u8_to_string(buf_slice) != "ell" { return 99 }
-    var bad_str_slice = bytes.try_to_string_slice("nope", 0, 1)
+    var bad_str_slice = bytes.to_string_slice("nope", 0, 1)
     if r.is_err(bad_str_slice) != true { return 100 }
-    var bad_buf_slice = bytes.try_to_u8_buf_slice("nope", 0, 1)
+    var bad_buf_slice = bytes.to_u8_buf_slice("nope", 0, 1)
     if r.is_err(bad_buf_slice) != true { return 101 }
     var ui_bad_fb = ui_cmds.try_validate([], "x", 1, nil)
     if r.is_err(ui_bad_fb) != true { return 909 }
-    var u8_from_bytes = buffer.u8_from_bytes(bytes.try_from_string("EF"))
+    var u8_from_bytes = buffer.u8_from_bytes(bytes.from_string("EF"))
     if r.is_err(u8_from_bytes) || buffer.u8_to_string(u8_from_bytes) != "EF" { return 102 }
-    var u8_from_bytes_slice = buffer.u8_from_bytes_slice(bytes.try_from_string("hello"), 1, 3)
+    var u8_from_bytes_slice = buffer.u8_from_bytes_slice(bytes.from_string("hello"), 1, 3)
     if r.is_err(u8_from_bytes_slice) || buffer.u8_to_string(u8_from_bytes_slice) != "ell" { return 103 }
     var u8_to_bytes = buffer.u8_to_bytes(ub3)
-    if r.is_err(u8_to_bytes) || bytes.try_to_string(u8_to_bytes) != "AB" { return 104 }
+    if r.is_err(u8_to_bytes) || bytes.to_string(u8_to_bytes) != "AB" { return 104 }
     var i32_copy_src = buffer.i32_pack_list_int([12, 13])
     if r.is_err(i32_copy_src) { return 1101 }
     var i32_copy_dst = buffer.i32_new(2)
@@ -1104,9 +1104,9 @@ fn smoke_bytes_tail_and_bridge() {
     if r.is_err(u8_copy_dst) { return 1125 }
     if r.is_err(buffer.u8_copy_from_u8_buf(u8_copy_dst, ub3)) { return 1126 }
     if buffer.u8_to_string(u8_copy_dst) != "AB" { return 1127 }
-    if r.is_err(buffer.u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("EF"))) { return 1128 }
+    if r.is_err(buffer.u8_copy_from_bytes(u8_copy_dst, bytes.from_string("EF"))) { return 1128 }
     if buffer.u8_to_string(u8_copy_dst) != "EF" { return 1129 }
-    if r.is_err(buffer.u8_copy_from_bytes_slice(u8_copy_dst, bytes.try_from_string("WXYZ"), 1, 2)) { return 1136 }
+    if r.is_err(buffer.u8_copy_from_bytes_slice(u8_copy_dst, bytes.from_string("WXYZ"), 1, 2)) { return 1136 }
     if buffer.u8_to_string(u8_copy_dst) != "XY" { return 1137 }
     if r.is_err(buffer.u8_copy_from_string(u8_copy_dst, "GH")) { return 1130 }
     if buffer.u8_to_string(u8_copy_dst) != "GH" { return 1131 }
@@ -1114,8 +1114,8 @@ fn smoke_bytes_tail_and_bridge() {
     if buffer.u8_to_string(u8_copy_dst) != "MN" { return 1226 }
     if r.is_err(buffer.u8_copy_from_u8_buf(u8_copy_dst, buffer.u8_new(3))) != true { return 1132 }
     if r.is_err(buffer.u8_copy_from_u8_buf(u8_copy_dst, i32_copy_src)) != true { return 1133 }
-    if r.is_err(buffer.u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("XYZ"))) != true { return 1134 }
-    if r.is_err(buffer.u8_copy_from_bytes_slice(u8_copy_dst, bytes.try_from_string("WXYZ"), 1, 3)) != true { return 1138 }
+    if r.is_err(buffer.u8_copy_from_bytes(u8_copy_dst, bytes.from_string("XYZ"))) != true { return 1134 }
+    if r.is_err(buffer.u8_copy_from_bytes_slice(u8_copy_dst, bytes.from_string("WXYZ"), 1, 3)) != true { return 1138 }
     if r.is_err(buffer.u8_copy_from_string(u8_copy_dst, "JKL")) != true { return 1135 }
     if r.is_err(buffer.u8_from_string_slice("nope", 0, 5)) != true { return 1227 }
     if r.is_err(buffer.u8_copy_from_string_slice(u8_copy_dst, "JKL", 0, 3)) != true { return 1228 }
@@ -1272,7 +1272,7 @@ fn main() {
     if r.is_err(b64_ws) != true { return 16 }
     var b64_ok = base64.decode_bytes_strict("TQ==")
     if r.is_err(b64_ok) { return 17 }
-    var b64_ok_len = bytes.try_len(b64_ok)
+    var b64_ok_len = bytes.len(b64_ok)
     if r.is_err(b64_ok_len) || b64_ok_len != 1 { return 18 }
     var pem_bad = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ== \n-----END CERT-----\n")
     if r.is_err(pem_bad) != true { return 19 }
@@ -1310,32 +1310,32 @@ fn main() {
     // std:bytes structured errors
     var b = bytes.from_hex("00ff")
     if r.is_err(b) { return 24 }
-    var bl = bytes.try_len(b)
+    var bl = bytes.len(b)
     if r.is_err(bl) || bl != 2 { return 25 }
-    var bv = bytes.try_get_u8(b, 1)
+    var bv = bytes.get_u8(b, 1)
     if r.is_err(bv) || bv != 255 { return 26 }
-    var bad_b = bytes.try_get_u8(b, 3)
+    var bad_b = bytes.get_u8(b, 3)
     if r.is_err(bad_b) != true { return 27 }
-    var bad_b_ty = bytes.try_get_u8(b, "x")
+    var bad_b_ty = bytes.get_u8(b, "x")
     if r.is_err(bad_b_ty) != true { return 906 }
-    var bad_set = bytes.try_set_u8(b, 0, 300)
+    var bad_set = bytes.set_u8(b, 0, 300)
     if r.is_err(bad_set) != true { return 28 }
-    var bad_set_ty = bytes.try_set_u8(b, "x", 1)
+    var bad_set_ty = bytes.set_u8(b, "x", 1)
     if r.is_err(bad_set_ty) != true { return 907 }
-    var bad_hex = bytes.try_from_hex("zz")
+    var bad_hex = bytes.from_hex("zz")
     if r.is_err(bad_hex) != true { return 29 }
-    var hex = bytes.try_to_hex(b)
+    var hex = bytes.to_hex(b)
     if r.is_err(hex) || hex != "00ff" { return 30 }
 
     var pkt = bytes.from_hex("12340102030405060708")
     if r.is_err(pkt) { return 31 }
-    var v16 = bytes.try_get_u16_be(pkt, 0)
+    var v16 = bytes.get_u16_be(pkt, 0)
     if r.is_err(v16) || v16 != 4660 { return 32 }
-    var v32 = bytes.try_get_u32_be(pkt, 2)
+    var v32 = bytes.get_u32_be(pkt, 2)
     if r.is_err(v32) || v32 != 16909060 { return 33 }
-    var v64 = bytes.try_get_u64_be(pkt, 2)
+    var v64 = bytes.get_u64_be(pkt, 2)
     if r.is_err(v64) || v64 != 72623859790382856 { return 34 }
-    var bad_u32 = bytes.try_get_u32_be(pkt, 7)
+    var bad_u32 = bytes.get_u32_be(pkt, 7)
     if r.is_err(bad_u32) != true { return 35 }
 
     var rc = smoke_buffer_core()

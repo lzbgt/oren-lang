@@ -54,7 +54,7 @@ fn test_validate_triangle() {
     var bad = [{"op": "fill_triangle", "x1": 0, "y1": 0, "x2": 4, "y2": 0, "x3": 1, "y3": 2, "color": "#00ffff"}]
     var r2 = ui_cmds.try_validate(bad, 4, 3, {"strict_bounds": true})
     assert_true(oren_is_err(r2) == true)
-    var tris = bytes.try_pack([
+    var tris = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         3, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 2, 0, 0, 0,
@@ -64,10 +64,10 @@ fn test_validate_triangle() {
     ])
     assert_true(oren_is_err(tris) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "fill_triangles", "triangles": tris, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == false)
-    var bad_tris = bytes.try_pack([0, 0, 0, 0])
+    var bad_tris = bytes.pack([0, 0, 0, 0])
     assert_true(oren_is_err(bad_tris) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "fill_triangles", "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
-    var bad_tri_bounds = bytes.try_pack([
+    var bad_tri_bounds = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 2, 0, 0, 0
@@ -84,7 +84,7 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh2d", "id": 7, "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh2d", "id": 0}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh2d", "id": 0}], 4, 3, nil)) == true)
-    var tris3d = bytes.try_pack([
+    var tris3d = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
@@ -125,7 +125,7 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_model3d", "id": 0}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh3d", "id": 0}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_material3d", "id": 0}], 4, 3, nil)) == true)
-    var tris3d_rgba = bytes.try_pack([
+    var tris3d_rgba = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0,
@@ -135,10 +135,10 @@ fn test_validate_triangle() {
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 9, "triangles": tris3d_rgba}], 4, 3, {"strict_bounds": true})) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 0, "triangles": tris3d_rgba}], 4, 3, nil)) == true)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 9, "triangles": bad_tris}], 4, 3, nil)) == true)
-    var idx3d = bytes.try_pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0])
+    var idx3d = bytes.pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0])
     assert_true(oren_is_err(idx3d) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": idx3d, "color": "#3366ff"}, {"op": "draw_mesh3d", "id": 10}], 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": bytes.try_pack([3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": bytes.pack([3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"}], 4, 3, nil)) == true)
 }
 
 fn test_validate_clip_stack() {
@@ -215,7 +215,7 @@ fn test_validate_ellipse() {
 }
 
 fn test_validate_polyline() {
-    var points = bytes.try_pack([
+    var points = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 1, 0, 0, 0,
         3, 0, 0, 0, 2, 0, 0, 0
@@ -225,10 +225,10 @@ fn test_validate_polyline() {
     assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
     var bad_width = [{"op": "polyline", "points": points, "width": 0, "color": "#00ffff"}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_width, 4, 3, nil)) == true)
-    var bad_points = bytes.try_pack([0, 0, 0, 0, 0, 0, 0, 0])
+    var bad_points = bytes.pack([0, 0, 0, 0, 0, 0, 0, 0])
     assert_true(oren_is_err(bad_points) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "polyline", "points": bad_points, "color": "#00ffff"}], 4, 3, nil)) == true)
-    var bad_bounds = bytes.try_pack([
+    var bad_bounds = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 1, 0, 0, 0
     ])
@@ -237,7 +237,7 @@ fn test_validate_polyline() {
 }
 
 fn test_validate_text_bytes() {
-    var data = bytes.try_pack([65, 66, 67])
+    var data = bytes.pack([65, 66, 67])
     assert_true(oren_is_err(data) == false)
     var cmds = [{"op": "text_bytes", "x": 0, "y": 0, "data": data, "color": "#ffffff"}]
     var r = ui_cmds.try_validate(cmds, 3, 1, {"strict_bounds": true})
@@ -248,9 +248,9 @@ fn test_validate_text_bytes() {
 }
 
 fn test_validate_text_resource() {
-    var data = bytes.try_pack([65, 66])
+    var data = bytes.pack([65, 66])
     assert_true(oren_is_err(data) == false)
-    var positions = bytes.try_pack([
+    var positions = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 1, 0, 0, 0
     ])
@@ -266,10 +266,10 @@ fn test_validate_text_resource() {
     assert_true(oren_is_err(ui_cmds.try_validate(bad_upload, 2, 1, nil)) == true)
     var bad_draw = [{"op": "draw_text", "id": 1, "x": 2, "y": 0}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_draw, 2, 1, {"strict_bounds": true})) == true)
-    var bad_batch = bytes.try_pack([0, 0, 0, 0])
+    var bad_batch = bytes.pack([0, 0, 0, 0])
     assert_true(oren_is_err(bad_batch) == false)
     assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_texts", "id": 1, "positions": bad_batch}], 2, 2, nil)) == true)
-    var bad_batch_bounds = bytes.try_pack([
+    var bad_batch_bounds = bytes.pack([
         2, 0, 0, 0, 0, 0, 0, 0
     ])
     assert_true(oren_is_err(bad_batch_bounds) == false)
@@ -279,9 +279,9 @@ fn test_validate_text_resource() {
 }
 
 fn test_validate_image() {
-    var px = bytes.try_pack([255, 0, 0, 255])
+    var px = bytes.pack([255, 0, 0, 255])
     assert_true(oren_is_err(px) == false)
-    var rects = bytes.try_pack([
+    var rects = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
     ])
@@ -304,7 +304,7 @@ fn test_validate_image() {
     assert_true(oren_is_err(ui_cmds.try_validate(bad_rect, 2, 2, nil)) == true)
     var bad_rect_bounds = [{"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 1, "sh": 1, "x": 1, "y": 1, "w": 2, "h": 2}]
     assert_true(oren_is_err(ui_cmds.try_validate(bad_rect_bounds, 2, 2, {"strict_bounds": true})) == true)
-    var bad_batch = bytes.try_pack([
+    var bad_batch = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
     ])

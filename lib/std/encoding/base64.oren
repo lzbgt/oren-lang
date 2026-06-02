@@ -53,7 +53,7 @@ fn encode_bytes(input_bytes) {
         input_bytes = oren_bytes_pack([])
     }
 
-    var n = bytesm.try_len(input_bytes)
+    var n = bytesm.len(input_bytes)
     if oren_is_err(n) { return oren_err(4, "base64.encode_bytes: input must be list<int> or u8_buf") }
 
     var out_len = ((n + 2) / 3) * 4
@@ -62,19 +62,19 @@ fn encode_bytes(input_bytes) {
     var i = 0
     var oi = 0
     while i < n {
-        var b0 = bytesm.try_get_u8(input_bytes, i)
+        var b0 = bytesm.get_u8(input_bytes, i)
         if oren_is_err(b0) { return b0 }
         var b1 = 0
         var b2 = 0
         var have1 = 0
         var have2 = 0
         if i + 1 < n {
-            b1 = bytesm.try_get_u8(input_bytes, i + 1)
+            b1 = bytesm.get_u8(input_bytes, i + 1)
             if oren_is_err(b1) { return b1 }
             have1 = 1
         }
         if i + 2 < n {
-            b2 = bytesm.try_get_u8(input_bytes, i + 2)
+            b2 = bytesm.get_u8(input_bytes, i + 2)
             if oren_is_err(b2) { return b2 }
             have2 = 1
         }

@@ -286,15 +286,15 @@ fn _draw_round_rect(buf, w, h, x, y, rw, rh, rr, lw, fill, c) {
 }
 
 fn _draw_polyline(buf, w, h, points, lw, c) {
-    var plen = bytes.try_len(points)
+    var plen = bytes.len(points)
     if oren_is_err(plen) { return plen }
-    var last_x = bytes.try_get_u32_le(points, 0)
-    var last_y = bytes.try_get_u32_le(points, 4)
+    var last_x = bytes.get_u32_le(points, 0)
+    var last_y = bytes.get_u32_le(points, 4)
     if oren_is_err(last_x) || oren_is_err(last_y) { return oren_err(4, "rasterize: polyline malformed point") }
     var off = 8
     while off < plen {
-        var x = bytes.try_get_u32_le(points, off)
-        var y = bytes.try_get_u32_le(points, off + 4)
+        var x = bytes.get_u32_le(points, off)
+        var y = bytes.get_u32_le(points, off + 4)
         if oren_is_err(x) || oren_is_err(y) { return oren_err(4, "rasterize: polyline malformed point") }
         _draw_line(buf, w, h, last_x, last_y, x, y, lw, c)
         last_x = x
@@ -308,7 +308,7 @@ fn _draw_text_marker(buf, w, h, text_resource, x, y) {
     var tc = ui_color.parse_hex(text_resource["color"])
     if oren_is_err(tc) { return result.with_context(tc, "rasterize: draw_text color") }
     var tb = text_resource["data"]
-    var tn = bytes.try_len(tb)
+    var tn = bytes.len(tb)
     if oren_is_err(tn) { return result.with_context(tn, "rasterize: draw_text data") }
     var ti = 0
     while ti < tn {
@@ -367,16 +367,16 @@ fn _draw_fill_triangle(buf, w, h, x1, y1, x2, y2, x3, y3, c) {
 }
 
 fn _draw_triangle_bytes(buf, w, h, tris, c, err_prefix) {
-    var tris_len = bytes.try_len(tris)
+    var tris_len = bytes.len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
     var toff = 0
     while toff < tris_len {
-        var tx1 = bytes.try_get_u32_le(tris, toff)
-        var ty1 = bytes.try_get_u32_le(tris, toff + 4)
-        var tx2 = bytes.try_get_u32_le(tris, toff + 8)
-        var ty2 = bytes.try_get_u32_le(tris, toff + 12)
-        var tx3 = bytes.try_get_u32_le(tris, toff + 16)
-        var ty3 = bytes.try_get_u32_le(tris, toff + 20)
+        var tx1 = bytes.get_u32_le(tris, toff)
+        var ty1 = bytes.get_u32_le(tris, toff + 4)
+        var tx2 = bytes.get_u32_le(tris, toff + 8)
+        var ty2 = bytes.get_u32_le(tris, toff + 12)
+        var tx3 = bytes.get_u32_le(tris, toff + 16)
+        var ty3 = bytes.get_u32_le(tris, toff + 20)
         if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tx3) || oren_is_err(ty3) {
             return oren_err(4, err_prefix + " malformed triangle")
         }
@@ -387,9 +387,9 @@ fn _draw_triangle_bytes(buf, w, h, tris, c, err_prefix) {
 }
 
 fn _mesh3d_zsum(tris, off) {
-    var z1 = bytes.try_get_i32_le(tris, off + 8)
-    var z2 = bytes.try_get_i32_le(tris, off + 20)
-    var z3 = bytes.try_get_i32_le(tris, off + 32)
+    var z1 = bytes.get_i32_le(tris, off + 8)
+    var z2 = bytes.get_i32_le(tris, off + 20)
+    var z3 = bytes.get_i32_le(tris, off + 32)
     if oren_is_err(z1) || oren_is_err(z2) || oren_is_err(z3) { return oren_err(4, "rasterize: mesh3d malformed z") }
     return z1 + z2 + z3
 }
@@ -401,9 +401,9 @@ fn _mesh3d_zsum_model(tris, off, mz, scale_milli) {
 }
 
 fn _mesh3d_rgba_zsum(tris, off) {
-    var z1 = bytes.try_get_i32_le(tris, off + 8)
-    var z2 = bytes.try_get_i32_le(tris, off + 20)
-    var z3 = bytes.try_get_i32_le(tris, off + 32)
+    var z1 = bytes.get_i32_le(tris, off + 8)
+    var z2 = bytes.get_i32_le(tris, off + 20)
+    var z3 = bytes.get_i32_le(tris, off + 32)
     if oren_is_err(z1) || oren_is_err(z2) || oren_is_err(z3) { return oren_err(4, "rasterize: mesh3d_rgba malformed z") }
     return z1 + z2 + z3
 }
@@ -415,13 +415,13 @@ fn _mesh3d_rgba_zsum_model(tris, off, mz, scale_milli) {
 }
 
 fn _mesh3d_indexed_zsum_model(vertices, indices, off, mz, scale_milli) {
-    var i1 = bytes.try_get_u32_le(indices, off)
-    var i2 = bytes.try_get_u32_le(indices, off + 4)
-    var i3 = bytes.try_get_u32_le(indices, off + 8)
+    var i1 = bytes.get_u32_le(indices, off)
+    var i2 = bytes.get_u32_le(indices, off + 4)
+    var i3 = bytes.get_u32_le(indices, off + 8)
     if oren_is_err(i1) || oren_is_err(i2) || oren_is_err(i3) { return oren_err(4, "rasterize: mesh3d_indexed malformed index") }
-    var z1 = bytes.try_get_i32_le(vertices, i1 * 12 + 8)
-    var z2 = bytes.try_get_i32_le(vertices, i2 * 12 + 8)
-    var z3 = bytes.try_get_i32_le(vertices, i3 * 12 + 8)
+    var z1 = bytes.get_i32_le(vertices, i1 * 12 + 8)
+    var z2 = bytes.get_i32_le(vertices, i2 * 12 + 8)
+    var z3 = bytes.get_i32_le(vertices, i3 * 12 + 8)
     if oren_is_err(z1) || oren_is_err(z2) || oren_is_err(z3) { return oren_err(4, "rasterize: mesh3d_indexed malformed z") }
     return ((z1 + z2 + z3) * scale_milli) / 1000 + mz * 3
 }
@@ -436,15 +436,15 @@ fn _model_coord(v, offset, scale_milli) {
 }
 
 fn _draw_triangle3d_at_model(buf, w, h, tris, off, c, err_prefix, mx, my, mz, scale_milli) {
-    var tx1 = bytes.try_get_i32_le(tris, off)
-    var ty1 = bytes.try_get_i32_le(tris, off + 4)
-    var tz1 = bytes.try_get_i32_le(tris, off + 8)
-    var tx2 = bytes.try_get_i32_le(tris, off + 12)
-    var ty2 = bytes.try_get_i32_le(tris, off + 16)
-    var tz2 = bytes.try_get_i32_le(tris, off + 20)
-    var tx3 = bytes.try_get_i32_le(tris, off + 24)
-    var ty3 = bytes.try_get_i32_le(tris, off + 28)
-    var tz3 = bytes.try_get_i32_le(tris, off + 32)
+    var tx1 = bytes.get_i32_le(tris, off)
+    var ty1 = bytes.get_i32_le(tris, off + 4)
+    var tz1 = bytes.get_i32_le(tris, off + 8)
+    var tx2 = bytes.get_i32_le(tris, off + 12)
+    var ty2 = bytes.get_i32_le(tris, off + 16)
+    var tz2 = bytes.get_i32_le(tris, off + 20)
+    var tx3 = bytes.get_i32_le(tris, off + 24)
+    var ty3 = bytes.get_i32_le(tris, off + 28)
+    var tz3 = bytes.get_i32_le(tris, off + 32)
     if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tz1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tz2) || oren_is_err(tx3) || oren_is_err(ty3) || oren_is_err(tz3) {
         return oren_err(4, err_prefix + " malformed triangle")
     }
@@ -464,20 +464,20 @@ fn _draw_triangle3d_at(buf, w, h, tris, off, c, err_prefix) {
 }
 
 fn _draw_triangle3d_indexed_at_model(buf, w, h, vertices, indices, off, c, err_prefix, mx, my, mz, scale_milli) {
-    var i1 = bytes.try_get_u32_le(indices, off)
-    var i2 = bytes.try_get_u32_le(indices, off + 4)
-    var i3 = bytes.try_get_u32_le(indices, off + 8)
+    var i1 = bytes.get_u32_le(indices, off)
+    var i2 = bytes.get_u32_le(indices, off + 4)
+    var i3 = bytes.get_u32_le(indices, off + 8)
     if oren_is_err(i1) || oren_is_err(i2) || oren_is_err(i3) { return oren_err(4, err_prefix + " malformed index") }
     var v1 = i1 * 12; var v2 = i2 * 12; var v3 = i3 * 12
-    var tx1 = bytes.try_get_i32_le(vertices, v1)
-    var ty1 = bytes.try_get_i32_le(vertices, v1 + 4)
-    var tz1 = bytes.try_get_i32_le(vertices, v1 + 8)
-    var tx2 = bytes.try_get_i32_le(vertices, v2)
-    var ty2 = bytes.try_get_i32_le(vertices, v2 + 4)
-    var tz2 = bytes.try_get_i32_le(vertices, v2 + 8)
-    var tx3 = bytes.try_get_i32_le(vertices, v3)
-    var ty3 = bytes.try_get_i32_le(vertices, v3 + 4)
-    var tz3 = bytes.try_get_i32_le(vertices, v3 + 8)
+    var tx1 = bytes.get_i32_le(vertices, v1)
+    var ty1 = bytes.get_i32_le(vertices, v1 + 4)
+    var tz1 = bytes.get_i32_le(vertices, v1 + 8)
+    var tx2 = bytes.get_i32_le(vertices, v2)
+    var ty2 = bytes.get_i32_le(vertices, v2 + 4)
+    var tz2 = bytes.get_i32_le(vertices, v2 + 8)
+    var tx3 = bytes.get_i32_le(vertices, v3)
+    var ty3 = bytes.get_i32_le(vertices, v3 + 4)
+    var tz3 = bytes.get_i32_le(vertices, v3 + 8)
     if oren_is_err(tx1) || oren_is_err(ty1) || oren_is_err(tz1) || oren_is_err(tx2) || oren_is_err(ty2) || oren_is_err(tz2) || oren_is_err(tx3) || oren_is_err(ty3) || oren_is_err(tz3) {
         return oren_err(4, err_prefix + " malformed vertex")
     }
@@ -493,7 +493,7 @@ fn _draw_triangle3d_indexed_at_model(buf, w, h, vertices, indices, off, c, err_p
 }
 
 fn _draw_triangle3d_indexed_bytes_model(buf, w, h, vertices, indices, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
-    var index_len = bytes.try_len(indices)
+    var index_len = bytes.len(indices)
     if oren_is_err(index_len) { return result.with_context(index_len, err_prefix) }
     var triangle_count = index_len / 12
     var drawn = {}
@@ -524,7 +524,7 @@ fn _draw_triangle3d_indexed_bytes_model(buf, w, h, vertices, indices, c, err_pre
 }
 
 fn _draw_triangle3d_bytes_model(buf, w, h, tris, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
-    var tris_len = bytes.try_len(tris)
+    var tris_len = bytes.len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
     var triangle_count = tris_len / 36
     var drawn = {}
@@ -559,7 +559,7 @@ fn _draw_triangle3d_bytes(buf, w, h, tris, c, err_prefix) {
 }
 
 fn _draw_triangle3d_stride_bytes_model(buf, w, h, tris, stride, c, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
-    var tris_len = bytes.try_len(tris)
+    var tris_len = bytes.len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
     var triangle_count = tris_len / stride
     var drawn = {}
@@ -590,7 +590,7 @@ fn _draw_triangle3d_stride_bytes_model(buf, w, h, tris, stride, c, err_prefix, m
 }
 
 fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
-    var tris_len = bytes.try_len(tris)
+    var tris_len = bytes.len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
     var triangle_count = tris_len / 40
     var drawn = {}
@@ -614,10 +614,10 @@ fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, sc
         if best < 0 { return 0 }
         var off = best * 40
         var c = {
-            "r": bytes.try_get_u8(tris, off + 36),
-            "g": bytes.try_get_u8(tris, off + 37),
-            "b": bytes.try_get_u8(tris, off + 38),
-            "a": bytes.try_get_u8(tris, off + 39)
+            "r": bytes.get_u8(tris, off + 36),
+            "g": bytes.get_u8(tris, off + 37),
+            "b": bytes.get_u8(tris, off + 38),
+            "a": bytes.get_u8(tris, off + 39)
         }
         var dr = _draw_triangle3d_at_model(buf, w, h, tris, off, c, err_prefix, mx, my, mz, scale_milli)
         if oren_is_err(dr) { return dr }
@@ -927,7 +927,7 @@ fn rasterize(cmds, w, h, opts) {
             var bx = opm["x"]
             var by = opm["y"]
             var data = opm["data"]
-            var bn = bytes.try_len(data)
+            var bn = bytes.len(data)
             if oren_is_err(bn) { return result.with_context(bn, "rasterize: text_bytes data") }
             var bj = 0
             while bj < bn {
@@ -945,12 +945,12 @@ fn rasterize(cmds, w, h, opts) {
             var batch_text_resource = texts[oren_int_to_string(opm["id"])]
             if batch_text_resource == nil { return oren_err(4, "rasterize: draw_texts missing text") }
             var positions = opm["positions"]
-            var pos_len = bytes.try_len(positions)
+            var pos_len = bytes.len(positions)
             if oren_is_err(pos_len) { return result.with_context(pos_len, "rasterize: draw_texts positions") }
             var poff = 0
             while poff < pos_len {
-                var px = bytes.try_get_u32_le(positions, poff)
-                var py = bytes.try_get_u32_le(positions, poff + 4)
+                var px = bytes.get_u32_le(positions, poff)
+                var py = bytes.get_u32_le(positions, poff + 4)
                 if oren_is_err(px) || oren_is_err(py) { return oren_err(4, "rasterize: draw_texts malformed position") }
                 var btr = _draw_text_marker(buf, w, h, batch_text_resource, px, py)
                 if oren_is_err(btr) { return btr }
@@ -978,10 +978,10 @@ fn rasterize(cmds, w, h, opts) {
                     var sy = (yy2 * sx_h) / dh
                     var si = (sy * sx_w + sx) * 4
                     _set_px_rgba(buf, w, h, dx + xx2, dy + yy2,
-                        bytes.try_get_u8(data, si),
-                        bytes.try_get_u8(data, si + 1),
-                        bytes.try_get_u8(data, si + 2),
-                        bytes.try_get_u8(data, si + 3))
+                        bytes.get_u8(data, si),
+                        bytes.get_u8(data, si + 1),
+                        bytes.get_u8(data, si + 2),
+                        bytes.get_u8(data, si + 3))
                     xx2 = xx2 + 1
                 }
                 yy2 = yy2 + 1
@@ -1011,10 +1011,10 @@ fn rasterize(cmds, w, h, opts) {
                     var srcy = rsy + (ryy * rsh) / rdh
                     var rsi = (srcy * riw + srcx) * 4
                     _set_px_rgba(buf, w, h, rdx + rxx, rdy + ryy,
-                        bytes.try_get_u8(rdata, rsi),
-                        bytes.try_get_u8(rdata, rsi + 1),
-                        bytes.try_get_u8(rdata, rsi + 2),
-                        bytes.try_get_u8(rdata, rsi + 3))
+                        bytes.get_u8(rdata, rsi),
+                        bytes.get_u8(rdata, rsi + 1),
+                        bytes.get_u8(rdata, rsi + 2),
+                        bytes.get_u8(rdata, rsi + 3))
                     rxx = rxx + 1
                 }
                 ryy = ryy + 1
@@ -1026,18 +1026,18 @@ fn rasterize(cmds, w, h, opts) {
             var biw = bimage["w"]
             var bih = bimage["h"]
             var rects = opm["rects"]
-            var rect_len = bytes.try_len(rects)
+            var rect_len = bytes.len(rects)
             if oren_is_err(rect_len) { return result.with_context(rect_len, "rasterize: draw_image_rects rects") }
             var roff = 0
             while roff < rect_len {
-                var bsx = bytes.try_get_u32_le(rects, roff)
-                var bsy = bytes.try_get_u32_le(rects, roff + 4)
-                var bsw = bytes.try_get_u32_le(rects, roff + 8)
-                var bsh = bytes.try_get_u32_le(rects, roff + 12)
-                var bdx = bytes.try_get_u32_le(rects, roff + 16)
-                var bdy = bytes.try_get_u32_le(rects, roff + 20)
-                var bdw = bytes.try_get_u32_le(rects, roff + 24)
-                var bdh = bytes.try_get_u32_le(rects, roff + 28)
+                var bsx = bytes.get_u32_le(rects, roff)
+                var bsy = bytes.get_u32_le(rects, roff + 4)
+                var bsw = bytes.get_u32_le(rects, roff + 8)
+                var bsh = bytes.get_u32_le(rects, roff + 12)
+                var bdx = bytes.get_u32_le(rects, roff + 16)
+                var bdy = bytes.get_u32_le(rects, roff + 20)
+                var bdw = bytes.get_u32_le(rects, roff + 24)
+                var bdh = bytes.get_u32_le(rects, roff + 28)
                 if bsx + bsw > biw || bsy + bsh > bih { return oren_err(4, "rasterize: draw_image_rects source out of bounds") }
                 var byy = 0
                 while byy < bdh {
@@ -1047,10 +1047,10 @@ fn rasterize(cmds, w, h, opts) {
                         var bsrcy = bsy + (byy * bsh) / bdh
                         var bsi = (bsrcy * biw + bsrcx) * 4
                         _set_px_rgba(buf, w, h, bdx + bxx, bdy + byy,
-                            bytes.try_get_u8(bdata, bsi),
-                            bytes.try_get_u8(bdata, bsi + 1),
-                            bytes.try_get_u8(bdata, bsi + 2),
-                            bytes.try_get_u8(bdata, bsi + 3))
+                            bytes.get_u8(bdata, bsi),
+                            bytes.get_u8(bdata, bsi + 1),
+                            bytes.get_u8(bdata, bsi + 2),
+                            bytes.get_u8(bdata, bsi + 3))
                         bxx = bxx + 1
                     }
                     byy = byy + 1

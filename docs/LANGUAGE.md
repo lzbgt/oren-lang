@@ -415,7 +415,7 @@ var conn = tcp.connect("127.0.0.1", 9000)
 if oren_is_err(conn) { return conn }
 
 var out = "ping".bytes()
-conn.write_from(out, 0, bytes.try_len(out))
+conn.write_from(out, 0, bytes.len(out))
 conn.close()
 ```
 

@@ -232,14 +232,14 @@ fn validate(cmds, w, h, opts) {
             if plw == nil { plw = 1 }
             if _is_int(plw) == false || plw < 1 { return oren_err(4, "ui.validate: polyline invalid width") }
             if _hex_ok(pcol) == false { return oren_err(4, "ui.validate: polyline invalid color") }
-            var plen = bytes.try_len(points)
+            var plen = bytes.len(points)
             if oren_is_err(plen) { return oren_err(4, "ui.validate: polyline expects byte points") }
             if plen < 16 || plen > 65520 || plen % 8 != 0 { return oren_err(4, "ui.validate: polyline invalid point bytes") }
             if strict {
                 var poff = 0
                 while poff < plen {
-                    var px = bytes.try_get_u32_le(points, poff)
-                    var py = bytes.try_get_u32_le(points, poff + 4)
+                    var px = bytes.get_u32_le(points, poff)
+                    var py = bytes.get_u32_le(points, poff + 4)
                     if oren_is_err(px) || oren_is_err(py) { return oren_err(4, "ui.validate: polyline malformed point") }
                     var px_t = px + tx; var py_t = py + ty
                     if px_t < 0 || py_t < 0 || px_t >= w || py_t >= h { return oren_err(4, "ui.validate: polyline out of bounds") }
@@ -261,7 +261,7 @@ fn validate(cmds, w, h, opts) {
         } else if op == "fill_triangles" {
             var tris = c["triangles"]; var tris_col = c["color"]
             if _hex_ok(tris_col) == false { return oren_err(4, "ui.validate: fill_triangles invalid color") }
-            var tris_len = bytes.try_len(tris)
+            var tris_len = bytes.len(tris)
             if oren_is_err(tris_len) { return oren_err(4, "ui.validate: fill_triangles expects byte triangles") }
             if tris_len == 0 || tris_len > 65512 || tris_len % 24 != 0 { return oren_err(4, "ui.validate: fill_triangles invalid triangle bytes") }
             if strict {
@@ -269,8 +269,8 @@ fn validate(cmds, w, h, opts) {
                 while toff < tris_len {
                     var vi = 0
                     while vi < 3 {
-                        var vx = bytes.try_get_u32_le(tris, toff + vi * 8)
-                        var vy = bytes.try_get_u32_le(tris, toff + vi * 8 + 4)
+                        var vx = bytes.get_u32_le(tris, toff + vi * 8)
+                        var vy = bytes.get_u32_le(tris, toff + vi * 8 + 4)
                         if oren_is_err(vx) || oren_is_err(vy) { return oren_err(4, "ui.validate: fill_triangles malformed vertex") }
                         var vx_t = vx + tx; var vy_t = vy + ty
                         if vx_t < 0 || vy_t < 0 || vx_t >= w || vy_t >= h { return oren_err(4, "ui.validate: fill_triangles out of bounds") }
@@ -283,7 +283,7 @@ fn validate(cmds, w, h, opts) {
             var mid = c["id"]; var mesh_tris = c["triangles"]; var mesh_col = c["color"]
             if _is_int(mid) == false || mid < 1 { return oren_err(4, "ui.validate: mesh2d invalid id") }
             if _hex_ok(mesh_col) == false { return oren_err(4, "ui.validate: mesh2d invalid color") }
-            var mesh_tris_len = bytes.try_len(mesh_tris)
+            var mesh_tris_len = bytes.len(mesh_tris)
             if oren_is_err(mesh_tris_len) { return oren_err(4, "ui.validate: mesh2d expects byte triangles") }
             if mesh_tris_len == 0 || mesh_tris_len > 65504 || mesh_tris_len % 24 != 0 { return oren_err(4, "ui.validate: mesh2d invalid triangle bytes") }
             if strict {
@@ -291,8 +291,8 @@ fn validate(cmds, w, h, opts) {
                 while moff < mesh_tris_len {
                     var mvi = 0
                     while mvi < 3 {
-                        var mvx = bytes.try_get_u32_le(mesh_tris, moff + mvi * 8)
-                        var mvy = bytes.try_get_u32_le(mesh_tris, moff + mvi * 8 + 4)
+                        var mvx = bytes.get_u32_le(mesh_tris, moff + mvi * 8)
+                        var mvy = bytes.get_u32_le(mesh_tris, moff + mvi * 8 + 4)
                         if oren_is_err(mvx) || oren_is_err(mvy) { return oren_err(4, "ui.validate: mesh2d malformed vertex") }
                         var mvx_t = mvx + tx; var mvy_t = mvy + ty
                         if mvx_t < 0 || mvy_t < 0 || mvx_t >= w || mvy_t >= h { return oren_err(4, "ui.validate: mesh2d out of bounds") }
@@ -311,7 +311,7 @@ fn validate(cmds, w, h, opts) {
             var m3id = c["id"]; var m3tris = c["triangles"]; var m3col = c["color"]
             if _is_int(m3id) == false || m3id < 1 { return oren_err(4, "ui.validate: mesh3d invalid id") }
             if _hex_ok(m3col) == false { return oren_err(4, "ui.validate: mesh3d invalid color") }
-            var m3tris_len = bytes.try_len(m3tris)
+            var m3tris_len = bytes.len(m3tris)
             if oren_is_err(m3tris_len) { return oren_err(4, "ui.validate: mesh3d expects byte triangles") }
             if m3tris_len == 0 || m3tris_len > 65520 || m3tris_len % 36 != 0 { return oren_err(4, "ui.validate: mesh3d invalid triangle bytes") }
             if strict {
@@ -319,9 +319,9 @@ fn validate(cmds, w, h, opts) {
                 while m3off < m3tris_len {
                     var m3vi = 0
                     while m3vi < 3 {
-                        var m3x = bytes.try_get_i32_le(m3tris, m3off + m3vi * 12)
-                        var m3y = bytes.try_get_i32_le(m3tris, m3off + m3vi * 12 + 4)
-                        var m3z = bytes.try_get_i32_le(m3tris, m3off + m3vi * 12 + 8)
+                        var m3x = bytes.get_i32_le(m3tris, m3off + m3vi * 12)
+                        var m3y = bytes.get_i32_le(m3tris, m3off + m3vi * 12 + 4)
+                        var m3z = bytes.get_i32_le(m3tris, m3off + m3vi * 12 + 8)
                         if oren_is_err(m3x) || oren_is_err(m3y) || oren_is_err(m3z) { return oren_err(4, "ui.validate: mesh3d malformed vertex") }
                         var m3x_t = m3x + tx; var m3y_t = m3y + ty
                         if m3x_t < 0 || m3y_t < 0 || m3x_t >= w || m3y_t >= h { return oren_err(4, "ui.validate: mesh3d projected out of bounds") }
@@ -333,7 +333,7 @@ fn validate(cmds, w, h, opts) {
         } else if op == "mesh3d_rgba" {
             var m3rid = c["id"]; var m3rtris = c["triangles"]
             if _is_int(m3rid) == false || m3rid < 1 { return oren_err(4, "ui.validate: mesh3d_rgba invalid id") }
-            var m3rtris_len = bytes.try_len(m3rtris)
+            var m3rtris_len = bytes.len(m3rtris)
             if oren_is_err(m3rtris_len) { return oren_err(4, "ui.validate: mesh3d_rgba expects byte triangles") }
             if m3rtris_len == 0 || m3rtris_len > 65520 || m3rtris_len % 40 != 0 { return oren_err(4, "ui.validate: mesh3d_rgba invalid triangle bytes") }
             if strict {
@@ -341,9 +341,9 @@ fn validate(cmds, w, h, opts) {
                 while m3roff < m3rtris_len {
                     var m3rvi = 0
                     while m3rvi < 3 {
-                        var m3rx = bytes.try_get_i32_le(m3rtris, m3roff + m3rvi * 12)
-                        var m3ry = bytes.try_get_i32_le(m3rtris, m3roff + m3rvi * 12 + 4)
-                        var m3rz = bytes.try_get_i32_le(m3rtris, m3roff + m3rvi * 12 + 8)
+                        var m3rx = bytes.get_i32_le(m3rtris, m3roff + m3rvi * 12)
+                        var m3ry = bytes.get_i32_le(m3rtris, m3roff + m3rvi * 12 + 4)
+                        var m3rz = bytes.get_i32_le(m3rtris, m3roff + m3rvi * 12 + 8)
                         if oren_is_err(m3rx) || oren_is_err(m3ry) || oren_is_err(m3rz) { return oren_err(4, "ui.validate: mesh3d_rgba malformed vertex") }
                         var m3rx_t = m3rx + tx; var m3ry_t = m3ry + ty
                         if m3rx_t < 0 || m3ry_t < 0 || m3rx_t >= w || m3ry_t >= h { return oren_err(4, "ui.validate: mesh3d_rgba projected out of bounds") }
@@ -356,16 +356,16 @@ fn validate(cmds, w, h, opts) {
             var m3iid = c["id"]; var m3iverts = c["vertices"]; var m3iidx = c["indices"]; var m3icol = c["color"]
             if _is_int(m3iid) == false || m3iid < 1 { return oren_err(4, "ui.validate: mesh3d_indexed invalid id") }
             if _hex_ok(m3icol) == false { return oren_err(4, "ui.validate: mesh3d_indexed invalid color") }
-            var m3iverts_len = bytes.try_len(m3iverts)
+            var m3iverts_len = bytes.len(m3iverts)
             if oren_is_err(m3iverts_len) { return oren_err(4, "ui.validate: mesh3d_indexed expects byte vertices") }
             if m3iverts_len < 36 || m3iverts_len > 65508 || m3iverts_len % 12 != 0 { return oren_err(4, "ui.validate: mesh3d_indexed invalid vertex bytes") }
-            var m3iidx_len = bytes.try_len(m3iidx)
+            var m3iidx_len = bytes.len(m3iidx)
             if oren_is_err(m3iidx_len) { return oren_err(4, "ui.validate: mesh3d_indexed expects byte indices") }
             if m3iidx_len < 12 || m3iidx_len > 65508 || m3iidx_len % 12 != 0 || m3iverts_len + m3iidx_len > 65519 { return oren_err(4, "ui.validate: mesh3d_indexed invalid index bytes") }
             var m3ivc = m3iverts_len / 12
             var m3iioff = 0
             while m3iioff < m3iidx_len {
-                var m3ii = bytes.try_get_u32_le(m3iidx, m3iioff)
+                var m3ii = bytes.get_u32_le(m3iidx, m3iioff)
                 if oren_is_err(m3ii) { return oren_err(4, "ui.validate: mesh3d_indexed malformed index") }
                 if m3ii < 0 || m3ii >= m3ivc { return oren_err(4, "ui.validate: mesh3d_indexed index out of range") }
                 m3iioff = m3iioff + 4
@@ -373,9 +373,9 @@ fn validate(cmds, w, h, opts) {
             if strict {
                 var m3ivoff = 0
                 while m3ivoff < m3iverts_len {
-                    var m3ix = bytes.try_get_i32_le(m3iverts, m3ivoff)
-                    var m3iy = bytes.try_get_i32_le(m3iverts, m3ivoff + 4)
-                    var m3iz = bytes.try_get_i32_le(m3iverts, m3ivoff + 8)
+                    var m3ix = bytes.get_i32_le(m3iverts, m3ivoff)
+                    var m3iy = bytes.get_i32_le(m3iverts, m3ivoff + 4)
+                    var m3iz = bytes.get_i32_le(m3iverts, m3ivoff + 8)
                     if oren_is_err(m3ix) || oren_is_err(m3iy) || oren_is_err(m3iz) { return oren_err(4, "ui.validate: mesh3d_indexed malformed vertex") }
                     var m3ix_t = m3ix + tx; var m3iy_t = m3iy + ty
                     if m3ix_t < 0 || m3iy_t < 0 || m3ix_t >= w || m3iy_t >= h { return oren_err(4, "ui.validate: mesh3d_indexed projected out of bounds") }
@@ -437,7 +437,7 @@ fn validate(cmds, w, h, opts) {
         } else if op == "text_bytes" {
             var bx = c["x"]; var by = c["y"]; var bd = c["data"]; var bcol = c["color"]
             if _is_int(bx) == false || _is_int(by) == false { return oren_err(4, "ui.validate: text_bytes expects int x,y") }
-            var blen = bytes.try_len(bd)
+            var blen = bytes.len(bd)
             if oren_is_err(blen) { return oren_err(4, "ui.validate: text_bytes expects byte data") }
             if blen > 65519 { return oren_err(4, "ui.validate: text_bytes data too large") }
             if _hex_ok(bcol) == false { return oren_err(4, "ui.validate: text_bytes invalid color") }
@@ -448,7 +448,7 @@ fn validate(cmds, w, h, opts) {
         } else if op == "text_resource" {
             var tid = c["id"]; var td = c["data"]; var tcolr = c["color"]
             if _is_int(tid) == false || tid < 1 { return oren_err(4, "ui.validate: text_resource invalid id") }
-            var tlen = bytes.try_len(td)
+            var tlen = bytes.len(td)
             if oren_is_err(tlen) { return oren_err(4, "ui.validate: text_resource expects byte data") }
             if tlen > 65519 { return oren_err(4, "ui.validate: text_resource data too large") }
             if _hex_ok(tcolr) == false { return oren_err(4, "ui.validate: text_resource invalid color") }
@@ -463,14 +463,14 @@ fn validate(cmds, w, h, opts) {
         } else if op == "draw_texts" {
             var btid = c["id"]; var positions = c["positions"]
             if _is_int(btid) == false || btid < 1 { return oren_err(4, "ui.validate: draw_texts invalid id") }
-            var pos_len = bytes.try_len(positions)
+            var pos_len = bytes.len(positions)
             if oren_is_err(pos_len) { return oren_err(4, "ui.validate: draw_texts expects byte positions") }
             if pos_len == 0 || pos_len > 65520 || pos_len % 8 != 0 { return oren_err(4, "ui.validate: draw_texts invalid position bytes") }
             if strict {
                 var poff2 = 0
                 while poff2 < pos_len {
-                    var ptx = bytes.try_get_u32_le(positions, poff2)
-                    var pty = bytes.try_get_u32_le(positions, poff2 + 4)
+                    var ptx = bytes.get_u32_le(positions, poff2)
+                    var pty = bytes.get_u32_le(positions, poff2 + 4)
                     if oren_is_err(ptx) || oren_is_err(pty) { return oren_err(4, "ui.validate: draw_texts malformed position") }
                     var ptx_t = ptx + tx; var pty_t = pty + ty
                     if ptx_t < 0 || pty_t < 0 || ptx_t >= w || pty_t >= h { return oren_err(4, "ui.validate: draw_texts out of bounds") }
@@ -484,7 +484,7 @@ fn validate(cmds, w, h, opts) {
             var iid = c["id"]; var iw = c["w"]; var ih = c["h"]; var idata = c["data"]
             if _is_int(iid) == false || iid < 1 { return oren_err(4, "ui.validate: image_rgba invalid id") }
             if _is_int(iw) == false || _is_int(ih) == false || iw < 1 || ih < 1 { return oren_err(4, "ui.validate: image_rgba invalid size") }
-            var ilen = bytes.try_len(idata)
+            var ilen = bytes.len(idata)
             if oren_is_err(ilen) { return oren_err(4, "ui.validate: image_rgba expects byte data") }
             if ilen != iw * ih * 4 { return oren_err(4, "ui.validate: image_rgba data length mismatch") }
             if ilen > 65519 { return oren_err(4, "ui.validate: image_rgba data too large") }
@@ -521,21 +521,21 @@ fn validate(cmds, w, h, opts) {
         } else if op == "draw_image_rects" {
             var bid = c["id"]; var rects = c["rects"]
             if _is_int(bid) == false || bid < 1 { return oren_err(4, "ui.validate: draw_image_rects invalid id") }
-            var rect_len = bytes.try_len(rects)
+            var rect_len = bytes.len(rects)
             if oren_is_err(rect_len) { return oren_err(4, "ui.validate: draw_image_rects expects byte rects") }
             if rect_len == 0 || rect_len > 65504 || rect_len % 32 != 0 {
                 return oren_err(4, "ui.validate: draw_image_rects invalid rect bytes")
             }
             var roff = 0
             while roff < rect_len {
-                var bsx = bytes.try_get_u32_le(rects, roff)
-                var bsy = bytes.try_get_u32_le(rects, roff + 4)
-                var bsw = bytes.try_get_u32_le(rects, roff + 8)
-                var bsh = bytes.try_get_u32_le(rects, roff + 12)
-                var bx = bytes.try_get_u32_le(rects, roff + 16)
-                var by = bytes.try_get_u32_le(rects, roff + 20)
-                var bw = bytes.try_get_u32_le(rects, roff + 24)
-                var bh = bytes.try_get_u32_le(rects, roff + 28)
+                var bsx = bytes.get_u32_le(rects, roff)
+                var bsy = bytes.get_u32_le(rects, roff + 4)
+                var bsw = bytes.get_u32_le(rects, roff + 8)
+                var bsh = bytes.get_u32_le(rects, roff + 12)
+                var bx = bytes.get_u32_le(rects, roff + 16)
+                var by = bytes.get_u32_le(rects, roff + 20)
+                var bw = bytes.get_u32_le(rects, roff + 24)
+                var bh = bytes.get_u32_le(rects, roff + 28)
                 if oren_is_err(bsx) || oren_is_err(bsy) || oren_is_err(bsw) || oren_is_err(bsh) || oren_is_err(bx) || oren_is_err(by) || oren_is_err(bw) || oren_is_err(bh) {
                     return oren_err(4, "ui.validate: draw_image_rects malformed rect")
                 }

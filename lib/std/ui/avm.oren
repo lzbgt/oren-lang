@@ -61,11 +61,11 @@ fn _truthy_flag(v) {
 }
 
 fn _append_bytes(wr, bs) {
-    var n = bytes.try_len(bs)
+    var n = bytes.len(bs)
     if oren_is_err(n) { return n }
     var i = 0
     while i < n {
-        var b = bytes.try_get_u8(bs, i)
+        var b = bytes.get_u8(bs, i)
         if oren_is_err(b) { return b }
         _push_u8(wr, b)
         i = i + 1
@@ -115,20 +115,20 @@ fn _cmd_frame_len(c) {
     if op == "circle" { return 24 }
     if op == "ellipse" { return 32 }
     if op == "polyline" {
-        var pn = bytes.try_len(c["points"])
+        var pn = bytes.len(c["points"])
         if oren_is_err(pn) { return pn }
         if pn < 16 || pn > 65520 || pn % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: polyline invalid point bytes") }
         return 16 + pn
     }
     if op == "fill_triangle" { return 32 }
     if op == "fill_triangles" {
-        var tris_n = bytes.try_len(c["triangles"])
+        var tris_n = bytes.len(c["triangles"])
         if oren_is_err(tris_n) { return tris_n }
         if tris_n == 0 || tris_n > 65512 || tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: fill_triangles invalid triangle bytes") }
         return 12 + tris_n
     }
     if op == "mesh2d" {
-        var mesh_tris_n = bytes.try_len(c["triangles"])
+        var mesh_tris_n = bytes.len(c["triangles"])
         if oren_is_err(mesh_tris_n) { return mesh_tris_n }
         if mesh_tris_n == 0 || mesh_tris_n > 65504 || mesh_tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh2d invalid triangle bytes") }
         return 16 + mesh_tris_n
@@ -136,21 +136,21 @@ fn _cmd_frame_len(c) {
     if op == "draw_mesh2d" { return 8 }
     if op == "destroy_mesh2d" { return 8 }
     if op == "mesh3d" {
-        var mesh3d_tris_n = bytes.try_len(c["triangles"])
+        var mesh3d_tris_n = bytes.len(c["triangles"])
         if oren_is_err(mesh3d_tris_n) { return mesh3d_tris_n }
         if mesh3d_tris_n == 0 || mesh3d_tris_n > 65520 || mesh3d_tris_n % 36 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d invalid triangle bytes") }
         return 16 + mesh3d_tris_n
     }
     if op == "mesh3d_rgba" {
-        var mesh3d_rgba_n = bytes.try_len(c["triangles"])
+        var mesh3d_rgba_n = bytes.len(c["triangles"])
         if oren_is_err(mesh3d_rgba_n) { return mesh3d_rgba_n }
         if mesh3d_rgba_n == 0 || mesh3d_rgba_n > 65520 || mesh3d_rgba_n % 40 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_rgba invalid triangle bytes") }
         return 12 + mesh3d_rgba_n
     }
     if op == "mesh3d_indexed" {
-        var mesh3d_vertices_n = bytes.try_len(c["vertices"])
+        var mesh3d_vertices_n = bytes.len(c["vertices"])
         if oren_is_err(mesh3d_vertices_n) { return mesh3d_vertices_n }
-        var mesh3d_indices_n = bytes.try_len(c["indices"])
+        var mesh3d_indices_n = bytes.len(c["indices"])
         if oren_is_err(mesh3d_indices_n) { return mesh3d_indices_n }
         if mesh3d_vertices_n < 36 || mesh3d_vertices_n > 65508 || mesh3d_vertices_n % 12 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid vertex bytes") }
         if mesh3d_indices_n < 12 || mesh3d_indices_n > 65508 || mesh3d_indices_n % 12 != 0 || mesh3d_vertices_n + mesh3d_indices_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid index bytes") }
@@ -167,35 +167,35 @@ fn _cmd_frame_len(c) {
     if op == "destroy_mesh3d" { return 8 }
     if op == "destroy_material3d" { return 8 }
     if op == "text" {
-        var tb = bytes.try_from_string(c["text"])
+        var tb = bytes.from_string(c["text"])
         if oren_is_err(tb) { return tb }
-        var tn = bytes.try_len(tb)
+        var tn = bytes.len(tb)
         if oren_is_err(tn) { return tn }
         if tn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text too large") }
         return 20 + tn
     }
     if op == "text_bytes" {
-        var tn2 = bytes.try_len(c["data"])
+        var tn2 = bytes.len(c["data"])
         if oren_is_err(tn2) { return tn2 }
         if tn2 > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_bytes too large") }
         return 20 + tn2
     }
     if op == "text_resource" {
-        var trn = bytes.try_len(c["data"])
+        var trn = bytes.len(c["data"])
         if oren_is_err(trn) { return trn }
         if trn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_resource too large") }
         return 16 + trn
     }
     if op == "draw_text" { return 16 }
     if op == "draw_texts" {
-        var pos_n = bytes.try_len(c["positions"])
+        var pos_n = bytes.len(c["positions"])
         if oren_is_err(pos_n) { return pos_n }
         if pos_n == 0 || pos_n > 65520 || pos_n % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_texts invalid position bytes") }
         return 12 + pos_n
     }
     if op == "destroy_text" { return 8 }
     if op == "image_rgba" {
-        var image_n = bytes.try_len(c["data"])
+        var image_n = bytes.len(c["data"])
         if oren_is_err(image_n) { return image_n }
         if image_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: image_rgba too large") }
         return 20 + image_n
@@ -204,7 +204,7 @@ fn _cmd_frame_len(c) {
     if op == "destroy_image" { return 8 }
     if op == "draw_image_rect" { return 40 }
     if op == "draw_image_rects" {
-        var rn = bytes.try_len(c["rects"])
+        var rn = bytes.len(c["rects"])
         if oren_is_err(rn) { return rn }
         if rn == 0 || rn > 65504 || rn % 32 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_image_rects invalid rect bytes") }
         return 12 + rn
@@ -346,7 +346,7 @@ fn _push_cmd(out, c) {
     }
     if op == "polyline" {
         var points = c["points"]
-        var pn = bytes.try_len(points)
+        var pn = bytes.len(points)
         if oren_is_err(pn) { return pn }
         if pn < 16 || pn > 65520 || pn % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: polyline invalid point bytes") }
         var plw = c["width"]
@@ -370,7 +370,7 @@ fn _push_cmd(out, c) {
     }
     if op == "fill_triangles" {
         var tris = c["triangles"]
-        var tris_n = bytes.try_len(tris)
+        var tris_n = bytes.len(tris)
         if oren_is_err(tris_n) { return tris_n }
         if tris_n == 0 || tris_n > 65512 || tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: fill_triangles invalid triangle bytes") }
         _push_op_header(out, 10, 8 + tris_n)
@@ -381,7 +381,7 @@ fn _push_cmd(out, c) {
     }
     if op == "mesh2d" {
         var mesh_tris = c["triangles"]
-        var mesh_tris_n = bytes.try_len(mesh_tris)
+        var mesh_tris_n = bytes.len(mesh_tris)
         if oren_is_err(mesh_tris_n) { return mesh_tris_n }
         if mesh_tris_n == 0 || mesh_tris_n > 65504 || mesh_tris_n % 24 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh2d invalid triangle bytes") }
         _push_op_header(out, 80, 12 + mesh_tris_n)
@@ -403,7 +403,7 @@ fn _push_cmd(out, c) {
     }
     if op == "mesh3d" {
         var mesh3d_tris = c["triangles"]
-        var mesh3d_tris_n = bytes.try_len(mesh3d_tris)
+        var mesh3d_tris_n = bytes.len(mesh3d_tris)
         if oren_is_err(mesh3d_tris_n) { return mesh3d_tris_n }
         if mesh3d_tris_n == 0 || mesh3d_tris_n > 65520 || mesh3d_tris_n % 36 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d invalid triangle bytes") }
         _push_op_header(out, 83, 12 + mesh3d_tris_n)
@@ -415,7 +415,7 @@ fn _push_cmd(out, c) {
     }
     if op == "mesh3d_rgba" {
         var mesh3d_rgba_tris = c["triangles"]
-        var mesh3d_rgba_n = bytes.try_len(mesh3d_rgba_tris)
+        var mesh3d_rgba_n = bytes.len(mesh3d_rgba_tris)
         if oren_is_err(mesh3d_rgba_n) { return mesh3d_rgba_n }
         if mesh3d_rgba_n == 0 || mesh3d_rgba_n > 65520 || mesh3d_rgba_n % 40 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_rgba invalid triangle bytes") }
         _push_op_header(out, 86, 8 + mesh3d_rgba_n)
@@ -425,10 +425,10 @@ fn _push_cmd(out, c) {
     }
     if op == "mesh3d_indexed" {
         var mesh3d_vertices = c["vertices"]
-        var mesh3d_vertices_n = bytes.try_len(mesh3d_vertices)
+        var mesh3d_vertices_n = bytes.len(mesh3d_vertices)
         if oren_is_err(mesh3d_vertices_n) { return mesh3d_vertices_n }
         var mesh3d_indices = c["indices"]
-        var mesh3d_indices_n = bytes.try_len(mesh3d_indices)
+        var mesh3d_indices_n = bytes.len(mesh3d_indices)
         if oren_is_err(mesh3d_indices_n) { return mesh3d_indices_n }
         if mesh3d_vertices_n < 36 || mesh3d_vertices_n > 65508 || mesh3d_vertices_n % 12 != 0 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid vertex bytes") }
         if mesh3d_indices_n < 12 || mesh3d_indices_n > 65508 || mesh3d_indices_n % 12 != 0 || mesh3d_vertices_n + mesh3d_indices_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: mesh3d_indexed invalid index bytes") }
@@ -511,9 +511,9 @@ fn _push_cmd(out, c) {
         return 0
     }
     if op == "text" {
-        var tb = bytes.try_from_string(c["text"])
+        var tb = bytes.from_string(c["text"])
         if oren_is_err(tb) { return tb }
-        var tn = bytes.try_len(tb)
+        var tn = bytes.len(tb)
         if oren_is_err(tn) { return tn }
         if tn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text too large") }
         _push_op_header(out, 2, 16 + tn)
@@ -526,7 +526,7 @@ fn _push_cmd(out, c) {
     }
     if op == "text_bytes" {
         var tb2 = c["data"]
-        var tn2 = bytes.try_len(tb2)
+        var tn2 = bytes.len(tb2)
         if oren_is_err(tn2) { return tn2 }
         if tn2 > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_bytes too large") }
         _push_op_header(out, 2, 16 + tn2)
@@ -539,7 +539,7 @@ fn _push_cmd(out, c) {
     }
     if op == "text_resource" {
         var trb = c["data"]
-        var trn = bytes.try_len(trb)
+        var trn = bytes.len(trb)
         if oren_is_err(trn) { return trn }
         if trn > 65519 { return oren_err(4, "ui.avm.frame_bytes: text_resource too large") }
         _push_op_header(out, 68, 12 + trn)
@@ -558,7 +558,7 @@ fn _push_cmd(out, c) {
     }
     if op == "draw_texts" {
         var positions = c["positions"]
-        var pos_n = bytes.try_len(positions)
+        var pos_n = bytes.len(positions)
         if oren_is_err(pos_n) { return pos_n }
         if pos_n == 0 || pos_n > 65520 || pos_n % 8 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_texts invalid position bytes") }
         _push_op_header(out, 72, 8 + pos_n)
@@ -573,7 +573,7 @@ fn _push_cmd(out, c) {
     }
     if op == "image_rgba" {
         var ib = c["data"]
-        var image_n = bytes.try_len(ib)
+        var image_n = bytes.len(ib)
         if oren_is_err(image_n) { return image_n }
         if image_n > 65519 { return oren_err(4, "ui.avm.frame_bytes: image_rgba too large") }
         _push_op_header(out, 64, 16 + image_n)
@@ -612,7 +612,7 @@ fn _push_cmd(out, c) {
     }
     if op == "draw_image_rects" {
         var rects = c["rects"]
-        var rn = bytes.try_len(rects)
+        var rn = bytes.len(rects)
         if oren_is_err(rn) { return rn }
         if rn == 0 || rn > 65504 || rn % 32 != 0 { return oren_err(4, "ui.avm.frame_bytes: draw_image_rects invalid rect bytes") }
         _push_op_header(out, 71, 8 + rn)
@@ -653,7 +653,7 @@ fn frame_bytes(cmds, w, h, opts) {
         i = i + 1
     }
     if _writer_pos(wr) != frame_len { return oren_err(4, "ui.avm.frame_bytes: internal size mismatch") }
-    return bytes.try_from_u8_buf(_writer_buf(wr))
+    return bytes.from_u8_buf(_writer_buf(wr))
 }
 
 fn present_bytes(frame) {
@@ -688,9 +688,9 @@ fn screen_available(id) {
 }
 
 fn _read_u16_le(bs, off, ctx) {
-    var b0 = bytes.try_get_u8(bs, off)
+    var b0 = bytes.get_u8(bs, off)
     if oren_is_err(b0) { return oren_err(4, ctx + ": truncated u16") }
-    var b1 = bytes.try_get_u8(bs, off + 1)
+    var b1 = bytes.get_u8(bs, off + 1)
     if oren_is_err(b1) { return oren_err(4, ctx + ": truncated u16") }
     return b0 | (b1 << 8)
 }
@@ -741,13 +741,13 @@ fn _composition_phase(opcode) {
 
 fn decode_event_bytes(ev) {
     if ev == nil { return nil }
-    var n = bytes.try_len(ev)
+    var n = bytes.len(ev)
     if oren_is_err(n) { return n }
     if n < 12 { return oren_err(4, "ui.avm.decode_event_bytes: short event") }
-    if bytes.try_get_u8(ev, 0) != 79 || bytes.try_get_u8(ev, 1) != 71 || bytes.try_get_u8(ev, 2) != 69 || bytes.try_get_u8(ev, 3) != 48 {
+    if bytes.get_u8(ev, 0) != 79 || bytes.get_u8(ev, 1) != 71 || bytes.get_u8(ev, 2) != 69 || bytes.get_u8(ev, 3) != 48 {
         return oren_err(4, "ui.avm.decode_event_bytes: bad OGE0 magic")
     }
-    var opcode = bytes.try_get_u8(ev, 8)
+    var opcode = bytes.get_u8(ev, 8)
     if oren_is_err(opcode) { return opcode }
     var payload_len = _read_u16_le(ev, 10, "ui.avm.decode_event_bytes")
     if oren_is_err(payload_len) { return payload_len }
@@ -841,7 +841,7 @@ fn decode_event_bytes(ev) {
         var text_len = _read_u32_le(ev, 12, "ui.avm.decode_event_bytes")
         if oren_is_err(text_len) { return text_len }
         if text_len != payload_len - 4 { return oren_err(4, "ui.avm.decode_event_bytes: text length mismatch") }
-        var text = bytes.try_to_string_slice(ev, 16, text_len)
+        var text = bytes.to_string_slice(ev, 16, text_len)
         if oren_is_err(text) { return text }
         return {"kind": "text", "opcode": opcode, "text": text}
     }
@@ -925,7 +925,7 @@ fn decode_event_bytes(ev) {
         if oren_is_err(sel_start) { return sel_start }
         if oren_is_err(sel_end) { return sel_end }
         if comp_len != payload_len - 12 { return oren_err(4, "ui.avm.decode_event_bytes: composition length mismatch") }
-        var comp_text = bytes.try_to_string_slice(ev, 24, comp_len)
+        var comp_text = bytes.to_string_slice(ev, 24, comp_len)
         if oren_is_err(comp_text) { return comp_text }
         return {
             "kind": "composition",

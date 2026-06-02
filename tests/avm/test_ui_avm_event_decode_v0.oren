@@ -15,7 +15,7 @@ fn assert_eq(a, b) {
 }
 
 fn event(xs) {
-    return bytes.try_pack(xs)
+    return bytes.pack(xs)
 }
 
 fn main() {

@@ -35,8 +35,8 @@ fn push_u32(out, v) {
 
 fn push_bytes(out, bs) {
     var i = 0
-    while i < bytes.try_len(bs) {
-        list.push(out, bytes.try_get_u8(bs, i))
+    while i < bytes.len(bs) {
+        list.push(out, bytes.get_u8(bs, i))
         i = i + 1
     }
 }
@@ -57,8 +57,8 @@ fn scene_binary(vertices, indices, with_camera) {
     push_u32(out, 27) // mesh id
     push_u32(out, 1) // indexed mesh
     push_u32(out, 862388223)
-    push_u32(out, bytes.try_len(vertices))
-    push_u32(out, bytes.try_len(indices))
+    push_u32(out, bytes.len(vertices))
+    push_u32(out, bytes.len(indices))
     push_bytes(out, vertices)
     push_bytes(out, indices)
     push_u32(out, 28) // material id
@@ -71,17 +71,17 @@ fn scene_binary(vertices, indices, with_camera) {
     push_u32(out, 0) // z
     push_u32(out, 1000)
     push_u32(out, 29)
-    return bytes.try_pack(out)
+    return bytes.pack(out)
 }
 
 fn main() {
-    var vertices = bytes.try_pack([
+    var vertices = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
     ])
     assert_true(oren_is_err(vertices) == false)
-    var indices = bytes.try_pack([
+    var indices = bytes.pack([
         0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(indices) == false)
@@ -316,7 +316,7 @@ fn main() {
     assert_eq(_px(bin_buf, 4, 1, 1, 0), 0)
     assert_eq(_px(bin_buf, 4, 1, 1, 1), 255)
     assert_eq(_px(bin_buf, 4, 1, 1, 2), 0)
-    assert_true(oren_is_err(scene3d.commands_from_binary(bytes.try_pack([79, 83]))) == true)
+    assert_true(oren_is_err(scene3d.commands_from_binary(bytes.pack([79, 83]))) == true)
 
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"bad\"}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instances\":[{\"id\":1,\"template\":\"missing\"}]}")) == true)

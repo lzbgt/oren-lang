@@ -15,7 +15,7 @@ fn assert_true(v) {
 }
 
 fn main() {
-    var bad_magic = bytes.try_pack([
+    var bad_magic = bytes.pack([
         79, 71, 88, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0
@@ -24,7 +24,7 @@ fn main() {
     assert_true(oren_is_err(r1))
     assert_true(oren_err_code(r1) == 4)
 
-    var trailing = bytes.try_pack([
+    var trailing = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -34,7 +34,7 @@ fn main() {
     assert_true(oren_is_err(r2))
     assert_true(oren_err_code(r2) == 4)
 
-    var bad_op = bytes.try_pack([
+    var bad_op = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -44,7 +44,7 @@ fn main() {
     assert_true(oren_is_err(r3))
     assert_true(oren_err_code(r3) == 4)
 
-    var too_many_ops = bytes.try_pack([
+    var too_many_ops = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 161, 134, 1, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0
@@ -53,7 +53,7 @@ fn main() {
     assert_true(oren_is_err(r4))
     assert_true(oren_err_code(r4) == 4)
 
-    var bad_triangle = bytes.try_pack([
+    var bad_triangle = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -65,7 +65,7 @@ fn main() {
     assert_true(oren_is_err(r5))
     assert_true(oren_err_code(r5) == 4)
 
-    var bad_fill_triangles = bytes.try_pack([
+    var bad_fill_triangles = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -79,7 +79,7 @@ fn main() {
     assert_true(oren_is_err(r5a))
     assert_true(oren_err_code(r5a) == 4)
 
-    var bad_mesh2d = bytes.try_pack([
+    var bad_mesh2d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -93,7 +93,7 @@ fn main() {
     assert_true(oren_is_err(r5c))
     assert_true(oren_err_code(r5c) == 4)
 
-    var bad_draw_mesh2d = bytes.try_pack([
+    var bad_draw_mesh2d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -104,7 +104,7 @@ fn main() {
     assert_true(oren_is_err(r5d))
     assert_true(oren_err_code(r5d) == 4)
 
-    var bad_mesh3d = bytes.try_pack([
+    var bad_mesh3d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -118,7 +118,7 @@ fn main() {
     assert_true(oren_is_err(r5e))
     assert_true(oren_err_code(r5e) == 4)
 
-    var bad_draw_mesh3d = bytes.try_pack([
+    var bad_draw_mesh3d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -129,7 +129,7 @@ fn main() {
     assert_true(oren_is_err(r5f))
     assert_true(oren_err_code(r5f) == 4)
 
-    var bad_draw_mesh3d_at = bytes.try_pack([
+    var bad_draw_mesh3d_at = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -140,7 +140,7 @@ fn main() {
     assert_true(oren_is_err(r5fa))
     assert_true(oren_err_code(r5fa) == 4)
 
-    var bad_material3d = bytes.try_pack([
+    var bad_material3d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -151,7 +151,7 @@ fn main() {
     assert_true(oren_is_err(r5fm))
     assert_true(oren_err_code(r5fm) == 4)
 
-    var bad_draw_mesh3d_material = bytes.try_pack([
+    var bad_draw_mesh3d_material = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -162,7 +162,7 @@ fn main() {
     assert_true(oren_is_err(r5fn))
     assert_true(oren_err_code(r5fn) == 4)
 
-    var bad_model3d = bytes.try_pack([
+    var bad_model3d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -174,7 +174,7 @@ fn main() {
     assert_true(oren_is_err(r5fo))
     assert_true(oren_err_code(r5fo) == 4)
 
-    var bad_draw_model3d = bytes.try_pack([
+    var bad_draw_model3d = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -185,7 +185,7 @@ fn main() {
     assert_true(oren_is_err(r5fp))
     assert_true(oren_err_code(r5fp) == 4)
 
-    var bad_camera = bytes.try_pack([
+    var bad_camera = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -196,7 +196,7 @@ fn main() {
     assert_true(oren_is_err(r5fb))
     assert_true(oren_err_code(r5fb) == 4)
 
-    var bad_mesh3d_rgba = bytes.try_pack([
+    var bad_mesh3d_rgba = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -211,7 +211,7 @@ fn main() {
     assert_true(oren_is_err(r5g))
     assert_true(oren_err_code(r5g) == 4)
 
-    var bad_mesh3d_indexed = bytes.try_pack([
+    var bad_mesh3d_indexed = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -226,7 +226,7 @@ fn main() {
     assert_true(oren_is_err(r5h))
     assert_true(oren_err_code(r5h) == 4)
 
-    var bad_round_rect = bytes.try_pack([
+    var bad_round_rect = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         4, 0, 0, 0, 4, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
@@ -238,7 +238,7 @@ fn main() {
     assert_true(oren_is_err(r5b))
     assert_true(oren_err_code(r5b) == 4)
 
-    var bad_image = bytes.try_pack([
+    var bad_image = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -250,7 +250,7 @@ fn main() {
     assert_true(oren_is_err(r6))
     assert_true(oren_err_code(r6) == 4)
 
-    var bad_destroy = bytes.try_pack([
+    var bad_destroy = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -261,7 +261,7 @@ fn main() {
     assert_true(oren_is_err(r7))
     assert_true(oren_err_code(r7) == 4)
 
-    var bad_image_rect = bytes.try_pack([
+    var bad_image_rect = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -274,7 +274,7 @@ fn main() {
     assert_true(oren_is_err(r8))
     assert_true(oren_err_code(r8) == 4)
 
-    var bad_text_resource = bytes.try_pack([
+    var bad_text_resource = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -285,7 +285,7 @@ fn main() {
     assert_true(oren_is_err(r9))
     assert_true(oren_err_code(r9) == 4)
 
-    var bad_draw_texts = bytes.try_pack([
+    var bad_draw_texts = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -297,7 +297,7 @@ fn main() {
     assert_true(oren_is_err(r9b))
     assert_true(oren_err_code(r9b) == 4)
 
-    var bad_image_rects = bytes.try_pack([
+    var bad_image_rects = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -310,7 +310,7 @@ fn main() {
     assert_true(oren_is_err(r10))
     assert_true(oren_err_code(r10) == 4)
 
-    var clip_underflow = bytes.try_pack([
+    var clip_underflow = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -320,7 +320,7 @@ fn main() {
     assert_true(oren_is_err(r11))
     assert_true(oren_err_code(r11) == 4)
 
-    var clip_unbalanced = bytes.try_pack([
+    var clip_unbalanced = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -331,7 +331,7 @@ fn main() {
     assert_true(oren_is_err(r12))
     assert_true(oren_err_code(r12) == 4)
 
-    var transform_underflow = bytes.try_pack([
+    var transform_underflow = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -341,7 +341,7 @@ fn main() {
     assert_true(oren_is_err(r13))
     assert_true(oren_err_code(r13) == 4)
 
-    var transform_unbalanced = bytes.try_pack([
+    var transform_unbalanced = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -352,7 +352,7 @@ fn main() {
     assert_true(oren_is_err(r14))
     assert_true(oren_err_code(r14) == 4)
 
-    var state_mismatch = bytes.try_pack([
+    var state_mismatch = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -366,7 +366,7 @@ fn main() {
     assert_true(oren_is_err(r15))
     assert_true(oren_err_code(r15) == 4)
 
-    var opacity_underflow = bytes.try_pack([
+    var opacity_underflow = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -376,7 +376,7 @@ fn main() {
     assert_true(oren_is_err(r16))
     assert_true(oren_err_code(r16) == 4)
 
-    var opacity_unbalanced = bytes.try_pack([
+    var opacity_unbalanced = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -387,7 +387,7 @@ fn main() {
     assert_true(oren_is_err(r17))
     assert_true(oren_err_code(r17) == 4)
 
-    var opacity_bad_alpha = bytes.try_pack([
+    var opacity_bad_alpha = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 2, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -399,7 +399,7 @@ fn main() {
     assert_true(oren_is_err(r18))
     assert_true(oren_err_code(r18) == 4)
 
-    var opacity_state_mismatch = bytes.try_pack([
+    var opacity_state_mismatch = bytes.pack([
         79, 71, 70, 48, 1, 0, 40, 0,
         2, 0, 0, 0, 2, 0, 0, 0, 232, 3, 0, 0, 3, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,

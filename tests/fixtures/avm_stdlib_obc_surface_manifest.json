@@ -251,7 +251,7 @@
         "if bytes.from_string(\"Man\").base64() != \"TWFu\" { fail(23) }",
         "var b64 = \"TQ==\".base64_bytes_strict()",
         "if oren_is_err(b64) { fail(24) }",
-        "if bytes.try_len(b64) != 1 || bytes.try_get_u8(b64, 0) != 77 { fail(25) }"
+        "if bytes.len(b64) != 1 || bytes.get_u8(b64, 0) != 77 { fail(25) }"
       ]
     },
     {
@@ -261,7 +261,7 @@
         "var pem_blocks = pem.decode_blocks_strict(\"-----BEGIN CERT-----\\nTQ==\\n-----END CERT-----\\n\")",
         "if oren_is_err(pem_blocks) { fail(44) }",
         "if pem_blocks[0][\"type\"] != \"CERT\" { fail(45) }",
-        "if bytes.try_len(pem_blocks[0][\"bytes\"]) != 1 || bytes.try_get_u8(pem_blocks[0][\"bytes\"], 0) != 77 { fail(48) }"
+        "if bytes.len(pem_blocks[0][\"bytes\"]) != 1 || bytes.get_u8(pem_blocks[0][\"bytes\"], 0) != 77 { fail(48) }"
       ]
     },
     {

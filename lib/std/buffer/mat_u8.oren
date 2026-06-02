@@ -154,7 +154,7 @@ fn try_u8_mat_to_u8_buf(m) {
 fn u8_mat_to_string(m) {
     var bytes = u8_mat_to_bytes(m)
     if oren_is_err(bytes) { return bytes }
-    return bytesm.try_to_string(bytes)
+    return bytesm.to_string(bytes)
 }
 
 fn try_u8_mat_to_string(m) {
@@ -213,7 +213,7 @@ fn _u8_mat_copy_from_u8_buf(m, src, ctx) {
 }
 
 fn u8_mat_copy_from_bytes(m, bytes) {
-    var src = bytesm.try_to_u8_buf(bytes)
+    var src = bytesm.to_u8_buf(bytes)
     if oren_is_err(src) { return src }
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_bytes")
 }
@@ -223,7 +223,7 @@ fn try_u8_mat_copy_from_bytes(m, bytes) {
 }
 
 fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
-    var src = bytesm.try_to_u8_buf_slice(bytes, off, n)
+    var src = bytesm.to_u8_buf_slice(bytes, off, n)
     if oren_is_err(src) { return src }
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_bytes_slice")
 }

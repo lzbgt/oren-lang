@@ -94,12 +94,12 @@ fn test_raster_err_context() {
 }
 
 fn test_raster_shapes() {
-    var points = bytes.try_pack([
+    var points = bytes.pack([
         2, 0, 0, 0, 4, 0, 0, 0,
         4, 0, 0, 0, 4, 0, 0, 0
     ])
     assert_true(oren_is_err(points) == false)
-    var tris = bytes.try_pack([
+    var tris = bytes.pack([
         2, 0, 0, 0, 4, 0, 0, 0,
         4, 0, 0, 0, 4, 0, 0, 0,
         2, 0, 0, 0, 4, 0, 0, 0
@@ -137,7 +137,7 @@ fn test_raster_shapes() {
 fn test_raster_mesh3d_depth() {
     // Two identical projected triangles: green z=0 should be nearer than red z=9
     // even though green appears first in the byte payload.
-    var tris = bytes.try_pack([
+    var tris = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -172,11 +172,11 @@ fn test_raster_mesh3d_depth() {
     assert_eq(_px(far_buf, 3, 0, 0, 1), 0)
 
     var indexed_cmds = [
-        {"op": "mesh3d_indexed", "id": 23, "vertices": bytes.try_pack([
+        {"op": "mesh3d_indexed", "id": 23, "vertices": bytes.pack([
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
-        ]), "indices": bytes.try_pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
+        ]), "indices": bytes.pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
         {"op": "draw_mesh3d", "id": 23},
         {"op": "destroy_mesh3d", "id": 23}
     ]
@@ -187,11 +187,11 @@ fn test_raster_mesh3d_depth() {
     assert_eq(_px(indexed_buf, 3, 0, 0, 2), 255)
 
     var material_cmds = [
-        {"op": "mesh3d_indexed", "id": 24, "vertices": bytes.try_pack([
+        {"op": "mesh3d_indexed", "id": 24, "vertices": bytes.pack([
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
-        ]), "indices": bytes.try_pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
+        ]), "indices": bytes.pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"},
         {"op": "material3d", "id": 3, "color": "#ffff00"},
         {"op": "draw_mesh3d_material", "id": 24, "material_id": 3},
         {"op": "destroy_material3d", "id": 3},
@@ -220,7 +220,7 @@ fn test_raster_mesh3d_depth() {
 }
 
 fn test_raster_text_bytes() {
-    var data = bytes.try_pack([65, 66, 67])
+    var data = bytes.pack([65, 66, 67])
     assert_true(oren_is_err(data) == false)
     var cmds = [{"op": "text_bytes", "x": 1, "y": 1, "data": data, "color": "#ff00ff"}]
     var buf = ui_raster.try_rasterize(cmds, 5, 3, {"strict_bounds": true})
@@ -245,9 +245,9 @@ fn test_raster_text_bytes() {
 }
 
 fn test_raster_image() {
-    var px = bytes.try_pack([255, 0, 0, 255, 0, 255, 0, 255])
+    var px = bytes.pack([255, 0, 0, 255, 0, 255, 0, 255])
     assert_true(oren_is_err(px) == false)
-    var rects = bytes.try_pack([
+    var rects = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
     ])

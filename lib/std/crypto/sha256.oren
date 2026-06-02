@@ -17,13 +17,13 @@ trait Sha256Bytes {
 
 fn _input_bytes_or_err(input_bytes, ctx) {
     if input_bytes == nil { return oren_bytes_pack([]) }
-    var n = bytesm.try_len(input_bytes)
+    var n = bytesm.len(input_bytes)
     if oren_is_err(n) {
         return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
     }
     var i = 0
     while i < n {
-        var b = bytesm.try_get_u8(input_bytes, i)
+        var b = bytesm.get_u8(input_bytes, i)
         if oren_is_err(b) {
             return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
         }
@@ -63,7 +63,7 @@ fn _padded_len(orig_len) {
 }
 
 fn _padded_byte_at(input_bytes, orig_len, bit_len, pos) {
-    if pos < orig_len { return bytesm.try_get_u8(input_bytes, pos) }
+    if pos < orig_len { return bytesm.get_u8(input_bytes, pos) }
     if pos == orig_len { return 128 }
     var len_start = _padded_len(orig_len) - 8
     if pos < len_start { return 0 }
@@ -94,7 +94,7 @@ fn sha256_bytes(input_bytes) {
         input_bytes = oren_bytes_pack([])
     }
 
-    var orig_len = bytesm.try_len(input_bytes)
+    var orig_len = bytesm.len(input_bytes)
     if oren_is_err(orig_len) { return orig_len }
     var bit_len = orig_len * 8
     var total_len = _padded_len(orig_len)

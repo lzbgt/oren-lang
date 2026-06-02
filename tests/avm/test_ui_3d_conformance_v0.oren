@@ -27,7 +27,7 @@ fn _px(buf, w, x, y, chan) {
 }
 
 fn main() {
-    var layered = bytes.try_pack([
+    var layered = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
@@ -38,17 +38,17 @@ fn main() {
         255, 0, 0, 255
     ])
     assert_true(oren_is_err(layered) == false)
-    var shared_vertices = bytes.try_pack([
+    var shared_vertices = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
         2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0
     ])
     assert_true(oren_is_err(shared_vertices) == false)
-    var shared_indices = bytes.try_pack([
+    var shared_indices = bytes.pack([
         0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(shared_indices) == false)
-    var scaled = bytes.try_pack([
+    var scaled = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0

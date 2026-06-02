@@ -22,39 +22,39 @@ fn assert_eq(a, b) {
 }
 
 fn main() {
-    var image = bytes.try_pack([
+    var image = bytes.pack([
         255, 0, 0, 255, 0, 255, 0, 255,
         0, 0, 255, 255, 255, 255, 0, 255
     ])
     assert_true(oren_is_err(image) == false)
-    var text_data = bytes.try_pack([65, 66, 67])
+    var text_data = bytes.pack([65, 66, 67])
     assert_true(oren_is_err(text_data) == false)
-    var text_bytes_data = bytes.try_pack([88, 89])
+    var text_bytes_data = bytes.pack([88, 89])
     assert_true(oren_is_err(text_bytes_data) == false)
-    var text_positions = bytes.try_pack([
+    var text_positions = bytes.pack([
         1, 0, 0, 0, 3, 0, 0, 0,
         4, 0, 0, 0, 1, 0, 0, 0
     ])
     assert_true(oren_is_err(text_positions) == false)
-    var points = bytes.try_pack([
+    var points = bytes.pack([
         5, 0, 0, 0, 0, 0, 0, 0,
         5, 0, 0, 0, 4, 0, 0, 0,
         3, 0, 0, 0, 4, 0, 0, 0
     ])
     assert_true(oren_is_err(points) == false)
-    var triangles = bytes.try_pack([
+    var triangles = bytes.pack([
         3, 0, 0, 0, 4, 0, 0, 0,
         5, 0, 0, 0, 4, 0, 0, 0,
         5, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(triangles) == false)
-    var triangles3d = bytes.try_pack([
+    var triangles3d = bytes.pack([
         0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(triangles3d) == false)
-    var triangles3d_depth = bytes.try_pack([
+    var triangles3d_depth = bytes.pack([
         4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
         5, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
@@ -65,11 +65,11 @@ fn main() {
         255, 0, 0, 255
     ])
     assert_true(oren_is_err(triangles3d_depth) == false)
-    var mesh3d_indices = bytes.try_pack([
+    var mesh3d_indices = bytes.pack([
         0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(mesh3d_indices) == false)
-    var rects = bytes.try_pack([
+    var rects = bytes.pack([
         0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
