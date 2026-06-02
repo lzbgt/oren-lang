@@ -67,6 +67,12 @@ BANNED_TOKENS = (
     "try_write_frame_header",
     "try_parse_hex",
     "try_encode_rgba",
+    "try_starts_with",
+    "try_ends_with",
+    "try_contains",
+    "try_index_of",
+    "try_streq",
+    "try_trim",
 )
 
 
@@ -95,6 +101,7 @@ def main() -> int:
     public_int_cast_fn_re = re.compile(r"\bfn\s+(try_[ui](?:8|16|32|64))\b")
     public_int_cast_call_re = re.compile(r"\b(ints|casts)\.(try_[ui](?:8|16|32|64))\b")
     public_mat_proj_fn_re = re.compile(r"\bfn\s+(try_mat_(?:row|col|diag|subview)[A-Za-z0-9_]*)\b")
+    public_linalg_alias_re = re.compile(r"\btry_(?:dot|reduce_sum|axpy|matmul)[A-Za-z0-9_]*\b")
     failures: list[str] = []
     for path in iter_sources():
         text = path.read_text(encoding="utf-8")
@@ -127,6 +134,9 @@ def main() -> int:
                 mat_proj_fn = public_mat_proj_fn_re.search(line)
                 if mat_proj_fn:
                     failures.append(f"{rel}:{line_no}: banned public matrix projection helper `{mat_proj_fn.group(1)}`")
+            linalg_alias = public_linalg_alias_re.search(line)
+            if linalg_alias:
+                failures.append(f"{rel}:{line_no}: banned public linalg alias `{linalg_alias.group(0)}`")
             if not rel.startswith("lib/std/buffer/"):
                 buffer_call = public_buffer_call_re.search(line)
                 if buffer_call:

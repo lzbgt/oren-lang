@@ -390,11 +390,11 @@ Facts from the 2026-05-28 implementation pass:
 		  HTTP/2 parser records, UI color parsing, PPM encoding, public
 		  `std:bytes` helpers, public `std:buffer` root/view/matrix helpers
 		  including matrix projection helpers, public `std:strings` / `std:list`
-		  helpers, and checked
+		  helpers, public `std:linalg` root helpers, and checked
 		  `std:ints` / `std:casts` helpers now use canonical fallible verbs or
 		  `{ok,...}` records (`parse`, `encode`, `decode_bytes`, `compile`,
 		  `bytes`, `bytes.pack`, `bytes.get_u32_le`, `load_i32`, `mat_row_to_bytes`,
-		  `strings.slice`, `list.get`, `ints.checked_u8`, etc.) instead of public
+		  `strings.slice`, `list.get`, `linalg.dot_f64_buf`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
 		  internals are explicit `*_raw` or private module helpers. Base64 encoding now writes exact-size `u8_buf` output instead of materializing an
 		  intermediate Oren list. NET cleanup now covers native and AVM session

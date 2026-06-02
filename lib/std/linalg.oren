@@ -158,39 +158,3 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
 fn matmul_i32_buf_wide_into(out: []i64, a: []i32, b: []i32, m, n, p) {
     return mi32.matmul_i32_buf_wide_into(out, a, b, m, n, p)
 }
-
-fn try_dot_f64(a, b) { return dot_f64(a, b) }
-fn try_dot_f32(a, b) { return dot_f32(a, b) }
-fn try_dot_i32_buf(a: []i32, b: []i32) { return dot_i32_buf(a, b) }
-fn try_dot_i32_buf_scalar(a: []i32, b: []i32) { return dot_i32_buf_scalar(a, b) }
-fn try_reduce_sum_i32_buf(a: []i32) { return reduce_sum_i32_buf(a) }
-fn try_reduce_sum_i64_list_int_slots(a) { return reduce_sum_i64_list_int_slots(a) }
-fn try_dot_i64_list_int_slots(a, b) { return dot_i64_list_int_slots(a, b) }
-fn try_dot_i32_list_int_packed(a, b) { return dot_i32_list_int_packed(a, b) }
-fn try_dot_i32_list_int_packed_reuse(packed_a: []i32, packed_b: []i32, a, b) { return dot_i32_list_int_packed_reuse(packed_a, packed_b, a, b) }
-fn try_reduce_sum_i32_list_int_packed(a) { return reduce_sum_i32_list_int_packed(a) }
-fn try_reduce_sum_i32_list_int_packed_reuse(packed_a: []i32, a) { return reduce_sum_i32_list_int_packed_reuse(packed_a, a) }
-fn try_dot_f32_buf(a: []f32, b: []f32) { return dot_f32_buf(a, b) }
-fn try_dot_f64_buf(a: []f64, b: []f64) { return dot_f64_buf(a, b) }
-fn try_reduce_sum_f64_buf(a: []f64) { return reduce_sum_f64_buf(a) }
-fn try_dot_i32_view(a, b) { return dot_i32_view(a, b) }
-fn try_dot_f32_view(a, b) { return dot_f32_view(a, b) }
-fn try_dot_f64_view(a, b) { return dot_f64_view(a, b) }
-fn try_axpy_f64(alpha, x, y) { return axpy_f64(alpha, x, y) }
-fn try_axpy_f64_in_place(alpha, x, y) { return axpy_f64_in_place(alpha, x, y) }
-fn try_axpy_f32(alpha, x, y) { return axpy_f32(alpha, x, y) }
-fn try_axpy_f32_buf_in_place(alpha, x: []f32, y: []f32) { return axpy_f32_buf_in_place(alpha, x, y) }
-fn try_axpy_f32_buf(alpha, x: []f32, y: []f32) { return axpy_f32_buf(alpha, x, y) }
-fn try_axpy_i32_buf_in_place(alpha, x: []i32, y: []i32) { return axpy_i32_buf_in_place(alpha, x, y) }
-fn try_axpy_i32_buf(alpha, x: []i32, y: []i32) { return axpy_i32_buf(alpha, x, y) }
-fn try_matmul_f64(a, b, m, n, p) { return matmul_f64(a, b, m, n, p) }
-fn try_matmul_f32(a, b, m, n, p) { return matmul_f32(a, b, m, n, p) }
-fn try_matmul_f32_buf(a: []f32, b: []f32, m, n, p) { return matmul_f32_buf(a, b, m, n, p) }
-fn try_matmul_f32_buf_into(out: []f32, a: []f32, b: []f32, m, n, p) { return matmul_f32_buf_into(out, a, b, m, n, p) }
-fn try_matmul_f64_buf(a: []f64, b: []f64, m, n, p) { return matmul_f64_buf(a, b, m, n, p) }
-fn try_matmul_f64_buf_into(out: []f64, a: []f64, b: []f64, m, n, p) { return matmul_f64_buf_into(out, a, b, m, n, p) }
-fn try_matmul_f32_mat_view(a, b) { return matmul_f32_mat_view(a, b) }
-fn try_matmul_i32_buf(a: []i32, b: []i32, m, n, p) { return matmul_i32_buf(a, b, m, n, p) }
-fn try_matmul_i32_buf_into(out: []i32, a: []i32, b: []i32, m, n, p) { return matmul_i32_buf_into(out, a, b, m, n, p) }
-fn try_matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) { return matmul_i32_buf_wide(a, b, m, n, p) }
-fn try_matmul_i32_buf_wide_into(out: []i64, a: []i32, b: []i32, m, n, p) { return matmul_i32_buf_wide_into(out, a, b, m, n, p) }

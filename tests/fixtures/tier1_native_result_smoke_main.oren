@@ -318,11 +318,11 @@ fn smoke_list_int_slot_ops() {
     if oren_list_int_dot_slots(nil, nil) != 0 { return 16798 }
     if oren_list_int_reduce_sum_slots_unchecked(nil) != 0 { return 16799 }
     if oren_list_int_dot_slots_unchecked(nil, nil) != 0 { return 16800 }
-    if linalg.try_reduce_sum_i64_list_int_slots(xs) != 10 { return 16801 }
-    if linalg.try_dot_i64_list_int_slots(xs, xs) != 30 { return 16802 }
+    if linalg.reduce_sum_i64_list_int_slots(xs) != 10 { return 16801 }
+    if linalg.dot_i64_list_int_slots(xs, xs) != 30 { return 16802 }
     if linalg.reduce_sum_i64_list_int_slots(lit) != 22 { return 16803 }
     if linalg.dot_i64_list_int_slots(lit, [1, 2, 3, 4]) != 60 { return 16804 }
-    if oren_is_err(linalg.try_dot_i64_list_int_slots(xs, short)) != true { return 16805 }
+    if oren_is_err(linalg.dot_i64_list_int_slots(xs, short)) != true { return 16805 }
     var raw_sum_bad = oren_list_int_reduce_sum_slots([1, "x"])
     if oren_is_err(raw_sum_bad) != true { return 16806 }
     if oren_err_code(raw_sum_bad) != 4 { return 16807 }
