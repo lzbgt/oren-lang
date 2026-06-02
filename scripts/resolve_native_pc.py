@@ -105,33 +105,6 @@ def _parse_one_entry(buf: bytes, off: int) -> Tuple[DebugEntry, int]:
     ), p
 
 
-def _try_parse_table_at(buf: bytes, table_off: int) -> Optional[Tuple[int, list[DebugEntry]]]:
-    if table_off < 0 or table_off + 8 > len(buf):
-        return None
-
-    count = _u64_le(buf, table_off)
-    # Sanity bounds: debug builds can have many functions, but not millions.
-    if count == 0 or count > 1_000_000:
-        return None
-
-    entries: list[DebugEntry] = []
-    p = table_off + 8
-    try:
-        for _ in range(count):
-            e, p = _parse_one_entry(buf, p)
-            entries.append(e)
-            if p > len(buf):
-                return None
-    except (struct.error, IndexError):
-        return None
-
-    # Heuristic: table should contain the synthetic entry stub label.
-    if not any(e.name == "__entry_stub__" for e in entries):
-        return None
-
-    return count, entries
-
-
 def find_debug_table(buf: bytes) -> Tuple[int, list[DebugEntry]]:
     marker = b"__entry_stub__"
     want_len = len(marker)

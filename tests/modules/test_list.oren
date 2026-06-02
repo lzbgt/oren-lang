@@ -7,42 +7,42 @@ fn assert(cond, msg) {
     }
 }
 
-fn test_list_try_helpers() {
+fn test_list_fallible_helpers() {
     var xs = [1, 2]
-    assert(list.len(xs) == 2, "try_len")
-    assert(list.is_empty(xs) == false, "try_is_empty false")
-    assert(list.is_empty([]) == true, "try_is_empty true")
-    assert(oren_is_err(list.is_empty(123)), "try_is_empty bad xs")
+    assert(list.len(xs) == 2, "len")
+    assert(list.is_empty(xs) == false, "is_empty false")
+    assert(list.is_empty([]) == true, "is_empty true")
+    assert(oren_is_err(list.is_empty(123)), "is_empty bad xs")
 
     var pushed = list.push(xs, 3)
-    assert(oren_is_err(pushed) == false, "try_push ok")
-    assert(list.len(xs) == 3, "try_push len")
-    assert(list.last(xs) == 3, "try_push last")
-    assert(oren_is_err(list.push(123, 1)), "try_push bad xs")
+    assert(oren_is_err(pushed) == false, "push ok")
+    assert(list.len(xs) == 3, "push len")
+    assert(list.last(xs) == 3, "push last")
+    assert(oren_is_err(list.push(123, 1)), "push bad xs")
 
-    assert(list.get(xs, 1) == 2, "try_get")
-    assert(oren_is_err(list.get(xs, "x")), "try_get bad index")
-    assert(oren_is_err(list.get(xs, 3)), "try_get oob")
+    assert(list.get(xs, 1) == 2, "get")
+    assert(oren_is_err(list.get(xs, "x")), "get bad index")
+    assert(oren_is_err(list.get(xs, 3)), "get oob")
 
     var setv = list.set(xs, 1, 22)
-    assert(oren_is_err(setv) == false, "try_set ok")
-    assert(list.get(xs, 1) == 22, "try_set value")
-    assert(oren_is_err(list.set(xs, -1, 0)), "try_set oob")
+    assert(oren_is_err(setv) == false, "set ok")
+    assert(list.get(xs, 1) == 22, "set value")
+    assert(oren_is_err(list.set(xs, -1, 0)), "set oob")
 
     var copied = list.clone(xs)
-    assert(oren_is_err(copied) == false, "try_clone ok")
-    assert(list.len(copied) == 3, "try_clone len")
-    assert(list.get(copied, 1) == 22, "try_clone value")
-    assert(oren_is_err(list.clone(123)), "try_clone bad xs")
+    assert(oren_is_err(copied) == false, "clone ok")
+    assert(list.len(copied) == 3, "clone len")
+    assert(list.get(copied, 1) == 22, "clone value")
+    assert(oren_is_err(list.clone(123)), "clone bad xs")
 
     var sliced = list.slice_copy(xs, 1, 2)
-    assert(oren_is_err(sliced) == false, "try_slice_copy ok")
-    assert(list.len(sliced) == 2, "try_slice_copy len")
-    assert(list.get(sliced, 0) == 22, "try_slice_copy value")
-    assert(oren_is_err(list.slice_copy(xs, "x", 1)), "try_slice_copy bad off")
-    assert(oren_is_err(list.slice_copy(xs, 2, 3)), "try_slice_copy range")
+    assert(oren_is_err(sliced) == false, "slice_copy ok")
+    assert(list.len(sliced) == 2, "slice_copy len")
+    assert(list.get(sliced, 0) == 22, "slice_copy value")
+    assert(oren_is_err(list.slice_copy(xs, "x", 1)), "slice_copy bad off")
+    assert(oren_is_err(list.slice_copy(xs, 2, 3)), "slice_copy range")
 }
 
-test_list_try_helpers()
+test_list_fallible_helpers()
 print("ok")
 exit(0)
