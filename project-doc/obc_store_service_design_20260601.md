@@ -197,6 +197,18 @@ GET /api/v0/packages/{publisher}/{name}/versions/{version}
 Search response should include only metadata needed for browsing. Download and
 execution should still verify the release manifest and hashes.
 
+Browser package detail pages should link declared Oren source assets to rendered
+portal pages, not direct downloads. The current route is:
+
+```http
+GET /packages/{publisher}/{name}/source?version={version}&path=assets/source/main.oren
+```
+
+The renderer only accepts paths listed in manifest `sources` and declared in
+manifest `assets`, then displays syntax-highlighted source with an AST-oriented
+outline for imports/declarations. Raw API asset downloads remain available for
+SDK/install tooling.
+
 ### Download and Install
 
 ```http

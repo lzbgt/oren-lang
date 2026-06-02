@@ -53,6 +53,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("publisher status=%d body=%s", got.Code, got.Body.String())
 	}
 	previewPNG := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	sourceOren := "import math \"std:math\"\n\nfn main() {\n    print(\"demo\")\n}\n\nmain()\n"
 	pkg := map[string]any{
 		"publisher": "oren-labs",
 		"name":      "plot-demo",
@@ -78,7 +79,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	upload := map[string]any{
 		"version":               "0.1.0",
 		"program_obc_base64":    base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e, 0x00, 0x01}),
-		"release_bundle_base64": base64.StdEncoding.EncodeToString(testBundleZip(t, map[string][]byte{"package.json": []byte(`{"schema":"oren.obc.package.v0"}`), "program.obc": []byte{0xcd, 0x0e, 0x00, 0x01}, "assets/source/main.oren": []byte("print(\"demo\")\n")})),
+		"release_bundle_base64": base64.StdEncoding.EncodeToString(testBundleZip(t, map[string][]byte{"package.json": []byte(`{"schema":"oren.obc.package.v0"}`), "program.obc": []byte{0xcd, 0x0e, 0x00, 0x01}, "assets/source/main.oren": []byte(sourceOren)})),
 		"tags":                  []string{"science", "gfx"},
 		"min_app":               "0.1.0",
 		"manifest": map[string]any{
@@ -96,7 +97,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 			{
 				"path":           "assets/source/main.oren",
 				"media_type":     "text/x-oren",
-				"content_base64": base64.StdEncoding.EncodeToString([]byte("print(\"demo\")\n")),
+				"content_base64": base64.StdEncoding.EncodeToString([]byte(sourceOren)),
 			},
 			{
 				"path":           "assets/readme.txt",
@@ -162,7 +163,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") || !strings.Contains(detail, "bundle.obc.zip") || !strings.Contains(detail, "/publishers/oren-labs") {
 		t.Fatalf("detail page missing release links: %s", detail)
 	}
-	if !strings.Contains(detail, "CORE") || !strings.Contains(detail, "GFX") || !strings.Contains(detail, "main") || !strings.Contains(detail, "1 default(s)") || !strings.Contains(detail, "/assets/source/main.oren") {
+	if !strings.Contains(detail, "CORE") || !strings.Contains(detail, "GFX") || !strings.Contains(detail, "main") || !strings.Contains(detail, "1 default(s)") || !strings.Contains(detail, "/packages/oren-labs/plot-demo/source?version=0.1.0") || !strings.Contains(detail, "assets%2Fsource%2Fmain.oren") {
 		t.Fatalf("detail page missing manifest metadata: %s", detail)
 	}
 	if !strings.Contains(detail, `<img class="preview"`) || !strings.Contains(detail, "/screenshots/preview.png") {
@@ -215,8 +216,12 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/readme.txt")); got != "asset-ok" {
 		t.Fatalf("asset=%q", got)
 	}
-	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/source/main.oren")); got != "print(\"demo\")\n" {
+	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/source/main.oren")); got != sourceOren {
 		t.Fatalf("source asset=%q", got)
+	}
+	sourcePage := string(rawGet(t, ts, "/packages/oren-labs/plot-demo/source?version=0.1.0&path=assets/source/main.oren"))
+	if !strings.Contains(sourcePage, "AST Outline") || !strings.Contains(sourcePage, `<span class="tok-keyword">fn</span>`) || !strings.Contains(sourcePage, `<span class="tok-decl">main</span>`) || !strings.Contains(sourcePage, `<span class="tok-string">&#34;demo&#34;</span>`) {
+		t.Fatalf("source page missing Oren highlighting: %s", sourcePage)
 	}
 	if got := rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/screenshots/preview.png"); !bytes.Equal(got, previewPNG) {
 		t.Fatalf("screenshot asset=%x", got)
@@ -238,6 +243,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 	if got := request(t, ts, http.MethodGet, "/packages/oren-labs/plot-demo", nil, false); got.Code != http.StatusNotFound {
 		t.Fatalf("private browser package status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodGet, "/packages/oren-labs/plot-demo/source?version=0.1.0&path=assets/source/main.oren", nil, false); got.Code != http.StatusNotFound {
+		t.Fatalf("private browser source status=%d body=%s", got.Code, got.Body.String())
 	}
 	if got := string(rawGet(t, ts, "/publishers/oren-labs")); strings.Contains(got, "Plot Demo") {
 		t.Fatalf("private package still visible on publisher page: %s", got)

@@ -311,11 +311,19 @@ func (s *Service) handleSitePackage(w http.ResponseWriter, r *http.Request) {
 	}
 	rest := strings.TrimPrefix(r.URL.Path, "/packages/")
 	parts := strings.Split(rest, "/")
-	if len(parts) != 2 || !safeID(parts[0]) || !safeID(parts[1]) {
+	if (len(parts) != 2 && len(parts) != 3) || !safeID(parts[0]) || !safeID(parts[1]) {
 		http.NotFound(w, r)
 		return
 	}
 	pub, name := parts[0], parts[1]
+	if len(parts) == 3 {
+		if parts[2] != "source" {
+			http.NotFound(w, r)
+			return
+		}
+		s.handleSiteSource(w, r, pub, name)
+		return
+	}
 	meta, err := readJSONFile[PackageMeta](s.packageMetaPath(pub, name))
 	if err != nil {
 		http.NotFound(w, r)
@@ -1092,7 +1100,7 @@ func sourceLinksFromManifest(pub, name, version string, manifest map[string]any)
 			Path:     path,
 			Language: lang,
 			Role:     role,
-			URL:      fmt.Sprintf("/api/v0/packages/%s/%s/versions/%s/%s", pub, name, version, path),
+			URL:      sourceViewURL(pub, name, version, path),
 		})
 	}
 	return out

@@ -46,7 +46,9 @@ build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d
 Official demo packages always bundle source code as a package asset so host apps
 can show or ignore source independently from the executable OBC. The manifest
 declares the source in both `assets` and `sources`; the store index declares the
-ZIP bundle path, media type, and SHA-256. Official demo releases also write a
+ZIP bundle path, media type, and SHA-256. The store browser renders declared
+Oren source through a syntax-highlighted source page with an AST outline instead
+of making users download the source file. Official demo releases also write a
 deterministic `screenshots/preview.png` image as store presentation metadata.
 Screenshots are intentionally not package manifest assets and are not included in
 the client-installable `.obc.zip` bundle. Demo packages may also bundle runtime

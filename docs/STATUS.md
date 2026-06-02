@@ -145,6 +145,9 @@ Facts from the 2026-05-28 implementation pass:
   populated with first-party `oren-labs` `science-calculator`, `ui-card-demo`,
   and `scene3d-asset-demo` `.obc.zip` releases with screenshot previews from
   `examples/obc_store_demos/`.
+  Package detail pages render declared Oren source assets through a server-side
+  syntax/AST-outline viewer, while raw API asset downloads remain available for
+  install tooling.
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
   install and package run from that endpoint. The release bundle format is

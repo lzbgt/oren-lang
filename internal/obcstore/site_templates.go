@@ -9,6 +9,7 @@ var (
 	siteHomeTemplate      = template.Must(template.New("store-home").Parse(siteHomeHTML))
 	sitePackageTemplate   = template.Must(template.New("store-package").Parse(sitePackageHTML))
 	sitePublisherTemplate = template.Must(template.New("store-publisher").Parse(sitePublisherHTML))
+	siteSourceTemplate    = template.Must(template.New("store-source").Parse(siteSourceHTML))
 	siteOpsTemplate       = template.Must(template.New("store-ops").Parse(siteOpsHTML))
 	siteOpsStatusTemplate = template.Must(template.New("store-ops-status").Parse(siteOpsStatusHTML))
 )
@@ -29,11 +30,15 @@ main{max-width:980px;margin:0 auto;padding:24px}
 	.card{background:#fffaf0;border:1px solid #ded3bd;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 8px 24px #00000012}
 	.package-card{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;align-items:center}
 	.preview{width:100%;max-width:360px;border-radius:14px;border:1px solid #d7cdbb;background:#17211f;box-shadow:0 10px 24px #0000001a}
+	.source-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;align-items:start}
+	.source-code{margin:0;background:#102820;color:#f5efe0;border-radius:14px;padding:16px;overflow:auto;font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+	.source-line{white-space:pre}.ln{display:inline-block;width:4ch;color:#8aa399;text-align:right;margin-right:12px;user-select:none}
+	.tok-keyword{color:#8fd7ff;font-weight:700}.tok-decl{color:#ffd166;font-weight:700}.tok-call{color:#a8e6a1}.tok-method{color:#f4a261}.tok-string{color:#f7c59f}.tok-number{color:#f4d35e}.tok-comment{color:#8aa399}.tok-punct{color:#d7cdbb}.tok-ident{color:#f5efe0}
 	input{font:inherit;padding:10px;border:1px solid #cbbfa8;border-radius:10px;background:#fff}
 	button{font:inherit;padding:10px 14px;border:0;border-radius:10px;background:#146c5b;color:white}
 	code,pre{background:#eee3d0;border-radius:8px;padding:2px 5px}pre{overflow:auto;padding:14px}
 	table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e2d7c3;padding:8px;text-align:left}
-	@media(max-width:760px){.brand{font-size:30px}main{padding:16px}input,button{width:100%;margin-top:8px}.package-card{grid-template-columns:1fr}.preview{max-width:none}}
+	@media(max-width:760px){.brand{font-size:30px}main{padding:16px}input,button{width:100%;margin-top:8px}.package-card,.source-layout{grid-template-columns:1fr}.preview{max-width:none}}
 	`
 
 const siteHomeHTML = `<!doctype html>
@@ -80,9 +85,27 @@ const sitePackageHTML = `<!doctype html>
 	    <td>{{if .PermissionDefaultsCount}}{{.PermissionDefaultsCount}} default(s){{else}}-{{end}}</td>
 	    <td>{{.Status}}</td>
 	  </tr>{{end}}</table>{{else}}No published releases.{{end}}
+	</section>
+	<section class="card"><h2>Install Metadata</h2><pre>package={{.Meta.Publisher}}/{{.Meta.Name}}
+	index=https://store.hubstack.cn/api/v0/index.json</pre></section>
+	</main></body></html>`
+
+const siteSourceHTML = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.Meta.Publisher}}/{{.Meta.Name}} source - OBC Store</title><style>` + siteCSS + `</style></head>
+<body><header><h1 class="brand">{{if .Meta.Title}}{{.Meta.Title}}{{else}}{{.Meta.Publisher}}/{{.Meta.Name}}{{end}} Source</h1><p>{{.Source.Path}} · {{.Release.Version}}</p></header>
+<main>
+<p><a href="/packages/{{.Meta.Publisher}}/{{.Meta.Name}}">Back to package</a> · <a href="/">Browse packages</a></p>
+<section class="source-layout">
+  <aside class="card">
+    <h2>AST Outline</h2>
+    {{if .Outline}}{{range .Outline}}<p><span class="pill">{{.Kind}}</span> <a href="#L{{.Line}}">{{.Name}}</a></p>{{end}}{{else}}<p class="muted">No top-level declarations found.</p>{{end}}
+    <h2>Metadata</h2>
+    <p class="muted">language={{.Source.Language}}<br>role={{.Source.Role}}</p>
+  </aside>
+  <pre class="source-code">{{range .Lines}}<span class="source-line" id="L{{.Number}}"><span class="ln">{{.Number}}</span>{{.HTML}}</span>
+{{end}}</pre>
 </section>
-<section class="card"><h2>Install Metadata</h2><pre>package={{.Meta.Publisher}}/{{.Meta.Name}}
-index=https://store.hubstack.cn/api/v0/index.json</pre></section>
 </main></body></html>`
 
 const sitePublisherHTML = `<!doctype html>

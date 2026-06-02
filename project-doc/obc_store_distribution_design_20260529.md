@@ -172,7 +172,8 @@ the store site.
 `store.hubstack.cn` should act like a small PyPI-style registry for OBC packages:
 
 - publish package pages with title, summary, screenshots, capabilities, publisher,
-  versions, hashes, signatures, and compatibility metadata;
+  versions, hashes, signatures, compatibility metadata, and rendered source views
+  for declared Oren source assets;
 - serve signed machine-readable indexes such as `/obc/index.json` and
   `/obc/index.json.sig`;
 - serve immutable package manifests, `program.obc`, deterministic `.obc.zip`

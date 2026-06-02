@@ -51,7 +51,9 @@ Optional entries:
 Source code is optional for third-party packages and required for official demos.
 The OBC artifact remains the executable release payload; source assets are for
 host-app display, audit, learning, or recompile workflows. A host app may choose
-to download, show, cache, or ignore source assets.
+to download, show, cache, or ignore source assets. The browser store portal
+renders declared Oren source assets with syntax highlighting and an AST-oriented
+outline instead of presenting them as plain download links.
 
 Official demos should declare bundled source in both places:
 
