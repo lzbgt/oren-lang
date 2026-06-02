@@ -160,7 +160,7 @@ fn _send_frame(conn, typ, flags, stream_id, payload_bytes, timeout_ms) {
     if oren_is_err(plen) { return 0 - 22 }
     var hdr = malloc(16)
     if hdr == 0 { return 0 - 12 }
-    var rc0 = h2.write_frame_header(hdr, plen, typ, flags, stream_id)
+    var rc0 = h2.write_frame_header_raw(hdr, plen, typ, flags, stream_id)
     if rc0 != 0 { free(hdr); return rc0 }
     var wr0 = _write_all_ptr(conn, hdr, 9, timeout_ms)
     free(hdr)

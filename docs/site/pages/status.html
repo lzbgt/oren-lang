@@ -478,9 +478,11 @@
 <p>	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical</p>
 <p>	  <code>digest</code> / <code>hex</code> / receiver-method APIs, and process virtual padding via</p>
 <p>		  indexed byte access instead of unpacking the whole message to a list. JSON,</p>
-<p>		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, and crypto RNG now use</p>
-<p>		  canonical fallible verbs (<code>parse</code>, <code>encode</code>, <code>decode_bytes</code>, <code>compile</code>,</p>
-<p>		  <code>bytes</code>, etc.) instead of public <code>try_*</code> names, while raw errno-style</p>
+<p>		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,</p>
+<p>		  HTTP/2 parser records, UI color parsing, and PPM encoding now use</p>
+<p>		  canonical fallible verbs or <code>{ok,...}</code> records (<code>parse</code>, <code>encode</code>,</p>
+<p>		  <code>decode_bytes</code>, <code>compile</code>, <code>bytes</code>, etc.) instead of public <code>try_*</code> names,</p>
+<p>		  while raw errno-style</p>
 <p>		  internals are explicit <code>*_raw</code>. Base64 encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>		  intermediate Oren list. NET cleanup now covers native and AVM session</p>
 <p>		  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>

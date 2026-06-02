@@ -1130,10 +1130,10 @@ fn smoke_bytes_tail_and_bridge() {
 }
 
 fn smoke_ui_result_surface() {
-    var okc = ui_color.try_parse_hex("#010203")
+    var okc = ui_color.parse_hex("#010203")
     if r.is_err(okc) { return 1300 }
     if okc["r"] != 1 || okc["g"] != 2 || okc["b"] != 3 || okc["a"] != 255 { return 1301 }
-    var badc = ui_color.try_parse_hex("red")
+    var badc = ui_color.parse_hex("red")
     if r.is_err(badc) != true { return 1302 }
     if oren_err_code(badc) != 4 { return 1303 }
     if oren_err_msg(badc) != "color must be #RRGGBB or #RRGGBBAA" { return 1304 }

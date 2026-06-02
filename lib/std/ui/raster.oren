@@ -305,7 +305,7 @@ fn _draw_polyline(buf, w, h, points, lw, c) {
 }
 
 fn _draw_text_marker(buf, w, h, text_resource, x, y) {
-    var tc = ui_color.try_parse_hex(text_resource["color"])
+    var tc = ui_color.parse_hex(text_resource["color"])
     if oren_is_err(tc) { return result.with_context(tc, "rasterize: draw_text color") }
     var tb = text_resource["data"]
     var tn = bytes.try_len(tb)
@@ -635,7 +635,7 @@ fn _draw_mesh3d_resource(buf, w, h, mesh3d, material, err_prefix, mx, my, mz, sc
     if mesh3d == nil { return oren_err(4, err_prefix + " missing mesh") }
     var material_color = nil
     if material != nil {
-        material_color = ui_color.try_parse_hex(material["color"])
+        material_color = ui_color.parse_hex(material["color"])
         if oren_is_err(material_color) { return result.with_context(material_color, err_prefix + " material color") }
     }
     if mesh3d["op"] == "mesh3d_rgba" {
@@ -644,7 +644,7 @@ fn _draw_mesh3d_resource(buf, w, h, mesh3d, material, err_prefix, mx, my, mz, sc
         }
         return _draw_triangle3d_rgba_bytes_model(buf, w, h, mesh3d["triangles"], err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z)
     }
-    var m3c = ui_color.try_parse_hex(mesh3d["color"])
+    var m3c = ui_color.parse_hex(mesh3d["color"])
     if oren_is_err(m3c) { return result.with_context(m3c, err_prefix + " mesh3d color") }
     if material_color != nil { m3c = material_color }
     if mesh3d["op"] == "mesh3d_indexed" {
@@ -684,7 +684,7 @@ fn rasterize(cmds, w, h, opts) {
 
     var bg = opts["clear_color"]
     if bg != nil {
-        var c0 = ui_color.try_parse_hex(bg)
+        var c0 = ui_color.parse_hex(bg)
         if oren_is_err(c0) { return result.with_context(c0, "rasterize: clear_color") }
         var y = 0
         while y < h {
@@ -770,7 +770,7 @@ fn rasterize(cmds, w, h, opts) {
             far_z = dprev[2]
             camera_stack[dkey] = nil
         } else if op == "fill_rect" {
-            var c = ui_color.try_parse_hex(opm["color"])
+            var c = ui_color.parse_hex(opm["color"])
             if oren_is_err(c) { return result.with_context(c, "rasterize: fill_rect color") }
             var rx = opm["x"]
             var ry = opm["y"]
@@ -787,13 +787,13 @@ fn rasterize(cmds, w, h, opts) {
                 yy = yy + 1
             }
         } else if op == "stroke_line" {
-            var lc = ui_color.try_parse_hex(opm["color"])
+            var lc = ui_color.parse_hex(opm["color"])
             if oren_is_err(lc) { return result.with_context(lc, "rasterize: stroke_line color") }
             var lw = opm["width"]
             if lw == nil { lw = 1 }
             _draw_line(buf, w, h, opm["x1"], opm["y1"], opm["x2"], opm["y2"], lw, lc)
         } else if op == "stroke_rect" {
-            var sc = ui_color.try_parse_hex(opm["color"])
+            var sc = ui_color.parse_hex(opm["color"])
             if oren_is_err(sc) { return result.with_context(sc, "rasterize: stroke_rect color") }
             var slw = opm["width"]
             if slw == nil { slw = 1 }
@@ -810,7 +810,7 @@ fn rasterize(cmds, w, h, opts) {
                 si = si + 1
             }
         } else if op == "round_rect" {
-            var rc = ui_color.try_parse_hex(opm["color"])
+            var rc = ui_color.parse_hex(opm["color"])
             if oren_is_err(rc) { return result.with_context(rc, "rasterize: round_rect color") }
             var rfill = opm["fill"]
             if rfill == nil { rfill = true }
@@ -818,13 +818,13 @@ fn rasterize(cmds, w, h, opts) {
             if rlw == nil { rlw = 1 }
             _draw_round_rect(buf, w, h, opm["x"], opm["y"], opm["w"], opm["h"], opm["r"], rlw, rfill, rc)
         } else if op == "circle" {
-            var cc = ui_color.try_parse_hex(opm["color"])
+            var cc = ui_color.parse_hex(opm["color"])
             if oren_is_err(cc) { return result.with_context(cc, "rasterize: circle color") }
             var fill = opm["fill"]
             if fill == nil { fill = true }
             _draw_circle(buf, w, h, opm["cx"], opm["cy"], opm["r"], fill, cc)
         } else if op == "ellipse" {
-            var ec = ui_color.try_parse_hex(opm["color"])
+            var ec = ui_color.parse_hex(opm["color"])
             if oren_is_err(ec) { return result.with_context(ec, "rasterize: ellipse color") }
             var efill = opm["fill"]
             if efill == nil { efill = true }
@@ -832,18 +832,18 @@ fn rasterize(cmds, w, h, opts) {
             if elw == nil { elw = 1 }
             _draw_ellipse(buf, w, h, opm["x"], opm["y"], opm["w"], opm["h"], elw, efill, ec)
         } else if op == "polyline" {
-            var pc = ui_color.try_parse_hex(opm["color"])
+            var pc = ui_color.parse_hex(opm["color"])
             if oren_is_err(pc) { return result.with_context(pc, "rasterize: polyline color") }
             var plw = opm["width"]
             if plw == nil { plw = 1 }
             var pr = _draw_polyline(buf, w, h, opm["points"], plw, pc)
             if oren_is_err(pr) { return result.with_context(pr, "rasterize: polyline") }
         } else if op == "fill_triangle" {
-            var tc = ui_color.try_parse_hex(opm["color"])
+            var tc = ui_color.parse_hex(opm["color"])
             if oren_is_err(tc) { return result.with_context(tc, "rasterize: fill_triangle color") }
             _draw_fill_triangle(buf, w, h, opm["x1"], opm["y1"], opm["x2"], opm["y2"], opm["x3"], opm["y3"], tc)
         } else if op == "fill_triangles" {
-            var btc = ui_color.try_parse_hex(opm["color"])
+            var btc = ui_color.parse_hex(opm["color"])
             if oren_is_err(btc) { return result.with_context(btc, "rasterize: fill_triangles color") }
             var btr = _draw_triangle_bytes(buf, w, h, opm["triangles"], btc, "rasterize: fill_triangles")
             if oren_is_err(btr) { return btr }
@@ -852,7 +852,7 @@ fn rasterize(cmds, w, h, opts) {
         } else if op == "draw_mesh2d" {
             var mesh2d = meshes[oren_int_to_string(opm["id"])]
             if mesh2d == nil { return oren_err(4, "rasterize: draw_mesh2d missing mesh") }
-            var mc = ui_color.try_parse_hex(mesh2d["color"])
+            var mc = ui_color.parse_hex(mesh2d["color"])
             if oren_is_err(mc) { return result.with_context(mc, "rasterize: mesh2d color") }
             var mr = _draw_triangle_bytes(buf, w, h, mesh2d["triangles"], mc, "rasterize: draw_mesh2d")
             if oren_is_err(mr) { return mr }
@@ -908,7 +908,7 @@ fn rasterize(cmds, w, h, opts) {
             materials[oren_int_to_string(opm["id"])] = nil
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
-            var c2 = ui_color.try_parse_hex(opm["color"])
+            var c2 = ui_color.parse_hex(opm["color"])
             if oren_is_err(c2) { return result.with_context(c2, "rasterize: text color") }
             var tx = opm["x"]
             var ty = opm["y"]
@@ -922,7 +922,7 @@ fn rasterize(cmds, w, h, opts) {
             }
         } else if op == "text_bytes" {
             // Deterministic marker: draw 1 pixel per byte at y.
-            var c3 = ui_color.try_parse_hex(opm["color"])
+            var c3 = ui_color.parse_hex(opm["color"])
             if oren_is_err(c3) { return result.with_context(c3, "rasterize: text_bytes color") }
             var bx = opm["x"]
             var by = opm["y"]

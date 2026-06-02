@@ -32,11 +32,11 @@ oren_buf_store_u8(rgba, 5, 255)
 oren_buf_store_u8(rgba, 6, 0)
 oren_buf_store_u8(rgba, 7, 255)
 
-var encoded = ppm.try_encode_rgba(rgba, w, h)
-if oren_is_err(encoded) { fail(10, "try_encode_rgba err") }
+var encoded = ppm.encode_rgba(rgba, w, h)
+if oren_is_err(encoded) { fail(10, "encode_rgba err") }
 
-var bad = ppm.try_encode_rgba(oren_u8_buf_new(3), w, h)
-if oren_is_err(bad) != true { fail(14, "try_encode_rgba length mismatch must err") }
+var bad = ppm.encode_rgba(oren_u8_buf_new(3), w, h)
+if oren_is_err(bad) != true { fail(14, "encode_rgba length mismatch must err") }
 
 var path = "build/test_ui_ppm_write.ppm"
 var wr = ppm.try_write_rgba_ppm(path, rgba, w, h)

@@ -60,6 +60,13 @@ BANNED_TOKENS = (
     "try_sha256_hex_der",
     "try_datetime_to_unix_ns",
     "try_parse_iso8601_utc",
+    "try_decode_header_block",
+    "try_encode_header_block",
+    "try_parse_frame_header",
+    "try_parse_settings_payload",
+    "try_write_frame_header",
+    "try_parse_hex",
+    "try_encode_rgba",
 )
 
 

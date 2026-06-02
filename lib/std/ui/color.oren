@@ -43,10 +43,6 @@ fn parse_hex(s) {
     return {"r": r, "g": g, "b": b, "a": a}
 }
 
-fn try_parse_hex(s) {
-    return parse_hex(s)
-}
-
 fn is_hex(s) {
     var r = parse_hex(s)
     return result.is_err(r) == false

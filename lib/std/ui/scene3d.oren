@@ -248,7 +248,7 @@ fn _pack_triangles_xyz(triangles, ctx) {
 }
 
 fn _store_rgba(out, off, color, ctx) {
-    var c = ui_color.try_parse_hex(color)
+    var c = ui_color.parse_hex(color)
     if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
     raw._store_u8_buf_unchecked_direct(out, off + 0, c["r"])
     raw._store_u8_buf_unchecked_direct(out, off + 1, c["g"])
@@ -713,7 +713,7 @@ fn _asset_color(m, ctx) {
     var color = m["color"]
     if color == nil { color = m["base_color"] }
     if color == nil { return oren_err(4, ctx + ": missing color") }
-    var c = ui_color.try_parse_hex(color)
+    var c = ui_color.parse_hex(color)
     if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
     var opacity = m["opacity_milli"]
     if opacity != nil {

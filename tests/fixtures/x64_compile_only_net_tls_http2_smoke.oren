@@ -127,9 +127,9 @@ fn main() {
         // HTTP/2 framing surface.
         var hdr = malloc(16)
         var _fh = h2.parse_frame_header(hdr)
-        var _tfh = h2.try_parse_frame_header(hdr)
+        var _tfh = h2.parse_frame_header(hdr)
         var _wr = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
-        var _twr = h2.try_write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+        var _wr_raw = h2.write_frame_header_raw(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
         var _pref = h2.CLIENT_PREFACE
         var _plen = h2.CLIENT_PREFACE_LEN
 
@@ -139,7 +139,7 @@ fn main() {
             {"name": ":method", "value": "GET"},
             {"name": ":path", "value": "/"}
         ], {"huffman": 0})
-        var _dr = hpack.decode_header_block(t, hb)
+        var _dr = hpack.decode_header_block(t, hb["b"])
 
         // Crypto helpers (host effects) - keep these behind a dead branch; we only want buildability.
         var _rb = rand.bytes(16)

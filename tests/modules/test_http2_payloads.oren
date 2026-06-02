@@ -35,31 +35,31 @@ assert_eq(parsed["ok"], 1, 24, "parse_settings_payload ok")
 assert_eq(oren_map_get_int(parsed["settings"], 1), 4096, 25, "setting 1")
 assert_eq(oren_map_get_int(parsed["settings"], 2), 0, 26, "setting 2")
 
-var parsed_try = h2.try_parse_settings_payload(payload)
-if oren_is_err(parsed_try) { fail(27, "try_parse_settings_payload returned err") }
-assert_eq(oren_map_get_int(parsed_try, 1), 4096, 28, "try setting 1")
-assert_eq(oren_map_get_int(parsed_try, 2), 0, 29, "try setting 2")
+var parsed_record = h2.parse_settings_payload(payload)
+assert_eq(parsed_record["ok"], 1, 27, "parse_settings_payload record ok")
+assert_eq(oren_map_get_int(parsed_record["settings"], 1), 4096, 28, "setting 1 record")
+assert_eq(oren_map_get_int(parsed_record["settings"], 2), 0, 29, "setting 2 record")
 
 var bad_payload = oren_u8_buf_new(1)
-var bad_parsed = h2.try_parse_settings_payload(bad_payload)
-if oren_is_err(bad_parsed) != true { fail(30, "try_parse_settings_payload bad must err") }
+var bad_parsed = h2.parse_settings_payload(bad_payload)
+if bad_parsed["ok"] != 0 { fail(30, "parse_settings_payload bad must have ok=0") }
 
 var hdr = malloc(16)
 if hdr == 0 { fail(31, "malloc hdr") }
-var wh = h2.try_write_frame_header(hdr, 12, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
-if oren_is_err(wh) { fail(32, "try_write_frame_header err") }
-var fh = h2.try_parse_frame_header(hdr)
-if oren_is_err(fh) { fail(33, "try_parse_frame_header err") }
+var wh = h2.write_frame_header(hdr, 12, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
+if oren_is_err(wh) { fail(32, "write_frame_header err") }
+var fh = h2.parse_frame_header(hdr)
+if fh["ok"] != 1 { fail(33, "parse_frame_header err") }
 assert_eq(fh["len"], 12, 34, "frame len")
 assert_eq(fh["type"], h2.FRAME_SETTINGS, 35, "frame type")
 assert_eq(fh["flags"], h2.FLAG_ACK, 36, "frame flags")
 assert_eq(fh["stream"], 0, 37, "frame stream")
 free(hdr)
 
-var bad_fh = h2.try_parse_frame_header(0)
-if oren_is_err(bad_fh) != true { fail(38, "try_parse_frame_header nil must err") }
-var bad_wh = h2.try_write_frame_header(0, 0, h2.FRAME_SETTINGS, 0, 0)
-if oren_is_err(bad_wh) != true { fail(39, "try_write_frame_header nil must err") }
+var bad_fh = h2.parse_frame_header(0)
+if bad_fh["ok"] != 0 { fail(38, "parse_frame_header nil must have ok=0") }
+var bad_wh = h2.write_frame_header(0, 0, h2.FRAME_SETTINGS, 0, 0)
+if oren_is_err(bad_wh) != true { fail(39, "write_frame_header nil must err") }
 
 print("module http2_payloads OK")
 exit(0)

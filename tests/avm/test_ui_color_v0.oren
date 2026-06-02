@@ -20,7 +20,7 @@ fn assert_eq(a, b) {
 }
 
 fn test_parse_hex_rgb() {
-    var r = ui_color.try_parse_hex("#010203")
+    var r = ui_color.parse_hex("#010203")
     assert_true(oren_is_err(r) == false)
     assert_eq(r["r"], 1)
     assert_eq(r["g"], 2)
@@ -29,7 +29,7 @@ fn test_parse_hex_rgb() {
 }
 
 fn test_parse_hex_rgba() {
-    var r = ui_color.try_parse_hex("#0a0b0c0d")
+    var r = ui_color.parse_hex("#0a0b0c0d")
     assert_true(oren_is_err(r) == false)
     assert_eq(r["r"], 10)
     assert_eq(r["g"], 11)
@@ -38,7 +38,7 @@ fn test_parse_hex_rgba() {
 }
 
 fn test_parse_hex_err() {
-    var bad = ui_color.try_parse_hex("red")
+    var bad = ui_color.parse_hex("red")
     assert_true(oren_is_err(bad) == true)
     assert_eq(oren_err_code(bad), 4)
     assert_eq(oren_err_msg(bad), "color must be #RRGGBB or #RRGGBBAA")

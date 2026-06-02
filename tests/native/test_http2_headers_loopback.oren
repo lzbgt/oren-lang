@@ -257,7 +257,7 @@ fn _send_frame(conn, typ, flags, stream_id, payload_bytes, timeout_ms) {
             if p == 0 { free(hdr); return 0 - 22 }
         }
     }
-    var rc = h2.write_frame_header(hdr, n, typ, flags, stream_id)
+    var rc = h2.write_frame_header_raw(hdr, n, typ, flags, stream_id)
     if rc != 0 { free(hdr); return rc }
     var wr = _write_all_ptr(conn, hdr, 9, timeout_ms)
     if wr != 0 { free(hdr); return wr }
@@ -340,9 +340,9 @@ fn server_impl(listen_fd, pfx_b64) {
     if fr["stream"] != 0 { tls.close(conn); return 19 }
     if fr["flags"] != 0 { tls.close(conn); return 19 }
     // Expect a small deterministic SETTINGS payload from the client.
-    var sm = h2.try_parse_settings_payload(fr["payload"])
-    if oren_is_err(sm) { tls.close(conn); return 190 }
-    if oren_map_get_int(sm, h2.SETTINGS_ENABLE_PUSH) != 0 { tls.close(conn); return 191 }
+    var sm = h2.parse_settings_payload(fr["payload"])
+    if sm["ok"] != 1 { tls.close(conn); return 190 }
+    if oren_map_get_int(sm["settings"], h2.SETTINGS_ENABLE_PUSH) != 0 { tls.close(conn); return 191 }
 
     // Respond with server SETTINGS (empty), then ACK client SETTINGS.
     var wr0 = _send_frame(conn, h2.FRAME_SETTINGS, 0, 0, oren_u8_buf_new(0), 5000)
