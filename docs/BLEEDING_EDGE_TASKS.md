@@ -166,10 +166,14 @@ This file is the concise task view. Detailed implementation status lives in
      `project-doc/obc_store_distribution_design_20260529.md`.
      Curated demo package sources now live under `examples/obc_store_demos/`;
      `make verify-obc-store-demos` builds and AVM-runs
-     `oren-labs/science-calculator@0.1.0` and
-     `oren-labs/ui-card-demo@0.1.0` package directories plus deterministic
-     `.obc.zip` release bundles under `build/obc-store-demos`. Official demos
-     bundle source as hashed package assets so host apps can show or ignore it.
+     `oren-labs/science-calculator@0.1.0`, `oren-labs/ui-card-demo@0.1.0`,
+     and `oren-labs/scene3d-asset-demo@0.1.0` package directories plus
+     deterministic `.obc.zip` release bundles under `build/obc-store-demos`.
+     Official demos bundle source as hashed package assets so host apps can
+     show or ignore it, while store-only deterministic 640x360 PNG screenshots
+     are published as release presentation metadata outside package manifests,
+     client runtime assets, and bundles. Package detail pages render declared
+     Oren source in-browser with syntax highlighting and an AST outline.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
      manifest schema/ABI/hash validation, capability/budget/time config derivation,
      read-only package asset mounting into VirtualFS, package OBC run, HTTP
