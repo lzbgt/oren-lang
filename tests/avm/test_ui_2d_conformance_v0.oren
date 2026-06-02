@@ -123,7 +123,7 @@ fn main() {
         {"op": "destroy_image", "id": 1}
     ]
 
-    var buf = ui_raster.try_rasterize(cmds, 6, 5, {"strict_bounds": true})
+    var buf = ui_raster.rasterize(cmds, 6, 5, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     var got = sha256.sha256_hex(buf)
     assert_eq(got, "4acc5e8e4e5682515d3d156348c4a10a800544eb96ad70ad983a63fecd4feb00")

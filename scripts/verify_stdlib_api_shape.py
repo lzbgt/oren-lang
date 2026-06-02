@@ -75,6 +75,15 @@ BANNED_TOKENS = (
     "try_trim",
     "try_range",
     "try_range3",
+    "try_validate",
+    "try_rasterize",
+    "try_write_rgba_ppm",
+    "try_sha1_bytes",
+    "try_sha1_hex",
+    "try_sha256_bytes",
+    "try_sha256_hex",
+    "try_digest",
+    "try_hex",
 )
 
 

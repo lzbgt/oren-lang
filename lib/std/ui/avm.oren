@@ -625,7 +625,7 @@ fn _push_cmd(out, c) {
 
 fn frame_bytes(cmds, w, h, opts) {
     if opts == nil { opts = {} }
-    var vr = ui_cmds.try_validate(cmds, w, h, opts)
+    var vr = ui_cmds.validate(cmds, w, h, opts)
     if oren_is_err(vr) { return vr }
 
     var scale_milli = opts["scale_milli"]

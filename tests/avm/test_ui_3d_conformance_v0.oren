@@ -81,7 +81,7 @@ fn main() {
         {"op": "destroy_mesh3d", "id": 3},
         {"op": "destroy_material3d", "id": 4}
     ]
-    var buf = ui_raster.try_rasterize(cmds, 6, 6, {"strict_bounds": true})
+    var buf = ui_raster.rasterize(cmds, 6, 6, {"strict_bounds": true})
     assert_true(oren_is_err(buf) == false)
     assert_eq(_px(buf, 6, 0, 0, 1), 255)
     assert_eq(_px(buf, 6, 3, 0, 0), 255)

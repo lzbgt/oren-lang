@@ -662,7 +662,7 @@ fn rasterize(cmds, w, h, opts) {
     var do_validate = opts["validate"]
     if do_validate == nil { do_validate = 1 }
     if do_validate != 0 {
-        var vr = ui_cmds.try_validate(cmds, w, h, opts)
+        var vr = ui_cmds.validate(cmds, w, h, opts)
         if oren_is_err(vr) { return vr }
     }
 
@@ -1062,8 +1062,4 @@ fn rasterize(cmds, w, h, opts) {
     }
 
     return buf
-}
-
-fn try_rasterize(cmds, w, h, opts) {
-    return rasterize(cmds, w, h, opts)
 }

@@ -7,7 +7,7 @@
 // Canonical API:
 // - `digest(input_bytes)` / `input_bytes.sha1()` -> BYTES (len=20)
 // - `hex(input_bytes)` / `input_bytes.sha1_hex()` -> lowercase hex string
-// - `try_digest(...)` / `try_hex(...)` validate byte-like inputs and return `oren_err`.
+// - Canonical verbs validate byte-like inputs and return `oren_err` on failure.
 
 import list "std:list"
 import bytesm "std:bytes"
@@ -79,9 +79,9 @@ fn _push_u32_be(out, x) {
 
 fn sha1_bytes(input_bytes) {
     // Returns BYTES (len=20).
-    if input_bytes == nil {
-        input_bytes = oren_bytes_pack([])
-    }
+    var checked = _input_bytes_or_err(input_bytes, "sha1.digest")
+    if oren_is_err(checked) { return checked }
+    input_bytes = checked
 
     var orig_len = bytesm.len(input_bytes)
     if oren_is_err(orig_len) { return orig_len }
@@ -162,28 +162,14 @@ fn sha1_bytes(input_bytes) {
 }
 
 fn sha1_hex(input_bytes) {
-    return oren_bytes_to_hex(sha1_bytes(input_bytes))
+    var d = sha1_bytes(input_bytes)
+    if oren_is_err(d) { return d }
+    return oren_bytes_to_hex(d)
 }
 
 fn digest(input_bytes): bytes { return sha1_bytes(input_bytes) }
 
 fn hex(input_bytes) { return sha1_hex(input_bytes) }
-
-fn try_sha1_bytes(input_bytes) {
-    var checked = _input_bytes_or_err(input_bytes, "sha1.try_sha1_bytes")
-    if oren_is_err(checked) { return checked }
-    return sha1_bytes(checked)
-}
-
-fn try_sha1_hex(input_bytes) {
-    var d = try_sha1_bytes(input_bytes)
-    if oren_is_err(d) { return d }
-    return oren_bytes_to_hex(d)
-}
-
-fn try_digest(input_bytes): bytes { return try_sha1_bytes(input_bytes) }
-
-fn try_hex(input_bytes) { return try_sha1_hex(input_bytes) }
 
 impl Sha1Bytes for bytes {
     fn sha1(self): bytes { return digest(self) }

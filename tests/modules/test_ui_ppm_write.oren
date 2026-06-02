@@ -39,8 +39,8 @@ var bad = ppm.encode_rgba(oren_u8_buf_new(3), w, h)
 if oren_is_err(bad) != true { fail(14, "encode_rgba length mismatch must err") }
 
 var path = "build/test_ui_ppm_write.ppm"
-var wr = ppm.try_write_rgba_ppm(path, rgba, w, h)
-if oren_is_err(wr) { fail(11, "try_write_rgba_ppm err") }
+var wr = ppm.write_rgba_ppm(path, rgba, w, h)
+if oren_is_err(wr) { fail(11, "write_rgba_ppm err") }
 
 var roundtrip = oren_read_bytes(path)
 if oren_is_err(roundtrip) { fail(12, "read_bytes err") }

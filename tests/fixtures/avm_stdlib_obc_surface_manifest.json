@@ -300,7 +300,7 @@
       "alias": "ui_commands",
       "probes": [
         "var cmds0 = [{\"op\": \"fill_rect\", \"x\": 0, \"y\": 0, \"w\": 2, \"h\": 2, \"color\": \"#010203\"}]",
-        "if ui_commands.try_validate(cmds0, 2, 2, {\"strict_bounds\": true}) != 0 { fail(93) }"
+        "if ui_commands.validate(cmds0, 2, 2, {\"strict_bounds\": true}) != 0 { fail(93) }"
       ]
     },
     {

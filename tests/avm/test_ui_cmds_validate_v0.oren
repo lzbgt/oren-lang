@@ -31,28 +31,28 @@ fn test_validate_ok() {
     var w = bt["w"]
     var h = bt["h"]
     var cmds = ui_render.render(root, nil)
-    var r = ui_cmds.try_validate(cmds, w, h, {"strict_bounds": true})
+    var r = ui_cmds.validate(cmds, w, h, {"strict_bounds": true})
     assert_true(oren_is_err(r) == false)
 }
 
 fn test_validate_bad_color() {
     var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 1, "h": 1, "color": "red"}]
-    var r = ui_cmds.try_validate(cmds, 2, 2, {"strict_bounds": true})
+    var r = ui_cmds.validate(cmds, 2, 2, {"strict_bounds": true})
     assert_true(oren_is_err(r) == true)
 }
 
 fn test_validate_bad_framebuffer_size_type() {
     var cmds = []
-    var r = ui_cmds.try_validate(cmds, "wide", 2, {"strict_bounds": true})
+    var r = ui_cmds.validate(cmds, "wide", 2, {"strict_bounds": true})
     assert_true(oren_is_err(r) == true)
 }
 
 fn test_validate_triangle() {
     var cmds = [{"op": "fill_triangle", "x1": 0, "y1": 0, "x2": 3, "y2": 0, "x3": 1, "y3": 2, "color": "#00ffff"}]
-    var r = ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})
+    var r = ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})
     assert_true(oren_is_err(r) == false)
     var bad = [{"op": "fill_triangle", "x1": 0, "y1": 0, "x2": 4, "y2": 0, "x3": 1, "y3": 2, "color": "#00ffff"}]
-    var r2 = ui_cmds.try_validate(bad, 4, 3, {"strict_bounds": true})
+    var r2 = ui_cmds.validate(bad, 4, 3, {"strict_bounds": true})
     assert_true(oren_is_err(r2) == true)
     var tris = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
@@ -63,27 +63,27 @@ fn test_validate_triangle() {
         3, 0, 0, 0, 0, 0, 0, 0
     ])
     assert_true(oren_is_err(tris) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "fill_triangles", "triangles": tris, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "fill_triangles", "triangles": tris, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == false)
     var bad_tris = bytes.pack([0, 0, 0, 0])
     assert_true(oren_is_err(bad_tris) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "fill_triangles", "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "fill_triangles", "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
     var bad_tri_bounds = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 2, 0, 0, 0
     ])
     assert_true(oren_is_err(bad_tri_bounds) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "fill_triangles", "triangles": bad_tri_bounds, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "fill_triangles", "triangles": bad_tri_bounds, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == true)
     var mesh_cmds = [
         {"op": "mesh2d", "id": 7, "triangles": tris, "color": "#00ffff"},
         {"op": "draw_mesh2d", "id": 7},
         {"op": "destroy_mesh2d", "id": 7}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(mesh_cmds, 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh2d", "id": 0, "triangles": tris, "color": "#00ffff"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh2d", "id": 7, "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh2d", "id": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh2d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(mesh_cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh2d", "id": 0, "triangles": tris, "color": "#00ffff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh2d", "id": 7, "triangles": bad_tris, "color": "#00ffff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_mesh2d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "destroy_mesh2d", "id": 0}], 4, 3, nil)) == true)
     var tris3d = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -103,28 +103,28 @@ fn test_validate_triangle() {
         {"op": "destroy_material3d", "id": 3},
         {"op": "destroy_mesh3d", "id": 8}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(mesh3d_cmds, 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_camera_ortho", "near_z": 0, "far_z": 2}, {"op": "pop_camera"}], 4, 3, nil)) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_camera_ortho", "near_z": 3, "far_z": 2}, {"op": "pop_camera"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "pop_camera"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d", "id": 0, "triangles": tris3d, "color": "#ff00ff"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d", "id": 8, "triangles": bad_tris, "color": "#ff00ff"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d", "id": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_at", "id": 0, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_at", "id": 8, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "material3d", "id": 0, "color": "#ffff00"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "material3d", "id": 3, "color": "yellow"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_material", "id": 8, "material_id": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_mesh3d_at_material", "id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "model3d", "id": 0, "mesh_id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "model3d", "id": 4, "mesh_id": 0, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "model3d", "id": 4, "mesh_id": 8, "material_id": 0, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "model3d", "id": 4, "mesh_id": 8, "material_id": -1, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "model3d", "id": 4, "mesh_id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_model3d", "id": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_model3d", "id": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_mesh3d", "id": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "destroy_material3d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(mesh3d_cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_camera_ortho", "near_z": 0, "far_z": 2}, {"op": "pop_camera"}], 4, 3, nil)) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_camera_ortho", "near_z": 3, "far_z": 2}, {"op": "pop_camera"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "pop_camera"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d", "id": 0, "triangles": tris3d, "color": "#ff00ff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d", "id": 8, "triangles": bad_tris, "color": "#ff00ff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_mesh3d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_mesh3d_at", "id": 0, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_mesh3d_at", "id": 8, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "material3d", "id": 0, "color": "#ffff00"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "material3d", "id": 3, "color": "yellow"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_mesh3d_material", "id": 8, "material_id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_mesh3d_at_material", "id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "model3d", "id": 0, "mesh_id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "model3d", "id": 4, "mesh_id": 0, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "model3d", "id": 4, "mesh_id": 8, "material_id": 0, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "model3d", "id": 4, "mesh_id": 8, "material_id": -1, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "model3d", "id": 4, "mesh_id": 8, "material_id": 3, "x": 0, "y": 0, "z": 0, "scale_milli": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_model3d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "destroy_model3d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "destroy_mesh3d", "id": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "destroy_material3d", "id": 0}], 4, 3, nil)) == true)
     var tris3d_rgba = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -132,13 +132,13 @@ fn test_validate_triangle() {
         255, 0, 255, 255
     ])
     assert_true(oren_is_err(tris3d_rgba) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 9, "triangles": tris3d_rgba}], 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 0, "triangles": tris3d_rgba}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_rgba", "id": 9, "triangles": bad_tris}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d_rgba", "id": 9, "triangles": tris3d_rgba}], 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d_rgba", "id": 0, "triangles": tris3d_rgba}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d_rgba", "id": 9, "triangles": bad_tris}], 4, 3, nil)) == true)
     var idx3d = bytes.pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0])
     assert_true(oren_is_err(idx3d) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": idx3d, "color": "#3366ff"}, {"op": "draw_mesh3d", "id": 10}], 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": bytes.pack([3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": idx3d, "color": "#3366ff"}, {"op": "draw_mesh3d", "id": 10}], 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "mesh3d_indexed", "id": 10, "vertices": tris3d, "indices": bytes.pack([3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0]), "color": "#3366ff"}], 4, 3, nil)) == true)
 }
 
 fn test_validate_clip_stack() {
@@ -147,11 +147,11 @@ fn test_validate_clip_stack() {
         {"op": "fill_rect", "x": 0, "y": 0, "w": 4, "h": 3, "color": "#202020"},
         {"op": "pop_clip"}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "pop_clip"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 0, "h": 1}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_clip_rect", "x": 3, "y": 0, "w": 2, "h": 1}, {"op": "pop_clip"}], 4, 3, {"strict_bounds": true})) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 1, "h": 1}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "pop_clip"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 0, "h": 1}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_clip_rect", "x": 3, "y": 0, "w": 2, "h": 1}, {"op": "pop_clip"}], 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 1, "h": 1}], 4, 3, nil)) == true)
 }
 
 fn test_validate_transform_stack() {
@@ -160,11 +160,11 @@ fn test_validate_transform_stack() {
         {"op": "fill_rect", "x": 0, "y": 0, "w": 2, "h": 1, "color": "#202020"},
         {"op": "pop_transform"}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "pop_transform"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_translate", "dx": 4, "dy": 0}, {"op": "fill_rect", "x": 0, "y": 0, "w": 1, "h": 1, "color": "#202020"}, {"op": "pop_transform"}], 4, 3, {"strict_bounds": true})) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_translate", "dx": 1, "dy": 0}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 2, "h": 2}, {"op": "push_translate", "dx": 1, "dy": 0}, {"op": "pop_clip"}, {"op": "pop_transform"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "pop_transform"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_translate", "dx": 4, "dy": 0}, {"op": "fill_rect", "x": 0, "y": 0, "w": 1, "h": 1, "color": "#202020"}, {"op": "pop_transform"}], 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_translate", "dx": 1, "dy": 0}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 2, "h": 2}, {"op": "push_translate", "dx": 1, "dy": 0}, {"op": "pop_clip"}, {"op": "pop_transform"}], 4, 3, nil)) == true)
 }
 
 fn test_validate_opacity_stack() {
@@ -173,45 +173,45 @@ fn test_validate_opacity_stack() {
         {"op": "fill_rect", "x": 0, "y": 0, "w": 2, "h": 1, "color": "#202020"},
         {"op": "pop_opacity"}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "pop_opacity"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_opacity", "alpha_milli": 1001}, {"op": "pop_opacity"}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_opacity", "alpha_milli": 500}], 4, 3, nil)) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 2, "h": 2}, {"op": "push_opacity", "alpha_milli": 500}, {"op": "pop_clip"}, {"op": "pop_opacity"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "pop_opacity"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_opacity", "alpha_milli": 1001}, {"op": "pop_opacity"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_opacity", "alpha_milli": 500}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "push_clip_rect", "x": 0, "y": 0, "w": 2, "h": 2}, {"op": "push_opacity", "alpha_milli": 500}, {"op": "pop_clip"}, {"op": "pop_opacity"}], 4, 3, nil)) == true)
 }
 
 fn test_validate_stroke_rect() {
     var cmds = [{"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"}]
-    var r = ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})
+    var r = ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})
     assert_true(oren_is_err(r) == false)
     var bad = [{"op": "stroke_rect", "x": 0, "y": 0, "w": 4, "h": 3, "width": 0, "color": "#ffff00"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad, 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad, 4, 3, {"strict_bounds": true})) == true)
     var bad_bounds = [{"op": "stroke_rect", "x": 1, "y": 0, "w": 4, "h": 3, "width": 1, "color": "#ffff00"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
 }
 
 fn test_validate_round_rect() {
     var cmds = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 2, "width": 1, "fill": false, "color": "#ff8800"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 4, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 4, 4, {"strict_bounds": true})) == false)
     var filled = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 2, "fill": true, "color": "#ff8800"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(filled, 4, 4, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(filled, 4, 4, {"strict_bounds": true})) == false)
     var bad_radius = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 3, "color": "#ff8800"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_radius, 4, 4, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_radius, 4, 4, nil)) == true)
     var bad_width = [{"op": "round_rect", "x": 0, "y": 0, "w": 4, "h": 4, "r": 1, "width": 0, "color": "#ff8800"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_width, 4, 4, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_width, 4, 4, nil)) == true)
     var bad_bounds = [{"op": "round_rect", "x": 1, "y": 0, "w": 4, "h": 4, "r": 1, "color": "#ff8800"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 4, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_bounds, 4, 4, {"strict_bounds": true})) == true)
 }
 
 fn test_validate_ellipse() {
     var cmds = [{"op": "ellipse", "x": 0, "y": 0, "w": 4, "h": 3, "width": 1, "fill": false, "color": "#00ffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})) == false)
     var filled = [{"op": "ellipse", "x": 0, "y": 0, "w": 4, "h": 3, "fill": true, "color": "#00ffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(filled, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(filled, 4, 3, {"strict_bounds": true})) == false)
     var bad_width = [{"op": "ellipse", "x": 0, "y": 0, "w": 4, "h": 3, "width": 0, "color": "#00ffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_width, 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_width, 4, 3, nil)) == true)
     var bad_bounds = [{"op": "ellipse", "x": 1, "y": 0, "w": 4, "h": 3, "color": "#00ffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_bounds, 4, 3, {"strict_bounds": true})) == true)
 }
 
 fn test_validate_polyline() {
@@ -222,28 +222,28 @@ fn test_validate_polyline() {
     ])
     assert_true(oren_is_err(points) == false)
     var cmds = [{"op": "polyline", "points": points, "width": 1, "color": "#00ffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 4, 3, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 4, 3, {"strict_bounds": true})) == false)
     var bad_width = [{"op": "polyline", "points": points, "width": 0, "color": "#00ffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_width, 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_width, 4, 3, nil)) == true)
     var bad_points = bytes.pack([0, 0, 0, 0, 0, 0, 0, 0])
     assert_true(oren_is_err(bad_points) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "polyline", "points": bad_points, "color": "#00ffff"}], 4, 3, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "polyline", "points": bad_points, "color": "#00ffff"}], 4, 3, nil)) == true)
     var bad_bounds = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 1, 0, 0, 0
     ])
     assert_true(oren_is_err(bad_bounds) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "polyline", "points": bad_bounds, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "polyline", "points": bad_bounds, "color": "#00ffff"}], 4, 3, {"strict_bounds": true})) == true)
 }
 
 fn test_validate_text_bytes() {
     var data = bytes.pack([65, 66, 67])
     assert_true(oren_is_err(data) == false)
     var cmds = [{"op": "text_bytes", "x": 0, "y": 0, "data": data, "color": "#ffffff"}]
-    var r = ui_cmds.try_validate(cmds, 3, 1, {"strict_bounds": true})
+    var r = ui_cmds.validate(cmds, 3, 1, {"strict_bounds": true})
     assert_true(oren_is_err(r) == false)
     var bad = [{"op": "text_bytes", "x": 1, "y": 0, "data": data, "color": "#ffffff"}]
-    var r2 = ui_cmds.try_validate(bad, 3, 1, {"strict_bounds": true})
+    var r2 = ui_cmds.validate(bad, 3, 1, {"strict_bounds": true})
     assert_true(oren_is_err(r2) == true)
 }
 
@@ -261,21 +261,21 @@ fn test_validate_text_resource() {
         {"op": "draw_texts", "id": 1, "positions": positions},
         {"op": "destroy_text", "id": 1}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 2, 2, {"strict_bounds": true})) == false)
     var bad_upload = [{"op": "text_resource", "id": 0, "data": data, "color": "#ffffff"}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_upload, 2, 1, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_upload, 2, 1, nil)) == true)
     var bad_draw = [{"op": "draw_text", "id": 1, "x": 2, "y": 0}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_draw, 2, 1, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_draw, 2, 1, {"strict_bounds": true})) == true)
     var bad_batch = bytes.pack([0, 0, 0, 0])
     assert_true(oren_is_err(bad_batch) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_texts", "id": 1, "positions": bad_batch}], 2, 2, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_texts", "id": 1, "positions": bad_batch}], 2, 2, nil)) == true)
     var bad_batch_bounds = bytes.pack([
         2, 0, 0, 0, 0, 0, 0, 0
     ])
     assert_true(oren_is_err(bad_batch_bounds) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_texts", "id": 1, "positions": bad_batch_bounds}], 2, 2, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_texts", "id": 1, "positions": bad_batch_bounds}], 2, 2, {"strict_bounds": true})) == true)
     var bad_destroy = [{"op": "destroy_text", "id": 0}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_destroy, 2, 1, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_destroy, 2, 1, nil)) == true)
 }
 
 fn test_validate_image() {
@@ -293,25 +293,25 @@ fn test_validate_image() {
         {"op": "draw_image_rects", "id": 1, "rects": rects},
         {"op": "destroy_image", "id": 1}
     ]
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"strict_bounds": true})) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"max_image_bytes": 3})) == true)
-    assert_true(oren_is_err(ui_cmds.try_validate(cmds, 2, 2, {"max_image_count": 0})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 2, 2, {"strict_bounds": true})) == false)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 2, 2, {"max_image_bytes": 3})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, 2, 2, {"max_image_count": 0})) == true)
     var bad_image = [{"op": "image_rgba", "id": 1, "w": 2, "h": 1, "data": px}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_image, 2, 2, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_image, 2, 2, nil)) == true)
     var bad_draw = [{"op": "draw_image", "id": 1, "x": 1, "y": 1, "w": 2, "h": 2}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_draw, 2, 2, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_draw, 2, 2, {"strict_bounds": true})) == true)
     var bad_rect = [{"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 0, "sh": 1, "x": 0, "y": 0, "w": 1, "h": 1}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_rect, 2, 2, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_rect, 2, 2, nil)) == true)
     var bad_rect_bounds = [{"op": "draw_image_rect", "id": 1, "sx": 0, "sy": 0, "sw": 1, "sh": 1, "x": 1, "y": 1, "w": 2, "h": 2}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_rect_bounds, 2, 2, {"strict_bounds": true})) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_rect_bounds, 2, 2, {"strict_bounds": true})) == true)
     var bad_batch = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0
     ])
     assert_true(oren_is_err(bad_batch) == false)
-    assert_true(oren_is_err(ui_cmds.try_validate([{"op": "draw_image_rects", "id": 1, "rects": bad_batch}], 2, 2, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate([{"op": "draw_image_rects", "id": 1, "rects": bad_batch}], 2, 2, nil)) == true)
     var bad_destroy = [{"op": "destroy_image", "id": 0}]
-    assert_true(oren_is_err(ui_cmds.try_validate(bad_destroy, 2, 2, nil)) == true)
+    assert_true(oren_is_err(ui_cmds.validate(bad_destroy, 2, 2, nil)) == true)
 }
 
 fn main() {

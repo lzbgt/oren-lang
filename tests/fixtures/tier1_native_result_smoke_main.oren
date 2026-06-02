@@ -1056,7 +1056,7 @@ fn smoke_bytes_tail_and_bridge() {
     if r.is_err(bad_str_slice) != true { return 100 }
     var bad_buf_slice = bytes.to_u8_buf_slice("nope", 0, 1)
     if r.is_err(bad_buf_slice) != true { return 101 }
-    var ui_bad_fb = ui_cmds.try_validate([], "x", 1, nil)
+    var ui_bad_fb = ui_cmds.validate([], "x", 1, nil)
     if r.is_err(ui_bad_fb) != true { return 909 }
     var u8_from_bytes = buffer.u8_from_bytes(bytes.from_string("EF"))
     if r.is_err(u8_from_bytes) || buffer.u8_to_string(u8_from_bytes) != "EF" { return 102 }
@@ -1137,7 +1137,7 @@ fn smoke_ui_result_surface() {
     if r.is_err(badc) != true { return 1302 }
     if oren_err_code(badc) != 4 { return 1303 }
     if oren_err_msg(badc) != "color must be #RRGGBB or #RRGGBBAA" { return 1304 }
-    var bad_bg = ui_raster.try_rasterize([], 1, 1, {"clear_color": "red"})
+    var bad_bg = ui_raster.rasterize([], 1, 1, {"clear_color": "red"})
     if r.is_err(bad_bg) != true { return 1305 }
     if oren_err_code(bad_bg) != 4 { return 1306 }
     if oren_err_msg(bad_bg) != "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA" { return 1307 }

@@ -482,13 +482,15 @@
 <p>		  HTTP/2 parser records, UI color parsing, PPM encoding, public</p>
 <p>		  <code>std:bytes</code> helpers, public <code>std:buffer</code> root/view/matrix helpers</p>
 <p>		  including matrix projection helpers, public <code>std:strings</code> / <code>std:list</code></p>
-<p>		  helpers, public <code>std:linalg</code> root helpers, public <code>std:iter</code> range</p>
-<p>		  helpers, and checked</p>
+<p>			  helpers, public <code>std:linalg</code> root helpers, public <code>std:iter</code> range</p>
+<p>			  helpers, public SHA-1/SHA-256 digest helpers, UI validate/raster/PPM</p>
+<p>			  helpers, and checked</p>
 <p>		  <code>std:ints</code> / <code>std:casts</code> helpers now use canonical fallible verbs or</p>
 <p>		  <code>{ok,...}</code> records (<code>parse</code>, <code>encode</code>, <code>decode_bytes</code>, <code>compile</code>,</p>
 <p>		  <code>bytes</code>, <code>bytes.pack</code>, <code>bytes.get_u32_le</code>, <code>load_i32</code>, <code>mat_row_to_bytes</code>,</p>
-<p>		  <code>strings.slice</code>, <code>list.get</code>, <code>linalg.dot_f64_buf</code>, <code>iter.range</code>,</p>
-<p>		  <code>ints.checked_u8</code>, etc.) instead of public</p>
+<p>			  <code>strings.slice</code>, <code>list.get</code>, <code>linalg.dot_f64_buf</code>, <code>iter.range</code>,</p>
+<p>			  <code>sha256.hex</code>, <code>ui_cmds.validate</code>, <code>ui_raster.rasterize</code>,</p>
+<p>			  <code>ppm.write_rgba_ppm</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
 <p>		  internals are explicit <code>*_raw</code> or private module helpers. Base64 encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>		  intermediate Oren list. NET cleanup now covers native and AVM session</p>

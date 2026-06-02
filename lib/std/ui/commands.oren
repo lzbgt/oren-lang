@@ -566,7 +566,3 @@ fn validate(cmds, w, h, opts) {
 
     return 0
 }
-
-fn try_validate(cmds, w, h, opts) {
-    return validate(cmds, w, h, opts)
-}

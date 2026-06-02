@@ -85,7 +85,3 @@ fn write_rgba_ppm(path, rgba, w, h) {
     if oren_is_err(b) { return b }
     return oren_write_bytes(path, b)
 }
-
-fn try_write_rgba_ppm(path, rgba, w, h) {
-    return write_rgba_ppm(path, rgba, w, h)
-}
