@@ -73,6 +73,8 @@ BANNED_TOKENS = (
     "try_index_of",
     "try_streq",
     "try_trim",
+    "try_range",
+    "try_range3",
 )
 
 

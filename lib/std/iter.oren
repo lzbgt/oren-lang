@@ -25,13 +25,9 @@ fn _is_int(v) {
 
 fn range(n) {
     // Yield integers 0..(n-1).
+    if _is_int(n) == false { return oren_err(4, "iter.range: n not int") }
+    if n < 0 { return oren_err(4, "iter.range: n < 0") }
     return {"__iter": "range", "start": 0, "end": n, "step": 1}
-}
-
-fn try_range(n) {
-    if _is_int(n) == false { return oren_err(4, "iter.try_range: n not int") }
-    if n < 0 { return oren_err(4, "iter.try_range: n < 0") }
-    return range(n)
 }
 
 fn range3(start, end, step) {
@@ -40,12 +36,8 @@ fn range3(start, end, step) {
     // - step < 0: value > end
     //
     // step == 0 yields an empty sequence (deterministic, avoids infinite loops).
+    if _is_int(start) == false { return oren_err(4, "iter.range3: start not int") }
+    if _is_int(end) == false { return oren_err(4, "iter.range3: end not int") }
+    if _is_int(step) == false { return oren_err(4, "iter.range3: step not int") }
     return {"__iter": "range", "start": start, "end": end, "step": step}
-}
-
-fn try_range3(start, end, step) {
-    if _is_int(start) == false { return oren_err(4, "iter.try_range3: start not int") }
-    if _is_int(end) == false { return oren_err(4, "iter.try_range3: end not int") }
-    if _is_int(step) == false { return oren_err(4, "iter.try_range3: step not int") }
-    return range3(start, end, step)
 }

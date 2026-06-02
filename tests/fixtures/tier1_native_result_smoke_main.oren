@@ -1241,17 +1241,17 @@ fn main() {
 
     // std:iter structured range constructors
     var iter_sum = 0
-    for ix in iter.try_range(4) {
+    for ix in iter.range(4) {
         iter_sum = iter_sum + ix
     }
     if iter_sum != 6 { return 1530 }
     var iter_sum2 = 0
-    for ix2 in iter.try_range3(1, 8, 2) {
+    for ix2 in iter.range3(1, 8, 2) {
         iter_sum2 = iter_sum2 + ix2
     }
     if iter_sum2 != 16 { return 1531 }
-    if r.is_err(iter.try_range("x")) != true { return 1532 }
-    if r.is_err(iter.try_range3(0, "x", 1)) != true { return 1533 }
+    if r.is_err(iter.range("x")) != true { return 1532 }
+    if r.is_err(iter.range3(0, "x", 1)) != true { return 1533 }
 
     var ui_smoke = smoke_ui_result_surface()
     if ui_smoke != 0 { return ui_smoke }
