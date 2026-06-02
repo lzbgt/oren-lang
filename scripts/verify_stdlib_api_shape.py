@@ -94,6 +94,7 @@ def main() -> int:
     public_list_call_re = re.compile(r"\b(list\w*)\.(try_[A-Za-z0-9_]+)\b")
     public_int_cast_fn_re = re.compile(r"\bfn\s+(try_[ui](?:8|16|32|64))\b")
     public_int_cast_call_re = re.compile(r"\b(ints|casts)\.(try_[ui](?:8|16|32|64))\b")
+    public_mat_proj_fn_re = re.compile(r"\bfn\s+(try_mat_(?:row|col|diag|subview)[A-Za-z0-9_]*)\b")
     failures: list[str] = []
     for path in iter_sources():
         text = path.read_text(encoding="utf-8")
@@ -122,6 +123,10 @@ def main() -> int:
                 int_cast_fn = public_int_cast_fn_re.search(line)
                 if int_cast_fn:
                     failures.append(f"{rel}:{line_no}: banned public checked cast helper `{int_cast_fn.group(1)}`")
+            if rel == "lib/std/buffer/mat_proj.oren":
+                mat_proj_fn = public_mat_proj_fn_re.search(line)
+                if mat_proj_fn:
+                    failures.append(f"{rel}:{line_no}: banned public matrix projection helper `{mat_proj_fn.group(1)}`")
             if not rel.startswith("lib/std/buffer/"):
                 buffer_call = public_buffer_call_re.search(line)
                 if buffer_call:

@@ -58,7 +58,7 @@ fn try_u8_mat_pack_rows(rows) {
 }
 
 fn u8_mat_unpack_rows(m) {
-    return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_rows", proj.try_mat_row_unpack_u8)
+    return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_rows", proj.mat_row_unpack_u8)
 }
 
 fn try_u8_mat_unpack_rows(m) {
@@ -94,7 +94,7 @@ fn try_u8_mat_pack_strings(rows) {
 }
 
 fn u8_mat_unpack_strings(m) {
-    return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_strings", proj.try_mat_row_to_string)
+    return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_strings", proj.mat_row_to_string)
 }
 
 fn try_u8_mat_unpack_strings(m) {
@@ -107,7 +107,7 @@ fn u8_mat_unpack_u8(m) {
     var nrows = m[2]
     var r = 0
     while r < nrows {
-        var row = proj.try_mat_row_unpack_u8(m, r)
+        var row = proj.mat_row_unpack_u8(m, r)
         if oren_is_err(row) { return row }
         var ncols = oren_list_len(row)
         var c = 0
@@ -176,7 +176,7 @@ fn _u8_mat_copy_flat_list(m, xs, ctx) {
     }
     var r = 0
     while r < m[2] {
-        var row = proj.try_mat_row_slice(m, r)
+        var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
@@ -197,7 +197,7 @@ fn _u8_mat_copy_from_u8_buf(m, src, ctx) {
     if nx != total { return _err_invalid(ctx + ": byte count mismatch") }
     var r = 0
     while r < m[2] {
-        var row = proj.try_mat_row_slice(m, r)
+        var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
@@ -273,7 +273,7 @@ fn u8_mat_copy_from_rows(m, rows) {
     if oren_is_err(shape) { return shape }
     var r = 0
     while r < shape[0] {
-        var row = proj.try_mat_row_slice(m, r)
+        var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < shape[1] {
@@ -297,7 +297,7 @@ fn u8_mat_copy_from_strings(m, rows) {
     if oren_is_err(shape) { return shape }
     var r = 0
     while r < shape[0] {
-        var rc = proj.try_mat_row_copy_from_string(m, r, rows[r])
+        var rc = proj.mat_row_copy_from_string(m, r, rows[r])
         if oren_is_err(rc) { return rc }
         r = r + 1
     }
