@@ -31,167 +31,167 @@ fn smoke_result_recover(e) {
 }
 
 fn smoke_buffer_slice_views(i32b) {
-    var s_ok2 = buffer.try_slice_new(i32b, 0, 2)
+    var s_ok2 = buffer.slice_new(i32b, 0, 2)
     if r.is_err(s_ok2) { return 186 }
-    var sv = buffer.try_slice_load_i32(s_ok2, 0)
+    var sv = buffer.slice_load_i32(s_ok2, 0)
     if r.is_err(sv) || sv != -7 { return 188 }
-    var ss = buffer.try_slice_store_i32(s_ok2, 1, 9)
+    var ss = buffer.slice_store_i32(s_ok2, 1, 9)
     if r.is_err(ss) || ss != i32b { return 189 }
-    var sv2 = buffer.try_slice_load_i32(s_ok2, 1)
+    var sv2 = buffer.slice_load_i32(s_ok2, 1)
     if r.is_err(sv2) || sv2 != 9 { return 190 }
-    var s_bad_idx = buffer.try_slice_load_i32(s_ok2, 2)
+    var s_bad_idx = buffer.slice_load_i32(s_ok2, 2)
     if r.is_err(s_bad_idx) != true { return 191 }
-    var s_sub = buffer.try_slice_slice(s_ok2, 1, 1)
-    if r.is_err(s_sub) || buffer.try_slice_len(s_sub) != 1 { return 192 }
-    var s_sub_v = buffer.try_slice_load_i32(s_sub, 0)
+    var s_sub = buffer.slice_slice(s_ok2, 1, 1)
+    if r.is_err(s_sub) || buffer.slice_len(s_sub) != 1 { return 192 }
+    var s_sub_v = buffer.slice_load_i32(s_sub, 0)
     if r.is_err(s_sub_v) || s_sub_v != 9 { return 193 }
-    var u8_view_buf = buffer.try_u8_from_string("ABCDE")
+    var u8_view_buf = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_view_buf) { return 210 }
-    var u8_slice = buffer.try_slice_new(u8_view_buf, 1, 3)
+    var u8_slice = buffer.slice_new(u8_view_buf, 1, 3)
     if r.is_err(u8_slice) { return 211 }
-    var u8_slice_s = buffer.try_slice_to_string(u8_slice)
+    var u8_slice_s = buffer.slice_to_string(u8_slice)
     if r.is_err(u8_slice_s) || u8_slice_s != "BCD" { return 212 }
-    var u8_slice_b = buffer.try_slice_to_bytes(u8_slice)
+    var u8_slice_b = buffer.slice_to_bytes(u8_slice)
     if r.is_err(u8_slice_b) || bytes.try_to_string(u8_slice_b) != "BCD" { return 213 }
-    var u8_slice_list = buffer.try_slice_unpack_u8(u8_slice)
+    var u8_slice_list = buffer.slice_unpack_u8(u8_slice)
     if r.is_err(u8_slice_list) || oren_list_len(u8_slice_list) != 3 || u8_slice_list[0] != 66 || u8_slice_list[2] != 68 { return 240 }
-    var u8_slice_buf = buffer.try_slice_to_u8_buf(u8_slice)
-    if r.is_err(u8_slice_buf) || buffer.try_u8_to_string(u8_slice_buf) != "BCD" { return 226 }
-    var u8_slice_copy = buffer.try_slice_copy_from_bytes(u8_slice, bytes.try_from_string("xyz"))
+    var u8_slice_buf = buffer.slice_to_u8_buf(u8_slice)
+    if r.is_err(u8_slice_buf) || buffer.u8_to_string(u8_slice_buf) != "BCD" { return 226 }
+    var u8_slice_copy = buffer.slice_copy_from_bytes(u8_slice, bytes.try_from_string("xyz"))
     if r.is_err(u8_slice_copy) || u8_slice_copy != u8_view_buf { return 214 }
-    var u8_view_s = buffer.try_u8_to_string(u8_view_buf)
+    var u8_view_s = buffer.u8_to_string(u8_view_buf)
     if r.is_err(u8_view_s) || u8_view_s != "AxyzE" { return 215 }
-    var u8_view_buf_slice = buffer.try_u8_from_string("ABCDE")
+    var u8_view_buf_slice = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_view_buf_slice) { return 1201 }
-    var u8_slice_bytes = buffer.try_slice_new(u8_view_buf_slice, 1, 3)
+    var u8_slice_bytes = buffer.slice_new(u8_view_buf_slice, 1, 3)
     if r.is_err(u8_slice_bytes) { return 1202 }
-    var u8_slice_copy_bytes = buffer.try_slice_copy_from_bytes_slice(u8_slice_bytes, bytes.try_from_string("vwxyz"), 1, 3)
+    var u8_slice_copy_bytes = buffer.slice_copy_from_bytes_slice(u8_slice_bytes, bytes.try_from_string("vwxyz"), 1, 3)
     if r.is_err(u8_slice_copy_bytes) || u8_slice_copy_bytes != u8_view_buf_slice { return 1203 }
-    var u8_view_slice_s = buffer.try_u8_to_string(u8_view_buf_slice)
+    var u8_view_slice_s = buffer.u8_to_string(u8_view_buf_slice)
     if r.is_err(u8_view_slice_s) || u8_view_slice_s != "AwxyE" { return 1204 }
-    var u8_view_buf2 = buffer.try_u8_from_string("ABCDE")
+    var u8_view_buf2 = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_view_buf2) { return 227 }
-    var u8_slice2 = buffer.try_slice_new(u8_view_buf2, 1, 3)
+    var u8_slice2 = buffer.slice_new(u8_view_buf2, 1, 3)
     if r.is_err(u8_slice2) { return 228 }
-    var u8_slice_copy_s = buffer.try_slice_copy_from_string(u8_slice2, "mno")
+    var u8_slice_copy_s = buffer.slice_copy_from_string(u8_slice2, "mno")
     if r.is_err(u8_slice_copy_s) || u8_slice_copy_s != u8_view_buf2 { return 229 }
-    var u8_view_s2 = buffer.try_u8_to_string(u8_view_buf2)
+    var u8_view_s2 = buffer.u8_to_string(u8_view_buf2)
     if r.is_err(u8_view_s2) || u8_view_s2 != "AmnoE" { return 230 }
-    var u8_view_buf4 = buffer.try_u8_from_string("ABCDE")
+    var u8_view_buf4 = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_view_buf4) { return 1238 }
-    var u8_slice4 = buffer.try_slice_new(u8_view_buf4, 1, 3)
+    var u8_slice4 = buffer.slice_new(u8_view_buf4, 1, 3)
     if r.is_err(u8_slice4) { return 1239 }
-    var u8_slice_copy_s2 = buffer.try_slice_copy_from_string_slice(u8_slice4, "lmnop", 1, 3)
+    var u8_slice_copy_s2 = buffer.slice_copy_from_string_slice(u8_slice4, "lmnop", 1, 3)
     if r.is_err(u8_slice_copy_s2) || u8_slice_copy_s2 != u8_view_buf4 { return 1240 }
-    var u8_view_s4 = buffer.try_u8_to_string(u8_view_buf4)
+    var u8_view_s4 = buffer.u8_to_string(u8_view_buf4)
     if r.is_err(u8_view_s4) || u8_view_s4 != "AmnoE" { return 1241 }
-    var u8_view_buf3 = buffer.try_u8_from_string("ABCDE")
+    var u8_view_buf3 = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_view_buf3) { return 241 }
-    var u8_slice3 = buffer.try_slice_new(u8_view_buf3, 1, 3)
+    var u8_slice3 = buffer.slice_new(u8_view_buf3, 1, 3)
     if r.is_err(u8_slice3) { return 242 }
-    var u8_src3 = buffer.try_u8_from_string("pqr")
+    var u8_src3 = buffer.u8_from_string("pqr")
     if r.is_err(u8_src3) { return 243 }
-    var u8_slice_copy_buf = buffer.try_slice_copy_from_u8_buf(u8_slice3, u8_src3)
+    var u8_slice_copy_buf = buffer.slice_copy_from_u8_buf(u8_slice3, u8_src3)
     if r.is_err(u8_slice_copy_buf) || u8_slice_copy_buf != u8_view_buf3 { return 244 }
-    var u8_view_s3 = buffer.try_u8_to_string(u8_view_buf3)
+    var u8_view_s3 = buffer.u8_to_string(u8_view_buf3)
     if r.is_err(u8_view_s3) || u8_view_s3 != "ApqrE" { return 245 }
-    var bad_u8_slice_s = buffer.try_slice_to_string("nope")
+    var bad_u8_slice_s = buffer.slice_to_string("nope")
     if r.is_err(bad_u8_slice_s) != true { return 216 }
-    var bad_u8_slice_copy = buffer.try_slice_copy_from_bytes(u8_slice, bytes.try_from_string("xy"))
+    var bad_u8_slice_copy = buffer.slice_copy_from_bytes(u8_slice, bytes.try_from_string("xy"))
     if r.is_err(bad_u8_slice_copy) != true { return 217 }
-    var bad_u8_slice_copy_bytes = buffer.try_slice_copy_from_bytes_slice(u8_slice_bytes, bytes.try_from_string("vw"), 0, 2)
+    var bad_u8_slice_copy_bytes = buffer.slice_copy_from_bytes_slice(u8_slice_bytes, bytes.try_from_string("vw"), 0, 2)
     if r.is_err(bad_u8_slice_copy_bytes) != true { return 1205 }
-    var bad_u8_slice_list = buffer.try_slice_unpack_u8("nope")
+    var bad_u8_slice_list = buffer.slice_unpack_u8("nope")
     if r.is_err(bad_u8_slice_list) != true { return 246 }
-    var bad_u8_slice_buf = buffer.try_slice_to_u8_buf("nope")
+    var bad_u8_slice_buf = buffer.slice_to_u8_buf("nope")
     if r.is_err(bad_u8_slice_buf) != true { return 231 }
-    var bad_u8_slice_copy_s = buffer.try_slice_copy_from_string(u8_slice2, "xy")
+    var bad_u8_slice_copy_s = buffer.slice_copy_from_string(u8_slice2, "xy")
     if r.is_err(bad_u8_slice_copy_s) != true { return 232 }
-    var bad_u8_slice_copy_s2 = buffer.try_slice_copy_from_string_slice(u8_slice4, "xy", 0, 2)
+    var bad_u8_slice_copy_s2 = buffer.slice_copy_from_string_slice(u8_slice4, "xy", 0, 2)
     if r.is_err(bad_u8_slice_copy_s2) != true { return 1242 }
-    var bad_u8_slice_copy_buf = buffer.try_slice_copy_from_u8_buf(u8_slice3, buffer.try_u8_from_string("xy"))
+    var bad_u8_slice_copy_buf = buffer.slice_copy_from_u8_buf(u8_slice3, buffer.u8_from_string("xy"))
     if r.is_err(bad_u8_slice_copy_buf) != true { return 247 }
     return 0
 }
 
 fn smoke_buffer_strided_views(i32b) {
-    var stride_ok = buffer.try_strided_new(i32b, 0, 2, 1)
+    var stride_ok = buffer.strided_new(i32b, 0, 2, 1)
     if r.is_err(stride_ok) { return 194 }
-    var stride_bad = buffer.try_strided_new(i32b, 0, 2, 0)
+    var stride_bad = buffer.strided_new(i32b, 0, 2, 0)
     if r.is_err(stride_bad) != true { return 195 }
-    var stride_v = buffer.try_strided_load_i32(stride_ok, 1)
+    var stride_v = buffer.strided_load_i32(stride_ok, 1)
     if r.is_err(stride_v) || stride_v != 9 { return 196 }
-    var stride_set = buffer.try_strided_store_i32(stride_ok, 0, 11)
+    var stride_set = buffer.strided_store_i32(stride_ok, 0, 11)
     if r.is_err(stride_set) || stride_set != i32b { return 197 }
-    var stride_v2 = buffer.try_strided_load_i32(stride_ok, 0)
+    var stride_v2 = buffer.strided_load_i32(stride_ok, 0)
     if r.is_err(stride_v2) || stride_v2 != 11 { return 198 }
-    var stride_bad_idx = buffer.try_strided_load_i32(stride_ok, 2)
+    var stride_bad_idx = buffer.strided_load_i32(stride_ok, 2)
     if r.is_err(stride_bad_idx) != true { return 199 }
-    var u8_stride_buf = buffer.try_u8_from_string("ABCDE")
+    var u8_stride_buf = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_stride_buf) { return 218 }
-    var u8_stride = buffer.try_strided_new(u8_stride_buf, 0, 3, 2)
+    var u8_stride = buffer.strided_new(u8_stride_buf, 0, 3, 2)
     if r.is_err(u8_stride) { return 219 }
-    var u8_stride_s = buffer.try_strided_to_string(u8_stride)
+    var u8_stride_s = buffer.strided_to_string(u8_stride)
     if r.is_err(u8_stride_s) || u8_stride_s != "ACE" { return 220 }
-    var u8_stride_b = buffer.try_strided_to_bytes(u8_stride)
+    var u8_stride_b = buffer.strided_to_bytes(u8_stride)
     if r.is_err(u8_stride_b) || bytes.try_to_string(u8_stride_b) != "ACE" { return 221 }
-    var u8_stride_list = buffer.try_strided_unpack_u8(u8_stride)
+    var u8_stride_list = buffer.strided_unpack_u8(u8_stride)
     if r.is_err(u8_stride_list) || oren_list_len(u8_stride_list) != 3 || u8_stride_list[0] != 65 || u8_stride_list[2] != 69 { return 248 }
-    var u8_stride_buf2 = buffer.try_strided_to_u8_buf(u8_stride)
-    if r.is_err(u8_stride_buf2) || buffer.try_u8_to_string(u8_stride_buf2) != "ACE" { return 233 }
-    var u8_stride_copy = buffer.try_strided_copy_from_bytes(u8_stride, bytes.try_from_string("xyz"))
+    var u8_stride_buf2 = buffer.strided_to_u8_buf(u8_stride)
+    if r.is_err(u8_stride_buf2) || buffer.u8_to_string(u8_stride_buf2) != "ACE" { return 233 }
+    var u8_stride_copy = buffer.strided_copy_from_bytes(u8_stride, bytes.try_from_string("xyz"))
     if r.is_err(u8_stride_copy) || u8_stride_copy != u8_stride_buf { return 222 }
-    var u8_stride_buf_s = buffer.try_u8_to_string(u8_stride_buf)
+    var u8_stride_buf_s = buffer.u8_to_string(u8_stride_buf)
     if r.is_err(u8_stride_buf_s) || u8_stride_buf_s != "xByDz" { return 223 }
-    var u8_stride_buf_slice = buffer.try_u8_from_string("ABCDE")
+    var u8_stride_buf_slice = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_stride_buf_slice) { return 1206 }
-    var u8_stride_bytes = buffer.try_strided_new(u8_stride_buf_slice, 0, 3, 2)
+    var u8_stride_bytes = buffer.strided_new(u8_stride_buf_slice, 0, 3, 2)
     if r.is_err(u8_stride_bytes) { return 1207 }
-    var u8_stride_copy_bytes = buffer.try_strided_copy_from_bytes_slice(u8_stride_bytes, bytes.try_from_string("uvwxy"), 1, 3)
+    var u8_stride_copy_bytes = buffer.strided_copy_from_bytes_slice(u8_stride_bytes, bytes.try_from_string("uvwxy"), 1, 3)
     if r.is_err(u8_stride_copy_bytes) || u8_stride_copy_bytes != u8_stride_buf_slice { return 1208 }
-    var u8_stride_slice_s = buffer.try_u8_to_string(u8_stride_buf_slice)
+    var u8_stride_slice_s = buffer.u8_to_string(u8_stride_buf_slice)
     if r.is_err(u8_stride_slice_s) || u8_stride_slice_s != "vBwDx" { return 1209 }
-    var u8_stride_buf3 = buffer.try_u8_from_string("ABCDE")
+    var u8_stride_buf3 = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_stride_buf3) { return 234 }
-    var u8_stride2 = buffer.try_strided_new(u8_stride_buf3, 0, 3, 2)
+    var u8_stride2 = buffer.strided_new(u8_stride_buf3, 0, 3, 2)
     if r.is_err(u8_stride2) { return 235 }
-    var u8_stride_copy_s = buffer.try_strided_copy_from_string(u8_stride2, "uvw")
+    var u8_stride_copy_s = buffer.strided_copy_from_string(u8_stride2, "uvw")
     if r.is_err(u8_stride_copy_s) || u8_stride_copy_s != u8_stride_buf3 { return 236 }
-    var u8_stride_s2 = buffer.try_u8_to_string(u8_stride_buf3)
+    var u8_stride_s2 = buffer.u8_to_string(u8_stride_buf3)
     if r.is_err(u8_stride_s2) || u8_stride_s2 != "uBvDw" { return 237 }
-    var u8_stride_buf5 = buffer.try_u8_from_string("ABCDE")
+    var u8_stride_buf5 = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_stride_buf5) { return 1243 }
-    var u8_stride4 = buffer.try_strided_new(u8_stride_buf5, 0, 3, 2)
+    var u8_stride4 = buffer.strided_new(u8_stride_buf5, 0, 3, 2)
     if r.is_err(u8_stride4) { return 1244 }
-    var u8_stride_copy_s2 = buffer.try_strided_copy_from_string_slice(u8_stride4, "uvwxy", 1, 3)
+    var u8_stride_copy_s2 = buffer.strided_copy_from_string_slice(u8_stride4, "uvwxy", 1, 3)
     if r.is_err(u8_stride_copy_s2) || u8_stride_copy_s2 != u8_stride_buf5 { return 1245 }
-    var u8_stride_s4 = buffer.try_u8_to_string(u8_stride_buf5)
+    var u8_stride_s4 = buffer.u8_to_string(u8_stride_buf5)
     if r.is_err(u8_stride_s4) || u8_stride_s4 != "vBwDx" { return 1246 }
-    var u8_stride_buf4 = buffer.try_u8_from_string("ABCDE")
+    var u8_stride_buf4 = buffer.u8_from_string("ABCDE")
     if r.is_err(u8_stride_buf4) { return 249 }
-    var u8_stride3 = buffer.try_strided_new(u8_stride_buf4, 0, 3, 2)
+    var u8_stride3 = buffer.strided_new(u8_stride_buf4, 0, 3, 2)
     if r.is_err(u8_stride3) { return 250 }
-    var u8_src4 = buffer.try_u8_from_string("rst")
+    var u8_src4 = buffer.u8_from_string("rst")
     if r.is_err(u8_src4) { return 251 }
-    var u8_stride_copy_buf = buffer.try_strided_copy_from_u8_buf(u8_stride3, u8_src4)
+    var u8_stride_copy_buf = buffer.strided_copy_from_u8_buf(u8_stride3, u8_src4)
     if r.is_err(u8_stride_copy_buf) || u8_stride_copy_buf != u8_stride_buf4 { return 252 }
-    var u8_stride_s3 = buffer.try_u8_to_string(u8_stride_buf4)
+    var u8_stride_s3 = buffer.u8_to_string(u8_stride_buf4)
     if r.is_err(u8_stride_s3) || u8_stride_s3 != "rBsDt" { return 253 }
-    var bad_u8_stride_s = buffer.try_strided_to_string("nope")
+    var bad_u8_stride_s = buffer.strided_to_string("nope")
     if r.is_err(bad_u8_stride_s) != true { return 224 }
-    var bad_u8_stride_copy = buffer.try_strided_copy_from_bytes(u8_stride, bytes.try_from_string("xy"))
+    var bad_u8_stride_copy = buffer.strided_copy_from_bytes(u8_stride, bytes.try_from_string("xy"))
     if r.is_err(bad_u8_stride_copy) != true { return 225 }
-    var bad_u8_stride_copy_bytes = buffer.try_strided_copy_from_bytes_slice(u8_stride_bytes, bytes.try_from_string("uv"), 0, 2)
+    var bad_u8_stride_copy_bytes = buffer.strided_copy_from_bytes_slice(u8_stride_bytes, bytes.try_from_string("uv"), 0, 2)
     if r.is_err(bad_u8_stride_copy_bytes) != true { return 1210 }
-    var bad_u8_stride_list = buffer.try_strided_unpack_u8("nope")
+    var bad_u8_stride_list = buffer.strided_unpack_u8("nope")
     if r.is_err(bad_u8_stride_list) != true { return 254 }
-    var bad_u8_stride_buf = buffer.try_strided_to_u8_buf("nope")
+    var bad_u8_stride_buf = buffer.strided_to_u8_buf("nope")
     if r.is_err(bad_u8_stride_buf) != true { return 238 }
-    var bad_u8_stride_copy_s = buffer.try_strided_copy_from_string(u8_stride2, "uv")
+    var bad_u8_stride_copy_s = buffer.strided_copy_from_string(u8_stride2, "uv")
     if r.is_err(bad_u8_stride_copy_s) != true { return 239 }
-    var bad_u8_stride_copy_s2 = buffer.try_strided_copy_from_string_slice(u8_stride4, "uv", 0, 2)
+    var bad_u8_stride_copy_s2 = buffer.strided_copy_from_string_slice(u8_stride4, "uv", 0, 2)
     if r.is_err(bad_u8_stride_copy_s2) != true { return 1247 }
-    var bad_u8_stride_copy_buf = buffer.try_strided_copy_from_u8_buf(u8_stride3, buffer.try_u8_from_string("rs"))
+    var bad_u8_stride_copy_buf = buffer.strided_copy_from_u8_buf(u8_stride3, buffer.u8_from_string("rs"))
     if r.is_err(bad_u8_stride_copy_buf) != true { return 255 }
     return 0
 }
@@ -199,96 +199,96 @@ fn smoke_buffer_strided_views(i32b) {
 fn smoke_buffer_core() {
     // std:buffer structured errors
     var ub = buffer.u8_new(3)
-    var ub_len = buffer.try_len(ub)
+    var ub_len = buffer.len(ub)
     if r.is_err(ub_len) || ub_len != 3 { return 36 }
-    var ub_bad = buffer.try_load_u8(ub, 3)
+    var ub_bad = buffer.load_u8(ub, 3)
     if r.is_err(ub_bad) != true { return 37 }
-    var ub_bad_set = buffer.try_store_u8(ub, 0, 300)
+    var ub_bad_set = buffer.store_u8(ub, 0, 300)
     if r.is_err(ub_bad_set) != true { return 38 }
     var i32b = buffer.i32_new(2)
     if r.is_err(i32b) { return 39 }
-    var i32s = buffer.try_store_i32(i32b, 0, -7)
+    var i32s = buffer.store_i32(i32b, 0, -7)
     if r.is_err(i32s) || i32s != i32b { return 40 }
-    var i32v = buffer.try_load_i32(i32b, 0)
+    var i32v = buffer.load_i32(i32b, 0)
     if r.is_err(i32v) || i32v != -7 { return 41 }
-    var i32_bad = buffer.try_load_i32(i32b, 2)
+    var i32_bad = buffer.load_i32(i32b, 2)
     if r.is_err(i32_bad) != true { return 42 }
     var i64b = buffer.i64_new(2)
     if r.is_err(i64b) { return 43 }
-    var i64s = buffer.try_store_i64(i64b, 1, 4294967296)
+    var i64s = buffer.store_i64(i64b, 1, 4294967296)
     if r.is_err(i64s) || i64s != i64b { return 44 }
-    var i64v = buffer.try_load_i64(i64b, 1)
+    var i64v = buffer.load_i64(i64b, 1)
     if r.is_err(i64v) || i64v != 4294967296 { return 45 }
-    var i32_list = buffer.try_i32_unpack_list(i32b)
+    var i32_list = buffer.i32_unpack_list(i32b)
     if r.is_err(i32_list) || oren_list_len(i32_list) != 2 || i32_list[0] != -7 || i32_list[1] != 0 { return 46 }
-    var i32_pack_try = buffer.try_i32_pack_list_int([5, 6])
+    var i32_pack_try = buffer.i32_pack_list_int([5, 6])
     if r.is_err(i32_pack_try) { return 47 }
-    var i32_pack_list = buffer.try_i32_unpack_list(i32_pack_try)
+    var i32_pack_list = buffer.i32_unpack_list(i32_pack_try)
     if r.is_err(i32_pack_list) || oren_list_len(i32_pack_list) != 2 || i32_pack_list[1] != 6 { return 48 }
-    var i32_pack_bad = buffer.try_i32_pack_list_int([2147483648])
+    var i32_pack_bad = buffer.i32_pack_list_int([2147483648])
     if r.is_err(i32_pack_bad) != true { return 49 }
-    var i64_pack_try = buffer.try_i64_pack_list_int([8, 9, 4294967296])
+    var i64_pack_try = buffer.i64_pack_list_int([8, 9, 4294967296])
     if r.is_err(i64_pack_try) { return 673 }
-    var i64_pack_list = buffer.try_i64_unpack_list(i64_pack_try)
+    var i64_pack_list = buffer.i64_unpack_list(i64_pack_try)
     if r.is_err(i64_pack_list) || oren_list_len(i64_pack_list) != 3 || i64_pack_list[2] != 4294967296 { return 674 }
     var i64_into = buffer.i64_new(2)
     if r.is_err(i64_into) { return 675 }
-    if r.is_err(buffer.try_i64_pack_list_int_into(i64_into, [10, 11])) { return 676 }
-    var i64_into_list = buffer.try_i64_unpack_list(i64_into)
+    if r.is_err(buffer.i64_pack_list_int_into(i64_into, [10, 11])) { return 676 }
+    var i64_into_list = buffer.i64_unpack_list(i64_into)
     if r.is_err(i64_into_list) || i64_into_list[1] != 11 { return 677 }
-    if r.is_err(buffer.try_i64_pack_list_int_into(i64_into, [1])) != true { return 678 }
-    if r.is_err(buffer.try_i32_pack_list_int_into(i64_into, [10, 11])) != true { return 16790 }
-    var f32_pack_try = buffer.try_f32_pack_list([1.5, 2.5, 3.5])
+    if r.is_err(buffer.i64_pack_list_int_into(i64_into, [1])) != true { return 678 }
+    if r.is_err(buffer.i32_pack_list_int_into(i64_into, [10, 11])) != true { return 16790 }
+    var f32_pack_try = buffer.f32_pack_list([1.5, 2.5, 3.5])
     if r.is_err(f32_pack_try) { return 679 }
-    var f32_pack_list = buffer.try_f32_unpack_list(f32_pack_try)
+    var f32_pack_list = buffer.f32_unpack_list(f32_pack_try)
     if r.is_err(f32_pack_list) || oren_list_len(f32_pack_list) != 3 { return 680 }
     var f32_into = buffer.f32_new(2)
     if r.is_err(f32_into) { return 681 }
-    if r.is_err(buffer.try_f32_pack_list_into(f32_into, [4.5, 5.5])) { return 682 }
-    var f32_into_list = buffer.try_f32_unpack_list(f32_into)
+    if r.is_err(buffer.f32_pack_list_into(f32_into, [4.5, 5.5])) { return 682 }
+    var f32_into_list = buffer.f32_unpack_list(f32_into)
     if r.is_err(f32_into_list) || oren_list_len(f32_into_list) != 2 { return 683 }
-    if r.is_err(buffer.try_f32_pack_list_into(f32_into, [1.0])) != true { return 684 }
-    var f64_pack_try = buffer.try_f64_pack_list([6.25, 7.25])
+    if r.is_err(buffer.f32_pack_list_into(f32_into, [1.0])) != true { return 684 }
+    var f64_pack_try = buffer.f64_pack_list([6.25, 7.25])
     if r.is_err(f64_pack_try) { return 685 }
-    var f64_pack_list = buffer.try_f64_unpack_list(f64_pack_try)
+    var f64_pack_list = buffer.f64_unpack_list(f64_pack_try)
     if r.is_err(f64_pack_list) || oren_list_len(f64_pack_list) != 2 { return 686 }
     var f64_into = buffer.f64_new(2)
     if r.is_err(f64_into) { return 687 }
-    if r.is_err(buffer.try_f64_pack_list_into(f64_into, [8.25, 9.25])) { return 688 }
-    var f64_into_list = buffer.try_f64_unpack_list(f64_into)
+    if r.is_err(buffer.f64_pack_list_into(f64_into, [8.25, 9.25])) { return 688 }
+    var f64_into_list = buffer.f64_unpack_list(f64_into)
     if r.is_err(f64_into_list) || oren_list_len(f64_into_list) != 2 { return 689 }
-    if r.is_err(buffer.try_f64_pack_list_into(f64_into, [1.0])) != true { return 690 }
-    var u8_from = buffer.try_u8_from_string("AB")
+    if r.is_err(buffer.f64_pack_list_into(f64_into, [1.0])) != true { return 690 }
+    var u8_from = buffer.u8_from_string("AB")
     if r.is_err(u8_from) { return 50 }
-    var u8_text = buffer.try_u8_to_string(u8_from)
+    var u8_text = buffer.u8_to_string(u8_from)
     if r.is_err(u8_text) || u8_text != "AB" { return 51 }
-    var u8_list = buffer.try_u8_unpack(u8_from)
+    var u8_list = buffer.u8_unpack(u8_from)
     if r.is_err(u8_list) || oren_list_len(u8_list) != 2 || u8_list[0] != 65 || u8_list[1] != 66 { return 52 }
-    var u8_pack = buffer.try_u8_pack([67, 68])
+    var u8_pack = buffer.u8_pack([67, 68])
     if r.is_err(u8_pack) { return 53 }
-    var u8_pack_text = buffer.try_u8_to_string(u8_pack)
+    var u8_pack_text = buffer.u8_to_string(u8_pack)
     if r.is_err(u8_pack_text) || u8_pack_text != "CD" { return 54 }
-    var u8_pack_bad = buffer.try_u8_pack([256])
+    var u8_pack_bad = buffer.u8_pack([256])
     if r.is_err(u8_pack_bad) != true { return 55 }
-    var u8_pack_bad_type = buffer.try_u8_pack(123)
+    var u8_pack_bad_type = buffer.u8_pack(123)
     if r.is_err(u8_pack_bad_type) != true { return 56 }
-    var u8_from_bad = buffer.try_u8_from_string(123)
+    var u8_from_bad = buffer.u8_from_string(123)
     if r.is_err(u8_from_bad) != true { return 57 }
     var f32b = buffer.f32_new(2)
     if r.is_err(f32b) { return 58 }
-    var f32s = buffer.try_store_f32(f32b, 0, 1.5)
+    var f32s = buffer.store_f32(f32b, 0, 1.5)
     if r.is_err(f32s) || f32s != f32b { return 59 }
-    var f32v = buffer.try_load_f32(f32b, 0)
+    var f32v = buffer.load_f32(f32b, 0)
     if r.is_err(f32v) { return 60 }
-    var f32_bad = buffer.try_load_f32(f32b, 2)
+    var f32_bad = buffer.load_f32(f32b, 2)
     if r.is_err(f32_bad) != true { return 61 }
     var f64b = buffer.f64_new(2)
     if r.is_err(f64b) { return 62 }
-    var f64s = buffer.try_store_f64(f64b, 1, -0.5)
+    var f64s = buffer.store_f64(f64b, 1, -0.5)
     if r.is_err(f64s) || f64s != f64b { return 63 }
-    var f64v = buffer.try_load_f64(f64b, 1)
+    var f64v = buffer.load_f64(f64b, 1)
     if r.is_err(f64v) { return 64 }
-    var f64_bad = buffer.try_load_f64(f64b, 3)
+    var f64_bad = buffer.load_f64(f64b, 3)
     if r.is_err(f64_bad) != true { return 65 }
     var rc = smoke_buffer_slice_views(i32b)
     if rc != 0 { return rc }
@@ -345,382 +345,382 @@ fn smoke_list_int_slot_ops() {
 fn smoke_buffer_matrix_u8() {
     var matb = buffer.i32_new(4)
     if r.is_err(matb) { return 200 }
-    if r.is_err(buffer.try_store_i32(matb, 0, 1)) { return 201 }
-    if r.is_err(buffer.try_store_i32(matb, 1, 2)) { return 202 }
-    if r.is_err(buffer.try_store_i32(matb, 2, 3)) { return 203 }
-    if r.is_err(buffer.try_store_i32(matb, 3, 4)) { return 204 }
-    var mat = buffer.try_mat_view_new(matb, 0, 2, 2, 2)
+    if r.is_err(buffer.store_i32(matb, 0, 1)) { return 201 }
+    if r.is_err(buffer.store_i32(matb, 1, 2)) { return 202 }
+    if r.is_err(buffer.store_i32(matb, 2, 3)) { return 203 }
+    if r.is_err(buffer.store_i32(matb, 3, 4)) { return 204 }
+    var mat = buffer.mat_view_new(matb, 0, 2, 2, 2)
     if r.is_err(mat) { return 205 }
-    if buffer.try_mat_rows(mat) != 2 { return 256 }
-    if buffer.try_mat_cols(mat) != 2 { return 257 }
-    if buffer.try_mat_row_stride(mat) != 2 { return 258 }
-    var mat_row = buffer.try_mat_row_slice(mat, 1)
+    if buffer.mat_rows(mat) != 2 { return 256 }
+    if buffer.mat_cols(mat) != 2 { return 257 }
+    if buffer.mat_row_stride(mat) != 2 { return 258 }
+    var mat_row = buffer.mat_row_slice(mat, 1)
     if r.is_err(mat_row) { return 281 }
-    if buffer.try_slice_len(mat_row) != 2 { return 282 }
-    var mat_row_v0 = buffer.try_slice_load_i32(mat_row, 0)
+    if buffer.slice_len(mat_row) != 2 { return 282 }
+    var mat_row_v0 = buffer.slice_load_i32(mat_row, 0)
     if r.is_err(mat_row_v0) || mat_row_v0 != 3 { return 283 }
-    var mat_row_v1 = buffer.try_slice_load_i32(mat_row, 1)
+    var mat_row_v1 = buffer.slice_load_i32(mat_row, 1)
     if r.is_err(mat_row_v1) || mat_row_v1 != 4 { return 284 }
-    var mat_col = buffer.try_mat_col_strided(mat, 1)
+    var mat_col = buffer.mat_col_strided(mat, 1)
     if r.is_err(mat_col) { return 285 }
-    if buffer.try_strided_len(mat_col) != 2 { return 286 }
-    var mat_col_v0 = buffer.try_strided_load_i32(mat_col, 0)
+    if buffer.strided_len(mat_col) != 2 { return 286 }
+    var mat_col_v0 = buffer.strided_load_i32(mat_col, 0)
     if r.is_err(mat_col_v0) || mat_col_v0 != 2 { return 287 }
-    var mat_col_v1 = buffer.try_strided_load_i32(mat_col, 1)
+    var mat_col_v1 = buffer.strided_load_i32(mat_col, 1)
     if r.is_err(mat_col_v1) || mat_col_v1 != 4 { return 288 }
-    var matsub = buffer.try_mat_subview(mat, 0, 1, 2, 1)
+    var matsub = buffer.mat_subview(mat, 0, 1, 2, 1)
     if r.is_err(matsub) { return 299 }
-    if buffer.try_mat_rows(matsub) != 2 { return 300 }
-    if buffer.try_mat_cols(matsub) != 1 { return 301 }
-    var matsubv = buffer.try_mat_load_i32(matsub, 1, 0)
+    if buffer.mat_rows(matsub) != 2 { return 300 }
+    if buffer.mat_cols(matsub) != 1 { return 301 }
+    var matsubv = buffer.mat_load_i32(matsub, 1, 0)
     if r.is_err(matsubv) || matsubv != 4 { return 302 }
-    var matdiag = buffer.try_mat_diag_strided(mat)
+    var matdiag = buffer.mat_diag_strided(mat)
     if r.is_err(matdiag) { return 303 }
-    if buffer.try_strided_len(matdiag) != 2 { return 304 }
-    var matdiag0 = buffer.try_strided_load_i32(matdiag, 0)
+    if buffer.strided_len(matdiag) != 2 { return 304 }
+    var matdiag0 = buffer.strided_load_i32(matdiag, 0)
     if r.is_err(matdiag0) || matdiag0 != 1 { return 305 }
-    var matdiag1 = buffer.try_strided_load_i32(matdiag, 1)
+    var matdiag1 = buffer.strided_load_i32(matdiag, 1)
     if r.is_err(matdiag1) || matdiag1 != 4 { return 306 }
-    var mv = buffer.try_mat_load_i32(mat, 1, 0)
+    var mv = buffer.mat_load_i32(mat, 1, 0)
     if r.is_err(mv) || mv != 3 { return 206 }
-    var ms = buffer.try_mat_store_i32(mat, 0, 1, 7)
+    var ms = buffer.mat_store_i32(mat, 0, 1, 7)
     if r.is_err(ms) || ms != matb { return 207 }
-    var mv2 = buffer.try_mat_load_i32(mat, 0, 1)
+    var mv2 = buffer.mat_load_i32(mat, 0, 1)
     if r.is_err(mv2) || mv2 != 7 { return 208 }
-    var mat_bad = buffer.try_mat_load_i32(mat, 2, 0)
+    var mat_bad = buffer.mat_load_i32(mat, 2, 0)
     if r.is_err(mat_bad) != true { return 209 }
-    var u8matb = buffer.try_u8_from_string("ABCxDEFy")
+    var u8matb = buffer.u8_from_string("ABCxDEFy")
     if r.is_err(u8matb) { return 289 }
-    var u8mat = buffer.try_mat_view_new(u8matb, 0, 2, 3, 4)
+    var u8mat = buffer.mat_view_new(u8matb, 0, 2, 3, 4)
     if r.is_err(u8mat) { return 290 }
-    var u8mat_row = buffer.try_mat_row_slice(u8mat, 1)
+    var u8mat_row = buffer.mat_row_slice(u8mat, 1)
     if r.is_err(u8mat_row) { return 291 }
-    var u8mat_row_s = buffer.try_slice_to_string(u8mat_row)
+    var u8mat_row_s = buffer.slice_to_string(u8mat_row)
     if r.is_err(u8mat_row_s) || u8mat_row_s != "DEF" { return 292 }
-    var u8mat_col = buffer.try_mat_col_strided(u8mat, 1)
+    var u8mat_col = buffer.mat_col_strided(u8mat, 1)
     if r.is_err(u8mat_col) { return 293 }
-    var u8mat_col_s = buffer.try_strided_to_string(u8mat_col)
+    var u8mat_col_s = buffer.strided_to_string(u8mat_col)
     if r.is_err(u8mat_col_s) || u8mat_col_s != "BE" { return 294 }
-    var u8matsub = buffer.try_mat_subview(u8mat, 0, 1, 2, 2)
+    var u8matsub = buffer.mat_subview(u8mat, 0, 1, 2, 2)
     if r.is_err(u8matsub) { return 307 }
-    var u8matsubrow = buffer.try_mat_row_slice(u8matsub, 1)
+    var u8matsubrow = buffer.mat_row_slice(u8matsub, 1)
     if r.is_err(u8matsubrow) { return 308 }
-    var u8matsubrow_s = buffer.try_slice_to_string(u8matsubrow)
+    var u8matsubrow_s = buffer.slice_to_string(u8matsubrow)
     if r.is_err(u8matsubrow_s) || u8matsubrow_s != "EF" { return 309 }
-    var u8matdiag = buffer.try_mat_diag_strided(u8mat)
+    var u8matdiag = buffer.mat_diag_strided(u8mat)
     if r.is_err(u8matdiag) { return 310 }
-    var u8matdiag_s = buffer.try_strided_to_string(u8matdiag)
+    var u8matdiag_s = buffer.strided_to_string(u8matdiag)
     if r.is_err(u8matdiag_s) || u8matdiag_s != "AE" { return 311 }
-    var u8mat_row0_bytes = buffer.try_mat_row_to_bytes(u8mat, 0)
+    var u8mat_row0_bytes = buffer.mat_row_to_bytes(u8mat, 0)
     if r.is_err(u8mat_row0_bytes) { return 336 }
     var u8mat_row0_s = bytes.try_to_string(u8mat_row0_bytes)
     if r.is_err(u8mat_row0_s) || u8mat_row0_s != "ABC" { return 337 }
-    var u8mat_row1_buf = buffer.try_mat_row_to_u8_buf(u8mat, 1)
+    var u8mat_row1_buf = buffer.mat_row_to_u8_buf(u8mat, 1)
     if r.is_err(u8mat_row1_buf) { return 338 }
-    var u8mat_row1_buf_s = buffer.try_u8_to_string(u8mat_row1_buf)
+    var u8mat_row1_buf_s = buffer.u8_to_string(u8mat_row1_buf)
     if r.is_err(u8mat_row1_buf_s) || u8mat_row1_buf_s != "DEF" { return 339 }
-    var u8mat_row0_list = buffer.try_mat_row_unpack_u8(u8mat, 0)
+    var u8mat_row0_list = buffer.mat_row_unpack_u8(u8mat, 0)
     if r.is_err(u8mat_row0_list) { return 340 }
     if u8mat_row0_list[0] != 65 || u8mat_row0_list[2] != 67 { return 341 }
-    var u8mat_col1_buf = buffer.try_mat_col_to_u8_buf(u8mat, 1)
+    var u8mat_col1_buf = buffer.mat_col_to_u8_buf(u8mat, 1)
     if r.is_err(u8mat_col1_buf) { return 342 }
-    var u8mat_col1_buf_s = buffer.try_u8_to_string(u8mat_col1_buf)
+    var u8mat_col1_buf_s = buffer.u8_to_string(u8mat_col1_buf)
     if r.is_err(u8mat_col1_buf_s) || u8mat_col1_buf_s != "BE" { return 343 }
-    var u8mat_col1_bytes = buffer.try_mat_col_to_bytes(u8mat, 1)
+    var u8mat_col1_bytes = buffer.mat_col_to_bytes(u8mat, 1)
     if r.is_err(u8mat_col1_bytes) { return 344 }
     var u8mat_col1_s = bytes.try_to_string(u8mat_col1_bytes)
     if r.is_err(u8mat_col1_s) || u8mat_col1_s != "BE" { return 345 }
-    var u8mat_col1_list = buffer.try_mat_col_unpack_u8(u8mat, 1)
+    var u8mat_col1_list = buffer.mat_col_unpack_u8(u8mat, 1)
     if r.is_err(u8mat_col1_list) { return 346 }
     if u8mat_col1_list[0] != 66 || u8mat_col1_list[1] != 69 { return 347 }
-    var diag_string_mat = buffer.try_u8_mat_pack_strings(["AB", "CD"])
+    var diag_string_mat = buffer.u8_mat_pack_strings(["AB", "CD"])
     if r.is_err(diag_string_mat) { return 610 }
-    var diag_string_s = buffer.try_mat_diag_to_string(diag_string_mat)
+    var diag_string_s = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_string_s) || diag_string_s != "AD" { return 611 }
-    var diag_string_bytes = buffer.try_mat_diag_to_bytes(diag_string_mat)
+    var diag_string_bytes = buffer.mat_diag_to_bytes(diag_string_mat)
     if r.is_err(diag_string_bytes) { return 612 }
     var diag_string_bytes_s = bytes.try_to_string(diag_string_bytes)
     if r.is_err(diag_string_bytes_s) || diag_string_bytes_s != "AD" { return 613 }
-    var diag_string_buf = buffer.try_mat_diag_to_u8_buf(diag_string_mat)
+    var diag_string_buf = buffer.mat_diag_to_u8_buf(diag_string_mat)
     if r.is_err(diag_string_buf) { return 614 }
-    var diag_string_buf_s = buffer.try_u8_to_string(diag_string_buf)
+    var diag_string_buf_s = buffer.u8_to_string(diag_string_buf)
     if r.is_err(diag_string_buf_s) || diag_string_buf_s != "AD" { return 615 }
-    var diag_string_list = buffer.try_mat_diag_unpack_u8(diag_string_mat)
+    var diag_string_list = buffer.mat_diag_unpack_u8(diag_string_mat)
     if r.is_err(diag_string_list) || diag_string_list[0] != 65 || diag_string_list[1] != 68 { return 616 }
-    if r.is_err(buffer.try_mat_diag_copy_from_string(diag_string_mat, "xy")) { return 617 }
-    var diag_after_string = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(buffer.mat_diag_copy_from_string(diag_string_mat, "xy")) { return 617 }
+    var diag_after_string = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_string) || diag_after_string != "xy" { return 618 }
-    if r.is_err(buffer.try_mat_diag_copy_from_string_slice(diag_string_mat, "vwxy", 1, 2)) { return 1229 }
-    var diag_after_string_slice = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(buffer.mat_diag_copy_from_string_slice(diag_string_mat, "vwxy", 1, 2)) { return 1229 }
+    var diag_after_string_slice = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_string_slice) || diag_after_string_slice != "wx" { return 1230 }
     var diag_string_bytes_src = bytes.try_from_string("pq")
     if r.is_err(diag_string_bytes_src) { return 619 }
-    if r.is_err(buffer.try_mat_diag_copy_from_bytes(diag_string_mat, diag_string_bytes_src)) { return 620 }
-    var diag_after_bytes = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(buffer.mat_diag_copy_from_bytes(diag_string_mat, diag_string_bytes_src)) { return 620 }
+    var diag_after_bytes = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_bytes) || diag_after_bytes != "pq" { return 621 }
     var diag_string_bytes_slice_src = bytes.try_from_string("tuv")
     if r.is_err(diag_string_bytes_slice_src) { return 1211 }
-    if r.is_err(buffer.try_mat_diag_copy_from_bytes_slice(diag_string_mat, diag_string_bytes_slice_src, 1, 2)) { return 1212 }
-    var diag_after_bytes_slice = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(buffer.mat_diag_copy_from_bytes_slice(diag_string_mat, diag_string_bytes_slice_src, 1, 2)) { return 1212 }
+    var diag_after_bytes_slice = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_bytes_slice) || diag_after_bytes_slice != "uv" { return 1213 }
-    var diag_string_buf_src = buffer.try_u8_from_string("rs")
+    var diag_string_buf_src = buffer.u8_from_string("rs")
     if r.is_err(diag_string_buf_src) { return 622 }
-    if r.is_err(buffer.try_mat_diag_copy_from_u8_buf(diag_string_mat, diag_string_buf_src)) { return 623 }
-    var diag_after_buf = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(buffer.mat_diag_copy_from_u8_buf(diag_string_mat, diag_string_buf_src)) { return 623 }
+    var diag_after_buf = buffer.mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_buf) || diag_after_buf != "rs" { return 624 }
-    var mat_u8_cells = buffer.try_u8_mat_pack_strings(["ABC", "DEF"])
+    var mat_u8_cells = buffer.u8_mat_pack_strings(["ABC", "DEF"])
     if r.is_err(mat_u8_cells) { return 660 }
-    var mat_u8_cell = buffer.try_mat_load_u8(mat_u8_cells, 0, 1)
+    var mat_u8_cell = buffer.mat_load_u8(mat_u8_cells, 0, 1)
     if r.is_err(mat_u8_cell) || mat_u8_cell != 66 { return 661 }
-    if r.is_err(buffer.try_mat_store_u8(mat_u8_cells, 1, 2, 90)) { return 662 }
-    var mat_u8_after = buffer.try_mat_load_u8(mat_u8_cells, 1, 2)
+    if r.is_err(buffer.mat_store_u8(mat_u8_cells, 1, 2, 90)) { return 662 }
+    var mat_u8_after = buffer.mat_load_u8(mat_u8_cells, 1, 2)
     if r.is_err(mat_u8_after) || mat_u8_after != 90 { return 663 }
-    var mat_u8_row_after = buffer.try_mat_row_to_string(mat_u8_cells, 1)
+    var mat_u8_row_after = buffer.mat_row_to_string(mat_u8_cells, 1)
     if r.is_err(mat_u8_row_after) || mat_u8_row_after != "DEZ" { return 664 }
-    if r.is_err(buffer.try_mat_store_u8(mat_u8_cells, 0, 0, 256)) != true { return 665 }
-    if r.is_err(buffer.try_mat_load_u8(mat_u8_cells, 2, 0)) != true { return 666 }
-    if r.is_err(buffer.try_mat_row_slice(u8mat, 2)) != true { return 295 }
-    if r.is_err(buffer.try_mat_col_strided(u8mat, 3)) != true { return 296 }
-    if r.is_err(buffer.try_mat_subview(u8mat, 1, 2, 2, 2)) != true { return 312 }
-    if r.is_err(buffer.try_mat_row_slice("nope", 0)) != true { return 297 }
-    if r.is_err(buffer.try_mat_col_strided("nope", 0)) != true { return 298 }
-    if r.is_err(buffer.try_mat_subview("nope", 0, 0, 1, 1)) != true { return 313 }
-    if r.is_err(buffer.try_mat_diag_strided("nope")) != true { return 314 }
-    if r.is_err(buffer.try_mat_diag_to_string("nope")) != true { return 625 }
-    if r.is_err(buffer.try_mat_row_to_string("nope", 0)) != true { return 348 }
-    if r.is_err(buffer.try_mat_col_copy_from_string("nope", 0, "ab")) != true { return 349 }
-    var packed_i32_mat = buffer.try_i32_mat_pack_rows([[10, 20], [30, 40]])
+    if r.is_err(buffer.mat_store_u8(mat_u8_cells, 0, 0, 256)) != true { return 665 }
+    if r.is_err(buffer.mat_load_u8(mat_u8_cells, 2, 0)) != true { return 666 }
+    if r.is_err(buffer.mat_row_slice(u8mat, 2)) != true { return 295 }
+    if r.is_err(buffer.mat_col_strided(u8mat, 3)) != true { return 296 }
+    if r.is_err(buffer.mat_subview(u8mat, 1, 2, 2, 2)) != true { return 312 }
+    if r.is_err(buffer.mat_row_slice("nope", 0)) != true { return 297 }
+    if r.is_err(buffer.mat_col_strided("nope", 0)) != true { return 298 }
+    if r.is_err(buffer.mat_subview("nope", 0, 0, 1, 1)) != true { return 313 }
+    if r.is_err(buffer.mat_diag_strided("nope")) != true { return 314 }
+    if r.is_err(buffer.mat_diag_to_string("nope")) != true { return 625 }
+    if r.is_err(buffer.mat_row_to_string("nope", 0)) != true { return 348 }
+    if r.is_err(buffer.mat_col_copy_from_string("nope", 0, "ab")) != true { return 349 }
+    var packed_i32_mat = buffer.i32_mat_pack_rows([[10, 20], [30, 40]])
     if r.is_err(packed_i32_mat) { return 315 }
-    if buffer.try_mat_rows(packed_i32_mat) != 2 { return 316 }
-    if buffer.try_mat_cols(packed_i32_mat) != 2 { return 317 }
-    var packed_i32_v = buffer.try_mat_load_i32(packed_i32_mat, 1, 0)
+    if buffer.mat_rows(packed_i32_mat) != 2 { return 316 }
+    if buffer.mat_cols(packed_i32_mat) != 2 { return 317 }
+    var packed_i32_v = buffer.mat_load_i32(packed_i32_mat, 1, 0)
     if r.is_err(packed_i32_v) || packed_i32_v != 30 { return 318 }
-    var unpacked_i32_rows = buffer.try_i32_mat_unpack_rows(packed_i32_mat)
+    var unpacked_i32_rows = buffer.i32_mat_unpack_rows(packed_i32_mat)
     if r.is_err(unpacked_i32_rows) { return 319 }
     if unpacked_i32_rows[0][1] != 20 || unpacked_i32_rows[1][0] != 30 { return 320 }
-    if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 4]])) { return 386 }
-    var copied_i32_rows = buffer.try_i32_mat_unpack_rows(packed_i32_mat)
+    if r.is_err(buffer.i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 4]])) { return 386 }
+    var copied_i32_rows = buffer.i32_mat_unpack_rows(packed_i32_mat)
     if r.is_err(copied_i32_rows) { return 387 }
     if copied_i32_rows[0][0] != 1 || copied_i32_rows[1][1] != 4 { return 388 }
-    var copied_i32_flat = buffer.try_i32_mat_unpack_flat(packed_i32_mat)
+    var copied_i32_flat = buffer.i32_mat_unpack_flat(packed_i32_mat)
     if r.is_err(copied_i32_flat) || copied_i32_flat[0] != 1 || copied_i32_flat[3] != 4 { return 433 }
-    if r.is_err(buffer.try_i32_mat_copy_from_flat(packed_i32_mat, [9, 8, 7, 6])) { return 434 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 9 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 6 { return 435 }
-    var copied_i32_buf = buffer.try_i32_mat_to_i32_buf(packed_i32_mat)
-    if r.is_err(copied_i32_buf) || buffer.try_len(copied_i32_buf) != 4 { return 494 }
-    if buffer.try_load_i32(copied_i32_buf, 0) != 9 || buffer.try_load_i32(copied_i32_buf, 3) != 6 { return 495 }
+    if r.is_err(buffer.i32_mat_copy_from_flat(packed_i32_mat, [9, 8, 7, 6])) { return 434 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 9 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 6 { return 435 }
+    var copied_i32_buf = buffer.i32_mat_to_i32_buf(packed_i32_mat)
+    if r.is_err(copied_i32_buf) || buffer.len(copied_i32_buf) != 4 { return 494 }
+    if buffer.load_i32(copied_i32_buf, 0) != 9 || buffer.load_i32(copied_i32_buf, 3) != 6 { return 495 }
     var src_i32_buf = buffer.i32_new(4)
     if r.is_err(src_i32_buf) { return 496 }
-    if r.is_err(buffer.try_store_i32(src_i32_buf, 0, 51)) || r.is_err(buffer.try_store_i32(src_i32_buf, 1, 52)) { return 497 }
-    if r.is_err(buffer.try_store_i32(src_i32_buf, 2, 53)) || r.is_err(buffer.try_store_i32(src_i32_buf, 3, 54)) { return 498 }
-    if r.is_err(buffer.try_i32_mat_copy_from_i32_buf(packed_i32_mat, src_i32_buf)) { return 499 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 51 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 54 { return 500 }
-    var i32_row0_view = buffer.try_mat_row_slice(packed_i32_mat, 0)
+    if r.is_err(buffer.store_i32(src_i32_buf, 0, 51)) || r.is_err(buffer.store_i32(src_i32_buf, 1, 52)) { return 497 }
+    if r.is_err(buffer.store_i32(src_i32_buf, 2, 53)) || r.is_err(buffer.store_i32(src_i32_buf, 3, 54)) { return 498 }
+    if r.is_err(buffer.i32_mat_copy_from_i32_buf(packed_i32_mat, src_i32_buf)) { return 499 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 51 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 54 { return 500 }
+    var i32_row0_view = buffer.mat_row_slice(packed_i32_mat, 0)
     if r.is_err(i32_row0_view) { return 451 }
-    var i32_row0_list = buffer.try_slice_unpack_i32(i32_row0_view)
+    var i32_row0_list = buffer.slice_unpack_i32(i32_row0_view)
     if r.is_err(i32_row0_list) || i32_row0_list[0] != 51 || i32_row0_list[1] != 52 { return 452 }
-    if r.is_err(buffer.try_slice_copy_from_list_i32(i32_row0_view, [11, 12])) { return 453 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 11 || buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 12 { return 454 }
-    var i32_row0_buf_direct = buffer.try_slice_to_i32_buf(i32_row0_view)
-    if r.is_err(i32_row0_buf_direct) || buffer.try_len(i32_row0_buf_direct) != 2 { return 534 }
-    if buffer.try_load_i32(i32_row0_buf_direct, 0) != 11 || buffer.try_load_i32(i32_row0_buf_direct, 1) != 12 { return 535 }
+    if r.is_err(buffer.slice_copy_from_list_i32(i32_row0_view, [11, 12])) { return 453 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 11 || buffer.mat_load_i32(packed_i32_mat, 0, 1) != 12 { return 454 }
+    var i32_row0_buf_direct = buffer.slice_to_i32_buf(i32_row0_view)
+    if r.is_err(i32_row0_buf_direct) || buffer.len(i32_row0_buf_direct) != 2 { return 534 }
+    if buffer.load_i32(i32_row0_buf_direct, 0) != 11 || buffer.load_i32(i32_row0_buf_direct, 1) != 12 { return 535 }
     var src_i32_row_view_buf = buffer.i32_new(2)
     if r.is_err(src_i32_row_view_buf) { return 536 }
-    if r.is_err(buffer.try_store_i32(src_i32_row_view_buf, 0, 61)) || r.is_err(buffer.try_store_i32(src_i32_row_view_buf, 1, 62)) { return 537 }
-    if r.is_err(buffer.try_slice_copy_from_i32_buf(i32_row0_view, src_i32_row_view_buf)) { return 538 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 61 || buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 62 { return 539 }
-    var i32_row0_mat_buf = buffer.try_mat_row_to_i32_buf(packed_i32_mat, 0)
-    if r.is_err(i32_row0_mat_buf) || buffer.try_load_i32(i32_row0_mat_buf, 0) != 61 || buffer.try_load_i32(i32_row0_mat_buf, 1) != 62 { return 540 }
+    if r.is_err(buffer.store_i32(src_i32_row_view_buf, 0, 61)) || r.is_err(buffer.store_i32(src_i32_row_view_buf, 1, 62)) { return 537 }
+    if r.is_err(buffer.slice_copy_from_i32_buf(i32_row0_view, src_i32_row_view_buf)) { return 538 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 61 || buffer.mat_load_i32(packed_i32_mat, 0, 1) != 62 { return 539 }
+    var i32_row0_mat_buf = buffer.mat_row_to_i32_buf(packed_i32_mat, 0)
+    if r.is_err(i32_row0_mat_buf) || buffer.load_i32(i32_row0_mat_buf, 0) != 61 || buffer.load_i32(i32_row0_mat_buf, 1) != 62 { return 540 }
     var src_i32_row_mat_buf = buffer.i32_new(2)
     if r.is_err(src_i32_row_mat_buf) { return 541 }
-    if r.is_err(buffer.try_store_i32(src_i32_row_mat_buf, 0, 63)) || r.is_err(buffer.try_store_i32(src_i32_row_mat_buf, 1, 64)) { return 542 }
-    if r.is_err(buffer.try_mat_row_copy_from_i32_buf(packed_i32_mat, 0, src_i32_row_mat_buf)) { return 543 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 63 || buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 64 { return 544 }
-    var i32_col1_view = buffer.try_mat_col_strided(packed_i32_mat, 1)
+    if r.is_err(buffer.store_i32(src_i32_row_mat_buf, 0, 63)) || r.is_err(buffer.store_i32(src_i32_row_mat_buf, 1, 64)) { return 542 }
+    if r.is_err(buffer.mat_row_copy_from_i32_buf(packed_i32_mat, 0, src_i32_row_mat_buf)) { return 543 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 63 || buffer.mat_load_i32(packed_i32_mat, 0, 1) != 64 { return 544 }
+    var i32_col1_view = buffer.mat_col_strided(packed_i32_mat, 1)
     if r.is_err(i32_col1_view) { return 455 }
-    var i32_col1_list = buffer.try_strided_unpack_i32(i32_col1_view)
+    var i32_col1_list = buffer.strided_unpack_i32(i32_col1_view)
     if r.is_err(i32_col1_list) || i32_col1_list[0] != 64 || i32_col1_list[1] != 54 { return 456 }
-    if r.is_err(buffer.try_strided_copy_from_list_i32(i32_col1_view, [21, 22])) { return 457 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 21 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 22 { return 458 }
-    var i32_col1_buf_direct = buffer.try_strided_to_i32_buf(i32_col1_view)
-    if r.is_err(i32_col1_buf_direct) || buffer.try_len(i32_col1_buf_direct) != 2 { return 545 }
-    if buffer.try_load_i32(i32_col1_buf_direct, 0) != 21 || buffer.try_load_i32(i32_col1_buf_direct, 1) != 22 { return 546 }
+    if r.is_err(buffer.strided_copy_from_list_i32(i32_col1_view, [21, 22])) { return 457 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 1) != 21 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 22 { return 458 }
+    var i32_col1_buf_direct = buffer.strided_to_i32_buf(i32_col1_view)
+    if r.is_err(i32_col1_buf_direct) || buffer.len(i32_col1_buf_direct) != 2 { return 545 }
+    if buffer.load_i32(i32_col1_buf_direct, 0) != 21 || buffer.load_i32(i32_col1_buf_direct, 1) != 22 { return 546 }
     var src_i32_col_view_buf = buffer.i32_new(2)
     if r.is_err(src_i32_col_view_buf) { return 547 }
-    if r.is_err(buffer.try_store_i32(src_i32_col_view_buf, 0, 71)) || r.is_err(buffer.try_store_i32(src_i32_col_view_buf, 1, 72)) { return 548 }
-    if r.is_err(buffer.try_strided_copy_from_i32_buf(i32_col1_view, src_i32_col_view_buf)) { return 549 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 71 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 72 { return 550 }
-    var i32_col1_mat_buf = buffer.try_mat_col_to_i32_buf(packed_i32_mat, 1)
-    if r.is_err(i32_col1_mat_buf) || buffer.try_load_i32(i32_col1_mat_buf, 0) != 71 || buffer.try_load_i32(i32_col1_mat_buf, 1) != 72 { return 551 }
+    if r.is_err(buffer.store_i32(src_i32_col_view_buf, 0, 71)) || r.is_err(buffer.store_i32(src_i32_col_view_buf, 1, 72)) { return 548 }
+    if r.is_err(buffer.strided_copy_from_i32_buf(i32_col1_view, src_i32_col_view_buf)) { return 549 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 1) != 71 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 72 { return 550 }
+    var i32_col1_mat_buf = buffer.mat_col_to_i32_buf(packed_i32_mat, 1)
+    if r.is_err(i32_col1_mat_buf) || buffer.load_i32(i32_col1_mat_buf, 0) != 71 || buffer.load_i32(i32_col1_mat_buf, 1) != 72 { return 551 }
     var src_i32_col_mat_buf = buffer.i32_new(2)
     if r.is_err(src_i32_col_mat_buf) { return 552 }
-    if r.is_err(buffer.try_store_i32(src_i32_col_mat_buf, 0, 73)) || r.is_err(buffer.try_store_i32(src_i32_col_mat_buf, 1, 74)) { return 553 }
-    if r.is_err(buffer.try_mat_col_copy_from_i32_buf(packed_i32_mat, 1, src_i32_col_mat_buf)) { return 554 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 73 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 74 { return 555 }
-    var i32_row1_list = buffer.try_mat_row_unpack_i32(packed_i32_mat, 1)
+    if r.is_err(buffer.store_i32(src_i32_col_mat_buf, 0, 73)) || r.is_err(buffer.store_i32(src_i32_col_mat_buf, 1, 74)) { return 553 }
+    if r.is_err(buffer.mat_col_copy_from_i32_buf(packed_i32_mat, 1, src_i32_col_mat_buf)) { return 554 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 1) != 73 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 74 { return 555 }
+    var i32_row1_list = buffer.mat_row_unpack_i32(packed_i32_mat, 1)
     if r.is_err(i32_row1_list) || i32_row1_list[0] != 53 || i32_row1_list[1] != 74 { return 459 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_i32(packed_i32_mat, 1, [31, 32])) { return 460 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 1, 0) != 31 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 32 { return 461 }
-    var i32_col0_list = buffer.try_mat_col_unpack_i32(packed_i32_mat, 0)
+    if r.is_err(buffer.mat_row_copy_from_list_i32(packed_i32_mat, 1, [31, 32])) { return 460 }
+    if buffer.mat_load_i32(packed_i32_mat, 1, 0) != 31 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 32 { return 461 }
+    var i32_col0_list = buffer.mat_col_unpack_i32(packed_i32_mat, 0)
     if r.is_err(i32_col0_list) || i32_col0_list[0] != 63 || i32_col0_list[1] != 31 { return 462 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_i32(packed_i32_mat, 0, [41, 42])) { return 463 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 41 || buffer.try_mat_load_i32(packed_i32_mat, 1, 0) != 42 { return 464 }
-    var i32_diag_list = buffer.try_mat_diag_unpack_i32(packed_i32_mat)
+    if r.is_err(buffer.mat_col_copy_from_list_i32(packed_i32_mat, 0, [41, 42])) { return 463 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 41 || buffer.mat_load_i32(packed_i32_mat, 1, 0) != 42 { return 464 }
+    var i32_diag_list = buffer.mat_diag_unpack_i32(packed_i32_mat)
     if r.is_err(i32_diag_list) || i32_diag_list[0] != 41 || i32_diag_list[1] != 32 { return 626 }
-    var i32_diag_buf = buffer.try_mat_diag_to_i32_buf(packed_i32_mat)
-    if r.is_err(i32_diag_buf) || buffer.try_len(i32_diag_buf) != 2 { return 627 }
-    if buffer.try_load_i32(i32_diag_buf, 0) != 41 || buffer.try_load_i32(i32_diag_buf, 1) != 32 { return 628 }
-    if r.is_err(buffer.try_mat_diag_copy_from_list_i32(packed_i32_mat, [81, 82])) { return 629 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 81 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 82 { return 630 }
+    var i32_diag_buf = buffer.mat_diag_to_i32_buf(packed_i32_mat)
+    if r.is_err(i32_diag_buf) || buffer.len(i32_diag_buf) != 2 { return 627 }
+    if buffer.load_i32(i32_diag_buf, 0) != 41 || buffer.load_i32(i32_diag_buf, 1) != 32 { return 628 }
+    if r.is_err(buffer.mat_diag_copy_from_list_i32(packed_i32_mat, [81, 82])) { return 629 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 81 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 82 { return 630 }
     var src_i32_diag_buf = buffer.i32_new(2)
     if r.is_err(src_i32_diag_buf) { return 631 }
-    if r.is_err(buffer.try_store_i32(src_i32_diag_buf, 0, 83)) || r.is_err(buffer.try_store_i32(src_i32_diag_buf, 1, 84)) { return 632 }
-    if r.is_err(buffer.try_mat_diag_copy_from_i32_buf(packed_i32_mat, src_i32_diag_buf)) { return 633 }
-    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 83 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 84 { return 634 }
-    if r.is_err(buffer.try_i32_mat_pack_rows([[1], [2, 3]])) != true { return 321 }
-    if r.is_err(buffer.try_i32_mat_pack_rows([[2147483648]])) != true { return 322 }
-    if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1], [2]])) != true { return 389 }
-    if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 2147483648]])) != true { return 390 }
-    if r.is_err(buffer.try_i32_mat_copy_from_flat(packed_i32_mat, [1, 2, 3])) != true { return 436 }
-    if r.is_err(buffer.try_i32_mat_copy_from_flat(packed_i32_mat, [1, 2, 3, 2147483648])) != true { return 437 }
-    if r.is_err(buffer.try_i32_mat_to_i32_buf("nope")) != true { return 501 }
-    if r.is_err(buffer.try_i32_mat_copy_from_i32_buf(packed_i32_mat, buffer.i32_new(3))) != true { return 502 }
-    if r.is_err(buffer.try_i32_mat_copy_from_i32_buf(packed_i32_mat, buffer.try_u8_from_string("ABCD"))) != true { return 503 }
-    if r.is_err(buffer.try_slice_unpack_i32("nope")) != true { return 465 }
-    if r.is_err(buffer.try_slice_to_i32_buf("nope")) != true { return 556 }
-    if r.is_err(buffer.try_slice_copy_from_i32_buf(i32_row0_view, buffer.i32_new(1))) != true { return 557 }
-    if r.is_err(buffer.try_slice_copy_from_i32_buf(i32_row0_view, buffer.try_u8_from_string("AB"))) != true { return 558 }
-    if r.is_err(buffer.try_slice_copy_from_list_i32(i32_row0_view, [1])) != true { return 466 }
-    if r.is_err(buffer.try_slice_copy_from_list_i32(i32_row0_view, [1, 2147483648])) != true { return 467 }
-    if r.is_err(buffer.try_strided_unpack_i32("nope")) != true { return 468 }
-    if r.is_err(buffer.try_strided_to_i32_buf("nope")) != true { return 559 }
-    if r.is_err(buffer.try_strided_copy_from_i32_buf(i32_col1_view, buffer.i32_new(1))) != true { return 560 }
-    if r.is_err(buffer.try_strided_copy_from_i32_buf(i32_col1_view, buffer.try_u8_from_string("AB"))) != true { return 561 }
-    if r.is_err(buffer.try_strided_copy_from_list_i32(i32_col1_view, [1])) != true { return 469 }
-    if r.is_err(buffer.try_mat_row_to_i32_buf("nope", 0)) != true { return 562 }
-    if r.is_err(buffer.try_mat_row_copy_from_i32_buf(packed_i32_mat, 0, buffer.i32_new(1))) != true { return 563 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_i32(packed_i32_mat, 0, [1])) != true { return 470 }
-    if r.is_err(buffer.try_mat_col_to_i32_buf("nope", 0)) != true { return 564 }
-    if r.is_err(buffer.try_mat_col_copy_from_i32_buf(packed_i32_mat, 0, buffer.try_u8_from_string("AB"))) != true { return 565 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_i32(packed_i32_mat, 0, [1, 2147483648])) != true { return 471 }
-    if r.is_err(buffer.try_mat_diag_to_i32_buf("nope")) != true { return 635 }
-    if r.is_err(buffer.try_mat_diag_copy_from_i32_buf(packed_i32_mat, buffer.i32_new(1))) != true { return 636 }
-    if r.is_err(buffer.try_mat_diag_copy_from_list_i32(packed_i32_mat, [1])) != true { return 637 }
-    var packed_u8_mat = buffer.try_u8_mat_pack_rows([[65, 66], [67, 68]])
+    if r.is_err(buffer.store_i32(src_i32_diag_buf, 0, 83)) || r.is_err(buffer.store_i32(src_i32_diag_buf, 1, 84)) { return 632 }
+    if r.is_err(buffer.mat_diag_copy_from_i32_buf(packed_i32_mat, src_i32_diag_buf)) { return 633 }
+    if buffer.mat_load_i32(packed_i32_mat, 0, 0) != 83 || buffer.mat_load_i32(packed_i32_mat, 1, 1) != 84 { return 634 }
+    if r.is_err(buffer.i32_mat_pack_rows([[1], [2, 3]])) != true { return 321 }
+    if r.is_err(buffer.i32_mat_pack_rows([[2147483648]])) != true { return 322 }
+    if r.is_err(buffer.i32_mat_copy_from_rows(packed_i32_mat, [[1], [2]])) != true { return 389 }
+    if r.is_err(buffer.i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 2147483648]])) != true { return 390 }
+    if r.is_err(buffer.i32_mat_copy_from_flat(packed_i32_mat, [1, 2, 3])) != true { return 436 }
+    if r.is_err(buffer.i32_mat_copy_from_flat(packed_i32_mat, [1, 2, 3, 2147483648])) != true { return 437 }
+    if r.is_err(buffer.i32_mat_to_i32_buf("nope")) != true { return 501 }
+    if r.is_err(buffer.i32_mat_copy_from_i32_buf(packed_i32_mat, buffer.i32_new(3))) != true { return 502 }
+    if r.is_err(buffer.i32_mat_copy_from_i32_buf(packed_i32_mat, buffer.u8_from_string("ABCD"))) != true { return 503 }
+    if r.is_err(buffer.slice_unpack_i32("nope")) != true { return 465 }
+    if r.is_err(buffer.slice_to_i32_buf("nope")) != true { return 556 }
+    if r.is_err(buffer.slice_copy_from_i32_buf(i32_row0_view, buffer.i32_new(1))) != true { return 557 }
+    if r.is_err(buffer.slice_copy_from_i32_buf(i32_row0_view, buffer.u8_from_string("AB"))) != true { return 558 }
+    if r.is_err(buffer.slice_copy_from_list_i32(i32_row0_view, [1])) != true { return 466 }
+    if r.is_err(buffer.slice_copy_from_list_i32(i32_row0_view, [1, 2147483648])) != true { return 467 }
+    if r.is_err(buffer.strided_unpack_i32("nope")) != true { return 468 }
+    if r.is_err(buffer.strided_to_i32_buf("nope")) != true { return 559 }
+    if r.is_err(buffer.strided_copy_from_i32_buf(i32_col1_view, buffer.i32_new(1))) != true { return 560 }
+    if r.is_err(buffer.strided_copy_from_i32_buf(i32_col1_view, buffer.u8_from_string("AB"))) != true { return 561 }
+    if r.is_err(buffer.strided_copy_from_list_i32(i32_col1_view, [1])) != true { return 469 }
+    if r.is_err(buffer.mat_row_to_i32_buf("nope", 0)) != true { return 562 }
+    if r.is_err(buffer.mat_row_copy_from_i32_buf(packed_i32_mat, 0, buffer.i32_new(1))) != true { return 563 }
+    if r.is_err(buffer.mat_row_copy_from_list_i32(packed_i32_mat, 0, [1])) != true { return 470 }
+    if r.is_err(buffer.mat_col_to_i32_buf("nope", 0)) != true { return 564 }
+    if r.is_err(buffer.mat_col_copy_from_i32_buf(packed_i32_mat, 0, buffer.u8_from_string("AB"))) != true { return 565 }
+    if r.is_err(buffer.mat_col_copy_from_list_i32(packed_i32_mat, 0, [1, 2147483648])) != true { return 471 }
+    if r.is_err(buffer.mat_diag_to_i32_buf("nope")) != true { return 635 }
+    if r.is_err(buffer.mat_diag_copy_from_i32_buf(packed_i32_mat, buffer.i32_new(1))) != true { return 636 }
+    if r.is_err(buffer.mat_diag_copy_from_list_i32(packed_i32_mat, [1])) != true { return 637 }
+    var packed_u8_mat = buffer.u8_mat_pack_rows([[65, 66], [67, 68]])
     if r.is_err(packed_u8_mat) { return 323 }
-    var packed_u8_row = buffer.try_mat_row_slice(packed_u8_mat, 1)
+    var packed_u8_row = buffer.mat_row_slice(packed_u8_mat, 1)
     if r.is_err(packed_u8_row) { return 324 }
-    var packed_u8_row_s = buffer.try_slice_to_string(packed_u8_row)
+    var packed_u8_row_s = buffer.slice_to_string(packed_u8_row)
     if r.is_err(packed_u8_row_s) || packed_u8_row_s != "CD" { return 325 }
-    var unpacked_u8_rows = buffer.try_u8_mat_unpack_rows(packed_u8_mat)
+    var unpacked_u8_rows = buffer.u8_mat_unpack_rows(packed_u8_mat)
     if r.is_err(unpacked_u8_rows) { return 326 }
     if unpacked_u8_rows[0][0] != 65 || unpacked_u8_rows[1][1] != 68 { return 327 }
-    if r.is_err(buffer.try_u8_mat_pack_rows([[256]])) != true { return 328 }
-    var packed_string_mat = buffer.try_u8_mat_pack_strings(["ABC", "DEF"])
+    if r.is_err(buffer.u8_mat_pack_rows([[256]])) != true { return 328 }
+    var packed_string_mat = buffer.u8_mat_pack_strings(["ABC", "DEF"])
     if r.is_err(packed_string_mat) { return 329 }
-    var packed_string_row = buffer.try_mat_row_slice(packed_string_mat, 1)
+    var packed_string_row = buffer.mat_row_slice(packed_string_mat, 1)
     if r.is_err(packed_string_row) { return 330 }
-    var packed_string_row_s = buffer.try_slice_to_string(packed_string_row)
+    var packed_string_row_s = buffer.slice_to_string(packed_string_row)
     if r.is_err(packed_string_row_s) || packed_string_row_s != "DEF" { return 331 }
-    var unpacked_string_rows = buffer.try_u8_mat_unpack_strings(packed_string_mat)
+    var unpacked_string_rows = buffer.u8_mat_unpack_strings(packed_string_mat)
     if r.is_err(unpacked_string_rows) { return 332 }
     if unpacked_string_rows[0] != "ABC" || unpacked_string_rows[1] != "DEF" { return 333 }
-    if r.is_err(buffer.try_mat_row_copy_from_string(packed_string_mat, 0, "XYZ")) { return 350 }
-    var packed_row_s = buffer.try_mat_row_to_string(packed_string_mat, 0)
+    if r.is_err(buffer.mat_row_copy_from_string(packed_string_mat, 0, "XYZ")) { return 350 }
+    var packed_row_s = buffer.mat_row_to_string(packed_string_mat, 0)
     if r.is_err(packed_row_s) || packed_row_s != "XYZ" { return 351 }
-    if r.is_err(buffer.try_mat_row_copy_from_string_slice(packed_string_mat, 1, "uvwxy", 1, 3)) { return 1231 }
-    var packed_row_slice_s2 = buffer.try_mat_row_to_string(packed_string_mat, 1)
+    if r.is_err(buffer.mat_row_copy_from_string_slice(packed_string_mat, 1, "uvwxy", 1, 3)) { return 1231 }
+    var packed_row_slice_s2 = buffer.mat_row_to_string(packed_string_mat, 1)
     if r.is_err(packed_row_slice_s2) || packed_row_slice_s2 != "vwx" { return 1232 }
-    if r.is_err(buffer.try_mat_col_copy_from_string(packed_string_mat, 1, "12")) { return 352 }
-    var packed_col_s = buffer.try_mat_col_to_string(packed_string_mat, 1)
+    if r.is_err(buffer.mat_col_copy_from_string(packed_string_mat, 1, "12")) { return 352 }
+    var packed_col_s = buffer.mat_col_to_string(packed_string_mat, 1)
     if r.is_err(packed_col_s) || packed_col_s != "12" { return 353 }
-    if r.is_err(buffer.try_mat_col_copy_from_string_slice(packed_string_mat, 0, "spq", 1, 2)) { return 1233 }
-    var packed_col_slice_s2 = buffer.try_mat_col_to_string(packed_string_mat, 0)
+    if r.is_err(buffer.mat_col_copy_from_string_slice(packed_string_mat, 0, "spq", 1, 2)) { return 1233 }
+    var packed_col_slice_s2 = buffer.mat_col_to_string(packed_string_mat, 0)
     if r.is_err(packed_col_slice_s2) || packed_col_slice_s2 != "pq" { return 1234 }
     var uvw_bytes = bytes.try_from_string("uvw")
     if r.is_err(uvw_bytes) { return 354 }
-    if r.is_err(buffer.try_mat_row_copy_from_bytes(packed_string_mat, 1, uvw_bytes)) { return 355 }
-    var packed_row1_bytes = buffer.try_mat_row_to_bytes(packed_string_mat, 1)
+    if r.is_err(buffer.mat_row_copy_from_bytes(packed_string_mat, 1, uvw_bytes)) { return 355 }
+    var packed_row1_bytes = buffer.mat_row_to_bytes(packed_string_mat, 1)
     if r.is_err(packed_row1_bytes) { return 356 }
     var packed_row1_s = bytes.try_to_string(packed_row1_bytes)
     if r.is_err(packed_row1_s) || packed_row1_s != "uvw" { return 357 }
-    var pq_buf = buffer.try_u8_from_string("PQ")
+    var pq_buf = buffer.u8_from_string("PQ")
     if r.is_err(pq_buf) { return 358 }
-    if r.is_err(buffer.try_mat_col_copy_from_u8_buf(packed_string_mat, 0, pq_buf)) { return 359 }
-    var packed_col0_s = buffer.try_mat_col_to_string(packed_string_mat, 0)
+    if r.is_err(buffer.mat_col_copy_from_u8_buf(packed_string_mat, 0, pq_buf)) { return 359 }
+    var packed_col0_s = buffer.mat_col_to_string(packed_string_mat, 0)
     if r.is_err(packed_col0_s) || packed_col0_s != "PQ" { return 360 }
-    var packed_rows_after = buffer.try_u8_mat_unpack_strings(packed_string_mat)
+    var packed_rows_after = buffer.u8_mat_unpack_strings(packed_string_mat)
     if r.is_err(packed_rows_after) { return 361 }
     if packed_rows_after[0] != "P1Z" || packed_rows_after[1] != "Qvw" { return 362 }
-    var packed_string_slice_mat = buffer.try_u8_mat_pack_strings(["ABC", "DEF"])
+    var packed_string_slice_mat = buffer.u8_mat_pack_strings(["ABC", "DEF"])
     if r.is_err(packed_string_slice_mat) { return 1214 }
     var row_bytes_slice = bytes.try_from_string("tuvw")
     if r.is_err(row_bytes_slice) { return 1215 }
-    if r.is_err(buffer.try_mat_row_copy_from_bytes_slice(packed_string_slice_mat, 0, row_bytes_slice, 1, 3)) { return 1216 }
-    var packed_row_slice_s = buffer.try_mat_row_to_string(packed_string_slice_mat, 0)
+    if r.is_err(buffer.mat_row_copy_from_bytes_slice(packed_string_slice_mat, 0, row_bytes_slice, 1, 3)) { return 1216 }
+    var packed_row_slice_s = buffer.mat_row_to_string(packed_string_slice_mat, 0)
     if r.is_err(packed_row_slice_s) || packed_row_slice_s != "uvw" { return 1217 }
     var col_bytes_slice = bytes.try_from_string("tpq")
     if r.is_err(col_bytes_slice) { return 1218 }
-    if r.is_err(buffer.try_mat_col_copy_from_bytes_slice(packed_string_slice_mat, 0, col_bytes_slice, 1, 2)) { return 1219 }
-    var packed_col_slice_s = buffer.try_mat_col_to_string(packed_string_slice_mat, 0)
+    if r.is_err(buffer.mat_col_copy_from_bytes_slice(packed_string_slice_mat, 0, col_bytes_slice, 1, 2)) { return 1219 }
+    var packed_col_slice_s = buffer.mat_col_to_string(packed_string_slice_mat, 0)
     if r.is_err(packed_col_slice_s) || packed_col_slice_s != "pq" { return 1220 }
-    var flat_mat = buffer.try_u8_mat_pack_strings(["AB", "CD"])
+    var flat_mat = buffer.u8_mat_pack_strings(["AB", "CD"])
     if r.is_err(flat_mat) { return 363 }
-    var flat_bytes = buffer.try_u8_mat_to_bytes(flat_mat)
+    var flat_bytes = buffer.u8_mat_to_bytes(flat_mat)
     if r.is_err(flat_bytes) { return 364 }
     var flat_bytes_s = bytes.try_to_string(flat_bytes)
     if r.is_err(flat_bytes_s) || flat_bytes_s != "ABCD" { return 365 }
-    var flat_u8 = buffer.try_u8_mat_to_u8_buf(flat_mat)
+    var flat_u8 = buffer.u8_mat_to_u8_buf(flat_mat)
     if r.is_err(flat_u8) { return 366 }
-    var flat_u8_s = buffer.try_u8_to_string(flat_u8)
+    var flat_u8_s = buffer.u8_to_string(flat_u8)
     if r.is_err(flat_u8_s) || flat_u8_s != "ABCD" { return 367 }
-    var flat_s = buffer.try_u8_mat_to_string(flat_mat)
+    var flat_s = buffer.u8_mat_to_string(flat_mat)
     if r.is_err(flat_s) || flat_s != "ABCD" { return 368 }
-    var flat_list = buffer.try_u8_mat_unpack_u8(flat_mat)
+    var flat_list = buffer.u8_mat_unpack_u8(flat_mat)
     if r.is_err(flat_list) { return 369 }
     if flat_list[0] != 65 || flat_list[3] != 68 { return 370 }
-    var flat_list2 = buffer.try_u8_mat_unpack_flat(flat_mat)
+    var flat_list2 = buffer.u8_mat_unpack_flat(flat_mat)
     if r.is_err(flat_list2) { return 667 }
     if flat_list2[0] != 65 || flat_list2[3] != 68 { return 668 }
-    if r.is_err(buffer.try_u8_mat_copy_from_string(flat_mat, "WXYZ")) { return 371 }
-    var flat_rows1 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_string(flat_mat, "WXYZ")) { return 371 }
+    var flat_rows1 = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows1) || flat_rows1[0] != "WX" || flat_rows1[1] != "YZ" { return 372 }
-    if r.is_err(buffer.try_u8_mat_copy_from_string_slice(flat_mat, "pqrst", 1, 4)) { return 1235 }
-    var flat_rows1b = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_string_slice(flat_mat, "pqrst", 1, 4)) { return 1235 }
+    var flat_rows1b = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows1b) || flat_rows1b[0] != "qr" || flat_rows1b[1] != "st" { return 1236 }
     var qrst = bytes.try_from_string("qrst")
     if r.is_err(qrst) { return 373 }
-    if r.is_err(buffer.try_u8_mat_copy_from_bytes(flat_mat, qrst)) { return 374 }
-    var flat_rows2 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_bytes(flat_mat, qrst)) { return 374 }
+    var flat_rows2 = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows2) || flat_rows2[0] != "qr" || flat_rows2[1] != "st" { return 375 }
     var pqrst = bytes.try_from_string("pqrst")
     if r.is_err(pqrst) { return 1221 }
-    if r.is_err(buffer.try_u8_mat_copy_from_bytes_slice(flat_mat, pqrst, 1, 4)) { return 1222 }
-    var flat_rows2b = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_bytes_slice(flat_mat, pqrst, 1, 4)) { return 1222 }
+    var flat_rows2b = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows2b) || flat_rows2b[0] != "qr" || flat_rows2b[1] != "st" { return 1223 }
-    var lmno = buffer.try_u8_from_string("lmno")
+    var lmno = buffer.u8_from_string("lmno")
     if r.is_err(lmno) { return 376 }
-    if r.is_err(buffer.try_u8_mat_copy_from_u8_buf(flat_mat, lmno)) { return 377 }
-    var flat_rows3 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_u8_buf(flat_mat, lmno)) { return 377 }
+    var flat_rows3 = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows3) || flat_rows3[0] != "lm" || flat_rows3[1] != "no" { return 378 }
-    if r.is_err(buffer.try_u8_mat_copy_from_flat(flat_mat, [81, 82, 83, 84])) { return 669 }
-    var flat_s_q = buffer.try_u8_mat_to_string(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_flat(flat_mat, [81, 82, 83, 84])) { return 669 }
+    var flat_s_q = buffer.u8_mat_to_string(flat_mat)
     if r.is_err(flat_s_q) || flat_s_q != "QRST" { return 670 }
-    if r.is_err(buffer.try_u8_mat_copy_from_rows(flat_mat, [[49, 50], [51, 52]])) { return 379 }
-    var flat_s2 = buffer.try_u8_mat_to_string(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_rows(flat_mat, [[49, 50], [51, 52]])) { return 379 }
+    var flat_s2 = buffer.u8_mat_to_string(flat_mat)
     if r.is_err(flat_s2) || flat_s2 != "1234" { return 380 }
-    if r.is_err(buffer.try_u8_mat_copy_from_strings(flat_mat, ["aa", "bb"])) { return 381 }
-    var flat_rows4 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(buffer.u8_mat_copy_from_strings(flat_mat, ["aa", "bb"])) { return 381 }
+    var flat_rows4 = buffer.u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows4) || flat_rows4[0] != "aa" || flat_rows4[1] != "bb" { return 382 }
-    if r.is_err(buffer.try_u8_mat_copy_from_string(flat_mat, "xyz")) != true { return 383 }
-    if r.is_err(buffer.try_u8_mat_copy_from_string_slice(flat_mat, "xyz", 0, 3)) != true { return 1237 }
-    if r.is_err(buffer.try_u8_mat_copy_from_bytes_slice(flat_mat, bytes.try_from_string("uvw"), 0, 3)) != true { return 1224 }
-    if r.is_err(buffer.try_u8_mat_copy_from_flat(flat_mat, [1, 2, 3])) != true { return 671 }
-    if r.is_err(buffer.try_u8_mat_copy_from_flat(flat_mat, [1, 2, 3, 256])) != true { return 672 }
-    if r.is_err(buffer.try_u8_mat_copy_from_rows(flat_mat, [[1], [2]])) != true { return 384 }
-    if r.is_err(buffer.try_u8_mat_copy_from_strings(flat_mat, ["a", "bb"])) != true { return 385 }
-    if r.is_err(buffer.try_u8_mat_pack_strings(["A", "BC"])) != true { return 334 }
-    if r.is_err(buffer.try_u8_mat_pack_strings([123])) != true { return 335 }
+    if r.is_err(buffer.u8_mat_copy_from_string(flat_mat, "xyz")) != true { return 383 }
+    if r.is_err(buffer.u8_mat_copy_from_string_slice(flat_mat, "xyz", 0, 3)) != true { return 1237 }
+    if r.is_err(buffer.u8_mat_copy_from_bytes_slice(flat_mat, bytes.try_from_string("uvw"), 0, 3)) != true { return 1224 }
+    if r.is_err(buffer.u8_mat_copy_from_flat(flat_mat, [1, 2, 3])) != true { return 671 }
+    if r.is_err(buffer.u8_mat_copy_from_flat(flat_mat, [1, 2, 3, 256])) != true { return 672 }
+    if r.is_err(buffer.u8_mat_copy_from_rows(flat_mat, [[1], [2]])) != true { return 384 }
+    if r.is_err(buffer.u8_mat_copy_from_strings(flat_mat, ["a", "bb"])) != true { return 385 }
+    if r.is_err(buffer.u8_mat_pack_strings(["A", "BC"])) != true { return 334 }
+    if r.is_err(buffer.u8_mat_pack_strings([123])) != true { return 335 }
 
     return 0
 }
@@ -728,232 +728,232 @@ fn smoke_buffer_matrix_u8() {
 fn smoke_buffer_matrix_numeric() {
     var i64m = buffer.i64_new(4)
     if r.is_err(i64m) { return 259 }
-    if r.is_err(buffer.try_store_i64(i64m, 0, 100)) { return 260 }
-    if r.is_err(buffer.try_store_i64(i64m, 1, 200)) { return 261 }
-    if r.is_err(buffer.try_store_i64(i64m, 2, 300)) { return 262 }
-    if r.is_err(buffer.try_store_i64(i64m, 3, 400)) { return 263 }
-    var mat64 = buffer.try_mat_view_new(i64m, 0, 2, 2, 2)
+    if r.is_err(buffer.store_i64(i64m, 0, 100)) { return 260 }
+    if r.is_err(buffer.store_i64(i64m, 1, 200)) { return 261 }
+    if r.is_err(buffer.store_i64(i64m, 2, 300)) { return 262 }
+    if r.is_err(buffer.store_i64(i64m, 3, 400)) { return 263 }
+    var mat64 = buffer.mat_view_new(i64m, 0, 2, 2, 2)
     if r.is_err(mat64) { return 264 }
-    var mv64 = buffer.try_mat_load_i64(mat64, 1, 0)
+    var mv64 = buffer.mat_load_i64(mat64, 1, 0)
     if r.is_err(mv64) || mv64 != 300 { return 265 }
-    var ms64 = buffer.try_mat_store_i64(mat64, 0, 1, 777)
+    var ms64 = buffer.mat_store_i64(mat64, 0, 1, 777)
     if r.is_err(ms64) || ms64 != i64m { return 266 }
-    var mv64b = buffer.try_mat_load_i64(mat64, 0, 1)
+    var mv64b = buffer.mat_load_i64(mat64, 0, 1)
     if r.is_err(mv64b) || mv64b != 777 { return 267 }
-    var packed_i64_mat = buffer.try_i64_mat_pack_rows([[100, 200], [300, 400]])
+    var packed_i64_mat = buffer.i64_mat_pack_rows([[100, 200], [300, 400]])
     if r.is_err(packed_i64_mat) { return 391 }
-    var unpacked_i64_rows = buffer.try_i64_mat_unpack_rows(packed_i64_mat)
+    var unpacked_i64_rows = buffer.i64_mat_unpack_rows(packed_i64_mat)
     if r.is_err(unpacked_i64_rows) { return 392 }
     if unpacked_i64_rows[0][1] != 200 || unpacked_i64_rows[1][0] != 300 { return 393 }
-    if r.is_err(buffer.try_i64_mat_copy_from_rows(packed_i64_mat, [[500, 600], [700, 800]])) { return 394 }
-    var copied_i64a = buffer.try_mat_load_i64(packed_i64_mat, 0, 1)
+    if r.is_err(buffer.i64_mat_copy_from_rows(packed_i64_mat, [[500, 600], [700, 800]])) { return 394 }
+    var copied_i64a = buffer.mat_load_i64(packed_i64_mat, 0, 1)
     if r.is_err(copied_i64a) || copied_i64a != 600 { return 395 }
-    var copied_i64b = buffer.try_mat_load_i64(packed_i64_mat, 1, 0)
+    var copied_i64b = buffer.mat_load_i64(packed_i64_mat, 1, 0)
     if r.is_err(copied_i64b) || copied_i64b != 700 { return 396 }
-    var copied_i64_flat = buffer.try_i64_mat_unpack_flat(packed_i64_mat)
+    var copied_i64_flat = buffer.i64_mat_unpack_flat(packed_i64_mat)
     if r.is_err(copied_i64_flat) || copied_i64_flat[0] != 500 || copied_i64_flat[3] != 800 { return 438 }
-    if r.is_err(buffer.try_i64_mat_copy_from_flat(packed_i64_mat, [900, 901, 902, 903])) { return 439 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 900 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 903 { return 440 }
-    var copied_i64_buf = buffer.try_i64_mat_to_i64_buf(packed_i64_mat)
-    if r.is_err(copied_i64_buf) || buffer.try_len(copied_i64_buf) != 4 { return 504 }
-    if buffer.try_load_i64(copied_i64_buf, 0) != 900 || buffer.try_load_i64(copied_i64_buf, 3) != 903 { return 505 }
+    if r.is_err(buffer.i64_mat_copy_from_flat(packed_i64_mat, [900, 901, 902, 903])) { return 439 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 0) != 900 || buffer.mat_load_i64(packed_i64_mat, 1, 1) != 903 { return 440 }
+    var copied_i64_buf = buffer.i64_mat_to_i64_buf(packed_i64_mat)
+    if r.is_err(copied_i64_buf) || buffer.len(copied_i64_buf) != 4 { return 504 }
+    if buffer.load_i64(copied_i64_buf, 0) != 900 || buffer.load_i64(copied_i64_buf, 3) != 903 { return 505 }
     var src_i64_buf = buffer.i64_new(4)
     if r.is_err(src_i64_buf) { return 506 }
-    if r.is_err(buffer.try_store_i64(src_i64_buf, 0, 1001)) || r.is_err(buffer.try_store_i64(src_i64_buf, 1, 1002)) { return 507 }
-    if r.is_err(buffer.try_store_i64(src_i64_buf, 2, 1003)) || r.is_err(buffer.try_store_i64(src_i64_buf, 3, 1004)) { return 508 }
-    if r.is_err(buffer.try_i64_mat_copy_from_i64_buf(packed_i64_mat, src_i64_buf)) { return 509 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 1001 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 1004 { return 510 }
-    var i64_row0 = buffer.try_mat_row_unpack_i64(packed_i64_mat, 0)
+    if r.is_err(buffer.store_i64(src_i64_buf, 0, 1001)) || r.is_err(buffer.store_i64(src_i64_buf, 1, 1002)) { return 507 }
+    if r.is_err(buffer.store_i64(src_i64_buf, 2, 1003)) || r.is_err(buffer.store_i64(src_i64_buf, 3, 1004)) { return 508 }
+    if r.is_err(buffer.i64_mat_copy_from_i64_buf(packed_i64_mat, src_i64_buf)) { return 509 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 0) != 1001 || buffer.mat_load_i64(packed_i64_mat, 1, 1) != 1004 { return 510 }
+    var i64_row0 = buffer.mat_row_unpack_i64(packed_i64_mat, 0)
     if r.is_err(i64_row0) || i64_row0[0] != 1001 || i64_row0[1] != 1002 { return 472 }
-    var i64_row0_view = buffer.try_mat_row_slice(packed_i64_mat, 0)
+    var i64_row0_view = buffer.mat_row_slice(packed_i64_mat, 0)
     if r.is_err(i64_row0_view) { return 566 }
-    var i64_row0_buf_direct = buffer.try_slice_to_i64_buf(i64_row0_view)
-    if r.is_err(i64_row0_buf_direct) || buffer.try_load_i64(i64_row0_buf_direct, 0) != 1001 || buffer.try_load_i64(i64_row0_buf_direct, 1) != 1002 { return 567 }
+    var i64_row0_buf_direct = buffer.slice_to_i64_buf(i64_row0_view)
+    if r.is_err(i64_row0_buf_direct) || buffer.load_i64(i64_row0_buf_direct, 0) != 1001 || buffer.load_i64(i64_row0_buf_direct, 1) != 1002 { return 567 }
     var src_i64_row_view_buf = buffer.i64_new(2)
     if r.is_err(src_i64_row_view_buf) { return 568 }
-    if r.is_err(buffer.try_store_i64(src_i64_row_view_buf, 0, 1101)) || r.is_err(buffer.try_store_i64(src_i64_row_view_buf, 1, 1102)) { return 569 }
-    if r.is_err(buffer.try_slice_copy_from_i64_buf(i64_row0_view, src_i64_row_view_buf)) { return 570 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 1101 || buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 1102 { return 571 }
-    var i64_row0_mat_buf = buffer.try_mat_row_to_i64_buf(packed_i64_mat, 0)
-    if r.is_err(i64_row0_mat_buf) || buffer.try_load_i64(i64_row0_mat_buf, 0) != 1101 || buffer.try_load_i64(i64_row0_mat_buf, 1) != 1102 { return 572 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_i64(packed_i64_mat, 0, [910, 911])) { return 473 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 910 || buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 911 { return 474 }
-    var i64_col1 = buffer.try_mat_col_unpack_i64(packed_i64_mat, 1)
+    if r.is_err(buffer.store_i64(src_i64_row_view_buf, 0, 1101)) || r.is_err(buffer.store_i64(src_i64_row_view_buf, 1, 1102)) { return 569 }
+    if r.is_err(buffer.slice_copy_from_i64_buf(i64_row0_view, src_i64_row_view_buf)) { return 570 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 0) != 1101 || buffer.mat_load_i64(packed_i64_mat, 0, 1) != 1102 { return 571 }
+    var i64_row0_mat_buf = buffer.mat_row_to_i64_buf(packed_i64_mat, 0)
+    if r.is_err(i64_row0_mat_buf) || buffer.load_i64(i64_row0_mat_buf, 0) != 1101 || buffer.load_i64(i64_row0_mat_buf, 1) != 1102 { return 572 }
+    if r.is_err(buffer.mat_row_copy_from_list_i64(packed_i64_mat, 0, [910, 911])) { return 473 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 0) != 910 || buffer.mat_load_i64(packed_i64_mat, 0, 1) != 911 { return 474 }
+    var i64_col1 = buffer.mat_col_unpack_i64(packed_i64_mat, 1)
     if r.is_err(i64_col1) || i64_col1[0] != 911 || i64_col1[1] != 1004 { return 475 }
-    var i64_col1_view = buffer.try_mat_col_strided(packed_i64_mat, 1)
+    var i64_col1_view = buffer.mat_col_strided(packed_i64_mat, 1)
     if r.is_err(i64_col1_view) { return 573 }
-    var i64_col1_buf_direct = buffer.try_strided_to_i64_buf(i64_col1_view)
-    if r.is_err(i64_col1_buf_direct) || buffer.try_load_i64(i64_col1_buf_direct, 0) != 911 || buffer.try_load_i64(i64_col1_buf_direct, 1) != 1004 { return 574 }
+    var i64_col1_buf_direct = buffer.strided_to_i64_buf(i64_col1_view)
+    if r.is_err(i64_col1_buf_direct) || buffer.load_i64(i64_col1_buf_direct, 0) != 911 || buffer.load_i64(i64_col1_buf_direct, 1) != 1004 { return 574 }
     var src_i64_col_view_buf = buffer.i64_new(2)
     if r.is_err(src_i64_col_view_buf) { return 575 }
-    if r.is_err(buffer.try_store_i64(src_i64_col_view_buf, 0, 1201)) || r.is_err(buffer.try_store_i64(src_i64_col_view_buf, 1, 1202)) { return 576 }
-    if r.is_err(buffer.try_strided_copy_from_i64_buf(i64_col1_view, src_i64_col_view_buf)) { return 577 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 1201 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 1202 { return 578 }
-    var i64_col1_mat_buf = buffer.try_mat_col_to_i64_buf(packed_i64_mat, 1)
-    if r.is_err(i64_col1_mat_buf) || buffer.try_load_i64(i64_col1_mat_buf, 0) != 1201 || buffer.try_load_i64(i64_col1_mat_buf, 1) != 1202 { return 579 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_i64(packed_i64_mat, 1, [920, 921])) { return 476 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 920 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 921 { return 477 }
-    var i64_diag = buffer.try_mat_diag_unpack_i64(packed_i64_mat)
+    if r.is_err(buffer.store_i64(src_i64_col_view_buf, 0, 1201)) || r.is_err(buffer.store_i64(src_i64_col_view_buf, 1, 1202)) { return 576 }
+    if r.is_err(buffer.strided_copy_from_i64_buf(i64_col1_view, src_i64_col_view_buf)) { return 577 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 1) != 1201 || buffer.mat_load_i64(packed_i64_mat, 1, 1) != 1202 { return 578 }
+    var i64_col1_mat_buf = buffer.mat_col_to_i64_buf(packed_i64_mat, 1)
+    if r.is_err(i64_col1_mat_buf) || buffer.load_i64(i64_col1_mat_buf, 0) != 1201 || buffer.load_i64(i64_col1_mat_buf, 1) != 1202 { return 579 }
+    if r.is_err(buffer.mat_col_copy_from_list_i64(packed_i64_mat, 1, [920, 921])) { return 476 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 1) != 920 || buffer.mat_load_i64(packed_i64_mat, 1, 1) != 921 { return 477 }
+    var i64_diag = buffer.mat_diag_unpack_i64(packed_i64_mat)
     if r.is_err(i64_diag) || i64_diag[0] != 910 || i64_diag[1] != 921 { return 638 }
-    var i64_diag_buf = buffer.try_mat_diag_to_i64_buf(packed_i64_mat)
-    if r.is_err(i64_diag_buf) || buffer.try_len(i64_diag_buf) != 2 { return 639 }
-    if buffer.try_load_i64(i64_diag_buf, 0) != 910 || buffer.try_load_i64(i64_diag_buf, 1) != 921 { return 640 }
-    if r.is_err(buffer.try_mat_diag_copy_from_list_i64(packed_i64_mat, [930, 931])) { return 641 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 930 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 931 { return 642 }
+    var i64_diag_buf = buffer.mat_diag_to_i64_buf(packed_i64_mat)
+    if r.is_err(i64_diag_buf) || buffer.len(i64_diag_buf) != 2 { return 639 }
+    if buffer.load_i64(i64_diag_buf, 0) != 910 || buffer.load_i64(i64_diag_buf, 1) != 921 { return 640 }
+    if r.is_err(buffer.mat_diag_copy_from_list_i64(packed_i64_mat, [930, 931])) { return 641 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 0) != 930 || buffer.mat_load_i64(packed_i64_mat, 1, 1) != 931 { return 642 }
     var src_i64_diag_buf = buffer.i64_new(2)
     if r.is_err(src_i64_diag_buf) { return 643 }
-    if r.is_err(buffer.try_store_i64(src_i64_diag_buf, 0, 932)) || r.is_err(buffer.try_store_i64(src_i64_diag_buf, 1, 933)) { return 644 }
-    if r.is_err(buffer.try_mat_diag_copy_from_i64_buf(packed_i64_mat, src_i64_diag_buf)) { return 645 }
-    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 932 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 933 { return 646 }
-    if r.is_err(buffer.try_mat_store_i64(mat64, 0, 0, "nope")) != true { return 268 }
-    if r.is_err(buffer.try_i64_mat_pack_rows([[1], [2, 3]])) != true { return 397 }
-    if r.is_err(buffer.try_i64_mat_copy_from_rows(packed_i64_mat, [[1], [2]])) != true { return 398 }
-    if r.is_err(buffer.try_i64_mat_copy_from_flat(packed_i64_mat, [1, 2, 3])) != true { return 441 }
-    if r.is_err(buffer.try_i64_mat_copy_from_flat(packed_i64_mat, ["nope", 2, 3, 4])) != true { return 442 }
-    if r.is_err(buffer.try_i64_mat_to_i64_buf("nope")) != true { return 511 }
-    if r.is_err(buffer.try_i64_mat_copy_from_i64_buf(packed_i64_mat, buffer.i64_new(3))) != true { return 512 }
-    if r.is_err(buffer.try_i64_mat_copy_from_i64_buf(packed_i64_mat, buffer.try_u8_from_string("ABCD"))) != true { return 513 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_i64(packed_i64_mat, 0, [1])) != true { return 478 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_i64(packed_i64_mat, 1, ["nope", 2])) != true { return 479 }
-    if r.is_err(buffer.try_mat_load_i64(mat64, 2, 0)) != true { return 269 }
+    if r.is_err(buffer.store_i64(src_i64_diag_buf, 0, 932)) || r.is_err(buffer.store_i64(src_i64_diag_buf, 1, 933)) { return 644 }
+    if r.is_err(buffer.mat_diag_copy_from_i64_buf(packed_i64_mat, src_i64_diag_buf)) { return 645 }
+    if buffer.mat_load_i64(packed_i64_mat, 0, 0) != 932 || buffer.mat_load_i64(packed_i64_mat, 1, 1) != 933 { return 646 }
+    if r.is_err(buffer.mat_store_i64(mat64, 0, 0, "nope")) != true { return 268 }
+    if r.is_err(buffer.i64_mat_pack_rows([[1], [2, 3]])) != true { return 397 }
+    if r.is_err(buffer.i64_mat_copy_from_rows(packed_i64_mat, [[1], [2]])) != true { return 398 }
+    if r.is_err(buffer.i64_mat_copy_from_flat(packed_i64_mat, [1, 2, 3])) != true { return 441 }
+    if r.is_err(buffer.i64_mat_copy_from_flat(packed_i64_mat, ["nope", 2, 3, 4])) != true { return 442 }
+    if r.is_err(buffer.i64_mat_to_i64_buf("nope")) != true { return 511 }
+    if r.is_err(buffer.i64_mat_copy_from_i64_buf(packed_i64_mat, buffer.i64_new(3))) != true { return 512 }
+    if r.is_err(buffer.i64_mat_copy_from_i64_buf(packed_i64_mat, buffer.u8_from_string("ABCD"))) != true { return 513 }
+    if r.is_err(buffer.mat_row_copy_from_list_i64(packed_i64_mat, 0, [1])) != true { return 478 }
+    if r.is_err(buffer.mat_col_copy_from_list_i64(packed_i64_mat, 1, ["nope", 2])) != true { return 479 }
+    if r.is_err(buffer.mat_load_i64(mat64, 2, 0)) != true { return 269 }
 
-    var packed_f32_mat = buffer.try_f32_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
+    var packed_f32_mat = buffer.f32_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
     if r.is_err(packed_f32_mat) { return 399 }
-    var unpacked_f32_rows = buffer.try_f32_mat_unpack_rows(packed_f32_mat)
+    var unpacked_f32_rows = buffer.f32_mat_unpack_rows(packed_f32_mat)
     if r.is_err(unpacked_f32_rows) { return 400 }
     if oren_list_len(unpacked_f32_rows) != 2 || oren_list_len(unpacked_f32_rows[0]) != 2 || oren_list_len(unpacked_f32_rows[1]) != 2 { return 401 }
-    if r.is_err(buffer.try_f32_mat_copy_from_rows(packed_f32_mat, [[5.5, 6.5], [7.5, 8.5]])) { return 402 }
-    var copied_f32a = buffer.try_mat_load_f32(packed_f32_mat, 0, 1)
+    if r.is_err(buffer.f32_mat_copy_from_rows(packed_f32_mat, [[5.5, 6.5], [7.5, 8.5]])) { return 402 }
+    var copied_f32a = buffer.mat_load_f32(packed_f32_mat, 0, 1)
     if r.is_err(copied_f32a) { return 403 }
-    var copied_f32b = buffer.try_mat_load_f32(packed_f32_mat, 1, 0)
+    var copied_f32b = buffer.mat_load_f32(packed_f32_mat, 1, 0)
     if r.is_err(copied_f32b) { return 404 }
-    var copied_f32_flat = buffer.try_f32_mat_unpack_flat(packed_f32_mat)
+    var copied_f32_flat = buffer.f32_mat_unpack_flat(packed_f32_mat)
     if r.is_err(copied_f32_flat) || oren_list_len(copied_f32_flat) != 4 { return 443 }
-    if r.is_err(buffer.try_f32_mat_copy_from_flat(packed_f32_mat, [9.5, 8.5, 7.5, 6.5])) { return 444 }
-    if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 0, 0)) || r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 1, 1)) { return 445 }
-    var copied_f32_buf = buffer.try_f32_mat_to_f32_buf(packed_f32_mat)
-    if r.is_err(copied_f32_buf) || buffer.try_len(copied_f32_buf) != 4 { return 514 }
-    if r.is_err(buffer.try_load_f32(copied_f32_buf, 0)) || r.is_err(buffer.try_load_f32(copied_f32_buf, 3)) { return 515 }
+    if r.is_err(buffer.f32_mat_copy_from_flat(packed_f32_mat, [9.5, 8.5, 7.5, 6.5])) { return 444 }
+    if r.is_err(buffer.mat_load_f32(packed_f32_mat, 0, 0)) || r.is_err(buffer.mat_load_f32(packed_f32_mat, 1, 1)) { return 445 }
+    var copied_f32_buf = buffer.f32_mat_to_f32_buf(packed_f32_mat)
+    if r.is_err(copied_f32_buf) || buffer.len(copied_f32_buf) != 4 { return 514 }
+    if r.is_err(buffer.load_f32(copied_f32_buf, 0)) || r.is_err(buffer.load_f32(copied_f32_buf, 3)) { return 515 }
     var src_f32_buf = buffer.f32_new(4)
     if r.is_err(src_f32_buf) { return 516 }
-    if r.is_err(buffer.try_store_f32(src_f32_buf, 0, 0.5)) || r.is_err(buffer.try_store_f32(src_f32_buf, 1, 1.5)) { return 517 }
-    if r.is_err(buffer.try_store_f32(src_f32_buf, 2, 2.5)) || r.is_err(buffer.try_store_f32(src_f32_buf, 3, 3.5)) { return 518 }
-    if r.is_err(buffer.try_f32_mat_copy_from_f32_buf(packed_f32_mat, src_f32_buf)) { return 519 }
-    if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 0, 0)) || r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 1, 1)) { return 520 }
-    var f32_row0 = buffer.try_mat_row_unpack_f32(packed_f32_mat, 0)
+    if r.is_err(buffer.store_f32(src_f32_buf, 0, 0.5)) || r.is_err(buffer.store_f32(src_f32_buf, 1, 1.5)) { return 517 }
+    if r.is_err(buffer.store_f32(src_f32_buf, 2, 2.5)) || r.is_err(buffer.store_f32(src_f32_buf, 3, 3.5)) { return 518 }
+    if r.is_err(buffer.f32_mat_copy_from_f32_buf(packed_f32_mat, src_f32_buf)) { return 519 }
+    if r.is_err(buffer.mat_load_f32(packed_f32_mat, 0, 0)) || r.is_err(buffer.mat_load_f32(packed_f32_mat, 1, 1)) { return 520 }
+    var f32_row0 = buffer.mat_row_unpack_f32(packed_f32_mat, 0)
     if r.is_err(f32_row0) || oren_list_len(f32_row0) != 2 { return 480 }
-    var f32_row0_view = buffer.try_mat_row_slice(packed_f32_mat, 0)
+    var f32_row0_view = buffer.mat_row_slice(packed_f32_mat, 0)
     if r.is_err(f32_row0_view) { return 580 }
-    var f32_row0_buf_direct = buffer.try_slice_to_f32_buf(f32_row0_view)
-    if r.is_err(f32_row0_buf_direct) || buffer.try_len(f32_row0_buf_direct) != 2 { return 581 }
-    if r.is_err(buffer.try_load_f32(f32_row0_buf_direct, 0)) || r.is_err(buffer.try_load_f32(f32_row0_buf_direct, 1)) { return 582 }
+    var f32_row0_buf_direct = buffer.slice_to_f32_buf(f32_row0_view)
+    if r.is_err(f32_row0_buf_direct) || buffer.len(f32_row0_buf_direct) != 2 { return 581 }
+    if r.is_err(buffer.load_f32(f32_row0_buf_direct, 0)) || r.is_err(buffer.load_f32(f32_row0_buf_direct, 1)) { return 582 }
     var src_f32_row_view_buf = buffer.f32_new(2)
     if r.is_err(src_f32_row_view_buf) { return 583 }
-    if r.is_err(buffer.try_store_f32(src_f32_row_view_buf, 0, 4.5)) || r.is_err(buffer.try_store_f32(src_f32_row_view_buf, 1, 5.5)) { return 584 }
-    if r.is_err(buffer.try_slice_copy_from_f32_buf(f32_row0_view, src_f32_row_view_buf)) { return 585 }
-    var f32_row0_mat_buf = buffer.try_mat_row_to_f32_buf(packed_f32_mat, 0)
-    if r.is_err(f32_row0_mat_buf) || buffer.try_len(f32_row0_mat_buf) != 2 { return 586 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_f32(packed_f32_mat, 0, [1.25, 2.25])) { return 481 }
-    if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 0, 0)) { return 482 }
-    var f32_col1 = buffer.try_mat_col_unpack_f32(packed_f32_mat, 1)
+    if r.is_err(buffer.store_f32(src_f32_row_view_buf, 0, 4.5)) || r.is_err(buffer.store_f32(src_f32_row_view_buf, 1, 5.5)) { return 584 }
+    if r.is_err(buffer.slice_copy_from_f32_buf(f32_row0_view, src_f32_row_view_buf)) { return 585 }
+    var f32_row0_mat_buf = buffer.mat_row_to_f32_buf(packed_f32_mat, 0)
+    if r.is_err(f32_row0_mat_buf) || buffer.len(f32_row0_mat_buf) != 2 { return 586 }
+    if r.is_err(buffer.mat_row_copy_from_list_f32(packed_f32_mat, 0, [1.25, 2.25])) { return 481 }
+    if r.is_err(buffer.mat_load_f32(packed_f32_mat, 0, 0)) { return 482 }
+    var f32_col1 = buffer.mat_col_unpack_f32(packed_f32_mat, 1)
     if r.is_err(f32_col1) || oren_list_len(f32_col1) != 2 { return 483 }
-    var f32_col1_view = buffer.try_mat_col_strided(packed_f32_mat, 1)
+    var f32_col1_view = buffer.mat_col_strided(packed_f32_mat, 1)
     if r.is_err(f32_col1_view) { return 587 }
-    var f32_col1_buf_direct = buffer.try_strided_to_f32_buf(f32_col1_view)
-    if r.is_err(f32_col1_buf_direct) || buffer.try_len(f32_col1_buf_direct) != 2 { return 588 }
-    if r.is_err(buffer.try_load_f32(f32_col1_buf_direct, 0)) || r.is_err(buffer.try_load_f32(f32_col1_buf_direct, 1)) { return 589 }
+    var f32_col1_buf_direct = buffer.strided_to_f32_buf(f32_col1_view)
+    if r.is_err(f32_col1_buf_direct) || buffer.len(f32_col1_buf_direct) != 2 { return 588 }
+    if r.is_err(buffer.load_f32(f32_col1_buf_direct, 0)) || r.is_err(buffer.load_f32(f32_col1_buf_direct, 1)) { return 589 }
     var src_f32_col_view_buf = buffer.f32_new(2)
     if r.is_err(src_f32_col_view_buf) { return 590 }
-    if r.is_err(buffer.try_store_f32(src_f32_col_view_buf, 0, 6.5)) || r.is_err(buffer.try_store_f32(src_f32_col_view_buf, 1, 7.5)) { return 591 }
-    if r.is_err(buffer.try_strided_copy_from_f32_buf(f32_col1_view, src_f32_col_view_buf)) { return 592 }
-    var f32_col1_mat_buf = buffer.try_mat_col_to_f32_buf(packed_f32_mat, 1)
-    if r.is_err(f32_col1_mat_buf) || buffer.try_len(f32_col1_mat_buf) != 2 { return 593 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_f32(packed_f32_mat, 1, [3.25, 4.25])) { return 484 }
-    if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 1, 1)) { return 485 }
-    if r.is_err(buffer.try_f32_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 405 }
-    if r.is_err(buffer.try_f32_mat_copy_from_rows(packed_f32_mat, [[1.5], [2.5]])) != true { return 406 }
-    if r.is_err(buffer.try_f32_mat_copy_from_flat(packed_f32_mat, [1.5, 2.5, 3.5])) != true { return 446 }
-    if r.is_err(buffer.try_f32_mat_to_f32_buf("nope")) != true { return 521 }
-    if r.is_err(buffer.try_f32_mat_copy_from_f32_buf(packed_f32_mat, buffer.f32_new(3))) != true { return 522 }
-    if r.is_err(buffer.try_f32_mat_copy_from_f32_buf(packed_f32_mat, buffer.try_u8_from_string("ABCD"))) != true { return 523 }
-    if r.is_err(buffer.try_slice_to_f32_buf("nope")) != true { return 594 }
-    if r.is_err(buffer.try_strided_copy_from_f32_buf(f32_col1_view, buffer.try_u8_from_string("AB"))) != true { return 595 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_f32(packed_f32_mat, 0, [1.0])) != true { return 486 }
+    if r.is_err(buffer.store_f32(src_f32_col_view_buf, 0, 6.5)) || r.is_err(buffer.store_f32(src_f32_col_view_buf, 1, 7.5)) { return 591 }
+    if r.is_err(buffer.strided_copy_from_f32_buf(f32_col1_view, src_f32_col_view_buf)) { return 592 }
+    var f32_col1_mat_buf = buffer.mat_col_to_f32_buf(packed_f32_mat, 1)
+    if r.is_err(f32_col1_mat_buf) || buffer.len(f32_col1_mat_buf) != 2 { return 593 }
+    if r.is_err(buffer.mat_col_copy_from_list_f32(packed_f32_mat, 1, [3.25, 4.25])) { return 484 }
+    if r.is_err(buffer.mat_load_f32(packed_f32_mat, 1, 1)) { return 485 }
+    if r.is_err(buffer.f32_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 405 }
+    if r.is_err(buffer.f32_mat_copy_from_rows(packed_f32_mat, [[1.5], [2.5]])) != true { return 406 }
+    if r.is_err(buffer.f32_mat_copy_from_flat(packed_f32_mat, [1.5, 2.5, 3.5])) != true { return 446 }
+    if r.is_err(buffer.f32_mat_to_f32_buf("nope")) != true { return 521 }
+    if r.is_err(buffer.f32_mat_copy_from_f32_buf(packed_f32_mat, buffer.f32_new(3))) != true { return 522 }
+    if r.is_err(buffer.f32_mat_copy_from_f32_buf(packed_f32_mat, buffer.u8_from_string("ABCD"))) != true { return 523 }
+    if r.is_err(buffer.slice_to_f32_buf("nope")) != true { return 594 }
+    if r.is_err(buffer.strided_copy_from_f32_buf(f32_col1_view, buffer.u8_from_string("AB"))) != true { return 595 }
+    if r.is_err(buffer.mat_row_copy_from_list_f32(packed_f32_mat, 0, [1.0])) != true { return 486 }
 
     var f64m = buffer.f64_new(4)
     if r.is_err(f64m) { return 270 }
-    if r.is_err(buffer.try_store_f64(f64m, 0, 1.5)) { return 271 }
-    if r.is_err(buffer.try_store_f64(f64m, 1, 2.5)) { return 272 }
-    if r.is_err(buffer.try_store_f64(f64m, 2, 3.5)) { return 273 }
-    if r.is_err(buffer.try_store_f64(f64m, 3, 4.5)) { return 274 }
-    var matf64 = buffer.try_mat_view_new(f64m, 0, 2, 2, 2)
+    if r.is_err(buffer.store_f64(f64m, 0, 1.5)) { return 271 }
+    if r.is_err(buffer.store_f64(f64m, 1, 2.5)) { return 272 }
+    if r.is_err(buffer.store_f64(f64m, 2, 3.5)) { return 273 }
+    if r.is_err(buffer.store_f64(f64m, 3, 4.5)) { return 274 }
+    var matf64 = buffer.mat_view_new(f64m, 0, 2, 2, 2)
     if r.is_err(matf64) { return 275 }
-    if r.is_err(buffer.try_mat_load_f64(matf64, 1, 1)) { return 276 }
-    var msf64 = buffer.try_mat_store_f64(matf64, 0, 0, 9.5)
+    if r.is_err(buffer.mat_load_f64(matf64, 1, 1)) { return 276 }
+    var msf64 = buffer.mat_store_f64(matf64, 0, 0, 9.5)
     if r.is_err(msf64) || msf64 != f64m { return 277 }
-    if r.is_err(buffer.try_mat_load_f64(matf64, 0, 0)) { return 278 }
-    var packed_f64_mat = buffer.try_f64_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
+    if r.is_err(buffer.mat_load_f64(matf64, 0, 0)) { return 278 }
+    var packed_f64_mat = buffer.f64_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
     if r.is_err(packed_f64_mat) { return 407 }
-    var unpacked_f64_rows = buffer.try_f64_mat_unpack_rows(packed_f64_mat)
+    var unpacked_f64_rows = buffer.f64_mat_unpack_rows(packed_f64_mat)
     if r.is_err(unpacked_f64_rows) { return 408 }
     if oren_list_len(unpacked_f64_rows) != 2 || oren_list_len(unpacked_f64_rows[0]) != 2 || oren_list_len(unpacked_f64_rows[1]) != 2 { return 409 }
-    if r.is_err(buffer.try_f64_mat_copy_from_rows(packed_f64_mat, [[9.5, 8.5], [7.5, 6.5]])) { return 410 }
-    var copied_f64a = buffer.try_mat_load_f64(packed_f64_mat, 0, 0)
+    if r.is_err(buffer.f64_mat_copy_from_rows(packed_f64_mat, [[9.5, 8.5], [7.5, 6.5]])) { return 410 }
+    var copied_f64a = buffer.mat_load_f64(packed_f64_mat, 0, 0)
     if r.is_err(copied_f64a) { return 411 }
-    var copied_f64b = buffer.try_mat_load_f64(packed_f64_mat, 1, 1)
+    var copied_f64b = buffer.mat_load_f64(packed_f64_mat, 1, 1)
     if r.is_err(copied_f64b) { return 412 }
-    var copied_f64_flat = buffer.try_f64_mat_unpack_flat(packed_f64_mat)
+    var copied_f64_flat = buffer.f64_mat_unpack_flat(packed_f64_mat)
     if r.is_err(copied_f64_flat) || oren_list_len(copied_f64_flat) != 4 { return 447 }
-    if r.is_err(buffer.try_f64_mat_copy_from_flat(packed_f64_mat, [1.25, 2.25, 3.25, 4.25])) { return 448 }
-    if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 0, 0)) || r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 1, 1)) { return 449 }
-    var copied_f64_buf = buffer.try_f64_mat_to_f64_buf(packed_f64_mat)
-    if r.is_err(copied_f64_buf) || buffer.try_len(copied_f64_buf) != 4 { return 524 }
-    if r.is_err(buffer.try_load_f64(copied_f64_buf, 0)) || r.is_err(buffer.try_load_f64(copied_f64_buf, 3)) { return 525 }
+    if r.is_err(buffer.f64_mat_copy_from_flat(packed_f64_mat, [1.25, 2.25, 3.25, 4.25])) { return 448 }
+    if r.is_err(buffer.mat_load_f64(packed_f64_mat, 0, 0)) || r.is_err(buffer.mat_load_f64(packed_f64_mat, 1, 1)) { return 449 }
+    var copied_f64_buf = buffer.f64_mat_to_f64_buf(packed_f64_mat)
+    if r.is_err(copied_f64_buf) || buffer.len(copied_f64_buf) != 4 { return 524 }
+    if r.is_err(buffer.load_f64(copied_f64_buf, 0)) || r.is_err(buffer.load_f64(copied_f64_buf, 3)) { return 525 }
     var src_f64_buf = buffer.f64_new(4)
     if r.is_err(src_f64_buf) { return 526 }
-    if r.is_err(buffer.try_store_f64(src_f64_buf, 0, 10.25)) || r.is_err(buffer.try_store_f64(src_f64_buf, 1, 11.25)) { return 527 }
-    if r.is_err(buffer.try_store_f64(src_f64_buf, 2, 12.25)) || r.is_err(buffer.try_store_f64(src_f64_buf, 3, 13.25)) { return 528 }
-    if r.is_err(buffer.try_f64_mat_copy_from_f64_buf(packed_f64_mat, src_f64_buf)) { return 529 }
-    if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 0, 0)) || r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 1, 1)) { return 530 }
-    var f64_row0 = buffer.try_mat_row_unpack_f64(packed_f64_mat, 0)
+    if r.is_err(buffer.store_f64(src_f64_buf, 0, 10.25)) || r.is_err(buffer.store_f64(src_f64_buf, 1, 11.25)) { return 527 }
+    if r.is_err(buffer.store_f64(src_f64_buf, 2, 12.25)) || r.is_err(buffer.store_f64(src_f64_buf, 3, 13.25)) { return 528 }
+    if r.is_err(buffer.f64_mat_copy_from_f64_buf(packed_f64_mat, src_f64_buf)) { return 529 }
+    if r.is_err(buffer.mat_load_f64(packed_f64_mat, 0, 0)) || r.is_err(buffer.mat_load_f64(packed_f64_mat, 1, 1)) { return 530 }
+    var f64_row0 = buffer.mat_row_unpack_f64(packed_f64_mat, 0)
     if r.is_err(f64_row0) || oren_list_len(f64_row0) != 2 { return 487 }
-    var f64_row0_view = buffer.try_mat_row_slice(packed_f64_mat, 0)
+    var f64_row0_view = buffer.mat_row_slice(packed_f64_mat, 0)
     if r.is_err(f64_row0_view) { return 596 }
-    var f64_row0_buf_direct = buffer.try_slice_to_f64_buf(f64_row0_view)
-    if r.is_err(f64_row0_buf_direct) || buffer.try_len(f64_row0_buf_direct) != 2 { return 597 }
-    if r.is_err(buffer.try_load_f64(f64_row0_buf_direct, 0)) || r.is_err(buffer.try_load_f64(f64_row0_buf_direct, 1)) { return 598 }
+    var f64_row0_buf_direct = buffer.slice_to_f64_buf(f64_row0_view)
+    if r.is_err(f64_row0_buf_direct) || buffer.len(f64_row0_buf_direct) != 2 { return 597 }
+    if r.is_err(buffer.load_f64(f64_row0_buf_direct, 0)) || r.is_err(buffer.load_f64(f64_row0_buf_direct, 1)) { return 598 }
     var src_f64_row_view_buf = buffer.f64_new(2)
     if r.is_err(src_f64_row_view_buf) { return 599 }
-    if r.is_err(buffer.try_store_f64(src_f64_row_view_buf, 0, 14.25)) || r.is_err(buffer.try_store_f64(src_f64_row_view_buf, 1, 15.25)) { return 600 }
-    if r.is_err(buffer.try_slice_copy_from_f64_buf(f64_row0_view, src_f64_row_view_buf)) { return 601 }
-    var f64_row0_mat_buf = buffer.try_mat_row_to_f64_buf(packed_f64_mat, 0)
-    if r.is_err(f64_row0_mat_buf) || buffer.try_len(f64_row0_mat_buf) != 2 { return 602 }
-    if r.is_err(buffer.try_mat_row_copy_from_list_f64(packed_f64_mat, 0, [5.25, 6.25])) { return 488 }
-    if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 0, 0)) { return 489 }
-    var f64_col0 = buffer.try_mat_col_unpack_f64(packed_f64_mat, 0)
+    if r.is_err(buffer.store_f64(src_f64_row_view_buf, 0, 14.25)) || r.is_err(buffer.store_f64(src_f64_row_view_buf, 1, 15.25)) { return 600 }
+    if r.is_err(buffer.slice_copy_from_f64_buf(f64_row0_view, src_f64_row_view_buf)) { return 601 }
+    var f64_row0_mat_buf = buffer.mat_row_to_f64_buf(packed_f64_mat, 0)
+    if r.is_err(f64_row0_mat_buf) || buffer.len(f64_row0_mat_buf) != 2 { return 602 }
+    if r.is_err(buffer.mat_row_copy_from_list_f64(packed_f64_mat, 0, [5.25, 6.25])) { return 488 }
+    if r.is_err(buffer.mat_load_f64(packed_f64_mat, 0, 0)) { return 489 }
+    var f64_col0 = buffer.mat_col_unpack_f64(packed_f64_mat, 0)
     if r.is_err(f64_col0) || oren_list_len(f64_col0) != 2 { return 490 }
-    var f64_col0_view = buffer.try_mat_col_strided(packed_f64_mat, 0)
+    var f64_col0_view = buffer.mat_col_strided(packed_f64_mat, 0)
     if r.is_err(f64_col0_view) { return 603 }
-    var f64_col0_buf_direct = buffer.try_strided_to_f64_buf(f64_col0_view)
-    if r.is_err(f64_col0_buf_direct) || buffer.try_len(f64_col0_buf_direct) != 2 { return 604 }
-    if r.is_err(buffer.try_load_f64(f64_col0_buf_direct, 0)) || r.is_err(buffer.try_load_f64(f64_col0_buf_direct, 1)) { return 605 }
+    var f64_col0_buf_direct = buffer.strided_to_f64_buf(f64_col0_view)
+    if r.is_err(f64_col0_buf_direct) || buffer.len(f64_col0_buf_direct) != 2 { return 604 }
+    if r.is_err(buffer.load_f64(f64_col0_buf_direct, 0)) || r.is_err(buffer.load_f64(f64_col0_buf_direct, 1)) { return 605 }
     var src_f64_col_view_buf = buffer.f64_new(2)
     if r.is_err(src_f64_col_view_buf) { return 606 }
-    if r.is_err(buffer.try_store_f64(src_f64_col_view_buf, 0, 16.25)) || r.is_err(buffer.try_store_f64(src_f64_col_view_buf, 1, 17.25)) { return 607 }
-    if r.is_err(buffer.try_strided_copy_from_f64_buf(f64_col0_view, src_f64_col_view_buf)) { return 608 }
-    var f64_col0_mat_buf = buffer.try_mat_col_to_f64_buf(packed_f64_mat, 0)
-    if r.is_err(f64_col0_mat_buf) || buffer.try_len(f64_col0_mat_buf) != 2 { return 609 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_f64(packed_f64_mat, 0, [7.25, 8.25])) { return 491 }
-    if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 1, 0)) { return 492 }
-    if r.is_err(buffer.try_mat_rows("nope")) != true { return 279 }
-    if r.is_err(buffer.try_f64_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 413 }
-    if r.is_err(buffer.try_f64_mat_copy_from_rows(packed_f64_mat, [[1.5], [2.5]])) != true { return 414 }
-    if r.is_err(buffer.try_f64_mat_copy_from_flat(packed_f64_mat, [1.5, 2.5, 3.5])) != true { return 450 }
-    if r.is_err(buffer.try_f64_mat_to_f64_buf("nope")) != true { return 531 }
-    if r.is_err(buffer.try_f64_mat_copy_from_f64_buf(packed_f64_mat, buffer.f64_new(3))) != true { return 532 }
-    if r.is_err(buffer.try_f64_mat_copy_from_f64_buf(packed_f64_mat, buffer.try_u8_from_string("ABCD"))) != true { return 533 }
-    if r.is_err(buffer.try_mat_col_copy_from_list_f64(packed_f64_mat, 0, [1.0])) != true { return 493 }
-    if r.is_err(buffer.try_mat_load_f64(matf64, 2, 0)) != true { return 280 }
+    if r.is_err(buffer.store_f64(src_f64_col_view_buf, 0, 16.25)) || r.is_err(buffer.store_f64(src_f64_col_view_buf, 1, 17.25)) { return 607 }
+    if r.is_err(buffer.strided_copy_from_f64_buf(f64_col0_view, src_f64_col_view_buf)) { return 608 }
+    var f64_col0_mat_buf = buffer.mat_col_to_f64_buf(packed_f64_mat, 0)
+    if r.is_err(f64_col0_mat_buf) || buffer.len(f64_col0_mat_buf) != 2 { return 609 }
+    if r.is_err(buffer.mat_col_copy_from_list_f64(packed_f64_mat, 0, [7.25, 8.25])) { return 491 }
+    if r.is_err(buffer.mat_load_f64(packed_f64_mat, 1, 0)) { return 492 }
+    if r.is_err(buffer.mat_rows("nope")) != true { return 279 }
+    if r.is_err(buffer.f64_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 413 }
+    if r.is_err(buffer.f64_mat_copy_from_rows(packed_f64_mat, [[1.5], [2.5]])) != true { return 414 }
+    if r.is_err(buffer.f64_mat_copy_from_flat(packed_f64_mat, [1.5, 2.5, 3.5])) != true { return 450 }
+    if r.is_err(buffer.f64_mat_to_f64_buf("nope")) != true { return 531 }
+    if r.is_err(buffer.f64_mat_copy_from_f64_buf(packed_f64_mat, buffer.f64_new(3))) != true { return 532 }
+    if r.is_err(buffer.f64_mat_copy_from_f64_buf(packed_f64_mat, buffer.u8_from_string("ABCD"))) != true { return 533 }
+    if r.is_err(buffer.mat_col_copy_from_list_f64(packed_f64_mat, 0, [1.0])) != true { return 493 }
+    if r.is_err(buffer.mat_load_f64(matf64, 2, 0)) != true { return 280 }
 
     return 0
 }
@@ -1043,7 +1043,7 @@ fn smoke_bytes_tail_and_bridge() {
     var from_buf = bytes.try_from_u8_buf(ub3)
     if r.is_err(from_buf) || bytes.try_to_string(from_buf) != "AB" { return 94 }
     var to_buf = bytes.try_to_u8_buf(bytes.try_from_string("CD"))
-    if r.is_err(to_buf) || buffer.try_u8_to_string(to_buf) != "CD" { return 95 }
+    if r.is_err(to_buf) || buffer.u8_to_string(to_buf) != "CD" { return 95 }
     var bad_from_buf = bytes.try_from_u8_buf("nope")
     if r.is_err(bad_from_buf) != true { return 96 }
     var bad_to_buf = bytes.try_to_u8_buf(123)
@@ -1051,79 +1051,79 @@ fn smoke_bytes_tail_and_bridge() {
     var str_slice = bytes.try_to_string_slice(bytes.try_from_string("hello"), 1, 3)
     if r.is_err(str_slice) || str_slice != "ell" { return 98 }
     var buf_slice = bytes.try_to_u8_buf_slice(bytes.try_from_string("hello"), 1, 3)
-    if r.is_err(buf_slice) || buffer.try_u8_to_string(buf_slice) != "ell" { return 99 }
+    if r.is_err(buf_slice) || buffer.u8_to_string(buf_slice) != "ell" { return 99 }
     var bad_str_slice = bytes.try_to_string_slice("nope", 0, 1)
     if r.is_err(bad_str_slice) != true { return 100 }
     var bad_buf_slice = bytes.try_to_u8_buf_slice("nope", 0, 1)
     if r.is_err(bad_buf_slice) != true { return 101 }
     var ui_bad_fb = ui_cmds.try_validate([], "x", 1, nil)
     if r.is_err(ui_bad_fb) != true { return 909 }
-    var u8_from_bytes = buffer.try_u8_from_bytes(bytes.try_from_string("EF"))
-    if r.is_err(u8_from_bytes) || buffer.try_u8_to_string(u8_from_bytes) != "EF" { return 102 }
-    var u8_from_bytes_slice = buffer.try_u8_from_bytes_slice(bytes.try_from_string("hello"), 1, 3)
-    if r.is_err(u8_from_bytes_slice) || buffer.try_u8_to_string(u8_from_bytes_slice) != "ell" { return 103 }
-    var u8_to_bytes = buffer.try_u8_to_bytes(ub3)
+    var u8_from_bytes = buffer.u8_from_bytes(bytes.try_from_string("EF"))
+    if r.is_err(u8_from_bytes) || buffer.u8_to_string(u8_from_bytes) != "EF" { return 102 }
+    var u8_from_bytes_slice = buffer.u8_from_bytes_slice(bytes.try_from_string("hello"), 1, 3)
+    if r.is_err(u8_from_bytes_slice) || buffer.u8_to_string(u8_from_bytes_slice) != "ell" { return 103 }
+    var u8_to_bytes = buffer.u8_to_bytes(ub3)
     if r.is_err(u8_to_bytes) || bytes.try_to_string(u8_to_bytes) != "AB" { return 104 }
-    var i32_copy_src = buffer.try_i32_pack_list_int([12, 13])
+    var i32_copy_src = buffer.i32_pack_list_int([12, 13])
     if r.is_err(i32_copy_src) { return 1101 }
     var i32_copy_dst = buffer.i32_new(2)
     if r.is_err(i32_copy_dst) { return 1102 }
-    if r.is_err(buffer.try_i32_copy_from_i32_buf(i32_copy_dst, i32_copy_src)) { return 1103 }
-    var i32_copy_list = buffer.try_i32_unpack_list(i32_copy_dst)
+    if r.is_err(buffer.i32_copy_from_i32_buf(i32_copy_dst, i32_copy_src)) { return 1103 }
+    var i32_copy_list = buffer.i32_unpack_list(i32_copy_dst)
     if r.is_err(i32_copy_list) || i32_copy_list[0] != 12 || i32_copy_list[1] != 13 { return 1104 }
-    if r.is_err(buffer.try_i32_copy_from_i32_buf(i32_copy_dst, buffer.i32_new(3))) != true { return 1105 }
-    if r.is_err(buffer.try_i32_copy_from_i32_buf(i32_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1106 }
-    var i64_copy_src = buffer.try_i64_pack_list_int([14, 15])
+    if r.is_err(buffer.i32_copy_from_i32_buf(i32_copy_dst, buffer.i32_new(3))) != true { return 1105 }
+    if r.is_err(buffer.i32_copy_from_i32_buf(i32_copy_dst, buffer.u8_from_string("AB"))) != true { return 1106 }
+    var i64_copy_src = buffer.i64_pack_list_int([14, 15])
     if r.is_err(i64_copy_src) { return 1107 }
     var i64_copy_dst = buffer.i64_new(2)
     if r.is_err(i64_copy_dst) { return 1108 }
-    if r.is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, i64_copy_src)) { return 1109 }
-    var i64_copy_list = buffer.try_i64_unpack_list(i64_copy_dst)
+    if r.is_err(buffer.i64_copy_from_i64_buf(i64_copy_dst, i64_copy_src)) { return 1109 }
+    var i64_copy_list = buffer.i64_unpack_list(i64_copy_dst)
     if r.is_err(i64_copy_list) || i64_copy_list[0] != 14 || i64_copy_list[1] != 15 { return 1110 }
-    if r.is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, buffer.i64_new(3))) != true { return 1111 }
-    if r.is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1112 }
-    var f32_copy_src = buffer.try_f32_pack_list([6.5, 7.5])
+    if r.is_err(buffer.i64_copy_from_i64_buf(i64_copy_dst, buffer.i64_new(3))) != true { return 1111 }
+    if r.is_err(buffer.i64_copy_from_i64_buf(i64_copy_dst, buffer.u8_from_string("AB"))) != true { return 1112 }
+    var f32_copy_src = buffer.f32_pack_list([6.5, 7.5])
     if r.is_err(f32_copy_src) { return 1113 }
     var f32_copy_dst = buffer.f32_new(2)
     if r.is_err(f32_copy_dst) { return 1114 }
-    if r.is_err(buffer.try_f32_copy_from_f32_buf(f32_copy_dst, f32_copy_src)) { return 1115 }
-    var f32_copy_list = buffer.try_f32_unpack_list(f32_copy_dst)
+    if r.is_err(buffer.f32_copy_from_f32_buf(f32_copy_dst, f32_copy_src)) { return 1115 }
+    var f32_copy_list = buffer.f32_unpack_list(f32_copy_dst)
     if r.is_err(f32_copy_list) || oren_list_len(f32_copy_list) != 2 { return 1116 }
-    if r.is_err(buffer.try_f32_copy_from_f32_buf(f32_copy_dst, buffer.f32_new(3))) != true { return 1117 }
-    if r.is_err(buffer.try_f32_copy_from_f32_buf(f32_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1118 }
-    var f64_copy_src = buffer.try_f64_pack_list([10.25, 11.25])
+    if r.is_err(buffer.f32_copy_from_f32_buf(f32_copy_dst, buffer.f32_new(3))) != true { return 1117 }
+    if r.is_err(buffer.f32_copy_from_f32_buf(f32_copy_dst, buffer.u8_from_string("AB"))) != true { return 1118 }
+    var f64_copy_src = buffer.f64_pack_list([10.25, 11.25])
     if r.is_err(f64_copy_src) { return 1119 }
     var f64_copy_dst = buffer.f64_new(2)
     if r.is_err(f64_copy_dst) { return 1120 }
-    if r.is_err(buffer.try_f64_copy_from_f64_buf(f64_copy_dst, f64_copy_src)) { return 1121 }
-    var f64_copy_list = buffer.try_f64_unpack_list(f64_copy_dst)
+    if r.is_err(buffer.f64_copy_from_f64_buf(f64_copy_dst, f64_copy_src)) { return 1121 }
+    var f64_copy_list = buffer.f64_unpack_list(f64_copy_dst)
     if r.is_err(f64_copy_list) || oren_list_len(f64_copy_list) != 2 { return 1122 }
-    if r.is_err(buffer.try_f64_copy_from_f64_buf(f64_copy_dst, buffer.f64_new(3))) != true { return 1123 }
-    if r.is_err(buffer.try_f64_copy_from_f64_buf(f64_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1124 }
+    if r.is_err(buffer.f64_copy_from_f64_buf(f64_copy_dst, buffer.f64_new(3))) != true { return 1123 }
+    if r.is_err(buffer.f64_copy_from_f64_buf(f64_copy_dst, buffer.u8_from_string("AB"))) != true { return 1124 }
     var u8_copy_dst = buffer.u8_new(2)
     if r.is_err(u8_copy_dst) { return 1125 }
-    if r.is_err(buffer.try_u8_copy_from_u8_buf(u8_copy_dst, ub3)) { return 1126 }
-    if buffer.try_u8_to_string(u8_copy_dst) != "AB" { return 1127 }
-    if r.is_err(buffer.try_u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("EF"))) { return 1128 }
-    if buffer.try_u8_to_string(u8_copy_dst) != "EF" { return 1129 }
-    if r.is_err(buffer.try_u8_copy_from_bytes_slice(u8_copy_dst, bytes.try_from_string("WXYZ"), 1, 2)) { return 1136 }
-    if buffer.try_u8_to_string(u8_copy_dst) != "XY" { return 1137 }
-    if r.is_err(buffer.try_u8_copy_from_string(u8_copy_dst, "GH")) { return 1130 }
-    if buffer.try_u8_to_string(u8_copy_dst) != "GH" { return 1131 }
-    if r.is_err(buffer.try_u8_copy_from_string_slice(u8_copy_dst, "LMNO", 1, 2)) { return 1225 }
-    if buffer.try_u8_to_string(u8_copy_dst) != "MN" { return 1226 }
-    if r.is_err(buffer.try_u8_copy_from_u8_buf(u8_copy_dst, buffer.u8_new(3))) != true { return 1132 }
-    if r.is_err(buffer.try_u8_copy_from_u8_buf(u8_copy_dst, i32_copy_src)) != true { return 1133 }
-    if r.is_err(buffer.try_u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("XYZ"))) != true { return 1134 }
-    if r.is_err(buffer.try_u8_copy_from_bytes_slice(u8_copy_dst, bytes.try_from_string("WXYZ"), 1, 3)) != true { return 1138 }
-    if r.is_err(buffer.try_u8_copy_from_string(u8_copy_dst, "JKL")) != true { return 1135 }
-    if r.is_err(buffer.try_u8_from_string_slice("nope", 0, 5)) != true { return 1227 }
-    if r.is_err(buffer.try_u8_copy_from_string_slice(u8_copy_dst, "JKL", 0, 3)) != true { return 1228 }
-    var bad_u8_from_bytes = buffer.try_u8_from_bytes("nope")
+    if r.is_err(buffer.u8_copy_from_u8_buf(u8_copy_dst, ub3)) { return 1126 }
+    if buffer.u8_to_string(u8_copy_dst) != "AB" { return 1127 }
+    if r.is_err(buffer.u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("EF"))) { return 1128 }
+    if buffer.u8_to_string(u8_copy_dst) != "EF" { return 1129 }
+    if r.is_err(buffer.u8_copy_from_bytes_slice(u8_copy_dst, bytes.try_from_string("WXYZ"), 1, 2)) { return 1136 }
+    if buffer.u8_to_string(u8_copy_dst) != "XY" { return 1137 }
+    if r.is_err(buffer.u8_copy_from_string(u8_copy_dst, "GH")) { return 1130 }
+    if buffer.u8_to_string(u8_copy_dst) != "GH" { return 1131 }
+    if r.is_err(buffer.u8_copy_from_string_slice(u8_copy_dst, "LMNO", 1, 2)) { return 1225 }
+    if buffer.u8_to_string(u8_copy_dst) != "MN" { return 1226 }
+    if r.is_err(buffer.u8_copy_from_u8_buf(u8_copy_dst, buffer.u8_new(3))) != true { return 1132 }
+    if r.is_err(buffer.u8_copy_from_u8_buf(u8_copy_dst, i32_copy_src)) != true { return 1133 }
+    if r.is_err(buffer.u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("XYZ"))) != true { return 1134 }
+    if r.is_err(buffer.u8_copy_from_bytes_slice(u8_copy_dst, bytes.try_from_string("WXYZ"), 1, 3)) != true { return 1138 }
+    if r.is_err(buffer.u8_copy_from_string(u8_copy_dst, "JKL")) != true { return 1135 }
+    if r.is_err(buffer.u8_from_string_slice("nope", 0, 5)) != true { return 1227 }
+    if r.is_err(buffer.u8_copy_from_string_slice(u8_copy_dst, "JKL", 0, 3)) != true { return 1228 }
+    var bad_u8_from_bytes = buffer.u8_from_bytes("nope")
     if r.is_err(bad_u8_from_bytes) != true { return 105 }
-    var bad_u8_from_bytes_slice = buffer.try_u8_from_bytes_slice("nope", 0, 1)
+    var bad_u8_from_bytes_slice = buffer.u8_from_bytes_slice("nope", 0, 1)
     if r.is_err(bad_u8_from_bytes_slice) != true { return 106 }
-    var bad_u8_to_bytes = buffer.try_u8_to_bytes("nope")
+    var bad_u8_to_bytes = buffer.u8_to_bytes("nope")
     if r.is_err(bad_u8_to_bytes) != true { return 107 }
 
     return 0

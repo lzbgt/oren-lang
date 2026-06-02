@@ -84,6 +84,8 @@ def iter_sources() -> list[Path]:
 
 def main() -> int:
     token_re = re.compile(r"\b(" + "|".join(re.escape(t) for t in BANNED_TOKENS) + r")\b")
+    public_buffer_fn_re = re.compile(r"\bfn\s+(try_[A-Za-z0-9_]+)\b")
+    public_buffer_call_re = re.compile(r"\b(buffer\w*)\.(try_[A-Za-z0-9_]+)\b")
     failures: list[str] = []
     for path in iter_sources():
         text = path.read_text(encoding="utf-8")
@@ -91,6 +93,15 @@ def main() -> int:
             match = token_re.search(line)
             if match:
                 failures.append(f"{path.relative_to(ROOT)}:{line_no}: banned public fallible helper `{match.group(1)}`")
+            rel = path.relative_to(ROOT).as_posix()
+            if rel == "lib/std/buffer.oren":
+                buffer_fn = public_buffer_fn_re.search(line)
+                if buffer_fn:
+                    failures.append(f"{rel}:{line_no}: banned public buffer helper `{buffer_fn.group(1)}`")
+            if not rel.startswith("lib/std/buffer/"):
+                buffer_call = public_buffer_call_re.search(line)
+                if buffer_call:
+                    failures.append(f"{rel}:{line_no}: banned buffer call `{buffer_call.group(1)}.{buffer_call.group(2)}`")
 
     if failures:
         print("stdlib API shape guard failed:")

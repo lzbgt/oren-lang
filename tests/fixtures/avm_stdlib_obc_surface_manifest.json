@@ -10,10 +10,10 @@
       "probes": [
         "var ib = buffer.i32_new(3)",
         "if oren_is_err(ib) { fail(10) }",
-        "if oren_is_err(buffer.try_store_i32(ib, 0, 7)) { fail(11) }",
-        "if oren_is_err(buffer.try_store_i32(ib, 1, 11)) { fail(12) }",
-        "if buffer.try_load_i32(ib, 0) != 7 { fail(13) }",
-        "if buffer.try_load_i32(ib, 1) != 11 { fail(14) }"
+        "if oren_is_err(buffer.store_i32(ib, 0, 7)) { fail(11) }",
+        "if oren_is_err(buffer.store_i32(ib, 1, 11)) { fail(12) }",
+        "if buffer.load_i32(ib, 0) != 7 { fail(13) }",
+        "if buffer.load_i32(ib, 1) != 11 { fail(14) }"
       ]
     },
     {

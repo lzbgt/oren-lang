@@ -293,7 +293,7 @@ Typed buffers are the resource-efficient path for large byte/numeric data:
 import buffer "std:buffer"
 
 var b: []u8 = buffer.u8_new(6)
-buffer.try_u8_copy_from_string(b, "abcdef")
+buffer.u8_copy_from_string(b, "abcdef")
 
 print(b.slice(1, 3).text())          // bcd
 print(b.strided(0, 3, 2).text())     // ace

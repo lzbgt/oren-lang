@@ -7,7 +7,7 @@ fn fail(code) {
 
 fn main() {
     var b: []u8 = buffer.u8_new(6)
-    buffer.try_u8_copy_from_string(b, "abcdef")
+    buffer.u8_copy_from_string(b, "abcdef")
 
     if b.slice(1, 3).text() != "bcd" { fail(1) }
     if b.slice(1, 3).slice(1, 2).text() != "cd" { fail(2) }

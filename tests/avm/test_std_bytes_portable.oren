@@ -78,11 +78,11 @@ fn test_bytes_u8_buf_to_string() {
     assert_eq(bytesm.from_string("hello").slice(1, 3).text(), "ell")
     var slice_buf = bytesm.try_to_u8_buf_slice(bytesm.try_from_string("hello"), 1, 3)
     assert_true(!oren_is_err(slice_buf))
-    assert_eq(bufferm.try_u8_to_string(slice_buf), "ell")
+    assert_eq(bufferm.u8_to_string(slice_buf), "ell")
 
     var to_buf = bytesm.try_to_u8_buf(bytesm.try_from_string("CD"))
     assert_true(!oren_is_err(to_buf))
-    assert_eq(bufferm.try_u8_to_string(to_buf), "CD")
+    assert_eq(bufferm.u8_to_string(to_buf), "CD")
 
     assert_true(oren_is_err(bytesm.try_from_u8_buf("nope")))
     assert_true(oren_is_err(bytesm.try_to_u8_buf(123)))

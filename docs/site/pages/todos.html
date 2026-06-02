@@ -93,8 +93,9 @@
 <ul>
 <li><code>std:buffer</code> now exposes chainable <code>Slice</code>/<code>Strided</code>/<code>Matrix</code> wrapper methods</li>
 </ul>
-<p>  such as <code>buf.slice(1, 3).text()</code> and <code>buf.matrix(2, 3).row(1).text()</code> while</p>
-<p>  retaining the existing low-level root helpers as primitives.</p>
+<p>  such as <code>buf.slice(1, 3).text()</code> and <code>buf.matrix(2, 3).row(1).text()</code>, with</p>
+<p>  canonical public root verbs such as <code>load_i32</code> / <code>store_i32</code>; internal</p>
+<p>  <code>try_*</code> helpers stay private implementation details.</p>
 <ul>
 <li><code>make verify-stdlib-api-shape</code> is part of the fast <code>make test</code> path and blocks</li>
 </ul>

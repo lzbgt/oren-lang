@@ -278,8 +278,8 @@ fn main() {
     var bia = buffer.i32_new(1)
     var bib = buffer.i32_new(1)
     var bic = bia
-    buffer.try_store_i32(bia, 0, 9)
-    buffer.try_store_i32(bib, 0, 9)
+    buffer.store_i32(bia, 0, 9)
+    buffer.store_i32(bib, 0, 9)
     if bia == bib {
         print("tag_parity: i32_buf_eq expected false")
         exit(42)
