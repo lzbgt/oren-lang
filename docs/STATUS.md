@@ -388,8 +388,8 @@ Facts from the 2026-05-28 implementation pass:
 		  indexed byte access instead of unpacking the whole message to a list. JSON,
 		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,
 			  HTTP/2 parser records, UI color parsing, PPM encoding, public
-			  `std:bytes` helpers, importable `std:buffer/raw` plus
-			  core/numeric/u8-matrix helpers,
+			  `std:bytes` helpers, public `std:buffer` facade plus importable
+			  `std:buffer` raw/view/core/numeric/u8-matrix helpers,
 		  public `std:buffer` root/view/matrix helpers
 		  including matrix projection helpers, public `std:strings` / `std:list`
 			  helpers, public `std:linalg` root helpers, public `std:iter` range

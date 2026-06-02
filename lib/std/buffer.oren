@@ -180,83 +180,83 @@ fn f32_copy_from_f32_buf(out: []f32, src) { return raw.f32_copy_from_f32_buf(out
 
 fn f64_copy_from_f64_buf(out: []f64, src) { return raw.f64_copy_from_f64_buf(out, src) }
 
-fn slice_new(buf, off, n) { return view.try_slice_new(buf, off, n) }
-fn slice(buf, off, n): Slice { return _slice_wrap(view.try_slice_new(buf, off, n)) }
-fn slice_slice(s, off, n) { return view.try_slice_slice(s, off, n) }
-fn slice_len(s) { return view.try_slice_len(s) }
-fn strided_new(buf, off, n, stride) { return view.try_strided_new(buf, off, n, stride) }
-fn strided(buf, off, n, stride): Strided { return _strided_wrap(view.try_strided_new(buf, off, n, stride)) }
-fn strided_len(s) { return view.try_strided_len(s) }
-fn strided_load_i32(s, idx) { return view.try_strided_load_i32(s, idx) }
-fn strided_store_i32(s, idx, v) { return view.try_strided_store_i32(s, idx, v) }
-fn strided_unpack_i32(s) { return view.try_strided_unpack_i32(s) }
-fn strided_to_i32_buf(s) { return view.try_strided_to_i32_buf(s) }
-fn strided_copy_from_list_i32(s, xs) { return view.try_strided_copy_from_list_i32(s, xs) }
-fn strided_copy_from_i32_buf(s, src) { return view.try_strided_copy_from_i32_buf(s, src) }
-fn strided_load_u8(s, idx) { return view.try_strided_load_u8(s, idx) }
-fn strided_store_u8(s, idx, v) { return view.try_strided_store_u8(s, idx, v) }
-fn strided_to_bytes(s) { return view.try_strided_to_bytes(s) }
-fn strided_unpack_u8(s) { return view.try_strided_unpack_u8(s) }
-fn strided_to_u8_buf(s) { return view.try_strided_to_u8_buf(s) }
-fn strided_to_string(s) { return view.try_strided_to_string(s) }
-fn strided_copy_from_bytes(s, bytes) { return view.try_strided_copy_from_bytes(s, bytes) }
-fn strided_copy_from_bytes_slice(s, bytes, off, n) { return view.try_strided_copy_from_bytes_slice(s, bytes, off, n) }
-fn strided_copy_from_u8_buf(s, src) { return view.try_strided_copy_from_u8_buf(s, src) }
-fn strided_copy_from_string(s, text) { return view.try_strided_copy_from_string(s, text) }
-fn strided_copy_from_string_slice(s, text, off, n) { return view.try_strided_copy_from_string_slice(s, text, off, n) }
-fn strided_load_f32(s, idx) { return view.try_strided_load_f32(s, idx) }
-fn strided_store_f32(s, idx, v) { return view.try_strided_store_f32(s, idx, v) }
-fn strided_unpack_f32(s) { return view.try_strided_unpack_f32(s) }
-fn strided_to_f32_buf(s) { return view.try_strided_to_f32_buf(s) }
-fn strided_copy_from_list_f32(s, xs) { return view.try_strided_copy_from_list_f32(s, xs) }
-fn strided_copy_from_f32_buf(s, src) { return view.try_strided_copy_from_f32_buf(s, src) }
-fn strided_load_i64(s, idx) { return view.try_strided_load_i64(s, idx) }
-fn strided_store_i64(s, idx, v) { return view.try_strided_store_i64(s, idx, v) }
-fn strided_unpack_i64(s) { return view.try_strided_unpack_i64(s) }
-fn strided_to_i64_buf(s) { return view.try_strided_to_i64_buf(s) }
-fn strided_copy_from_list_i64(s, xs) { return view.try_strided_copy_from_list_i64(s, xs) }
-fn strided_copy_from_i64_buf(s, src) { return view.try_strided_copy_from_i64_buf(s, src) }
-fn strided_load_f64(s, idx) { return view.try_strided_load_f64(s, idx) }
-fn strided_store_f64(s, idx, v) { return view.try_strided_store_f64(s, idx, v) }
-fn strided_unpack_f64(s) { return view.try_strided_unpack_f64(s) }
-fn strided_to_f64_buf(s) { return view.try_strided_to_f64_buf(s) }
-fn strided_copy_from_list_f64(s, xs) { return view.try_strided_copy_from_list_f64(s, xs) }
-fn strided_copy_from_f64_buf(s, src) { return view.try_strided_copy_from_f64_buf(s, src) }
-fn slice_load_i32(s, idx) { return view.try_slice_load_i32(s, idx) }
-fn slice_store_i32(s, idx, v) { return view.try_slice_store_i32(s, idx, v) }
-fn slice_unpack_i32(s) { return view.try_slice_unpack_i32(s) }
-fn slice_to_i32_buf(s) { return view.try_slice_to_i32_buf(s) }
-fn slice_copy_from_list_i32(s, xs) { return view.try_slice_copy_from_list_i32(s, xs) }
-fn slice_copy_from_i32_buf(s, src) { return view.try_slice_copy_from_i32_buf(s, src) }
-fn slice_load_u8(s, idx) { return view.try_slice_load_u8(s, idx) }
-fn slice_store_u8(s, idx, v) { return view.try_slice_store_u8(s, idx, v) }
-fn slice_to_bytes(s) { return view.try_slice_to_bytes(s) }
-fn slice_unpack_u8(s) { return view.try_slice_unpack_u8(s) }
-fn slice_to_u8_buf(s) { return view.try_slice_to_u8_buf(s) }
-fn slice_to_string(s) { return view.try_slice_to_string(s) }
-fn slice_copy_from_bytes(s, bytes) { return view.try_slice_copy_from_bytes(s, bytes) }
-fn slice_copy_from_bytes_slice(s, bytes, off, n) { return view.try_slice_copy_from_bytes_slice(s, bytes, off, n) }
-fn slice_copy_from_u8_buf(s, src) { return view.try_slice_copy_from_u8_buf(s, src) }
-fn slice_copy_from_string(s, text) { return view.try_slice_copy_from_string(s, text) }
-fn slice_copy_from_string_slice(s, text, off, n) { return view.try_slice_copy_from_string_slice(s, text, off, n) }
-fn slice_load_f32(s, idx) { return view.try_slice_load_f32(s, idx) }
-fn slice_store_f32(s, idx, v) { return view.try_slice_store_f32(s, idx, v) }
-fn slice_unpack_f32(s) { return view.try_slice_unpack_f32(s) }
-fn slice_to_f32_buf(s) { return view.try_slice_to_f32_buf(s) }
-fn slice_copy_from_list_f32(s, xs) { return view.try_slice_copy_from_list_f32(s, xs) }
-fn slice_copy_from_f32_buf(s, src) { return view.try_slice_copy_from_f32_buf(s, src) }
-fn slice_load_i64(s, idx) { return view.try_slice_load_i64(s, idx) }
-fn slice_store_i64(s, idx, v) { return view.try_slice_store_i64(s, idx, v) }
-fn slice_unpack_i64(s) { return view.try_slice_unpack_i64(s) }
-fn slice_to_i64_buf(s) { return view.try_slice_to_i64_buf(s) }
-fn slice_copy_from_list_i64(s, xs) { return view.try_slice_copy_from_list_i64(s, xs) }
-fn slice_copy_from_i64_buf(s, src) { return view.try_slice_copy_from_i64_buf(s, src) }
-fn slice_load_f64(s, idx) { return view.try_slice_load_f64(s, idx) }
-fn slice_store_f64(s, idx, v) { return view.try_slice_store_f64(s, idx, v) }
-fn slice_unpack_f64(s) { return view.try_slice_unpack_f64(s) }
-fn slice_to_f64_buf(s) { return view.try_slice_to_f64_buf(s) }
-fn slice_copy_from_list_f64(s, xs) { return view.try_slice_copy_from_list_f64(s, xs) }
-fn slice_copy_from_f64_buf(s, src) { return view.try_slice_copy_from_f64_buf(s, src) }
+fn slice_new(buf, off, n) { return view.slice_new(buf, off, n) }
+fn slice(buf, off, n): Slice { return _slice_wrap(view.slice_new(buf, off, n)) }
+fn slice_slice(s, off, n) { return view.slice_slice(s, off, n) }
+fn slice_len(s) { return view.slice_len(s) }
+fn strided_new(buf, off, n, stride) { return view.strided_new(buf, off, n, stride) }
+fn strided(buf, off, n, stride): Strided { return _strided_wrap(view.strided_new(buf, off, n, stride)) }
+fn strided_len(s) { return view.strided_len(s) }
+fn strided_load_i32(s, idx) { return view.strided_load_i32(s, idx) }
+fn strided_store_i32(s, idx, v) { return view.strided_store_i32(s, idx, v) }
+fn strided_unpack_i32(s) { return view.strided_unpack_i32(s) }
+fn strided_to_i32_buf(s) { return view.strided_to_i32_buf(s) }
+fn strided_copy_from_list_i32(s, xs) { return view.strided_copy_from_list_i32(s, xs) }
+fn strided_copy_from_i32_buf(s, src) { return view.strided_copy_from_i32_buf(s, src) }
+fn strided_load_u8(s, idx) { return view.strided_load_u8(s, idx) }
+fn strided_store_u8(s, idx, v) { return view.strided_store_u8(s, idx, v) }
+fn strided_to_bytes(s) { return view.strided_to_bytes(s) }
+fn strided_unpack_u8(s) { return view.strided_unpack_u8(s) }
+fn strided_to_u8_buf(s) { return view.strided_to_u8_buf(s) }
+fn strided_to_string(s) { return view.strided_to_string(s) }
+fn strided_copy_from_bytes(s, bytes) { return view.strided_copy_from_bytes(s, bytes) }
+fn strided_copy_from_bytes_slice(s, bytes, off, n) { return view.strided_copy_from_bytes_slice(s, bytes, off, n) }
+fn strided_copy_from_u8_buf(s, src) { return view.strided_copy_from_u8_buf(s, src) }
+fn strided_copy_from_string(s, text) { return view.strided_copy_from_string(s, text) }
+fn strided_copy_from_string_slice(s, text, off, n) { return view.strided_copy_from_string_slice(s, text, off, n) }
+fn strided_load_f32(s, idx) { return view.strided_load_f32(s, idx) }
+fn strided_store_f32(s, idx, v) { return view.strided_store_f32(s, idx, v) }
+fn strided_unpack_f32(s) { return view.strided_unpack_f32(s) }
+fn strided_to_f32_buf(s) { return view.strided_to_f32_buf(s) }
+fn strided_copy_from_list_f32(s, xs) { return view.strided_copy_from_list_f32(s, xs) }
+fn strided_copy_from_f32_buf(s, src) { return view.strided_copy_from_f32_buf(s, src) }
+fn strided_load_i64(s, idx) { return view.strided_load_i64(s, idx) }
+fn strided_store_i64(s, idx, v) { return view.strided_store_i64(s, idx, v) }
+fn strided_unpack_i64(s) { return view.strided_unpack_i64(s) }
+fn strided_to_i64_buf(s) { return view.strided_to_i64_buf(s) }
+fn strided_copy_from_list_i64(s, xs) { return view.strided_copy_from_list_i64(s, xs) }
+fn strided_copy_from_i64_buf(s, src) { return view.strided_copy_from_i64_buf(s, src) }
+fn strided_load_f64(s, idx) { return view.strided_load_f64(s, idx) }
+fn strided_store_f64(s, idx, v) { return view.strided_store_f64(s, idx, v) }
+fn strided_unpack_f64(s) { return view.strided_unpack_f64(s) }
+fn strided_to_f64_buf(s) { return view.strided_to_f64_buf(s) }
+fn strided_copy_from_list_f64(s, xs) { return view.strided_copy_from_list_f64(s, xs) }
+fn strided_copy_from_f64_buf(s, src) { return view.strided_copy_from_f64_buf(s, src) }
+fn slice_load_i32(s, idx) { return view.slice_load_i32(s, idx) }
+fn slice_store_i32(s, idx, v) { return view.slice_store_i32(s, idx, v) }
+fn slice_unpack_i32(s) { return view.slice_unpack_i32(s) }
+fn slice_to_i32_buf(s) { return view.slice_to_i32_buf(s) }
+fn slice_copy_from_list_i32(s, xs) { return view.slice_copy_from_list_i32(s, xs) }
+fn slice_copy_from_i32_buf(s, src) { return view.slice_copy_from_i32_buf(s, src) }
+fn slice_load_u8(s, idx) { return view.slice_load_u8(s, idx) }
+fn slice_store_u8(s, idx, v) { return view.slice_store_u8(s, idx, v) }
+fn slice_to_bytes(s) { return view.slice_to_bytes(s) }
+fn slice_unpack_u8(s) { return view.slice_unpack_u8(s) }
+fn slice_to_u8_buf(s) { return view.slice_to_u8_buf(s) }
+fn slice_to_string(s) { return view.slice_to_string(s) }
+fn slice_copy_from_bytes(s, bytes) { return view.slice_copy_from_bytes(s, bytes) }
+fn slice_copy_from_bytes_slice(s, bytes, off, n) { return view.slice_copy_from_bytes_slice(s, bytes, off, n) }
+fn slice_copy_from_u8_buf(s, src) { return view.slice_copy_from_u8_buf(s, src) }
+fn slice_copy_from_string(s, text) { return view.slice_copy_from_string(s, text) }
+fn slice_copy_from_string_slice(s, text, off, n) { return view.slice_copy_from_string_slice(s, text, off, n) }
+fn slice_load_f32(s, idx) { return view.slice_load_f32(s, idx) }
+fn slice_store_f32(s, idx, v) { return view.slice_store_f32(s, idx, v) }
+fn slice_unpack_f32(s) { return view.slice_unpack_f32(s) }
+fn slice_to_f32_buf(s) { return view.slice_to_f32_buf(s) }
+fn slice_copy_from_list_f32(s, xs) { return view.slice_copy_from_list_f32(s, xs) }
+fn slice_copy_from_f32_buf(s, src) { return view.slice_copy_from_f32_buf(s, src) }
+fn slice_load_i64(s, idx) { return view.slice_load_i64(s, idx) }
+fn slice_store_i64(s, idx, v) { return view.slice_store_i64(s, idx, v) }
+fn slice_unpack_i64(s) { return view.slice_unpack_i64(s) }
+fn slice_to_i64_buf(s) { return view.slice_to_i64_buf(s) }
+fn slice_copy_from_list_i64(s, xs) { return view.slice_copy_from_list_i64(s, xs) }
+fn slice_copy_from_i64_buf(s, src) { return view.slice_copy_from_i64_buf(s, src) }
+fn slice_load_f64(s, idx) { return view.slice_load_f64(s, idx) }
+fn slice_store_f64(s, idx, v) { return view.slice_store_f64(s, idx, v) }
+fn slice_unpack_f64(s) { return view.slice_unpack_f64(s) }
+fn slice_to_f64_buf(s) { return view.slice_to_f64_buf(s) }
+fn slice_copy_from_list_f64(s, xs) { return view.slice_copy_from_list_f64(s, xs) }
+fn slice_copy_from_f64_buf(s, src) { return view.slice_copy_from_f64_buf(s, src) }
 
 fn mat_view_new(buf, off, rows, cols, row_stride) { return core.mat_view_new(buf, off, rows, cols, row_stride) }
 fn matrix(buf, rows, cols): Matrix { return matrix_at(buf, 0, rows, cols, cols) }
@@ -408,27 +408,27 @@ impl U8BufferViews for []u8 {
 
 impl SliceView for Slice {
     fn raw_view(self) { return self.view }
-    fn len(self) { return view.try_slice_len(self.view) }
-    fn slice(self, off, n): Slice { return _slice_wrap(view.try_slice_slice(self.view, off, n)) }
-    fn to_bytes(self): bytes { return view.try_slice_to_bytes(self.view) }
-    fn bytes(self): bytes { return view.try_slice_to_bytes(self.view) }
-    fn to_u8_buf(self) { return view.try_slice_to_u8_buf(self.view) }
-    fn text(self) { return view.try_slice_to_string(self.view) }
-    fn copy_from_bytes(self, bytes) { return view.try_slice_copy_from_bytes(self.view, bytes) }
-    fn copy_from_u8_buf(self, src) { return view.try_slice_copy_from_u8_buf(self.view, src) }
-    fn copy_from_string(self, text) { return view.try_slice_copy_from_string(self.view, text) }
+    fn len(self) { return view.slice_len(self.view) }
+    fn slice(self, off, n): Slice { return _slice_wrap(view.slice_slice(self.view, off, n)) }
+    fn to_bytes(self): bytes { return view.slice_to_bytes(self.view) }
+    fn bytes(self): bytes { return view.slice_to_bytes(self.view) }
+    fn to_u8_buf(self) { return view.slice_to_u8_buf(self.view) }
+    fn text(self) { return view.slice_to_string(self.view) }
+    fn copy_from_bytes(self, bytes) { return view.slice_copy_from_bytes(self.view, bytes) }
+    fn copy_from_u8_buf(self, src) { return view.slice_copy_from_u8_buf(self.view, src) }
+    fn copy_from_string(self, text) { return view.slice_copy_from_string(self.view, text) }
 }
 
 impl StridedView for Strided {
     fn raw_view(self) { return self.view }
-    fn len(self) { return view.try_strided_len(self.view) }
-    fn to_bytes(self): bytes { return view.try_strided_to_bytes(self.view) }
-    fn bytes(self): bytes { return view.try_strided_to_bytes(self.view) }
-    fn to_u8_buf(self) { return view.try_strided_to_u8_buf(self.view) }
-    fn text(self) { return view.try_strided_to_string(self.view) }
-    fn copy_from_bytes(self, bytes) { return view.try_strided_copy_from_bytes(self.view, bytes) }
-    fn copy_from_u8_buf(self, src) { return view.try_strided_copy_from_u8_buf(self.view, src) }
-    fn copy_from_string(self, text) { return view.try_strided_copy_from_string(self.view, text) }
+    fn len(self) { return view.strided_len(self.view) }
+    fn to_bytes(self): bytes { return view.strided_to_bytes(self.view) }
+    fn bytes(self): bytes { return view.strided_to_bytes(self.view) }
+    fn to_u8_buf(self) { return view.strided_to_u8_buf(self.view) }
+    fn text(self) { return view.strided_to_string(self.view) }
+    fn copy_from_bytes(self, bytes) { return view.strided_copy_from_bytes(self.view, bytes) }
+    fn copy_from_u8_buf(self, src) { return view.strided_copy_from_u8_buf(self.view, src) }
+    fn copy_from_string(self, text) { return view.strided_copy_from_string(self.view, text) }
 }
 
 impl MatrixView for Matrix {
