@@ -751,7 +751,7 @@ fn native_expr_is_inty_with_floaty(ctx, expr, is_floaty) {
             if nm == "oren_f32_to_u32_bits" { return true }
             if nm == "oren_f64_to_u64_bits" { return true }
             if nm == "oren_string_len" { return true }
-            if nm == "oren_list_len" || nm == "STD_list_len" { return true }
+            if nm == "oren_list_len" { return true }
             if nm == "oren_list_int_len" || nm == "STD_list_int_len" { return true }
             if nm == "oren_list_int_len_unchecked" || nm == "STD_list_int_len_unchecked" { return true }
             if nm == "oren_map_len" { return true }

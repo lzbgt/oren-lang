@@ -520,11 +520,11 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     }
 
     // Tier‑1 parity: match arm64 by inlining core list operations with tracked-kind safety gates.
-    if nm == "oren_list_len" || nm == "STD_list_len" {
+    if nm == "oren_list_len" {
         _emit_list_len_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
-    if nm == "oren_list_push" || nm == "STD_list_push" {
+    if nm == "oren_list_push" {
         _emit_list_push_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }

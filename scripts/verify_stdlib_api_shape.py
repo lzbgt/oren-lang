@@ -88,6 +88,10 @@ def main() -> int:
     public_buffer_call_re = re.compile(r"\b(buffer\w*)\.(try_[A-Za-z0-9_]+)\b")
     public_bytes_fn_re = re.compile(r"\bfn\s+(try_[A-Za-z0-9_]+)\b")
     public_bytes_call_re = re.compile(r"\b(bytes\w*)\.(try_[A-Za-z0-9_]+)\b")
+    public_strings_fn_re = re.compile(r"\bfn\s+(try_[A-Za-z0-9_]+)\b")
+    public_strings_call_re = re.compile(r"\b(strings\w*)\.(try_[A-Za-z0-9_]+)\b")
+    public_list_fn_re = re.compile(r"\bfn\s+(try_[A-Za-z0-9_]+)\b")
+    public_list_call_re = re.compile(r"\b(list\w*)\.(try_[A-Za-z0-9_]+)\b")
     failures: list[str] = []
     for path in iter_sources():
         text = path.read_text(encoding="utf-8")
@@ -104,6 +108,14 @@ def main() -> int:
                 bytes_fn = public_bytes_fn_re.search(line)
                 if bytes_fn:
                     failures.append(f"{rel}:{line_no}: banned public bytes helper `{bytes_fn.group(1)}`")
+            if rel == "lib/std/strings.oren":
+                strings_fn = public_strings_fn_re.search(line)
+                if strings_fn:
+                    failures.append(f"{rel}:{line_no}: banned public strings helper `{strings_fn.group(1)}`")
+            if rel == "lib/std/list.oren":
+                list_fn = public_list_fn_re.search(line)
+                if list_fn:
+                    failures.append(f"{rel}:{line_no}: banned public list helper `{list_fn.group(1)}`")
             if not rel.startswith("lib/std/buffer/"):
                 buffer_call = public_buffer_call_re.search(line)
                 if buffer_call:
@@ -111,6 +123,12 @@ def main() -> int:
             bytes_call = public_bytes_call_re.search(line)
             if bytes_call:
                 failures.append(f"{rel}:{line_no}: banned bytes call `{bytes_call.group(1)}.{bytes_call.group(2)}`")
+            strings_call = public_strings_call_re.search(line)
+            if strings_call:
+                failures.append(f"{rel}:{line_no}: banned strings call `{strings_call.group(1)}.{strings_call.group(2)}`")
+            list_call = public_list_call_re.search(line)
+            if list_call:
+                failures.append(f"{rel}:{line_no}: banned list call `{list_call.group(1)}.{list_call.group(2)}`")
 
     if failures:
         print("stdlib API shape guard failed:")

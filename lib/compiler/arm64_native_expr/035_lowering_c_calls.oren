@@ -5,7 +5,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 }
 
 fn native_call_chunk_035_list_ops(ctx, fn_name, expr, args) {
-            if fn_name == "oren_list_len" || fn_name == "STD_list_len" {
+            if fn_name == "oren_list_len" {
                 // Intrinsic: list length (fast-path, no runtime call).
                     //
                     // Runtime layout: [count][capacity][buffer_ptr][magic]
@@ -252,7 +252,7 @@ fn native_call_chunk_035_list_ops(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "oren_list_push" || fn_name == "STD_list_push" {
+            if fn_name == "oren_list_push" {
                 // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
                     //
                     // Signature: oren_list_push(list, value) -> nil

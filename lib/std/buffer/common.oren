@@ -43,7 +43,7 @@ fn _string_slice_or_err(s, off, n, ctx) {
     if oren_is_err(ok_off) { return ok_off }
     var ok_n = _check_nonneg_int(n, ctx, "len")
     if oren_is_err(ok_n) { return ok_n }
-    return stringsm.try_slice(s, off, off + n)
+    return stringsm.slice(s, off, off + n)
 }
 
 fn _plain_list_len_or_err(xs, ctx) {

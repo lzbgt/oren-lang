@@ -351,6 +351,9 @@ uses canonical verbs (`parse`, `connect`, `read_into`, `decode_bytes`) and
 reserves `*_raw` for low-level numeric errno contracts. APIs where success
 metadata is part of the domain result can return `{ok, ...}` records; for
 example, `argparse.parse` returns a structured parse/help/error map.
+Core helpers follow the same rule: `strings.slice(...)`, `strings.trim(...)`,
+`list.get(...)`, and `list.slice_copy(...)` return either the requested value or
+`oren_err`.
 
 ## Standard Library Overview
 

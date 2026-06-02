@@ -704,16 +704,6 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
     if resolved != nil {
         var argsR = expr["args"]
         if argsR == nil { argsR = [] }
-        if resolved == "STD_list_len" {
-            if oren_list_len(argsR) == 1 {
-                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_len"}, [argsR[0]])
-            }
-        }
-        if resolved == "STD_list_push" {
-            if oren_list_len(argsR) == 2 {
-                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_push"}, [argsR[0], argsR[1]])
-            }
-        }
         if resolved == "STD_list_int_new" {
             if oren_list_len(argsR) == 1 {
                 return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_new_list_int"}, [argsR[0]])

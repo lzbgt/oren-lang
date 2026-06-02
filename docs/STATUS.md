@@ -388,9 +388,11 @@ Facts from the 2026-05-28 implementation pass:
 		  indexed byte access instead of unpacking the whole message to a list. JSON,
 		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,
 		  HTTP/2 parser records, UI color parsing, PPM encoding, public
-		  `std:bytes` helpers, and public `std:buffer` root/view/matrix helpers now use canonical fallible verbs or
+		  `std:bytes` helpers, public `std:buffer` root/view/matrix helpers,
+		  and public `std:strings` / `std:list` helpers now use canonical fallible verbs or
 		  `{ok,...}` records (`parse`, `encode`, `decode_bytes`, `compile`,
-		  `bytes`, `bytes.pack`, `bytes.get_u32_le`, `load_i32`, `mat_row_to_bytes`, etc.) instead of public
+		  `bytes`, `bytes.pack`, `bytes.get_u32_le`, `load_i32`, `mat_row_to_bytes`,
+		  `strings.slice`, `list.get`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
 		  internals are explicit `*_raw` or private module helpers. Base64 encoding now writes exact-size `u8_buf` output instead of materializing an
 		  intermediate Oren list. NET cleanup now covers native and AVM session

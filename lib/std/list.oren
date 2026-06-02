@@ -8,9 +8,13 @@
 // - Today these wrappers only target built-in list values (`[]T`).
 // - Future: compiler can lower `push(xs, v)` to either an intrinsic fast path or trait dispatch.
 
-fn len(xs) { return oren_list_len(xs) }
+fn len(xs) { return _len_or_err(xs, "list.len") }
 
-fn is_empty(xs) { return oren_list_len(xs) == 0 }
+fn is_empty(xs) {
+    var n = _len_or_err(xs, "list.is_empty")
+    if oren_is_err(n) { return n }
+    return n == 0
+}
 
 fn _is_int(v) {
     if v == nil { return false }
@@ -50,7 +54,8 @@ fn clone(xs) {
     // - returns a new list with the same element values
     // - does not deep-copy nested lists/maps (reference semantics for heap values)
     var out = []
-    var n = oren_list_len(xs)
+    var n = _len_or_err(xs, "list.clone")
+    if oren_is_err(n) { return n }
     var i = 0
     while i < n {
         oren_list_push(out, xs[i])
@@ -108,78 +113,32 @@ fn slice_view(xs, off, n) {
 }
 
 fn push(xs, v) {
-    oren_list_push(xs, v)
-    return nil
-}
-
-// --- structured error helpers (value-or-err) ---
-
-fn try_len(xs) {
-    return _len_or_err(xs, "list.try_len")
-}
-
-fn try_is_empty(xs) {
-    var n = _len_or_err(xs, "list.try_is_empty")
-    if oren_is_err(n) { return n }
-    return n == 0
-}
-
-fn try_push(xs, v) {
-    var n = _len_or_err(xs, "list.try_push")
+    var n = _len_or_err(xs, "list.push")
     if oren_is_err(n) { return n }
     oren_list_push(xs, v)
     return nil
 }
 
-fn try_clone(xs) {
-    var n = _len_or_err(xs, "list.try_clone")
+fn get(xs, i) {
+    var n = _len_or_err(xs, "list.get")
     if oren_is_err(n) { return n }
-    var out = []
-    var i = 0
-    while i < n {
-        oren_list_push(out, xs[i])
-        i = i + 1
-    }
-    return out
-}
-
-fn try_slice_copy(xs, off, n) {
-    return slice_copy(xs, off, n)
-}
-
-fn try_get(xs, i) {
-    var n = _len_or_err(xs, "list.try_get")
-    if oren_is_err(n) { return n }
-    if _is_int(i) == false { return oren_err(4, "list.try_get: index not int") }
-    if i < 0 || i >= n { return oren_err(4, "list.try_get: index out of bounds") }
+    if _is_int(i) == false { return oren_err(4, "list.get: index not int") }
+    if i < 0 || i >= n { return oren_err(4, "list.get: index out of bounds") }
     return xs[i]
 }
 
-fn try_set(xs, i, v) {
-    var n = _len_or_err(xs, "list.try_set")
-    if oren_is_err(n) { return n }
-    if _is_int(i) == false { return oren_err(4, "list.try_set: index not int") }
-    if i < 0 || i >= n { return oren_err(4, "list.try_set: index out of bounds") }
-    xs[i] = v
-    return nil
-}
-
-fn try_last(xs) {
-    var n = _len_or_err(xs, "list.try_last")
-    if oren_is_err(n) { return n }
-    if n <= 0 { return oren_err(4, "list.try_last: empty list") }
-    return xs[n - 1]
-}
-
-fn get(xs, i) { return xs[i] }
-
 fn set(xs, i, v) {
+    var n = _len_or_err(xs, "list.set")
+    if oren_is_err(n) { return n }
+    if _is_int(i) == false { return oren_err(4, "list.set: index not int") }
+    if i < 0 || i >= n { return oren_err(4, "list.set: index out of bounds") }
     xs[i] = v
     return nil
 }
 
 fn last(xs) {
-    var n = oren_list_len(xs)
-    if n <= 0 { return nil }
+    var n = _len_or_err(xs, "list.last")
+    if oren_is_err(n) { return n }
+    if n <= 0 { return oren_err(4, "list.last: empty list") }
     return xs[n - 1]
 }

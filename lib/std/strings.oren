@@ -1,11 +1,12 @@
 import list "std:list"
 
 // Basic wrappers around string intrinsics to avoid direct `oren_*` usage in user code.
-fn len(s) { return oren_string_len(s) }
+// Public verbs are checked and return `value | oren_err`; raw intrinsic access stays private.
+fn _len_raw(s) { return oren_string_len(s) }
 
-fn char_at(s, i) { return oren_string_char_at(s, i) }
+fn _char_at_raw(s, i) { return oren_string_char_at(s, i) }
 
-fn slice(s, start, end) { return oren_string_slice(s, start, end) }
+fn _slice_raw(s, start, end) { return oren_string_slice(s, start, end) }
 
 fn to_bytes(s) { return oren_bytes_from_string(s) }
 
@@ -40,28 +41,26 @@ fn _len_or_err(s, ctx) {
     return n
 }
 
-// --- structured error helpers (value-or-err) ---
-
-fn try_len(s) {
-    return _len_or_err(s, "strings.try_len")
+fn len(s) {
+    return _len_or_err(s, "strings.len")
 }
 
-fn try_char_at(s, i) {
-    var n = _len_or_err(s, "strings.try_char_at")
+fn char_at(s, i) {
+    var n = _len_or_err(s, "strings.char_at")
     if oren_is_err(n) { return n }
-    if _is_int(i) == false { return oren_err(4, "strings.try_char_at: index not int") }
-    if i < 0 || i >= n { return oren_err(4, "strings.try_char_at: index out of bounds") }
-    return oren_string_char_at(s, i)
+    if _is_int(i) == false { return oren_err(4, "strings.char_at: index not int") }
+    if i < 0 || i >= n { return oren_err(4, "strings.char_at: index out of bounds") }
+    return _char_at_raw(s, i)
 }
 
-fn try_slice(s, start, end) {
-    var n = _len_or_err(s, "strings.try_slice")
+fn slice(s, start, end) {
+    var n = _len_or_err(s, "strings.slice")
     if oren_is_err(n) { return n }
-    if _is_int(start) == false || _is_int(end) == false { return oren_err(4, "strings.try_slice: start/end not int") }
-    if start < 0 || end < 0 { return oren_err(4, "strings.try_slice: negative range") }
-    if start > end { return oren_err(4, "strings.try_slice: start > end") }
-    if end > n { return oren_err(4, "strings.try_slice: out of bounds") }
-    return oren_string_slice(s, start, end)
+    if _is_int(start) == false || _is_int(end) == false { return oren_err(4, "strings.slice: start/end not int") }
+    if start < 0 || end < 0 { return oren_err(4, "strings.slice: negative range") }
+    if start > end { return oren_err(4, "strings.slice: start > end") }
+    if end > n { return oren_err(4, "strings.slice: out of bounds") }
+    return _slice_raw(s, start, end)
 }
 
 fn _two_strings_or_err(a, b, ctx) {
@@ -70,43 +69,43 @@ fn _two_strings_or_err(a, b, ctx) {
     return nil
 }
 
-fn try_starts_with(s, prefix) {
-    var ok = _two_strings_or_err(s, prefix, "strings.try_starts_with")
-    if oren_is_err(ok) { return ok }
-    return starts_with(s, prefix)
-}
-
-fn try_ends_with(s, suffix) {
-    var ok = _two_strings_or_err(s, suffix, "strings.try_ends_with")
-    if oren_is_err(ok) { return ok }
-    return ends_with(s, suffix)
-}
-
-fn try_contains(s, sub) {
-    var ok = _two_strings_or_err(s, sub, "strings.try_contains")
-    if oren_is_err(ok) { return ok }
-    return contains(s, sub)
-}
-
-fn try_index_of(s, sub) {
-    var ok = _two_strings_or_err(s, sub, "strings.try_index_of")
-    if oren_is_err(ok) { return ok }
-    return index_of(s, sub)
-}
-
-fn try_streq(a, b) {
-    var ok = _two_strings_or_err(a, b, "strings.try_streq")
-    if oren_is_err(ok) { return ok }
-    return streq(a, b)
-}
-
-fn try_trim(s) {
-    var n = _len_or_err(s, "strings.try_trim")
-    if oren_is_err(n) { return n }
-    return trim(s)
-}
-
 fn starts_with(s, prefix) {
+    var ok = _two_strings_or_err(s, prefix, "strings.starts_with")
+    if oren_is_err(ok) { return ok }
+    return _starts_with_raw(s, prefix)
+}
+
+fn ends_with(s, suffix) {
+    var ok = _two_strings_or_err(s, suffix, "strings.ends_with")
+    if oren_is_err(ok) { return ok }
+    return _ends_with_raw(s, suffix)
+}
+
+fn contains(s, sub) {
+    var ok = _two_strings_or_err(s, sub, "strings.contains")
+    if oren_is_err(ok) { return ok }
+    return _contains_raw(s, sub)
+}
+
+fn index_of(s, sub) {
+    var ok = _two_strings_or_err(s, sub, "strings.index_of")
+    if oren_is_err(ok) { return ok }
+    return _index_of_raw(s, sub)
+}
+
+fn streq(a, b) {
+    var ok = _two_strings_or_err(a, b, "strings.streq")
+    if oren_is_err(ok) { return ok }
+    return _streq_raw(a, b)
+}
+
+fn trim(s) {
+    var n = _len_or_err(s, "strings.trim")
+    if oren_is_err(n) { return n }
+    return _trim_raw(s)
+}
+
+fn _starts_with_raw(s, prefix) {
     if s == nil || prefix == nil { return false }
     var sb = oren_bytes_from_string(s)
     var pb = oren_bytes_from_string(prefix)
@@ -121,7 +120,7 @@ fn starts_with(s, prefix) {
     return true
 }
 
-fn ends_with(s, suffix) {
+fn _ends_with_raw(s, suffix) {
     if s == nil || suffix == nil { return false }
     var sb = oren_bytes_from_string(s)
     var pb = oren_bytes_from_string(suffix)
@@ -136,12 +135,12 @@ fn ends_with(s, suffix) {
     return true
 }
 
-fn contains(s, sub) {
+fn _contains_raw(s, sub) {
     if s == nil || sub == nil { return false }
-    return index_of(s, sub) != -1
+    return _index_of_raw(s, sub) != -1
 }
 
-fn index_of(s, sub) {
+fn _index_of_raw(s, sub) {
     if s == nil || sub == nil { return -1 }
     var sb = oren_bytes_from_string(s)
     var pb = oren_bytes_from_string(sub)
@@ -163,7 +162,7 @@ fn index_of(s, sub) {
     return -1
 }
 
-fn streq(a, b) {
+fn _streq_raw(a, b) {
     if a == nil || b == nil { return false }
     var ab = oren_bytes_from_string(a)
     var bb = oren_bytes_from_string(b)
@@ -178,7 +177,7 @@ fn streq(a, b) {
     return true
 }
 
-fn trim(s) {
+fn _trim_raw(s) {
     if s == nil { return nil }
     // Cross-backend: avoid relying on `oren_string_char_at` representation differences.
     // Normalize by trimming based on byte codes from `oren_bytes_from_string`.

@@ -97,8 +97,8 @@ fn test_assert_streq_portable() {
 }
 
 fn test_list_and_strings_validation() {
-    assert_true(oren_is_err(stringsm.try_char_at("hi", "x")))
-    assert_true(oren_is_err(stringsm.try_slice("hi", "x", 1)))
+    assert_true(oren_is_err(stringsm.char_at("hi", "x")))
+    assert_true(oren_is_err(stringsm.slice("hi", "x", 1)))
     assert_true(oren_is_err(listm.slice_copy([1, 2], "x", 1)))
     var bad = listm.slice_view([1, 2], "x", 1)
     var count = 0

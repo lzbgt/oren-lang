@@ -772,7 +772,7 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_NEW_LIST_INT)
             return nil
         }
-        if name == "oren_list_push" || name == "STD_list_push" || name == "oren_list_push_unchecked" {
+        if name == "oren_list_push" || name == "oren_list_push_unchecked" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_list_push expects (list, val)")
             return nil
@@ -1017,7 +1017,7 @@ fn bytecode_compile_expr(ctx, expr) {
         // Container ops (rolling): accept both kernel intrinsics (`oren_*`) and
         // stable-stdlib names (`STD_*`) so bytecode stays fast even if wrapper
         // inlining is skipped for some reason.
-        if name == "oren_list_len" || name == "STD_list_len" { native_id = 12 }
+        if name == "oren_list_len" { native_id = 12 }
         if name == "oren_list_int_len" || name == "STD_list_int_len" ||
             name == "oren_list_int_len_unchecked" || name == "STD_list_int_len_unchecked" { native_id = 12 }
         if name == "oren_is_list_int" { native_id = 154 }
@@ -1028,7 +1028,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_list_int_reduce_sum_slots_try_fast" { native_id = 159 }
         if name == "oren_list_int_dot_slots_try_fast" { native_id = 160 }
         // Note: `oren_list_push` returns `nil` (cross-backend contract).
-        if name == "oren_list_push" || name == "STD_list_push" || name == "oren_list_push_unchecked" { native_id = 13 }
+        if name == "oren_list_push" || name == "oren_list_push_unchecked" { native_id = 13 }
         if name == "oren_list_int_push" || name == "oren_list_int_push_unchecked" { native_id = 149 }
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }

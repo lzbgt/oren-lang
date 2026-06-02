@@ -86,8 +86,8 @@ fn test_std_strings_smoke() {
     assert_eq(bs[1], 90, 7805)
     var s2 = strings.from_bytes([66, 67])
     assert_streq(s2, "BC", 7806)
-    assert_true(oren_is_err(strings.try_char_at("hi", "x")), 7807)
-    assert_true(oren_is_err(strings.try_slice("hi", "x", 1)), 7808)
+    assert_true(oren_is_err(strings.char_at("hi", "x")), 7807)
+    assert_true(oren_is_err(strings.slice("hi", "x", 1)), 7808)
     return 0
 }
 

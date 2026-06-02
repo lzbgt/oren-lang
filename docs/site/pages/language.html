@@ -285,6 +285,9 @@ if oren_is_err(body) {
 <p>reserves <code>*_raw</code> for low-level numeric errno contracts. APIs where success</p>
 <p>metadata is part of the domain result can return <code>{ok, ...}</code> records; for</p>
 <p>example, <code>argparse.parse</code> returns a structured parse/help/error map.</p>
+<p>Core helpers follow the same rule: <code>strings.slice(...)</code>, <code>strings.trim(...)</code>,</p>
+<p><code>list.get(...)</code>, and <code>list.slice_copy(...)</code> return either the requested value or</p>
+<p><code>oren_err</code>.</p>
 <h2 id="standard-library-overview">Standard Library Overview</h2>
 <p>The stdlib is feature-rich and organized by domain:</p>
 <ul>
