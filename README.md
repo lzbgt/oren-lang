@@ -42,6 +42,23 @@ Oren is still rolling. The macOS arm64 native path is the most mature native
 backend; x64 Linux/Windows and full production app lifecycle hardening remain
 active work. See [docs/STATUS.md](docs/STATUS.md) for the current truth table.
 
+## Showcases
+
+Oren's current proof is not just syntax. The live OBC store publishes runnable
+bytecode packages with source, screenshots, permissions, and installable
+`.obc.zip` releases:
+
+| Showcase | What it proves | Store |
+| --- | --- | --- |
+| ![Science calculator preview](https://store.hubstack.cn/api/v0/packages/oren-labs/science-calculator/versions/0.1.0/screenshots/preview.png) | Numeric/linalg stdlib, deterministic OBC packaging, source assets, and portal presentation metadata. | [science-calculator](https://store.hubstack.cn/packages/oren-labs/science-calculator) |
+| ![UI card demo preview](https://store.hubstack.cn/api/v0/packages/oren-labs/ui-card-demo/versions/0.1.0/screenshots/preview.png) | Retained 2D UI commands, AVM raster conformance, iOS rendering paths, and rendered Oren source with AST outline. | [ui-card-demo](https://store.hubstack.cn/packages/oren-labs/ui-card-demo) |
+| ![Scene3D asset demo preview](https://store.hubstack.cn/api/v0/packages/oren-labs/scene3d-asset-demo/versions/0.1.0/screenshots/preview.png) | Byte-native `.os3d` package assets, retained Scene3D meshes/materials/models, camera metadata, and package VFS mounting. | [scene3d-asset-demo](https://store.hubstack.cn/packages/oren-labs/scene3d-asset-demo) |
+
+Screenshots are store presentation metadata, not client runtime assets: they are
+not declared in package manifests and are not included in downloaded OBC bundles.
+Declared Oren source renders in the portal with syntax highlighting and an
+AST-style outline, while host apps can still install and run the signed bundle.
+
 ## Language Shape
 
 Oren is designed to feel like a modern language while keeping low-level control
