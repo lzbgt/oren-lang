@@ -29,6 +29,9 @@ Optional:
 
 The cloud host Traefik layer owns DNS and HTTPS for store.hubstack.cn. Configure
 its route to the service listener chosen by the host operator after deployment.
+If Traefik runs in Docker, bind to a host bridge address such as
+OBC_STORE_LISTEN_ADDR=172.20.0.1:18080; Dockerized Traefik cannot reach a
+backend bound only to host 127.0.0.1.
 USAGE
 }
 
@@ -185,12 +188,18 @@ Run command on host:
 EOF
 
 if [[ "$install_systemd" == "1" ]]; then
+  route_backend_host="${listen_addr%:*}"
+  route_backend_port="${listen_addr##*:}"
+  route_backend="http://$listen_addr"
+  if [[ "$route_backend_host" == "0.0.0.0" || "$route_backend_host" == "::" || "$route_backend_host" == "[::]" ]]; then
+    route_backend="http://<host-reachable-ip>:$route_backend_port"
+  fi
   cat <<EOF
 
 Systemd service installed:
   $systemd_service
 
-Traefik should route store.hubstack.cn to:
-  http://127.0.0.1:${listen_addr##*:}
+Traefik should route store.hubstack.cn to this backend when Traefik can reach it:
+  $route_backend
 EOF
 fi

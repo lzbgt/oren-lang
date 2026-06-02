@@ -189,9 +189,11 @@
 <p>  accept publisher-scoped bearer tokens limited to that publisher id, with JSON</p>
 <p>  APIs for token rotation and revocation.</p>
 <p>  <code>scripts/deploy_obc_store_service.sh</code> now supports an opt-in systemd service</p>
-<p>  install/restart path, configurable loopback listen address for Traefik, and an</p>
-<p>  optional remote <code>/api/v0/health</code> probe; actual <code>store.hubstack.cn</code> deployment</p>
-<p>  still requires accepted SSH auth from the operator environment.</p>
+<p>  install/restart path, configurable listen address for Traefik, and an optional</p>
+<p>  remote <code>/api/v0/health</code> probe. The live cloud host currently runs</p>
+<p>  <code>oren-obc-store.service</code> on <code>172.20.0.1:18080</code> and Dockerized Traefik routes</p>
+<p>  <code>https://store.hubstack.cn/</code> to that backend; <code>/healthz</code> and <code>/api/v0/health</code></p>
+<p>  are public smoke endpoints for browser/API reachability.</p>
 <p>  <code>make verify-libavm-ios</code> starts this Go service, publishes a signed package via</p>
 <p>  the service API using publisher-scoped auth, and proves iOS SDK signed-index</p>
 <p>  install and package run from that endpoint. The release bundle format is</p>

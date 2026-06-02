@@ -131,8 +131,9 @@ Remaining service work before deployment:
   remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`. Operators can inspect
   the generated unit without SSH via
   `scripts/deploy_obc_store_service.sh --print-systemd-unit`;
-- live deployment, Traefik route config, and public health smoke on
-  `store.hubstack.cn`;
+- live deployment now runs on the cloud host with `oren-obc-store.service`
+  listening on the host bridge address `172.20.0.1:18080`, and Dockerized Traefik
+  routes `https://store.hubstack.cn/` to that backend;
   the cloud host Traefik layer owns automatic DNS and HTTPS certificate handling,
   so this repo should not manage TLS cert material;
 
