@@ -84,6 +84,9 @@ BANNED_TOKENS = (
     "try_sha256_hex",
     "try_digest",
     "try_hex",
+    "try_query_a",
+    "try_resolve_a",
+    "try_resolve_host_ipv4",
 )
 
 

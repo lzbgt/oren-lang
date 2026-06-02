@@ -408,10 +408,12 @@ Facts from the 2026-05-28 implementation pass:
 		  expose `.recv_text(...)` / `.send_text_client(...)`, and AVM virtual
 		  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness
 			  waits, accept, and close receiver methods. Native HTTP/2 client state now
-			  uses a typed `Client` receiver with `client.request(...).text()` /
-			  `.bytes()` response methods. Public fallible NET APIs now use normal
-			  verbs returning `value | oren_err`; syscall-style errno contracts are
-			  explicit `*_raw` primitives.
+				  uses a typed `Client` receiver with `client.request(...).text()` /
+				  `.bytes()` response methods. Public fallible NET APIs now use normal
+				  verbs returning `value | oren_err` or explicit `{ok,...}` records;
+				  DNS/host resolution exposes `query_a`, `resolve_a`, and
+				  `resolve_host_ipv4` records, while syscall-style errno contracts are
+				  explicit `*_raw` primitives.
   buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits
   instead of truncating fractional values through integer byte writes. Further
   cleanup should keep text helpers explicit at API boundaries.

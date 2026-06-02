@@ -198,13 +198,14 @@ fn main() {
     if sr != 0 { exit(120) }
 
     var h2 = spawn server(sfd, 20, 21, 22, 23)
-    var ip2 = dns.try_query_a("oren.test", "127.0.0.1", sport, 2000)
-    if oren_is_err(ip2) {
-        print("dns_loopback: FAIL try_query_a " + oren_err_msg(ip2))
+    var ip2r = dns.query_a("oren.test", "127.0.0.1", sport, 2000)
+    if ip2r["ok"] != 1 {
+        print("dns_loopback: FAIL query_a " + ip2r["err"])
         exit(121)
     }
+    var ip2 = ip2r["ip"]
     if strcmp(ip2, "20.21.22.23") != 0 {
-        print("dns_loopback: FAIL try_query_a ip=" + ip2)
+        print("dns_loopback: FAIL query_a ip=" + ip2)
         free(ip2)
         exit(122)
     }
@@ -212,14 +213,14 @@ fn main() {
     var sr2 = oren_join_timeout(h2, 5000)
     if sr2 != 0 { exit(123) }
 
-    var e = dns.try_query_a("oren.test", nil, 53, 0)
-    if oren_is_err(e) != true { exit(124) }
+    var e = dns.query_a("oren.test", nil, 53, 0)
+    if e["ok"] != 0 { exit(124) }
 
-    var hr = hostutil.try_resolve_host_ipv4("dns_loopback", "127.0.0.1", 0, nil)
-    if oren_is_err(hr) { exit(125) }
+    var hr = hostutil.resolve_host_ipv4("dns_loopback", "127.0.0.1", 0, nil)
+    if hr["ok"] != 1 { exit(125) }
     if hr["owned"] != 0 || strcmp(hr["ip"], "127.0.0.1") != 0 { exit(126) }
-    var he = hostutil.try_resolve_host_ipv4("dns_loopback", nil, 0, nil)
-    if oren_is_err(he) != true { exit(127) }
+    var he = hostutil.resolve_host_ipv4("dns_loopback", nil, 0, nil)
+    if he["ok"] != 0 { exit(127) }
 
     udp.close_raw(sfd)
     print("dns_loopback: OK")

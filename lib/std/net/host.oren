@@ -14,12 +14,6 @@
 
 import dns "std:net/dns"
 
-fn _err_from_record(r, fallback) {
-    var msg = r["err"]
-    if msg == nil || msg == "" { msg = fallback }
-    return oren_err(4, msg)
-}
-
 fn looks_like_ipv4(host) {
     // Conservative "is this probably an IPv4 literal?" check.
     // (We keep it cheap; `tcp.connect` still validates.)
@@ -70,10 +64,4 @@ fn resolve_host_ipv4(who, host, timeout_ms, resolver) {
     var ip = oren_map_get_str(r0, "ip")
     if ip == 0 { return {"ok": 0, "err": who + ": dns returned nil ip"} }
     return {"ok": 1, "ip": ip, "owned": 1}
-}
-
-fn try_resolve_host_ipv4(who, host, timeout_ms, resolver) {
-    var r = resolve_host_ipv4(who, host, timeout_ms, resolver)
-    if r["ok"] == 1 { return {"ip": r["ip"], "owned": r["owned"]} }
-    return _err_from_record(r, "host.resolve_host_ipv4 failed")
 }

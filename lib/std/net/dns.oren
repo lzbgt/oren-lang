@@ -19,12 +19,6 @@
 import udp "std:net/udp"
 import rand "std:crypto/rand"
 
-fn _err_from_record(r, fallback) {
-    var msg = r["err"]
-    if msg == nil || msg == "" { msg = fallback }
-    return oren_err(4, msg)
-}
-
 // --- Resolver helpers (small stable surface) ---
 
 fn resolver(server_ip, server_port, timeout_ms) {
@@ -61,12 +55,6 @@ fn resolve_a(res, name) {
     var port = res["server_port"]
     var timeout_ms = res["timeout_ms"]
     return query_a(name, ip, port, timeout_ms)
-}
-
-fn try_resolve_a(res, name) {
-    var r = resolve_a(res, name)
-    if r["ok"] == 1 { return r["ip"] }
-    return _err_from_record(r, "dns.resolve_a failed")
 }
 
 fn resolver_free(res) {
@@ -653,10 +641,4 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
     var out = _parse_response_a(rbuf, rn, id)
     free(rbuf)
     return out
-}
-
-fn try_query_a(name, server_ip, server_port, timeout_ms) {
-    var r = query_a(name, server_ip, server_port, timeout_ms)
-    if r["ok"] == 1 { return r["ip"] }
-    return _err_from_record(r, "dns.query_a failed")
 }

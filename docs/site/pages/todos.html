@@ -109,8 +109,8 @@
 <li><code>make verify-stdlib-api-shape</code> is part of the fast <code>make test</code> path and blocks</li>
 </ul>
 <p>  known bad root-helper regressions. Public fallible stdlib APIs should use normal</p>
-<p>  verbs returning <code>value | oren_err</code>; numeric errno contracts belong under</p>
-<p>  explicit <code>*_raw</code> primitives.</p>
+<p>  verbs returning <code>value | oren_err</code> or explicit <code>{ok,...}</code> records; numeric errno</p>
+<p>  contracts belong under explicit <code>*_raw</code> primitives.</p>
 <ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>

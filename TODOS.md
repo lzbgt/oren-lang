@@ -61,8 +61,8 @@ design evidence lives under `project-doc/`.
   Internal `try_*` helpers stay private implementation details.
 - `make verify-stdlib-api-shape` is part of the fast `make test` path and blocks
   known bad root-helper regressions. Public fallible stdlib APIs should use normal
-  verbs returning `value | oren_err`; numeric errno contracts belong under
-  explicit `*_raw` primitives.
+  verbs returning `value | oren_err` or explicit `{ok,...}` records; numeric errno
+  contracts belong under explicit `*_raw` primitives.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,
   `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
