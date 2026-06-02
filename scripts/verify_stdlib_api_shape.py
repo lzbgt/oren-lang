@@ -92,6 +92,8 @@ def main() -> int:
     public_strings_call_re = re.compile(r"\b(strings\w*)\.(try_[A-Za-z0-9_]+)\b")
     public_list_fn_re = re.compile(r"\bfn\s+(try_[A-Za-z0-9_]+)\b")
     public_list_call_re = re.compile(r"\b(list\w*)\.(try_[A-Za-z0-9_]+)\b")
+    public_int_cast_fn_re = re.compile(r"\bfn\s+(try_[ui](?:8|16|32|64))\b")
+    public_int_cast_call_re = re.compile(r"\b(ints|casts)\.(try_[ui](?:8|16|32|64))\b")
     failures: list[str] = []
     for path in iter_sources():
         text = path.read_text(encoding="utf-8")
@@ -116,6 +118,10 @@ def main() -> int:
                 list_fn = public_list_fn_re.search(line)
                 if list_fn:
                     failures.append(f"{rel}:{line_no}: banned public list helper `{list_fn.group(1)}`")
+            if rel in {"lib/std/ints.oren", "lib/std/casts.oren"}:
+                int_cast_fn = public_int_cast_fn_re.search(line)
+                if int_cast_fn:
+                    failures.append(f"{rel}:{line_no}: banned public checked cast helper `{int_cast_fn.group(1)}`")
             if not rel.startswith("lib/std/buffer/"):
                 buffer_call = public_buffer_call_re.search(line)
                 if buffer_call:
@@ -129,6 +135,9 @@ def main() -> int:
             list_call = public_list_call_re.search(line)
             if list_call:
                 failures.append(f"{rel}:{line_no}: banned list call `{list_call.group(1)}.{list_call.group(2)}`")
+            int_cast_call = public_int_cast_call_re.search(line)
+            if int_cast_call:
+                failures.append(f"{rel}:{line_no}: banned checked cast call `{int_cast_call.group(1)}.{int_cast_call.group(2)}`")
 
     if failures:
         print("stdlib API shape guard failed:")

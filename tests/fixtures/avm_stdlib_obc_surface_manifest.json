@@ -58,7 +58,7 @@
       "probes": [
         "if ints.u16(65537) != 1 { fail(84) }",
         "if ints.i16(65535) != -1 { fail(85) }",
-        "if oren_is_err(ints.try_u8(300)) != true { fail(86) }"
+        "if oren_is_err(ints.checked_u8(300)) != true { fail(86) }"
       ]
     },
     {

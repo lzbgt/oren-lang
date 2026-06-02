@@ -28,6 +28,10 @@ fn main() {
     assert_eq(ints.u32(-1), 4294967295, 31)
     assert_eq(ints.i32(4294967295), -1, 32)
     assert_eq(ints.i32(2147483648), -2147483648, 33)
+    assert_eq(ints.u8(1.9), 1, 40)
+    assert_eq(ints.u8(-1.9), 255, 41)
+    assert_eq(ints.i32(1.9), 1, 42)
+    assert_eq(ints.i32(-1.9), -1, 43)
 
     print("native int_casts OK")
     exit(0)

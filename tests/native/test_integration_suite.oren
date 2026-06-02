@@ -510,16 +510,16 @@ fn test_numeric_casts() {
     assert_eq(ints.i32(2147483648), -2147483648, 323)
 
     // Checked casts.
-    var ok = ints.try_u8(255)
+    var ok = ints.checked_u8(255)
     assert_true(oren_is_err(ok) == false, 330)
     assert_eq(ok, 255, 331)
-    var bad = ints.try_u8(256)
+    var bad = ints.checked_u8(256)
     assert_true(oren_is_err(bad) == true, 332)
     assert_eq(oren_err_code(bad), 4, 333)
 
-    var uok = ints.try_u64(ints.MAX_I64)
+    var uok = ints.checked_u64(ints.MAX_I64)
     assert_true(oren_is_err(uok) == false, 334)
-    var ubad = ints.try_u64(ints.MAX_I64 + 1)
+    var ubad = ints.checked_u64(ints.MAX_I64 + 1)
     assert_true(oren_is_err(ubad) == true, 335)
 }
 

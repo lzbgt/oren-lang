@@ -481,10 +481,11 @@
 <p>		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,</p>
 <p>		  HTTP/2 parser records, UI color parsing, PPM encoding, public</p>
 <p>		  <code>std:bytes</code> helpers, public <code>std:buffer</code> root/view/matrix helpers,</p>
-<p>		  and public <code>std:strings</code> / <code>std:list</code> helpers now use canonical fallible verbs or</p>
+<p>		  public <code>std:strings</code> / <code>std:list</code> helpers, and checked</p>
+<p>		  <code>std:ints</code> / <code>std:casts</code> helpers now use canonical fallible verbs or</p>
 <p>		  <code>{ok,...}</code> records (<code>parse</code>, <code>encode</code>, <code>decode_bytes</code>, <code>compile</code>,</p>
 <p>		  <code>bytes</code>, <code>bytes.pack</code>, <code>bytes.get_u32_le</code>, <code>load_i32</code>, <code>mat_row_to_bytes</code>,</p>
-<p>		  <code>strings.slice</code>, <code>list.get</code>, etc.) instead of public</p>
+<p>		  <code>strings.slice</code>, <code>list.get</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
 <p>		  internals are explicit <code>*_raw</code> or private module helpers. Base64 encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>		  intermediate Oren list. NET cleanup now covers native and AVM session</p>

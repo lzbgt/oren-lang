@@ -348,6 +348,7 @@ if oren_is_err(body) {
 
 Do not infer fallibility from names like `try_get_text`. Oren's rolling stdlib
 uses canonical verbs (`parse`, `connect`, `read_into`, `decode_bytes`) and
+explicit checked names such as `ints.checked_u8(value)` for range-checked casts. It
 reserves `*_raw` for low-level numeric errno contracts. APIs where success
 metadata is part of the domain result can return `{ok, ...}` records; for
 example, `argparse.parse` returns a structured parse/help/error map.

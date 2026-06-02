@@ -16,21 +16,21 @@ fn assert_eq(a, b, code) {
 }
 
 fn main() {
-    var ok = ints.try_u8(255)
+    var ok = ints.checked_u8(255)
     assert_true(oren_is_err(ok) == false, 10)
     assert_eq(ok, 255, 11)
 
-    var bad = ints.try_u8(256)
+    var bad = ints.checked_u8(256)
     assert_true(oren_is_err(bad) == true, 20)
     assert_eq(oren_err_code(bad), 4, 21)
 
-    var bad2 = ints.try_i8(128)
+    var bad2 = ints.checked_i8(128)
     assert_true(oren_is_err(bad2) == true, 30)
 
-    var uok = ints.try_u64(ints.MAX_I64)
+    var uok = ints.checked_u64(ints.MAX_I64)
     assert_true(oren_is_err(uok) == false, 40)
 
-    var ubad = ints.try_u64(ints.MAX_I64 + 1)
+    var ubad = ints.checked_u64(ints.MAX_I64 + 1)
     assert_true(oren_is_err(ubad) == true, 41)
 
     print("native int_casts_checked OK")

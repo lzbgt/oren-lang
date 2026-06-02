@@ -24,14 +24,14 @@ fn i64(x) { return ints.i64(x) }
 fn u64(x) { return ints.u64(x) }
 
 // Checked integer casts (error on out-of-range).
-fn try_u8(x) { return ints.try_u8(x) }
-fn try_i8(x) { return ints.try_i8(x) }
-fn try_u16(x) { return ints.try_u16(x) }
-fn try_i16(x) { return ints.try_i16(x) }
-fn try_u32(x) { return ints.try_u32(x) }
-fn try_i32(x) { return ints.try_i32(x) }
-fn try_i64(x) { return ints.try_i64(x) }
-fn try_u64(x) { return ints.try_u64(x) }
+fn checked_u8(x) { return ints.checked_u8(x) }
+fn checked_i8(x) { return ints.checked_i8(x) }
+fn checked_u16(x) { return ints.checked_u16(x) }
+fn checked_i16(x) { return ints.checked_i16(x) }
+fn checked_u32(x) { return ints.checked_u32(x) }
+fn checked_i32(x) { return ints.checked_i32(x) }
+fn checked_i64(x) { return ints.checked_i64(x) }
+fn checked_u64(x) { return ints.checked_u64(x) }
 
 // Bool normalization with numeric semantics (int/float: != 0).
 fn bool(x) {

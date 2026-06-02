@@ -1,17 +1,17 @@
 import ints "../../lib/std/ints.oren"
 
-var ok = ints.try_u8(255)
+var ok = ints.checked_u8(255)
 if oren_is_err(ok) { exit(1) }
 if ok != 255 { exit(2) }
 
-var bad = ints.try_u8(256)
+var bad = ints.checked_u8(256)
 if !oren_is_err(bad) { exit(3) }
 if oren_err_code(bad) != 4 { exit(4) }
 
-var uok = ints.try_u64(ints.MAX_I64)
+var uok = ints.checked_u64(ints.MAX_I64)
 if oren_is_err(uok) { exit(5) }
 
-var ubad = ints.try_u64(ints.MAX_I64 + 1)
+var ubad = ints.checked_u64(ints.MAX_I64 + 1)
 if !oren_is_err(ubad) { exit(6) }
 
 print("module int_casts_checked OK")
