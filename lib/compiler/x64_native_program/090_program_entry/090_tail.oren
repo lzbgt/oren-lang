@@ -1207,10 +1207,11 @@ fn native_compile_program_x64(linked, platform) {
     // Compile the synthesized top-level initializer function first so:
     // - its symbol exists for the entry stub call fixup, and
     // - stack traces can include a stable `__top_level__` frame when it panics.
-    var top_fn = top_info["top_level_fn"]
-    if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return ctx }
+	    var top_fn = top_info["top_level_fn"]
+	    if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return ctx }
+	    coreir.infer_native_param_numeric_traits(ctx, fns, top_fn, "x64 native v0")
 
-    // If a runtime object is pending, splice its code after the entry stub now so
+	    // If a runtime object is pending, splice its code after the entry stub now so
     // runtime functions resolve by name before compiling user code.
     if used_rtobj == true {
         if trace_prog { print("[x64_compile] rtobj code splice start") }

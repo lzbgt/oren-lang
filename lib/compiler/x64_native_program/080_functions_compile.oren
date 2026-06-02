@@ -89,17 +89,31 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         //
         // Parameters annotated as `f32`/`f64` must participate in the float-propagation
         // heuristic so float intrinsics (e.g. `oren_f32_to_u32_bits`) accept identifiers.
-        var ann = p["ann_type"]
-        if ann != nil {
-            if ctx["locals_floaty"] != nil {
-                if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
-            }
-            if ctx["locals_inty"] != nil {
-                if ann == "i32" || ann == "i64" { ctx["locals_inty"][pnm] = true }
-            }
-        }
-        i = i + 1
-    }
+	        var ann = p["ann_type"]
+	        if ann != nil {
+	            if ctx["locals_floaty"] != nil {
+	                if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
+	            }
+	            if ctx["locals_inty"] != nil {
+	                if ann == "i32" || ann == "i64" { ctx["locals_inty"][pnm] = true }
+	            }
+	        }
+	        var pk = oren_int_to_string(i)
+	        var inferred_floaty = nil
+	        var inferred_inty = nil
+	        if ctx["func_param_floaty"] != nil && ctx["func_param_floaty"][name] != nil {
+	            inferred_floaty = ctx["func_param_floaty"][name][pk]
+	        }
+	        if ctx["func_param_inty"] != nil && ctx["func_param_inty"][name] != nil {
+	            inferred_inty = ctx["func_param_inty"][name][pk]
+	        }
+	        if inferred_floaty == true {
+	            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][pnm] = true }
+	        } else if inferred_inty == true {
+	            if ctx["locals_inty"] != nil { ctx["locals_inty"][pnm] = true }
+	        }
+	        i = i + 1
+	    }
 
     local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
     if local_next < 0 { return nil }

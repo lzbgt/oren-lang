@@ -829,17 +829,31 @@ fn native_compile_stmt_inner(ctx, stmt) {
                             ann = oren_string_slice(ann, 5, oren_string_len(ann))
                         }
                     }
-                    if ann == "f64" || ann == "f32" {
-                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][p_name] = true }
-                    }
-                    if ctx["type_field_kinds"] != nil {
-                        if ctx["type_field_kinds"][ann] != nil {
-                            if ctx["locals_struct_type"] != nil { ctx["locals_struct_type"][p_name] = ann }
-                        }
-                    }
-                }
+	                    if ann == "f64" || ann == "f32" {
+	                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][p_name] = true }
+	                    }
+	                    if ctx["type_field_kinds"] != nil {
+	                        if ctx["type_field_kinds"][ann] != nil {
+	                            if ctx["locals_struct_type"] != nil { ctx["locals_struct_type"][p_name] = ann }
+	                        }
+	                    }
+	                }
+	                var pk = oren_int_to_string(i)
+	                var inferred_floaty = nil
+	                var inferred_inty = nil
+	                if ctx["func_param_floaty"] != nil && ctx["func_param_floaty"][fn_name] != nil {
+	                    inferred_floaty = ctx["func_param_floaty"][fn_name][pk]
+	                }
+	                if ctx["func_param_inty"] != nil && ctx["func_param_inty"][fn_name] != nil {
+	                    inferred_inty = ctx["func_param_inty"][fn_name][pk]
+	                }
+	                if inferred_floaty == true {
+	                    if ctx["locals_floaty"] != nil { ctx["locals_floaty"][p_name] = true }
+	                } else if inferred_inty == true {
+	                    if ctx["locals_inty"] != nil { ctx["locals_inty"][p_name] = true }
+	                }
 
-                if ctx["platform"]["debug"] == true {
+	                if ctx["platform"]["debug"] == true {
                     oren_list_push(params_info, {"name": p_name, "offset": p_off})
                 }
 

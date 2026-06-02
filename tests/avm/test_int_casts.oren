@@ -13,6 +13,15 @@ fn assert_eq(a, b) {
     fail()
 }
 
+fn wrap_u8(x) { return ints.u8(x) }
+
+fn wrap_i32(x) { return ints.i32(x) }
+
+fn wrap_u8_via_local(x) {
+    var y = x
+    return ints.u8(y)
+}
+
 fn main() {
     assert_eq(ints.u8(256 + 5), 5)
     assert_eq(ints.u8(-1), 255)
@@ -28,6 +37,13 @@ fn main() {
     assert_eq(ints.u32(-1), 4294967295)
     assert_eq(ints.i32(4294967295), -1)
     assert_eq(ints.i32(2147483648), -2147483648)
+    assert_eq(ints.u8(1.9), 1)
+    assert_eq(ints.u8(-1.9), 255)
+    assert_eq(ints.i32(1.9), 1)
+    assert_eq(ints.i32(-1.9), -1)
+    assert_eq(wrap_u8(1.9), 1)
+    assert_eq(wrap_i32(-1.9), -1)
+    assert_eq(wrap_u8_via_local(258.9), 2)
 
     print("avm int_casts OK")
 }

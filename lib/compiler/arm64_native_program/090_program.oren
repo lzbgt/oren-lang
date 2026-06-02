@@ -609,12 +609,13 @@ fn native_compile_program_arm64(linked, platform) {
     // CoreIR v0 keeps function metadata deterministic across backends.
     var t_fnmeta0 = 0
     if trace { t_fnmeta0 = oren_time_now_ns() }
-    if used_rtobj == true {
-        // Runtime function metadata already seeded from the cached runtime object; add user declarations.
-        coreir.collect_top_level_functions_merge(ctx, linked, "arm64 native")
-    } else {
-        coreir.collect_top_level_functions(ctx, bun["linked"], "arm64 native")
-    }
+	    var fns = nil
+	    if used_rtobj == true {
+	        // Runtime function metadata already seeded from the cached runtime object; add user declarations.
+	        fns = coreir.collect_top_level_functions_merge(ctx, linked, "arm64 native")
+	    } else {
+	        fns = coreir.collect_top_level_functions(ctx, bun["linked"], "arm64 native")
+	    }
     if trace {
         var dt_fnmeta = (oren_time_now_ns() - t_fnmeta0) / 1000000
         print("[arm64] collect_top_level_functions +" + oren_int_to_string(dt_fnmeta) + "ms")
@@ -673,10 +674,13 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_prep = (oren_time_now_ns() - t_prep0) / 1000000
         print("[arm64] prepare_globals +" + oren_int_to_string(dt_prep) + "ms")
     }
-    var runtime_decls = prep["runtime_decls"]
-    var user_decls = prep["user_decls"]
-    var top_stmt = prep["top_stmt"]
-    if phase_log != nil {
+	    var runtime_decls = prep["runtime_decls"]
+	    var user_decls = prep["user_decls"]
+	    var top_stmt = prep["top_stmt"]
+	    var top_fn = nil
+	    if top_stmt != nil { top_fn = top_stmt["expr"] }
+	    coreir.infer_native_param_numeric_traits(ctx, fns, top_fn, "arm64 native")
+	    if phase_log != nil {
         _arm64_program_phase_log_append(phase_log, "arm64.codegen.prepare.done", "runtime_decls=" + oren_int_to_string(oren_list_len(runtime_decls)) + " user_decls=" + oren_int_to_string(oren_list_len(user_decls)))
     }
     _arm64_trace_global_slots(ctx, "after_prepare_globals")

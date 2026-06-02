@@ -510,6 +510,10 @@ Working evidence:
 
 3. **Cross-backend parity**
    - Expand only around real gaps; keep C/native/OBC fixtures aligned.
+   - 2026-06-02: native helper-wrapped numeric casts now use shared CoreIR
+     direct-call parameter trait inference. Monomorphic float/int evidence marks
+     native params for correct carrier lowering; mixed or unknown generic evidence
+     remains explicit instead of guessing from untagged runtime bits.
 
 4. **Native scheduler and green-task maturity**
    - Keep focused runtime gates cheap and deterministic.

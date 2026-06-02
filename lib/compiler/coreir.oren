@@ -185,3 +185,299 @@ fn collect_top_level_functions_merge(ctx, linked, err_prefix) {
     ctx["declared_functions"] = declared
     return out
 }
+
+fn _numeric_ann_trait(ann) {
+    if ann == nil { return nil }
+    if oren_string_len(ann) > 5 {
+        if oren_string_slice(ann, 0, 5) == "oren." { ann = oren_string_slice(ann, 5, oren_string_len(ann)) }
+    }
+    if ann == "f32" || ann == "f64" { return "float" }
+    if ann == "i8" || ann == "u8" || ann == "i16" || ann == "u16" { return "int" }
+    if ann == "i32" || ann == "u32" || ann == "i64" || ann == "u64" { return "int" }
+    if ann == "int" || ann == "bool" { return "int" }
+    return nil
+}
+
+fn _numeric_param_key(i) { return oren_int_to_string(i) }
+
+fn _numeric_local_set(name, kind, locals_floaty, locals_inty) {
+    if name == nil || name == "" { return nil }
+    if locals_floaty != nil { locals_floaty[name] = nil }
+    if locals_inty != nil { locals_inty[name] = nil }
+    if kind == "float" {
+        if locals_floaty != nil { locals_floaty[name] = true }
+        return nil
+    }
+    if kind == "int" {
+        if locals_inty != nil { locals_inty[name] = true }
+        return nil
+    }
+    return nil
+}
+
+fn _numeric_evidence_add(evidence, fn_name, arg_i, kind) {
+    if evidence == nil || fn_name == nil || fn_name == "" { return nil }
+    var m = evidence[fn_name]
+    if m == nil { m = {}; evidence[fn_name] = m }
+    var k = _numeric_param_key(arg_i)
+    var prev = m[k]
+    var next = 0
+    if kind == "int" { next = 1 }
+    else if kind == "float" { next = 2 }
+    else { next = 4 }
+    if prev == nil { m[k] = next; return nil }
+    if prev == next { return nil }
+    m[k] = 3
+    return nil
+}
+
+fn _numeric_expr_trait(ctx, expr, locals_floaty, locals_inty) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Float" { return "float" }
+    if t == "Integer" || t == "Boolean" { return "int" }
+    if t == "Identifier" {
+        var nm = expr["value"]
+        if locals_floaty != nil && locals_floaty[nm] == true { return "float" }
+        if locals_inty != nil && locals_inty[nm] == true { return "int" }
+        return nil
+    }
+    if t == "Prefix" { return _numeric_expr_trait(ctx, expr["right"], locals_floaty, locals_inty) }
+    if t == "Infix" {
+        var lt = _numeric_expr_trait(ctx, expr["left"], locals_floaty, locals_inty)
+        var rt = _numeric_expr_trait(ctx, expr["right"], locals_floaty, locals_inty)
+        if lt == "float" || rt == "float" { return "float" }
+        if lt == "int" && rt == "int" { return "int" }
+        return nil
+    }
+    if t == "Call" {
+        var fn0 = expr["fn"]
+        var fn_name = nil
+        if fn0 != nil && fn0["type"] == "Identifier" { fn_name = fn0["value"] }
+        if fn_name != nil {
+            if fn_name == "oren_trunc_int" { return "int" }
+            if fn_name == "oren_u32_bits_to_f32" || fn_name == "oren_u64_bits_to_f64" { return "float" }
+            var ret = nil
+            if ctx != nil && ctx["func_ret_kinds"] != nil { ret = ctx["func_ret_kinds"][fn_name] }
+            return _numeric_ann_trait(ret)
+        }
+        return nil
+    }
+    return nil
+}
+
+fn _numeric_scan_expr(ctx, expr, locals_floaty, locals_inty, fn_by_name, evidence) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Call" {
+        var fn0 = expr["fn"]
+        var fn_name = nil
+        if fn0 != nil && fn0["type"] == "Identifier" { fn_name = fn0["value"] }
+        var args = expr["args"]
+        if args == nil { args = [] }
+        if fn_name != nil && fn_by_name != nil && fn_by_name[fn_name] != nil {
+            var i = 0
+            while i < oren_list_len(args) {
+                _numeric_scan_expr(ctx, args[i], locals_floaty, locals_inty, fn_by_name, evidence)
+                _numeric_evidence_add(evidence, fn_name, i, _numeric_expr_trait(ctx, args[i], locals_floaty, locals_inty))
+                i = i + 1
+            }
+        } else {
+            _numeric_scan_expr(ctx, fn0, locals_floaty, locals_inty, fn_by_name, evidence)
+            var j = 0
+            while j < oren_list_len(args) {
+                _numeric_scan_expr(ctx, args[j], locals_floaty, locals_inty, fn_by_name, evidence)
+                j = j + 1
+            }
+        }
+        return nil
+    }
+    if t == "Infix" {
+        _numeric_scan_expr(ctx, expr["left"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_expr(ctx, expr["right"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "Prefix" { return _numeric_scan_expr(ctx, expr["right"], locals_floaty, locals_inty, fn_by_name, evidence) }
+    if t == "Index" {
+        _numeric_scan_expr(ctx, expr["left"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_expr(ctx, expr["index"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "Member" { return _numeric_scan_expr(ctx, expr["left"], locals_floaty, locals_inty, fn_by_name, evidence) }
+    if t == "List" {
+        var es = expr["elements"]
+        if es == nil { es = [] }
+        var li = 0
+        while li < oren_list_len(es) {
+            _numeric_scan_expr(ctx, es[li], locals_floaty, locals_inty, fn_by_name, evidence)
+            li = li + 1
+        }
+        return nil
+    }
+    if t == "Map" {
+        var ps = expr["pairs"]
+        if ps == nil { ps = [] }
+        var mi = 0
+        while mi < oren_list_len(ps) {
+            var p = ps[mi]
+            if p != nil {
+                _numeric_scan_expr(ctx, p["key"], locals_floaty, locals_inty, fn_by_name, evidence)
+                _numeric_scan_expr(ctx, p["value"], locals_floaty, locals_inty, fn_by_name, evidence)
+            }
+            mi = mi + 1
+        }
+    }
+    return nil
+}
+
+fn _numeric_scan_stmt_list(ctx, stmts, locals_floaty, locals_inty, fn_by_name, evidence) {
+    if stmts == nil { return nil }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _numeric_scan_stmt(ctx, stmts[i], locals_floaty, locals_inty, fn_by_name, evidence)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _numeric_scan_stmt(ctx, stmt, locals_floaty, locals_inty, fn_by_name, evidence) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" {
+        _numeric_scan_expr(ctx, stmt["expr"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "Return" {
+        _numeric_scan_expr(ctx, stmt["value"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "Var" || t == "Assign" {
+        var v = stmt["value"]
+        _numeric_scan_expr(ctx, v, locals_floaty, locals_inty, fn_by_name, evidence)
+        var nm = nil
+        if stmt["name"] != nil { nm = stmt["name"]["value"] }
+        _numeric_local_set(nm, _numeric_expr_trait(ctx, v, locals_floaty, locals_inty), locals_floaty, locals_inty)
+        return nil
+    }
+    if t == "Set" {
+        _numeric_scan_expr(ctx, stmt["left"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_expr(ctx, stmt["value"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "Block" {
+        var bs = stmt["statements"]
+        if bs == nil { bs = stmt["stmts"] }
+        return _numeric_scan_stmt_list(ctx, bs, locals_floaty, locals_inty, fn_by_name, evidence)
+    }
+    if t == "If" {
+        _numeric_scan_expr(ctx, stmt["cond"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_stmt(ctx, stmt["consq"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_stmt(ctx, stmt["alt"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "While" {
+        _numeric_scan_expr(ctx, stmt["cond"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_stmt(ctx, stmt["body"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "For" {
+        _numeric_scan_stmt(ctx, stmt["init"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_expr(ctx, stmt["cond"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_stmt(ctx, stmt["body"], locals_floaty, locals_inty, fn_by_name, evidence)
+        _numeric_scan_stmt(ctx, stmt["post"], locals_floaty, locals_inty, fn_by_name, evidence)
+        return nil
+    }
+    if t == "Function" { return nil }
+    return nil
+}
+
+fn _numeric_seed_param_maps(ctx, fn0, prev_floaty, prev_inty, locals_floaty, locals_inty) {
+    if fn0 == nil { return nil }
+    var name = fn0["name"]
+    var params = fn0["params"]
+    if params == nil { params = [] }
+    var fn_prev_floaty = nil
+    var fn_prev_inty = nil
+    if prev_floaty != nil { fn_prev_floaty = prev_floaty[name] }
+    if prev_inty != nil { fn_prev_inty = prev_inty[name] }
+    var i = 0
+    while i < oren_list_len(params) {
+        var p = params[i]
+        var pn = nil
+        if p != nil { pn = p["value"] }
+        var tr = nil
+        if p != nil { tr = _numeric_ann_trait(p["ann_type"]) }
+        var k = _numeric_param_key(i)
+        if tr == nil && fn_prev_floaty != nil && fn_prev_floaty[k] == true { tr = "float" }
+        if tr == nil && fn_prev_inty != nil && fn_prev_inty[k] == true { tr = "int" }
+        _numeric_local_set(pn, tr, locals_floaty, locals_inty)
+        i = i + 1
+    }
+    return nil
+}
+
+fn infer_native_param_numeric_traits(ctx, fns, top_fn, err_prefix) {
+    if ctx == nil { return nil }
+    if fns == nil { fns = [] }
+    var fn_by_name = {}
+    var i = 0
+    while i < oren_list_len(fns) {
+        var fn0 = fns[i]
+        if fn0 != nil && fn0["name"] != nil && fn0["name"] != "" { fn_by_name[fn0["name"]] = fn0 }
+        i = i + 1
+    }
+    var prev_floaty = {}
+    var prev_inty = {}
+    var iter = 0
+    while iter < 8 {
+        var evidence = {}
+        i = 0
+        while i < oren_list_len(fns) {
+            var fn1 = fns[i]
+            if fn1 != nil {
+                var lf = {}
+                var li = {}
+                _numeric_seed_param_maps(ctx, fn1, prev_floaty, prev_inty, lf, li)
+                _numeric_scan_stmt(ctx, fn1["body"], lf, li, fn_by_name, evidence)
+            }
+            i = i + 1
+        }
+        if top_fn != nil {
+            var tlf = {}
+            var tli = {}
+            _numeric_scan_stmt(ctx, top_fn["body"], tlf, tli, fn_by_name, evidence)
+        }
+        var next_floaty = {}
+        var next_inty = {}
+        i = 0
+        while i < oren_list_len(fns) {
+            var fn2 = fns[i]
+            if fn2 != nil {
+                var nm = fn2["name"]
+                var params = fn2["params"]
+                if params == nil { params = [] }
+                var ev = evidence[nm]
+                var nf = {}
+                var ni = {}
+                var pi = 0
+                while pi < oren_list_len(params) {
+                    var k = _numeric_param_key(pi)
+                    var st = nil
+                    if ev != nil { st = ev[k] }
+                    if st == 2 { nf[k] = true }
+                    if st == 1 { ni[k] = true }
+                    pi = pi + 1
+                }
+                if oren_map_len(nf) > 0 { next_floaty[nm] = nf }
+                if oren_map_len(ni) > 0 { next_inty[nm] = ni }
+            }
+            i = i + 1
+        }
+        prev_floaty = next_floaty
+        prev_inty = next_inty
+        iter = iter + 1
+    }
+    ctx["func_param_floaty"] = prev_floaty
+    ctx["func_param_inty"] = prev_inty
+    return nil
+}

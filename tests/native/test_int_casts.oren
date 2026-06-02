@@ -10,6 +10,15 @@ fn assert_eq(a, b, code) {
     fail(code)
 }
 
+fn wrap_u8(x) { return ints.u8(x) }
+
+fn wrap_i32(x) { return ints.i32(x) }
+
+fn wrap_u8_via_local(x) {
+    var y = x
+    return ints.u8(y)
+}
+
 fn main() {
     // u8/i8
     assert_eq(ints.u8(256 + 5), 5, 10)
@@ -32,6 +41,9 @@ fn main() {
     assert_eq(ints.u8(-1.9), 255, 41)
     assert_eq(ints.i32(1.9), 1, 42)
     assert_eq(ints.i32(-1.9), -1, 43)
+    assert_eq(wrap_u8(1.9), 1, 44)
+    assert_eq(wrap_i32(-1.9), -1, 45)
+    assert_eq(wrap_u8_via_local(258.9), 2, 46)
 
     print("native int_casts OK")
     exit(0)
