@@ -71,13 +71,14 @@ type PackageMeta struct {
 }
 
 type PackageListItem struct {
-	ID        string   `json:"id"`
-	Publisher string   `json:"publisher"`
-	Name      string   `json:"name"`
-	Version   string   `json:"version"`
-	Title     string   `json:"title,omitempty"`
-	Summary   string   `json:"summary,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
+	ID            string   `json:"id"`
+	Publisher     string   `json:"publisher"`
+	Name          string   `json:"name"`
+	Version       string   `json:"version"`
+	Title         string   `json:"title,omitempty"`
+	Summary       string   `json:"summary,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	ScreenshotURL string   `json:"screenshot_url,omitempty"`
 }
 
 type SiteSourceLink struct {
@@ -91,11 +92,18 @@ type SiteRelease struct {
 	ReleaseMeta
 	Capabilities            []string
 	Sources                 []SiteSourceLink
+	Screenshots             []SiteSourceLink
 	PermissionDefaultsCount int
 }
 
 type AssetUpload struct {
 	Path          string `json:"path"`
+	MediaType     string `json:"media_type,omitempty"`
+	ContentBase64 string `json:"content_base64"`
+}
+
+type ScreenshotUpload struct {
+	Path          string `json:"path,omitempty"`
 	MediaType     string `json:"media_type,omitempty"`
 	ContentBase64 string `json:"content_base64"`
 }
@@ -106,6 +114,7 @@ type ReleaseUpload struct {
 	ProgramOBCBase64          string                 `json:"program_obc_base64"`
 	ReleaseBundleBase64       string                 `json:"release_bundle_base64,omitempty"`
 	Assets                    []AssetUpload          `json:"assets,omitempty"`
+	Screenshots               []ScreenshotUpload     `json:"screenshots,omitempty"`
 	Tags                      []string               `json:"tags,omitempty"`
 	MinApp                    string                 `json:"min_app,omitempty"`
 	SignatureAlg              string                 `json:"signature_alg,omitempty"`
@@ -166,6 +175,7 @@ type ReleaseMeta struct {
 	SignatureP256SHA256DERHex string    `json:"signature_p256_sha256_der_hex,omitempty"`
 	Tags                      []string  `json:"tags,omitempty"`
 	MinApp                    string    `json:"min_app,omitempty"`
+	Screenshots               []string  `json:"screenshots,omitempty"`
 	CreatedAt                 time.Time `json:"created_at"`
 	UpdatedAt                 time.Time `json:"updated_at"`
 }
@@ -696,6 +706,10 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 	if !ok {
 		return
 	}
+	screenshots, ok := s.writeScreenshots(w, dir, upload.Screenshots)
+	if !ok {
+		return
+	}
 	obcHash := sha256Hex(program)
 	manifest := upload.Manifest
 	if manifest == nil {
@@ -732,6 +746,7 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 		SignatureP256SHA256DERHex: strings.ToLower(upload.SignatureP256SHA256DERHex),
 		Tags:                      upload.Tags,
 		MinApp:                    upload.MinApp,
+		Screenshots:               screenshots,
 		CreatedAt:                 now,
 		UpdatedAt:                 now,
 	}
@@ -789,7 +804,7 @@ func (s *Service) uploadArtifact(w http.ResponseWriter, r *http.Request, pub, na
 func (s *Service) writeAssets(w http.ResponseWriter, dir string, assets []AssetUpload) ([]map[string]any, bool) {
 	out := make([]map[string]any, 0, len(assets))
 	for _, asset := range assets {
-		if !safeRelPath(asset.Path) || asset.ContentBase64 == "" {
+		if !safeRelPath(asset.Path) || !strings.HasPrefix(asset.Path, "assets/") || asset.ContentBase64 == "" {
 			http.Error(w, "invalid asset upload", http.StatusBadRequest)
 			return nil, false
 		}
@@ -813,6 +828,51 @@ func (s *Service) writeAssets(w http.ResponseWriter, dir string, assets []AssetU
 			"size":       len(body),
 			"media_type": asset.MediaType,
 		})
+	}
+	return out, true
+}
+
+func (s *Service) writeScreenshots(w http.ResponseWriter, dir string, screenshots []ScreenshotUpload) ([]string, bool) {
+	out := make([]string, 0, len(screenshots))
+	for i, shot := range screenshots {
+		if shot.ContentBase64 == "" {
+			http.Error(w, "invalid screenshot upload", http.StatusBadRequest)
+			return nil, false
+		}
+		mediaType := shot.MediaType
+		if mediaType == "" {
+			mediaType = "image/png"
+		}
+		if !strings.HasPrefix(mediaType, "image/") {
+			http.Error(w, "invalid screenshot media_type", http.StatusBadRequest)
+			return nil, false
+		}
+		rel := shot.Path
+		if rel == "" {
+			rel = fmt.Sprintf("screenshots/preview-%d.png", i+1)
+		}
+		if !strings.HasPrefix(rel, "screenshots/") {
+			rel = "screenshots/" + rel
+		}
+		if !safeRelPath(rel) {
+			http.Error(w, "invalid screenshot path", http.StatusBadRequest)
+			return nil, false
+		}
+		body, err := base64.StdEncoding.DecodeString(shot.ContentBase64)
+		if err != nil {
+			http.Error(w, "invalid screenshot content_base64", http.StatusBadRequest)
+			return nil, false
+		}
+		target := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return nil, false
+		}
+		if err := os.WriteFile(target, body, 0o644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return nil, false
+		}
+		out = append(out, filepath.ToSlash(rel))
 	}
 	return out, true
 }
@@ -938,15 +998,7 @@ func (s *Service) packageSearchItems(r *http.Request) ([]PackageListItem, error)
 		if capability != "" && !manifestHasCapability(s.releaseDir(rel.Publisher, rel.Name, rel.Version), capability) {
 			continue
 		}
-		items = append(items, PackageListItem{
-			ID:        rel.Publisher + "/" + rel.Name,
-			Publisher: rel.Publisher,
-			Name:      rel.Name,
-			Version:   rel.Version,
-			Title:     meta.Title,
-			Summary:   meta.Summary,
-			Tags:      append(meta.Tags, rel.Tags...),
-		})
+		items = append(items, s.packageListItem(rel, meta))
 		if len(items) >= limit {
 			break
 		}
@@ -965,17 +1017,26 @@ func (s *Service) packageItemsForPublisher(publisherID string) ([]PackageListIte
 			continue
 		}
 		meta, _ := readJSONFile[PackageMeta](s.packageMetaPath(rel.Publisher, rel.Name))
-		items = append(items, PackageListItem{
-			ID:        rel.Publisher + "/" + rel.Name,
-			Publisher: rel.Publisher,
-			Name:      rel.Name,
-			Version:   rel.Version,
-			Title:     meta.Title,
-			Summary:   meta.Summary,
-			Tags:      append(meta.Tags, rel.Tags...),
-		})
+		items = append(items, s.packageListItem(rel, meta))
 	}
 	return items, nil
+}
+
+func (s *Service) packageListItem(rel ReleaseMeta, meta PackageMeta) PackageListItem {
+	item := PackageListItem{
+		ID:        rel.Publisher + "/" + rel.Name,
+		Publisher: rel.Publisher,
+		Name:      rel.Name,
+		Version:   rel.Version,
+		Title:     meta.Title,
+		Summary:   meta.Summary,
+		Tags:      append(meta.Tags, rel.Tags...),
+	}
+	screens := screenshotLinksFromRelease(rel)
+	if len(screens) > 0 {
+		item.ScreenshotURL = screens[0].URL
+	}
+	return item
 }
 
 func (s *Service) siteReleaseItems(pub, name string, releases []ReleaseMeta) []SiteRelease {
@@ -990,6 +1051,7 @@ func (s *Service) siteReleaseItems(pub, name string, releases []ReleaseMeta) []S
 				item.PermissionDefaultsCount = len(defaults)
 			}
 		}
+		item.Screenshots = screenshotLinksFromRelease(rel)
 		items = append(items, item)
 	}
 	return items
@@ -1031,6 +1093,21 @@ func sourceLinksFromManifest(pub, name, version string, manifest map[string]any)
 			Language: lang,
 			Role:     role,
 			URL:      fmt.Sprintf("/api/v0/packages/%s/%s/versions/%s/%s", pub, name, version, path),
+		})
+	}
+	return out
+}
+
+func screenshotLinksFromRelease(rel ReleaseMeta) []SiteSourceLink {
+	out := make([]SiteSourceLink, 0, len(rel.Screenshots))
+	for _, path := range rel.Screenshots {
+		if !safeRelPath(path) || !strings.HasPrefix(path, "screenshots/") {
+			continue
+		}
+		out = append(out, SiteSourceLink{
+			Path: path,
+			Role: "screenshot",
+			URL:  fmt.Sprintf("/api/v0/packages/%s/%s/versions/%s/%s", rel.Publisher, rel.Name, rel.Version, path),
 		})
 	}
 	return out
@@ -1129,11 +1206,23 @@ func (s *Service) downloadReleaseFile(w http.ResponseWriter, r *http.Request, pu
 			return
 		}
 		assetPath := strings.Join(tail[1:], "/")
-		if !safeRelPath("assets/" + assetPath) {
+		rel = "assets/" + assetPath
+		if !safeRelPath(rel) || !releaseManifestDeclaresAsset(s.releaseDir(pub, name, version), rel) {
 			http.NotFound(w, r)
 			return
 		}
-		rel = "assets/" + assetPath
+	case "screenshots":
+		if len(tail) < 2 {
+			http.NotFound(w, r)
+			return
+		}
+		shotPath := "screenshots/" + strings.Join(tail[1:], "/")
+		release, err := readJSONFile[ReleaseMeta](filepath.Join(s.releaseDir(pub, name, version), "release.json"))
+		if err != nil || !containsString(release.Screenshots, shotPath) {
+			http.NotFound(w, r)
+			return
+		}
+		rel = shotPath
 	default:
 		http.NotFound(w, r)
 		return
@@ -1705,6 +1794,37 @@ func parseLimit(raw string, def int) int {
 func containsLower(items []string, want string) bool {
 	for _, item := range items {
 		if strings.ToLower(item) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseManifestDeclaresAsset(dir, path string) bool {
+	body, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return false
+	}
+	var manifest map[string]any
+	if json.Unmarshal(body, &manifest) != nil {
+		return false
+	}
+	assets, _ := manifest["assets"].([]any)
+	for _, raw := range assets {
+		asset, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if fmt.Sprint(asset["path"]) == path {
 			return true
 		}
 	}

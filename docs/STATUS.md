@@ -86,11 +86,13 @@ Facts from the 2026-05-28 implementation pass:
   through `libavm`.
 - Curated first-party OBC store demos are now source-controlled under
   `examples/obc_store_demos/`. `make verify-obc-store-demos` builds
-  `oren-labs/science-calculator@0.1.0` and `oren-labs/ui-card-demo@0.1.0` into
-  `build/obc-store-demos`, writes package manifests/index metadata, emits
-  deterministic `.obc.zip` release bundles, bundles official demo source under
-  `assets/source/main.oren`, and runs the generated OBC under AVM capability
-  policies. The release bundle spec is documented in
+  `oren-labs/science-calculator@0.1.0`, `oren-labs/ui-card-demo@0.1.0`, and
+  `oren-labs/scene3d-asset-demo@0.1.0` into `build/obc-store-demos`, writes
+  package manifests/index metadata, emits deterministic `.obc.zip` release
+  bundles, bundles official demo source under `assets/source/main.oren`, writes
+  portal-only deterministic `screenshots/preview.png` images for store
+  thumbnails outside package manifests/bundles, and runs the generated OBC under
+  AVM capability policies. The release bundle spec is documented in
   `project-doc/obc_release_bundle_spec_20260601.md`.
 - The first `OrenAVMPackageStore` SDK slices are implemented. It loads a local
   `oren.obc.package.v0` directory, validates manifest shape and AVM ABI floor,
@@ -141,7 +143,8 @@ Facts from the 2026-05-28 implementation pass:
   `https://store.hubstack.cn/` to that backend; `/healthz` and `/api/v0/health`
   are public smoke endpoints for browser/API reachability. The live store is
   populated with first-party `oren-labs` `science-calculator`, `ui-card-demo`,
-  and `scene3d-asset-demo` `.obc.zip` releases from `examples/obc_store_demos/`.
+  and `scene3d-asset-demo` `.obc.zip` releases with screenshot previews from
+  `examples/obc_store_demos/`.
   `make verify-libavm-ios` starts this Go service, publishes a signed package via
   the service API using publisher-scoped auth, and proves iOS SDK signed-index
   install and package run from that endpoint. The release bundle format is

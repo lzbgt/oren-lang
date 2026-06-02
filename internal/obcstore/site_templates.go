@@ -25,14 +25,16 @@ a{color:#146c5b;text-decoration:none}a:hover{text-decoration:underline}
 header{background:linear-gradient(135deg,#17211f,#36584d);color:#fff;padding:36px 22px}
 main{max-width:980px;margin:0 auto;padding:24px}
 .brand{font-size:38px;letter-spacing:-1px;margin:0 0 8px}
-.muted{color:#675f50}.pill{display:inline-block;border:1px solid #d7cdbb;border-radius:999px;padding:2px 9px;margin:2px;background:#fff8ec}
-.card{background:#fffaf0;border:1px solid #ded3bd;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 8px 24px #00000012}
-input{font:inherit;padding:10px;border:1px solid #cbbfa8;border-radius:10px;background:#fff}
-button{font:inherit;padding:10px 14px;border:0;border-radius:10px;background:#146c5b;color:white}
-code,pre{background:#eee3d0;border-radius:8px;padding:2px 5px}pre{overflow:auto;padding:14px}
-table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e2d7c3;padding:8px;text-align:left}
-@media(max-width:680px){.brand{font-size:30px}main{padding:16px}input,button{width:100%;margin-top:8px}}
-`
+	.muted{color:#675f50}.pill{display:inline-block;border:1px solid #d7cdbb;border-radius:999px;padding:2px 9px;margin:2px;background:#fff8ec}
+	.card{background:#fffaf0;border:1px solid #ded3bd;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 8px 24px #00000012}
+	.package-card{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;align-items:center}
+	.preview{width:100%;max-width:360px;border-radius:14px;border:1px solid #d7cdbb;background:#17211f;box-shadow:0 10px 24px #0000001a}
+	input{font:inherit;padding:10px;border:1px solid #cbbfa8;border-radius:10px;background:#fff}
+	button{font:inherit;padding:10px 14px;border:0;border-radius:10px;background:#146c5b;color:white}
+	code,pre{background:#eee3d0;border-radius:8px;padding:2px 5px}pre{overflow:auto;padding:14px}
+	table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e2d7c3;padding:8px;text-align:left}
+	@media(max-width:760px){.brand{font-size:30px}main{padding:16px}input,button{width:100%;margin-top:8px}.package-card{grid-template-columns:1fr}.preview{max-width:none}}
+	`
 
 const siteHomeHTML = `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -47,12 +49,15 @@ const siteHomeHTML = `<!doctype html>
 </form>
 <p><a href="/api/v0/index.json">index.json</a> · <a href="/api/v0/trust/bundle.json">trust bundle</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a></p>
 {{if .Packages}}{{range .Packages}}
-<article class="card">
-	  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
-	  <p class="muted"><a href="/publishers/{{.Publisher}}">{{.Publisher}}</a>/{{.Name}}@{{.Version}}</p>
-  <p>{{.Summary}}</p>
-  <p>{{range .Tags}}<span class="pill">{{.}}</span>{{end}}</p>
-</article>
+	<article class="card package-card">
+	  <div>
+		  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
+		  <p class="muted"><a href="/publishers/{{.Publisher}}">{{.Publisher}}</a>/{{.Name}}@{{.Version}}</p>
+	  <p>{{.Summary}}</p>
+	  <p>{{range .Tags}}<span class="pill">{{.}}</span>{{end}}</p>
+	  </div>
+	  {{if .ScreenshotURL}}<a href="/packages/{{.Publisher}}/{{.Name}}"><img class="preview" src="{{.ScreenshotURL}}" alt="{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}} screenshot"></a>{{end}}
+	</article>
 {{end}}{{else}}<div class="card">No published OBC packages match this query.</div>{{end}}
 </main></body></html>`
 
@@ -64,7 +69,7 @@ const sitePackageHTML = `<!doctype html>
 <p><a href="/">Browse packages</a> · <a href="/publishers/{{.Meta.Publisher}}">Publisher: {{.Meta.Publisher}}</a></p>
 <section class="card">
   <h2>Releases</h2>
-  {{if .Releases}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Bundle</th><th>Capabilities</th><th>Source</th><th>Permissions</th><th>Status</th></tr>
+	  {{if .Releases}}{{range .Releases}}{{range .Screenshots}}<p><img class="preview" src="{{.URL}}" alt="Package screenshot"></p>{{end}}{{end}}<table><tr><th>Version</th><th>Manifest</th><th>Program</th><th>Bundle</th><th>Capabilities</th><th>Source</th><th>Permissions</th><th>Status</th></tr>
 	  {{range .Releases}}<tr>
 	    <td>{{.Version}}</td>
 	    <td><a href="/api/v0/packages/{{.Publisher}}/{{.Name}}/versions/{{.Version}}/package.json">package.json</a></td>
@@ -87,12 +92,15 @@ const sitePublisherHTML = `<!doctype html>
 <main>
 <p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a></p>
 {{if .Packages}}{{range .Packages}}
-<article class="card">
-  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
-  <p class="muted">{{.ID}}@{{.Version}}</p>
-  <p>{{.Summary}}</p>
-  <p>{{range .Tags}}<span class="pill">{{.}}</span>{{end}}</p>
-</article>
+	<article class="card package-card">
+	  <div>
+	  <h2><a href="/packages/{{.Publisher}}/{{.Name}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</a></h2>
+	  <p class="muted">{{.ID}}@{{.Version}}</p>
+	  <p>{{.Summary}}</p>
+	  <p>{{range .Tags}}<span class="pill">{{.}}</span>{{end}}</p>
+	  </div>
+	  {{if .ScreenshotURL}}<a href="/packages/{{.Publisher}}/{{.Name}}"><img class="preview" src="{{.ScreenshotURL}}" alt="{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}} screenshot"></a>{{end}}
+	</article>
 {{end}}{{else}}<div class="card">No public packages are currently published for this publisher.</div>{{end}}
 </main></body></html>`
 

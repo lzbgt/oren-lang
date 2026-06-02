@@ -39,6 +39,10 @@ Boundary: this is architecture review and setup guidance, not guaranteed product
 
 - Avoid loading very large files into the chat context.
 - Prefer `rg` and line-ranged views (`nl -ba ... | sed -n 'X,Yp'`) to stay precise.
+- When searching, avoid generated/minified JavaScript and docs-site search indexes
+  unless the task is specifically about those files. Prefer targeted globs such as
+  `-g '!docs/site/assets/search-index.js'`, `-g '!**/*.min.js'`, or narrowed
+  source/doc paths to prevent large low-signal JS blobs from wasting context.
 - If a source file grows beyond ~2000 lines, proactively propose a SOLID, minimal refactor into modules.
 
 ## Verification policy

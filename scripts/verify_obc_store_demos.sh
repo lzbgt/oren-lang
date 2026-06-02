@@ -16,11 +16,14 @@ python3 - "$OREN_COMPILER" "$AVM_BIN" "$SPEC" "$OUT_ROOT" "$LOG_DIR" <<'PY'
 import json
 import hashlib
 import importlib.util
+import math
 import pathlib
 import shutil
+import struct
 import subprocess
 import sys
 import zipfile
+import zlib
 
 compiler, avm, spec_path, out_root, log_dir = sys.argv[1:]
 out_root = pathlib.Path(out_root)
@@ -54,6 +57,147 @@ def write_deterministic_zip(zip_path, files):
             info.external_attr = 0o644 << 16
             zf.writestr(info, path.read_bytes())
 
+
+def rgba_png(width, height, pixels):
+    raw = bytearray()
+    stride = width * 4
+    for y in range(height):
+        raw.append(0)
+        off = y * stride
+        raw.extend(pixels[off:off + stride])
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+def color(hex_color):
+    s = hex_color.lstrip("#")
+    if len(s) == 6:
+        s += "ff"
+    return tuple(int(s[i:i + 2], 16) for i in range(0, 8, 2))
+
+
+def make_canvas(width=640, height=360, bg="#102820"):
+    r, g, b, a = color(bg)
+    return bytearray([r, g, b, a] * width * height)
+
+
+def put_px(pixels, width, height, x, y, c):
+    if 0 <= x < width and 0 <= y < height:
+        off = (y * width + x) * 4
+        pixels[off:off + 4] = bytes(c)
+
+
+def rect(pixels, width, height, x, y, w, h, fill):
+    c = color(fill)
+    x0 = max(0, x)
+    y0 = max(0, y)
+    x1 = min(width, x + w)
+    y1 = min(height, y + h)
+    row = bytes(c) * max(0, x1 - x0)
+    for yy in range(y0, y1):
+        off = (yy * width + x0) * 4
+        pixels[off:off + len(row)] = row
+
+
+def circle(pixels, width, height, cx, cy, radius, fill):
+    c = color(fill)
+    rr = radius * radius
+    for y in range(cy - radius, cy + radius + 1):
+        for x in range(cx - radius, cx + radius + 1):
+            if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rr:
+                put_px(pixels, width, height, x, y, c)
+
+
+def line(pixels, width, height, x0, y0, x1, y1, stroke, thickness=1):
+    c = color(stroke)
+    dx = abs(x1 - x0)
+    dy = -abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx + dy
+    while True:
+        for oy in range(-(thickness // 2), thickness // 2 + 1):
+            for ox in range(-(thickness // 2), thickness // 2 + 1):
+                put_px(pixels, width, height, x0 + ox, y0 + oy, c)
+        if x0 == x1 and y0 == y1:
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x0 += sx
+        if e2 <= dx:
+            err += dx
+            y0 += sy
+
+
+def triangle(pixels, width, height, pts, fill):
+    c = color(fill)
+    (x0, y0), (x1, y1), (x2, y2) = pts
+    min_x = max(0, min(x0, x1, x2))
+    max_x = min(width - 1, max(x0, x1, x2))
+    min_y = max(0, min(y0, y1, y2))
+    max_y = min(height - 1, max(y0, y1, y2))
+    area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
+    if area == 0:
+        return
+    for y in range(min_y, max_y + 1):
+        for x in range(min_x, max_x + 1):
+            w0 = (x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)
+            w1 = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1)
+            w2 = (x0 - x2) * (y - y2) - (y0 - y2) * (x - x2)
+            if (w0 >= 0 and w1 >= 0 and w2 >= 0) or (w0 <= 0 and w1 <= 0 and w2 <= 0):
+                put_px(pixels, width, height, x, y, c)
+
+
+def render_demo_preview(name):
+    w, h = 640, 360
+    pixels = make_canvas(w, h, "#102820")
+    rect(pixels, w, h, 0, 0, w, h, "#102820")
+    rect(pixels, w, h, 34, 34, 572, 292, "#f5efe0")
+    rect(pixels, w, h, 48, 48, 544, 264, "#fffaf0")
+    if name == "science-calculator":
+        for x in range(76, 560, 48):
+            line(pixels, w, h, x, 250, x, 88, "#d7cdbb", 1)
+        for y in range(96, 260, 32):
+            line(pixels, w, h, 76, y, 560, y, "#d7cdbb", 1)
+        pts = []
+        for i in range(0, 480):
+            x = 76 + i
+            t = i / 479.0
+            y = 252 - int(145 * (math.sin(t * math.pi * 1.4) * 0.35 + t * 0.65))
+            pts.append((x, y))
+        for a, b in zip(pts, pts[1:]):
+            line(pixels, w, h, a[0], a[1], b[0], b[1], "#146c5b", 3)
+        for i, height_bar in enumerate([78, 118, 168]):
+            rect(pixels, w, h, 406 + i * 46, 252 - height_bar, 28, height_bar, "#e38b29")
+        circle(pixels, w, h, 130, 118, 22, "#36584d")
+    elif name == "scene3d-asset-demo":
+        rect(pixels, w, h, 76, 76, 488, 236, "#17211f")
+        triangle(pixels, w, h, [(165, 260), (344, 74), (490, 260)], "#00ff00")
+        triangle(pixels, w, h, [(386, 104), (520, 104), (386, 238)], "#ff0000")
+        line(pixels, w, h, 165, 260, 344, 74, "#f5efe0", 2)
+        line(pixels, w, h, 344, 74, 490, 260, "#f5efe0", 2)
+        line(pixels, w, h, 490, 260, 165, 260, "#f5efe0", 2)
+        circle(pixels, w, h, 344, 74, 12, "#e38b29")
+    else:
+        rect(pixels, w, h, 36, 36, 568, 288, "#102820")
+        rect(pixels, w, h, 70, 70, 500, 220, "#f5efe0")
+        line(pixels, w, h, 70, 238, 570, 238, "#146c5b", 4)
+        circle(pixels, w, h, 494, 124, 54, "#e38b29")
+        rect(pixels, w, h, 110, 118, 230, 18, "#102820")
+        rect(pixels, w, h, 110, 170, 320, 16, "#36584d")
+        rect(pixels, w, h, 110, 198, 250, 12, "#36584d")
+    return rgba_png(w, h, pixels)
+
 seen = set()
 index_packages = []
 for item in spec:
@@ -71,6 +215,10 @@ for item in spec:
     source_asset.parent.mkdir(parents=True, exist_ok=True)
     source_bytes = source.read_bytes()
     source_asset.write_bytes(source_bytes)
+    screenshot_asset = pkg_dir / "screenshots" / "preview.png"
+    screenshot_asset.parent.mkdir(parents=True, exist_ok=True)
+    screenshot_bytes = render_demo_preview(item["name"])
+    screenshot_asset.write_bytes(screenshot_bytes)
     extra_assets = []
     for asset in item.get("assets", []):
         asset_source = pathlib.Path(asset["source"])
@@ -118,7 +266,7 @@ for item in spec:
             "sha256": source_sha,
             "media_type": "text/x-oren",
             "role": "source",
-        }
+        },
     ]
     for asset, _asset_out, asset_bytes in extra_assets:
         asset_entries.append({
@@ -212,7 +360,14 @@ for entry in index_packages:
             raise SystemExit(f"bad release bundle layout: {bundle_path}: {names}")
         if not any(a.get("role") == "source" and a.get("path") == "assets/source/main.oren" for a in manifest.get("assets", [])):
             raise SystemExit(f"missing source asset declaration: {bundle_path}")
+        if any(a.get("role") == "screenshot" for a in manifest.get("assets", [])):
+            raise SystemExit(f"screenshot leaked into package assets: {bundle_path}")
+        if "screenshots/preview.png" in names:
+            raise SystemExit(f"screenshot leaked into release bundle: {bundle_path}")
         if not any(s.get("path") == "assets/source/main.oren" for s in manifest.get("sources", [])):
             raise SystemExit(f"missing source declaration: {bundle_path}")
+    screenshot_path = manifest_path.parent / "screenshots" / "preview.png"
+    if not screenshot_path.is_file():
+        raise SystemExit(f"missing portal screenshot: {screenshot_path}")
 print(f"OBC store demo packages built under {out_root}")
 PY

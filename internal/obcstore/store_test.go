@@ -52,6 +52,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs", "display_name": "Oren Labs"}, true); got.Code != http.StatusCreated {
 		t.Fatalf("publisher status=%d body=%s", got.Code, got.Body.String())
 	}
+	previewPNG := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
 	pkg := map[string]any{
 		"publisher": "oren-labs",
 		"name":      "plot-demo",
@@ -103,6 +104,13 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 				"content_base64": base64.StdEncoding.EncodeToString([]byte("asset-ok")),
 			},
 		},
+		"screenshots": []map[string]any{
+			{
+				"path":           "preview.png",
+				"media_type":     "image/png",
+				"content_base64": base64.StdEncoding.EncodeToString(previewPNG),
+			},
+		},
 	}
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/versions", upload, true); got.Code != http.StatusCreated {
 		t.Fatalf("version status=%d body=%s", got.Code, got.Body.String())
@@ -136,10 +144,19 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if perm["domain"] != "NET" || perm["action"] != "connect" || perm["detail"] != "https://api.example.invalid" || perm["granted"] != false {
 		t.Fatalf("bad permission default=%v", perm)
 	}
+	for _, raw := range manifest["assets"].([]any) {
+		asset := raw.(map[string]any)
+		if strings.HasPrefix(asset["path"].(string), "screenshots/") || asset["role"] == "screenshot" {
+			t.Fatalf("screenshot leaked into package manifest assets: %v", asset)
+		}
+	}
 
 	home := string(rawGet(t, ts, "/"))
 	if !strings.Contains(home, "Plot Demo") || !strings.Contains(home, "/packages/oren-labs/plot-demo") || !strings.Contains(home, "/publishers/oren-labs") {
 		t.Fatalf("home page missing package: %s", home)
+	}
+	if !strings.Contains(home, `<img class="preview"`) || !strings.Contains(home, "/screenshots/preview.png") {
+		t.Fatalf("home page missing screenshot: %s", home)
 	}
 	detail := string(rawGet(t, ts, "/packages/oren-labs/plot-demo"))
 	if !strings.Contains(detail, "program.obc") || !strings.Contains(detail, "package.json") || !strings.Contains(detail, "bundle.obc.zip") || !strings.Contains(detail, "/publishers/oren-labs") {
@@ -148,9 +165,15 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if !strings.Contains(detail, "CORE") || !strings.Contains(detail, "GFX") || !strings.Contains(detail, "main") || !strings.Contains(detail, "1 default(s)") || !strings.Contains(detail, "/assets/source/main.oren") {
 		t.Fatalf("detail page missing manifest metadata: %s", detail)
 	}
+	if !strings.Contains(detail, `<img class="preview"`) || !strings.Contains(detail, "/screenshots/preview.png") {
+		t.Fatalf("detail page missing screenshot: %s", detail)
+	}
 	publisher := string(rawGet(t, ts, "/publishers/oren-labs"))
 	if !strings.Contains(publisher, "Oren Labs") || !strings.Contains(publisher, "Plot Demo") || !strings.Contains(publisher, "/packages/oren-labs/plot-demo") {
 		t.Fatalf("publisher page missing public package: %s", publisher)
+	}
+	if !strings.Contains(publisher, `<img class="preview"`) || !strings.Contains(publisher, "/screenshots/preview.png") {
+		t.Fatalf("publisher page missing screenshot: %s", publisher)
 	}
 	ops := string(rawGet(t, ts, "/ops"))
 	if !strings.Contains(ops, "/api/v0/publishers/{publisher}/token") || !strings.Contains(ops, "index.json") || !strings.Contains(ops, "/healthz") || !strings.Contains(ops, "/api/v0/ops/status") {
@@ -194,6 +217,12 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 	if got := string(rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/source/main.oren")); got != "print(\"demo\")\n" {
 		t.Fatalf("source asset=%q", got)
+	}
+	if got := rawGet(t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/screenshots/preview.png"); !bytes.Equal(got, previewPNG) {
+		t.Fatalf("screenshot asset=%x", got)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/assets/screenshots/preview.png", nil, false); got.Code != http.StatusNotFound {
+		t.Fatalf("screenshot unexpectedly served as package asset status=%d body=%s", got.Code, got.Body.String())
 	}
 	if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/plot-demo/visibility", map[string]any{"visibility": "private"}, true); got.Code != http.StatusOK {
 		t.Fatalf("private visibility status=%d body=%s", got.Code, got.Body.String())

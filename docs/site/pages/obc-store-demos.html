@@ -61,16 +61,20 @@ build/obc-store-demos/bundles/&lt;publisher&gt;__&lt;name&gt;__&lt;version&gt;.o
 build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/package.json
 build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/program.obc
 build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/assets/source/main.oren
+build/obc-store-demos/packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/screenshots/preview.png
 build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.os3d</code></pre>
 <p>Official demo packages always bundle source code as a package asset so host apps</p>
 <p>can show or ignore source independently from the executable OBC. The manifest</p>
 <p>declares the source in both <code>assets</code> and <code>sources</code>; the store index declares the</p>
-<p>ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime</p>
-<p>assets; <code>scene3d-asset-demo</code> derives a byte-native <code>.os3d</code> asset from the</p>
-<p>reviewable JSON source with <code>scripts/make_scene3d_bin_v0.py</code>, including</p>
-<p>scene-level camera depth metadata, named mesh/material references, model</p>
-<p>templates, instances, human-readable <code>position_xyz</code> or nested <code>transform</code></p>
-<p>model transforms,</p>
+<p>ZIP bundle path, media type, and SHA-256. Official demo releases also write a</p>
+<p>deterministic <code>screenshots/preview.png</code> image as store presentation metadata.</p>
+<p>Screenshots are intentionally not package manifest assets and are not included in</p>
+<p>the client-installable <code>.obc.zip</code> bundle. Demo packages may also bundle runtime</p>
+<p>assets; <code>scene3d-asset-demo</code> derives a byte-native</p>
+<p><code>.os3d</code> asset from the reviewable JSON source with</p>
+<p><code>scripts/make_scene3d_bin_v0.py</code>, including scene-level camera depth metadata,</p>
+<p>named mesh/material references, model templates, instances, human-readable</p>
+<p><code>position_xyz</code> or nested <code>transform</code> model transforms,</p>
 <p>human-readable <code>vertices_xyz</code> / <code>faces</code> coordinate arrays, and per-triangle</p>
 <p><code>triangles_xyz_rgba</code> colors, richer material fields (<code>base_color</code>,</p>
 <p><code>opacity_milli</code>, <code>roughness_milli</code>, <code>metallic_milli</code>), plus sampled transform</p>
@@ -82,9 +86,9 @@ build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d
 <p>package-store fixture that mounts and raster-checks the same class of <code>.os3d</code></p>
 <p>asset through <code>OrenAVMPackageStore</code>, so host-app package install/run coverage</p>
 <p>matches the demo bundle format.</p>
-<p>These generated package artifacts are intentionally not committed. They can be</p>
-<p>published to <code>store.hubstack.cn</code> after live deployment/signing credentials are</p>
-<p>available.</p>
+<p>These generated package artifacts are intentionally not committed. The live</p>
+<p><code>store.hubstack.cn</code> portal publishes the current first-party demo bundles with</p>
+<p>their screenshot previews.</p>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>

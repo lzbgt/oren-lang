@@ -127,6 +127,11 @@ build/obc-store-demos/bundles/</code></pre>
 <pre><code>/api/v0/packages/{publisher}/{name}/versions/{version}/bundle.obc.zip</code></pre>
 <p>and advertises <code>bundle</code>, <code>bundle_sha256</code>, and <code>bundle_media_type</code> in</p>
 <p><code>index.json</code>.</p>
+<p>Official demo releases may also upload portal screenshots through the store</p>
+<p>release <code>screenshots</code> field. Those images are presentation metadata served from</p>
+<p><code>/api/v0/packages/{publisher}/{name}/versions/{version}/screenshots/...</code>; they</p>
+<p>are intentionally not declared in <code>package.json</code>, not included in <code>.obc.zip</code>, and</p>
+<p>not mounted as client runtime assets.</p>
 <p>The iOS SDK package store path now prefers the ZIP bundle when those index fields</p>
 <p>are present. It verifies <code>bundle_sha256</code>, extracts only safe rootless entries,</p>
 <p>rejects encrypted/unsupported/symlink paths, verifies the extracted</p>

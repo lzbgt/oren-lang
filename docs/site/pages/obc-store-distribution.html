@@ -74,16 +74,17 @@
   program.obc
   assets/
     icon.png
-    screenshots/
-      iphone-01.png
-      iphone-02.png
     data/
       optional-fixture.bin
+  screenshots/
+    iphone-01.png
+    iphone-02.png
   README.md
   signature.minisig</code></pre>
 <p><code>program.obc</code> is the executable bytecode. Assets are optional and should be</p>
-<p>treated as VirtualFS inputs or host presentation metadata, not arbitrary host</p>
-<p>filesystem paths.</p>
+<p>treated as VirtualFS inputs, not arbitrary host filesystem paths. Screenshots are</p>
+<p>store presentation metadata outside <code>package.json</code> assets and outside the</p>
+<p>client-installable <code>.obc.zip</code> bundle.</p>
 <p>The portable release artifact should also be available as a deterministic ZIP</p>
 <p>bundle. The ZIP mirrors the rootless package layout above, uses media type</p>
 <p><code>application/vnd.oren.obc.release+zip</code>, and should normally use an <code>.obc.zip</code></p>

@@ -39,18 +39,22 @@ build/obc-store-demos/bundles/<publisher>__<name>__<version>.obc.zip
 build/obc-store-demos/packages/<publisher>/<name>/<version>/package.json
 build/obc-store-demos/packages/<publisher>/<name>/<version>/program.obc
 build/obc-store-demos/packages/<publisher>/<name>/<version>/assets/source/main.oren
+build/obc-store-demos/packages/<publisher>/<name>/<version>/screenshots/preview.png
 build/obc-store-demos/packages/oren-labs/scene3d-asset-demo/0.1.0/assets/scene3d_card.os3d
 ```
 
 Official demo packages always bundle source code as a package asset so host apps
 can show or ignore source independently from the executable OBC. The manifest
 declares the source in both `assets` and `sources`; the store index declares the
-ZIP bundle path, media type, and SHA-256. Demo packages may also bundle runtime
-assets; `scene3d-asset-demo` derives a byte-native `.os3d` asset from the
-reviewable JSON source with `scripts/make_scene3d_bin_v0.py`, including
-scene-level camera depth metadata, named mesh/material references, model
-templates, instances, human-readable `position_xyz` or nested `transform`
-model transforms,
+ZIP bundle path, media type, and SHA-256. Official demo releases also write a
+deterministic `screenshots/preview.png` image as store presentation metadata.
+Screenshots are intentionally not package manifest assets and are not included in
+the client-installable `.obc.zip` bundle. Demo packages may also bundle runtime
+assets; `scene3d-asset-demo` derives a byte-native
+`.os3d` asset from the reviewable JSON source with
+`scripts/make_scene3d_bin_v0.py`, including scene-level camera depth metadata,
+named mesh/material references, model templates, instances, human-readable
+`position_xyz` or nested `transform` model transforms,
 human-readable `vertices_xyz` / `faces` coordinate arrays, and per-triangle
 `triangles_xyz_rgba` colors, richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), plus sampled transform
@@ -63,6 +67,6 @@ package-store fixture that mounts and raster-checks the same class of `.os3d`
 asset through `OrenAVMPackageStore`, so host-app package install/run coverage
 matches the demo bundle format.
 
-These generated package artifacts are intentionally not committed. They can be
-published to `store.hubstack.cn` after live deployment/signing credentials are
-available.
+These generated package artifacts are intentionally not committed. The live
+`store.hubstack.cn` portal publishes the current first-party demo bundles with
+their screenshot previews.

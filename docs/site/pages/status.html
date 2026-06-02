@@ -134,11 +134,13 @@
 <li>Curated first-party OBC store demos are now source-controlled under</li>
 </ul>
 <p>  <code>examples/obc_store_demos/</code>. <code>make verify-obc-store-demos</code> builds</p>
-<p>  <code>oren-labs/science-calculator@0.1.0</code> and <code>oren-labs/ui-card-demo@0.1.0</code> into</p>
-<p>  <code>build/obc-store-demos</code>, writes package manifests/index metadata, emits</p>
-<p>  deterministic <code>.obc.zip</code> release bundles, bundles official demo source under</p>
-<p>  <code>assets/source/main.oren</code>, and runs the generated OBC under AVM capability</p>
-<p>  policies. The release bundle spec is documented in</p>
+<p>  <code>oren-labs/science-calculator@0.1.0</code>, <code>oren-labs/ui-card-demo@0.1.0</code>, and</p>
+<p>  <code>oren-labs/scene3d-asset-demo@0.1.0</code> into <code>build/obc-store-demos</code>, writes</p>
+<p>  package manifests/index metadata, emits deterministic <code>.obc.zip</code> release</p>
+<p>  bundles, bundles official demo source under <code>assets/source/main.oren</code>, writes</p>
+<p>  portal-only deterministic <code>screenshots/preview.png</code> images for store</p>
+<p>  thumbnails outside package manifests/bundles, and runs the generated OBC under</p>
+<p>  AVM capability policies. The release bundle spec is documented in</p>
 <p>  <code>project-doc/obc_release_bundle_spec_20260601.md</code>.</p>
 <ul>
 <li>The first <code>OrenAVMPackageStore</code> SDK slices are implemented. It loads a local</li>
@@ -195,7 +197,8 @@
 <p>  <code>https://store.hubstack.cn/</code> to that backend; <code>/healthz</code> and <code>/api/v0/health</code></p>
 <p>  are public smoke endpoints for browser/API reachability. The live store is</p>
 <p>  populated with first-party <code>oren-labs</code> <code>science-calculator</code>, <code>ui-card-demo</code>,</p>
-<p>  and <code>scene3d-asset-demo</code> <code>.obc.zip</code> releases from <code>examples/obc_store_demos/</code>.</p>
+<p>  and <code>scene3d-asset-demo</code> <code>.obc.zip</code> releases with screenshot previews from</p>
+<p>  <code>examples/obc_store_demos/</code>.</p>
 <p>  <code>make verify-libavm-ios</code> starts this Go service, publishes a signed package via</p>
 <p>  the service API using publisher-scoped auth, and proves iOS SDK signed-index</p>
 <p>  install and package run from that endpoint. The release bundle format is</p>

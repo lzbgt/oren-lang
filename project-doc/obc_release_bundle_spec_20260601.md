@@ -130,6 +130,12 @@ serves it at:
 and advertises `bundle`, `bundle_sha256`, and `bundle_media_type` in
 `index.json`.
 
+Official demo releases may also upload portal screenshots through the store
+release `screenshots` field. Those images are presentation metadata served from
+`/api/v0/packages/{publisher}/{name}/versions/{version}/screenshots/...`; they
+are intentionally not declared in `package.json`, not included in `.obc.zip`, and
+not mounted as client runtime assets.
+
 The iOS SDK package store path now prefers the ZIP bundle when those index fields
 are present. It verifies `bundle_sha256`, extracts only safe rootless entries,
 rejects encrypted/unsupported/symlink paths, verifies the extracted

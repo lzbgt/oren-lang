@@ -37,18 +37,19 @@ packages/<publisher>/<name>/<version>/
   program.obc
   assets/
     icon.png
-    screenshots/
-      iphone-01.png
-      iphone-02.png
     data/
       optional-fixture.bin
+  screenshots/
+    iphone-01.png
+    iphone-02.png
   README.md
   signature.minisig
 ```
 
 `program.obc` is the executable bytecode. Assets are optional and should be
-treated as VirtualFS inputs or host presentation metadata, not arbitrary host
-filesystem paths.
+treated as VirtualFS inputs, not arbitrary host filesystem paths. Screenshots are
+store presentation metadata outside `package.json` assets and outside the
+client-installable `.obc.zip` bundle.
 
 The portable release artifact should also be available as a deterministic ZIP
 bundle. The ZIP mirrors the rootless package layout above, uses media type

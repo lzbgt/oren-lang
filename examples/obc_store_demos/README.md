@@ -9,8 +9,11 @@ Build and verify the generated package directories with:
 make verify-obc-store-demos
 ```
 
-Generated `.obc`, `package.json`, source assets, and `.obc.zip` release bundles
-live under `build/obc-store-demos/` and are not committed.
+Generated `.obc`, `package.json`, source assets, portal screenshot previews, and
+`.obc.zip` release bundles live under `build/obc-store-demos/` and are not
+committed. Screenshots are store presentation metadata under `screenshots/`; they
+are intentionally not declared as package assets and are not included in the
+client-installable `.obc.zip` bundle.
 
 The `scene3d-asset-demo` package derives `assets/scene3d_card.os3d` from the
 reviewable JSON source in this directory. The JSON can use named mesh/material
