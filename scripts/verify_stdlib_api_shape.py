@@ -128,6 +128,14 @@ def main() -> int:
                 buffer_fn = public_buffer_fn_re.search(line)
                 if buffer_fn:
                     failures.append(f"{rel}:{line_no}: banned public buffer helper `{buffer_fn.group(1)}`")
+            if rel == "lib/std/buffer/raw.oren":
+                buffer_fn = public_buffer_fn_re.search(line)
+                if buffer_fn:
+                    failures.append(f"{rel}:{line_no}: banned public buffer raw helper `{buffer_fn.group(1)}`")
+            if rel == "lib/std/buffer/mat_u8.oren":
+                buffer_fn = public_buffer_fn_re.search(line)
+                if buffer_fn:
+                    failures.append(f"{rel}:{line_no}: banned public buffer u8 matrix helper `{buffer_fn.group(1)}`")
             if rel == "lib/std/bytes.oren":
                 bytes_fn = public_bytes_fn_re.search(line)
                 if bytes_fn:

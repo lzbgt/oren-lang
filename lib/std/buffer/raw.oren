@@ -208,48 +208,48 @@ fn _copy_from_typed_buf_with(out, src, ctx, want_label, loadf, storef) {
     return out
 }
 
-fn try_len(buf) {
-    return _len_or_err(buf, "buffer.try_len")
+fn len(buf) {
+    return _len_or_err(buf, "buffer.len")
 }
 
-fn try_load_u8(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.try_load_u8", _load_u8_direct)
+fn load_u8(buf, idx) {
+    return _try_load_with(buf, idx, "buffer.load_u8", _load_u8_direct)
 }
 
-fn try_store_u8(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.try_store_u8", _validate_u8_or_err, _store_u8_direct)
+fn store_u8(buf, idx, v) {
+    return _try_store_with(buf, idx, v, "buffer.store_u8", _validate_u8_or_err, _store_u8_direct)
 }
 
-fn try_load_i32(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.try_load_i32", _load_i32_direct)
+fn load_i32(buf, idx) {
+    return _try_load_with(buf, idx, "buffer.load_i32", _load_i32_direct)
 }
 
-fn try_store_i32(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.try_store_i32", _validate_int_or_err, _store_i32_direct)
+fn store_i32(buf, idx, v) {
+    return _try_store_with(buf, idx, v, "buffer.store_i32", _validate_int_or_err, _store_i32_direct)
 }
 
-fn try_load_i64(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.try_load_i64", _load_i64_direct)
+fn load_i64(buf, idx) {
+    return _try_load_with(buf, idx, "buffer.load_i64", _load_i64_direct)
 }
 
-fn try_store_i64(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.try_store_i64", _validate_i64_or_err, _store_i64_direct)
+fn store_i64(buf, idx, v) {
+    return _try_store_with(buf, idx, v, "buffer.store_i64", _validate_i64_or_err, _store_i64_direct)
 }
 
-fn try_load_f32(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.try_load_f32", _load_f32_direct)
+fn load_f32(buf, idx) {
+    return _try_load_with(buf, idx, "buffer.load_f32", _load_f32_direct)
 }
 
-fn try_store_f32(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.try_store_f32", _validate_passthru_or_err, _store_f32_direct)
+fn store_f32(buf, idx, v) {
+    return _try_store_with(buf, idx, v, "buffer.store_f32", _validate_passthru_or_err, _store_f32_direct)
 }
 
-fn try_load_f64(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.try_load_f64", _load_f64_direct)
+fn load_f64(buf, idx) {
+    return _try_load_with(buf, idx, "buffer.load_f64", _load_f64_direct)
 }
 
-fn try_store_f64(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.try_store_f64", _validate_passthru_or_err, _store_f64_direct)
+fn store_f64(buf, idx, v) {
+    return _try_store_with(buf, idx, v, "buffer.store_f64", _validate_passthru_or_err, _store_f64_direct)
 }
 
 fn i32_pack_list_int(xs) {
@@ -260,20 +260,8 @@ fn i32_pack_list_int_into(out: []i32, xs) {
     return oren_i32_buf_pack_list_int_into(out, xs)
 }
 
-fn try_i32_pack_list_int(xs) {
-    return i32_pack_list_int(xs)
-}
-
-fn try_i32_pack_list_int_into(out: []i32, xs) {
-    return i32_pack_list_int_into(out, xs)
-}
-
-fn try_i32_unpack_list(buf: []i32) {
-    return _unpack_list_like_with(buf, "buffer.try_i32_unpack_list", _load_i32_direct)
-}
-
 fn i32_unpack_list(buf: []i32) {
-    return try_i32_unpack_list(buf)
+    return _unpack_list_like_with(buf, "buffer.i32_unpack_list", _load_i32_direct)
 }
 
 fn i64_pack_list_int(xs) {
@@ -285,20 +273,8 @@ fn i64_pack_list_int_into(out: []i64, xs) {
     return _pack_list_like_into_with(out, xs, "buffer.i64_pack_list_int_into", _store_i64_direct, _validate_i64_or_err)
 }
 
-fn try_i64_pack_list_int(xs) {
-    return i64_pack_list_int(xs)
-}
-
-fn try_i64_pack_list_int_into(out: []i64, xs) {
-    return i64_pack_list_int_into(out, xs)
-}
-
-fn try_i64_unpack_list(buf: []i64) {
-    return _unpack_list_like_with(buf, "buffer.try_i64_unpack_list", _load_i64_direct)
-}
-
 fn i64_unpack_list(buf: []i64) {
-    return try_i64_unpack_list(buf)
+    return _unpack_list_like_with(buf, "buffer.i64_unpack_list", _load_i64_direct)
 }
 
 fn f32_pack_list(xs) {
@@ -310,20 +286,8 @@ fn f32_pack_list_into(out: []f32, xs) {
     return _pack_list_like_into_with(out, xs, "buffer.f32_pack_list_into", _store_f32_direct, _validate_passthru_or_err)
 }
 
-fn try_f32_pack_list(xs) {
-    return f32_pack_list(xs)
-}
-
-fn try_f32_pack_list_into(out: []f32, xs) {
-    return f32_pack_list_into(out, xs)
-}
-
-fn try_f32_unpack_list(buf: []f32) {
-    return _unpack_list_like_with(buf, "buffer.try_f32_unpack_list", _load_f32_direct)
-}
-
 fn f32_unpack_list(buf: []f32) {
-    return try_f32_unpack_list(buf)
+    return _unpack_list_like_with(buf, "buffer.f32_unpack_list", _load_f32_direct)
 }
 
 fn f64_pack_list(xs) {
@@ -335,49 +299,25 @@ fn f64_pack_list_into(out: []f64, xs) {
     return _pack_list_like_into_with(out, xs, "buffer.f64_pack_list_into", _store_f64_direct, _validate_passthru_or_err)
 }
 
-fn try_f64_pack_list(xs) {
-    return f64_pack_list(xs)
-}
-
-fn try_f64_pack_list_into(out: []f64, xs) {
-    return f64_pack_list_into(out, xs)
-}
-
-fn try_f64_unpack_list(buf: []f64) {
-    return _unpack_list_like_with(buf, "buffer.try_f64_unpack_list", _load_f64_direct)
-}
-
 fn f64_unpack_list(buf: []f64) {
-    return try_f64_unpack_list(buf)
-}
-
-fn try_u8_pack(xs) {
-    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
-    return _pack_list_like_new_buf_with(xs, "buffer.try_u8_pack", u8_new_uninit, _store_u8_buf_unchecked_direct, _validate_u8_or_err)
-}
-
-fn try_u8_pack_into(out: []u8, xs) {
-    return _pack_list_like_into_with(out, xs, "buffer.try_u8_pack_into", _store_u8_direct, _validate_u8_or_err)
+    return _unpack_list_like_with(buf, "buffer.f64_unpack_list", _load_f64_direct)
 }
 
 fn u8_pack(xs) {
-    return try_u8_pack(xs)
+    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
+    return _pack_list_like_new_buf_with(xs, "buffer.u8_pack", u8_new_uninit, _store_u8_buf_unchecked_direct, _validate_u8_or_err)
 }
 
 fn u8_pack_into(out: []u8, xs) {
-    return try_u8_pack_into(out, xs)
-}
-
-fn try_u8_unpack(buf: []u8) {
-    return _unpack_list_like_with(buf, "buffer.try_u8_unpack", _load_u8_direct)
+    return _pack_list_like_into_with(out, xs, "buffer.u8_pack_into", _store_u8_direct, _validate_u8_or_err)
 }
 
 fn u8_unpack(buf: []u8) {
-    return try_u8_unpack(buf)
+    return _unpack_list_like_with(buf, "buffer.u8_unpack", _load_u8_direct)
 }
 
-fn try_u8_from_string(s) {
-    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.try_u8_from_string: s must be string") }
+fn u8_from_string(s) {
+    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.u8_from_string: s must be string") }
     var n = oren_string_len(s)
     if oren_is_err(n) { return n }
     var out: []u8 = u8_new_uninit(n)
@@ -391,36 +331,24 @@ fn try_u8_from_string(s) {
     return out
 }
 
-fn u8_from_string(s) {
-    return try_u8_from_string(s)
-}
-
-fn try_u8_to_string(buf: []u8) {
+fn u8_to_string(buf: []u8) {
     var n = oren_buf_len(buf)
-    if n == nil || oren_is_err(n) { return oren_err(4, "buffer.try_u8_to_string: buf must be []u8") }
+    if n == nil || oren_is_err(n) { return oren_err(4, "buffer.u8_to_string: buf must be []u8") }
     return oren_string_from_bytes_slice(buf, 0, n)
 }
 
-fn u8_to_string(buf: []u8) {
-    return try_u8_to_string(buf)
-}
-
-fn try_u8_from_bytes(bytes) {
+fn u8_from_bytes(bytes) {
     return bytesm.to_u8_buf(bytes)
 }
 
-fn u8_from_bytes(bytes) {
-    return try_u8_from_bytes(bytes)
-}
-
-fn try_u8_from_string_slice(s, off, n) {
-    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.try_u8_from_string_slice: s must be string") }
-    if _is_int(off) == false { return oren_err(4, "buffer.try_u8_from_string_slice: off must be int") }
-    if _is_int(n) == false { return oren_err(4, "buffer.try_u8_from_string_slice: n must be int") }
-    if off < 0 || n < 0 { return oren_err(4, "buffer.try_u8_from_string_slice: negative off/len") }
+fn u8_from_string_slice(s, off, n) {
+    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.u8_from_string_slice: s must be string") }
+    if _is_int(off) == false { return oren_err(4, "buffer.u8_from_string_slice: off must be int") }
+    if _is_int(n) == false { return oren_err(4, "buffer.u8_from_string_slice: n must be int") }
+    if off < 0 || n < 0 { return oren_err(4, "buffer.u8_from_string_slice: negative off/len") }
     var total = oren_string_len(s)
     if oren_is_err(total) { return total }
-    if off + n > total { return oren_err(4, "buffer.try_u8_from_string_slice: slice out of bounds") }
+    if off + n > total { return oren_err(4, "buffer.u8_from_string_slice: slice out of bounds") }
     var out: []u8 = u8_new_uninit(n)
     if oren_is_err(out) { return out }
     var data = oren_buf_data_ptr_unchecked(out)
@@ -432,101 +360,54 @@ fn try_u8_from_string_slice(s, off, n) {
     return out
 }
 
-fn u8_from_string_slice(s, off, n) {
-    return try_u8_from_string_slice(s, off, n)
-}
-
-fn try_u8_from_bytes_slice(bytes, off, n) {
+fn u8_from_bytes_slice(bytes, off, n) {
     return bytesm.to_u8_buf_slice(bytes, off, n)
 }
 
-fn u8_from_bytes_slice(bytes, off, n) {
-    return try_u8_from_bytes_slice(bytes, off, n)
-}
-
-fn try_u8_to_bytes(buf: []u8) { return bytesm.from_u8_buf(buf) }
-
-fn u8_to_bytes(buf: []u8) {
-    return try_u8_to_bytes(buf)
-}
-
-fn try_u8_copy_from_u8_buf(out: []u8, src) {
-    return _copy_from_typed_buf_with(out, src, "buffer.try_u8_copy_from_u8_buf", "u8_buf", _load_u8_direct, _store_u8_direct)
-}
+fn u8_to_bytes(buf: []u8) { return bytesm.from_u8_buf(buf) }
 
 fn u8_copy_from_u8_buf(out: []u8, src) {
-    return try_u8_copy_from_u8_buf(out, src)
-}
-
-fn try_u8_copy_from_bytes(out: []u8, bytes) {
-    var src = bytesm.to_u8_buf(bytes)
-    if oren_is_err(src) { return src }
-    return try_u8_copy_from_u8_buf(out, src)
+    return _copy_from_typed_buf_with(out, src, "buffer.u8_copy_from_u8_buf", "u8_buf", _load_u8_direct, _store_u8_direct)
 }
 
 fn u8_copy_from_bytes(out: []u8, bytes) {
-    return try_u8_copy_from_bytes(out, bytes)
-}
-
-fn try_u8_copy_from_bytes_slice(out: []u8, bytes, off, n) {
-    var src = bytesm.to_u8_buf_slice(bytes, off, n)
+    var src = bytesm.to_u8_buf(bytes)
     if oren_is_err(src) { return src }
-    return try_u8_copy_from_u8_buf(out, src)
+    return u8_copy_from_u8_buf(out, src)
 }
 
 fn u8_copy_from_bytes_slice(out: []u8, bytes, off, n) {
-    return try_u8_copy_from_bytes_slice(out, bytes, off, n)
-}
-
-fn try_u8_copy_from_string(out: []u8, s) {
-    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.try_u8_copy_from_string: s must be string") }
-    var bs = bytesm.from_string(s)
-    if oren_is_err(bs) { return bs }
-    return try_u8_copy_from_bytes(out, bs)
+    var src = bytesm.to_u8_buf_slice(bytes, off, n)
+    if oren_is_err(src) { return src }
+    return u8_copy_from_u8_buf(out, src)
 }
 
 fn u8_copy_from_string(out: []u8, s) {
-    return try_u8_copy_from_string(out, s)
-}
-
-fn try_u8_copy_from_string_slice(out: []u8, s, off, n) {
-    var sub = _string_slice_or_err(s, off, n, "buffer.try_u8_copy_from_string_slice")
-    if oren_is_err(sub) { return sub }
-    return try_u8_copy_from_string(out, sub)
+    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.u8_copy_from_string: s must be string") }
+    var bs = bytesm.from_string(s)
+    if oren_is_err(bs) { return bs }
+    return u8_copy_from_bytes(out, bs)
 }
 
 fn u8_copy_from_string_slice(out: []u8, s, off, n) {
-    return try_u8_copy_from_string_slice(out, s, off, n)
-}
-
-fn try_i32_copy_from_i32_buf(out: []i32, src) {
-    return _copy_from_typed_buf_with(out, src, "buffer.try_i32_copy_from_i32_buf", "i32_buf", _load_i32_direct, _store_i32_direct)
+    var sub = _string_slice_or_err(s, off, n, "buffer.u8_copy_from_string_slice")
+    if oren_is_err(sub) { return sub }
+    return u8_copy_from_string(out, sub)
 }
 
 fn i32_copy_from_i32_buf(out: []i32, src) {
-    return try_i32_copy_from_i32_buf(out, src)
-}
-
-fn try_i64_copy_from_i64_buf(out: []i64, src) {
-    return _copy_from_typed_buf_with(out, src, "buffer.try_i64_copy_from_i64_buf", "i64_buf", _load_i64_direct, _store_i64_direct)
+    return _copy_from_typed_buf_with(out, src, "buffer.i32_copy_from_i32_buf", "i32_buf", _load_i32_direct, _store_i32_direct)
 }
 
 fn i64_copy_from_i64_buf(out: []i64, src) {
-    return try_i64_copy_from_i64_buf(out, src)
-}
-
-fn try_f32_copy_from_f32_buf(out: []f32, src) {
-    return _copy_from_typed_buf_with(out, src, "buffer.try_f32_copy_from_f32_buf", "f32_buf", _load_f32_direct, _store_f32_direct)
+    return _copy_from_typed_buf_with(out, src, "buffer.i64_copy_from_i64_buf", "i64_buf", _load_i64_direct, _store_i64_direct)
 }
 
 fn f32_copy_from_f32_buf(out: []f32, src) {
-    return try_f32_copy_from_f32_buf(out, src)
-}
-
-fn try_f64_copy_from_f64_buf(out: []f64, src) {
-    return _copy_from_typed_buf_with(out, src, "buffer.try_f64_copy_from_f64_buf", "f64_buf", _load_f64_direct, _store_f64_direct)
+    return _copy_from_typed_buf_with(out, src, "buffer.f32_copy_from_f32_buf", "f32_buf", _load_f32_direct, _store_f32_direct)
 }
 
 fn f64_copy_from_f64_buf(out: []f64, src) {
-    return try_f64_copy_from_f64_buf(out, src)
+    return _copy_from_typed_buf_with(out, src, "buffer.f64_copy_from_f64_buf", "f64_buf", _load_f64_direct, _store_f64_direct)
 }
+

@@ -53,16 +53,8 @@ fn u8_mat_pack_rows(rows) {
     return core.try_mat_view_new(out, 0, nrows, ncols, ncols)
 }
 
-fn try_u8_mat_pack_rows(rows) {
-    return u8_mat_pack_rows(rows)
-}
-
 fn u8_mat_unpack_rows(m) {
     return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_rows", proj.mat_row_unpack_u8)
-}
-
-fn try_u8_mat_unpack_rows(m) {
-    return u8_mat_unpack_rows(m)
 }
 
 fn u8_mat_pack_strings(rows) {
@@ -89,16 +81,8 @@ fn u8_mat_pack_strings(rows) {
     return core.try_mat_view_new(out, 0, nrows, ncols, ncols)
 }
 
-fn try_u8_mat_pack_strings(rows) {
-    return u8_mat_pack_strings(rows)
-}
-
 fn u8_mat_unpack_strings(m) {
     return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_strings", proj.mat_row_to_string)
-}
-
-fn try_u8_mat_unpack_strings(m) {
-    return u8_mat_unpack_strings(m)
 }
 
 fn u8_mat_unpack_u8(m) {
@@ -120,26 +104,14 @@ fn u8_mat_unpack_u8(m) {
     return out
 }
 
-fn try_u8_mat_unpack_u8(m) {
-    return u8_mat_unpack_u8(m)
-}
-
 fn u8_mat_unpack_flat(m) {
     return u8_mat_unpack_u8(m)
-}
-
-fn try_u8_mat_unpack_flat(m) {
-    return u8_mat_unpack_flat(m)
 }
 
 fn u8_mat_to_bytes(m) {
     var buf = u8_mat_to_u8_buf(m)
     if oren_is_err(buf) { return buf }
-    return raw.try_u8_to_bytes(buf)
-}
-
-fn try_u8_mat_to_bytes(m) {
-    return u8_mat_to_bytes(m)
+    return raw.u8_to_bytes(buf)
 }
 
 fn u8_mat_to_u8_buf(m) {
@@ -147,18 +119,10 @@ fn u8_mat_to_u8_buf(m) {
     return mshared._mat_to_typed_buf_with(m, "buffer.u8_mat_to_u8_buf", raw.u8_new_uninit, core.try_mat_load_u8, raw._store_u8_buf_unchecked_direct)
 }
 
-fn try_u8_mat_to_u8_buf(m) {
-    return u8_mat_to_u8_buf(m)
-}
-
 fn u8_mat_to_string(m) {
     var bytes = u8_mat_to_bytes(m)
     if oren_is_err(bytes) { return bytes }
     return bytesm.to_string(bytes)
-}
-
-fn try_u8_mat_to_string(m) {
-    return u8_mat_to_string(m)
 }
 
 fn _u8_mat_copy_flat_list(m, xs, ctx) {
@@ -218,54 +182,30 @@ fn u8_mat_copy_from_bytes(m, bytes) {
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_bytes")
 }
 
-fn try_u8_mat_copy_from_bytes(m, bytes) {
-    return u8_mat_copy_from_bytes(m, bytes)
-}
-
 fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
     var src = bytesm.to_u8_buf_slice(bytes, off, n)
     if oren_is_err(src) { return src }
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_bytes_slice")
 }
 
-fn try_u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
-    return u8_mat_copy_from_bytes_slice(m, bytes, off, n)
-}
-
 fn u8_mat_copy_from_u8_buf(m, src) {
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_u8_buf")
 }
 
-fn try_u8_mat_copy_from_u8_buf(m, src) {
-    return u8_mat_copy_from_u8_buf(m, src)
-}
-
 fn u8_mat_copy_from_string(m, text) {
-    var src = raw.try_u8_from_string(text)
+    var src = raw.u8_from_string(text)
     if oren_is_err(src) { return src }
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_string")
 }
 
-fn try_u8_mat_copy_from_string(m, text) {
-    return u8_mat_copy_from_string(m, text)
-}
-
 fn u8_mat_copy_from_string_slice(m, text, off, n) {
-    var src = raw.try_u8_from_string_slice(text, off, n)
+    var src = raw.u8_from_string_slice(text, off, n)
     if oren_is_err(src) { return src }
     return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_string_slice")
 }
 
-fn try_u8_mat_copy_from_string_slice(m, text, off, n) {
-    return u8_mat_copy_from_string_slice(m, text, off, n)
-}
-
 fn u8_mat_copy_from_flat(m, xs) {
     return _u8_mat_copy_flat_list(m, xs, "buffer.u8_mat_copy_from_flat")
-}
-
-fn try_u8_mat_copy_from_flat(m, xs) {
-    return u8_mat_copy_from_flat(m, xs)
 }
 
 fn u8_mat_copy_from_rows(m, rows) {
@@ -288,10 +228,6 @@ fn u8_mat_copy_from_rows(m, rows) {
     return m[0]
 }
 
-fn try_u8_mat_copy_from_rows(m, rows) {
-    return u8_mat_copy_from_rows(m, rows)
-}
-
 fn u8_mat_copy_from_strings(m, rows) {
     var shape = mshared._mat_string_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_strings")
     if oren_is_err(shape) { return shape }
@@ -304,6 +240,3 @@ fn u8_mat_copy_from_strings(m, rows) {
     return m[0]
 }
 
-fn try_u8_mat_copy_from_strings(m, rows) {
-    return u8_mat_copy_from_strings(m, rows)
-}
