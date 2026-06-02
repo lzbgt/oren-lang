@@ -48,11 +48,26 @@ Oren's current proof is not just syntax. The live OBC store publishes runnable
 bytecode packages with source, screenshots, permissions, and installable
 `.obc.zip` releases:
 
-| Showcase | What it proves | Store |
-| --- | --- | --- |
-| ![Science calculator preview](docs/assets/showcases/science-calculator.png) | Numeric/linalg stdlib, deterministic OBC packaging, source assets, and portal presentation metadata. | [science-calculator](https://store.hubstack.cn/packages/oren-labs/science-calculator) |
-| ![UI card demo preview](docs/assets/showcases/ui-card-demo.png) | Retained 2D UI commands, AVM raster conformance, iOS rendering paths, and rendered Oren source with AST outline. | [ui-card-demo](https://store.hubstack.cn/packages/oren-labs/ui-card-demo) |
-| ![Scene3D asset demo preview](docs/assets/showcases/scene3d-asset-demo.png) | Byte-native `.os3d` package assets, retained Scene3D meshes/materials/models, camera metadata, and package VFS mounting. | [scene3d-asset-demo](https://store.hubstack.cn/packages/oren-labs/scene3d-asset-demo) |
+### Science Calculator
+
+[![Science calculator preview](https://raw.githubusercontent.com/lzbgt/oren-lang/master/docs/assets/showcases/science-calculator.png)](https://store.hubstack.cn/packages/oren-labs/science-calculator)
+
+Numeric/linalg stdlib, deterministic OBC packaging, source assets, and portal
+presentation metadata.
+
+### UI Card Demo
+
+[![UI card demo preview](https://raw.githubusercontent.com/lzbgt/oren-lang/master/docs/assets/showcases/ui-card-demo.png)](https://store.hubstack.cn/packages/oren-labs/ui-card-demo)
+
+Retained 2D UI commands, AVM raster conformance, iOS rendering paths, and
+rendered Oren source with AST outline.
+
+### Scene3D Asset Demo
+
+[![Scene3D asset demo preview](https://raw.githubusercontent.com/lzbgt/oren-lang/master/docs/assets/showcases/scene3d-asset-demo.png)](https://store.hubstack.cn/packages/oren-labs/scene3d-asset-demo)
+
+Byte-native `.os3d` package assets, retained Scene3D meshes/materials/models,
+camera metadata, and package VFS mounting.
 
 Screenshots are store presentation metadata, not client runtime assets: they are
 not declared in package manifests and are not included in downloaded OBC bundles.
