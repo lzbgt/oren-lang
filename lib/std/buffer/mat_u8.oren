@@ -50,7 +50,7 @@ fn u8_mat_pack_rows(rows) {
         }
         r = r + 1
     }
-    return core.try_mat_view_new(out, 0, nrows, ncols, ncols)
+    return core.mat_view_new(out, 0, nrows, ncols, ncols)
 }
 
 fn u8_mat_unpack_rows(m) {
@@ -78,7 +78,7 @@ fn u8_mat_pack_strings(rows) {
         }
         r = r + 1
     }
-    return core.try_mat_view_new(out, 0, nrows, ncols, ncols)
+    return core.mat_view_new(out, 0, nrows, ncols, ncols)
 }
 
 fn u8_mat_unpack_strings(m) {
@@ -116,7 +116,7 @@ fn u8_mat_to_bytes(m) {
 
 fn u8_mat_to_u8_buf(m) {
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, "buffer.u8_mat_to_u8_buf", raw.u8_new_uninit, core.try_mat_load_u8, raw._store_u8_buf_unchecked_direct)
+    return mshared._mat_to_typed_buf_with(m, "buffer.u8_mat_to_u8_buf", raw.u8_new_uninit, core.mat_load_u8, raw._store_u8_buf_unchecked_direct)
 }
 
 fn u8_mat_to_string(m) {

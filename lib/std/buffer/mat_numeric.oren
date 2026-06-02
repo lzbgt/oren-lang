@@ -14,7 +14,7 @@ fn _mat_pack_rows_with(rows, ctx, shapef, newf, validatef, storef) {
     var ncols = shape[1]
     var out = newf(nrows * ncols)
     if oren_is_err(out) { return out }
-    var mat = core.try_mat_view_new(out, 0, nrows, ncols, ncols)
+    var mat = core.mat_view_new(out, 0, nrows, ncols, ncols)
     if oren_is_err(mat) { return mat }
     var r = 0
     while r < nrows {
@@ -53,232 +53,147 @@ fn _mat_copy_from_rows_with(m, rows, ctx, validatef, storef) {
 
 fn i32_mat_pack_rows(rows) {
     // Safe: rows pack writes every element of the fresh buffer before successful return.
-    return _mat_pack_rows_with(rows, "buffer.i32_mat_pack_rows", mshared._rows_shape_or_err, raw.i32_new_uninit, mshared._mat_validate_i32_or_err, core.try_mat_store_i32)
+    return _mat_pack_rows_with(rows, "buffer.i32_mat_pack_rows", mshared._rows_shape_or_err, raw.i32_new_uninit, mshared._mat_validate_i32_or_err, core.mat_store_i32)
 }
 
-fn try_i32_mat_pack_rows(rows) {
-    return i32_mat_pack_rows(rows)
-}
 
 fn i32_mat_unpack_rows(m) {
-    return mshared._mat_unpack_rows_with(m, "buffer.i32_mat_unpack_rows", core.try_mat_load_i32)
+    return mshared._mat_unpack_rows_with(m, "buffer.i32_mat_unpack_rows", core.mat_load_i32)
 }
 
-fn try_i32_mat_unpack_rows(m) {
-    return i32_mat_unpack_rows(m)
-}
 
 fn i32_mat_unpack_flat(m) {
-    return mshared._mat_unpack_flat_with(m, "buffer.i32_mat_unpack_flat", core.try_mat_load_i32)
+    return mshared._mat_unpack_flat_with(m, "buffer.i32_mat_unpack_flat", core.mat_load_i32)
 }
 
-fn try_i32_mat_unpack_flat(m) {
-    return i32_mat_unpack_flat(m)
-}
 
 fn i32_mat_to_i32_buf(m) {
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, "buffer.i32_mat_to_i32_buf", raw.i32_new_uninit, core.try_mat_load_i32, raw._store_i32_buf_unchecked_direct)
+    return mshared._mat_to_typed_buf_with(m, "buffer.i32_mat_to_i32_buf", raw.i32_new_uninit, core.mat_load_i32, raw._store_i32_buf_unchecked_direct)
 }
 
-fn try_i32_mat_to_i32_buf(m) {
-    return i32_mat_to_i32_buf(m)
-}
 
 fn i32_mat_copy_from_rows(m, rows) {
-    return _mat_copy_from_rows_with(m, rows, "buffer.i32_mat_copy_from_rows", mshared._mat_validate_i32_or_err, core.try_mat_store_i32)
+    return _mat_copy_from_rows_with(m, rows, "buffer.i32_mat_copy_from_rows", mshared._mat_validate_i32_or_err, core.mat_store_i32)
 }
 
-fn try_i32_mat_copy_from_rows(m, rows) {
-    return i32_mat_copy_from_rows(m, rows)
-}
 
 fn i32_mat_copy_from_flat(m, xs) {
-    return mshared._mat_copy_from_flat_with(m, xs, "buffer.i32_mat_copy_from_flat", mshared._mat_validate_i32_or_err, core.try_mat_store_i32)
+    return mshared._mat_copy_from_flat_with(m, xs, "buffer.i32_mat_copy_from_flat", mshared._mat_validate_i32_or_err, core.mat_store_i32)
 }
 
-fn try_i32_mat_copy_from_flat(m, xs) {
-    return i32_mat_copy_from_flat(m, xs)
-}
 
 fn i32_mat_copy_from_i32_buf(m, src) {
-    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.i32_mat_copy_from_i32_buf", 10, "i32_buf", raw._load_i32_buf_direct, core.try_mat_store_i32)
+    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.i32_mat_copy_from_i32_buf", 10, "i32_buf", raw._load_i32_buf_direct, core.mat_store_i32)
 }
 
-fn try_i32_mat_copy_from_i32_buf(m, src) {
-    return i32_mat_copy_from_i32_buf(m, src)
-}
 
 fn i64_mat_pack_rows(rows) {
     // Safe: rows pack writes every element of the fresh buffer before successful return.
-    return _mat_pack_rows_with(rows, "buffer.i64_mat_pack_rows", mshared._rows_shape_or_err, raw.i64_new_uninit, mshared._mat_validate_i64_or_err, core.try_mat_store_i64)
+    return _mat_pack_rows_with(rows, "buffer.i64_mat_pack_rows", mshared._rows_shape_or_err, raw.i64_new_uninit, mshared._mat_validate_i64_or_err, core.mat_store_i64)
 }
 
-fn try_i64_mat_pack_rows(rows) {
-    return i64_mat_pack_rows(rows)
-}
 
 fn i64_mat_unpack_rows(m) {
-    return mshared._mat_unpack_rows_with(m, "buffer.i64_mat_unpack_rows", core.try_mat_load_i64)
+    return mshared._mat_unpack_rows_with(m, "buffer.i64_mat_unpack_rows", core.mat_load_i64)
 }
 
-fn try_i64_mat_unpack_rows(m) {
-    return i64_mat_unpack_rows(m)
-}
 
 fn i64_mat_unpack_flat(m) {
-    return mshared._mat_unpack_flat_with(m, "buffer.i64_mat_unpack_flat", core.try_mat_load_i64)
+    return mshared._mat_unpack_flat_with(m, "buffer.i64_mat_unpack_flat", core.mat_load_i64)
 }
 
-fn try_i64_mat_unpack_flat(m) {
-    return i64_mat_unpack_flat(m)
-}
 
 fn i64_mat_to_i64_buf(m) {
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, "buffer.i64_mat_to_i64_buf", raw.i64_new_uninit, core.try_mat_load_i64, raw._store_i64_buf_unchecked_direct)
+    return mshared._mat_to_typed_buf_with(m, "buffer.i64_mat_to_i64_buf", raw.i64_new_uninit, core.mat_load_i64, raw._store_i64_buf_unchecked_direct)
 }
 
-fn try_i64_mat_to_i64_buf(m) {
-    return i64_mat_to_i64_buf(m)
-}
 
 fn i64_mat_copy_from_rows(m, rows) {
-    return _mat_copy_from_rows_with(m, rows, "buffer.i64_mat_copy_from_rows", mshared._mat_validate_i64_or_err, core.try_mat_store_i64)
+    return _mat_copy_from_rows_with(m, rows, "buffer.i64_mat_copy_from_rows", mshared._mat_validate_i64_or_err, core.mat_store_i64)
 }
 
-fn try_i64_mat_copy_from_rows(m, rows) {
-    return i64_mat_copy_from_rows(m, rows)
-}
 
 fn i64_mat_copy_from_flat(m, xs) {
-    return mshared._mat_copy_from_flat_with(m, xs, "buffer.i64_mat_copy_from_flat", mshared._mat_validate_i64_or_err, core.try_mat_store_i64)
+    return mshared._mat_copy_from_flat_with(m, xs, "buffer.i64_mat_copy_from_flat", mshared._mat_validate_i64_or_err, core.mat_store_i64)
 }
 
-fn try_i64_mat_copy_from_flat(m, xs) {
-    return i64_mat_copy_from_flat(m, xs)
-}
 
 fn i64_mat_copy_from_i64_buf(m, src) {
-    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.i64_mat_copy_from_i64_buf", 11, "i64_buf", raw._load_i64_buf_direct, core.try_mat_store_i64)
+    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.i64_mat_copy_from_i64_buf", 11, "i64_buf", raw._load_i64_buf_direct, core.mat_store_i64)
 }
 
-fn try_i64_mat_copy_from_i64_buf(m, src) {
-    return i64_mat_copy_from_i64_buf(m, src)
-}
 
 fn f32_mat_pack_rows(rows) {
     // Safe: rows pack writes every element of the fresh buffer before successful return.
-    return _mat_pack_rows_with(rows, "buffer.f32_mat_pack_rows", mshared._rows_shape_or_err, raw.f32_new_uninit, mshared._mat_validate_passthru_or_err, core.try_mat_store_f32)
+    return _mat_pack_rows_with(rows, "buffer.f32_mat_pack_rows", mshared._rows_shape_or_err, raw.f32_new_uninit, mshared._mat_validate_passthru_or_err, core.mat_store_f32)
 }
 
-fn try_f32_mat_pack_rows(rows) {
-    return f32_mat_pack_rows(rows)
-}
 
 fn f32_mat_unpack_rows(m) {
-    return mshared._mat_unpack_rows_with(m, "buffer.f32_mat_unpack_rows", core.try_mat_load_f32)
+    return mshared._mat_unpack_rows_with(m, "buffer.f32_mat_unpack_rows", core.mat_load_f32)
 }
 
-fn try_f32_mat_unpack_rows(m) {
-    return f32_mat_unpack_rows(m)
-}
 
 fn f32_mat_unpack_flat(m) {
-    return mshared._mat_unpack_flat_with(m, "buffer.f32_mat_unpack_flat", core.try_mat_load_f32)
+    return mshared._mat_unpack_flat_with(m, "buffer.f32_mat_unpack_flat", core.mat_load_f32)
 }
 
-fn try_f32_mat_unpack_flat(m) {
-    return f32_mat_unpack_flat(m)
-}
 
 fn f32_mat_to_f32_buf(m) {
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, "buffer.f32_mat_to_f32_buf", raw.f32_new_uninit, core.try_mat_load_f32, raw._store_f32_buf_unchecked_direct)
+    return mshared._mat_to_typed_buf_with(m, "buffer.f32_mat_to_f32_buf", raw.f32_new_uninit, core.mat_load_f32, raw._store_f32_buf_unchecked_direct)
 }
 
-fn try_f32_mat_to_f32_buf(m) {
-    return f32_mat_to_f32_buf(m)
-}
 
 fn f32_mat_copy_from_rows(m, rows) {
-    return _mat_copy_from_rows_with(m, rows, "buffer.f32_mat_copy_from_rows", mshared._mat_validate_passthru_or_err, core.try_mat_store_f32)
+    return _mat_copy_from_rows_with(m, rows, "buffer.f32_mat_copy_from_rows", mshared._mat_validate_passthru_or_err, core.mat_store_f32)
 }
 
-fn try_f32_mat_copy_from_rows(m, rows) {
-    return f32_mat_copy_from_rows(m, rows)
-}
 
 fn f32_mat_copy_from_flat(m, xs) {
-    return mshared._mat_copy_from_flat_with(m, xs, "buffer.f32_mat_copy_from_flat", mshared._mat_validate_passthru_or_err, core.try_mat_store_f32)
+    return mshared._mat_copy_from_flat_with(m, xs, "buffer.f32_mat_copy_from_flat", mshared._mat_validate_passthru_or_err, core.mat_store_f32)
 }
 
-fn try_f32_mat_copy_from_flat(m, xs) {
-    return f32_mat_copy_from_flat(m, xs)
-}
 
 fn f32_mat_copy_from_f32_buf(m, src) {
-    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.f32_mat_copy_from_f32_buf", 12, "f32_buf", raw._load_f32_buf_direct, core.try_mat_store_f32)
+    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.f32_mat_copy_from_f32_buf", 12, "f32_buf", raw._load_f32_buf_direct, core.mat_store_f32)
 }
 
-fn try_f32_mat_copy_from_f32_buf(m, src) {
-    return f32_mat_copy_from_f32_buf(m, src)
-}
 
 fn f64_mat_pack_rows(rows) {
     // Safe: rows pack writes every element of the fresh buffer before successful return.
-    return _mat_pack_rows_with(rows, "buffer.f64_mat_pack_rows", mshared._rows_shape_or_err, raw.f64_new_uninit, mshared._mat_validate_passthru_or_err, core.try_mat_store_f64)
+    return _mat_pack_rows_with(rows, "buffer.f64_mat_pack_rows", mshared._rows_shape_or_err, raw.f64_new_uninit, mshared._mat_validate_passthru_or_err, core.mat_store_f64)
 }
 
-fn try_f64_mat_pack_rows(rows) {
-    return f64_mat_pack_rows(rows)
-}
 
 fn f64_mat_unpack_rows(m) {
-    return mshared._mat_unpack_rows_with(m, "buffer.f64_mat_unpack_rows", core.try_mat_load_f64)
+    return mshared._mat_unpack_rows_with(m, "buffer.f64_mat_unpack_rows", core.mat_load_f64)
 }
 
-fn try_f64_mat_unpack_rows(m) {
-    return f64_mat_unpack_rows(m)
-}
 
 fn f64_mat_unpack_flat(m) {
-    return mshared._mat_unpack_flat_with(m, "buffer.f64_mat_unpack_flat", core.try_mat_load_f64)
+    return mshared._mat_unpack_flat_with(m, "buffer.f64_mat_unpack_flat", core.mat_load_f64)
 }
 
-fn try_f64_mat_unpack_flat(m) {
-    return f64_mat_unpack_flat(m)
-}
 
 fn f64_mat_to_f64_buf(m) {
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, "buffer.f64_mat_to_f64_buf", raw.f64_new_uninit, core.try_mat_load_f64, raw._store_f64_buf_unchecked_direct)
+    return mshared._mat_to_typed_buf_with(m, "buffer.f64_mat_to_f64_buf", raw.f64_new_uninit, core.mat_load_f64, raw._store_f64_buf_unchecked_direct)
 }
 
-fn try_f64_mat_to_f64_buf(m) {
-    return f64_mat_to_f64_buf(m)
-}
 
 fn f64_mat_copy_from_rows(m, rows) {
-    return _mat_copy_from_rows_with(m, rows, "buffer.f64_mat_copy_from_rows", mshared._mat_validate_passthru_or_err, core.try_mat_store_f64)
+    return _mat_copy_from_rows_with(m, rows, "buffer.f64_mat_copy_from_rows", mshared._mat_validate_passthru_or_err, core.mat_store_f64)
 }
 
-fn try_f64_mat_copy_from_rows(m, rows) {
-    return f64_mat_copy_from_rows(m, rows)
-}
 
 fn f64_mat_copy_from_flat(m, xs) {
-    return mshared._mat_copy_from_flat_with(m, xs, "buffer.f64_mat_copy_from_flat", mshared._mat_validate_passthru_or_err, core.try_mat_store_f64)
+    return mshared._mat_copy_from_flat_with(m, xs, "buffer.f64_mat_copy_from_flat", mshared._mat_validate_passthru_or_err, core.mat_store_f64)
 }
 
-fn try_f64_mat_copy_from_flat(m, xs) {
-    return f64_mat_copy_from_flat(m, xs)
-}
 
 fn f64_mat_copy_from_f64_buf(m, src) {
-    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.f64_mat_copy_from_f64_buf", 13, "f64_buf", raw._load_f64_buf_direct, core.try_mat_store_f64)
-}
-
-fn try_f64_mat_copy_from_f64_buf(m, src) {
-    return f64_mat_copy_from_f64_buf(m, src)
+    return mshared._mat_copy_from_typed_buf_with(m, src, "buffer.f64_mat_copy_from_f64_buf", 13, "f64_buf", raw._load_f64_buf_direct, core.mat_store_f64)
 }

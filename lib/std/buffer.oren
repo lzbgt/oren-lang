@@ -258,12 +258,12 @@ fn slice_to_f64_buf(s) { return view.try_slice_to_f64_buf(s) }
 fn slice_copy_from_list_f64(s, xs) { return view.try_slice_copy_from_list_f64(s, xs) }
 fn slice_copy_from_f64_buf(s, src) { return view.try_slice_copy_from_f64_buf(s, src) }
 
-fn mat_view_new(buf, off, rows, cols, row_stride) { return core.try_mat_view_new(buf, off, rows, cols, row_stride) }
+fn mat_view_new(buf, off, rows, cols, row_stride) { return core.mat_view_new(buf, off, rows, cols, row_stride) }
 fn matrix(buf, rows, cols): Matrix { return matrix_at(buf, 0, rows, cols, cols) }
-fn matrix_at(buf, off, rows, cols, row_stride): Matrix { return _matrix_wrap(core.try_mat_view_new(buf, off, rows, cols, row_stride)) }
-fn mat_rows(m) { return core.try_mat_rows(m) }
-fn mat_cols(m) { return core.try_mat_cols(m) }
-fn mat_row_stride(m) { return core.try_mat_row_stride(m) }
+fn matrix_at(buf, off, rows, cols, row_stride): Matrix { return _matrix_wrap(core.mat_view_new(buf, off, rows, cols, row_stride)) }
+fn mat_rows(m) { return core.mat_rows(m) }
+fn mat_cols(m) { return core.mat_cols(m) }
+fn mat_row_stride(m) { return core.mat_row_stride(m) }
 fn mat_row_slice(m, r) { return proj.mat_row_slice(m, r) }
 fn mat_col_strided(m, c) { return proj.mat_col_strided(m, c) }
 fn mat_subview(m, row_off, col_off, rows, cols) { return proj.mat_subview(m, row_off, col_off, rows, cols) }
@@ -343,44 +343,44 @@ fn mat_col_copy_from_bytes_slice(m, c, bytes, off, n) { return proj.mat_col_copy
 fn mat_col_copy_from_u8_buf(m, c, src) { return proj.mat_col_copy_from_u8_buf(m, c, src) }
 fn mat_col_copy_from_string(m, c, text) { return proj.mat_col_copy_from_string(m, c, text) }
 fn mat_col_copy_from_string_slice(m, c, text, off, n) { return proj.mat_col_copy_from_string_slice(m, c, text, off, n) }
-fn mat_load_f32(m, r, c) { return core.try_mat_load_f32(m, r, c) }
-fn mat_store_f32(m, r, c, v) { return core.try_mat_store_f32(m, r, c, v) }
-fn mat_load_u8(m, r, c) { return core.try_mat_load_u8(m, r, c) }
-fn mat_store_u8(m, r, c, v) { return core.try_mat_store_u8(m, r, c, v) }
-fn mat_load_i32(m, r, c) { return core.try_mat_load_i32(m, r, c) }
-fn mat_store_i32(m, r, c, v) { return core.try_mat_store_i32(m, r, c, v) }
-fn mat_load_i64(m, r, c) { return core.try_mat_load_i64(m, r, c) }
-fn mat_store_i64(m, r, c, v) { return core.try_mat_store_i64(m, r, c, v) }
-fn mat_load_f64(m, r, c) { return core.try_mat_load_f64(m, r, c) }
-fn mat_store_f64(m, r, c, v) { return core.try_mat_store_f64(m, r, c, v) }
-fn i32_mat_pack_rows(rows) { return mnum.try_i32_mat_pack_rows(rows) }
-fn i32_mat_unpack_rows(m) { return mnum.try_i32_mat_unpack_rows(m) }
-fn i32_mat_unpack_flat(m) { return mnum.try_i32_mat_unpack_flat(m) }
-fn i32_mat_to_i32_buf(m) { return mnum.try_i32_mat_to_i32_buf(m) }
-fn i32_mat_copy_from_rows(m, rows) { return mnum.try_i32_mat_copy_from_rows(m, rows) }
-fn i32_mat_copy_from_flat(m, xs) { return mnum.try_i32_mat_copy_from_flat(m, xs) }
-fn i32_mat_copy_from_i32_buf(m, src) { return mnum.try_i32_mat_copy_from_i32_buf(m, src) }
-fn i64_mat_pack_rows(rows) { return mnum.try_i64_mat_pack_rows(rows) }
-fn i64_mat_unpack_rows(m) { return mnum.try_i64_mat_unpack_rows(m) }
-fn i64_mat_unpack_flat(m) { return mnum.try_i64_mat_unpack_flat(m) }
-fn i64_mat_to_i64_buf(m) { return mnum.try_i64_mat_to_i64_buf(m) }
-fn i64_mat_copy_from_rows(m, rows) { return mnum.try_i64_mat_copy_from_rows(m, rows) }
-fn i64_mat_copy_from_flat(m, xs) { return mnum.try_i64_mat_copy_from_flat(m, xs) }
-fn i64_mat_copy_from_i64_buf(m, src) { return mnum.try_i64_mat_copy_from_i64_buf(m, src) }
-fn f32_mat_pack_rows(rows) { return mnum.try_f32_mat_pack_rows(rows) }
-fn f32_mat_unpack_rows(m) { return mnum.try_f32_mat_unpack_rows(m) }
-fn f32_mat_unpack_flat(m) { return mnum.try_f32_mat_unpack_flat(m) }
-fn f32_mat_to_f32_buf(m) { return mnum.try_f32_mat_to_f32_buf(m) }
-fn f32_mat_copy_from_rows(m, rows) { return mnum.try_f32_mat_copy_from_rows(m, rows) }
-fn f32_mat_copy_from_flat(m, xs) { return mnum.try_f32_mat_copy_from_flat(m, xs) }
-fn f32_mat_copy_from_f32_buf(m, src) { return mnum.try_f32_mat_copy_from_f32_buf(m, src) }
-fn f64_mat_pack_rows(rows) { return mnum.try_f64_mat_pack_rows(rows) }
-fn f64_mat_unpack_rows(m) { return mnum.try_f64_mat_unpack_rows(m) }
-fn f64_mat_unpack_flat(m) { return mnum.try_f64_mat_unpack_flat(m) }
-fn f64_mat_to_f64_buf(m) { return mnum.try_f64_mat_to_f64_buf(m) }
-fn f64_mat_copy_from_rows(m, rows) { return mnum.try_f64_mat_copy_from_rows(m, rows) }
-fn f64_mat_copy_from_flat(m, xs) { return mnum.try_f64_mat_copy_from_flat(m, xs) }
-fn f64_mat_copy_from_f64_buf(m, src) { return mnum.try_f64_mat_copy_from_f64_buf(m, src) }
+fn mat_load_f32(m, r, c) { return core.mat_load_f32(m, r, c) }
+fn mat_store_f32(m, r, c, v) { return core.mat_store_f32(m, r, c, v) }
+fn mat_load_u8(m, r, c) { return core.mat_load_u8(m, r, c) }
+fn mat_store_u8(m, r, c, v) { return core.mat_store_u8(m, r, c, v) }
+fn mat_load_i32(m, r, c) { return core.mat_load_i32(m, r, c) }
+fn mat_store_i32(m, r, c, v) { return core.mat_store_i32(m, r, c, v) }
+fn mat_load_i64(m, r, c) { return core.mat_load_i64(m, r, c) }
+fn mat_store_i64(m, r, c, v) { return core.mat_store_i64(m, r, c, v) }
+fn mat_load_f64(m, r, c) { return core.mat_load_f64(m, r, c) }
+fn mat_store_f64(m, r, c, v) { return core.mat_store_f64(m, r, c, v) }
+fn i32_mat_pack_rows(rows) { return mnum.i32_mat_pack_rows(rows) }
+fn i32_mat_unpack_rows(m) { return mnum.i32_mat_unpack_rows(m) }
+fn i32_mat_unpack_flat(m) { return mnum.i32_mat_unpack_flat(m) }
+fn i32_mat_to_i32_buf(m) { return mnum.i32_mat_to_i32_buf(m) }
+fn i32_mat_copy_from_rows(m, rows) { return mnum.i32_mat_copy_from_rows(m, rows) }
+fn i32_mat_copy_from_flat(m, xs) { return mnum.i32_mat_copy_from_flat(m, xs) }
+fn i32_mat_copy_from_i32_buf(m, src) { return mnum.i32_mat_copy_from_i32_buf(m, src) }
+fn i64_mat_pack_rows(rows) { return mnum.i64_mat_pack_rows(rows) }
+fn i64_mat_unpack_rows(m) { return mnum.i64_mat_unpack_rows(m) }
+fn i64_mat_unpack_flat(m) { return mnum.i64_mat_unpack_flat(m) }
+fn i64_mat_to_i64_buf(m) { return mnum.i64_mat_to_i64_buf(m) }
+fn i64_mat_copy_from_rows(m, rows) { return mnum.i64_mat_copy_from_rows(m, rows) }
+fn i64_mat_copy_from_flat(m, xs) { return mnum.i64_mat_copy_from_flat(m, xs) }
+fn i64_mat_copy_from_i64_buf(m, src) { return mnum.i64_mat_copy_from_i64_buf(m, src) }
+fn f32_mat_pack_rows(rows) { return mnum.f32_mat_pack_rows(rows) }
+fn f32_mat_unpack_rows(m) { return mnum.f32_mat_unpack_rows(m) }
+fn f32_mat_unpack_flat(m) { return mnum.f32_mat_unpack_flat(m) }
+fn f32_mat_to_f32_buf(m) { return mnum.f32_mat_to_f32_buf(m) }
+fn f32_mat_copy_from_rows(m, rows) { return mnum.f32_mat_copy_from_rows(m, rows) }
+fn f32_mat_copy_from_flat(m, xs) { return mnum.f32_mat_copy_from_flat(m, xs) }
+fn f32_mat_copy_from_f32_buf(m, src) { return mnum.f32_mat_copy_from_f32_buf(m, src) }
+fn f64_mat_pack_rows(rows) { return mnum.f64_mat_pack_rows(rows) }
+fn f64_mat_unpack_rows(m) { return mnum.f64_mat_unpack_rows(m) }
+fn f64_mat_unpack_flat(m) { return mnum.f64_mat_unpack_flat(m) }
+fn f64_mat_to_f64_buf(m) { return mnum.f64_mat_to_f64_buf(m) }
+fn f64_mat_copy_from_rows(m, rows) { return mnum.f64_mat_copy_from_rows(m, rows) }
+fn f64_mat_copy_from_flat(m, xs) { return mnum.f64_mat_copy_from_flat(m, xs) }
+fn f64_mat_copy_from_f64_buf(m, src) { return mnum.f64_mat_copy_from_f64_buf(m, src) }
 fn u8_mat_pack_rows(rows) { return mu8.u8_mat_pack_rows(rows) }
 fn u8_mat_unpack_rows(m) { return mu8.u8_mat_unpack_rows(m) }
 fn u8_mat_pack_strings(rows) { return mu8.u8_mat_pack_strings(rows) }
@@ -433,9 +433,9 @@ impl StridedView for Strided {
 
 impl MatrixView for Matrix {
     fn raw_view(self) { return self.view }
-    fn rows(self) { return core.try_mat_rows(self.view) }
-    fn cols(self) { return core.try_mat_cols(self.view) }
-    fn row_stride(self) { return core.try_mat_row_stride(self.view) }
+    fn rows(self) { return core.mat_rows(self.view) }
+    fn cols(self) { return core.mat_cols(self.view) }
+    fn row_stride(self) { return core.mat_row_stride(self.view) }
     fn row(self, r): Slice { return _slice_wrap(proj.mat_row_slice(self.view, r)) }
     fn col(self, c): Strided { return _strided_wrap(proj.mat_col_strided(self.view, c)) }
     fn diag(self): Strided { return _strided_wrap(proj.mat_diag_strided(self.view)) }

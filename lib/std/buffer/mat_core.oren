@@ -13,7 +13,7 @@ fn _mat_is_list(m) { return common._mat_is_list(m) }
 fn _validate_u8_or_err(v, ctx) { return common._validate_u8_or_err(v, ctx) }
 fn _validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
 
-fn mat_view_new(buf, off, rows, cols, row_stride) {
+fn _mat_view_new_unchecked(buf, off, rows, cols, row_stride) {
     if off < 0 || rows < 0 || cols < 0 || row_stride < 0 {
         return _err_invalid("mat_view_new: negative arg")
     }
@@ -29,49 +29,49 @@ fn mat_view_new(buf, off, rows, cols, row_stride) {
     return [buf, off, rows, cols, row_stride]
 }
 
-fn try_mat_view_new(buf, off, rows, cols, row_stride) {
-    var ok_off = _check_nonneg_int(off, "buffer.try_mat_view_new", "off")
+fn mat_view_new(buf, off, rows, cols, row_stride) {
+    var ok_off = _check_nonneg_int(off, "buffer.mat_view_new", "off")
     if oren_is_err(ok_off) { return ok_off }
-    var ok_rows = _check_nonneg_int(rows, "buffer.try_mat_view_new", "rows")
+    var ok_rows = _check_nonneg_int(rows, "buffer.mat_view_new", "rows")
     if oren_is_err(ok_rows) { return ok_rows }
-    var ok_cols = _check_nonneg_int(cols, "buffer.try_mat_view_new", "cols")
+    var ok_cols = _check_nonneg_int(cols, "buffer.mat_view_new", "cols")
     if oren_is_err(ok_cols) { return ok_cols }
-    var ok_stride = _check_nonneg_int(row_stride, "buffer.try_mat_view_new", "row_stride")
+    var ok_stride = _check_nonneg_int(row_stride, "buffer.mat_view_new", "row_stride")
     if oren_is_err(ok_stride) { return ok_stride }
-    return mat_view_new(buf, off, rows, cols, row_stride)
+    return _mat_view_new_unchecked(buf, off, rows, cols, row_stride)
 }
 
-fn mat_rows(m) {
+fn _mat_rows_unchecked(m) {
     if !_mat_is_list(m) { return _err_invalid("mat_rows: expects mat view") }
     return m[2]
 }
 
-fn try_mat_rows(m) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_rows: expects mat view") }
+fn mat_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_rows: expects mat view") }
     return m[2]
 }
 
-fn mat_cols(m) {
+fn _mat_cols_unchecked(m) {
     if !_mat_is_list(m) { return _err_invalid("mat_cols: expects mat view") }
     return m[3]
 }
 
-fn try_mat_cols(m) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_cols: expects mat view") }
+fn mat_cols(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_cols: expects mat view") }
     return m[3]
 }
 
-fn mat_row_stride(m) {
+fn _mat_row_stride_unchecked(m) {
     if !_mat_is_list(m) { return _err_invalid("mat_row_stride: expects mat view") }
     return m[4]
 }
 
-fn try_mat_row_stride(m) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_row_stride: expects mat view") }
+fn mat_row_stride(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_row_stride: expects mat view") }
     return m[4]
 }
 
-fn mat_load_u8(m, r, c) {
+fn _mat_load_u8_unchecked(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_u8: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -80,16 +80,16 @@ fn mat_load_u8(m, r, c) {
     return oren_buf_load_u8(m[0], idx)
 }
 
-fn try_mat_load_u8(m, r, c) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_u8: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_load_u8", "row")
+fn mat_load_u8(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_load_u8: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_load_u8", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_load_u8", "col")
+    var ok_c = _check_int(c, "buffer.mat_load_u8", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_load_u8(m, r, c)
+    return _mat_load_u8_unchecked(m, r, c)
 }
 
-fn mat_store_u8(m, r, c, v) {
+fn _mat_store_u8_unchecked(m, r, c, v) {
     if !_mat_is_list(m) { return _err_invalid("mat_store_u8: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -98,18 +98,18 @@ fn mat_store_u8(m, r, c, v) {
     return oren_buf_store_u8(m[0], idx, v)
 }
 
-fn try_mat_store_u8(m, r, c, v) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_u8: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_store_u8", "row")
+fn mat_store_u8(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_store_u8: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_store_u8", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_store_u8", "col")
+    var ok_c = _check_int(c, "buffer.mat_store_u8", "col")
     if oren_is_err(ok_c) { return ok_c }
-    var ok_v = _validate_u8_or_err(v, "buffer.try_mat_store_u8")
+    var ok_v = _validate_u8_or_err(v, "buffer.mat_store_u8")
     if oren_is_err(ok_v) { return ok_v }
-    return mat_store_u8(m, r, c, ok_v)
+    return _mat_store_u8_unchecked(m, r, c, ok_v)
 }
 
-fn mat_load_f32(m, r, c) {
+fn _mat_load_f32_unchecked(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_f32: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -118,16 +118,16 @@ fn mat_load_f32(m, r, c) {
     return oren_buf_load_f32(m[0], idx)
 }
 
-fn try_mat_load_f32(m, r, c) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_f32: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_load_f32", "row")
+fn mat_load_f32(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_load_f32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_load_f32", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_load_f32", "col")
+    var ok_c = _check_int(c, "buffer.mat_load_f32", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_load_f32(m, r, c)
+    return _mat_load_f32_unchecked(m, r, c)
 }
 
-fn mat_store_f32(m, r, c, v) {
+fn _mat_store_f32_unchecked(m, r, c, v) {
     if !_mat_is_list(m) { return _err_invalid("mat_store_f32: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -136,16 +136,16 @@ fn mat_store_f32(m, r, c, v) {
     return oren_buf_store_f32(m[0], idx, v)
 }
 
-fn try_mat_store_f32(m, r, c, v) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_f32: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_store_f32", "row")
+fn mat_store_f32(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_store_f32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_store_f32", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_store_f32", "col")
+    var ok_c = _check_int(c, "buffer.mat_store_f32", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_store_f32(m, r, c, v)
+    return _mat_store_f32_unchecked(m, r, c, v)
 }
 
-fn mat_load_i32(m, r, c) {
+fn _mat_load_i32_unchecked(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_i32: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -154,16 +154,16 @@ fn mat_load_i32(m, r, c) {
     return oren_buf_load_i32(m[0], idx)
 }
 
-fn try_mat_load_i32(m, r, c) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_i32: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_load_i32", "row")
+fn mat_load_i32(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_load_i32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_load_i32", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_load_i32", "col")
+    var ok_c = _check_int(c, "buffer.mat_load_i32", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_load_i32(m, r, c)
+    return _mat_load_i32_unchecked(m, r, c)
 }
 
-fn mat_store_i32(m, r, c, v) {
+fn _mat_store_i32_unchecked(m, r, c, v) {
     if !_mat_is_list(m) { return _err_invalid("mat_store_i32: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -172,17 +172,17 @@ fn mat_store_i32(m, r, c, v) {
     return oren_buf_store_i32(m[0], idx, v)
 }
 
-fn try_mat_store_i32(m, r, c, v) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_i32: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_store_i32", "row")
+fn mat_store_i32(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_store_i32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_store_i32", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_store_i32", "col")
+    var ok_c = _check_int(c, "buffer.mat_store_i32", "col")
     if oren_is_err(ok_c) { return ok_c }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_mat_store_i32: value not int") }
-    return mat_store_i32(m, r, c, v)
+    if _is_int(v) == false { return oren_err(4, "buffer.mat_store_i32: value not int") }
+    return _mat_store_i32_unchecked(m, r, c, v)
 }
 
-fn mat_load_i64(m, r, c) {
+fn _mat_load_i64_unchecked(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_i64: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -191,7 +191,7 @@ fn mat_load_i64(m, r, c) {
     return oren_buf_load_i64(m[0], idx)
 }
 
-fn mat_store_i64(m, r, c, v) {
+fn _mat_store_i64_unchecked(m, r, c, v) {
     if !_mat_is_list(m) { return _err_invalid("mat_store_i64: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -200,27 +200,27 @@ fn mat_store_i64(m, r, c, v) {
     return oren_buf_store_i64(m[0], idx, v)
 }
 
-fn try_mat_load_i64(m, r, c) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_i64: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_load_i64", "row")
+fn mat_load_i64(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_load_i64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_load_i64", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_load_i64", "col")
+    var ok_c = _check_int(c, "buffer.mat_load_i64", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_load_i64(m, r, c)
+    return _mat_load_i64_unchecked(m, r, c)
 }
 
-fn try_mat_store_i64(m, r, c, v) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_i64: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_store_i64", "row")
+fn mat_store_i64(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_store_i64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_store_i64", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_store_i64", "col")
+    var ok_c = _check_int(c, "buffer.mat_store_i64", "col")
     if oren_is_err(ok_c) { return ok_c }
-    var ok_v = _validate_i64_or_err(v, "buffer.try_mat_store_i64")
+    var ok_v = _validate_i64_or_err(v, "buffer.mat_store_i64")
     if oren_is_err(ok_v) { return ok_v }
-    return mat_store_i64(m, r, c, ok_v)
+    return _mat_store_i64_unchecked(m, r, c, ok_v)
 }
 
-fn mat_load_f64(m, r, c) {
+fn _mat_load_f64_unchecked(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_f64: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -229,7 +229,7 @@ fn mat_load_f64(m, r, c) {
     return oren_buf_load_f64(m[0], idx)
 }
 
-fn mat_store_f64(m, r, c, v) {
+fn _mat_store_f64_unchecked(m, r, c, v) {
     if !_mat_is_list(m) { return _err_invalid("mat_store_f64: expects mat view") }
     var rows = m[2]
     var cols = m[3]
@@ -238,20 +238,20 @@ fn mat_store_f64(m, r, c, v) {
     return oren_buf_store_f64(m[0], idx, v)
 }
 
-fn try_mat_load_f64(m, r, c) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_f64: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_load_f64", "row")
+fn mat_load_f64(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_load_f64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_load_f64", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_load_f64", "col")
+    var ok_c = _check_int(c, "buffer.mat_load_f64", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_load_f64(m, r, c)
+    return _mat_load_f64_unchecked(m, r, c)
 }
 
-fn try_mat_store_f64(m, r, c, v) {
-    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_f64: expects mat view") }
-    var ok_r = _check_int(r, "buffer.try_mat_store_f64", "row")
+fn mat_store_f64(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.mat_store_f64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.mat_store_f64", "row")
     if oren_is_err(ok_r) { return ok_r }
-    var ok_c = _check_int(c, "buffer.try_mat_store_f64", "col")
+    var ok_c = _check_int(c, "buffer.mat_store_f64", "col")
     if oren_is_err(ok_c) { return ok_c }
-    return mat_store_f64(m, r, c, v)
+    return _mat_store_f64_unchecked(m, r, c, v)
 }
