@@ -1,114 +1,186 @@
-# Oren (rolling)
+# Oren
 
-Oren is a **self-hosted language + compiler** with three execution backends:
+Oren is a rolling, self-hosted language and toolchain for programs that need to
+run under explicit effect boundaries.
 
-- **C backend** (portable bootstrap)
-- **Native backend** (Mach-O / ELF / PE output; Tier‑1 intent)
-- **Bytecode backend (OBC)** for the **AVM** (deterministic, capability‑governed VM)
+It is not a Zig clone, a scripting toy, or only a compiler experiment. Oren's
+center is a single language surface that can target native code, portable C, and
+deterministic AVM bytecode while preserving capability-governed execution,
+resource budgets, and machine-readable verification evidence.
 
-The project targets agent‑grade determinism, capability‑gated effects, and a path to
-compiler‑in‑AVM for sandboxed compilation.
+```oren
+import http "std:net/avm/http"
 
-For the concise product thesis and mainstream-language differentiation line, see `docs/OREN_THESIS.md`.
-For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
+fn main() {
+    var title = http.get("https://note.local/data.json").text().json()["o"]["title"]["s"]
+    print(title)
+    exit(0)
+}
 
-## Quick start
-
-```bash
-./oretest       # repo-local fast verification entrypoint
-./oretest --selfhost  # stage2/capsule/optimizer self-host bundle
-make bootstrap   # stage0 Go compiler
-make            # stage1 self-hosted compiler
-make test       # fast native smoke
-make test-curated  # heavier curated surface/capability/backend bundle
-make test-selfhost  # heavier stage2/capsule/optimizer self-host bundle
-make readiness-report  # quick readiness snapshot (build/reports)
-make readiness-report-json  # readiness snapshot + JSON summary
-make readiness-report-index  # append JSONL summary for automation
-make readiness-report-summary  # build summary markdown + HTML
-make readiness-report-index-stats  # build index stats (md + json)
-make readiness-report-index-prune  # prune index to last N entries
-make readiness-report-index-trim  # trim index by timestamp range
-make readiness-report-index-csv  # export index to CSV
-make readiness-report-index-query  # filter index by fields/time
-make readiness-report-index-rollup  # daily rollup (md + json)
-make readiness-report-index-latest  # latest entry by profile/tag
-make readiness-report-index-trend  # trend summary over latest window
-make readiness-report-index-profiles  # per-profile summary
-make readiness-report-index-tags  # per-tag summary
-make readiness-report-index-audit  # audit index paths
-make readiness-report-index-audit-trend  # audit latest window
-make readiness-report-collect  # collect last N reports into snapshots
-make readiness-report-collect-list  # list collected snapshots
-make readiness-report-collect-pack  # pack collected snapshots into tar.gz
-make readiness-report-sanitize  # sanitize report + json for sharing
-make readiness-report-dashboard  # build HTML dashboard
-make readiness-report-index-diff  # diff two index files
-make readiness-report-index-diff-summary  # diff summary stats
-make readiness-report-index-gate  # enforce pass/fail thresholds
-make readiness-report-index-lint  # check ordering/duplicates
-make readiness-report-index-split  # split index by profile/tag
-make readiness-pipeline  # run readiness report + summary + stats + validate
-make status-snapshot  # snapshot docs/STATUS.md into build/reports
-make status-snapshot-diff  # diff STATUS.md snapshots
-make status-faq  # readiness FAQ from STATUS.md
-make status-faq-diff  # diff readiness FAQ outputs
-make status-matrix  # render readiness matrix from STATUS.md
-make status-matrix-diff  # diff readiness matrices or STATUS.md
-make status-markdown  # render status FAQ/snapshot/matrix JSON into markdown
+main()
 ```
 
-Pipeline example:
+## Why Oren Exists
 
-```bash
-./scripts/readiness_pipeline.sh --profile quick --status-max-items 5
+Most languages optimize for one of these surfaces: native performance, scripting
+ergonomics, sandboxed execution, package distribution, or machine-readable
+tooling. Oren is built around their intersection:
+
+- **Native plus bytecode parity.** Build the same program through C, native
+  machine code, or OBC bytecode for AVM.
+- **Capability-governed effects.** FS, NET, PROC, ENV, TIME, RNG, GFX, and
+  package permissions are explicit runtime-policy surfaces rather than hidden
+  ambient access.
+- **Deterministic app execution.** AVM provides VirtualFS, VirtualNET,
+  VirtualPROC, virtual time, budgets, snapshots, UI mailboxes, and replayable
+  host-effect boundaries.
+- **Agent-readable engineering evidence.** Fixtures, manifests, readiness
+  reports, status pages, and API-shape guards are part of the product surface,
+  not afterthought scripts.
+
+Oren is still rolling. The macOS arm64 native path is the most mature native
+backend; x64 Linux/Windows and full production app lifecycle hardening remain
+active work. See [docs/STATUS.md](docs/STATUS.md) for the current truth table.
+
+## Language Shape
+
+Oren is designed to feel like a modern language while keeping low-level control
+available where it matters:
+
+- **Functions, closures, structs/classes, maps, lists, generators, and
+  coroutines** for application code.
+- **Traits, generics, method syntax, and call chaining** with deterministic
+  compile/link-time method lowering.
+- **Typed buffers and byte-native paths** for efficient binary, graphics,
+  crypto, and package-asset workloads.
+- **Structured fallible APIs** using normal verbs that return values or
+  `oren_err`; low-level numeric errno contracts are explicit `*_raw` APIs.
+- **Feature-rich stdlib domains** for JSON, YAML, CBOR, XML/HTML readers,
+  regex, base64, crypto, buffers, linalg, UI, Scene3D, HTTP, WebSocket, TCP,
+  UDP, TLS, DNS, and host-neutral AVM services.
+
+Example: method-style APIs and chaining are first-class, not compatibility
+wrappers:
+
+```oren
+import bytes "std:bytes"
+import sha256 "std:crypto/sha256"
+
+fn main() {
+    var digest = bytes.from_string("hello").sha256().hex()
+    print(digest)
+}
+
+main()
 ```
 
-Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
-expected in the output; treat a non-zero exit status as failure.
+Example: OBC packages can render UI/Scene3D through AVM without direct host
+graphics access. The host owns policy; bytecode sees virtualized mailboxes and
+budgets.
 
-`./oretest` is the recommended local wrapper for the common verification flows:
+```oren
+import scene3d "std:ui/scene3d"
+import ui_avm "std:ui/avm"
+
+fn main() {
+    var commands = scene3d.commands_from_binary_file("assets/scene3d_card.os3d")
+    if oren_is_err(commands) { exit(1) }
+
+    var rc = ui_avm.present_frame(commands, 4, 4, {"strict_bounds": true})
+    if oren_is_err(rc) { exit(1) }
+
+    exit(0)
+}
+
+main()
+```
+
+For the practical language guide, start with [docs/LANGUAGE.md](docs/LANGUAGE.md).
+
+## Toolchain
+
+Oren currently has three execution paths:
+
+| Path | Use | Status |
+| --- | --- | --- |
+| C backend | Portable bootstrap and cross-checking through a host C toolchain. | Useful baseline. |
+| Native backend | Mach-O / ELF / PE output for local/server/desktop execution. | Most mature on macOS arm64; x64 is active bring-up. |
+| OBC + AVM | Deterministic bytecode for capability-governed host apps. | Strong smoke/conformance gates; still rolling for production embedding. |
+
+Build native:
+
+```bash
+./oren build examples/hello.oren -o build/hello
+./build/hello
+```
+
+Build and run bytecode:
+
+```bash
+./oren build examples/hello.oren --backend bytecode -o build/hello.obc
+make avm
+./avm build/hello.obc
+```
+
+Run the default high-signal verification path:
 
 ```bash
 ./oretest
-./oretest --selfhost
-./oretest --full
-make test-curated
-make test-selfhost
-./oretest --native-all --fixture-jobs 8
 ```
 
-Build and run a hello binary:
+`./oretest` is the repo-local fast entrypoint. Broader gates remain available
+when needed:
 
 ```bash
-./oren build examples/hello.oren -o hello
-./hello
+make test
+make test-avm
+make verify-libavm-ios
+make verify-obc-store-service
 ```
 
-Run bytecode under AVM:
+`make test` intentionally runs negative fixtures; parse/typecheck diagnostics in
+the log are expected when the command exits successfully.
 
-```bash
-./oren build examples/hello.oren --backend bytecode -o hello.obc
-make avm
-./avm hello.obc
-```
+## AVM, iOS, and OBC Packages
 
-## Docs
+AVM is Oren's deterministic bytecode runtime. It supports app-facing embedder
+APIs, iOS xcframework packaging, compiler-in-AVM smoke coverage, VirtualFS,
+VirtualNET, VirtualPROC, virtual time, UI/GFX frame mailboxes, input events,
+permission prompts, and package install/run flows.
 
-Start here: `docs/README.md` (canonical entry point and doc map).
-Product thesis: `docs/OREN_THESIS.md`.
-Capability runtime contract: `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
-Readiness schema/tooling: `docs/READINESS.md`.
-Readiness index JSON schema: `docs/readiness_index.schema.json`.
+The public OBC store is live:
 
-## Benchmarks
+- Portal: <https://store.hubstack.cn/>
+- Health: <https://store.hubstack.cn/healthz>
+- Index: <https://store.hubstack.cn/api/v0/index.json>
 
-- How to run: `benchmarks/README.md`
-- Latest snapshot: `benchmarks/RESULTS_LATEST.md`
-- Full sweep: `make benchmarks`
+The live store currently publishes first-party `oren-labs` demos for science,
+2D UI, and Scene3D package assets. Host apps can install verified `.obc.zip`
+bundles, mount package assets into VirtualFS, apply package permissions, and run
+bytecode under AVM policy.
+
+## Documentation Map
+
+- [docs/LANGUAGE.md](docs/LANGUAGE.md): practical language guide.
+- [docs/OREN_THESIS.md](docs/OREN_THESIS.md): product thesis and differentiation.
+- [docs/CAPABILITY_RUNTIME_CONTRACT.md](docs/CAPABILITY_RUNTIME_CONTRACT.md):
+  capability/runtime-profile contract.
+- [docs/STATUS.md](docs/STATUS.md): current readiness and known gaps.
+- [docs/README.md](docs/README.md): full documentation index.
+- [benchmarks/README.md](benchmarks/README.md): benchmark usage.
+- [benchmarks/RESULTS_LATEST.md](benchmarks/RESULTS_LATEST.md): latest benchmark snapshot.
+
+## Engineering Standard
+
+Oren is intentionally rolling, but not casual. Changes are expected to come with
+fixtures, conformance gates, docs updates, and fast verification. "Small"
+implementation means low resource consumption: CPU time, memory, disk,
+bandwidth, build overhead, and runtime overhead. It does not mean toy features
+or ad-hoc prototypes.
 
 ## License
 
 Copyright (c) 2025 Lu Zongbao (rikusouhou@gmail.com).
 
-This project is licensed under the Apache License, Version 2.0. See `LICENSE`.
+This project is licensed under the Apache License, Version 2.0. See
+[LICENSE](LICENSE).

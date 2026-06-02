@@ -147,8 +147,7 @@ Facts from the 2026-05-28 implementation pass:
   install and package run from that endpoint. The release bundle format is
   specified as deterministic `.obc.zip`; the iOS SDK now prefers verified bundles
   when `bundle`/`bundle_sha256` are present in `index.json`, rejects unsafe ZIP
-  paths, and falls back to expanded manifest/OBC/assets otherwise. It is not
-  deployed yet.
+  paths, and falls back to expanded manifest/OBC/assets otherwise.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
   surface (`../note` commit `35995ee`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key
