@@ -107,7 +107,8 @@
 <p>  <code>std:buffer/raw</code>, <code>std:buffer/view</code>, <code>std:buffer/mat_core</code>,</p>
 <p>  <code>std:buffer/mat_numeric</code>, and <code>std:buffer/mat_u8</code> also use canonical names</p>
 <p>  at the importable helper boundary.</p>
-<p>  Remaining <code>try_*</code> helper names are private implementation details.</p>
+<p>  <code>lib/std</code> no longer exposes or uses <code>try_*</code> helper names; checked fallible</p>
+<p>  implementation helpers use private <code>_checked_*</code> names.</p>
 <ul>
 <li><code>make verify-stdlib-api-shape</code> is part of the fast <code>make test</code> path and blocks</li>
 </ul>

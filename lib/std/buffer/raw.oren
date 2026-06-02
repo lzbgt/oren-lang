@@ -130,13 +130,13 @@ fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
 fn _store_f64_buf_unchecked_direct(buf, idx, v) { return _store_f64_unchecked_direct(buf, idx, v) }
 fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
 
-fn _try_load_with(buf, idx, ctx, loadf) {
+fn _checked_load_with(buf, idx, ctx, loadf) {
     var n = _check_idx(buf, idx, ctx)
     if oren_is_err(n) { return n }
     return loadf(buf, idx)
 }
 
-fn _try_store_with(buf, idx, v, ctx, validatef, storef) {
+fn _checked_store_with(buf, idx, v, ctx, validatef, storef) {
     var n = _check_idx(buf, idx, ctx)
     if oren_is_err(n) { return n }
     var ok_v = validatef(v, ctx)
@@ -213,43 +213,43 @@ fn len(buf) {
 }
 
 fn load_u8(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.load_u8", _load_u8_direct)
+    return _checked_load_with(buf, idx, "buffer.load_u8", _load_u8_direct)
 }
 
 fn store_u8(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.store_u8", _validate_u8_or_err, _store_u8_direct)
+    return _checked_store_with(buf, idx, v, "buffer.store_u8", _validate_u8_or_err, _store_u8_direct)
 }
 
 fn load_i32(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.load_i32", _load_i32_direct)
+    return _checked_load_with(buf, idx, "buffer.load_i32", _load_i32_direct)
 }
 
 fn store_i32(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.store_i32", _validate_int_or_err, _store_i32_direct)
+    return _checked_store_with(buf, idx, v, "buffer.store_i32", _validate_int_or_err, _store_i32_direct)
 }
 
 fn load_i64(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.load_i64", _load_i64_direct)
+    return _checked_load_with(buf, idx, "buffer.load_i64", _load_i64_direct)
 }
 
 fn store_i64(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.store_i64", _validate_i64_or_err, _store_i64_direct)
+    return _checked_store_with(buf, idx, v, "buffer.store_i64", _validate_i64_or_err, _store_i64_direct)
 }
 
 fn load_f32(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.load_f32", _load_f32_direct)
+    return _checked_load_with(buf, idx, "buffer.load_f32", _load_f32_direct)
 }
 
 fn store_f32(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.store_f32", _validate_passthru_or_err, _store_f32_direct)
+    return _checked_store_with(buf, idx, v, "buffer.store_f32", _validate_passthru_or_err, _store_f32_direct)
 }
 
 fn load_f64(buf, idx) {
-    return _try_load_with(buf, idx, "buffer.load_f64", _load_f64_direct)
+    return _checked_load_with(buf, idx, "buffer.load_f64", _load_f64_direct)
 }
 
 fn store_f64(buf, idx, v) {
-    return _try_store_with(buf, idx, v, "buffer.store_f64", _validate_passthru_or_err, _store_f64_direct)
+    return _checked_store_with(buf, idx, v, "buffer.store_f64", _validate_passthru_or_err, _store_f64_direct)
 }
 
 fn i32_pack_list_int(xs) {
@@ -410,4 +410,3 @@ fn f32_copy_from_f32_buf(out: []f32, src) {
 fn f64_copy_from_f64_buf(out: []f64, src) {
     return _copy_from_typed_buf_with(out, src, "buffer.f64_copy_from_f64_buf", "f64_buf", _load_f64_direct, _store_f64_direct)
 }
-

@@ -61,7 +61,8 @@ design evidence lives under `project-doc/`.
   `std:buffer/raw`, `std:buffer/view`, `std:buffer/mat_core`,
   `std:buffer/mat_numeric`, and `std:buffer/mat_u8` also use canonical names
   at the importable helper boundary.
-  Remaining `try_*` helper names are private implementation details.
+  `lib/std` no longer exposes or uses `try_*` helper names; checked fallible
+  implementation helpers use private `_checked_*` names.
 - `make verify-stdlib-api-shape` is part of the fast `make test` path and blocks
   known bad root-helper regressions. Public fallible stdlib APIs should use normal
   verbs returning `value | oren_err` or explicit `{ok,...}` records; numeric errno
