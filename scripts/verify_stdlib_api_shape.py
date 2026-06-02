@@ -18,6 +18,27 @@ BANNED_TOKENS = (
     "try_send_text",
     "try_send_text_client",
     "try_send_text_server",
+    "try_new",
+    "try_connect",
+    "try_connect_resolver",
+    "try_connect_resolver_opts",
+    "try_accept",
+    "try_accept_tls_pkcs12",
+    "try_parse_url",
+    "try_client_key_base64",
+    "try_wrap_client",
+    "try_wrap_server_pkcs12",
+    "try_bind_local",
+    "try_listen_local",
+    "try_read_into",
+    "try_write_from",
+    "try_close",
+    "try_send_to",
+    "try_recv_into",
+    "try_recv_from_into",
+    "try_sockname_port",
+    "try_peer_cert_sha256_hex",
+    "try_negotiated_alpn",
 )
 
 
@@ -41,13 +62,13 @@ def main() -> int:
         for line_no, line in enumerate(text.splitlines(), 1):
             match = token_re.search(line)
             if match:
-                failures.append(f"{path.relative_to(ROOT)}:{line_no}: banned root-style helper `{match.group(1)}`")
+                failures.append(f"{path.relative_to(ROOT)}:{line_no}: banned public fallible helper `{match.group(1)}`")
 
     if failures:
         print("stdlib API shape guard failed:")
         for failure in failures:
             print(failure)
-        print("Use scoped/object APIs such as http.get(url).text(), response.bytes(), or conn.recv_text(...).")
+        print("Use scoped/object APIs and normal fallible verbs returning value | oren_err; keep errno contracts under *_raw.")
         return 1
 
     print("OK: stdlib API shape guard passed")

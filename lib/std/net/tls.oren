@@ -11,21 +11,19 @@
 // - Other Tier‑1 OS providers (Windows Schannel, Linux OpenSSL) are tracked in `docs/DESIGN.md#tls-provider-availability`.
 //
 // API (v0, rolling):
-// - `wrap_client(fd, server_name, timeout_ms, opts)` -> {"ok":1,"conn":map} or {"ok":0,"err":string}
-// - `wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)` -> {"ok":1,"conn":map} or {"ok":0,"err":string}
-// - `try_wrap_client(...)` / `try_wrap_server_pkcs12(...)` -> conn or `oren_err`
-// - `try_connect(...)` -> conn or `oren_err`
-// - `read_into(conn, buf, cap, timeout_ms)` -> n or -errno
-// - `write_from(conn, ptr, len, timeout_ms)` -> n or -errno
-// - `close(conn)` -> 0 or -errno
+// - `wrap_client(fd, server_name, timeout_ms, opts)` -> conn or `oren_err`
+// - `wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)` -> conn or `oren_err`
+// - `connect(...)` -> conn or `oren_err`
+// - `read_into(conn, buf, cap, timeout_ms)` -> n or `oren_err`
+// - `write_from(conn, ptr, len, timeout_ms)` -> n or `oren_err`
+// - `close(conn)` -> 0 or `oren_err`
 // - Receiver methods (`conn.read_into(...)`, `conn.write_from(...)`,
 //   `conn.close()`, etc.) -> value or `oren_err`
-// - Root `try_read_into(...)` / `try_write_from(...)` / `try_close(...)` ->
-//   n/0 or `oren_err` for callers that cannot use method syntax
 // - `win_cleanup()` -> 0 (no-op on non-Windows; releases cached Schannel creds on Windows)
-// - `peer_cert_sha256_hex(conn)` -> {"ok":1,"v":string} or {"ok":0,"err":string}
-// - `negotiated_alpn(conn)` -> {"ok":1,"v":string|nil} or {"ok":0,"err":string}
-// - `try_peer_cert_sha256_hex(conn)` / `try_negotiated_alpn(conn)` -> value or `oren_err`
+// - `peer_cert_sha256_hex(conn)` / `negotiated_alpn(conn)` -> value or `oren_err`
+// - Internal `*_raw` functions return syscall-style -errno values.
+// - Internal `*_record` functions return legacy `{ok,...}` maps for protocol
+//   composition that needs an envelope.
 //
 // Notes:
 // - `conn` owns the underlying TCP fd; `tls.close(conn)` closes the socket.
@@ -46,29 +44,24 @@ struct Conn {
 
 trait TlsConn {
     fn read_into(self, buf, cap, timeout_ms);
-    fn try_read_into(self, buf, cap, timeout_ms);
     fn write_from(self, ptr0, len, timeout_ms);
-    fn try_write_from(self, ptr0, len, timeout_ms);
     fn close(self);
-    fn try_close(self);
     fn peer_cert_sha256_hex(self);
-    fn try_peer_cert_sha256_hex(self);
     fn negotiated_alpn(self);
-    fn try_negotiated_alpn(self);
 }
 
-fn _err_result(r, fallback) {
+fn _err_from_record(r, fallback) {
     var msg = r["err"]
     if msg == nil || msg == "" { msg = fallback }
     return oren_err(4, msg)
 }
 
-fn _errno_result(rc, fallback) {
+fn _err_from_errno(rc, fallback) {
     if rc >= 0 { return rc }
     return oren_err(0 - rc, fallback + " failed (errno=" + oren_int_to_string(0 - rc) + ")")
 }
 
-fn connect(host_or_ip, port, timeout_ms, opts) {
+fn _connect_record(host_or_ip, port, timeout_ms, opts) {
     // Dial TCP + do a client TLS handshake.
     //
     // Inputs:
@@ -90,7 +83,7 @@ fn connect(host_or_ip, port, timeout_ms, opts) {
     var ip = rh["ip"]
     var owned_ip = rh["owned"]
 
-    var fd = tcp.connect(ip, port, timeout_ms)
+    var fd = tcp.connect_raw(ip, port, timeout_ms)
     if owned_ip == 1 { free(ip) }
     if fd < 0 {
         return {"ok": 0, "err": "tls.connect: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
@@ -101,19 +94,19 @@ fn connect(host_or_ip, port, timeout_ms, opts) {
     var server_name = host_or_ip
     if hostutil.looks_like_ipv4(host_or_ip) == 1 { server_name = 0 }
 
-    var cr = wrap_client(fd, server_name, timeout_ms, opts)
+    var cr = _wrap_client_record(fd, server_name, timeout_ms, opts)
     if oren_map_get_str(cr, "ok") != 1 {
         // Best-effort: ensure fd isn't leaked on providers that don't close on failure.
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls.connect: " + oren_map_get_str(cr, "err")}
     }
     return cr
 }
 
-fn try_connect(host_or_ip, port, timeout_ms, opts): Conn {
-    var r = connect(host_or_ip, port, timeout_ms, opts)
+fn connect(host_or_ip, port, timeout_ms, opts): Conn {
+    var r = _connect_record(host_or_ip, port, timeout_ms, opts)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
-    return _err_result(r, "tls.connect failed")
+    return _err_from_record(r, "tls.connect failed")
 }
 
 fn _pin_peer_cert_if_requested(conn, opts) {
@@ -129,7 +122,7 @@ fn _pin_peer_cert_if_requested(conn, opts) {
     var want_pin = oren_map_get_str(opts, "pin_cert_sha256_hex")
     if want_pin == 0 { return {"ok": 1} }
 
-    var pr = peer_cert_sha256_hex(conn)
+    var pr = _peer_cert_sha256_hex_record(conn)
     if oren_map_get_str(pr, "ok") != 1 {
         return {"ok": 0, "err": "tls pin: " + oren_map_get_str(pr, "err")}
     }
@@ -155,80 +148,80 @@ fn win_cleanup() {
     return 0
 }
 
-fn try_wrap_client(fd, server_name, timeout_ms, opts): Conn {
-    var r = wrap_client(fd, server_name, timeout_ms, opts)
+fn wrap_client(fd, server_name, timeout_ms, opts): Conn {
+    var r = _wrap_client_record(fd, server_name, timeout_ms, opts)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
-    return _err_result(r, "tls.wrap_client failed")
+    return _err_from_record(r, "tls.wrap_client failed")
 }
 
-fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts): Conn {
-    var r = wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
+fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts): Conn {
+    var r = _wrap_server_pkcs12_record(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
-    return _err_result(r, "tls.wrap_server_pkcs12 failed")
+    return _err_from_record(r, "tls.wrap_server_pkcs12 failed")
 }
 
-fn try_read_into(conn, buf, cap, timeout_ms) {
-    return _errno_result(read_into(conn, buf, cap, timeout_ms), "tls.read_into")
+fn read_into(conn, buf, cap, timeout_ms) {
+    return _err_from_errno(read_into_raw(conn, buf, cap, timeout_ms), "tls.read_into")
 }
 
-fn try_write_from(conn, ptr0, len, timeout_ms) {
-    return _errno_result(write_from(conn, ptr0, len, timeout_ms), "tls.write_from")
+fn write_from(conn, ptr0, len, timeout_ms) {
+    return _err_from_errno(write_from_raw(conn, ptr0, len, timeout_ms), "tls.write_from")
 }
 
-fn try_close(conn) {
-    return _errno_result(close(conn), "tls.close")
+fn close(conn) {
+    return _err_from_errno(close_raw(conn), "tls.close")
 }
 
-fn try_peer_cert_sha256_hex(conn) {
-    var r = peer_cert_sha256_hex(conn)
+fn peer_cert_sha256_hex(conn) {
+    var r = _peer_cert_sha256_hex_record(conn)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
-    return _err_result(r, "tls.peer_cert_sha256_hex failed")
+    return _err_from_record(r, "tls.peer_cert_sha256_hex failed")
 }
 
-fn try_negotiated_alpn(conn) {
-    var r = negotiated_alpn(conn)
+fn negotiated_alpn(conn) {
+    var r = _negotiated_alpn_record(conn)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
-    return _err_result(r, "tls.negotiated_alpn failed")
+    return _err_from_record(r, "tls.negotiated_alpn failed")
 }
 
 // --- Default stub (Tier‑1 providers missing) ---
 
 @cfg(not_os="macos,linux,windows")
-fn wrap_client(fd, server_name, timeout_ms, opts) {
+fn _wrap_client_record(fd, server_name, timeout_ms, opts) {
     if fd == nil { fd = -1 }
-    if fd >= 0 { tcp.close(fd) }
+    if fd >= 0 { tcp.close_raw(fd) }
     return {"ok": 0, "err": "tls.wrap_client: TLS provider not implemented for this OS yet (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 @cfg(not_os="macos,linux,windows")
-fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+fn _wrap_server_pkcs12_record(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if fd == nil { fd = -1 }
-    if fd >= 0 { tcp.close(fd) }
+    if fd >= 0 { tcp.close_raw(fd) }
     return {"ok": 0, "err": "tls.wrap_server: TLS provider not implemented for this OS yet (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 @cfg(not_os="macos,linux,windows")
-fn read_into(conn, buf, cap, timeout_ms) {
+fn read_into_raw(conn, buf, cap, timeout_ms) {
     return 0 - 38 // ENOSYS
 }
 
 @cfg(not_os="macos,linux,windows")
-fn write_from(conn, ptr0, len, timeout_ms) {
+fn write_from_raw(conn, ptr0, len, timeout_ms) {
     return 0 - 38 // ENOSYS
 }
 
 @cfg(not_os="macos,linux,windows")
-fn close(conn) {
+fn close_raw(conn) {
     return 0 - 38 // ENOSYS
 }
 
 @cfg(not_os="macos,linux,windows")
-fn peer_cert_sha256_hex(conn) {
+fn _peer_cert_sha256_hex_record(conn) {
     return {"ok": 0, "err": "tls.peer_cert_sha256_hex: not implemented (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 @cfg(not_os="macos,linux,windows")
-fn negotiated_alpn(conn) {
+fn _negotiated_alpn_record(conn) {
     return {"ok": 0, "err": "tls.negotiated_alpn: not implemented (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
@@ -238,143 +231,138 @@ fn negotiated_alpn(conn) {
 // This also keeps OS-specific FFI blocks isolated.
 
 @cfg(os="linux")
-fn wrap_client(fd, server_name, timeout_ms, opts) {
+fn _wrap_client_record(fd, server_name, timeout_ms, opts) {
     var r = tls_linux.wrap_client(fd, server_name, timeout_ms, opts)
     if oren_map_get_str(r, "ok") != 1 { return r }
     var conn = oren_map_get_str(r, "conn")
     var pinr = _pin_peer_cert_if_requested(conn, opts)
     if pinr["ok"] != 1 {
-        close(conn)
+        close_raw(conn)
         return {"ok": 0, "err": pinr["err"]}
     }
     return r
 }
 
 @cfg(os="linux")
-fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+fn _wrap_server_pkcs12_record(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     return tls_linux.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
 }
 
 @cfg(os="linux")
-fn read_into(conn, buf, cap, timeout_ms) {
+fn read_into_raw(conn, buf, cap, timeout_ms) {
     return tls_linux.read_into(conn, buf, cap, timeout_ms)
 }
 
 @cfg(os="linux")
-fn write_from(conn, ptr0, len, timeout_ms) {
+fn write_from_raw(conn, ptr0, len, timeout_ms) {
     return tls_linux.write_from(conn, ptr0, len, timeout_ms)
 }
 
 @cfg(os="linux")
-fn close(conn) {
+fn close_raw(conn) {
     return tls_linux.close(conn)
 }
 
 @cfg(os="linux")
-fn peer_cert_sha256_hex(conn) {
+fn _peer_cert_sha256_hex_record(conn) {
     return tls_linux.peer_cert_sha256_hex(conn)
 }
 
 @cfg(os="linux")
-fn negotiated_alpn(conn) {
+fn _negotiated_alpn_record(conn) {
     return tls_linux.negotiated_alpn(conn)
 }
 
 @cfg(os="windows")
-fn wrap_client(fd, server_name, timeout_ms, opts) {
+fn _wrap_client_record(fd, server_name, timeout_ms, opts) {
     var r = tls_win.wrap_client(fd, server_name, timeout_ms, opts)
     if oren_map_get_str(r, "ok") != 1 { return r }
     var conn = oren_map_get_str(r, "conn")
     var pinr = _pin_peer_cert_if_requested(conn, opts)
     if pinr["ok"] != 1 {
-        close(conn)
+        close_raw(conn)
         return {"ok": 0, "err": pinr["err"]}
     }
     return r
 }
 
 @cfg(os="windows")
-fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+fn _wrap_server_pkcs12_record(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     return tls_win.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
 }
 
 @cfg(os="windows")
-fn read_into(conn, buf, cap, timeout_ms) {
+fn read_into_raw(conn, buf, cap, timeout_ms) {
     return tls_win.read_into(conn, buf, cap, timeout_ms)
 }
 
 @cfg(os="windows")
-fn write_from(conn, ptr0, len, timeout_ms) {
+fn write_from_raw(conn, ptr0, len, timeout_ms) {
     return tls_win.write_from(conn, ptr0, len, timeout_ms)
 }
 
 @cfg(os="windows")
-fn close(conn) {
+fn close_raw(conn) {
     return tls_win.close(conn)
 }
 
 @cfg(os="windows")
-fn peer_cert_sha256_hex(conn) {
+fn _peer_cert_sha256_hex_record(conn) {
     return tls_win.peer_cert_sha256_hex(conn)
 }
 
 @cfg(os="windows")
-fn negotiated_alpn(conn) {
+fn _negotiated_alpn_record(conn) {
     return tls_win.negotiated_alpn(conn)
 }
 
 @cfg(os="macos")
-fn wrap_client(fd, server_name, timeout_ms, opts) {
+fn _wrap_client_record(fd, server_name, timeout_ms, opts) {
     var r = tls_macos.wrap_client(fd, server_name, timeout_ms, opts)
     if oren_map_get_str(r, "ok") != 1 { return r }
     var conn = oren_map_get_str(r, "conn")
     var pinr = _pin_peer_cert_if_requested(conn, opts)
     if pinr["ok"] != 1 {
-        close(conn)
+        close_raw(conn)
         return {"ok": 0, "err": pinr["err"]}
     }
     return r
 }
 
 @cfg(os="macos")
-fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+fn _wrap_server_pkcs12_record(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     return tls_macos.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
 }
 
 @cfg(os="macos")
-fn read_into(conn, buf, cap, timeout_ms) {
+fn read_into_raw(conn, buf, cap, timeout_ms) {
     return tls_macos.read_into(conn, buf, cap, timeout_ms)
 }
 
 @cfg(os="macos")
-fn write_from(conn, ptr0, len, timeout_ms) {
+fn write_from_raw(conn, ptr0, len, timeout_ms) {
     return tls_macos.write_from(conn, ptr0, len, timeout_ms)
 }
 
 @cfg(os="macos")
-fn close(conn) {
+fn close_raw(conn) {
     return tls_macos.close(conn)
 }
 
 @cfg(os="macos")
-fn peer_cert_sha256_hex(conn) {
+fn _peer_cert_sha256_hex_record(conn) {
     return tls_macos.peer_cert_sha256_hex(conn)
 }
 
 @cfg(os="macos")
-fn negotiated_alpn(conn) {
+fn _negotiated_alpn_record(conn) {
     return tls_macos.negotiated_alpn(conn)
 }
 
 impl TlsConn for Conn {
-    fn read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
-    fn try_read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
-    fn write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
-    fn try_write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
-    fn close(self) { return try_close(self) }
-    fn try_close(self) { return try_close(self) }
-    fn peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
-    fn try_peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
-    fn negotiated_alpn(self) { return try_negotiated_alpn(self) }
-    fn try_negotiated_alpn(self) { return try_negotiated_alpn(self) }
+    fn read_into(self, buf, cap, timeout_ms) { return read_into(self, buf, cap, timeout_ms) }
+    fn write_from(self, ptr0, len, timeout_ms) { return write_from(self, ptr0, len, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn peer_cert_sha256_hex(self) { return peer_cert_sha256_hex(self) }
+    fn negotiated_alpn(self) { return negotiated_alpn(self) }
 }

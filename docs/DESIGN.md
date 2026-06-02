@@ -194,6 +194,11 @@ Constraints:
   code. HTTP/2 follows the same rule: create a client/session value and call
   `client.request(...).text()` or `.bytes()`. Raw syscall-first forms may remain
   as internal/performance primitives.
+- Fallible stdlib calls should not advertise fallibility through `try_*` names.
+  Use the canonical verb (`connect`, `request`, `read_into`, `close`) and return
+  `value | oren_err`; callers can branch with `oren_is_err(value)` or ignore the
+  error path when the surrounding context proves success. Low-level numeric errno
+  contracts must be explicit `*_raw` primitives.
 - Avoid root-level mixed-domain helpers like `try_get_text`; choose an explicit
   domain object/scope first, then expose `request`/`response`/`value` methods.
   `make verify-stdlib-api-shape` guards the known bad root-helper names so the

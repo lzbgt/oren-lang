@@ -52,7 +52,7 @@ fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
     if lenp == 0 { free(buf); free(sa); return 62 }
     ptr_set(lenp, 16)
 
-    var rn = udp.recv_from_into(fd, buf, 512, 5000, sa, lenp)
+    var rn = udp.recv_from_into_raw(fd, buf, 512, 5000, sa, lenp)
     if rn < 0 {
         free(buf)
         free(sa)
@@ -156,7 +156,7 @@ fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
 
     // Extract source port from sockaddr_in and reply to loopback.
     var src_port = u16be_at(sa, 2)
-    var wn = udp.send_to(fd, "127.0.0.1", src_port, resp, resp_len, 2000)
+    var wn = udp.send_to_raw(fd, "127.0.0.1", src_port, resp, resp_len, 2000)
 
     free(buf)
     free(resp)
@@ -169,7 +169,7 @@ fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
 fn server(listen_fd) {
     // Accept + handshake, then echo one text frame.
     // Keep timeouts a bit generous on remote Win11 hosts (rolling: avoid flaky scheduling timeouts).
-    var conn = ws.try_accept(listen_fd, 10000)
+    var conn = ws.accept(listen_fd, 10000)
     if oren_is_err(conn) {
         print("ws_echo_loopback: server accept FAIL: " + oren_err_msg(conn))
         return 10
@@ -204,9 +204,9 @@ fn run_one(listen_fd, url, resolver) {
 
     var c = 0
     if resolver != nil {
-        c = ws.try_connect_resolver(url, 5000, resolver)
+        c = ws.connect_resolver(url, 5000, resolver)
     } else {
-        c = ws.try_connect(url, 5000)
+        c = ws.connect(url, 5000)
     }
 
     if oren_is_err(c) {
@@ -298,10 +298,10 @@ fn run_case() {
     }
 
     // Hostname path: serve a loopback DNS A record so the test stays offline and deterministic.
-    var sfd = udp.bind_local(0)
+    var sfd = udp.bind_local_raw(0)
     if sfd < 0 { oren_tcp_close(listen_fd); return 50 }
-    var sport = udp.sockname_port(sfd)
-    if sport <= 0 { udp.close(sfd); oren_tcp_close(listen_fd); return 51 }
+    var sport = udp.sockname_port_raw(sfd)
+    if sport <= 0 { udp.close_raw(sfd); oren_tcp_close(listen_fd); return 51 }
     var dh = spawn dns_server_one_a(sfd, 127, 0, 0, 1)
 
     var url2 = "ws://oren.test:" + oren_int_to_string(port) + "/"
@@ -309,7 +309,7 @@ fn run_case() {
     var rc2 = run_one(listen_fd, url2, res)
     free(url2)
     var dsr = oren_join_timeout(dh, 5000)
-    udp.close(sfd)
+    udp.close_raw(sfd)
     if dsr != 0 && rc2 == 0 { rc2 = 52 }
     if rc2 != 0 {
         oren_tcp_close(listen_fd)
@@ -321,7 +321,7 @@ fn run_case() {
 }
 
 fn run_low_level_helpers() {
-    var u = ws.try_parse_url("ws://127.0.0.1:1234/chat")
+    var u = ws.parse_url("ws://127.0.0.1:1234/chat")
     if oren_is_err(u) {
         print("ws_echo_loopback: FAIL parse_url err=" + oren_err_msg(u))
         return 70
@@ -331,10 +331,10 @@ fn run_low_level_helpers() {
     if u["port"] != 1234 { return 73 }
     if strcmp(u["path"], "/chat") != 0 { return 74 }
 
-    var bad = ws.try_parse_url("ftp://127.0.0.1/")
+    var bad = ws.parse_url("ftp://127.0.0.1/")
     if !oren_is_err(bad) { return 75 }
 
-    var key = ws.try_client_key_base64()
+    var key = ws.client_key_base64()
     if oren_is_err(key) {
         print("ws_echo_loopback: FAIL client_key err=" + oren_err_msg(key))
         return 76

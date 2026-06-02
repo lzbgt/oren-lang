@@ -32,43 +32,43 @@ import rand "std:crypto/rand"
 import pem "std:crypto/pem"
 
 @cfg(os="linux")
-fn _provider_try_refs(fd, conn) {
-    var _pc = tls_linux.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
-    var _ps = tls_linux.try_wrap_server_pkcs12(fd, 1, 0, "", {})
-    var _pr = tls_linux.try_read_into(conn, 0, 0, 1)
-    var _pw = tls_linux.try_write_from(conn, 0, 0, 1)
-    var _pp = tls_linux.try_peer_cert_sha256_hex(conn)
-    var _pa = tls_linux.try_negotiated_alpn(conn)
-    var _px = tls_linux.try_close(conn)
+fn _provider_refs(fd, conn) {
+    var _pc = tls_linux.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
+    var _ps = tls_linux.wrap_server_pkcs12(fd, 1, 0, "", {})
+    var _pr = tls_linux.read_into(conn, 0, 0, 1)
+    var _pw = tls_linux.write_from(conn, 0, 0, 1)
+    var _pp = tls_linux.peer_cert_sha256_hex(conn)
+    var _pa = tls_linux.negotiated_alpn(conn)
+    var _px = tls_linux.close(conn)
     return 0
 }
 
 @cfg(os="macos")
-fn _provider_try_refs(fd, conn) {
-    var _pc = tls_macos.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
-    var _ps = tls_macos.try_wrap_server_pkcs12(fd, 1, 0, "", {})
-    var _pr = tls_macos.try_read_into(conn, 0, 0, 1)
-    var _pw = tls_macos.try_write_from(conn, 0, 0, 1)
-    var _pp = tls_macos.try_peer_cert_sha256_hex(conn)
-    var _pa = tls_macos.try_negotiated_alpn(conn)
-    var _px = tls_macos.try_close(conn)
+fn _provider_refs(fd, conn) {
+    var _pc = tls_macos.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
+    var _ps = tls_macos.wrap_server_pkcs12(fd, 1, 0, "", {})
+    var _pr = tls_macos.read_into(conn, 0, 0, 1)
+    var _pw = tls_macos.write_from(conn, 0, 0, 1)
+    var _pp = tls_macos.peer_cert_sha256_hex(conn)
+    var _pa = tls_macos.negotiated_alpn(conn)
+    var _px = tls_macos.close(conn)
     return 0
 }
 
 @cfg(os="windows")
-fn _provider_try_refs(fd, conn) {
-    var _pc = tls_win.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
-    var _ps = tls_win.try_wrap_server_pkcs12(fd, 1, 0, "", {})
-    var _pr = tls_win.try_read_into(conn, 0, 0, 1)
-    var _pw = tls_win.try_write_from(conn, 0, 0, 1)
-    var _pp = tls_win.try_peer_cert_sha256_hex(conn)
-    var _pa = tls_win.try_negotiated_alpn(conn)
-    var _px = tls_win.try_close(conn)
+fn _provider_refs(fd, conn) {
+    var _pc = tls_win.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
+    var _ps = tls_win.wrap_server_pkcs12(fd, 1, 0, "", {})
+    var _pr = tls_win.read_into(conn, 0, 0, 1)
+    var _pw = tls_win.write_from(conn, 0, 0, 1)
+    var _pp = tls_win.peer_cert_sha256_hex(conn)
+    var _pa = tls_win.negotiated_alpn(conn)
+    var _px = tls_win.close(conn)
     return 0
 }
 
 @cfg(not_os="macos,linux,windows")
-fn _provider_try_refs(fd, conn) {
+fn _provider_refs(fd, conn) {
     return 0
 }
 
@@ -81,7 +81,7 @@ fn main() {
     // - codegen has to include these modules in the compilation unit.
     if 0 == 1 {
         // TCP symbol reference (link surface).
-        var fd = tcp.connect("127.0.0.1", 443, 1)
+        var fd = tcp.connect_raw("127.0.0.1", 443, 1)
 
         // DNS default resolver (Win11 uses iphlpapi; POSIX uses /etc/resolv.conf).
         // This stays in a dead branch so the compile-only gate can typecheck the surface
@@ -89,19 +89,17 @@ fn main() {
         var _dr = dns.default_resolver(1)
 
         // TLS symbol reference (type surface).
-        var cr = tls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
-        var _try_conn = tls.try_connect("127.0.0.1", 443, 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
-        var _try_conn_alpn = _try_conn.negotiated_alpn()
-        var ok = oren_map_get_str(cr, "ok")
-        if ok == 1 {
-            var conn = oren_map_get_str(cr, "conn")
+        var conn = tls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+        var _tls_conn = tls.connect("127.0.0.1", 443, 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+        var _tls_conn_alpn = _tls_conn.negotiated_alpn()
+        if oren_is_err(conn) != true {
             var _al = tls.negotiated_alpn(conn)
-            var _try_al = tls.negotiated_alpn(conn)
+            var _tls_al = tls.negotiated_alpn(conn)
             // Crypto-facing TLS facade path (should remain a stable import; currently an alias layer).
             var _cr2 = ctls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
-            var _tcr2 = ctls.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+            var _tcr2 = ctls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
             var _tcr2_alpn = _tcr2.negotiated_alpn()
-            var _ptr = _provider_try_refs(fd, conn)
+            var _ptr = _provider_refs(fd, conn)
 
             // HTTP/1.1 surface (TLS-backed request/response helper).
             // Note: we do not actually dial; this is just a type/symbol coverage hook.
@@ -110,12 +108,12 @@ fn main() {
 
             // WSS surface (WebSocket over TLS).
             var _wr = ws.connect_resolver_opts("wss://127.0.0.1/", 1, 0, {"tls": {"insecure_skip_verify": 1}})
-            var _wpu = ws.try_parse_url("wss://127.0.0.1/")
-            var _wk = ws.try_client_key_base64()
+            var _wpu = ws.parse_url("wss://127.0.0.1/")
+            var _wk = ws.client_key_base64()
 
             // Client wrapper surface (http2_client).
             var _c = h2c.new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
-            var _tc = h2c.try_new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
+            var _tc = h2c.new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
             var _tc_state = _tc.raw_state()
             var _tc_resp = _tc.request([
                 {"name": ":method", "value": "GET"},

@@ -19,7 +19,7 @@
 import udp "std:net/udp"
 import rand "std:crypto/rand"
 
-fn _err_result(r, fallback) {
+fn _err_from_record(r, fallback) {
     var msg = r["err"]
     if msg == nil || msg == "" { msg = fallback }
     return oren_err(4, msg)
@@ -66,7 +66,7 @@ fn resolve_a(res, name) {
 fn try_resolve_a(res, name) {
     var r = resolve_a(res, name)
     if r["ok"] == 1 { return r["ip"] }
-    return _err_result(r, "dns.resolve_a failed")
+    return _err_from_record(r, "dns.resolve_a failed")
 }
 
 fn resolver_free(res) {
@@ -604,45 +604,45 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
 
     var qlen = off
 
-    var fd = udp.bind_local(0)
+    var fd = udp.bind_local_raw(0)
     if fd < 0 {
         free(q)
         return {"ok": 0, "err": "dns.query_a: udp.bind_local failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
 
-    var wn = udp.send_to(fd, server_ip, server_port, q, qlen, timeout_ms)
+    var wn = udp.send_to_raw(fd, server_ip, server_port, q, qlen, timeout_ms)
     free(q)
     if wn < 0 {
-        udp.close(fd)
+        udp.close_raw(fd)
         return {"ok": 0, "err": "dns.query_a: send failed (errno=" + oren_int_to_string(0 - wn) + ")"}
     }
     if wn != qlen {
-        udp.close(fd)
+        udp.close_raw(fd)
         return {"ok": 0, "err": "dns.query_a: short send"}
     }
 
     var rbuf = malloc(cap)
     if rbuf == 0 {
-        udp.close(fd)
+        udp.close_raw(fd)
         return {"ok": 0, "err": "dns.query_a: malloc recv failed"}
     }
     var sa = malloc(16)
     if sa == 0 {
         free(rbuf)
-        udp.close(fd)
+        udp.close_raw(fd)
         return {"ok": 0, "err": "dns.query_a: malloc addr failed"}
     }
     var lenp = malloc(8)
     if lenp == 0 {
         free(rbuf)
         free(sa)
-        udp.close(fd)
+        udp.close_raw(fd)
         return {"ok": 0, "err": "dns.query_a: malloc addr len failed"}
     }
     ptr_set(lenp, 16)
 
-    var rn = udp.recv_from_into(fd, rbuf, cap, timeout_ms, sa, lenp)
-    udp.close(fd)
+    var rn = udp.recv_from_into_raw(fd, rbuf, cap, timeout_ms, sa, lenp)
+    udp.close_raw(fd)
     free(sa)
     free(lenp)
     if rn < 0 {
@@ -658,5 +658,5 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
 fn try_query_a(name, server_ip, server_port, timeout_ms) {
     var r = query_a(name, server_ip, server_port, timeout_ms)
     if r["ok"] == 1 { return r["ip"] }
-    return _err_result(r, "dns.query_a failed")
+    return _err_from_record(r, "dns.query_a failed")
 }

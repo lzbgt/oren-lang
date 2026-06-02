@@ -485,9 +485,11 @@
 <p>		  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
 <p>		  expose <code>.recv_text(...)</code> / <code>.send_text_client(...)</code>, and AVM virtual</p>
 <p>		  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
-<p>		  waits, accept, and close receiver methods. Native HTTP/2 client state now</p>
-<p>		  uses a typed <code>Client</code> receiver with <code>client.request(...).text()</code> /</p>
-<p>		  <code>.bytes()</code> response methods instead of a raw-map <code>try_request</code> helper.</p>
+<p>			  waits, accept, and close receiver methods. Native HTTP/2 client state now</p>
+<p>			  uses a typed <code>Client</code> receiver with <code>client.request(...).text()</code> /</p>
+<p>			  <code>.bytes()</code> response methods. Public fallible NET APIs now use normal</p>
+<p>			  verbs returning <code>value | oren_err</code>; syscall-style errno contracts are</p>
+<p>			  explicit <code>*_raw</code> primitives.</p>
 <p>  buffer pass fixed unchecked f64 typed-buffer stores to write IEEE-754 bits</p>
 <p>  instead of truncating fractional values through integer byte writes. Further</p>
 <p>  cleanup should keep text helpers explicit at API boundaries.</p>

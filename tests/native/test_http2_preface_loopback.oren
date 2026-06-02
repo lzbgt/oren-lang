@@ -71,7 +71,7 @@ fn _read_exact(conn, buf, need, timeout_ms) {
     if need < 0 { return 0 - 22 }
     var off = 0
     while off < need {
-        var n = tls.read_into(conn, buf + off, need - off, timeout_ms)
+        var n = tls.read_into_raw(conn, buf + off, need - off, timeout_ms)
         if n < 0 { return n }
         if n == 0 { return 0 - 104 } // ECONNRESET-ish
         off = off + n
@@ -83,7 +83,7 @@ fn _write_all(conn, ptr0, n, timeout_ms) {
     if n < 0 { return 0 - 22 }
     var off = 0
     while off < n {
-        var w = tls.write_from(conn, ptr0 + off, n - off, timeout_ms)
+        var w = tls.write_from_raw(conn, ptr0 + off, n - off, timeout_ms)
         if w < 0 { return w }
         if w == 0 { return 0 - 104 }
         off = off + w
@@ -108,7 +108,7 @@ fn _must_be_h2(proto) {
 }
 
 fn server_impl(listen_fd, pfx_b64) {
-    var fd = tcp.accept(listen_fd, 5000)
+    var fd = tcp.accept_raw(listen_fd, 5000)
     if fd < 0 { return 11 }
 
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
@@ -119,20 +119,17 @@ fn server_impl(listen_fd, pfx_b64) {
 
     // Prefer h2 on the server to exercise server-side selection.
     var srv_opts = {"alpn": ["h2", "http/1.1"]}
-    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
-    if oren_map_get_str(r, "ok") != 1 {
-        var es = oren_map_get_str(r, "err")
-        if es != 0 { print("http2_loopback: server wrap FAIL: " + es) }
+    var conn = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
+    if oren_is_err(conn) {
+        print("http2_loopback: server wrap FAIL: " + oren_err_msg(conn))
         return 12
     }
-    var conn = oren_map_get_str(r, "conn")
     if conn == 0 { return 13 }
 
     // Best-effort: validate ALPN if provider reports it.
     var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc = _must_be_h2(v)
+    if oren_is_err(al) != true {
+        var rc = _must_be_h2(al)
         if rc != 0 {
             tls.close(conn)
             return 14
@@ -225,19 +222,16 @@ fn main() {
 fn _http2_preface_client_impl(port, expected_leaf_sha256_hex) {
     // Client: request h2 and pin the deterministic cert.
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 {
-        var es = oren_map_get_str(cr, "err")
-        if es != 0 { print("http2_loopback: client connect FAIL: " + es) }
+    var conn = tls.connect("127.0.0.1", port, 5000, tls_opts)
+    if oren_is_err(conn) {
+        print("http2_loopback: client connect FAIL: " + oren_err_msg(conn))
         return 7
     }
-    var conn = oren_map_get_str(cr, "conn")
     if conn == 0 { return 8 }
 
     var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc = _must_be_h2(v)
+    if oren_is_err(al) != true {
+        var rc = _must_be_h2(al)
         if rc != 0 {
             tls.close(conn)
             return 9
@@ -312,7 +306,7 @@ fn main_client() {
     var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
 
     // Bind ephemeral loopback port.
-    var listen_fd = tcp.listen_local(0)
+    var listen_fd = tcp.listen_local_raw(0)
     if listen_fd < 0 { exit(3) }
 
     // getsockname to find the bound port.
@@ -341,7 +335,7 @@ fn main_client() {
 
     var rc2 = oren_join_timeout(hc, 5000)
     var sr2 = oren_join_timeout(h, 5000)
-    tcp.close(listen_fd)
+    tcp.close_raw(listen_fd)
     if rc2 != 0 { exit(rc2) }
     if sr2 != 0 { exit(26) }
     exit(0)
@@ -379,19 +373,17 @@ fn main_client() {
         exit(server_main(listen_fd, pfx_b64))
     }
 
-    var fd = tcp.connect("127.0.0.1", port, 5000)
+    var fd = tcp.connect_raw("127.0.0.1", port, 5000)
     if fd < 0 { exit(8) }
 
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 { exit(9) }
-    var conn = oren_map_get_str(cr, "conn")
+    var conn = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) { exit(9) }
     if conn == 0 { exit(10) }
 
     var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc = _must_be_h2(v)
+    if oren_is_err(al) != true {
+        var rc = _must_be_h2(al)
         if rc != 0 { tls.close(conn); exit(11) }
     }
 
@@ -459,7 +451,7 @@ fn main_client() {
     if wpid != pid { free(status_ptr); exit(29) }
     var status = ptr_get(status_ptr)
     free(status_ptr)
-    tcp.close(listen_fd)
+    tcp.close_raw(listen_fd)
     if status != 0 { exit(30) }
     exit(0)
 }
@@ -505,19 +497,17 @@ fn main_client() {
         exit(127)
     }
 
-    var fd = tcp.connect("127.0.0.1", port, 5000)
+    var fd = tcp.connect_raw("127.0.0.1", port, 5000)
     if fd < 0 { exit(8) }
 
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 { exit(9) }
-    var conn = oren_map_get_str(cr, "conn")
+    var conn = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) { exit(9) }
     if conn == 0 { exit(10) }
 
     var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc = _must_be_h2(v)
+    if oren_is_err(al) != true {
+        var rc = _must_be_h2(al)
         if rc != 0 { tls.close(conn); exit(11) }
     }
 
@@ -585,7 +575,7 @@ fn main_client() {
     if wpid != pid { free(status_ptr); exit(29) }
     var status = ptr_get(status_ptr)
     free(status_ptr)
-    tcp.close(listen_fd)
+    tcp.close_raw(listen_fd)
     if status != 0 { exit(30) }
     exit(0)
 }

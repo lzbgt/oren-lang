@@ -38,19 +38,6 @@ fn _kCFStringEncodingUTF8() { return 134217984 } // 0x08000100
 @cfg(os="macos")
 fn _OREN_O_NONBLOCK() { return 1024 }
 
-@cfg(os="macos")
-fn _err_result(r, fallback) {
-    var msg = r["err"]
-    if msg == nil || msg == "" { msg = fallback }
-    return oren_err(4, msg)
-}
-
-@cfg(os="macos")
-fn _errno_result(rc, fallback) {
-    if rc >= 0 { return rc }
-    return oren_err(0 - rc, fallback + " failed (errno=" + oren_int_to_string(0 - rc) + ")")
-}
-
 // dl.dlsym handle: RTLD_DEFAULT on macOS is (void*)-2.
 @cfg(os="macos")
 fn _RTLD_DEFAULT() { return 0 - 2 }
@@ -445,10 +432,10 @@ fn _macos_handshake(ssl_ctx, st, timeout_ms) {
         }
         var want = _conn_state_want(st)
         if want == 1 {
-            var w = tcp.wait_readable(_conn_state_fd(st), rem_ms)
+            var w = tcp.wait_readable_raw(_conn_state_fd(st), rem_ms)
             if w <= 0 { return _errSSLConnectionRefused_from_wait(w) }
         } else {
-            var w2 = tcp.wait_writable(_conn_state_fd(st), rem_ms)
+            var w2 = tcp.wait_writable_raw(_conn_state_fd(st), rem_ms)
             if w2 <= 0 { return _errSSLConnectionRefused_from_wait(w2) }
         }
         var now = oren_time_unix_ns()
@@ -481,7 +468,7 @@ fn _macos_new_ctx(is_server) {
 fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     var st = _conn_state_new(fd)
     if st == 0 {
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls: alloc failed"}
     }
 
@@ -494,7 +481,7 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     var ctx = _macos_new_ctx(is_server)
     if ctx == 0 {
         free(st)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls: sec.SSLCreateContext failed"}
     }
 
@@ -526,7 +513,7 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     if read_cb == 0 || write_cb == 0 {
         cf.CFRelease(ctx)
         free(st)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls: missing exported SecureTransport IO callback symbols (need @ffi.export)"}
     }
 
@@ -534,14 +521,14 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     if rc != 0 {
         cf.CFRelease(ctx)
         free(st)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls: sec.SSLSetIOFuncs failed (rc=" + oren_int_to_string(rc) + ")"}
     }
     rc = sec.SSLSetConnection(ctx, st)
     if rc != 0 {
         cf.CFRelease(ctx)
         free(st)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls: sec.SSLSetConnection failed (rc=" + oren_int_to_string(rc) + ")"}
     }
 
@@ -550,7 +537,7 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     if alpn_r["ok"] != 1 {
         cf.CFRelease(ctx)
         free(st)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return alpn_r
     }
 
@@ -562,7 +549,7 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
                 if rc2 != 0 {
                     cf.CFRelease(ctx)
                     free(st)
-                    tcp.close(fd)
+                    tcp.close_raw(fd)
                     return {"ok": 0, "err": "tls: sec.SSLSetPeerDomainName failed (rc=" + oren_int_to_string(rc2) + ")"}
                 }
             }
@@ -580,7 +567,7 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
             if rc3 != 0 {
                 cf.CFRelease(ctx)
                 free(st)
-                tcp.close(fd)
+                tcp.close_raw(fd)
                 return {"ok": 0, "err": "tls: sec.SSLSetEnableCertVerify failed (rc=" + oren_int_to_string(rc3) + ")"}
             }
         }
@@ -606,12 +593,12 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
 @cfg(os="macos")
 fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_server: fd invalid"} }
-    if pkcs12_bytes == nil { tcp.close(fd); return {"ok": 0, "err": "tls.wrap_server: pkcs12_bytes is nil"} }
+    if pkcs12_bytes == nil { tcp.close_raw(fd); return {"ok": 0, "err": "tls.wrap_server: pkcs12_bytes is nil"} }
     if passphrase == nil { passphrase = "" }
 
     var imp = _macos_import_pkcs12_identity(pkcs12_bytes, passphrase)
     if imp["ok"] != 1 {
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": imp["err"]}
     }
     var items = imp["items"]
@@ -667,8 +654,8 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
 @cfg(os="macos")
 fn _macos_wait_io(conn, timeout_ms, want) {
     var fd = conn["fd"]
-    if want == 1 { return tcp.wait_readable(fd, timeout_ms) }
-    return tcp.wait_writable(fd, timeout_ms)
+    if want == 1 { return tcp.wait_readable_raw(fd, timeout_ms) }
+    return tcp.wait_writable_raw(fd, timeout_ms)
 }
 
 @cfg(os="macos")
@@ -767,7 +754,7 @@ fn close(conn) {
     }
     if st != 0 { free(st) }
     if items != 0 { cf.CFRelease(items) }
-    if fd != nil && fd >= 0 { tcp.close(fd) }
+    if fd != nil && fd >= 0 { tcp.close_raw(fd) }
     return 0
 }
 
@@ -902,47 +889,4 @@ fn negotiated_alpn(conn) {
     // Track as a STRING allocation for the native runtime GC.
     oren_track_alloc(buf, l + 1, 1)
     return {"ok": 1, "v": buf}
-}
-
-@cfg(os="macos")
-fn try_wrap_client(fd, server_name, timeout_ms, opts) {
-    var r = wrap_client(fd, server_name, timeout_ms, opts)
-    if r["ok"] == 1 { return r["conn"] }
-    return _err_result(r, "tls_macos.wrap_client failed")
-}
-
-@cfg(os="macos")
-fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
-    var r = wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
-    if r["ok"] == 1 { return r["conn"] }
-    return _err_result(r, "tls_macos.wrap_server_pkcs12 failed")
-}
-
-@cfg(os="macos")
-fn try_read_into(conn, buf, cap, timeout_ms) {
-    return _errno_result(read_into(conn, buf, cap, timeout_ms), "tls_macos.read_into")
-}
-
-@cfg(os="macos")
-fn try_write_from(conn, ptr0, len, timeout_ms) {
-    return _errno_result(write_from(conn, ptr0, len, timeout_ms), "tls_macos.write_from")
-}
-
-@cfg(os="macos")
-fn try_close(conn) {
-    return _errno_result(close(conn), "tls_macos.close")
-}
-
-@cfg(os="macos")
-fn try_peer_cert_sha256_hex(conn) {
-    var r = peer_cert_sha256_hex(conn)
-    if r["ok"] == 1 { return r["v"] }
-    return _err_result(r, "tls_macos.peer_cert_sha256_hex failed")
-}
-
-@cfg(os="macos")
-fn try_negotiated_alpn(conn) {
-    var r = negotiated_alpn(conn)
-    if r["ok"] == 1 { return r["v"] }
-    return _err_result(r, "tls_macos.negotiated_alpn failed")
 }

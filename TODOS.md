@@ -50,8 +50,9 @@ design evidence lives under `project-doc/`.
   such as `buf.slice(1, 3).text()` and `buf.matrix(2, 3).row(1).text()` while
   retaining the existing low-level root helpers as primitives.
 - `make verify-stdlib-api-shape` is part of the fast `make test` path and blocks
-  known bad root-helper regressions such as `try_get_text`, `try_get_bytes`,
-  root HTTP/HTTP2 `try_request`, and public WebSocket `try_*_text` helpers.
+  known bad root-helper regressions. Public fallible stdlib APIs should use normal
+  verbs returning `value | oren_err`; numeric errno contracts belong under
+  explicit `*_raw` primitives.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,
   `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,

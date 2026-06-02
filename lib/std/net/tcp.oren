@@ -8,13 +8,9 @@
 // - All operations are capability-gated by the runtime capsule (`domain="NET"`).
 // - All potentially-blocking operations accept `timeout_ms` to avoid hangs.
 //   - `timeout_ms < 0` is treated as "no wait" (0ms) in rolling mode to avoid accidental hangs.
-// - Return convention (rolling):
-//   - `fd` / byte-count: `>= 0` on success
-//   - negative errno: `< 0` on failure
-//
-// Root functions are raw performance primitives. Receiver methods return values
-// or `oren_err`; `try_*` root aliases expose the same structured behavior when a
-// caller cannot use method syntax.
+// - Public functions return values or `oren_err`.
+// - Raw syscall/performance primitives use explicit `*_raw` names and return
+//   `>= 0` on success or negative errno on failure.
 
 import result "std:result"
 
@@ -29,15 +25,10 @@ struct Listener {
 trait TcpConn {
     fn raw_fd(self);
     fn read_into(self, buf, len, timeout_ms);
-    fn try_read_into(self, buf, len, timeout_ms);
     fn write_from(self, buf, len, timeout_ms);
-    fn try_write_from(self, buf, len, timeout_ms);
     fn close(self);
-    fn try_close(self);
     fn set_keepalive(self, enable);
-    fn try_set_keepalive(self, enable);
     fn set_nodelay(self, enable);
-    fn try_set_nodelay(self, enable);
     fn wait_readable(self, timeout_ms);
     fn wait_writable(self, timeout_ms);
 }
@@ -45,46 +36,44 @@ trait TcpConn {
 trait TcpListener {
     fn raw_fd(self);
     fn accept(self, timeout_ms): Conn;
-    fn try_accept(self, timeout_ms): Conn;
     fn close(self);
-    fn try_close(self);
     fn wait_readable(self, timeout_ms);
 }
 
-// --- Raw syscall-style wrappers (recommended for performance) ---
+// --- Raw syscall-style wrappers (recommended for performance-critical internals) ---
 
-fn connect(ip, port, timeout_ms) {
+fn connect_raw(ip, port, timeout_ms) {
     return oren_tcp_connect(ip, port, timeout_ms)
 }
 
-fn listen_local(port) {
+fn listen_local_raw(port) {
     // Binds to 127.0.0.1:<port> and listens with a small backlog.
     // Returns listening fd or -errno.
     return oren_tcp_listen_local(port)
 }
 
-fn accept(listen_fd, timeout_ms) {
+fn accept_raw(listen_fd, timeout_ms) {
     // Returns accepted fd or -errno.
     return oren_tcp_accept(listen_fd, timeout_ms)
 }
 
-fn read_into(fd, buf, len, timeout_ms) {
+fn read_into_raw(fd, buf, len, timeout_ms) {
     // Reads up to len bytes into buf.
     // Returns number of bytes read, or -errno.
     return oren_tcp_read_into(fd, buf, len, timeout_ms)
 }
 
-fn write_from(fd, buf, len, timeout_ms) {
+fn write_from_raw(fd, buf, len, timeout_ms) {
     // Writes len bytes from buf.
     // Returns number of bytes written, or -errno.
     return oren_tcp_write_from(fd, buf, len, timeout_ms)
 }
 
-fn close(fd) {
+fn close_raw(fd) {
     return oren_tcp_close(fd)
 }
 
-fn set_keepalive(fd, enable) {
+fn set_keepalive_raw(fd, enable) {
     // Enable/disable TCP keepalive on a connected socket.
     //
     // This is a portable wrapper over:
@@ -101,7 +90,7 @@ fn set_keepalive(fd, enable) {
     return rc
 }
 
-fn set_nodelay(fd, enable) {
+fn set_nodelay_raw(fd, enable) {
     // Enable/disable TCP_NODELAY (disable/enable Nagle).
     //
     // This is a portable wrapper over:
@@ -116,7 +105,7 @@ fn set_nodelay(fd, enable) {
     return rc
 }
 
-fn wait_readable(fd, timeout_ms) {
+fn wait_readable_raw(fd, timeout_ms) {
     // Returns:
     // - 1: ready
     // - 0: timeout
@@ -124,7 +113,7 @@ fn wait_readable(fd, timeout_ms) {
     return oren_fd_wait_readable(fd, timeout_ms)
 }
 
-fn wait_writable(fd, timeout_ms) {
+fn wait_writable_raw(fd, timeout_ms) {
     // Returns:
     // - 1: ready
     // - 0: timeout
@@ -132,7 +121,7 @@ fn wait_writable(fd, timeout_ms) {
     return oren_fd_wait_writable(fd, timeout_ms)
 }
 
-fn wait_any_readable(fds, timeout_ms) {
+fn wait_any_readable_raw(fds, timeout_ms) {
     // Wait for any fd in `fds` to become readable.
     //
     // Returns:
@@ -149,7 +138,7 @@ fn wait_any_readable(fds, timeout_ms) {
     return fd
 }
 
-fn wait_any_writable(fds, timeout_ms) {
+fn wait_any_writable_raw(fds, timeout_ms) {
     // Wait for any fd in `fds` to become writable.
     //
     // Returns:
@@ -166,109 +155,70 @@ fn wait_any_writable(fds, timeout_ms) {
     return fd
 }
 
-// --- Structured Result helpers (optional) ---
+// --- Public value-or-error API ---
 
-fn connect_ok(ip, port, timeout_ms) {
-    return result.ok_or_errno(connect(ip, port, timeout_ms), "tcp.connect")
+fn connect(ip, port, timeout_ms): Conn {
+    return result.ok_or_errno(connect_raw(ip, port, timeout_ms), "tcp.connect")
 }
 
-fn try_connect(ip, port, timeout_ms): Conn {
-    return connect_ok(ip, port, timeout_ms)
+fn listen_local(port): Listener {
+    return result.ok_or_errno(listen_local_raw(port), "tcp.listen_local")
 }
 
-fn listen_local_ok(port) {
-    return result.ok_or_errno(listen_local(port), "tcp.listen_local")
+fn accept(listen_fd, timeout_ms): Conn {
+    return result.ok_or_errno(accept_raw(listen_fd, timeout_ms), "tcp.accept")
 }
 
-fn try_listen_local(port): Listener {
-    return listen_local_ok(port)
+fn read_into(fd, buf, len, timeout_ms) {
+    return result.ok_or_errno(read_into_raw(fd, buf, len, timeout_ms), "tcp.read_into")
 }
 
-fn accept_ok(listen_fd, timeout_ms) {
-    return result.ok_or_errno(accept(listen_fd, timeout_ms), "tcp.accept")
+fn write_from(fd, buf, len, timeout_ms) {
+    return result.ok_or_errno(write_from_raw(fd, buf, len, timeout_ms), "tcp.write_from")
 }
 
-fn try_accept(listen_fd, timeout_ms): Conn {
-    return accept_ok(listen_fd, timeout_ms)
+fn close(fd) {
+    return result.ok_or_errno(close_raw(fd), "tcp.close")
 }
 
-fn read_into_ok(fd, buf, len, timeout_ms) {
-    return result.ok_or_errno(read_into(fd, buf, len, timeout_ms), "tcp.read_into")
+fn set_keepalive(fd, enable) {
+    return result.ok_or_errno(set_keepalive_raw(fd, enable), "tcp.set_keepalive")
 }
 
-fn try_read_into(fd, buf, len, timeout_ms) {
-    return read_into_ok(fd, buf, len, timeout_ms)
+fn set_nodelay(fd, enable) {
+    return result.ok_or_errno(set_nodelay_raw(fd, enable), "tcp.set_nodelay")
 }
 
-fn write_from_ok(fd, buf, len, timeout_ms) {
-    return result.ok_or_errno(write_from(fd, buf, len, timeout_ms), "tcp.write_from")
+fn wait_readable(fd, timeout_ms) {
+    return result.ok_or_errno(wait_readable_raw(fd, timeout_ms), "tcp.wait_readable")
 }
 
-fn try_write_from(fd, buf, len, timeout_ms) {
-    return write_from_ok(fd, buf, len, timeout_ms)
+fn wait_writable(fd, timeout_ms) {
+    return result.ok_or_errno(wait_writable_raw(fd, timeout_ms), "tcp.wait_writable")
 }
 
-fn close_ok(fd) {
-    return result.ok_or_errno(close(fd), "tcp.close")
+fn wait_any_readable(fds, timeout_ms) {
+    return result.ok_or_errno(wait_any_readable_raw(fds, timeout_ms), "tcp.wait_any_readable")
 }
 
-fn try_close(fd) {
-    return close_ok(fd)
-}
-
-fn set_keepalive_ok(fd, enable) {
-    return result.ok_or_errno(set_keepalive(fd, enable), "tcp.set_keepalive")
-}
-
-fn try_set_keepalive(fd, enable) {
-    return set_keepalive_ok(fd, enable)
-}
-
-fn set_nodelay_ok(fd, enable) {
-    return result.ok_or_errno(set_nodelay(fd, enable), "tcp.set_nodelay")
-}
-
-fn try_set_nodelay(fd, enable) {
-    return set_nodelay_ok(fd, enable)
-}
-
-fn wait_any_readable_ok(fds, timeout_ms) {
-    return result.ok_or_errno(wait_any_readable(fds, timeout_ms), "tcp.wait_any_readable")
-}
-
-fn try_wait_any_readable(fds, timeout_ms) {
-    return wait_any_readable_ok(fds, timeout_ms)
-}
-
-fn wait_any_writable_ok(fds, timeout_ms) {
-    return result.ok_or_errno(wait_any_writable(fds, timeout_ms), "tcp.wait_any_writable")
-}
-
-fn try_wait_any_writable(fds, timeout_ms) {
-    return wait_any_writable_ok(fds, timeout_ms)
+fn wait_any_writable(fds, timeout_ms) {
+    return result.ok_or_errno(wait_any_writable_raw(fds, timeout_ms), "tcp.wait_any_writable")
 }
 
 impl TcpConn for Conn {
     fn raw_fd(self) { return self }
-    fn read_into(self, buf, len, timeout_ms) { return try_read_into(self, buf, len, timeout_ms) }
-    fn try_read_into(self, buf, len, timeout_ms) { return try_read_into(self, buf, len, timeout_ms) }
-    fn write_from(self, buf, len, timeout_ms) { return try_write_from(self, buf, len, timeout_ms) }
-    fn try_write_from(self, buf, len, timeout_ms) { return try_write_from(self, buf, len, timeout_ms) }
-    fn close(self) { return try_close(self) }
-    fn try_close(self) { return try_close(self) }
-    fn set_keepalive(self, enable) { return try_set_keepalive(self, enable) }
-    fn try_set_keepalive(self, enable) { return try_set_keepalive(self, enable) }
-    fn set_nodelay(self, enable) { return try_set_nodelay(self, enable) }
-    fn try_set_nodelay(self, enable) { return try_set_nodelay(self, enable) }
+    fn read_into(self, buf, len, timeout_ms) { return read_into(self, buf, len, timeout_ms) }
+    fn write_from(self, buf, len, timeout_ms) { return write_from(self, buf, len, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn set_keepalive(self, enable) { return set_keepalive(self, enable) }
+    fn set_nodelay(self, enable) { return set_nodelay(self, enable) }
     fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
     fn wait_writable(self, timeout_ms) { return wait_writable(self, timeout_ms) }
 }
 
 impl TcpListener for Listener {
     fn raw_fd(self) { return self }
-    fn accept(self, timeout_ms): Conn { return try_accept(self, timeout_ms) }
-    fn try_accept(self, timeout_ms): Conn { return try_accept(self, timeout_ms) }
-    fn close(self) { return try_close(self) }
-    fn try_close(self) { return try_close(self) }
+    fn accept(self, timeout_ms): Conn { return accept(self, timeout_ms) }
+    fn close(self) { return close(self) }
     fn wait_readable(self, timeout_ms) { return wait_readable(self, timeout_ms) }
 }

@@ -226,6 +226,13 @@
 <p>  <code>client.request(...).text()</code> or <code>.bytes()</code>. Raw syscall-first forms may remain</p>
 <p>  as internal/performance primitives.</p>
 <ul>
+<li>Fallible stdlib calls should not advertise fallibility through <code>try_*</code> names.</li>
+</ul>
+<p>  Use the canonical verb (<code>connect</code>, <code>request</code>, <code>read_into</code>, <code>close</code>) and return</p>
+<p>  <code>value | oren_err</code>; callers can branch with <code>oren_is_err(value)</code> or ignore the</p>
+<p>  error path when the surrounding context proves success. Low-level numeric errno</p>
+<p>  contracts must be explicit <code>*_raw</code> primitives.</p>
+<ul>
 <li>Avoid root-level mixed-domain helpers like <code>try_get_text</code>; choose an explicit</li>
 </ul>
 <p>  domain object/scope first, then expose <code>request</code>/<code>response</code>/<code>value</code> methods.</p>

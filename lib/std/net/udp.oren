@@ -8,13 +8,9 @@
 // - All operations are capability-gated by the runtime capsule (`domain="NET"`).
 // - All potentially-blocking operations accept `timeout_ms` to avoid hangs.
 //   - `timeout_ms < 0` is treated as "no wait" (0ms) in rolling mode to avoid accidental hangs.
-// - Return convention (rolling):
-//   - `fd` / byte-count: `>= 0` on success
-//   - negative errno: `< 0` on failure
-//
-// Root functions are raw performance primitives. Receiver methods return values
-// or `oren_err`; `try_*` root aliases expose the same structured behavior when a
-// caller cannot use method syntax.
+// - Public functions return values or `oren_err`.
+// - Raw syscall/performance primitives use explicit `*_raw` names and return
+//   `>= 0` on success or negative errno on failure.
 
 import result "std:result"
 
@@ -25,43 +21,38 @@ struct Socket {
 trait UdpSocket {
     fn raw_fd(self);
     fn sockname_port(self);
-    fn try_sockname_port(self);
     fn send_to(self, ip, port, buf, len, timeout_ms);
-    fn try_send_to(self, ip, port, buf, len, timeout_ms);
     fn recv_into(self, buf, len, timeout_ms);
-    fn try_recv_into(self, buf, len, timeout_ms);
     fn recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp);
-    fn try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp);
     fn close(self);
-    fn try_close(self);
 }
 
-// --- Raw syscall-style wrappers (recommended for performance) ---
+// --- Raw syscall-style wrappers (recommended for performance-critical internals) ---
 
-fn bind_local(port) {
+fn bind_local_raw(port) {
     // Bind a UDP socket to 127.0.0.1:<port>.
     // `port` may be 0 to request an ephemeral port.
     return oren_udp_bind_local(port)
 }
 
-fn sockname_port(fd) {
+fn sockname_port_raw(fd) {
     // Returns the local bound port (>=1) or -errno.
     return oren_udp_sockname_port(fd)
 }
 
-fn send_to(fd, ip, port, buf, len, timeout_ms) {
+fn send_to_raw(fd, ip, port, buf, len, timeout_ms) {
     // Send a datagram to (ip, port).
     // Returns bytes written, or -errno.
     return oren_udp_sendto(fd, ip, port, buf, len, timeout_ms)
 }
 
-fn recv_into(fd, buf, len, timeout_ms) {
+fn recv_into_raw(fd, buf, len, timeout_ms) {
     // Receive a datagram into buf.
     // Returns bytes read, or -errno.
     return oren_udp_recvfrom_into(fd, buf, len, timeout_ms)
 }
 
-fn recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
+fn recv_from_into_raw(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
     // Receive a datagram into buf and also fill `sa_out` with the remote sockaddr_in.
     //
     // Inputs:
@@ -72,70 +63,41 @@ fn recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
     return oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp)
 }
 
-fn close(fd) {
+fn close_raw(fd) {
     return oren_udp_close(fd)
 }
 
-// --- Structured Result helpers (optional) ---
+// --- Public value-or-error API ---
 
-fn bind_local_ok(port) {
-    return result.ok_or_errno(bind_local(port), "udp.bind_local")
+fn bind_local(port): Socket {
+    return result.ok_or_errno(bind_local_raw(port), "udp.bind_local")
 }
 
-fn try_bind_local(port): Socket {
-    return bind_local_ok(port)
+fn sockname_port(fd) {
+    return result.ok_or_errno(sockname_port_raw(fd), "udp.sockname_port")
 }
 
-fn sockname_port_ok(fd) {
-    return result.ok_or_errno(sockname_port(fd), "udp.sockname_port")
+fn send_to(fd, ip, port, buf, len, timeout_ms) {
+    return result.ok_or_errno(send_to_raw(fd, ip, port, buf, len, timeout_ms), "udp.send_to")
 }
 
-fn try_sockname_port(fd) {
-    return sockname_port_ok(fd)
+fn recv_into(fd, buf, len, timeout_ms) {
+    return result.ok_or_errno(recv_into_raw(fd, buf, len, timeout_ms), "udp.recv_into")
 }
 
-fn send_to_ok(fd, ip, port, buf, len, timeout_ms) {
-    return result.ok_or_errno(send_to(fd, ip, port, buf, len, timeout_ms), "udp.send_to")
+fn recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
+    return result.ok_or_errno(recv_from_into_raw(fd, buf, len, timeout_ms, sa_out, sa_lenp), "udp.recv_from_into")
 }
 
-fn try_send_to(fd, ip, port, buf, len, timeout_ms) {
-    return send_to_ok(fd, ip, port, buf, len, timeout_ms)
-}
-
-fn recv_into_ok(fd, buf, len, timeout_ms) {
-    return result.ok_or_errno(recv_into(fd, buf, len, timeout_ms), "udp.recv_into")
-}
-
-fn try_recv_into(fd, buf, len, timeout_ms) {
-    return recv_into_ok(fd, buf, len, timeout_ms)
-}
-
-fn recv_from_into_ok(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
-    return result.ok_or_errno(recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp), "udp.recv_from_into")
-}
-
-fn try_recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
-    return recv_from_into_ok(fd, buf, len, timeout_ms, sa_out, sa_lenp)
-}
-
-fn close_ok(fd) {
-    return result.ok_or_errno(close(fd), "udp.close")
-}
-
-fn try_close(fd) {
-    return close_ok(fd)
+fn close(fd) {
+    return result.ok_or_errno(close_raw(fd), "udp.close")
 }
 
 impl UdpSocket for Socket {
     fn raw_fd(self) { return self }
-    fn sockname_port(self) { return try_sockname_port(self) }
-    fn try_sockname_port(self) { return try_sockname_port(self) }
-    fn send_to(self, ip, port, buf, len, timeout_ms) { return try_send_to(self, ip, port, buf, len, timeout_ms) }
-    fn try_send_to(self, ip, port, buf, len, timeout_ms) { return try_send_to(self, ip, port, buf, len, timeout_ms) }
-    fn recv_into(self, buf, len, timeout_ms) { return try_recv_into(self, buf, len, timeout_ms) }
-    fn try_recv_into(self, buf, len, timeout_ms) { return try_recv_into(self, buf, len, timeout_ms) }
-    fn recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) { return try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) }
-    fn try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) { return try_recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) }
-    fn close(self) { return try_close(self) }
-    fn try_close(self) { return try_close(self) }
+    fn sockname_port(self) { return sockname_port(self) }
+    fn send_to(self, ip, port, buf, len, timeout_ms) { return send_to(self, ip, port, buf, len, timeout_ms) }
+    fn recv_into(self, buf, len, timeout_ms) { return recv_into(self, buf, len, timeout_ms) }
+    fn recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) { return recv_from_into(self, buf, len, timeout_ms, sa_out, sa_lenp) }
+    fn close(self) { return close(self) }
 }

@@ -41,7 +41,7 @@ trait Http2ResponseBody {
 
 fn _err(msg) { return {"ok": 0, "err": msg} }
 
-fn _err_result(r, fallback) {
+fn _err_from_record(r, fallback) {
     var msg = r["err"]
     if msg == nil || msg == "" { msg = fallback }
     return oren_err(4, msg)
@@ -69,7 +69,7 @@ fn _read_exact(conn, buf, need, timeout_ms) {
     if need < 0 { return 0 - 22 }
     var off = 0
     while off < need {
-        var n = tls.read_into(conn, buf + off, need - off, timeout_ms)
+        var n = tls.read_into_raw(conn, buf + off, need - off, timeout_ms)
         if n < 0 { return n }
         if n == 0 { return 0 - 104 }
         off = off + n
@@ -81,7 +81,7 @@ fn _write_all_ptr(conn, ptr0, n, timeout_ms) {
     if n < 0 { return 0 - 22 }
     var off = 0
     while off < n {
-        var w = tls.write_from(conn, ptr0 + off, n - off, timeout_ms)
+        var w = tls.write_from_raw(conn, ptr0 + off, n - off, timeout_ms)
         if w < 0 { return w }
         if w == 0 { return 0 - 104 }
         off = off + w
@@ -223,7 +223,7 @@ fn _send_headers_fragmented(conn, stream_id, headers_flags, header_block, split_
     return _send_frame(conn, h2.FRAME_CONTINUATION, h2.FLAG_END_HEADERS, stream_id, b1, timeout_ms)
 }
 
-fn new(conn, timeout_ms, opts) {
+fn _new_record(conn, timeout_ms, opts) {
     // Returns {"ok":1,"c":Client} or {"ok":0,"err":...}
     if conn == 0 { return _err("http2_client.new: nil conn") }
     // NOTE: native backend currently treats `0 == nil`, so do not rely on `== nil`
@@ -267,10 +267,10 @@ fn new(conn, timeout_ms, opts) {
     return {"ok": 1, "c": Client(c)}
 }
 
-fn try_new(conn, timeout_ms, opts): Client {
-    var r = new(conn, timeout_ms, opts)
+fn new(conn, timeout_ms, opts): Client {
+    var r = _new_record(conn, timeout_ms, opts)
     if r["ok"] == 1 { return r["c"] }
-    return _err_result(r, "http2_client.new failed")
+    return _err_from_record(r, "http2_client.new failed")
 }
 
 fn _request_state(c, headers, body_bytes, opts) {
@@ -371,12 +371,12 @@ fn _request_state(c, headers, body_bytes, opts) {
     return {"ok": 1, "status": status, "headers": hs, "body": body}
 }
 
-fn _request_result(c: Client, headers, body_bytes, opts): Response {
+fn _request_value(c: Client, headers, body_bytes, opts): Response {
     var r = _request_state(c.state, headers, body_bytes, opts)
     if r["ok"] == 1 {
         return _wrap_response(r)
     }
-    return _err_result(r, "http2_client.request failed")
+    return _err_from_record(r, "http2_client.request failed")
 }
 
 fn status(resp: Response) { return resp.status }
@@ -385,7 +385,7 @@ fn bytes(resp: Response) { return resp.body }
 fn text(resp: Response) { return buffer.u8_to_string(resp.body) }
 
 impl Http2Client for Client {
-    fn request(self, headers, body_bytes, opts): Response { return _request_result(self, headers, body_bytes, opts) }
+    fn request(self, headers, body_bytes, opts): Response { return _request_value(self, headers, body_bytes, opts) }
     fn raw_state(self) { return self.state }
 }
 

@@ -98,8 +98,9 @@
 <ul>
 <li><code>make verify-stdlib-api-shape</code> is part of the fast <code>make test</code> path and blocks</li>
 </ul>
-<p>  known bad root-helper regressions such as <code>try_get_text</code>, <code>try_get_bytes</code>,</p>
-<p>  root HTTP/HTTP2 <code>try_request</code>, and public WebSocket <code>try_*_text</code> helpers.</p>
+<p>  known bad root-helper regressions. Public fallible stdlib APIs should use normal</p>
+<p>  verbs returning <code>value | oren_err</code>; numeric errno contracts belong under</p>
+<p>  explicit <code>*_raw</code> primitives.</p>
 <ul>
 <li><code>stdlib_bundle.obc</code> includes the current app-facing AVM stdlib surface:</li>
 </ul>

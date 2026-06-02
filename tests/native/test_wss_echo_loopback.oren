@@ -66,13 +66,11 @@ fn server_impl(listen_fd, pfx_b64) {
     var n = oren_buf_len(pkcs12_bytes)
     if oren_is_err(n) || n != fixture.pkcs12_len() { return 102 }
 
-    var r = ws.accept_tls_pkcs12(listen_fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
-    if oren_map_get_str(r, "ok") != 1 {
-        var errv = oren_map_get_str(r, "err")
-        if errv != 0 { print("wss_server: accept_tls_pkcs12 FAIL: " + oren_intern_cstr(errv)) }
+    var conn = ws.accept_tls_pkcs12(listen_fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
+    if oren_is_err(conn) {
+        print("wss_server: accept_tls_pkcs12 FAIL: " + oren_err_msg(conn))
         return 11
     }
-    var conn = oren_map_get_str(r, "conn")
     if conn == 0 { return 12 }
 
     var msg = ws.recv_text(conn, 5000)
@@ -142,9 +140,8 @@ fn main_client() {
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
     var c = ws.connect_resolver_opts(url, 5000, 0, {"tls": tls_opts})
     free(url)
-    if oren_map_get_str(c, "ok") != 1 {
-        var errv = oren_map_get_str(c, "err")
-        if errv != 0 { print("wss_loopback: FAIL connect: " + oren_intern_cstr(errv)) }
+    if oren_is_err(c) {
+        print("wss_loopback: FAIL connect: " + oren_err_msg(c))
         // Best-effort: if the server already died, surface its status to avoid opaque EOF failures.
         var stp = malloc(8)
         if stp != 0 {
@@ -155,7 +152,7 @@ fn main_client() {
         }
         exit(8)
     }
-    var conn = oren_map_get_str(c, "conn")
+    var conn = c
     if conn == 0 { exit(9) }
 
     var prc = ws.send_ping_client(conn, "hi", 5000)
@@ -184,7 +181,7 @@ fn main_client() {
     var status = ptr_get(status_ptr)
     free(status_ptr)
     if status != 0 { exit(42) }
-    tcp.close(listen_fd)
+    tcp.close_raw(listen_fd)
     exit(0)
 }
 
@@ -238,20 +235,19 @@ fn main_client() {
     free(fd_cstr)
     free(role_cstr)
 
-    tcp.close(listen_fd)
-    if exec_fd != listen_fd { tcp.close(exec_fd) }
+    tcp.close_raw(listen_fd)
+    if exec_fd != listen_fd { tcp.close_raw(exec_fd) }
 
     var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
     // Exercise ALPN client offer plumbing (provider may ignore it). WSS is HTTP/1.1 upgrade on this fixture.
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
     var c = ws.connect_resolver_opts(url, 5000, 0, {"tls": tls_opts})
     free(url)
-    if oren_map_get_str(c, "ok") != 1 {
-        var errv = oren_map_get_str(c, "err")
-        if errv != 0 { print("wss_loopback: FAIL connect: " + oren_intern_cstr(errv)) }
+    if oren_is_err(c) {
+        print("wss_loopback: FAIL connect: " + oren_err_msg(c))
         exit(8)
     }
-    var conn = oren_map_get_str(c, "conn")
+    var conn = c
     if conn == 0 { exit(9) }
 
     var prc = ws.send_ping_client(conn, "hi", 5000)
@@ -290,12 +286,11 @@ fn _wss_client_impl(port, expected_leaf_sha256_hex) {
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
     var c = ws.connect_resolver_opts(url, 5000, 0, {"tls": tls_opts})
     free(url)
-    if oren_map_get_str(c, "ok") != 1 {
-        var errv = oren_map_get_str(c, "err")
-        if errv != 0 { print("wss_loopback: FAIL connect: " + oren_intern_cstr(errv)) }
+    if oren_is_err(c) {
+        print("wss_loopback: FAIL connect: " + oren_err_msg(c))
         return 8
     }
-    var conn = oren_map_get_str(c, "conn")
+    var conn = c
     if conn == 0 { return 9 }
 
     var prc = ws.send_ping_client(conn, "hi", 5000)
@@ -365,7 +360,7 @@ fn main_client() {
 
     var rc2 = oren_join_timeout(hc, 5000)
     var sr2 = oren_join_timeout(h, 5000)
-    tcp.close(listen_fd)
+    tcp.close_raw(listen_fd)
     if rc2 != 0 { exit(rc2) }
     if sr2 != 0 { exit(42) }
     exit(0)

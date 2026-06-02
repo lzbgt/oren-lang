@@ -33,13 +33,13 @@ trait WebSocketConn {
     fn close(self);
 }
 
-fn _err_result(r, fallback) {
+fn _err_from_record(r, fallback) {
     var msg = r["err"]
     if msg == nil || msg == "" { msg = fallback }
     return oren_err(4, msg)
 }
 
-fn _errno_result(rc, fallback) {
+fn _err_from_errno(rc, fallback) {
     var code = 4
     if rc < 0 { code = 0 - rc }
     return oren_err(code, fallback)
@@ -60,31 +60,31 @@ fn _io_read_into(conn, buf, cap, timeout_ms) {
     if conn == nil || oren_is_map(conn) != true { return 0 - 22 } // EINVAL
     if conn["kind"] == "tls" {
         var c = conn["conn"]
-        return tls.read_into(c, buf, cap, timeout_ms)
+        return tls.read_into_raw(c, buf, cap, timeout_ms)
     }
     var fd = conn["fd"]
-    return tcp.read_into(fd, buf, cap, timeout_ms)
+    return tcp.read_into_raw(fd, buf, cap, timeout_ms)
 }
 
 fn _io_write_from(conn, ptr0, len, timeout_ms) {
     if conn == nil || oren_is_map(conn) != true { return 0 - 22 } // EINVAL
     if conn["kind"] == "tls" {
         var c = conn["conn"]
-        return tls.write_from(c, ptr0, len, timeout_ms)
+        return tls.write_from_raw(c, ptr0, len, timeout_ms)
     }
     var fd = conn["fd"]
-    return tcp.write_from(fd, ptr0, len, timeout_ms)
+    return tcp.write_from_raw(fd, ptr0, len, timeout_ms)
 }
 
 fn _io_close(conn) {
     if conn == nil || oren_is_map(conn) != true { return 0 }
     if conn["kind"] == "tls" {
         var c = conn["conn"]
-        if c != 0 { tls.close(c) }
+        if c != 0 { tls.close_raw(c) }
         return 0
     }
     var fd = conn["fd"]
-    if fd != nil && fd >= 0 { tcp.close(fd) }
+    if fd != nil && fd >= 0 { tcp.close_raw(fd) }
     return 0
 }
 
@@ -101,14 +101,14 @@ fn _ws_new_client_key_base64() {
     return {"ok": 1, "v": base64.encode_bytes(b)}
 }
 
-fn client_key_base64() {
+fn _client_key_record() {
     return _ws_new_client_key_base64()
 }
 
-fn try_client_key_base64() {
-    var r = client_key_base64()
+fn client_key_base64() {
+    var r = _client_key_record()
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
-    return _err_result(r, "ws.client_key_base64 failed")
+    return _err_from_record(r, "ws.client_key_base64 failed")
 }
 
 fn _starts_with(s, prefix) {
@@ -209,16 +209,16 @@ fn _parse_ws_url(url) {
     return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
 }
 
-fn parse_url(url) {
+fn _parse_url_record(url) {
     return _parse_ws_url(url)
 }
 
-fn try_parse_url(url) {
-    var r = parse_url(url)
+fn parse_url(url) {
+    var r = _parse_url_record(url)
     if oren_map_get_str(r, "ok") == 1 {
         return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
     }
-    return _err_result(r, "ws.parse_url failed")
+    return _err_from_record(r, "ws.parse_url failed")
 }
 
 fn _resolve_host_ipv4(host, timeout_ms, resolver) {
@@ -467,21 +467,17 @@ fn _status_is_101(buf, body_off) {
     return 0
 }
 
-fn connect_resolver(url, timeout_ms, resolver) {
+fn connect_resolver_opts(url, timeout_ms, resolver, opts): Conn {
+    var r = _connect_record(url, timeout_ms, resolver, opts)
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
+    return _err_from_record(r, "ws.connect failed")
+}
+
+fn connect_resolver(url, timeout_ms, resolver): Conn {
     return connect_resolver_opts(url, timeout_ms, resolver, 0)
 }
 
-fn try_connect_resolver_opts(url, timeout_ms, resolver, opts): Conn {
-    var r = connect_resolver_opts(url, timeout_ms, resolver, opts)
-    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
-    return _err_result(r, "ws.connect failed")
-}
-
-fn try_connect_resolver(url, timeout_ms, resolver): Conn {
-    return try_connect_resolver_opts(url, timeout_ms, resolver, 0)
-}
-
-fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
+fn _connect_record(url, timeout_ms, resolver, opts) {
     // Client handshake. Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
     //
     // - If `resolver` is provided, it must be a `dns.resolver(...)` config map.
@@ -510,7 +506,7 @@ fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
     var ip = oren_map_get_str(rh, "ip")
     var owned_ip = oren_map_get_str(rh, "owned")
 
-    var fd = tcp.connect(ip, port, timeout_ms)
+    var fd = tcp.connect_raw(ip, port, timeout_ms)
     if owned_ip == 1 { free(ip) }
     if fd < 0 {
         free(host)
@@ -530,16 +526,16 @@ fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
             if sn != 0 { server_name = sn }
         }
         var cr = tls.wrap_client(fd, server_name, timeout_ms, tls_opts)
-        if oren_map_get_str(cr, "ok") != 1 {
+        if oren_is_err(cr) {
             // Best-effort: ensure fd isn't leaked on providers that don't close on failure.
-            tcp.close(fd)
+            tcp.close_raw(fd)
             free(host)
             free(path)
-            return {"ok": 0, "err": "ws.connect: " + oren_map_get_str(cr, "err")}
+            return {"ok": 0, "err": "ws.connect: " + oren_err_msg(cr)}
         }
-        var tls_conn = oren_map_get_str(cr, "conn")
+        var tls_conn = cr
         if tls_conn == 0 {
-            tcp.close(fd)
+            tcp.close_raw(fd)
             free(host)
             free(path)
             return {"ok": 0, "err": "ws.connect: tls.wrap_client returned nil conn"}
@@ -627,15 +623,11 @@ fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
     return {"ok": 1, "conn": conn}
 }
 
-fn connect(url, timeout_ms) {
+fn connect(url, timeout_ms): Conn {
     // Convenience API: connect without an explicit resolver.
     // - IPv4 literal URLs work without DNS.
     // - hostname URLs use `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX).
     return connect_resolver_opts(url, timeout_ms, 0, 0)
-}
-
-fn try_connect(url, timeout_ms): Conn {
-    return try_connect_resolver_opts(url, timeout_ms, 0, 0)
 }
 
 fn _server_handshake(conn, timeout_ms) {
@@ -671,11 +663,11 @@ fn _server_handshake(conn, timeout_ms) {
     return {"ok": 1}
 }
 
-fn accept(listen_fd, timeout_ms) {
+fn _accept_record(listen_fd, timeout_ms) {
     // Server accept + handshake. Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
-    var fd = tcp.accept(listen_fd, timeout_ms)
+    var fd = tcp.accept_raw(listen_fd, timeout_ms)
     if fd < 0 {
         return {"ok": 0, "err": "ws.accept: accept failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
@@ -688,30 +680,30 @@ fn accept(listen_fd, timeout_ms) {
     return {"ok": 1, "conn": conn}
 }
 
-fn try_accept(listen_fd, timeout_ms): Conn {
-    var r = accept(listen_fd, timeout_ms)
+fn accept(listen_fd, timeout_ms): Conn {
+    var r = _accept_record(listen_fd, timeout_ms)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
-    return _err_result(r, "ws.accept failed")
+    return _err_from_record(r, "ws.accept failed")
 }
 
-fn accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) {
+fn _accept_tls_pkcs12_record(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) {
     // TLS server accept + handshake for wss:// loopback fixtures and basic servers.
     // Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
-    var fd = tcp.accept(listen_fd, timeout_ms)
+    var fd = tcp.accept_raw(listen_fd, timeout_ms)
     if fd < 0 {
         return {"ok": 0, "err": "ws.accept_tls: accept failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
     var wr = tls.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts)
-    if oren_map_get_str(wr, "ok") != 1 {
+    if oren_is_err(wr) {
         // wrap_server_pkcs12 closes fd on many failure paths, but keep best-effort cleanup here.
-        tcp.close(fd)
-        return {"ok": 0, "err": "ws.accept_tls: " + oren_map_get_str(wr, "err")}
+        tcp.close_raw(fd)
+        return {"ok": 0, "err": "ws.accept_tls: " + oren_err_msg(wr)}
     }
-    var tls_conn = oren_map_get_str(wr, "conn")
+    var tls_conn = wr
     if tls_conn == 0 {
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "ws.accept_tls: tls.wrap_server returned nil conn"}
     }
     var conn = _conn_tls(tls_conn)
@@ -723,10 +715,10 @@ fn accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) 
     return {"ok": 1, "conn": conn}
 }
 
-fn try_accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts): Conn {
-    var r = accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts)
+fn accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts): Conn {
+    var r = _accept_tls_pkcs12_record(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
-    return _err_result(r, "ws.accept_tls failed")
+    return _err_from_record(r, "ws.accept_tls failed")
 }
 
 fn close(conn) {
@@ -895,20 +887,20 @@ fn send_text_client(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 1)
 }
 
-fn _send_text_client_result(conn, text, timeout_ms) {
+fn _send_text_client_value(conn, text, timeout_ms) {
     var rc = send_text_client(conn, text, timeout_ms)
     if rc >= 0 { return 0 }
-    return _errno_result(rc, "ws.send_text_client failed")
+    return _err_from_errno(rc, "ws.send_text_client failed")
 }
 
 fn send_text_server(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 0)
 }
 
-fn _send_text_server_result(conn, text, timeout_ms) {
+fn _send_text_server_value(conn, text, timeout_ms) {
     var rc = send_text_server(conn, text, timeout_ms)
     if rc >= 0 { return 0 }
-    return _errno_result(rc, "ws.send_text_server failed")
+    return _err_from_errno(rc, "ws.send_text_server failed")
 }
 
 fn send_ping_client(conn, payload, timeout_ms) {
@@ -1043,15 +1035,15 @@ fn recv_text(conn, timeout_ms) {
     }
 }
 
-fn _recv_text_result(conn, timeout_ms) {
+fn _recv_text_value(conn, timeout_ms) {
     var r = recv_text(conn, timeout_ms)
     if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
-    return _err_result(r, "ws.recv_text failed")
+    return _err_from_record(r, "ws.recv_text failed")
 }
 
 impl WebSocketConn for Conn {
-    fn send_text_client(self, text, timeout_ms) { return _send_text_client_result(self, text, timeout_ms) }
-    fn send_text_server(self, text, timeout_ms) { return _send_text_server_result(self, text, timeout_ms) }
-    fn recv_text(self, timeout_ms) { return _recv_text_result(self, timeout_ms) }
+    fn send_text_client(self, text, timeout_ms) { return _send_text_client_value(self, text, timeout_ms) }
+    fn send_text_server(self, text, timeout_ms) { return _send_text_server_value(self, text, timeout_ms) }
+    fn recv_text(self, timeout_ms) { return _recv_text_value(self, timeout_ms) }
     fn close(self) { return close(self) }
 }

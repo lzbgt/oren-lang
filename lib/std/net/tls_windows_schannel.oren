@@ -39,17 +39,6 @@ fn _win_insecure_flag(opts) {
     return 0
 }
 
-fn _err_result(r, fallback) {
-    var msg = r["err"]
-    if msg == nil || msg == "" { msg = fallback }
-    return oren_err(4, msg)
-}
-
-fn _errno_result(rc, fallback) {
-    if rc >= 0 { return rc }
-    return oren_err(0 - rc, fallback + " failed (errno=" + oren_int_to_string(0 - rc) + ")")
-}
-
 fn _win_server_cache_key(pkcs12_bytes, passphrase) {
     if passphrase == nil { passphrase = "" }
     var h_pfx = sha256.sha256_hex(pkcs12_bytes)
@@ -500,7 +489,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         var out_cb = _win_secbuf_get_cb(out_bufs, 0)
         var out_pv = _win_secbuf_get_pv(out_bufs, 0)
         if out_cb > 0 && out_pv != 0 {
-            var wr = tcp.write_from(fd, out_pv, out_cb, timeout_ms)
+            var wr = tcp.write_from_raw(fd, out_pv, out_cb, timeout_ms)
             sspi.FreeContextBuffer(out_pv)
             if wr < 0 || wr != out_cb {
                 if in_desc != 0 { free(in_desc); free(in_bufs) }
@@ -561,7 +550,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         if timeout_ms >= 0 && rem_ms <= 0 { break }
         if rem_ms < 0 { rem_ms = 0 }
 
-        var rn = tcp.read_into(fd, in_buf + in_used, in_cap - in_used, rem_ms)
+        var rn = tcp.read_into_raw(fd, in_buf + in_used, in_cap - in_used, rem_ms)
         if rn <= 0 { break }
         in_used = in_used + rn
     }
@@ -672,7 +661,7 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
 
     var hs = _win_handshake_client(fd, server_name, timeout_ms, opts)
     if hs["ok"] != 1 {
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": hs["err"]}
     }
     var hcred = hs["hcred"]
@@ -684,7 +673,7 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
     if sz["ok"] != 1 {
         sspi.DeleteSecurityContext(hctx); free(hctx)
         if cred_cached == 0 && hcred != 0 { sspi.FreeCredentialsHandle(hcred); free(hcred) }
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": sz["err"]}
     }
 
@@ -717,7 +706,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
 
     var credr = _win_get_server_hcred_cached(pkcs12_bytes, passphrase, opts)
     if credr["ok"] != 1 {
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": credr["err"]}
     }
     var hcred = credr["hcred"]
@@ -730,7 +719,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var alpn_cb = 0
     var alpn_r = _win_build_alpn_secbuffer_if_requested(opts)
     if alpn_r["ok"] != 1 {
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return alpn_r
     }
     alpn_buf = alpn_r["p"]
@@ -739,7 +728,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var hctx = malloc(16)
     if hctx == 0 {
         if alpn_buf != 0 { free(alpn_buf) }
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls(win): alloc CtxtHandle failed"}
     }
     _win_memzero(hctx, 16)
@@ -751,7 +740,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         if exp != 0 { free(exp) }
         free(hctx)
         if alpn_buf != 0 { free(alpn_buf) }
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls(win): alloc scratch failed"}
     }
     _win_memzero(attrs, 8)
@@ -763,7 +752,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         free(attrs); free(exp)
         free(hctx)
         if alpn_buf != 0 { free(alpn_buf) }
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls(win): alloc in_buf failed"}
     }
     var in_used = 0
@@ -792,7 +781,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
             if timeout_ms < 0 { rem0_ms = timeout_ms }
             if timeout_ms >= 0 && rem0_ms <= 0 { break }
             if rem0_ms < 0 { rem0_ms = 0 }
-            var rn0 = tcp.read_into(fd, in_buf, in_cap, rem0_ms)
+            var rn0 = tcp.read_into_raw(fd, in_buf, in_cap, rem0_ms)
             if rn0 <= 0 { break }
             in_used = rn0
         }
@@ -836,7 +825,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         var out_cb = _win_secbuf_get_cb(out_bufs, 0)
         var out_pv = _win_secbuf_get_pv(out_bufs, 0)
         if out_cb > 0 && out_pv != 0 {
-            var wr = tcp.write_from(fd, out_pv, out_cb, timeout_ms)
+            var wr = tcp.write_from_raw(fd, out_pv, out_cb, timeout_ms)
             sspi.FreeContextBuffer(out_pv)
             if wr < 0 || wr != out_cb {
                 st = -1
@@ -888,7 +877,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         if timeout_ms >= 0 && rem_ms <= 0 { st = -1; break }
         if rem_ms < 0 { rem_ms = 0 }
 
-        var rn = tcp.read_into(fd, in_buf + in_used, in_cap - in_used, rem_ms)
+        var rn = tcp.read_into_raw(fd, in_buf + in_used, in_cap - in_used, rem_ms)
         if rn <= 0 { break }
         in_used = in_used + rn
     }
@@ -899,7 +888,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         free(in_buf)
         if alpn_buf != 0 { free(alpn_buf) }
         sspi.DeleteSecurityContext(hctx); free(hctx)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": "tls(win): server handshake failed (st=" + oren_int_to_string(last_st) + ")"}
     }
 
@@ -912,7 +901,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var sz = _win_query_stream_sizes(hctx)
     if sz["ok"] != 1 {
         sspi.DeleteSecurityContext(hctx); free(hctx)
-        tcp.close(fd)
+        tcp.close_raw(fd)
         return {"ok": 0, "err": sz["err"]}
     }
 
@@ -983,7 +972,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
 
     // Ensure we have some encrypted data.
     if enc_used == 0 {
-        var rn0 = tcp.read_into(fd, enc, enc_cap, timeout_ms)
+        var rn0 = tcp.read_into_raw(fd, enc, enc_cap, timeout_ms)
         if rn0 <= 0 { return rn0 }
         conn["enc_used"] = rn0
         enc_used = rn0
@@ -1043,7 +1032,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
                 enc_cap = new_cap
                 conn["enc_buf"] = enc
             }
-            var rn = tcp.read_into(fd, enc + enc_used, enc_cap - enc_used, timeout_ms)
+            var rn = tcp.read_into_raw(fd, enc + enc_used, enc_cap - enc_used, timeout_ms)
             if rn <= 0 { return rn }
             enc_used = enc_used + rn
             conn["enc_used"] = enc_used
@@ -1161,7 +1150,7 @@ fn write_from(conn, ptr0, len, timeout_ms) {
         free(desc)
         free(bufs)
 
-        var wr = tcp.write_from(fd, out, to_send, timeout_ms)
+        var wr = tcp.write_from_raw(fd, out, to_send, timeout_ms)
         free(out)
         if wr < 0 { return wr }
         if wr != to_send { return 0 - 5 }
@@ -1198,7 +1187,7 @@ fn close(conn) {
     if cred_cached == 0 && sch_cred_arr != 0 { free(sch_cred_arr) }
     if cred_cached == 0 && cert != 0 { c32.CertFreeCertificateContext(cert) }
     if cred_cached == 0 && store != 0 { c32.CertCloseStore(store, 0) }
-    if fd != nil && fd >= 0 { tcp.close(fd) }
+    if fd != nil && fd >= 0 { tcp.close_raw(fd) }
     return 0
 }
 
@@ -1375,47 +1364,4 @@ fn negotiated_alpn(conn) {
     var s = oren_string_from_bytes(b)
     if s == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: string_from_bytes failed"} }
     return {"ok": 1, "v": s}
-}
-
-@cfg(os="windows")
-fn try_wrap_client(fd, server_name, timeout_ms, opts) {
-    var r = wrap_client(fd, server_name, timeout_ms, opts)
-    if r["ok"] == 1 { return r["conn"] }
-    return _err_result(r, "tls_windows.wrap_client failed")
-}
-
-@cfg(os="windows")
-fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
-    var r = wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
-    if r["ok"] == 1 { return r["conn"] }
-    return _err_result(r, "tls_windows.wrap_server_pkcs12 failed")
-}
-
-@cfg(os="windows")
-fn try_read_into(conn, buf, cap, timeout_ms) {
-    return _errno_result(read_into(conn, buf, cap, timeout_ms), "tls_windows.read_into")
-}
-
-@cfg(os="windows")
-fn try_write_from(conn, ptr0, len, timeout_ms) {
-    return _errno_result(write_from(conn, ptr0, len, timeout_ms), "tls_windows.write_from")
-}
-
-@cfg(os="windows")
-fn try_close(conn) {
-    return _errno_result(close(conn), "tls_windows.close")
-}
-
-@cfg(os="windows")
-fn try_peer_cert_sha256_hex(conn) {
-    var r = peer_cert_sha256_hex(conn)
-    if r["ok"] == 1 { return r["v"] }
-    return _err_result(r, "tls_windows.peer_cert_sha256_hex failed")
-}
-
-@cfg(os="windows")
-fn try_negotiated_alpn(conn) {
-    var r = negotiated_alpn(conn)
-    if r["ok"] == 1 { return r["v"] }
-    return _err_result(r, "tls_windows.negotiated_alpn failed")
 }

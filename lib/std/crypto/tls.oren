@@ -15,8 +15,9 @@
 // conceptually want “TLS is crypto”, while keeping existing tests and stdlib (HTTP/WS)
 // on the proven `std:net/tls` implementation.
 //
-// API surface mirrors `std:net/tls`: root functions expose raw/structured
-// primitives, while receiver methods return values or `oren_err`.
+// API surface mirrors `std:net/tls`: public functions and receiver methods return
+// values or `oren_err`; raw syscall-style operations stay under explicit
+// `std:net/tls` internals.
 
 import tls "std:net/tls"
 
@@ -29,79 +30,42 @@ struct Conn {
 
 trait TlsConn {
     fn read_into(self, buf, cap, timeout_ms);
-    fn try_read_into(self, buf, cap, timeout_ms);
     fn write_from(self, ptr0, len, timeout_ms);
-    fn try_write_from(self, ptr0, len, timeout_ms);
     fn close(self);
-    fn try_close(self);
     fn peer_cert_sha256_hex(self);
-    fn try_peer_cert_sha256_hex(self);
     fn negotiated_alpn(self);
-    fn try_negotiated_alpn(self);
 }
 
 fn connect(host_or_ip, port, timeout_ms, opts) {
     return tls.connect(host_or_ip, port, timeout_ms, opts)
 }
 
-fn try_connect(host_or_ip, port, timeout_ms, opts): Conn {
-    return tls.try_connect(host_or_ip, port, timeout_ms, opts)
-}
-
 fn wrap_client(fd, server_name, timeout_ms, opts) {
     return tls.wrap_client(fd, server_name, timeout_ms, opts)
-}
-
-fn try_wrap_client(fd, server_name, timeout_ms, opts): Conn {
-    return tls.try_wrap_client(fd, server_name, timeout_ms, opts)
 }
 
 fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     return tls.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
 }
 
-fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts): Conn {
-    return tls.try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
-}
-
 fn read_into(conn, buf, cap, timeout_ms) {
     return tls.read_into(conn, buf, cap, timeout_ms)
-}
-
-fn try_read_into(conn, buf, cap, timeout_ms) {
-    return tls.try_read_into(conn, buf, cap, timeout_ms)
 }
 
 fn write_from(conn, ptr0, len, timeout_ms) {
     return tls.write_from(conn, ptr0, len, timeout_ms)
 }
 
-fn try_write_from(conn, ptr0, len, timeout_ms) {
-    return tls.try_write_from(conn, ptr0, len, timeout_ms)
-}
-
 fn close(conn) {
     return tls.close(conn)
-}
-
-fn try_close(conn) {
-    return tls.try_close(conn)
 }
 
 fn peer_cert_sha256_hex(conn) {
     return tls.peer_cert_sha256_hex(conn)
 }
 
-fn try_peer_cert_sha256_hex(conn) {
-    return tls.try_peer_cert_sha256_hex(conn)
-}
-
 fn negotiated_alpn(conn) {
     return tls.negotiated_alpn(conn)
-}
-
-fn try_negotiated_alpn(conn) {
-    return tls.try_negotiated_alpn(conn)
 }
 
 fn win_cleanup() {
@@ -110,14 +74,9 @@ fn win_cleanup() {
 }
 
 impl TlsConn for Conn {
-    fn read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
-    fn try_read_into(self, buf, cap, timeout_ms) { return try_read_into(self, buf, cap, timeout_ms) }
-    fn write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
-    fn try_write_from(self, ptr0, len, timeout_ms) { return try_write_from(self, ptr0, len, timeout_ms) }
-    fn close(self) { return try_close(self) }
-    fn try_close(self) { return try_close(self) }
-    fn peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
-    fn try_peer_cert_sha256_hex(self) { return try_peer_cert_sha256_hex(self) }
-    fn negotiated_alpn(self) { return try_negotiated_alpn(self) }
-    fn try_negotiated_alpn(self) { return try_negotiated_alpn(self) }
+    fn read_into(self, buf, cap, timeout_ms) { return read_into(self, buf, cap, timeout_ms) }
+    fn write_from(self, ptr0, len, timeout_ms) { return write_from(self, ptr0, len, timeout_ms) }
+    fn close(self) { return close(self) }
+    fn peer_cert_sha256_hex(self) { return peer_cert_sha256_hex(self) }
+    fn negotiated_alpn(self) { return negotiated_alpn(self) }
 }

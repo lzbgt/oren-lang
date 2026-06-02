@@ -432,7 +432,7 @@ fn _huff_decode_bytes(ptr0, off, slen) {
     return {"ok": 1, "b": b2}
 }
 
-fn _err_result(r, fallback) {
+fn _err_from_record(r, fallback) {
     var msg = r["err"]
     if msg == nil || msg == "" { msg = fallback }
     return oren_err(4, msg)
@@ -714,7 +714,7 @@ fn decode_header_block(table, header_block_bytes) {
 fn try_decode_header_block(table, header_block_bytes) {
     var r = decode_header_block(table, header_block_bytes)
     if r["ok"] == 1 { return {"headers": r["headers"], "table": r["table"]} }
-    return _err_result(r, "hpack.decode_header_block failed")
+    return _err_from_record(r, "hpack.decode_header_block failed")
 }
 
 // --- Encoding (rolling) ---
@@ -964,5 +964,5 @@ fn encode_header_block(table, headers, opts) {
 fn try_encode_header_block(table, headers, opts) {
     var r = encode_header_block(table, headers, opts)
     if r["ok"] == 1 { return {"b": r["b"], "table": r["table"]} }
-    return _err_result(r, "hpack.encode_header_block failed")
+    return _err_from_record(r, "hpack.encode_header_block failed")
 }
