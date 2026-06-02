@@ -38,45 +38,63 @@
     <main class="content">
       <h1 id="oren-language">Oren Language</h1>
 <p><strong>Last updated:</strong> 2026-06-02</p>
-<p>This is the concise current language reference. Oren is rolling: code and fixtures are</p>
-<p>the execution source of truth when a detail matters.</p>
-<h2 id="implementation-map">Implementation Map</h2>
-<ul>
-<li>Lexer/tokens: <code>lib/compiler/token.oren</code>, <code>lib/compiler/lexer.oren</code></li>
-<li>Parser: <code>lib/compiler/parser_parse/</code></li>
-<li>AST constructors: <code>lib/compiler/ast.oren</code></li>
-<li>Build pipeline: <code>lib/compiler/compiler/040_build_pipeline.oren</code></li>
-<li>Module linking: <code>lib/compiler/compiler/020_modules_linking.oren</code></li>
-<li>C backend: <code>lib/compiler/transpiler.oren</code>, <code>lib/runtime.[ch]</code></li>
-<li>Native backend: <code>lib/compiler/arm64_*</code>, <code>lib/compiler/x64_*</code>, <code>lib/runtime_native/</code></li>
-<li>Bytecode backend: <code>lib/compiler/codegen_bytecode/</code>, <code>lib/avm/</code></li>
-</ul>
-<h2 id="program-shape">Program Shape</h2>
-<pre><code>fn main() {
-    print(&quot;hello&quot;)
+<p>Oren is a rolling, self-hosted language and toolchain with three execution paths:</p>
+<p>C, native machine code, and OBC bytecode for AVM. This page is the practical</p>
+<p>language guide for writing correct Oren today. When an edge case matters, the</p>
+<p>fixtures under <code>tests/</code> are the executable source of truth.</p>
+<h2 id="quick-start">Quick Start</h2>
+<pre><code>import http &quot;std:net/avm/http&quot;
+import json &quot;std:json&quot;
+
+fn main() {
+    var doc = http.get(&quot;https://note.local/data.json&quot;).text().json()
+    if oren_is_err(doc) {
+        print(&quot;request failed: &quot; + oren_err_msg(doc))
+        exit(1)
+    }
+
+    print(doc[&quot;o&quot;][&quot;title&quot;][&quot;s&quot;])
     exit(0)
 }
 
 main()</code></pre>
-<p>Oren files are modules. Top-level statements execute in order after compilation/linking.</p>
+<p>Useful commands:</p>
+<pre><code>./oren build app.oren --backend native -o build/app
+./oren build app.oren --backend c -o build/app_c
+./oren build app.oren --backend bytecode -o build/app.obc
+./avm build/app.obc
+./oren build app.oren --typecheck
+./oren dump linked app.oren</code></pre>
+<h2 id="program-shape">Program Shape</h2>
+<p>Oren files are modules. Top-level statements execute in order after</p>
+<p>compilation/linking, so scripts can be direct:</p>
+<pre><code>fn greet(name) {
+    print(&quot;hello &quot; + name)
+}
+
+greet(&quot;oren&quot;)</code></pre>
+<p>For applications, prefer an explicit <code>main()</code> and call it at the end.</p>
 <h2 id="values">Values</h2>
-<p>Current value families:</p>
+<p>Current value families include:</p>
 <ul>
 <li><code>nil</code></li>
-<li>booleans</li>
-<li>integers</li>
-<li>floats</li>
+<li>booleans: <code>true</code>, <code>false</code></li>
+<li>integers and floats</li>
 <li>strings</li>
-<li>lists and list-int optimized paths</li>
-<li>maps</li>
-<li>first-class functions/closures</li>
-<li>typed buffers: u8/i32/i64/f32/f64</li>
-<li>generator/coroutine handles and contexts</li>
-<li>structured errors</li>
+<li>lists: <code>[1, 2, 3]</code></li>
+<li>maps: <code>{&quot;name&quot;: &quot;oren&quot;, &quot;ok&quot;: true}</code></li>
+<li>first-class functions and closures</li>
+<li>structs/classes with field access</li>
+<li>typed buffers: <code>[]u8</code>, <code>[]i32</code>, <code>[]i64</code>, <code>[]f32</code>, <code>[]f64</code></li>
+<li>bytes (<code>bytes</code>) and direct <code>u8_buf</code> paths</li>
+<li>generator/coroutine handles</li>
+<li>structured errors (<code>oren_err</code>)</li>
 </ul>
-<p>Backend value representations are not fully converged yet. Use <code>oren_type_tag</code> and the</p>
-<p>cross-backend parity fixtures as the behavioral contract rather than assuming identical</p>
-<p>physical representation across C/native/AVM.</p>
+<p>Runtime type helpers:</p>
+<pre><code>var tag = oren_type_tag(value)
+var name = oren_type_name(value)</code></pre>
+<p>Do not depend on physical representation being identical across C/native/AVM.</p>
+<p>Use the documented behavior and cross-backend fixtures as the contract.</p>
 <h2 id="variables-and-control-flow">Variables and Control Flow</h2>
 <pre><code>var x = 1
 x = x + 1
@@ -91,59 +109,258 @@ while x &lt; 10 {
     x = x + 1
 }
 
-for item in xs {
-    print(item)
+for item in [1, 2, 3] {
+    print(oren_int_to_string(item))
 }</code></pre>
-<p>Blocks use braces. <code>var</code> introduces locals. Assignment updates existing bindings.</p>
-<h2 id="functions">Functions</h2>
+<p>Blocks use braces. <code>var</code> introduces locals. Assignment updates existing</p>
+<p>bindings.</p>
+<h2 id="functions-and-closures">Functions and Closures</h2>
 <pre><code>fn add(a, b) {
     return a + b
 }
 
-var f = fn(x) {
+var twice = fn(x) {
     return x * 2
-}</code></pre>
-<p>Closures are supported. Function/generic/lowering behavior is still rolling; use fixtures</p>
-<p>for exact edge cases.</p>
-<p>Fixed-arity calls may omit trailing arguments; omitted trailing arguments materialize as</p>
-<p><code>nil</code> across C, native, and AVM backends. Passing more than the declared arity remains</p>
-<p>invalid for fixed-arity direct calls.</p>
-<h2 id="modules">Modules</h2>
-<pre><code>import math &quot;std:math&quot;
+}
 
-fn main() {
-    print(math.sqrt(9))
-    print(math.power(2.0, -1.0))
-    print(math.power(2.0, 4.3))
+fn apply(x, f) {
+    return f(x)
+}
+
+print(oren_int_to_string(apply(21, twice)))</code></pre>
+<p>Fixed-arity calls may omit trailing arguments. Missing trailing arguments</p>
+<p>materialize as <code>nil</code> across C, native, and AVM:</p>
+<pre><code>fn connect(host, timeout_ms) {
+    if timeout_ms == nil { timeout_ms = 1000 }
+    return host + &quot;:&quot; + oren_int_to_string(timeout_ms)
+}
+
+connect(&quot;example.test&quot;)</code></pre>
+<p>Passing more than the declared arity remains invalid for fixed-arity direct</p>
+<p>calls.</p>
+<h2 id="type-annotations">Type Annotations</h2>
+<p>Annotations guide lowering, method resolution, and typed storage:</p>
+<pre><code>var count: i64 = 42
+var data: []u8 = oren_u8_buf_new(16)
+
+fn plus_one(x: i32): i32 {
+    return x + 1
 }</code></pre>
-<p>Imports are resolved by the compiler/linker pipeline. <code>std:*</code> modules are shipped with</p>
-<p>the repo and remain part of the rolling stdlib surface. <code>std:math</code> is deterministic</p>
-<p>and portable rather than host-<code>libm</code> backed; current power APIs are <code>pow(x, y)</code>,</p>
-<p><code>power(x, y)</code>, and exact integer-exponent <code>powi(x, n)</code>.</p>
-<h2 id="errors">Errors</h2>
-<p>Structured errors use the current runtime helpers:</p>
-<ul>
-<li><code>oren_err(code, msg)</code></li>
-<li><code>oren_is_err(v)</code></li>
-<li><code>oren_err_code(v)</code></li>
-<li><code>oren_err_msg(v)</code></li>
-</ul>
-<p>Stdlib result helpers build on this convention. Cross-backend error behavior is guarded</p>
-<p>by parity fixtures, not by a frozen external ABI.</p>
-<h2 id="type-checks">Type Checks</h2>
-<p><code>oren_type_tag(v)</code> and <code>oren_type_name(v)</code> expose runtime type information. Native tagged</p>
-<p>value convergence is still in progress; parity fixtures define what is guaranteed today.</p>
-<p>Always-on scalar/nil safety: numeric and bool scalar comparisons with <code>nil</code> are rejected</p>
-<p>by the compiler. Check the dynamic value first, then cast:</p>
+<p>Scalar/nil safety is always on: comparing numeric or bool scalars directly to</p>
+<p><code>nil</code> is rejected. Check dynamic values before casting:</p>
 <pre><code>var raw = cfg[&quot;timeout_ms&quot;]
-var timeout_ms = 1000
+var timeout_ms: i64 = 1000
 if raw != nil {
     timeout_ms = i64(raw)
 }</code></pre>
-<h2 id="typecheck-mode">Typecheck Mode</h2>
-<p><code>oren build --typecheck</code> is opt-in and conservative. It checks obvious invalid casts and</p>
-<p>annotated call/return mismatches where values are statically known. It is not a full</p>
-<p>inference/unification system.</p>
+<p><code>oren build --typecheck</code> is conservative. It catches obvious invalid casts and</p>
+<p>annotated call/return mismatches where values are statically known; it is not a</p>
+<p>full global inference system.</p>
+<h2 id="structs-and-classes">Structs and Classes</h2>
+<p>Struct/class values provide named fields and constructor calls:</p>
+<pre><code>struct Point { x, y }
+class Rect { tl, br }
+
+fn area(r: Rect): i64 {
+    var w = r.br.x - r.tl.x
+    var h = r.br.y - r.tl.y
+    return w * h
+}
+
+var r = Rect(Point(0, 0), Point(10, 4))
+print(oren_int_to_string(area(r)))</code></pre>
+<p>Field annotations normalize values at construction time:</p>
+<pre><code>struct Pixel {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8
+}
+
+var p = Pixel(256 + 1, 2, 3, 255) // r becomes 1</code></pre>
+<p>Current rolling semantics treat struct/class values as immutable handles. Use</p>
+<p>maps, buffers, or explicit replacement values for mutable data.</p>
+<h2 id="methods-traits-and-generics">Methods, Traits, and Generics</h2>
+<p>Oren has trait-backed method syntax. Calls such as <code>x.method(y)</code> are lowered</p>
+<p>deterministically to plain functions at compile/link time; there is no hidden</p>
+<p>runtime vtable cost in the current model.</p>
+<pre><code>trait Add1 {
+    fn add1(self, rhs);
+}
+
+impl Add1 for i32 {
+    fn add1(self, rhs) { return self + rhs }
+}
+
+fn plus_one[T: Add1](x: T): T {
+    return x.add1(1)
+}
+
+print(oren_int_to_string(plus_one[i32](41)))</code></pre>
+<p>Multiple constraints and chaining are supported:</p>
+<pre><code>trait Mul1 {
+    fn mul1(self, rhs);
+}
+
+impl Mul1 for i32 {
+    fn mul1(self, rhs) { return self * rhs }
+}
+
+fn scale_then_add[T: Mul1 + Add1](x: T): T {
+    return x.mul1(2).add1(1)
+}</code></pre>
+<p>Blanket impls are available for generic fallback behavior:</p>
+<pre><code>trait Describe {
+    fn describe(self);
+}
+
+impl Describe for any {
+    fn describe(self) { return &quot;value&quot; }
+}
+
+impl Describe for i64 {
+    fn describe(self) { return &quot;int&quot; }
+}</code></pre>
+<p>When multiple traits define the same method for the same receiver type, use</p>
+<p>trait-qualified calls:</p>
+<pre><code>var out = Describe.describe(123)</code></pre>
+<p>Receiver typing is static. Builtin receiver types and linked stdlib metadata</p>
+<p>make common chains work without local annotations, for example:</p>
+<pre><code>&quot;{}&quot;.json().text()
+&quot;hi&quot;.bytes().base64()
+&quot;TWFu&quot;.base64_bytes().text()</code></pre>
+<p>When writing your own generic/object APIs, add annotations where they clarify</p>
+<p>receiver type and improve cross-backend lowering.</p>
+<h2 id="container-and-buffer-methods">Container and Buffer Methods</h2>
+<p>Common containers support method-style operations:</p>
+<pre><code>var xs = []
+xs.push(1)
+xs.push(2)
+print(oren_int_to_string(xs.len()))
+
+var m = {}
+m.set(&quot;answer&quot;, 42)
+print(oren_int_to_string(m.get(&quot;answer&quot;)))</code></pre>
+<p>Typed buffers are the resource-efficient path for large byte/numeric data:</p>
+<pre><code>import buffer &quot;std:buffer&quot;
+
+var b: []u8 = buffer.u8_new(6)
+buffer.try_u8_copy_from_string(b, &quot;abcdef&quot;)
+
+print(b.slice(1, 3).text())          // bcd
+print(b.strided(0, 3, 2).text())     // ace
+print(b.matrix(2, 3).row(1).text())  // def</code></pre>
+<p>Prefer buffer/bytes APIs over list-of-byte materialization for large payloads.</p>
+<p>&quot;Small implementation&quot; means low CPU/memory/disk/bandwidth overhead, not</p>
+<p>reduced features.</p>
+<h2 id="modules-and-visibility">Modules and Visibility</h2>
+<pre><code>import math &quot;std:math&quot;
+import bytes &quot;std:bytes&quot;
+
+fn main() {
+    var b = bytes.from_string(&quot;abc&quot;)
+    print(b.hex())
+    print(math.sqrt(9))
+}</code></pre>
+<p><code>std:*</code> modules are shipped with the repo and are part of the rolling stdlib</p>
+<p>surface. Module linking resolves imports, whole-program trait impls, and OBX</p>
+<p>metadata for precompiled OBC libraries.</p>
+<p>Visibility is enforced for imported module surfaces. Use <code>pub</code> for declarations</p>
+<p>that should be accessible outside the defining module; nested <code>pub</code> declarations</p>
+<p>are rejected.</p>
+<h2 id="errors-and-result-style">Errors and Result Style</h2>
+<p>Structured errors use:</p>
+<pre><code>oren_err(code, msg)
+oren_is_err(v)
+oren_err_code(v)
+oren_err_msg(v)</code></pre>
+<p>Public fallible APIs should use normal verbs and return <code>value | oren_err</code>:</p>
+<pre><code>var body = http.get(url).text()
+if oren_is_err(body) {
+    print(oren_err_msg(body))
+    return body
+}</code></pre>
+<p>Do not infer fallibility from names like <code>try_get_text</code>. Oren&#x27;s rolling stdlib</p>
+<p>uses canonical verbs (<code>parse</code>, <code>connect</code>, <code>read_into</code>, <code>decode_bytes</code>) and</p>
+<p>reserves <code>*_raw</code> for low-level numeric errno contracts. APIs where success</p>
+<p>metadata is part of the domain result can return <code>{ok, ...}</code> records; for</p>
+<p>example, <code>argparse.parse</code> returns a structured parse/help/error map.</p>
+<h2 id="standard-library-overview">Standard Library Overview</h2>
+<p>The stdlib is feature-rich and organized by domain:</p>
+<ul>
+<li><code>std:bytes</code>: byte/text conversion, hex, slicing, concat, direct <code>u8_buf</code> paths</li>
+<li><code>std:buffer</code>: typed buffers, slices, strided views, matrix views</li>
+<li><code>std:json</code>, <code>std:yaml</code>, <code>std:cbor</code>: parse/encode and method-style codecs</li>
+<li><code>std:xml</code>, <code>std:html</code>: DOM/query APIs plus streaming readers</li>
+<li><code>std:encoding/base64</code>: Base64 encode/decode and receiver methods</li>
+<li><code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, <code>std:crypto/rand</code>, <code>std:crypto/pem</code>,</li>
+</ul>
+<p>  <code>std:crypto/x509</code></p>
+<ul>
+<li><code>std:net/http</code>, <code>std:net/ws</code>, <code>std:net/tcp</code>, <code>std:net/udp</code>, <code>std:net/tls</code>,</li>
+</ul>
+<p>  <code>std:net/http2</code>, <code>std:net/hpack</code></p>
+<ul>
+<li><code>std:net/avm/*</code>: AVM-safe virtual networking facades for OBC programs</li>
+<li><code>std:ui</code> and <code>std:ui/scene3d</code>: retained 2D/3D UI command records and package</li>
+</ul>
+<p>  Scene3D helpers</p>
+<ul>
+<li><code>std:math</code>, <code>std:linalg</code>, <code>std:time</code>, <code>std:argparse</code>, <code>std:result</code></li>
+<li><code>std:generator</code>, <code>std:coroutine</code></li>
+</ul>
+<p>Examples:</p>
+<pre><code>// JSON/YAML/CBOR method style
+var title = &quot;{\&quot;title\&quot;:\&quot;Hello\&quot;}&quot;.json()[&quot;o&quot;][&quot;title&quot;][&quot;s&quot;]
+var yaml_text = &quot;{\&quot;answer\&quot;:42}&quot;.json().text().yaml().text()
+var cbor_value = cbor.cint(7).bytes().cbor()
+
+// HTML/XML DOM and streaming
+var page = &quot;&lt;a id=\&quot;home\&quot; href=\&quot;/\&quot;&gt;Home&lt;/a&gt;&quot;.html()
+print(page.find(&quot;#home&quot;).attr(&quot;href&quot;))
+
+var reader = &quot;&lt;root&gt;&lt;item&gt;A&lt;/item&gt;&lt;item&gt;B&lt;/item&gt;&lt;/root&gt;&quot;.xml_reader()
+var ev = reader.next()
+while ev != nil {
+    if ev[&quot;kind&quot;] == &quot;text&quot; { print(ev[&quot;text&quot;]) }
+    ev = reader.next()
+}</code></pre>
+<p>For large XML/HTML, prefer streaming readers to keep OBC memory bounded. Use DOM</p>
+<p>only when the payload size and query pattern justify holding a tree.</p>
+<h2 id="network-api-shape">Network API Shape</h2>
+<p>Network APIs are scoped by protocol and object:</p>
+<pre><code>import http &quot;std:net/avm/http&quot;
+
+var response = http.get(&quot;https://note.local/data.json&quot;)
+var doc = response.text().json()</code></pre>
+<p>Socket/session APIs put IO on the connection/session value:</p>
+<pre><code>import bytes &quot;std:bytes&quot;
+import tcp &quot;std:net/tcp&quot;
+
+var conn = tcp.connect(&quot;127.0.0.1&quot;, 9000)
+if oren_is_err(conn) { return conn }
+
+var out = &quot;ping&quot;.bytes()
+conn.write_from(out, 0, bytes.try_len(out))
+conn.close()</code></pre>
+<p>AVM/OBC programs do not receive raw host sockets. They use virtual session</p>
+<p>handles and capability-gated providers controlled by the host.</p>
+<h2 id="avm-obc-and-capabilities">AVM, OBC, and Capabilities</h2>
+<p>OBC bytecode runs in AVM with explicit capabilities and budgets. Host effects</p>
+<p>are grouped by domains such as FS, NET, PROC, TIME, RNG, ENV, and GFX. This is</p>
+<p>central to writing portable Oren programs:</p>
+<ul>
+<li>Use <code>std:net/avm/*</code> for OBC-visible virtual networking.</li>
+<li>Use package VirtualFS assets for bundled resources.</li>
+<li>Keep large binary/scene assets byte-native instead of list-native.</li>
+<li>Treat capability denials as normal fallible results.</li>
+</ul>
+<p>See:</p>
+<ul>
+<li><code>docs/CAPABILITY_RUNTIME_CONTRACT.md</code></li>
+<li><code>docs/EFFECT_LEDGER_CONTRACT.md</code></li>
+<li><code>docs/DESIGN.md</code></li>
+</ul>
 <h2 id="yield-generators-and-coroutines">Yield, Generators, and Coroutines</h2>
 <p>Current shipped surfaces:</p>
 <ul>
@@ -153,47 +370,71 @@ if raw != nil {
 <li><code>std:generator</code></li>
 <li><code>std:coroutine</code></li>
 </ul>
-<p>The compiler records yield metadata and the bytecode backend consumes the current</p>
-<p>prepared bare-yield subset. C/native execute the shared helper surface. The full</p>
-<p>generator/coroutine model is a rolling library/runtime contract, not a frozen language ABI.</p>
-<h2 id="capabilities-and-effects">Capabilities and Effects</h2>
-<p>The project tracks effect domains for filesystem, network, process, environment, time,</p>
-<p>randomness, and related runtime actions. AVM supports capability-gated deterministic</p>
-<p>fixtures and budgets. Native/C capability parity is guarded by dedicated contract tests.</p>
-<p>See <code>docs/CAPABILITY_RUNTIME_CONTRACT.md</code> and <code>docs/EFFECT_LEDGER_CONTRACT.md</code>.</p>
-<h2 id="cli">CLI</h2>
-<p>Common commands:</p>
-<pre><code>./oren build file.oren --backend c -o build/file_c
-./oren build file.oren --backend native -o build/file_native
-./oren build file.oren --backend bytecode -o build/file.obc
-./avm build/file.obc
-./oren meta file.oren
-./oren dump linked file.oren</code></pre>
-<h2 id="tests-as-spec">Tests as Spec</h2>
+<p>The compiler records yield metadata and the runtime libraries implement the</p>
+<p>current generator/coroutine contract. Treat this as rolling but usable; update</p>
+<p>fixtures when changing semantics.</p>
+<h2 id="implementation-map">Implementation Map</h2>
 <ul>
-<li>Native fixtures: <code>tests/native/fixtures/</code></li>
-<li>Module fixtures: <code>tests/modules/</code></li>
-<li>AVM fixtures: <code>tests/avm/</code></li>
-<li>Cross-backend fixtures: <code>tests/fixtures/</code></li>
+<li>Lexer/tokens: <code>lib/compiler/token.oren</code>, <code>lib/compiler/lexer.oren</code></li>
+<li>Parser: <code>lib/compiler/parser_parse/</code></li>
+<li>AST constructors: <code>lib/compiler/ast.oren</code></li>
+<li>Build pipeline: <code>lib/compiler/compiler/040_build_pipeline.oren</code></li>
+<li>Module linking: <code>lib/compiler/compiler/020_modules_linking.oren</code></li>
+<li>Trait/generic/method lowering: <code>lib/compiler/</code> lowering passes</li>
+<li>C backend: <code>lib/compiler/transpiler.oren</code>, <code>lib/runtime.[ch]</code></li>
+<li>Native backend: <code>lib/compiler/arm64_*</code>, <code>lib/compiler/x64_*</code>,</li>
 </ul>
-<p>When behavior changes, update the relevant fixture first, then update this document and</p>
-<p><code>docs/STATUS.md</code>.</p>
+<p>  <code>lib/runtime_native/</code></p>
+<ul>
+<li>Bytecode backend: <code>lib/compiler/codegen_bytecode/</code>, <code>lib/avm/</code></li>
+</ul>
+<h2 id="tests-as-spec">Tests as Spec</h2>
+<p>Use these fixtures to confirm behavior:</p>
+<ul>
+<li>Language basics and integration: <code>tests/modules/test_integration_suite.oren</code></li>
+<li>Traits/methods/generics: <code>tests/modules/test_trait_impl.oren</code>,</li>
+</ul>
+<p>  <code>tests/modules/test_generic_trait_constraints.oren</code>,</p>
+<p>  <code>tests/modules/test_trait_blanket_impl_any.oren</code></p>
+<ul>
+<li>Container and buffer methods: <code>tests/modules/test_container_methods.oren</code>,</li>
+</ul>
+<p>  <code>tests/modules/test_buffer_method_views.oren</code></p>
+<ul>
+<li>Struct/class fields: <code>tests/modules/test_typed_struct_fields.oren</code>,</li>
+</ul>
+<p>  <code>tests/modules/shapes.oren</code></p>
+<ul>
+<li>Codec and parser stdlib: <code>tests/modules/test_json.oren</code>,</li>
+</ul>
+<p>  <code>tests/modules/test_yaml_comments.oren</code>,</p>
+<p>  <code>tests/modules/test_cbor_sequence.oren</code>,</p>
+<p>  <code>tests/modules/test_xml_html_dom.oren</code></p>
+<ul>
+<li>AVM/OBC behavior: <code>tests/avm/</code>, <code>tests/fixtures/</code></li>
+</ul>
+<p>When behavior changes, update the relevant fixture first, then update this page</p>
+<p>and <code>docs/STATUS.md</code>.</p>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>
       <a class="toc-l1" href="#oren-language">Oren Language</a>
-<a class="toc-l2" href="#implementation-map">Implementation Map</a>
+<a class="toc-l2" href="#quick-start">Quick Start</a>
 <a class="toc-l2" href="#program-shape">Program Shape</a>
 <a class="toc-l2" href="#values">Values</a>
 <a class="toc-l2" href="#variables-and-control-flow">Variables and Control Flow</a>
-<a class="toc-l2" href="#functions">Functions</a>
-<a class="toc-l2" href="#modules">Modules</a>
-<a class="toc-l2" href="#errors">Errors</a>
-<a class="toc-l2" href="#type-checks">Type Checks</a>
-<a class="toc-l2" href="#typecheck-mode">Typecheck Mode</a>
+<a class="toc-l2" href="#functions-and-closures">Functions and Closures</a>
+<a class="toc-l2" href="#type-annotations">Type Annotations</a>
+<a class="toc-l2" href="#structs-and-classes">Structs and Classes</a>
+<a class="toc-l2" href="#methods-traits-and-generics">Methods, Traits, and Generics</a>
+<a class="toc-l2" href="#container-and-buffer-methods">Container and Buffer Methods</a>
+<a class="toc-l2" href="#modules-and-visibility">Modules and Visibility</a>
+<a class="toc-l2" href="#errors-and-result-style">Errors and Result Style</a>
+<a class="toc-l2" href="#standard-library-overview">Standard Library Overview</a>
+<a class="toc-l2" href="#network-api-shape">Network API Shape</a>
+<a class="toc-l2" href="#avm-obc-and-capabilities">AVM, OBC, and Capabilities</a>
 <a class="toc-l2" href="#yield-generators-and-coroutines">Yield, Generators, and Coroutines</a>
-<a class="toc-l2" href="#capabilities-and-effects">Capabilities and Effects</a>
-<a class="toc-l2" href="#cli">CLI</a>
+<a class="toc-l2" href="#implementation-map">Implementation Map</a>
 <a class="toc-l2" href="#tests-as-spec">Tests as Spec</a>
     </aside>
   </div>
