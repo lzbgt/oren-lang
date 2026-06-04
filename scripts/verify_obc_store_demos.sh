@@ -14,6 +14,7 @@ mkdir -p "$OUT_ROOT" "$LOG_DIR"
 
 python3 - "$OREN_COMPILER" "$AVM_BIN" "$SPEC" "$OUT_ROOT" "$LOG_DIR" <<'PY'
 import json
+import base64
 import hashlib
 import importlib.util
 import math
@@ -55,6 +56,52 @@ def verify_scene3d_obj_lowering():
         data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
         if not data.startswith(b"OS3D01\x00\x00"):
             raise SystemExit(f"scene OBJ {kind} lowering did not produce OS3D01")
+
+
+def verify_scene3d_gltf_lowering():
+    payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        payload += struct.pack("<fff", *vertex)
+    payload += struct.pack("<HHH", 0, 1, 2)
+    for color in ((255, 32, 32, 255), (32, 255, 32, 255), (32, 32, 255, 255)):
+        payload += bytes(color)
+    uri = "data:application/octet-stream;base64," + base64.b64encode(payload).decode("ascii")
+    gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": uri, "byteLength": len(payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 6},
+            {"buffer": 0, "byteOffset": 42, "byteLength": 12},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"},
+            {"bufferView": 2, "componentType": 5121, "count": 3, "type": "VEC4", "normalized": True},
+        ],
+        "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [0.25, 0.5, 0.75, 1.0]}}],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0}]}],
+    }
+    for kind in ("triangles", "indexed"):
+        scene = {
+            "schema": "oren.ui.scene3d.v0",
+            "meshes": [{"kind": kind, "id": 1, "gltf_json": gltf, "color": "#ffffffff"}],
+            "models": [{"id": 2, "mesh_id": 1}],
+            "draw": [2],
+        }
+        data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+        if not data.startswith(b"OS3D01\x00\x00"):
+            raise SystemExit(f"scene glTF {kind} lowering did not produce OS3D01")
+
+    scene["meshes"][0]["kind"] = "triangles_rgba"
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if not data.startswith(b"OS3D01\x00\x00") or b"\x40\x80\xbf\xff" not in data:
+        raise SystemExit("scene glTF material-color RGBA lowering did not produce expected payload")
+
+    gltf["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = 2
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
+        raise SystemExit("scene glTF vertex-color RGBA lowering did not produce averaged payload")
 
 
 def verify_scene3d_stl_lowering():
@@ -220,6 +267,7 @@ end_header
 
 
 verify_scene3d_obj_lowering()
+verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()
 

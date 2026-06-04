@@ -209,6 +209,7 @@ This file is the concise task view. Detailed implementation status lives in
      Oren source in-browser with syntax highlighting and an AST outline.
 	     Scene3D package assets now include compact `boxes_xyz` cuboid authoring,
 	     `prisms_xy` extruded polygon authoring, and bounded
+	     glTF 2.0 JSON source lowering with URI buffers/material colors/`COLOR_0`,
 	     Wavefront OBJ, binary-or-ASCII STL source lowering, inline ASCII STL
 	     text lowering, binary-or-ASCII PLY source lowering,
 	     inline ASCII PLY text lowering, PLY face/vertex colors to `mesh3d_rgba`, plus

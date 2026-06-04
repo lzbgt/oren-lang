@@ -94,6 +94,13 @@
       "base_color": "#66ddffff",
       "roughness_milli": 480,
       "metallic_milli": 0
+    },
+    {
+      "kind": "triangles_rgba",
+      "id": 58,
+      "name": "gltf-mesh",
+      "gltf_source": "scene3d_gltf_marker.gltf",
+      "gltf_offset_xyz": [4, 0, 1]
     }
   ],
   "materials": [
@@ -117,7 +124,8 @@
     {"id": 48, "name": "ring", "mesh": "ring-mesh", "material": "ring-mint", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 51, "name": "capsule", "mesh": "capsule-mesh", "material": "capsule-rose", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 54, "name": "badge", "mesh": "badge-mesh", "material": "badge-paper", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
-    {"id": 57, "name": "ply-marker", "mesh": "ply-mesh", "material": "ply-cyan", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+    {"id": 57, "name": "ply-marker", "mesh": "ply-mesh", "material": "ply-cyan", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
+    {"id": 59, "name": "gltf-marker", "mesh": "gltf-mesh", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instance_groups": [
     {
@@ -146,6 +154,7 @@
     "capsule",
     "badge",
     "ply-marker",
+    "gltf-marker",
     {"model": "card", "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}},
     "accent"
   ],

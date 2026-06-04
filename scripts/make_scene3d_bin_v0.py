@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build byte-native OS3D01 scene assets from reviewable JSON."""
 
+import base64
 import json
 import math
 import pathlib
@@ -186,6 +187,279 @@ def pack_obj_triangles(mesh, base_dir):
     vertices, faces = obj_mesh_data(mesh, base_dir)
     points = [obj_transform_vertex(v, mesh) for v in vertices]
     return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
+
+
+def has_gltf_mesh(mesh):
+    return mesh.get("gltf_source") is not None or mesh.get("gltf_json") is not None
+
+
+def safe_relative_path(rel, context):
+    rel_path = pathlib.PurePosixPath(str(rel))
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        raise SystemExit(f"scene {context} must be a safe relative path")
+    return rel_path
+
+
+def read_relative_bytes(base_dir, rel, context):
+    if base_dir is None:
+        raise SystemExit(f"scene {context} requires a source directory")
+    rel_path = safe_relative_path(rel, context)
+    path = base_dir / pathlib.Path(*rel_path.parts)
+    if not path.is_file():
+        raise SystemExit(f"scene {context} not found: {rel}")
+    return path.read_bytes()
+
+
+def gltf_source_json(mesh, base_dir):
+    if mesh.get("gltf_json") is not None:
+        doc = mesh["gltf_json"]
+        if isinstance(doc, str):
+            return json.loads(doc)
+        if isinstance(doc, dict):
+            return doc
+        raise SystemExit("scene gltf_json must be a JSON object or string")
+    rel = mesh.get("gltf_source")
+    if rel is None:
+        raise SystemExit("scene glTF mesh must include gltf_source or gltf_json")
+    data = read_relative_bytes(base_dir, rel, "gltf_source")
+    try:
+        return json.loads(data.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise SystemExit("scene glTF source must be UTF-8 JSON") from exc
+
+
+def gltf_decode_data_uri(uri):
+    prefix = "data:"
+    if not isinstance(uri, str) or not uri.startswith(prefix):
+        return None
+    meta, sep, payload = uri[len(prefix):].partition(",")
+    if sep == "" or "base64" not in meta.split(";"):
+        raise SystemExit("scene glTF data URI buffers must be base64")
+    return base64.b64decode(payload, validate=True)
+
+
+def gltf_buffer_bytes(doc, buffer_index, base_dir):
+    buffers = doc.get("buffers", [])
+    if buffer_index < 0 or buffer_index >= len(buffers):
+        raise SystemExit("scene glTF buffer index out of bounds")
+    buf = buffers[buffer_index]
+    uri = buf.get("uri")
+    if uri is None:
+        raise SystemExit("scene glTF JSON buffers must use uri data or relative paths")
+    data = gltf_decode_data_uri(uri)
+    if data is None:
+        data = read_relative_bytes(base_dir, uri, "gltf buffer uri")
+    declared = buf.get("byteLength")
+    if declared is not None and len(data) < int(declared):
+        raise SystemExit("scene glTF buffer shorter than declared byteLength")
+    return data
+
+
+GLTF_COMPONENTS = {
+    5120: ("b", 1, True),
+    5121: ("B", 1, False),
+    5122: ("h", 2, True),
+    5123: ("H", 2, False),
+    5125: ("I", 4, False),
+    5126: ("f", 4, True),
+}
+
+GLTF_TYPE_COMPONENTS = {
+    "SCALAR": 1,
+    "VEC2": 2,
+    "VEC3": 3,
+    "VEC4": 4,
+}
+
+
+def gltf_accessor_values(doc, accessor_index, base_dir):
+    accessors = doc.get("accessors", [])
+    if accessor_index < 0 or accessor_index >= len(accessors):
+        raise SystemExit("scene glTF accessor index out of bounds")
+    accessor = accessors[accessor_index]
+    if accessor.get("sparse") is not None:
+        raise SystemExit("scene glTF sparse accessors are not supported")
+    component_type = int(accessor.get("componentType"))
+    if component_type not in GLTF_COMPONENTS:
+        raise SystemExit("scene glTF accessor componentType unsupported")
+    accessor_type = accessor.get("type")
+    if accessor_type not in GLTF_TYPE_COMPONENTS:
+        raise SystemExit("scene glTF accessor type unsupported")
+    component_fmt, component_size, _ = GLTF_COMPONENTS[component_type]
+    component_count = GLTF_TYPE_COMPONENTS[accessor_type]
+    count = int(accessor.get("count", 0))
+    if count < 0:
+        raise SystemExit("scene glTF accessor count out of bounds")
+    view_index = accessor.get("bufferView")
+    if view_index is None:
+        return [[0] * component_count for _ in range(count)]
+    views = doc.get("bufferViews", [])
+    view_index = int(view_index)
+    if view_index < 0 or view_index >= len(views):
+        raise SystemExit("scene glTF bufferView index out of bounds")
+    view = views[view_index]
+    data = gltf_buffer_bytes(doc, int(view["buffer"]), base_dir)
+    view_offset = int(view.get("byteOffset", 0))
+    view_len = int(view.get("byteLength", len(data) - view_offset))
+    accessor_offset = int(accessor.get("byteOffset", 0))
+    stride = int(view.get("byteStride", component_size * component_count))
+    if stride < component_size * component_count:
+        raise SystemExit("scene glTF accessor byteStride too small")
+    start = view_offset + accessor_offset
+    view_end = view_offset + view_len
+    fmt = "<" + component_fmt * component_count
+    item_size = struct.calcsize(fmt)
+    values = []
+    for i in range(count):
+        pos = start + i * stride
+        if pos < view_offset or pos + item_size > view_end or pos + item_size > len(data):
+            raise SystemExit("scene glTF accessor payload truncated")
+        value = struct.unpack_from(fmt, data, pos)
+        values.append(list(value))
+    return values
+
+
+def gltf_transform_vertex(v, mesh):
+    scale_milli = int(mesh.get("gltf_scale_milli", 1000))
+    if scale_milli <= 0:
+        raise SystemExit("scene glTF gltf_scale_milli must be positive")
+    offset = mesh.get("gltf_offset_xyz", [0, 0, 0])
+    if not isinstance(offset, list) or len(offset) != 3:
+        raise SystemExit("scene glTF gltf_offset_xyz must be [x,y,z]")
+    return [
+        round_half_away(float(v[0]) * scale_milli / 1000.0 + int(offset[0])),
+        round_half_away(float(v[1]) * scale_milli / 1000.0 + int(offset[1])),
+        round_half_away(float(v[2]) * scale_milli / 1000.0 + int(offset[2])),
+    ]
+
+
+def gltf_indices_for_primitive(doc, primitive, vertex_count, base_dir):
+    if primitive.get("indices") is None:
+        return list(range(vertex_count))
+    raw = gltf_accessor_values(doc, int(primitive["indices"]), base_dir)
+    indices = [int(item[0]) for item in raw]
+    for idx in indices:
+        if idx < 0 or idx >= vertex_count:
+            raise SystemExit("scene glTF primitive index out of bounds")
+    return indices
+
+
+def gltf_material_color(doc, primitive):
+    material_index = primitive.get("material")
+    if material_index is None:
+        return (255, 255, 255, 255)
+    materials = doc.get("materials", [])
+    material_index = int(material_index)
+    if material_index < 0 or material_index >= len(materials):
+        raise SystemExit("scene glTF material index out of bounds")
+    color = materials[material_index].get("pbrMetallicRoughness", {}).get("baseColorFactor")
+    if color is None:
+        return (255, 255, 255, 255)
+    if not isinstance(color, list) or len(color) not in (3, 4):
+        raise SystemExit("scene glTF baseColorFactor must be [r,g,b] or [r,g,b,a]")
+    rgba = [round_half_away(max(0.0, min(1.0, float(v))) * 255.0) for v in color]
+    if len(rgba) == 3:
+        rgba.append(255)
+    return tuple(rgba)
+
+
+def gltf_accessor_color(doc, accessor_index, base_dir):
+    accessors = doc.get("accessors", [])
+    accessor = accessors[int(accessor_index)]
+    values = gltf_accessor_values(doc, int(accessor_index), base_dir)
+    component_type = int(accessor.get("componentType"))
+    normalized = bool(accessor.get("normalized", False))
+    out = []
+    for value in values:
+        channels = []
+        for channel in value[:4]:
+            if component_type == 5126:
+                channels.append(round_half_away(max(0.0, min(1.0, float(channel))) * 255.0))
+            elif normalized:
+                if component_type == 5121:
+                    channels.append(round_half_away(max(0, min(255, int(channel)))))
+                elif component_type == 5123:
+                    channels.append(round_half_away(max(0, min(65535, int(channel))) * 255.0 / 65535.0))
+                else:
+                    raise SystemExit("scene glTF normalized COLOR_0 componentType unsupported")
+            else:
+                channels.append(max(0, min(255, int(channel))))
+        while len(channels) < 4:
+            channels.append(255)
+        out.append(tuple(channels[:4]))
+    return out
+
+
+def gltf_mesh_data(mesh, base_dir):
+    doc = gltf_source_json(mesh, base_dir)
+    asset = doc.get("asset", {})
+    if str(asset.get("version", "")).split(".", 1)[0] != "2":
+        raise SystemExit("scene glTF asset.version must be 2.x")
+    mesh_index = int(mesh.get("gltf_mesh", 0))
+    meshes = doc.get("meshes", [])
+    if mesh_index < 0 or mesh_index >= len(meshes):
+        raise SystemExit("scene glTF mesh index out of bounds")
+    vertices = []
+    faces = []
+    vertex_colors = []
+    face_colors = []
+    for primitive in meshes[mesh_index].get("primitives", []):
+        mode = int(primitive.get("mode", 4))
+        if mode != 4:
+            raise SystemExit("scene glTF only TRIANGLES primitives are supported")
+        attributes = primitive.get("attributes", {})
+        if attributes.get("POSITION") is None:
+            raise SystemExit("scene glTF primitive missing POSITION accessor")
+        positions = gltf_accessor_values(doc, int(attributes["POSITION"]), base_dir)
+        base_vertex = len(vertices)
+        vertices.extend(positions)
+        colors = None
+        if attributes.get("COLOR_0") is not None:
+            colors = gltf_accessor_color(doc, int(attributes["COLOR_0"]), base_dir)
+            if len(colors) != len(positions):
+                raise SystemExit("scene glTF COLOR_0 count must match POSITION count")
+        vertex_colors.extend(colors if colors is not None else [None] * len(positions))
+        local_indices = gltf_indices_for_primitive(doc, primitive, len(positions), base_dir)
+        if len(local_indices) % 3 != 0:
+            raise SystemExit("scene glTF TRIANGLES index count must be a multiple of 3")
+        material_color = gltf_material_color(doc, primitive)
+        for i in range(0, len(local_indices), 3):
+            face = [base_vertex + local_indices[i], base_vertex + local_indices[i + 1], base_vertex + local_indices[i + 2]]
+            faces.append(face)
+            face_colors.append(material_color if colors is None else None)
+    if not vertices:
+        raise SystemExit("scene glTF mesh has no vertices")
+    if not faces:
+        raise SystemExit("scene glTF mesh has no triangle faces")
+    return vertices, faces, vertex_colors, face_colors
+
+
+def pack_gltf_indexed(mesh, base_dir):
+    vertices, faces, _, _ = gltf_mesh_data(mesh, base_dir)
+    return pack_vertices_xyz([gltf_transform_vertex(v, mesh) for v in vertices]), pack_faces(faces, len(vertices))
+
+
+def pack_gltf_triangles(mesh, base_dir):
+    vertices, faces, _, _ = gltf_mesh_data(mesh, base_dir)
+    points = [gltf_transform_vertex(v, mesh) for v in vertices]
+    return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
+
+
+def pack_gltf_triangles_rgba(mesh, base_dir):
+    vertices, faces, vertex_colors, face_colors = gltf_mesh_data(mesh, base_dir)
+    points = [gltf_transform_vertex(v, mesh) for v in vertices]
+    triangles = []
+    for i, face in enumerate(faces):
+        color = face_colors[i]
+        if color is None:
+            color = ply_average_color([vertex_colors[idx] for idx in face])
+        if color is None:
+            raise SystemExit("scene glTF triangles_rgba mesh requires COLOR_0 or material baseColorFactor")
+        triangles.append({
+            "vertices": [points[face[0]], points[face[1]], points[face[2]]],
+            "color": color_hex_from_rgba(color[0], color[1], color[2], color[3]),
+        })
+    return pack_triangles_xyz_rgba(triangles)
 
 
 def has_ply_mesh(mesh):
@@ -1318,7 +1592,9 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
         kind = mesh.get("kind", "triangles")
         if kind == "indexed":
             kind_id = 1
-            if has_obj_mesh(mesh):
+            if has_gltf_mesh(mesh):
+                payload, indices = pack_gltf_indexed(mesh, base_dir)
+            elif has_obj_mesh(mesh):
                 payload, indices = pack_obj_indexed(mesh, base_dir)
             elif has_ply_mesh(mesh):
                 payload, indices = pack_ply_indexed(mesh, base_dir)
@@ -1339,7 +1615,9 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                     indices = bytes(mesh["indices"])
         elif kind == "triangles":
             kind_id = 2
-            if has_obj_mesh(mesh):
+            if has_gltf_mesh(mesh):
+                payload = pack_gltf_triangles(mesh, base_dir)
+            elif has_obj_mesh(mesh):
                 payload = pack_obj_triangles(mesh, base_dir)
             elif has_ply_mesh(mesh):
                 payload = pack_ply_triangles(mesh, base_dir)
@@ -1370,7 +1648,9 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
             indices = b""
         elif kind == "triangles_rgba":
             kind_id = 3
-            if has_ply_mesh(mesh):
+            if has_gltf_mesh(mesh):
+                payload = pack_gltf_triangles_rgba(mesh, base_dir)
+            elif has_ply_mesh(mesh):
                 payload = pack_ply_triangles_rgba(mesh, base_dir)
             elif mesh.get("triangles_xyz_rgba") is not None:
                 payload = pack_triangles_xyz_rgba(mesh["triangles_xyz_rgba"])
