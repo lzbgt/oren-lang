@@ -222,10 +222,53 @@ def gltf_source_json(mesh, base_dir):
     if rel is None:
         raise SystemExit("scene glTF mesh must include gltf_source or gltf_json")
     data = read_relative_bytes(base_dir, rel, "gltf_source")
+    if data.startswith(b"glTF"):
+        return gltf_parse_glb(data)
     try:
         return json.loads(data.decode("utf-8"))
     except UnicodeDecodeError as exc:
         raise SystemExit("scene glTF source must be UTF-8 JSON") from exc
+
+
+def gltf_parse_glb(data):
+    if len(data) < 20:
+        raise SystemExit("scene GLB payload truncated")
+    magic, version, total_len = struct.unpack_from("<III", data, 0)
+    if magic != 0x46546C67 or version != 2:
+        raise SystemExit("scene GLB header must be Binary glTF version 2")
+    if total_len != len(data):
+        raise SystemExit("scene GLB length mismatch")
+    pos = 12
+    json_chunk = None
+    bin_chunk = None
+    chunk_index = 0
+    while pos < len(data):
+        if pos + 8 > len(data):
+            raise SystemExit("scene GLB chunk header truncated")
+        chunk_len, chunk_type = struct.unpack_from("<II", data, pos)
+        pos += 8
+        if pos + chunk_len > len(data):
+            raise SystemExit("scene GLB chunk payload truncated")
+        chunk = data[pos:pos + chunk_len]
+        pos += chunk_len
+        if chunk_type == 0x4E4F534A:
+            if chunk_index != 0 or json_chunk is not None:
+                raise SystemExit("scene GLB JSON chunk must be first and unique")
+            json_chunk = chunk.rstrip(b" \t\r\n")
+        elif chunk_type == 0x004E4942:
+            if json_chunk is None or bin_chunk is not None:
+                raise SystemExit("scene GLB BIN chunk must follow JSON and be unique")
+            bin_chunk = chunk
+        chunk_index += 1
+    if json_chunk is None:
+        raise SystemExit("scene GLB missing JSON chunk")
+    try:
+        doc = json.loads(json_chunk.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise SystemExit("scene GLB JSON chunk must be UTF-8") from exc
+    if bin_chunk is not None:
+        doc["__oren_glb_bin"] = bin_chunk
+    return doc
 
 
 def gltf_decode_data_uri(uri):
@@ -245,10 +288,13 @@ def gltf_buffer_bytes(doc, buffer_index, base_dir):
     buf = buffers[buffer_index]
     uri = buf.get("uri")
     if uri is None:
-        raise SystemExit("scene glTF JSON buffers must use uri data or relative paths")
-    data = gltf_decode_data_uri(uri)
-    if data is None:
-        data = read_relative_bytes(base_dir, uri, "gltf buffer uri")
+        if buffer_index != 0 or "__oren_glb_bin" not in doc:
+            raise SystemExit("scene glTF JSON buffers must use uri data, relative paths, or GLB BIN chunk")
+        data = doc["__oren_glb_bin"]
+    else:
+        data = gltf_decode_data_uri(uri)
+        if data is None:
+            data = read_relative_bytes(base_dir, uri, "gltf buffer uri")
     declared = buf.get("byteLength")
     if declared is not None and len(data) < int(declared):
         raise SystemExit("scene glTF buffer shorter than declared byteLength")

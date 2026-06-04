@@ -103,6 +103,28 @@ def verify_scene3d_gltf_lowering():
     if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
         raise SystemExit("scene glTF vertex-color RGBA lowering did not produce averaged payload")
 
+    glb_doc = dict(gltf)
+    glb_doc["buffers"] = [{"byteLength": len(payload)}]
+    json_chunk = json.dumps(glb_doc, separators=(",", ":")).encode("utf-8")
+    json_chunk += b" " * ((4 - len(json_chunk) % 4) % 4)
+    bin_chunk = bytes(payload) + b"\0" * ((4 - len(payload) % 4) % 4)
+    glb = (
+        struct.pack("<III", 0x46546C67, 2, 12 + 8 + len(json_chunk) + 8 + len(bin_chunk)) +
+        struct.pack("<II", len(json_chunk), 0x4E4F534A) + json_chunk +
+        struct.pack("<II", len(bin_chunk), 0x004E4942) + bin_chunk
+    )
+    glb_path = out_root / "scene3d_gltf_smoke.glb"
+    glb_path.write_bytes(glb)
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles_rgba", "id": 1, "gltf_source": glb_path.name}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+    if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
+        raise SystemExit("scene GLB BIN-buffer RGBA lowering did not produce expected payload")
+
 
 def verify_scene3d_stl_lowering():
     stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"
