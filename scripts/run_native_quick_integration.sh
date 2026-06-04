@@ -1472,6 +1472,19 @@ run_step_checked "math remainder smoke (bytecode)" "$math_remainder_log" \
   "$compiler" test "$math_remainder_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_remainder_log"
 
+echo "== math nextafter smoke (native/C/bytecode) =="
+math_nextafter_src="tests/modules/test_math_nextafter.oren"
+math_nextafter_log="build/logs/${compiler_base}_math_nextafter.log"
+rm -f "$math_nextafter_log" 2>/dev/null || true
+
+run_step_checked "math nextafter smoke (native)" "$math_nextafter_log" \
+  "$compiler" test "$math_nextafter_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math nextafter smoke (C)" "$math_nextafter_log" \
+  "$compiler" test "$math_nextafter_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math nextafter smoke (bytecode)" "$math_nextafter_log" \
+  "$compiler" test "$math_nextafter_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_nextafter_log"
+
 echo "== math inverse trig smoke (native/C/bytecode) =="
 math_inverse_trig_src="tests/modules/test_math_inverse_trig.oren"
 math_inverse_trig_log="build/logs/${compiler_base}_math_inverse_trig.log"

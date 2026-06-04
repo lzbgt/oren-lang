@@ -1,0 +1,54 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math nextafter FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var tiny = math.pow2i(0 - 1074)
+assert_true(math.is_subnormal(tiny), 10, "tiny subnormal")
+assert_true(!math.is_normal(tiny), 11, "tiny not normal")
+assert_true(math.is_normal(1.0), 12, "one normal")
+
+var z_up = math.nextafter(0.0, 1.0)
+assert_close(z_up, tiny, 0.0, 20, "zero to tiny")
+assert_close(math.nextafter(z_up, 0.0), 0.0, 0.0, 21, "tiny to zero")
+
+var one_up = math.nextafter(1.0, 2.0)
+assert_true(one_up > 1.0, 30, "one up greater")
+assert_close(math.nextafter(one_up, 1.0), 1.0, 0.0, 31, "one up back")
+var one_down = math.nextafter(1.0, 0.0)
+assert_true(one_down < 1.0, 32, "one down less")
+assert_true(one_down > 0.999999999999999, 33, "one down close")
+assert_close(math.nexttoward(1.0, 2.0), one_up, 0.0, 34, "nexttoward alias")
+
+assert_close(math.fdim(7.25, 2.0), 5.25, 1e-12, 40, "fdim positive")
+assert_close(math.fdim(2.0, 7.25), 0.0, 0.0, 41, "fdim zero")
+assert_close(math.scalbn(1.5, 4), 24.0, 1e-12, 50, "scalbn")
+assert_close(math.scalbln(24.0, 0 - 4), 1.5, 1e-12, 51, "scalbln")
+
+var n1 = math.nextafter(1.0, 2.0)
+assert_true(n1 > 1.0, 60, "unannotated nextafter float metadata")
+var d1 = math.fdim(9.0, 4.0)
+assert_true(d1 > 4.0 && d1 < 6.0, 61, "unannotated fdim float metadata")
+var s1 = math.scalbn(3.0, 2)
+assert_true(s1 > 11.0 && s1 < 13.0, 62, "unannotated scalbn float metadata")
+
+assert_true(oren_is_err(math.nextafter(0.0 / 0.0, 1.0)), 70, "nextafter nan")
+assert_true(oren_is_err(math.fdim(0.0 / 0.0, 1.0)), 71, "fdim nan")
+assert_true(oren_is_err(math.scalbn(0.0 / 0.0, 1)), 72, "scalbn nan")
+
+print("module math nextafter OK")
+exit(0)
