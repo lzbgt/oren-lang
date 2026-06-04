@@ -75,6 +75,16 @@
       "base_color": "#ff66ddff",
       "roughness_milli": 460,
       "metallic_milli": 0
+    },
+    {
+      "kind": "triangles",
+      "id": 52,
+      "name": "badge-mesh",
+      "stl_source": "scene3d_badge.stl",
+      "stl_offset_xyz": [3, 1, 1],
+      "base_color": "#f5efe0ff",
+      "roughness_milli": 520,
+      "metallic_milli": 0
     }
   ],
   "materials": [
@@ -83,7 +93,8 @@
     {"id": 40, "name": "marker-orange", "base_color": "#ffaa00ff", "opacity_milli": 1000, "roughness_milli": 450, "metallic_milli": 0},
     {"id": 43, "name": "orb-purple", "base_color": "#cc44ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0},
     {"id": 47, "name": "ring-mint", "base_color": "#22ffaaff", "opacity_milli": 1000, "roughness_milli": 420, "metallic_milli": 0},
-    {"id": 50, "name": "capsule-rose", "base_color": "#ff66ddff", "opacity_milli": 1000, "roughness_milli": 460, "metallic_milli": 0}
+    {"id": 50, "name": "capsule-rose", "base_color": "#ff66ddff", "opacity_milli": 1000, "roughness_milli": 460, "metallic_milli": 0},
+    {"id": 53, "name": "badge-paper", "base_color": "#f5efe0ff", "opacity_milli": 1000, "roughness_milli": 520, "metallic_milli": 0}
   ],
   "model_templates": [
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
@@ -94,7 +105,8 @@
     {"id": 41, "name": "marker", "mesh": "marker-mesh", "material": "marker-orange", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 44, "name": "orb", "mesh": "orb-mesh", "material": "orb-purple", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 48, "name": "ring", "mesh": "ring-mesh", "material": "ring-mint", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
-    {"id": 51, "name": "capsule", "mesh": "capsule-mesh", "material": "capsule-rose", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+    {"id": 51, "name": "capsule", "mesh": "capsule-mesh", "material": "capsule-rose", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
+    {"id": 54, "name": "badge", "mesh": "badge-mesh", "material": "badge-paper", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instance_groups": [
     {
@@ -121,6 +133,7 @@
     "orb",
     "ring",
     "capsule",
+    "badge",
     {"model": "card", "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}},
     "accent"
   ],

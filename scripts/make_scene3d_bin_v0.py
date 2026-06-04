@@ -187,6 +187,79 @@ def pack_obj_triangles(mesh, base_dir):
     return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
 
 
+def has_stl_mesh(mesh):
+    return mesh.get("stl_source") is not None or mesh.get("stl_text") is not None
+
+
+def stl_source_text(mesh, base_dir):
+    if mesh.get("stl_text") is not None:
+        text = mesh["stl_text"]
+        if not isinstance(text, str):
+            raise SystemExit("scene stl_text must be a string")
+        return text
+    rel = mesh.get("stl_source")
+    if rel is None:
+        raise SystemExit("scene STL mesh must include stl_source or stl_text")
+    if base_dir is None:
+        raise SystemExit("scene stl_source requires a source directory")
+    rel_path = pathlib.PurePosixPath(str(rel))
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        raise SystemExit("scene stl_source must be a safe relative path")
+    path = base_dir / pathlib.Path(*rel_path.parts)
+    if not path.is_file():
+        raise SystemExit(f"scene stl_source not found: {rel}")
+    return path.read_text(encoding="utf-8")
+
+
+def stl_transform_vertex(v, mesh):
+    scale_milli = int(mesh.get("stl_scale_milli", 1000))
+    if scale_milli <= 0:
+        raise SystemExit("scene STL stl_scale_milli must be positive")
+    offset = mesh.get("stl_offset_xyz", [0, 0, 0])
+    if not isinstance(offset, list) or len(offset) != 3:
+        raise SystemExit("scene STL stl_offset_xyz must be [x,y,z]")
+    return [
+        round_half_away(v[0] * scale_milli / 1000.0 + int(offset[0])),
+        round_half_away(v[1] * scale_milli / 1000.0 + int(offset[1])),
+        round_half_away(v[2] * scale_milli / 1000.0 + int(offset[2])),
+    ]
+
+
+def stl_triangles(mesh, base_dir):
+    vertices = []
+    triangles = []
+    saw_solid = False
+    for line_no, raw in enumerate(stl_source_text(mesh, base_dir).splitlines(), 1):
+        parts = raw.strip().split()
+        if not parts:
+            continue
+        tag = parts[0].lower()
+        if tag == "solid":
+            saw_solid = True
+        elif tag == "vertex":
+            if len(parts) != 4:
+                raise SystemExit(f"scene STL vertex must have x y z on line {line_no}")
+            vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
+            if len(vertices) == 3:
+                triangles.append([stl_transform_vertex(v, mesh) for v in vertices])
+                vertices = []
+        elif tag in ("facet", "outer", "endloop", "endfacet", "endsolid"):
+            continue
+        else:
+            raise SystemExit(f"unsupported scene STL line {line_no}: {parts[0]}")
+    if not saw_solid:
+        raise SystemExit("scene STL mesh must be ASCII STL starting with solid")
+    if vertices:
+        raise SystemExit("scene STL facet has incomplete vertex list")
+    if not triangles:
+        raise SystemExit("scene STL mesh has no triangles")
+    return triangles
+
+
+def pack_stl_triangles(mesh, base_dir):
+    return pack_triangles_xyz(stl_triangles(mesh, base_dir))
+
+
 def pack_triangles_xyz(triangles):
     out = bytearray()
     for tri in triangles:
@@ -931,6 +1004,8 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
             kind_id = 2
             if has_obj_mesh(mesh):
                 payload = pack_obj_triangles(mesh, base_dir)
+            elif has_stl_mesh(mesh):
+                payload = pack_stl_triangles(mesh, base_dir)
             elif mesh.get("triangles_xyz") is not None:
                 payload = pack_triangles_xyz(mesh["triangles_xyz"])
             elif mesh.get("quads_xyz") is not None:

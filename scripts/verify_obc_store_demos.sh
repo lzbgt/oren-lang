@@ -57,7 +57,21 @@ def verify_scene3d_obj_lowering():
             raise SystemExit(f"scene OBJ {kind} lowering did not produce OS3D01")
 
 
+def verify_scene3d_stl_lowering():
+    stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles", "id": 1, "stl_text": stl_text, "color": "#ffffffff"}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if not data.startswith(b"OS3D01\x00\x00"):
+        raise SystemExit("scene STL lowering did not produce OS3D01")
+
+
 verify_scene3d_obj_lowering()
+verify_scene3d_stl_lowering()
 
 
 def write_deterministic_zip(zip_path, files):
@@ -281,7 +295,7 @@ def render_demo_preview(name):
         for yy, row in enumerate(scene):
             for xx, fill in enumerate(row):
                 rect(pixels, w, h, grid_x + xx * cell, grid_y + yy * cell, cell - 3, cell - 3, fill)
-        draw_text(pixels, w, h, 300, 146, "OBJ + CAPSULE + TORUS", "#e38b29", 2)
+        draw_text(pixels, w, h, 300, 146, "OBJ + STL + CAPSULE", "#e38b29", 2)
         draw_text(pixels, w, h, 300, 182, "MESH + MATERIAL + MODEL", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 218, "PACKAGE VFS: ASSETS/", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 254, "RASTER CHECK 7X7 OK", "#00d084", 2)
