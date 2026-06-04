@@ -134,6 +134,7 @@ GLTF_TYPE_COMPONENTS = {
     "VEC2": 2,
     "VEC3": 3,
     "VEC4": 4,
+    "MAT4": 16,
 }
 
 
@@ -555,7 +556,143 @@ def gltf_apply_position_morphs(doc, primitive, mesh_obj, node_weights, base_dir,
     return out
 
 
-def gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, base_dir, vertices, faces, vertex_colors, face_colors):
+def gltf_accessor_object(doc, accessor_index):
+    accessors = doc.get("accessors", [])
+    accessor_index = int(accessor_index)
+    if accessor_index < 0 or accessor_index >= len(accessors):
+        raise SystemExit("scene glTF accessor index out of bounds")
+    return accessors[accessor_index]
+
+
+def gltf_joint_indices(doc, accessor_index, base_dir, vertex_count, attr_name):
+    accessor = gltf_accessor_object(doc, accessor_index)
+    if accessor.get("type") != "VEC4" or int(accessor.get("componentType")) not in (5121, 5123):
+        raise SystemExit(f"scene glTF {attr_name} accessor must be unsigned byte/short VEC4")
+    values = gltf_accessor_values(doc, int(accessor_index), base_dir)
+    if len(values) != vertex_count:
+        raise SystemExit(f"scene glTF {attr_name} count must match POSITION count")
+    return [[int(v) for v in value[:4]] for value in values]
+
+
+def gltf_joint_weights(doc, accessor_index, base_dir, vertex_count, attr_name):
+    accessor = gltf_accessor_object(doc, accessor_index)
+    component_type = int(accessor.get("componentType"))
+    if accessor.get("type") != "VEC4" or component_type not in (5121, 5123, 5126):
+        raise SystemExit(f"scene glTF {attr_name} accessor must be float or normalized unsigned byte/short VEC4")
+    values = gltf_accessor_values(doc, int(accessor_index), base_dir)
+    if len(values) != vertex_count:
+        raise SystemExit(f"scene glTF {attr_name} count must match POSITION count")
+    normalized = bool(accessor.get("normalized", False))
+    out = []
+    for value in values:
+        if component_type == 5126:
+            weights = [float(v) for v in value[:4]]
+        elif normalized and component_type == 5121:
+            weights = [float(max(0, min(255, int(v)))) / 255.0 for v in value[:4]]
+        elif normalized and component_type == 5123:
+            weights = [float(max(0, min(65535, int(v)))) / 65535.0 for v in value[:4]]
+        else:
+            raise SystemExit(f"scene glTF {attr_name} integer accessors must be normalized")
+        if any(weight < 0.0 for weight in weights):
+            raise SystemExit(f"scene glTF {attr_name} must not contain negative weights")
+        out.append(weights)
+    return out
+
+
+def gltf_skin_joint_matrices(doc, skin_index, base_dir):
+    skins = doc.get("skins", [])
+    skin_index = int(skin_index)
+    if skin_index < 0 or skin_index >= len(skins):
+        raise SystemExit("scene glTF skin index out of bounds")
+    skin = skins[skin_index]
+    joints = skin.get("joints")
+    if not isinstance(joints, list) or not joints:
+        raise SystemExit("scene glTF skin joints must be a non-empty list")
+    nodes = doc.get("nodes", [])
+    joint_indices = []
+    for joint in joints:
+        joint_index = int(joint)
+        if joint_index < 0 or joint_index >= len(nodes):
+            raise SystemExit("scene glTF skin joint node index out of bounds")
+        joint_indices.append(joint_index)
+    inverse_bind_matrices = [mat_identity() for _ in joint_indices]
+    if skin.get("inverseBindMatrices") is not None:
+        accessor = gltf_accessor_object(doc, int(skin["inverseBindMatrices"]))
+        if accessor.get("type") != "MAT4" or int(accessor.get("componentType")) != 5126:
+            raise SystemExit("scene glTF inverseBindMatrices accessor must be float MAT4")
+        if int(accessor.get("count", 0)) < len(joint_indices):
+            raise SystemExit("scene glTF inverseBindMatrices count must cover skin joints")
+        raw_matrices = gltf_accessor_values(doc, int(skin["inverseBindMatrices"]), base_dir)
+        inverse_bind_matrices = [
+            mat_from_gltf_column_major(raw_matrices[i])
+            for i in range(len(joint_indices))
+        ]
+    global_cache = {}
+
+    def global_matrix(node_index):
+        if node_index not in global_cache:
+            global_cache[node_index] = gltf_node_global_matrix(doc, node_index)
+        return global_cache[node_index]
+
+    return [
+        mat_mul(global_matrix(joint_index), inverse_bind_matrices[i])
+        for i, joint_index in enumerate(joint_indices)
+    ]
+
+
+def gltf_apply_skinning(doc, primitive, skin_index, base_dir, positions):
+    if skin_index is None:
+        return positions
+    attributes = primitive.get("attributes", {})
+    joint_sets = []
+    set_index = 0
+    while True:
+        joint_name = f"JOINTS_{set_index}"
+        weight_name = f"WEIGHTS_{set_index}"
+        has_joint = attributes.get(joint_name) is not None
+        has_weight = attributes.get(weight_name) is not None
+        if not has_joint and not has_weight:
+            break
+        if not has_joint or not has_weight:
+            raise SystemExit("scene glTF skinned primitive joint/weight sets must be paired")
+        joint_sets.append((joint_name, int(attributes[joint_name]), weight_name, int(attributes[weight_name])))
+        set_index += 1
+    for attr_name in attributes:
+        if attr_name.startswith("JOINTS_") or attr_name.startswith("WEIGHTS_"):
+            suffix = attr_name.split("_", 1)[1]
+            if not suffix.isdigit() or int(suffix) >= set_index:
+                raise SystemExit("scene glTF skinned primitive joint/weight sets must be continuous")
+    if not joint_sets:
+        raise SystemExit("scene glTF skinned primitive requires JOINTS_0 and WEIGHTS_0")
+    joint_matrices = gltf_skin_joint_matrices(doc, skin_index, base_dir)
+    influence_sets = [
+        (
+            gltf_joint_indices(doc, joint_accessor, base_dir, len(positions), joint_name),
+            gltf_joint_weights(doc, weight_accessor, base_dir, len(positions), weight_name),
+        )
+        for joint_name, joint_accessor, weight_name, weight_accessor in joint_sets
+    ]
+    out = []
+    for vertex_index, pos in enumerate(positions):
+        total_weight = 0.0
+        skinned = [0.0, 0.0, 0.0]
+        for joints, weights in influence_sets:
+            for slot, weight in enumerate(weights[vertex_index]):
+                if weight == 0.0:
+                    continue
+                joint_index = joints[vertex_index][slot]
+                if joint_index < 0 or joint_index >= len(joint_matrices):
+                    raise SystemExit("scene glTF JOINTS_n value out of skin joint range")
+                moved = gltf_apply_node_transform(pos, joint_matrices[joint_index])
+                skinned[0] += moved[0] * weight
+                skinned[1] += moved[1] * weight
+                skinned[2] += moved[2] * weight
+                total_weight += weight
+        out.append(skinned if total_weight > 0.0 else list(pos))
+    return out
+
+
+def gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, skin_index, base_dir, vertices, faces, vertex_colors, face_colors):
     meshes = doc.get("meshes", [])
     if mesh_index < 0 or mesh_index >= len(meshes):
         raise SystemExit("scene glTF mesh index out of bounds")
@@ -567,8 +704,12 @@ def gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, base_dir, verti
             raise SystemExit("scene glTF primitive missing POSITION accessor")
         positions = gltf_accessor_values(doc, int(attributes["POSITION"]), base_dir)
         positions = gltf_apply_position_morphs(doc, primitive, mesh_obj, node_weights, base_dir, positions)
+        positions = gltf_apply_skinning(doc, primitive, skin_index, base_dir, positions)
         base_vertex = len(vertices)
-        vertices.extend([gltf_apply_node_transform(pos, node_matrix) for pos in positions])
+        if skin_index is None:
+            vertices.extend([gltf_apply_node_transform(pos, node_matrix) for pos in positions])
+        else:
+            vertices.extend([list(pos) for pos in positions])
         colors = None
         if attributes.get("COLOR_0") is not None:
             colors = gltf_accessor_color(doc, int(attributes["COLOR_0"]), base_dir)
@@ -605,7 +746,7 @@ def gltf_collect_scene_targets(doc, scene_index):
         node = nodes[node_index]
         matrix = mat_mul(parent_matrix, gltf_node_local_matrix(node))
         if node.get("mesh") is not None:
-            targets.append((int(node["mesh"]), matrix, node.get("weights")))
+            targets.append((int(node["mesh"]), matrix, node.get("weights"), node.get("skin")))
         next_path = path | {node_index}
         for child in node.get("children", []):
             walk(int(child), matrix, next_path)
@@ -623,10 +764,10 @@ def gltf_mesh_targets(doc, mesh):
         node = doc.get("nodes", [])[node_index]
         if node.get("mesh") is None:
             raise SystemExit("scene glTF node does not reference a mesh")
-        return [(int(node["mesh"]), gltf_node_global_matrix(doc, node_index), node.get("weights"))]
+        return [(int(node["mesh"]), gltf_node_global_matrix(doc, node_index), node.get("weights"), node.get("skin"))]
     if mesh.get("gltf_scene") is not None or (mesh.get("gltf_mesh") is None and doc.get("scenes") is not None):
         return gltf_collect_scene_targets(doc, gltf_scene_index(doc, mesh))
-    return [(int(mesh.get("gltf_mesh", 0)), mat_identity(), None)]
+    return [(int(mesh.get("gltf_mesh", 0)), mat_identity(), None, None)]
 
 
 def gltf_mesh_data(mesh, base_dir):
@@ -638,8 +779,8 @@ def gltf_mesh_data(mesh, base_dir):
     faces = []
     vertex_colors = []
     face_colors = []
-    for mesh_index, node_matrix, node_weights in gltf_mesh_targets(doc, mesh):
-        gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, base_dir, vertices, faces, vertex_colors, face_colors)
+    for mesh_index, node_matrix, node_weights, skin_index in gltf_mesh_targets(doc, mesh):
+        gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, skin_index, base_dir, vertices, faces, vertex_colors, face_colors)
     if not vertices:
         raise SystemExit("scene glTF mesh has no vertices")
     if not faces:

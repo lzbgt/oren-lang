@@ -305,6 +305,57 @@ def verify_scene3d_gltf_lowering():
     ):
         raise SystemExit("scene glTF scene lowering did not include all transformed mesh nodes")
 
+    skin_payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        skin_payload += struct.pack("<fff", *vertex)
+    for _ in range(3):
+        skin_payload += bytes((0, 0, 0, 0))
+    for _ in range(3):
+        skin_payload += bytes((255, 0, 0, 0))
+    skin_payload += struct.pack(
+        "<" + "f" * 16,
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    )
+    skin_uri = "data:application/octet-stream;base64," + base64.b64encode(skin_payload).decode("ascii")
+    skin_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": skin_uri, "byteLength": len(skin_payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 12},
+            {"buffer": 0, "byteOffset": 48, "byteLength": 12},
+            {"buffer": 0, "byteOffset": 60, "byteLength": 64},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5121, "count": 3, "type": "VEC4"},
+            {"bufferView": 2, "componentType": 5121, "count": 3, "type": "VEC4", "normalized": True},
+            {"bufferView": 3, "componentType": 5126, "count": 1, "type": "MAT4"},
+        ],
+        "skins": [{"joints": [1], "inverseBindMatrices": 3}],
+        "meshes": [{
+            "primitives": [{"attributes": {"POSITION": 0, "JOINTS_0": 1, "WEIGHTS_0": 2}}],
+        }],
+        "nodes": [
+            {"name": "skinned", "mesh": 0, "skin": 0, "translation": [100.0, 0.0, 0.0]},
+            {"name": "joint", "translation": [3.0, 4.0, 5.0]},
+        ],
+        "scenes": [{"name": "skin", "nodes": [0, 1]}],
+        "scene": 0,
+    }
+    scene["meshes"][0] = {"kind": "triangles", "id": 1, "gltf_json": skin_gltf, "gltf_scene": "skin", "color": "#ffffffff"}
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    skin_expected = (
+        struct.pack("<iii", 3, 4, 5) +
+        struct.pack("<iii", 4, 4, 5) +
+        struct.pack("<iii", 3, 5, 5)
+    )
+    if skin_expected not in data or struct.pack("<iii", 103, 4, 5) in data:
+        raise SystemExit("scene glTF skinning lowering did not apply joint transform while ignoring mesh node transform")
+
 
 def verify_scene3d_stl_lowering():
     stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"
