@@ -198,6 +198,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if opsStatus["bundle_release_count"] != float64(1) || opsStatus["source_release_count"] != float64(1) || opsStatus["source_asset_count"] != float64(1) || opsStatus["permission_default_count"] != float64(1) {
 		t.Fatalf("bad ops status=%v", opsStatus)
 	}
+	if opsStatus["audit_event_count"].(float64) < 4 {
+		t.Fatalf("ops status missing audit count=%v", opsStatus)
+	}
 	opsStatusPage := request(t, ts, http.MethodGet, "/ops/status", nil, true)
 	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Source metadata") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
 		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
@@ -258,6 +261,25 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	}
 	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/visibility", map[string]string{"visibility": "public"}, true); got.Code != http.StatusSeeOther {
 		t.Fatalf("ops public visibility status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/audit", nil, false); got.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated ops audit=%d body=%s", got.Code, got.Body.String())
+	}
+	auditResp := request(t, ts, http.MethodGet, "/api/v0/ops/audit?limit=20", nil, true)
+	if auditResp.Code != http.StatusOK {
+		t.Fatalf("ops audit status=%d body=%s", auditResp.Code, auditResp.Body.String())
+	}
+	var audit map[string]any
+	if err := json.Unmarshal(auditResp.Body.Bytes(), &audit); err != nil {
+		t.Fatalf("decode ops audit: %v body=%s", err, auditResp.Body.String())
+	}
+	auditEvents := audit["events"].([]any)
+	if !containsAuditEvent(auditEvents, "publisher.create", "publishers/oren-labs") || !containsAuditEvent(auditEvents, "release.create", "packages/oren-labs/plot-demo/versions/0.1.0") || !containsAuditEvent(auditEvents, "ops.release.yanked", "packages/oren-labs/plot-demo/versions/0.1.0") || !containsAuditEvent(auditEvents, "ops.package.visibility", "packages/oren-labs/plot-demo") {
+		t.Fatalf("missing audit events=%v", auditEvents)
+	}
+	auditPage := request(t, ts, http.MethodGet, "/ops/audit", nil, true)
+	if auditPage.Code != http.StatusOK || !strings.Contains(auditPage.Body.String(), "Audit Log") || !strings.Contains(auditPage.Body.String(), "ops.package.visibility") {
+		t.Fatalf("ops audit page status=%d body=%s", auditPage.Code, auditPage.Body.String())
 	}
 
 	search := getJSON[map[string]any](t, ts, "/api/v0/packages?query=plot&capability=GFX")
@@ -591,6 +613,14 @@ func TestStoreAcceptsPublisherScopedBearerToken(t *testing.T) {
 	if got := requestBearer(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "admin-reset-demo"}, "admin-reset-token"); got.Code != http.StatusCreated {
 		t.Fatalf("admin reset token package status=%d body=%s", got.Code, got.Body.String())
 	}
+	auditResp := request(t, ts, http.MethodGet, "/api/v0/ops/audit?limit=50", nil, true)
+	if auditResp.Code != http.StatusOK {
+		t.Fatalf("ops audit status=%d body=%s", auditResp.Code, auditResp.Body.String())
+	}
+	body := auditResp.Body.String()
+	if !strings.Contains(body, "publisher.token.rotate") || !strings.Contains(body, "publisher.token.revoke") || strings.Contains(body, hex.EncodeToString(rotatedHash[:])) || strings.Contains(body, `"token_sha256_hex"`) || strings.Contains(body, `:"rotated-token"`) {
+		t.Fatalf("token audit should record lifecycle without token material: %s", body)
+	}
 }
 
 func request(t *testing.T, ts *httptest.Server, method, path string, body any, auth bool) *httptest.ResponseRecorder {
@@ -702,6 +732,16 @@ func p256PublicKeyX963Base64(key *ecdsa.PublicKey) string {
 func containsAnyString(xs []any, want string) bool {
 	for _, x := range xs {
 		if s, ok := x.(string); ok && s == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAuditEvent(events []any, action, target string) bool {
+	for _, raw := range events {
+		ev, ok := raw.(map[string]any)
+		if ok && ev["action"] == action && ev["target"] == target {
 			return true
 		}
 	}

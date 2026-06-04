@@ -161,6 +161,7 @@ type OperatorStatus struct {
 	TrustBundleAvailable   bool     `json:"trust_bundle_available"`
 	TrustBundleStoreKeys   int      `json:"trust_bundle_store_keys"`
 	TrustBundleStoreKeyIDs []string `json:"trust_bundle_store_key_ids,omitempty"`
+	AuditEventCount        int      `json:"audit_event_count"`
 	AdminAuthConfigured    bool     `json:"admin_auth_configured"`
 }
 
@@ -244,12 +245,14 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/ops", s.handleSiteOps)
 	mux.HandleFunc("/ops/actions/", s.handleSiteOpsAction)
+	mux.HandleFunc("/ops/audit", s.handleSiteOpsAudit)
 	mux.HandleFunc("/ops/releases", s.handleSiteOpsReleases)
 	mux.HandleFunc("/ops/status", s.handleSiteOpsStatus)
 	mux.HandleFunc("/publishers/", s.handleSitePublisher)
 	mux.HandleFunc("/packages/", s.handleSitePackage)
 	mux.HandleFunc("/api/v0/health", s.handleHealth)
 	mux.HandleFunc("/api/v0/me", s.handleMe)
+	mux.HandleFunc("/api/v0/ops/audit", s.handleOpsAudit)
 	mux.HandleFunc("/api/v0/ops/releases", s.handleOpsReleases)
 	mux.HandleFunc("/api/v0/ops/status", s.handleOpsStatus)
 	mux.HandleFunc("/api/v0/publishers", s.handlePublishers)
@@ -455,6 +458,13 @@ func (s *Service) handlePublishers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.appendAuditEventLocked(s.auditActor(r, ""), "publisher.create", "publishers/"+p.ID, map[string]string{
+		"status":           p.Status,
+		"token_configured": boolString(p.TokenSHA256Hex != ""),
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -565,7 +575,7 @@ func (s *Service) handlePackagePath(w http.ResponseWriter, r *http.Request) {
 		case "publish":
 			s.publishRelease(w, r, pub, name, version)
 		case "yank":
-			s.setReleaseStatus(w, pub, name, version, "yanked")
+			s.setReleaseStatus(w, r, pub, name, version, "yanked")
 		case "artifacts":
 			s.uploadArtifact(w, r, pub, name, version)
 		default:
@@ -610,6 +620,13 @@ func (s *Service) createPackage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.appendAuditEventLocked(s.auditActor(r, p.Publisher), "package.create", "packages/"+p.Publisher+"/"+p.Name, map[string]string{
+		"status":     p.Status,
+		"visibility": p.Visibility,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -623,7 +640,7 @@ func (s *Service) setPackageVisibility(w http.ResponseWriter, r *http.Request, p
 		http.Error(w, "invalid package visibility", http.StatusBadRequest)
 		return
 	}
-	meta, err := s.setPackageVisibilityValue(pub, name, visibility)
+	meta, err := s.setPackageVisibilityValue(pub, name, visibility, s.auditActor(r, pub), "package.visibility")
 	if err != nil {
 		http.Error(w, err.Error(), statusForStoreError(err))
 		return
@@ -631,7 +648,7 @@ func (s *Service) setPackageVisibility(w http.ResponseWriter, r *http.Request, p
 	writeJSON(w, http.StatusOK, meta)
 }
 
-func (s *Service) setPackageVisibilityValue(pub, name, visibility string) (PackageMeta, error) {
+func (s *Service) setPackageVisibilityValue(pub, name, visibility string, actor AuditActor, action string) (PackageMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := s.packageMetaPath(pub, name)
@@ -641,6 +658,11 @@ func (s *Service) setPackageVisibilityValue(pub, name, visibility string) (Packa
 	}
 	meta.Visibility = visibility
 	if err := writeJSONFile(path, meta); err != nil {
+		return PackageMeta{}, err
+	}
+	if err := s.appendAuditEventLocked(actor, action, "packages/"+pub+"/"+name, map[string]string{
+		"visibility": visibility,
+	}); err != nil {
 		return PackageMeta{}, err
 	}
 	return meta, nil
@@ -658,7 +680,7 @@ func (s *Service) rotatePublisherToken(w http.ResponseWriter, r *http.Request, p
 		http.Error(w, "invalid publisher token hash", http.StatusBadRequest)
 		return
 	}
-	if !s.setPublisherTokenHash(w, publisherID, strings.ToLower(strings.TrimSpace(update.TokenSHA256Hex))) {
+	if !s.setPublisherTokenHash(w, publisherID, strings.ToLower(strings.TrimSpace(update.TokenSHA256Hex)), s.auditActor(r, publisherID), "publisher.token.rotate") {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"publisher": publisherID, "token_configured": true})
@@ -668,13 +690,13 @@ func (s *Service) revokePublisherToken(w http.ResponseWriter, r *http.Request, p
 	if !s.requirePublisher(w, r, publisherID) {
 		return
 	}
-	if !s.setPublisherTokenHash(w, publisherID, "") {
+	if !s.setPublisherTokenHash(w, publisherID, "", s.auditActor(r, publisherID), "publisher.token.revoke") {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"publisher": publisherID, "token_configured": false})
 }
 
-func (s *Service) setPublisherTokenHash(w http.ResponseWriter, publisherID, tokenHash string) bool {
+func (s *Service) setPublisherTokenHash(w http.ResponseWriter, publisherID, tokenHash string, actor AuditActor, action string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := s.publisherPath(publisherID)
@@ -685,6 +707,12 @@ func (s *Service) setPublisherTokenHash(w http.ResponseWriter, publisherID, toke
 	}
 	publisher.TokenSHA256Hex = tokenHash
 	if err := writeJSONFile(path, publisher); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return false
+	}
+	if err := s.appendAuditEventLocked(actor, action, "publishers/"+publisherID, map[string]string{
+		"token_configured": boolString(tokenHash != ""),
+	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return false
 	}
@@ -805,6 +833,16 @@ func (s *Service) createVersion(w http.ResponseWriter, r *http.Request, pub, nam
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.appendAuditEventLocked(s.auditActor(r, pub), "release.create", releaseTarget(pub, name, upload.Version), map[string]string{
+		"bundle":             boolString(rel.BundlePath != ""),
+		"asset_count":        strconv.Itoa(len(assetEntries)),
+		"screenshot_count":   strconv.Itoa(len(screenshots)),
+		"manifest_sha256":    rel.ManifestSHA256,
+		"program_obc_sha256": rel.OBCSHA256,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	writeJSON(w, http.StatusCreated, rel)
 }
 
@@ -841,6 +879,14 @@ func (s *Service) uploadArtifact(w http.ResponseWriter, r *http.Request, pub, na
 	}
 	rel.UpdatedAt = s.now().UTC()
 	if err := writeJSONFile(filepath.Join(dir, "release.json"), rel); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.appendAuditEventLocked(s.auditActor(r, pub), "release.artifact.upload", releaseTarget(pub, name, version), map[string]string{
+		"path":   upload.Path,
+		"sha256": sha256Hex(body),
+		"size":   strconv.Itoa(len(body)),
+	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -958,11 +1004,17 @@ func (s *Service) publishRelease(w http.ResponseWriter, r *http.Request, pub, na
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.appendAuditEventLocked(s.auditActor(r, pub), "release.publish", releaseTarget(pub, name, version), map[string]string{
+		"signature": boolString(rel.SignatureAlg != ""),
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	writeJSON(w, http.StatusOK, rel)
 }
 
-func (s *Service) setReleaseStatus(w http.ResponseWriter, pub, name, version, status string) {
-	rel, err := s.setReleaseStatusValue(pub, name, version, status)
+func (s *Service) setReleaseStatus(w http.ResponseWriter, r *http.Request, pub, name, version, status string) {
+	rel, err := s.setReleaseStatusValue(pub, name, version, status, s.auditActor(r, pub), "release."+status)
 	if err != nil {
 		http.Error(w, err.Error(), statusForStoreError(err))
 		return
@@ -970,7 +1022,7 @@ func (s *Service) setReleaseStatus(w http.ResponseWriter, pub, name, version, st
 	writeJSON(w, http.StatusOK, rel)
 }
 
-func (s *Service) setReleaseStatusValue(pub, name, version, status string) (ReleaseMeta, error) {
+func (s *Service) setReleaseStatusValue(pub, name, version, status string, actor AuditActor, action string) (ReleaseMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := filepath.Join(s.releaseDir(pub, name, version), "release.json")
@@ -980,6 +1032,11 @@ func (s *Service) setReleaseStatusValue(pub, name, version, status string) (Rele
 	}
 	rel = setReleaseMetaStatus(rel, status, s.now())
 	if err := writeJSONFile(path, rel); err != nil {
+		return ReleaseMeta{}, err
+	}
+	if err := s.appendAuditEventLocked(actor, action, releaseTarget(pub, name, version), map[string]string{
+		"status": status,
+	}); err != nil {
 		return ReleaseMeta{}, err
 	}
 	return rel, nil
@@ -1435,6 +1492,11 @@ func (s *Service) operatorStatus() (OperatorStatus, error) {
 	status.TrustBundleAvailable = trustAvailable
 	status.TrustBundleStoreKeyIDs = trustKeyIDs
 	status.TrustBundleStoreKeys = len(trustKeyIDs)
+	auditCount, err := s.auditEventCount()
+	if err != nil {
+		return status, err
+	}
+	status.AuditEventCount = auditCount
 	if status.IndexSigningKeyID != "" {
 		for _, id := range trustKeyIDs {
 			if id == status.IndexSigningKeyID {

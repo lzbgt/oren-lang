@@ -294,8 +294,10 @@ sibling Note repo has a handoff/verifier update at commit `86efc55` that checks
 the staged SDK for signed package downloads, install policies, trusted key inputs,
 trusted persisted package updates, visible update-status checks, and the external
 trust issue tool. The Note package manager exposes Check/Recheck status actions
-and a visible trusted Update action for installed OBC packages. Remaining store
-work is richer operator lifecycle workflow before a public store is release-ready.
+and a visible trusted Update action for installed OBC packages. The store also has
+authenticated operator lifecycle controls plus append-only mutation audit logs.
+Remaining store work is richer update persistence and deployment polish before a
+public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo

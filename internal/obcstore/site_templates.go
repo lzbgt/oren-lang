@@ -13,6 +13,7 @@ var (
 	siteOpsTemplate         = template.Must(template.New("store-ops").Parse(siteOpsHTML))
 	siteOpsStatusTemplate   = template.Must(template.New("store-ops-status").Parse(siteOpsStatusHTML))
 	siteOpsReleasesTemplate = template.Must(template.New("store-ops-releases").Parse(siteOpsReleasesHTML))
+	siteOpsAuditTemplate    = template.Must(template.New("store-ops-audit").Parse(siteOpsAuditHTML))
 )
 
 func renderHTML(w http.ResponseWriter, tmpl *template.Template, data any) {
@@ -135,7 +136,7 @@ const siteOpsHTML = `<!doctype html>
 <title>OBC Store Operator Guide</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Operator Guide</h1><p>Minimal publish and token lifecycle reference.</p></header>
 <main>
-	<section class="card"><h2>Deployment status</h2><p><a href="/ops/status">Authenticated operator status page</a> · <a href="/ops/releases">authenticated release lifecycle inventory</a> · <code>GET /api/v0/ops/status</code></p></section>
+	<section class="card"><h2>Deployment status</h2><p><a href="/ops/status">Authenticated operator status page</a> · <a href="/ops/releases">authenticated release lifecycle inventory</a> · <a href="/ops/audit">authenticated audit log</a> · <code>GET /api/v0/ops/status</code></p></section>
 <section class="card"><h2>Public endpoints</h2><pre>GET /healthz
 GET /api/v0/health
 	GET /api/v0/index.json
@@ -160,11 +161,12 @@ const siteOpsStatusHTML = `<!doctype html>
 <title>OBC Store Operator Status</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Operator Status</h1><p>Authenticated deployment summary for store.hubstack.cn.</p></header>
 <main>
-	<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/releases">release lifecycle</a> · <a href="/api/v0/ops/status">status JSON</a></p>
+	<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/releases">release lifecycle</a> · <a href="/ops/audit">audit log</a> · <a href="/api/v0/ops/status">status JSON</a></p>
 <section class="card"><h2>Registry Counts</h2><table>
 <tr><th>Publishers</th><td>{{.PublisherCount}} total, {{.ActivePublisherCount}} active, {{.DisabledPublisherCount}} disabled</td></tr>
 <tr><th>Packages</th><td>{{.PackageCount}} total, {{.PublicPackageCount}} public, {{.PrivatePackageCount}} private</td></tr>
 <tr><th>Releases</th><td>{{.ReleaseCount}} total, {{.PublishedReleaseCount}} published, {{.YankedReleaseCount}} yanked, {{.DraftReleaseCount}} draft</td></tr>
+<tr><th>Audit events</th><td>{{.AuditEventCount}} recorded mutation event(s)</td></tr>
 </table></section>
 <section class="card"><h2>Release Readiness</h2><table>
 <tr><th>Bundles</th><td>{{.BundleReleaseCount}} release(s)</td></tr>
@@ -190,7 +192,7 @@ const siteOpsReleasesHTML = `<!doctype html>
 <title>OBC Store Release Lifecycle</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Release Lifecycle</h1><p>Authenticated operator inventory for package visibility, release state, readiness, and next actions.</p></header>
 <main>
-<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/api/v0/ops/releases">JSON</a></p>
+<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/ops/audit">audit log</a> · <a href="/api/v0/ops/releases">JSON</a></p>
 <section class="card">
 {{if .Releases}}<table><tr><th>Package</th><th>Version</th><th>Status</th><th>Visibility</th><th>Readiness</th><th>Operator actions</th><th>Lifecycle endpoints</th></tr>
 {{range .Releases}}<tr>
@@ -206,5 +208,23 @@ const siteOpsReleasesHTML = `<!doctype html>
 </td>
 <td><code>POST {{.PublishURL}}</code><br><code>POST {{.YankURL}}</code><br><code>POST {{.VisibilityURL}}</code></td>
 </tr>{{end}}</table>{{else}}No package releases exist yet.{{end}}
+</section>
+</main></body></html>`
+
+const siteOpsAuditHTML = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OBC Store Audit Log</title><style>` + siteCSS + `</style></head>
+<body><header><h1 class="brand">Audit Log</h1><p>Authenticated append-only store mutation history. Token events record configuration state only, never token material.</p></header>
+<main>
+<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/ops/releases">release lifecycle</a> · <a href="/api/v0/ops/audit">JSON</a></p>
+<section class="card">
+{{if .Events}}<table><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
+{{range .Events}}<tr>
+<td>{{.Timestamp}}</td>
+<td>{{.Actor.Kind}}{{if .Actor.ID}}:{{.Actor.ID}}{{end}}</td>
+<td>{{.Action}}</td>
+<td><code>{{.Target}}</code></td>
+<td>{{range $k, $v := .Details}}<span class="pill">{{$k}}={{$v}}</span>{{end}}</td>
+</tr>{{end}}</table>{{else}}No audit events recorded yet.{{end}}
 </section>
 </main></body></html>`

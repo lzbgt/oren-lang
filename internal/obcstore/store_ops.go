@@ -99,7 +99,7 @@ func (s *Service) handleSiteOpsAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid package visibility", http.StatusBadRequest)
 			return
 		}
-		if _, err := s.setPackageVisibilityValue(pub, name, visibility); err != nil {
+		if _, err := s.setPackageVisibilityValue(pub, name, visibility, s.auditActor(r, pub), "ops.package.visibility"); err != nil {
 			http.Error(w, err.Error(), statusForStoreError(err))
 			return
 		}
@@ -115,7 +115,7 @@ func (s *Service) handleSiteOpsAction(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		if _, err := s.setReleaseStatusValue(pub, name, version, status); err != nil {
+		if _, err := s.setReleaseStatusValue(pub, name, version, status, s.auditActor(r, pub), "ops.release."+status); err != nil {
 			http.Error(w, err.Error(), statusForStoreError(err))
 			return
 		}

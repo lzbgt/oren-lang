@@ -363,9 +363,10 @@ Public OBC store helper.
   checks, and the external trust issue tool. The Note package manager exposes
   Check/Recheck status actions and a visible trusted Update action for installed
   OBC packages.
-- Store-side root trust rotation now has active key-id publication and
-  rotation-capable trust-bundle serving; next slices should add richer operator
-  lifecycle workflow.
+- Store-side root trust rotation now has active key-id publication,
+  rotation-capable trust-bundle serving, browser operator lifecycle controls, and
+  append-only mutation audit logs; next slices should add richer update
+  persistence plus live signing/deployment hardening.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 
