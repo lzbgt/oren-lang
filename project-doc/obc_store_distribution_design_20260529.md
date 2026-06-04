@@ -295,8 +295,9 @@ the staged SDK for signed package downloads, install policies, trusted key input
 trusted persisted package updates, visible update-status checks, and the external
 trust issue tool. The Note package manager exposes Check/Recheck status actions
 and a visible trusted Update action for installed OBC packages. The store also has
-authenticated operator lifecycle controls plus append-only mutation audit logs.
-Remaining store work is richer update persistence and deployment polish before a
+authenticated operator lifecycle controls, update inventory pages/APIs, and
+append-only mutation audit logs. Remaining store work is deployment polish and any
+host-side update history persistence beyond installed package metadata before a
 public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside

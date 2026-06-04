@@ -364,9 +364,10 @@ Public OBC store helper.
   Check/Recheck status actions and a visible trusted Update action for installed
   OBC packages.
 - Store-side root trust rotation now has active key-id publication,
-  rotation-capable trust-bundle serving, browser operator lifecycle controls, and
-  append-only mutation audit logs; next slices should add richer update
-  persistence plus live signing/deployment hardening.
+  rotation-capable trust-bundle serving, browser operator lifecycle controls,
+  operator update inventory, and append-only mutation audit logs; next slices
+  should add live signing/deployment hardening plus any host-side update history
+  persistence beyond installed package metadata.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

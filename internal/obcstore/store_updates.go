@@ -2,7 +2,9 @@ package obcstore
 
 import (
 	"net/http"
+	"sort"
 	"strings"
+	"time"
 )
 
 type PackageUpdateStatus struct {
@@ -12,6 +14,116 @@ type PackageUpdateStatus struct {
 	LatestVersion   string       `json:"latest_version,omitempty"`
 	UpdateAvailable bool         `json:"update_available"`
 	LatestRelease   *ReleaseMeta `json:"latest_release,omitempty"`
+}
+
+type OperatorUpdateItem struct {
+	Publisher          string   `json:"publisher"`
+	Name               string   `json:"name"`
+	Title              string   `json:"title,omitempty"`
+	Visibility         string   `json:"visibility"`
+	LatestVersion      string   `json:"latest_version,omitempty"`
+	PublishedVersions  []string `json:"published_versions"`
+	SupersededVersions []string `json:"superseded_versions"`
+	UpdateURLTemplate  string   `json:"update_url_template"`
+	PackageURL         string   `json:"package_url"`
+}
+
+type OperatorUpdateInventory struct {
+	Schema    string               `json:"schema"`
+	Service   string               `json:"service"`
+	Generated string               `json:"generated_at"`
+	Packages  []OperatorUpdateItem `json:"packages"`
+}
+
+func (s *Service) handleSiteOpsUpdates(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/ops/updates" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	inventory, err := s.operatorUpdateInventory()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	renderHTML(w, siteOpsUpdatesTemplate, inventory)
+}
+
+func (s *Service) handleOpsUpdates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	inventory, err := s.operatorUpdateInventory()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, inventory)
+}
+
+func (s *Service) operatorUpdateInventory() (OperatorUpdateInventory, error) {
+	items, err := s.operatorUpdateItems()
+	if err != nil {
+		return OperatorUpdateInventory{}, err
+	}
+	return OperatorUpdateInventory{
+		Schema:    "oren.obc.store.ops.updates.v0",
+		Service:   "obc-store",
+		Generated: s.now().UTC().Format(time.RFC3339),
+		Packages:  nonNilOperatorUpdateItems(items),
+	}, nil
+}
+
+func (s *Service) operatorUpdateItems() ([]OperatorUpdateItem, error) {
+	packages, err := s.allPackageMeta()
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(packages))
+	for key := range packages {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	items := make([]OperatorUpdateItem, 0, len(keys))
+	for _, key := range keys {
+		meta := packages[key]
+		releases, err := s.packageReleases(meta.Publisher, meta.Name)
+		if err != nil {
+			continue
+		}
+		versions := publishedVersions(releases)
+		sort.Slice(versions, func(i, j int) bool { return compareVersions(versions[i], versions[j]) < 0 })
+		latest := ""
+		if len(versions) > 0 {
+			latest = versions[len(versions)-1]
+		}
+		superseded := []string{}
+		if len(versions) > 1 {
+			superseded = append(superseded, versions[:len(versions)-1]...)
+		}
+		items = append(items, OperatorUpdateItem{
+			Publisher:          meta.Publisher,
+			Name:               meta.Name,
+			Title:              meta.Title,
+			Visibility:         normalizeVisibility(meta.Visibility),
+			LatestVersion:      latest,
+			PublishedVersions:  nonNilStrings(versions),
+			SupersededVersions: nonNilStrings(superseded),
+			UpdateURLTemplate:  "/api/v0/packages/" + meta.Publisher + "/" + meta.Name + "/update?current_version=<installed-version>",
+			PackageURL:         "/packages/" + meta.Publisher + "/" + meta.Name,
+		})
+	}
+	return items, nil
 }
 
 func (s *Service) getPackageUpdate(w http.ResponseWriter, r *http.Request, pub, name string) {
@@ -64,6 +176,30 @@ func (s *Service) latestPublishedRelease(pub, name string) (ReleaseMeta, bool, e
 		}
 	}
 	return latest, found, nil
+}
+
+func publishedVersions(releases []ReleaseMeta) []string {
+	out := []string{}
+	for _, rel := range releases {
+		if rel.Status == "published" {
+			out = append(out, rel.Version)
+		}
+	}
+	return out
+}
+
+func nonNilOperatorUpdateItems(items []OperatorUpdateItem) []OperatorUpdateItem {
+	if items == nil {
+		return []OperatorUpdateItem{}
+	}
+	return items
+}
+
+func nonNilStrings(items []string) []string {
+	if items == nil {
+		return []string{}
+	}
+	return items
 }
 
 func compareVersions(a, b string) int {

@@ -101,14 +101,16 @@ Implemented in this repo:
   capabilities/source/permission metadata and update-check URL, `/ops` for operator API/token
   lifecycle reference, authenticated `/ops/status` for registry counts plus
   deployment gates, authenticated `/ops/releases` for release lifecycle inventory
-  with no-JS publish/yank/package-visibility forms, and authenticated `/ops/audit`
+  with no-JS publish/yank/package-visibility forms, authenticated `/ops/updates`
+  for latest/superseded package update inventory, and authenticated `/ops/audit`
   for append-only mutation history. `GET /api/v0/ops/status`, `GET
-  /api/v0/ops/releases`, and `GET /api/v0/ops/audit` expose the same operator data
-  as JSON for smoke checks. The authenticated `/ops/actions/...` form endpoints
-  share the same mutation helpers as the JSON API routes so browser and machine
-  behavior do not diverge. Successful write operations append compact JSONL audit
-  events under the store data dir; token lifecycle events record only token
-  configured/unconfigured state and never token material or token hashes.
+  /api/v0/ops/releases`, `GET /api/v0/ops/updates`, and `GET /api/v0/ops/audit`
+  expose the same operator data as JSON for smoke checks. The authenticated
+  `/ops/actions/...` form endpoints share the same mutation helpers as the JSON
+  API routes so browser and machine behavior do not diverge. Successful write
+  operations append compact JSONL audit events under the store data dir; token
+  lifecycle events record only token configured/unconfigured state and never token
+  material or token hashes.
 - `index.json.sig` is generated dynamically when the service is configured with
   `--index-signing-key` or `OBC_STORE_INDEX_SIGN_KEY_PEM`, using P-256
   SHA-256 DER signatures over the exact stable `index.json` bytes. Dynamic
@@ -138,8 +140,8 @@ Implemented in this repo:
 
 Remaining service work:
 
-- richer update persistence and deployment/operator polish beyond the current
-  browser/API lifecycle controls and audit log;
+- deployment/operator polish plus any host-side update history persistence beyond
+  installed package metadata;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
@@ -287,6 +289,17 @@ GET /api/v0/ops/audit?limit=100
 The audit endpoint returns newest-first events with schema
 `oren.obc.store.audit.v0`. The backing file is append-only JSONL so operators can
 ship it to external log storage without parsing the full store tree.
+
+Operator update inventory:
+
+```http
+GET /ops/updates
+GET /api/v0/ops/updates
+```
+
+The update inventory exposes each package's latest published version, all
+published versions, superseded published versions, and the update-check URL
+template used by host apps.
 
 Publish flow:
 

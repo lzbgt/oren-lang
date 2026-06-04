@@ -507,6 +507,33 @@ func TestStorePackageUpdateCheck(t *testing.T) {
 	if got := request(t, ts, http.MethodGet, "/api/v0/packages/oren-labs/update-demo/update?current_version=bad/version", nil, false); got.Code != http.StatusBadRequest {
 		t.Fatalf("bad current_version status=%d body=%s", got.Code, got.Body.String())
 	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/updates", nil, false); got.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated ops updates=%d body=%s", got.Code, got.Body.String())
+	}
+	opsUpdatesResp := request(t, ts, http.MethodGet, "/api/v0/ops/updates", nil, true)
+	if opsUpdatesResp.Code != http.StatusOK {
+		t.Fatalf("ops updates status=%d body=%s", opsUpdatesResp.Code, opsUpdatesResp.Body.String())
+	}
+	var opsUpdates map[string]any
+	if err := json.Unmarshal(opsUpdatesResp.Body.Bytes(), &opsUpdates); err != nil {
+		t.Fatalf("decode ops updates: %v body=%s", err, opsUpdatesResp.Body.String())
+	}
+	updateItems := opsUpdates["packages"].([]any)
+	if len(updateItems) != 1 {
+		t.Fatalf("ops update packages=%v", updateItems)
+	}
+	updateItem := updateItems[0].(map[string]any)
+	if updateItem["latest_version"] != "0.10.0" || !strings.Contains(updateItem["update_url_template"].(string), "current_version=<installed-version>") {
+		t.Fatalf("bad ops update item=%v", updateItem)
+	}
+	superseded := updateItem["superseded_versions"].([]any)
+	if !containsAnyString(superseded, "0.2.0") || !containsAnyString(superseded, "0.10.0-beta.1") {
+		t.Fatalf("bad superseded versions=%v", superseded)
+	}
+	opsUpdatesPage := request(t, ts, http.MethodGet, "/ops/updates", nil, true)
+	if opsUpdatesPage.Code != http.StatusOK || !strings.Contains(opsUpdatesPage.Body.String(), "Update Inventory") || !strings.Contains(opsUpdatesPage.Body.String(), "0.10.0") || !strings.Contains(opsUpdatesPage.Body.String(), "current_version=&lt;installed-version&gt;") {
+		t.Fatalf("ops updates page status=%d body=%s", opsUpdatesPage.Code, opsUpdatesPage.Body.String())
+	}
 }
 
 func TestStoreAcceptsBearerAdminTokenHash(t *testing.T) {
