@@ -154,6 +154,12 @@ type OperatorStatus struct {
 	SourceReleaseCount     int      `json:"source_release_count"`
 	SourceAssetCount       int      `json:"source_asset_count"`
 	PermissionDefaultCount int      `json:"permission_default_count"`
+	ReadyReleaseCount      int      `json:"ready_release_count"`
+	IncompleteReleaseCount int      `json:"incomplete_release_count"`
+	MissingBundleCount     int      `json:"missing_bundle_count"`
+	MissingSignatureCount  int      `json:"missing_signature_count"`
+	MissingSourceCount     int      `json:"missing_source_count"`
+	MissingPermissionCount int      `json:"missing_permission_count"`
 	SignedIndexEnabled     bool     `json:"signed_index_enabled"`
 	IndexSigningKeyID      string   `json:"index_signing_key_id,omitempty"`
 	IndexSigningKeyTrusted bool     `json:"index_signing_key_trusted"`
@@ -1563,7 +1569,8 @@ func (s *Service) operatorStatus() (OperatorStatus, error) {
 		if rel.SignatureAlg != "" {
 			status.SignedReleaseCount++
 		}
-		if manifest, manifestErr := readJSONFile[map[string]any](filepath.Join(s.releaseDir(rel.Publisher, rel.Name, rel.Version), "package.json")); manifestErr == nil {
+		manifest, manifestErr := readJSONFile[map[string]any](filepath.Join(s.releaseDir(rel.Publisher, rel.Name, rel.Version), "package.json"))
+		if manifestErr == nil {
 			sources := sourceLinksFromManifest(rel.Publisher, rel.Name, rel.Version, manifest)
 			if len(sources) > 0 {
 				status.SourceReleaseCount++
@@ -1571,6 +1578,24 @@ func (s *Service) operatorStatus() (OperatorStatus, error) {
 			}
 			if defaults, ok := manifest["permission_defaults"].([]any); ok {
 				status.PermissionDefaultCount += len(defaults)
+			}
+		}
+		_, missingReadiness := releaseReadiness(rel, manifest)
+		if len(missingReadiness) == 0 {
+			status.ReadyReleaseCount++
+		} else {
+			status.IncompleteReleaseCount++
+			for _, missing := range missingReadiness {
+				switch missing {
+				case "bundle":
+					status.MissingBundleCount++
+				case "signature":
+					status.MissingSignatureCount++
+				case "source":
+					status.MissingSourceCount++
+				case "permissions":
+					status.MissingPermissionCount++
+				}
 			}
 		}
 		switch rel.Status {

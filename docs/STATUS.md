@@ -152,7 +152,8 @@ Facts from the 2026-05-28 implementation pass:
   publisher/package/release publish, public list/search/index/download endpoints,
   browser browse/detail/publisher/operator pages, package detail release
   capability/source/permission/update metadata, authenticated operator status page/API
-  for registry counts, bundle/source/signature/permission readiness, authenticated
+  for registry counts, aggregate release-ready/incomplete counts, and missing
+  bundle/source/signature/permission readiness counts, authenticated
   operator release lifecycle page/API for visibility, readiness, latest-published
   state, publish/yank/visibility action URLs, and authenticated no-JS browser
   forms for publishing, yanking, and package visibility changes, authenticated

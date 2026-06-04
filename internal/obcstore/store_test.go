@@ -198,11 +198,14 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if opsStatus["bundle_release_count"] != float64(1) || opsStatus["source_release_count"] != float64(1) || opsStatus["source_asset_count"] != float64(1) || opsStatus["permission_default_count"] != float64(1) {
 		t.Fatalf("bad ops status=%v", opsStatus)
 	}
+	if opsStatus["ready_release_count"] != float64(0) || opsStatus["incomplete_release_count"] != float64(1) || opsStatus["missing_signature_count"] != float64(1) {
+		t.Fatalf("bad readiness aggregate status=%v", opsStatus)
+	}
 	if opsStatus["audit_event_count"].(float64) < 4 {
 		t.Fatalf("ops status missing audit count=%v", opsStatus)
 	}
 	opsStatusPage := request(t, ts, http.MethodGet, "/ops/status", nil, true)
-	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Source metadata") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
+	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Complete releases") || !strings.Contains(opsStatusPage.Body.String(), "Missing readiness") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
 		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
 	}
 	if got := request(t, ts, http.MethodGet, "/api/v0/ops/releases", nil, false); got.Code != http.StatusUnauthorized {
@@ -452,6 +455,9 @@ func TestStoreSignsStableIndex(t *testing.T) {
 	}
 	if status["index_signing_key_id"] != "store-2026q2" || status["trust_bundle_store_keys"].(float64) != 2 || status["index_signing_key_trusted"] != true {
 		t.Fatalf("bad rotation status: %v", status)
+	}
+	if status["ready_release_count"] != float64(0) || status["missing_bundle_count"] != float64(1) || status["missing_source_count"] != float64(1) || status["missing_permission_count"] != float64(1) {
+		t.Fatalf("bad signed-release readiness status: %v", status)
 	}
 	statusIDs := status["trust_bundle_store_key_ids"].([]any)
 	if statusIDs[0] != "store-2026q2" || statusIDs[1] != "store-2026q1" {

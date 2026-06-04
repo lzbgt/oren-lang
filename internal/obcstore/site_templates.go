@@ -170,10 +170,12 @@ const siteOpsStatusHTML = `<!doctype html>
 <tr><th>Audit events</th><td>{{.AuditEventCount}} recorded mutation event(s)</td></tr>
 </table></section>
 <section class="card"><h2>Release Readiness</h2><table>
+<tr><th>Complete releases</th><td>{{.ReadyReleaseCount}} ready, {{.IncompleteReleaseCount}} incomplete</td></tr>
 <tr><th>Bundles</th><td>{{.BundleReleaseCount}} release(s)</td></tr>
 <tr><th>Publisher signatures</th><td>{{.SignedReleaseCount}} release(s)</td></tr>
 <tr><th>Source metadata</th><td>{{.SourceReleaseCount}} release(s), {{.SourceAssetCount}} linked source asset(s)</td></tr>
 <tr><th>Permission defaults</th><td>{{.PermissionDefaultCount}} default grant record(s)</td></tr>
+<tr><th>Missing readiness</th><td>{{.MissingBundleCount}} bundle, {{.MissingSignatureCount}} signature, {{.MissingSourceCount}} source, {{.MissingPermissionCount}} permissions</td></tr>
 </table></section>
 	<section class="card"><h2>Deployment Gates</h2><table>
 	<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
