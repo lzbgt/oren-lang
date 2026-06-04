@@ -894,6 +894,18 @@ int main(void) {
                 : nil;
             if (!persistedStatus || !persistedStatus.updateAvailable ||
                 ![persistedStatus.latestVersion isEqual:@"0.2.0"]) return 166;
+            OrenAVMPackage* serviceUpdatedPackage = reloadedServicePackage
+                ? [store downloadUpdateForInstalledPackage:reloadedServicePackage
+                                   destinationDirectoryURL:[NSURL fileURLWithPath:servicePackageDownloadDir isDirectory:YES]
+                                              allowedHosts:nil
+                                            timeoutSeconds:5.0
+                                               trustBundle:trustBundle
+                                                     error:&error]
+                : nil;
+            if (!serviceUpdatedPackage || ![serviceUpdatedPackage.packageID isEqual:@"oren-labs/sdk-package-service/0.2.0"]) {
+                fprintf(stderr, "OBC package update install failed: %s\n", error.localizedDescription.UTF8String ?: "");
+                return 167;
+            }
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 118;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
@@ -903,6 +915,7 @@ int main(void) {
             if (![packageResult.stdoutData isEqualToData:[@"pkg:pkg-asset\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 121;
             NSArray<NSString*>* installed = [store listInstalledPackageIDsInDirectoryURL:[NSURL fileURLWithPath:servicePackageDownloadDir isDirectory:YES] error:&error];
             if (![installed containsObject:@"oren-labs/sdk-package-service/0.1.0"]) return 122;
+            if (![installed containsObject:@"oren-labs/sdk-package-service/0.2.0"]) return 168;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
@@ -1680,6 +1693,8 @@ post(
 )
 manifest_for_bundle_v2 = dict(manifest_for_bundle)
 manifest_for_bundle_v2["version"] = "0.2.0"
+manifest_for_bundle_v2["title"] = "SDK Service Package Smoke v2"
+manifest_for_bundle_v2["summary"] = "Verifies SDK update status from obc-store-server"
 bundle_io_v2 = io.BytesIO()
 with zipfile.ZipFile(bundle_io_v2, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     for name, body in [

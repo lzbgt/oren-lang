@@ -455,7 +455,9 @@
 <p>  present user or policy decisions before applying an install policy. Remote SDK</p>
 <p>  installs write <code>.oren-install.json</code> with the source <code>index.json</code> URL and package</p>
 <p>  identity, so later app launches can query update status for a loaded installed</p>
-<p>  package without rebuilding a host-side package-to-store mapping table.</p>
+<p>  package without rebuilding a host-side package-to-store mapping table. The SDK</p>
+<p>  can then install the latest trusted update for that package through the same</p>
+<p>  signed-index and publisher-signature policy.</p>
 <ul>
 <li>Signature/cert enforcement is host policy. The SDK provides strict signed</li>
 </ul>

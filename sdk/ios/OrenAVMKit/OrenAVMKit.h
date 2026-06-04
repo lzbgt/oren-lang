@@ -400,6 +400,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                                                   allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
                                                                 timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                                                          error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackage*)downloadUpdateForInstalledPackage:(OrenAVMPackage*)package
+                                      destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                                 allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                               timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                  trustBundle:(OrenAVMOBCTrustBundle*)trustBundle
+                                                        error:(NSError* _Nullable* _Nullable)error;
 
 + (NSString*)sha256HexForData:(NSData*)data;
 

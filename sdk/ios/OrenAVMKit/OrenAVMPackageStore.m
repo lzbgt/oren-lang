@@ -496,6 +496,11 @@ static NSURL* OrenAVMPackageReadInstallIndexURL(NSURL* packageRoot, NSError** er
     return indexURL;
 }
 
+static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* allowedHosts, NSURL* url) {
+    if (allowedHosts.count > 0 || url.host.length == 0) return allowedHosts;
+    return [NSSet setWithObject:url.host];
+}
+
 @interface OrenAVMPackage ()
 - (instancetype)initWithDirectoryURL:(NSURL*)directoryURL
                             manifest:(NSDictionary<NSString*, id>*)manifest
@@ -698,11 +703,47 @@ static NSURL* OrenAVMPackageReadInstallIndexURL(NSURL* packageRoot, NSError** er
     }
     NSURL* indexURL = OrenAVMPackageReadInstallIndexURL(package.directoryURL, error);
     if (!indexURL) return nil;
+    NSSet<NSString*>* effectiveAllowedHosts = OrenAVMPackageEffectiveAllowedHosts(allowedHosts, indexURL);
     return [self packageUpdateStatusForPackage:package
                                   storeBaseURL:indexURL
-                                  allowedHosts:allowedHosts
+                                  allowedHosts:effectiveAllowedHosts
                                 timeoutSeconds:timeoutSeconds
                                          error:error];
+}
+
+- (OrenAVMPackage*)downloadUpdateForInstalledPackage:(OrenAVMPackage*)package
+                            destinationDirectoryURL:(NSURL*)destinationDirectoryURL
+                                       allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                     timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                        trustBundle:(OrenAVMOBCTrustBundle*)trustBundle
+                                              error:(NSError**)error {
+    if (!package || !destinationDirectoryURL.isFileURL || !trustBundle) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update install requires a package, destination, and trust bundle");
+        return nil;
+    }
+    NSURL* indexURL = OrenAVMPackageReadInstallIndexURL(package.directoryURL, error);
+    if (!indexURL) return nil;
+    NSSet<NSString*>* effectiveAllowedHosts = OrenAVMPackageEffectiveAllowedHosts(allowedHosts, indexURL);
+    OrenAVMPackageUpdateStatus* status = [self packageUpdateStatusForPackage:package
+                                                                storeBaseURL:indexURL
+                                                                allowedHosts:effectiveAllowedHosts
+                                                              timeoutSeconds:timeoutSeconds
+                                                                       error:error];
+    if (!status) return nil;
+    if (!status.updateAvailable || status.latestVersion.length == 0) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package is already current");
+        return nil;
+    }
+    NSString* packageID = [NSString stringWithFormat:@"%@/%@", package.publisher, package.name];
+    return [self downloadPackageFromSignedIndexURL:indexURL
+                                        packageID:packageID
+                                          version:status.latestVersion
+                          destinationDirectoryURL:destinationDirectoryURL
+                                     allowedHosts:effectiveAllowedHosts
+                                   timeoutSeconds:timeoutSeconds
+                                      trustBundle:trustBundle
+                                    installPolicy:OrenAVMPackageInstallPolicyFailIfInstalled
+                                            error:error];
 }
 
 - (OrenAVMPackage*)downloadPackageFromIndexURL:(NSURL*)indexURL

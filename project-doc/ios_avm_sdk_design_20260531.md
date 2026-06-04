@@ -345,7 +345,9 @@ Public OBC store helper.
   present user or policy decisions before applying an install policy. Remote SDK
   installs write `.oren-install.json` with the source `index.json` URL and package
   identity, so later app launches can query update status for a loaded installed
-  package without rebuilding a host-side package-to-store mapping table.
+  package without rebuilding a host-side package-to-store mapping table. The SDK
+  can then install the latest trusted update for that package through the same
+  signed-index and publisher-signature policy.
 - Signature/cert enforcement is host policy. The SDK provides strict signed
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting
