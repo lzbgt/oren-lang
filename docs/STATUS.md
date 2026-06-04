@@ -513,7 +513,8 @@ Facts from the 2026-05-28 implementation pass:
 	  task/group surfaces, deterministic join
 	  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,
 	  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,
-	  host FS mounts, deterministic math core/rounding, exp/log,
+	  host FS mounts, nested multiverse AVM/VNET/VPROC/VFS fixtures, VFS inheritance
+	  plus host-prefix inheritance, deterministic math core/rounding, exp/log,
 	  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
 	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as
 	  ad-hoc focused fixtures.

@@ -55,11 +55,12 @@ to the manifest with explicit metadata instead of relying on defaults.
 ## Next Work
 
 The current manifest covers the curated release-gate set, one non-gate VPROC
-fixture, the default-safe language/container fixtures, and default-safe
+fixture, the default-safe language/container fixtures, default-safe
 byte/int/call-stack/hash, varargs call/spread/spawn, task/group scheduler,
 deterministic join-timeout, explicit budget-abort fixtures, capsule/FS
 capability fixtures, map key ordering/type hash fixtures with child-bytecode setup,
-and bounded trace diagnostic fixtures. The next completeness step is to add
-explicit release inclusion/exclusion and policy metadata for the remaining
-record/replay, snapshot, and multiverse fixtures, then gate the full wildcard path
-when the expected budgets/backends are declared.
+nested multiverse AVM/VNET/VPROC/VFS fixtures, VFS inheritance plus host-prefix
+inheritance, and bounded trace diagnostic fixtures. The next completeness step is
+to add explicit release inclusion/exclusion and policy metadata for the remaining
+multi-phase record/replay, snapshot, state-hash, and trace fixtures, then gate the
+full wildcard path when the expected budgets/backends are declared.

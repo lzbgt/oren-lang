@@ -22,6 +22,104 @@
     {"path": "tests/avm/test_job_scan.oren"},
     {"path": "tests/avm/test_snapshot_resume.oren"},
     {"path": "tests/avm/test_multiverse_invalid_obc.oren"},
+    {
+      "path": "tests/avm/test_multiverse_avm_domain.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6,8",
+        "--fs-allow-prefixes",
+        "build/",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-host-fs-avm",
+      "setup_builds": [
+        {
+          "src": "tests/avm/fixtures/multiverse_child.oren",
+          "out": "build/multiverse_child.obc"
+        }
+      ]
+    },
+    {
+      "path": "tests/avm/test_multiverse_net_fixtures.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6,8",
+        "--fs-allow-prefixes",
+        "build/",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-host-fs-avm-nested-vnet",
+      "setup_builds": [
+        {
+          "src": "tests/avm/fixtures/multiverse_child_net.oren",
+          "out": "build/multiverse_child_net.obc"
+        }
+      ]
+    },
+    {
+      "path": "tests/avm/test_multiverse_proc_fixtures.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6,8",
+        "--fs-allow-prefixes",
+        "build/",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-host-fs-avm-nested-vproc",
+      "setup_builds": [
+        {
+          "src": "tests/avm/fixtures/multiverse_child_proc.oren",
+          "out": "build/multiverse_child_proc.obc"
+        }
+      ]
+    },
+    {
+      "path": "tests/avm/test_multiverse_vfs_fixtures.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6,8",
+        "--fs-allow-prefixes",
+        "build/",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-host-fs-avm-nested-vfs",
+      "setup_builds": [
+        {
+          "src": "tests/avm/fixtures/multiverse_child_vfs.oren",
+          "out": "build/multiverse_child_vfs.obc"
+        }
+      ]
+    },
+    {
+      "path": "tests/avm/test_multiverse_vfs_inherit.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6,8",
+        "--fs-allow-prefixes",
+        "build/",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-host-fs-avm-vfs-inherit",
+      "setup_builds": [
+        {
+          "src": "tests/avm/fixtures/multiverse_child_vfs_inherit.oren",
+          "out": "build/multiverse_child_vfs_inherit.obc"
+        },
+        {
+          "src": "tests/avm/fixtures/multiverse_grandchild_read_x.oren",
+          "out": "build/multiverse_grandchild_read_x.obc"
+        },
+        {
+          "src": "tests/avm/fixtures/multiverse_child_host_fs_prefix_probe.oren",
+          "out": "build/multiverse_child_host_fs_prefix_probe.obc"
+        }
+      ]
+    },
     {"path": "tests/avm/test_std_time_avm.oren"},
     {"path": "tests/avm/test_time_rng_deterministic.oren"},
     {"path": "tests/avm/test_time_rng_record_replay_mem.oren"},

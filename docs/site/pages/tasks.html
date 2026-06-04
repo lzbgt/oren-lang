@@ -321,9 +321,13 @@
 <p>     fixture path, expected rc/error, env budgets, backend policy, deterministic mode,</p>
 <p>     host-effect checks, and release-gate inclusion.</p>
 <ul>
-<li>Keep expanding manifest entries beyond the curated release-gate set before</li>
+<li>Nested multiverse AVM/VNET/VPROC/VFS fixtures and VFS inheritance are now</li>
 </ul>
-<p>     treating wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> as release-grade.</p>
+<p>     release-gated with explicit setup builds and deny-default host policy.</p>
+<ul>
+<li>Remaining wildcard-release work is concentrated in multi-phase record/replay,</li>
+</ul>
+<p>     snapshot, state-hash, and trace fixtures that need explicit runner policy.</p>
 <ol>
 <li><strong>Cross-backend parity gates</strong></li>
 </ol>

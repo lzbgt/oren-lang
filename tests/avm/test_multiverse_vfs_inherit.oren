@@ -1,21 +1,30 @@
-fn push_u32_le(out, v) {
-    var b0 = v & 255
-    var b1 = (v >> 8) & 255
-    var b2 = (v >> 16) & 255
-    var b3 = (v >> 24) & 255
-    oren_list_push(out, b0)
-    oren_list_push(out, b1)
-    oren_list_push(out, b2)
-    oren_list_push(out, b3)
+fn store_u8(out, pos, v) {
+    var rc = oren_buf_store_u8(out, pos, v)
+    if oren_is_err(rc) {
+        return rc
+    }
+    return pos + 1
 }
 
-fn append_bytes(out, xs) {
+fn store_u32_le(out, pos, v) {
+    pos = store_u8(out, pos, v & 255)
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, (v >> 8) & 255)
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, (v >> 16) & 255)
+    if oren_is_err(pos) { return pos }
+    return store_u8(out, pos, (v >> 24) & 255)
+}
+
+fn copy_bytes(out, pos, xs) {
     var n = oren_bytes_len(xs)
     var i = 0
     while i < n {
-        oren_list_push(out, oren_bytes_get_u8(xs, i))
+        pos = store_u8(out, pos, oren_bytes_get_u8(xs, i))
+        if oren_is_err(pos) { return pos }
         i = i + 1
     }
+    return pos
 }
 
 fn build_vfs_fixtures_one_file(path, body_bytes) {
@@ -25,28 +34,57 @@ fn build_vfs_fixtures_one_file(path, body_bytes) {
     //   repeated:
     //     u32 path_len, path bytes
     //     u32 body_len, body bytes
-    var out = []
+    var path_bytes = oren_bytes_from_string(path)
+    if oren_is_err(path_bytes) {
+        return path_bytes
+    }
+    var path_len = oren_bytes_len(path_bytes)
+    if oren_is_err(path_len) {
+        return path_len
+    }
+    var body_len = oren_bytes_len(body_bytes)
+    if oren_is_err(body_len) {
+        return body_len
+    }
+    var total = 8 + 4 + 4 + path_len + 4 + body_len
+    var out = oren_u8_buf_new_uninit(total)
+    if oren_is_err(out) {
+        return out
+    }
 
     // "AVMVFS01"
-    oren_list_push(out, 65) // A
-    oren_list_push(out, 86) // V
-    oren_list_push(out, 77) // M
-    oren_list_push(out, 86) // V
-    oren_list_push(out, 70) // F
-    oren_list_push(out, 83) // S
-    oren_list_push(out, 48) // 0
-    oren_list_push(out, 49) // 1
+    var pos = 0
+    pos = store_u8(out, pos, 65) // A
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 86) // V
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 77) // M
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 86) // V
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 70) // F
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 83) // S
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 48) // 0
+    if oren_is_err(pos) { return pos }
+    pos = store_u8(out, pos, 49) // 1
+    if oren_is_err(pos) { return pos }
 
-    push_u32_le(out, 1)
+    pos = store_u32_le(out, pos, 1)
+    if oren_is_err(pos) { return pos }
 
-    var path_bytes = oren_bytes_from_string(path)
-    push_u32_le(out, oren_bytes_len(path_bytes))
-    append_bytes(out, path_bytes)
+    pos = store_u32_le(out, pos, path_len)
+    if oren_is_err(pos) { return pos }
+    pos = copy_bytes(out, pos, path_bytes)
+    if oren_is_err(pos) { return pos }
 
-    push_u32_le(out, oren_bytes_len(body_bytes))
-    append_bytes(out, body_bytes)
+    pos = store_u32_le(out, pos, body_len)
+    if oren_is_err(pos) { return pos }
+    pos = copy_bytes(out, pos, body_bytes)
+    if oren_is_err(pos) { return pos }
 
-    return oren_bytes_pack(out)
+    return out
 }
 
 fn main() {
@@ -56,10 +94,28 @@ fn main() {
 
     // Load fixture obcs from host FS (allowed by runner prefix "build/").
     var child1_obc = oren_read_u8_buf("build/multiverse_child_vfs_inherit.obc")
+    if oren_is_err(child1_obc) {
+        print("FAIL: read child vfs inherit obc")
+        print(oren_err_code(child1_obc))
+        print(oren_err_msg(child1_obc))
+        oren_exit(1)
+    }
 
     var gc_obc = oren_read_u8_buf("build/multiverse_grandchild_read_x.obc")
+    if oren_is_err(gc_obc) {
+        print("FAIL: read grandchild obc")
+        print(oren_err_code(gc_obc))
+        print(oren_err_msg(gc_obc))
+        oren_exit(1)
+    }
     // Inject grandchild obc into the child universe's VirtualFS under path "g.obc".
     var vfs_fx = build_vfs_fixtures_one_file("g.obc", gc_obc)
+    if oren_is_err(vfs_fx) {
+        print("FAIL: vfs fixture build error")
+        print(oren_err_code(vfs_fx))
+        print(oren_err_msg(vfs_fx))
+        oren_exit(1)
+    }
 
     // Allow CORE + FS + EXIT + AVM (nested universe).
     var allowed_child = (1 << 0) + (1 << 1) + (1 << 6) + (1 << 8)
@@ -73,10 +129,22 @@ fn main() {
     }
 
     var r1 = oren_avm_run_obc_bytes(child1_obc, cfg1)
+    if oren_is_err(r1) {
+        print("FAIL: child vfs_inherit run error")
+        print(oren_err_code(r1))
+        print(oren_err_msg(r1))
+        oren_exit(1)
+    }
 
     // Now validate FS allow-prefix inheritance: child runs with host FS backend and must not
     // widen access beyond the parent's --fs-allow-prefixes setting (runner uses build/).
     var child2_obc = oren_read_u8_buf("build/multiverse_child_host_fs_prefix_probe.obc")
+    if oren_is_err(child2_obc) {
+        print("FAIL: read child host fs prefix probe obc")
+        print(oren_err_code(child2_obc))
+        print(oren_err_msg(child2_obc))
+        oren_exit(1)
+    }
     var cfg2 = {
         "deterministic": true,
         "gas_limit": 1000000,
@@ -84,6 +152,12 @@ fn main() {
         "fs_backend": 0
     }
     var r2 = oren_avm_run_obc_bytes(child2_obc, cfg2)
+    if oren_is_err(r2) {
+        print("FAIL: child fs_prefix run error")
+        print(oren_err_code(r2))
+        print(oren_err_msg(r2))
+        oren_exit(1)
+    }
 
     oren_set_result({
         "vfs_inherit_exit": r1["exit_code"],
