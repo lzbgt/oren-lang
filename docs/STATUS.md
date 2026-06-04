@@ -496,10 +496,10 @@ Facts from the 2026-05-28 implementation pass:
   `AVM_TESTS="..."` overrides still work; paths not present in the manifest run with
   default zero-exit virtual-backend policy.
 - The default AVM release gate now also covers portable stdlib bytes/buffer view
-  APIs, u8 buffer iteration, checked integer casts, deterministic math
-  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
-  ranges, and Scene3D package-asset authoring rather than leaving those as
-  ad-hoc focused fixtures.
+  APIs, u8 buffer iteration, checked integer casts, deterministic math exp/log
+  and trig/atan vectors, float diagnostic formatting, crypto hash vectors,
+  iterator ranges, and Scene3D package-asset authoring rather than leaving those
+  as ad-hoc focused fixtures.
 - A direct `AVM_IO_BYTES=128` run of `test_budget_io_fs` returns the expected
   `AVM_ERR_BUDGET`, proving that specific runtime behavior while exposing harness debt.
 
@@ -567,8 +567,9 @@ Working evidence:
   `power(2,4.3)` through deterministic integer-exponent and
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
   fractional exponents as real-domain errors.
-- `tests/avm/test_std_math_pow.oren` and `tests/avm/test_std_math_trig.oren`
-  are now in the curated `make test-avm` set, so the iOS AVM path proves pow,
+- `tests/avm/test_std_math_pow.oren`, `tests/avm/test_std_math_exp_log.oren`,
+  and `tests/avm/test_std_math_trig.oren` are now in the curated
+  `make test-avm` set, so the iOS AVM path proves pow, exp/log/log2/log10,
   finite trig reduction, quadrant `atan2`, and non-finite error behavior in
   bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity

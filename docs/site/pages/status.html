@@ -604,10 +604,10 @@
 <ul>
 <li>The default AVM release gate now also covers portable stdlib bytes/buffer view</li>
 </ul>
-<p>  APIs, u8 buffer iteration, checked integer casts, deterministic math</p>
-<p>  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator</p>
-<p>  ranges, and Scene3D package-asset authoring rather than leaving those as</p>
-<p>  ad-hoc focused fixtures.</p>
+<p>  APIs, u8 buffer iteration, checked integer casts, deterministic math exp/log</p>
+<p>  and trig/atan vectors, float diagnostic formatting, crypto hash vectors,</p>
+<p>  iterator ranges, and Scene3D package-asset authoring rather than leaving those</p>
+<p>  as ad-hoc focused fixtures.</p>
 <ul>
 <li>A direct <code>AVM_IO_BYTES=128</code> run of <code>test_budget_io_fs</code> returns the expected</li>
 </ul>
@@ -691,9 +691,10 @@
 <p>  <code>exp2(y * log2(x))</code> paths. Negative bases accept integer exponents and reject</p>
 <p>  fractional exponents as real-domain errors.</p>
 <ul>
-<li><code>tests/avm/test_std_math_pow.oren</code> and <code>tests/avm/test_std_math_trig.oren</code></li>
+<li><code>tests/avm/test_std_math_pow.oren</code>, <code>tests/avm/test_std_math_exp_log.oren</code>,</li>
 </ul>
-<p>  are now in the curated <code>make test-avm</code> set, so the iOS AVM path proves pow,</p>
+<p>  and <code>tests/avm/test_std_math_trig.oren</code> are now in the curated</p>
+<p>  <code>make test-avm</code> set, so the iOS AVM path proves pow, exp/log/log2/log10,</p>
 <p>  finite trig reduction, quadrant <code>atan2</code>, and non-finite error behavior in</p>
 <p>  bytecode.</p>
 <ul>
