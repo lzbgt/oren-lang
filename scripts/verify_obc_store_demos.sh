@@ -67,7 +67,29 @@ def verify_scene3d_stl_lowering():
     }
     data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
     if not data.startswith(b"OS3D01\x00\x00"):
-        raise SystemExit("scene STL lowering did not produce OS3D01")
+        raise SystemExit("scene ASCII STL lowering did not produce OS3D01")
+
+    binary_path = out_root / "scene3d_binary_stl_smoke.stl"
+    payload = bytearray(b"solid binary STL smoke".ljust(80, b"\0"))
+    payload += struct.pack("<I", 1)
+    payload += struct.pack(
+        "<ffffffffffffH",
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        0.0, 1.0, 0.0,
+        0,
+    )
+    binary_path.write_bytes(payload)
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles", "id": 1, "stl_source": binary_path.name, "color": "#ffffffff"}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+    if not data.startswith(b"OS3D01\x00\x00"):
+        raise SystemExit("scene binary STL lowering did not produce OS3D01")
 
 
 verify_scene3d_obj_lowering()

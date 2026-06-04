@@ -4,6 +4,7 @@
 import json
 import math
 import pathlib
+import struct
 import sys
 
 
@@ -191,12 +192,12 @@ def has_stl_mesh(mesh):
     return mesh.get("stl_source") is not None or mesh.get("stl_text") is not None
 
 
-def stl_source_text(mesh, base_dir):
+def stl_source_bytes(mesh, base_dir):
     if mesh.get("stl_text") is not None:
         text = mesh["stl_text"]
         if not isinstance(text, str):
             raise SystemExit("scene stl_text must be a string")
-        return text
+        return text.encode("utf-8")
     rel = mesh.get("stl_source")
     if rel is None:
         raise SystemExit("scene STL mesh must include stl_source or stl_text")
@@ -208,7 +209,7 @@ def stl_source_text(mesh, base_dir):
     path = base_dir / pathlib.Path(*rel_path.parts)
     if not path.is_file():
         raise SystemExit(f"scene stl_source not found: {rel}")
-    return path.read_text(encoding="utf-8")
+    return path.read_bytes()
 
 
 def stl_transform_vertex(v, mesh):
@@ -225,11 +226,39 @@ def stl_transform_vertex(v, mesh):
     ]
 
 
-def stl_triangles(mesh, base_dir):
+def is_binary_stl(data):
+    if len(data) < 84:
+        return False
+    tri_count = struct.unpack_from("<I", data, 80)[0]
+    return 84 + tri_count * 50 == len(data)
+
+
+def binary_stl_triangles(mesh, data):
+    tri_count = struct.unpack_from("<I", data, 80)[0]
+    triangles = []
+    offset = 84
+    for _ in range(tri_count):
+        values = struct.unpack_from("<ffffffffffffH", data, offset)
+        triangles.append([
+            stl_transform_vertex(values[3:6], mesh),
+            stl_transform_vertex(values[6:9], mesh),
+            stl_transform_vertex(values[9:12], mesh),
+        ])
+        offset += 50
+    if not triangles:
+        raise SystemExit("scene binary STL mesh has no triangles")
+    return triangles
+
+
+def ascii_stl_triangles(mesh, data):
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit("scene STL source is neither binary STL nor UTF-8 ASCII STL") from exc
     vertices = []
     triangles = []
     saw_solid = False
-    for line_no, raw in enumerate(stl_source_text(mesh, base_dir).splitlines(), 1):
+    for line_no, raw in enumerate(text.splitlines(), 1):
         parts = raw.strip().split()
         if not parts:
             continue
@@ -248,12 +277,19 @@ def stl_triangles(mesh, base_dir):
         else:
             raise SystemExit(f"unsupported scene STL line {line_no}: {parts[0]}")
     if not saw_solid:
-        raise SystemExit("scene STL mesh must be ASCII STL starting with solid")
+        raise SystemExit("scene ASCII STL mesh must start with solid")
     if vertices:
         raise SystemExit("scene STL facet has incomplete vertex list")
     if not triangles:
         raise SystemExit("scene STL mesh has no triangles")
     return triangles
+
+
+def stl_triangles(mesh, base_dir):
+    data = stl_source_bytes(mesh, base_dir)
+    if is_binary_stl(data):
+        return binary_stl_triangles(mesh, data)
+    return ascii_stl_triangles(mesh, data)
 
 
 def pack_stl_triangles(mesh, base_dir):
