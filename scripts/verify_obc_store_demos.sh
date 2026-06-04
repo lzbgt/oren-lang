@@ -100,8 +100,8 @@ def verify_scene3d_gltf_lowering():
 
     gltf["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = 2
     data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
-    if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
-        raise SystemExit("scene glTF vertex-color RGBA lowering did not produce averaged payload")
+    if not data.startswith(b"OS3D01\x00\x00") or b"\x1a\x35\x4f\xff" not in data:
+        raise SystemExit("scene glTF material times vertex-color RGBA lowering did not produce averaged payload")
 
     topo_payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)):
@@ -145,8 +145,8 @@ def verify_scene3d_gltf_lowering():
         "draw": [2],
     }
     data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
-    if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
-        raise SystemExit("scene GLB BIN-buffer RGBA lowering did not produce expected payload")
+    if not data.startswith(b"OS3D01\x00\x00") or b"\x1a\x35\x4f\xff" not in data:
+        raise SystemExit("scene GLB BIN-buffer material times vertex-color RGBA lowering did not produce expected payload")
 
     node_gltf = json.loads(json.dumps(gltf))
     node_gltf["nodes"] = [

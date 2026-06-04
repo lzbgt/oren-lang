@@ -267,6 +267,10 @@ def gltf_accessor_color(doc, accessor_index, base_dir):
     return out
 
 
+def gltf_multiply_rgba(a, b):
+    return tuple(round_half_away(float(a[i]) * float(b[i]) / 255.0) for i in range(4))
+
+
 def mat_identity():
     return [
         [1.0, 0.0, 0.0, 0.0],
@@ -426,6 +430,9 @@ def gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, ve
         local_indices = gltf_indices_for_primitive(doc, primitive, len(positions), base_dir)
         local_faces = gltf_primitive_faces(local_indices, mode)
         material_color = gltf_material_color(doc, primitive)
+        if colors is not None:
+            colors = [gltf_multiply_rgba(color, material_color) for color in colors]
+            vertex_colors[base_vertex:base_vertex + len(colors)] = colors
         for local_face in local_faces:
             face = [base_vertex + idx for idx in local_face]
             faces.append(face)
