@@ -1,0 +1,61 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math modf FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+fn assert_modf(x: f64, frac: f64, integral: f64, eps: f64, code, msg) {
+    var p = math.modf(x)
+    if oren_is_err(p) { fail(code, msg + " returned err") }
+    var got_frac: f64 = p[0]
+    var got_integral: f64 = p[1]
+    assert_close(got_frac, frac, eps, code + 1, msg + " frac")
+    assert_close(got_integral, integral, eps, code + 2, msg + " integral")
+    assert_close(got_frac + got_integral, x, eps, code + 3, msg + " recombine")
+}
+
+assert_modf(123.75, 0.75, 123.0, 1e-12, 10, "positive")
+assert_modf(0.0 - 123.75, 0.0 - 0.75, 0.0 - 123.0, 1e-12, 20, "negative")
+assert_modf(0.125, 0.125, 0.0, 1e-12, 30, "positive fraction only")
+assert_modf(0.0 - 0.125, 0.0 - 0.125, 0.0, 1e-12, 40, "negative fraction only")
+
+var pos_int = math.modf(12.0)
+if oren_is_err(pos_int) { fail(50, "positive integer err") }
+assert_close(pos_int[0], 0.0, 0.0, 51, "positive integer frac")
+assert_true(!math.signbit(pos_int[0]), 52, "positive integer frac sign")
+assert_close(pos_int[1], 12.0, 0.0, 53, "positive integer integral")
+
+var neg_int = math.modf(0.0 - 12.0)
+if oren_is_err(neg_int) { fail(60, "negative integer err") }
+assert_close(neg_int[0], 0.0, 0.0, 61, "negative integer frac")
+assert_close(neg_int[1], 0.0 - 12.0, 0.0, 63, "negative integer integral")
+
+var neg_zero_input: f64 = math.copysign(0.0, 0.0 - 1.0)
+var neg_zero = math.modf(neg_zero_input)
+if oren_is_err(neg_zero) { fail(70, "negative zero err") }
+assert_close(neg_zero[0], 0.0, 0.0, 71, "negative zero frac")
+assert_close(neg_zero[1], 0.0, 0.0, 73, "negative zero integral")
+
+var neg_inf = math.modf(math.neg_inf())
+if oren_is_err(neg_inf) { fail(80, "negative inf err") }
+assert_close(neg_inf[0], 0.0, 0.0, 81, "negative inf frac")
+assert_true(math.is_inf(neg_inf[1]), 83, "negative inf integral")
+assert_true(math.signbit(neg_inf[1]), 84, "negative inf integral sign")
+
+assert_true(oren_is_err(math.modf(0.0 / 0.0)), 90, "modf NaN")
+
+print("module math modf OK")
+exit(0)

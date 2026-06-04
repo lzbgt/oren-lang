@@ -33,6 +33,31 @@ fn _arm64_expr_constructed_struct_type(ctx, expr) {
     return nil
 }
 
+fn _arm64_normalize_local_ann(ann) {
+    if ann == nil { return nil }
+    if oren_string_len(ann) > 5 && oren_string_slice(ann, 0, 5) == "oren." {
+        ann = oren_string_slice(ann, 5, oren_string_len(ann))
+    }
+    return ann
+}
+
+fn _arm64_apply_local_ann_traits(stmt, traits) {
+    if stmt == nil || traits == nil { return nil }
+    var nm = stmt["name"]
+    if nm == nil { return nil }
+    var ann = _arm64_normalize_local_ann(nm["ann_type"])
+    if ann == nil { return nil }
+    if ann == "f64" || ann == "f32" {
+        traits["is_floaty"] = true
+        traits["is_inty"] = false
+    } else if ann == "i64" || ann == "i32" || ann == "i16" || ann == "i8" ||
+              ann == "u64" || ann == "u32" || ann == "u16" || ann == "u8" {
+        traits["is_floaty"] = false
+        traits["is_inty"] = true
+    }
+    return nil
+}
+
 fn _arm64_set_static_struct_type(ctx, is_local, name, type_name) {
     if ctx == nil || name == nil { return nil }
     if is_local == true {
@@ -127,6 +152,10 @@ fn native_compile_stmt_var(ctx, stmt, native_compile_expr_fn) {
     var is_stringy = exprm.native_expr_is_stringy(ctx, value)
     var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, value)
     var struct_type = _arm64_expr_constructed_struct_type(ctx, value)
+    var ann_traits = {"is_floaty": is_floaty, "is_inty": is_inty}
+    _arm64_apply_local_ann_traits(stmt, ann_traits)
+    is_floaty = ann_traits["is_floaty"]
+    is_inty = ann_traits["is_inty"]
     var name = stmt["name"]["value"]
 
     if ctx["in_function"] {

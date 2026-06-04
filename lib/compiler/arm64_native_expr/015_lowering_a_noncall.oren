@@ -587,7 +587,16 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 if op == "+" || op == "-" || op == "*" || op == "/" {
                     if native_expr_is_floaty(ctx, expr["left"]) || native_expr_is_floaty(ctx, expr["right"]) {
                         // Left: X1, Right: X0
-                        if native_expr_is_floaty(ctx, expr["left"]) {
+                        var left_float_bits = native_expr_is_floaty(ctx, expr["left"])
+                        if left_float_bits != true && op == "+" && expr["right"] != nil &&
+                           expr["right"]["type"] == "Float" && expr["right"]["value"] == "0.0" &&
+                           native_expr_is_inty(ctx, expr["left"]) != true {
+                            // Type-annotation lowering uses `expr + 0.0` for `: f64`.
+                            // In native mode, unknown carriers from lists/ptr loads may already be
+                            // raw f64 bits; only known-int operands should be numerically converted.
+                            left_float_bits = true
+                        }
+                        if left_float_bits {
                             push_u32_le(ctx["code"], insn_fmov_d_x(0, 1))
                         } else {
                             push_u32_le(ctx["code"], insn_scvtf(0, 1))

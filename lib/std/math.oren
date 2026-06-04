@@ -197,6 +197,20 @@ fn trunc(x: f64): f64 {
     return ceil(x)
 }
 
+fn modf(x: f64) {
+    // Returns [fractional, integral]. Nonzero parts carry the sign of x.
+    // The current runtime normalizes signed zero in several paths, so `-0.0`
+    // is not part of this v0 contract.
+    if is_nan(x) { return oren_err(4, "modf: NaN") }
+    if x == 0.0 { return [x, x] }
+    if is_inf(x) { return [copysign(0.0, x), x] }
+    var ip = trunc(x)
+    if oren_is_err(ip) { return ip }
+    var frac = x - ip
+    if frac == 0.0 { frac = copysign(0.0, x) }
+    return [frac, ip]
+}
+
 fn fmod(x: f64, y: f64) {
     if is_nan(x) || is_nan(y) { return oren_err(4, "fmod: NaN") }
     if y == 0.0 { return oren_err(4, "fmod: zero divisor") }

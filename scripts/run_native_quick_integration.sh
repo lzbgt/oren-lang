@@ -1446,6 +1446,19 @@ run_step_checked "math cbrt smoke (bytecode)" "$math_cbrt_log" \
   "$compiler" test "$math_cbrt_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_cbrt_log"
 
+echo "== math modf smoke (native/C/bytecode) =="
+math_modf_src="tests/modules/test_math_modf.oren"
+math_modf_log="build/logs/${compiler_base}_math_modf.log"
+rm -f "$math_modf_log" 2>/dev/null || true
+
+run_step_checked "math modf smoke (native)" "$math_modf_log" \
+  "$compiler" test "$math_modf_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math modf smoke (C)" "$math_modf_log" \
+  "$compiler" test "$math_modf_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math modf smoke (bytecode)" "$math_modf_log" \
+  "$compiler" test "$math_modf_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_modf_log"
+
 echo "== math inverse trig smoke (native/C/bytecode) =="
 math_inverse_trig_src="tests/modules/test_math_inverse_trig.oren"
 math_inverse_trig_log="build/logs/${compiler_base}_math_inverse_trig.log"

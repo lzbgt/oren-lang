@@ -649,6 +649,8 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "floor", "_floor") { return true }
             if native_name_is_or_has_suffix(nm, "ceil", "_ceil") { return true }
             if native_name_is_or_has_suffix(nm, "round", "_round") { return true }
+            if native_name_is_or_has_suffix(nm, "trunc", "_trunc") { return true }
+            if native_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
             if native_name_is_or_has_suffix(nm, "sqrt", "_sqrt") { return true }
             if native_name_is_or_has_suffix(nm, "cbrt", "_cbrt") { return true }
             if native_name_is_or_has_suffix(nm, "powi", "_powi") { return true }

@@ -585,7 +585,7 @@ Working evidence:
 - `std:math` avoids host `libm` so bytecode/AVM, C, and native backends share the
   same source-level semantics.
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
-  bit helpers, rounding, `sqrt`, `cbrt`, `powi`, `pow`, `power`, `pow2i`,
+  bit helpers, rounding, `modf`, `sqrt`, `cbrt`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,
   `tan`, `atan`, `atan2`, `asin`, `acos`, `erf`, and `erfc`.
@@ -598,7 +598,7 @@ Working evidence:
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/sign helpers,
-  pow, `frexp`/`ldexp` decomposition and scaling, `cbrt`, `hypot`,
+  pow, `modf`, `frexp`/`ldexp` decomposition and scaling, `cbrt`, `hypot`,
   exp/log/log2/log10, cancellation-aware `expm1`/`log1p`, hyperbolic
   `sinh`/`cosh`/`tanh`, and inverse hyperbolic `asinh`/`acosh`/`atanh`,
   approximate real-valued error functions `erf`/`erfc`, finite sin/cos/tan reduction, quadrant `atan2`,
