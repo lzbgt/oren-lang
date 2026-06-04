@@ -585,9 +585,9 @@ Working evidence:
 - `std:math` avoids host `libm` so bytecode/AVM, C, and native backends share the
   same source-level semantics.
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
-  bit helpers, rounding, `sqrt`, `powi`, `pow`, `power`, `pow2i`, `ldexp`,
-  `frexp`, `exp2`, `exp`, `log2`, `ln`, `sin`, `cos`, `tan`, `atan`, and
-  `atan2`.
+  bit helpers, rounding, `sqrt`, `cbrt`, `powi`, `pow`, `power`, `pow2i`,
+  `ldexp`, `frexp`, `exp2`, `exp`, `log2`, `ln`, `sin`, `cos`, `tan`, `atan`,
+  and `atan2`.
 - `pow` / `power` cover the app-visible cases `power(2,-1)` and
   `power(2,4.3)` through deterministic integer-exponent and
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
@@ -597,8 +597,9 @@ Working evidence:
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/sign helpers,
-  pow, `frexp`/`ldexp` decomposition and scaling, `hypot`, exp/log/log2/log10,
-  finite sin/cos/tan reduction, quadrant `atan2`, and non-finite error behavior in bytecode.
+  pow, `frexp`/`ldexp` decomposition and scaling, `cbrt`, `hypot`,
+  exp/log/log2/log10, finite sin/cos/tan reduction, quadrant `atan2`, and
+  non-finite error behavior in bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity
   vector and is release-gated in AVM. The earlier 2^53 assertion was invalid:
   at that magnitude `x + tau` rounds to `x + 6`, not `x + 2pi`, so it tested

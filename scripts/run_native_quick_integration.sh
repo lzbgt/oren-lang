@@ -1433,6 +1433,19 @@ run_step_checked "buffer method view smoke (bytecode)" "$buffer_method_log" \
   "$compiler" test "$buffer_method_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$buffer_method_log"
 
+echo "== math cbrt smoke (native/C/bytecode) =="
+math_cbrt_src="tests/modules/test_math_cbrt.oren"
+math_cbrt_log="build/logs/${compiler_base}_math_cbrt.log"
+rm -f "$math_cbrt_log" 2>/dev/null || true
+
+run_step_checked "math cbrt smoke (native)" "$math_cbrt_log" \
+  "$compiler" test "$math_cbrt_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math cbrt smoke (C)" "$math_cbrt_log" \
+  "$compiler" test "$math_cbrt_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math cbrt smoke (bytecode)" "$math_cbrt_log" \
+  "$compiler" test "$math_cbrt_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_cbrt_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

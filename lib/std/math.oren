@@ -284,6 +284,54 @@ fn _sqrt_nonnegative_f64(x: f64): f64 {
     return g
 }
 
+fn _floor_div_i(a, b) {
+    var q = a / b
+    var r = a - q * b
+    if r != 0 && a < 0 { return q - 1 }
+    return q
+}
+
+fn cbrt(x: f64) {
+    if is_nan(x) { return oren_err(4, "cbrt: NaN") }
+    if x == 0.0 { return x }
+    if is_inf(x) { return x }
+
+    var neg = x < 0.0
+    var ax = x
+    if neg { ax = 0.0 - x }
+
+    var b0 = _f64_bits(ax)
+    if oren_is_err(b0) { return b0 }
+    var exp0 = (b0 >> 52) & 2047
+    var xn = ax
+    var scale = 1.0
+    if exp0 == 0 {
+        // Normalize subnormals by 2^54; cbrt(2^54) is exactly 2^18.
+        xn = ax * 18014398509481984.0
+        scale = 3.814697265625e-6 // 2^-18
+        var b1 = _f64_bits(xn)
+        if oren_is_err(b1) { return b1 }
+        exp0 = (b1 >> 52) & 2047
+    }
+
+    var e = exp0 - 1023
+    var ge = _floor_div_i(e, 3)
+    var gb = u64(ge + 1023) << 52
+    var g = _f64_from_bits(gb)
+    if oren_is_err(g) { return g }
+
+    // Fixed-iteration Newton method for g^3=x:
+    // g_{n+1} = (2g + x/g^2) / 3.
+    var i = 0
+    while i < 12 {
+        g = (2.0 * g + xn / (g * g)) / 3.0
+        i = i + 1
+    }
+    g = g * scale
+    if neg { return 0.0 - g }
+    return g
+}
+
 fn powi(x: f64, n) {
     // Integer exponent power (deterministic, no libm).
     // For negative n, we return 1/(x^(-n)).

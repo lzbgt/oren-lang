@@ -270,7 +270,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
    - Current retained surface includes `pow` / `power` for integer, negative,
      fractional positive-base, infinity edge, and negative-base real-domain cases,
-     plus release-gated `sin`, `cos`, `tan`, `atan`, and `atan2` bytecode coverage.
+     `cbrt` with subnormal/sign/non-finite coverage, plus release-gated `sin`,
+     `cos`, `tan`, `atan`, and `atan2` bytecode coverage.
    - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
 5. **Native scheduler / green-task integration**

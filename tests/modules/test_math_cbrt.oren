@@ -1,0 +1,32 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math cbrt FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_close(math.cbrt(64.0), 4.0, 1e-12, 10, "exact positive cube")
+assert_close(math.cbrt(0.0 - 64.0), 0.0 - 4.0, 1e-12, 11, "exact negative cube")
+assert_close(math.cbrt(0.001), 0.1, 1e-12, 12, "fractional cube")
+assert_close(math.cbrt(10.0), 2.154434690031884, 1e-12, 13, "irrational cube root")
+assert_close(math.cbrt(math.pow2i(0 - 54)), math.pow2i(0 - 18), 1e-24, 14, "subnormal scale")
+assert_close(math.cbrt(0.0), 0.0, 0.0, 15, "zero")
+assert_true(math.is_inf(math.cbrt(math.inf())), 16, "inf")
+assert_true(math.is_inf(math.cbrt(math.neg_inf())), 17, "neg inf")
+assert_true(math.signbit(math.cbrt(math.neg_inf())), 18, "neg inf sign")
+assert_true(oren_is_err(math.cbrt(0.0 / 0.0)), 19, "nan error")
+
+print("module math cbrt OK")
+exit(0)
