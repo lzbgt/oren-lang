@@ -267,6 +267,17 @@ static int run_cancel_watch_smoke(void) {
     return 0;
 }
 
+static int g_gfx_frame_callback_count = 0;
+static uint32_t g_gfx_frame_callback_sequence = 0;
+static size_t g_gfx_frame_callback_len = 0;
+
+static void gfx_frame_callback(void* user_data, uint32_t sequence, size_t len) {
+    (void)user_data;
+    g_gfx_frame_callback_count++;
+    g_gfx_frame_callback_sequence = sequence;
+    g_gfx_frame_callback_len = len;
+}
+
 int main(void) {
     AvmEmbedConfig cfg;
     AvmEmbedResult result;
@@ -373,6 +384,7 @@ int main(void) {
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 5;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
+    if (avm_embed_set_gfx_frame_callback(handle, gfx_frame_callback, 0, &result) != AVM_EMBED_OK) return 91;
     if (avm_embed_gfx_screen_set(handle, 0, 4, 3, 3000, 12, 9, 120000, 5, &result) != AVM_EMBED_OK) return 61;
     if (avm_embed_gfx_input_put(handle, bad_event, sizeof(bad_event), &result) == AVM_EMBED_OK) return 37;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
@@ -422,21 +434,37 @@ int main(void) {
     uint8_t* stdout_data = 0;
     size_t stdout_len = 0;
     if (avm_embed_output_get(handle, &stdout_data, &stdout_len, &result) != AVM_EMBED_OK) return 14;
+    size_t stdout_info_len = 0;
+    if (avm_embed_output_info(handle, &stdout_info_len, &result) != AVM_EMBED_OK) return 79;
+    if (stdout_info_len != stdout_len) return 80;
     if (stdout_len != 14 || memcmp(stdout_data, "stdout:net-ok\n", 14) != 0) return 15;
     avm_embed_free_bytes(stdout_data);
     uint8_t* frame = 0;
     size_t frame_len = 0;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) != AVM_EMBED_OK) return 28;
+    size_t frame_info_len = 0;
+    uint32_t frame_info_sequence = 0;
+    if (avm_embed_gfx_frame_info(handle, &frame_info_len, &frame_info_sequence, &result) != AVM_EMBED_OK) return 75;
+    if (frame_info_len != frame_len) return 76;
+    if (frame_info_sequence != 8) return 92;
+    if (g_gfx_frame_callback_count < 1 || g_gfx_frame_callback_sequence != frame_info_sequence || g_gfx_frame_callback_len != frame_len) return 93;
     if (frame_len != 1102 || memcmp(frame, "OGF0", 4) != 0) return 29;
     if (frame[4] != 1 || frame[6] != 40 || frame[16] != 160 || frame[17] != 15 || frame[20] != 48) return 30;
     if (frame[24] != 8 || frame[28] != 16 || frame[32] != 12 || frame[36] != 144 || frame[37] != 95 || frame[38] != 1) return 30;
     if (frame[40] != 1 || frame[64] != 18 || frame[76] != 1 || frame[100] != 19 || frame[104] != 20 || frame[112] != 1 || frame[136] != 21 || frame[140] != 16 || frame[160] != 6 || frame[188] != 9 || frame[224] != 3 || frame[252] != 4 || frame[276] != 7 || frame[308] != 8 || frame[348] != 5 || frame[380] != 10 || frame[440] != 80 || frame[504] != 81 || frame[512] != 82 || frame[520] != 83 || frame[572] != 84 || frame[580] != 85 || frame[588] != 88 || frame[656] != 84 || frame[664] != 89 || frame[676] != 90 || frame[688] != 91 || frame[716] != 93 || frame[748] != 94 || frame[756] != 95 || frame[764] != 92 || frame[772] != 85 || frame[780] != 22 || frame[792] != 86 || frame[844] != 84 || frame[852] != 87 || frame[876] != 23 || frame[880] != 85 || frame[888] != 17 || frame[892] != 68 || frame[910] != 69 || frame[926] != 72 || frame[954] != 70 || frame[962] != 64 || frame[986] != 65 || frame[1010] != 67 || frame[1050] != 71 || frame[1094] != 66) return 30;
     avm_embed_free_bytes(frame);
     if (avm_embed_gfx_frame_clear(handle, &result) != AVM_EMBED_OK) return 31;
+    frame_info_len = 99;
+    frame_info_sequence = 99;
+    if (avm_embed_gfx_frame_info(handle, &frame_info_len, &frame_info_sequence, &result) != AVM_EMBED_OK) return 77;
+    if (frame_info_len != 0 || frame_info_sequence != 0) return 78;
     if (avm_embed_gfx_frame_get(handle, &frame, &frame_len, &result) == AVM_EMBED_OK) return 32;
     if (avm_embed_output_clear(handle, &result) != AVM_EMBED_OK) return 16;
     stdout_data = 0;
     stdout_len = 99;
+    stdout_info_len = 99;
+    if (avm_embed_output_info(handle, &stdout_info_len, &result) != AVM_EMBED_OK) return 81;
+    if (stdout_info_len != 0) return 82;
     if (avm_embed_output_get(handle, &stdout_data, &stdout_len, &result) != AVM_EMBED_OK) return 17;
     if (stdout_len != 0) return 18;
     avm_embed_free_bytes(stdout_data);
@@ -589,6 +617,14 @@ int main(void) {
         OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
         if (!runtime) return 35;
         NSError* error = nil;
+        __block NSUInteger graphicsFrameHandlerCount = 0;
+        __block uint32_t graphicsFrameHandlerSequence = 0;
+        __block NSUInteger graphicsFrameHandlerLength = 0;
+        runtime.graphicsFrameHandler = ^(uint32_t sequence, NSUInteger byteLength) {
+            graphicsFrameHandlerCount += 1;
+            graphicsFrameHandlerSequence = sequence;
+            graphicsFrameHandlerLength = byteLength;
+        };
         if (defaultLiveNetwork) {
             if (![runtime disableLiveNetworkWithError:&error]) return 70;
             if (![runtime enableLiveNetworkWithAllowedHosts:nil timeoutSeconds:5.0 error:&error]) return 71;
@@ -659,6 +695,12 @@ int main(void) {
         }
         if (expectedExit != 9) return 0;
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
+        if (graphicsFrameHandlerCount < 1) return 183;
+        if (graphicsFrameHandlerSequence != 8u || graphicsFrameHandlerLength != 1102u) return 184;
+        if ([runtime capturedOutputLengthWithError:&error] != 14) return 180;
+        if (![runtime hasPermissionRequestWithError:&error]) return 181;
+        NSNumber* permissionSequence = [runtime permissionRequestSequenceWithError:&error];
+        if (!permissionSequence || permissionSequence.unsignedIntValue != 1u) return 182;
         NSDictionary<NSString*, id>* permission = [runtime getPermissionRequestWithError:&error];
         if (!permission) return 72;
         if (![permission[@"domain"] isEqual:@"NET"]) return 73;
@@ -700,6 +742,8 @@ int main(void) {
         if ([reloadedGrantStore isGrantedForPermissionPrompt:prompt]) return 171;
         if (reloadedGrantStore.allowedNetworkHosts.count != 0) return 124;
         if (![runtime clearPermissionRequestWithError:&error]) return 78;
+        if ([runtime hasPermissionRequestWithError:&error]) return 183;
+        if ([runtime permissionRequestSequenceWithError:&error] != nil) return 184;
         if ([runtime getPermissionRequestDataWithError:&error] != nil) return 79;
         NSData* out = [runtime getVFSFileAtPath:@"out.txt" error:&error];
         if (![out isEqualToData:[@"ios:abc" dataUsingEncoding:NSUTF8StringEncoding]]) return 44;
@@ -974,6 +1018,7 @@ int main(void) {
             if (![installed containsObject:@"oren-labs/sdk-package-service/0.2.0"]) return 168;
         }
         if (![result.stdoutData isEqualToData:[@"stdout:net-ok\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 45;
+        if (![runtime hasGraphicsFrameWithError:&error]) return 172;
         NSData* frame = [runtime getGraphicsFrameDataWithError:&error];
         if (!frame) return 46;
         if (frame.length != 1102) return 47;
@@ -985,6 +1030,7 @@ int main(void) {
         OrenAVMGraphicsView* graphicsView = [[OrenAVMGraphicsView alloc] initWithRuntime:runtime];
         if (!graphicsView) return 52;
         graphicsView.frameData = frame;
+        if (!graphicsView.hasValidFrameData) return 173;
         UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 3.0), NO, 1.0);
         [graphicsView drawRect:CGRectMake(0.0, 0.0, 4.0, 3.0)];
         UIGraphicsEndImageContext();
@@ -1021,6 +1067,7 @@ int main(void) {
         OrenAVMMetalView* metalView = [[OrenAVMMetalView alloc] initWithRuntime:runtime];
         if (!metalView) return 127;
         metalView.frameData = frame;
+        if (!metalView.hasValidFrameData) return 174;
         if (![metalView prepareFrameResourcesWithError:&error]) return 162;
         if (metalView.lastFrameVertexCount < 140u) return 163;
         if (metalView.lastFrameTextRunCount != 3u) return 164;
@@ -1056,6 +1103,15 @@ int main(void) {
         if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif
         if (![runtime clearGraphicsFrameWithError:&error]) return 49;
+        if ([runtime hasGraphicsFrameWithError:&error]) return 175;
+#if TARGET_OS_IPHONE
+        NSData* graphicsFrameAfterClear = graphicsView.frameData;
+        if (![graphicsView reloadFrameWithError:&error]) return 176;
+        if (![graphicsView.frameData isEqualToData:graphicsFrameAfterClear] || !graphicsView.hasValidFrameData) return 177;
+        NSData* metalFrameAfterClear = metalView.frameData;
+        if (![metalView reloadFrameWithError:&error]) return 178;
+        if (![metalView.frameData isEqualToData:metalFrameAfterClear] || !metalView.hasValidFrameData) return 179;
+#endif
         if ([runtime getGraphicsFrameDataWithError:&error] != nil) return 50;
     }
     return 0;

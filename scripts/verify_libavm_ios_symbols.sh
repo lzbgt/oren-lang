@@ -21,12 +21,16 @@ for sym in \
   _avm_embed_vproc_put \
   _avm_embed_vproc_set_default_exit \
   _avm_embed_set_output_capture \
+  _avm_embed_output_info \
   _avm_embed_output_get \
   _avm_embed_output_clear \
+  _avm_embed_set_gfx_frame_callback \
+  _avm_embed_gfx_frame_info \
   _avm_embed_gfx_frame_get \
   _avm_embed_gfx_frame_clear \
   _avm_embed_gfx_input_put \
   _avm_embed_gfx_screen_set \
+  _avm_embed_permission_request_info \
   _avm_embed_permission_request_get \
   _avm_embed_permission_request_clear \
   _avm_embed_cancel \

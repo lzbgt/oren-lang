@@ -284,6 +284,8 @@ endif
 		tests/avm/test_int_casts.oren \
 		tests/avm/test_list_append_grow.oren \
 		tests/avm/test_map_iter_deterministic.oren \
+		tests/avm/test_map_key_order.oren \
+		tests/avm/test_map_key_types.oren \
 		tests/avm/test_result_hash_repeat.oren \
 		tests/avm/test_state_hash_repeat.oren \
 		tests/avm/test_trace_hash_repeat.oren \
@@ -317,6 +319,7 @@ endif
 		tests/avm/test_ui_2d_conformance_v0.oren \
 		tests/avm/test_ui_3d_conformance_v0.oren \
 		tests/avm/test_ui_scene3d_v0.oren \
+		tests/avm/test_ui_retained_3d_republish_v0.oren \
 		tests/avm/test_ui_avm_mailbox_v0.oren \
 		tests/avm/test_ui_avm_event_decode_v0.oren \
 		tests/avm/test_ui_avm_protocol_validation_v0.oren \

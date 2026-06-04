@@ -75,6 +75,16 @@ def validate_case(case: dict[str, Any]) -> None:
     setup_dirs = case.get("setup_dirs", [])
     if not isinstance(setup_dirs, list) or not all(isinstance(x, str) for x in setup_dirs):
         raise SystemExit(f"{case['path']}: setup_dirs must be list<string>")
+    setup_builds = case.get("setup_builds", [])
+    if not isinstance(setup_builds, list):
+        raise SystemExit(f"{case['path']}: setup_builds must be list")
+    for setup_build in setup_builds:
+        if not isinstance(setup_build, dict):
+            raise SystemExit(f"{case['path']}: setup_builds entries must be object")
+        if not isinstance(setup_build.get("src"), str) or not setup_build["src"]:
+            raise SystemExit(f"{case['path']}: setup_build src must be non-empty string")
+        if not isinstance(setup_build.get("out"), str) or not setup_build["out"]:
+            raise SystemExit(f"{case['path']}: setup_build out must be non-empty string")
     if not isinstance(case.get("host_effects"), list):
         raise SystemExit(f"{case['path']}: host_effects must be list")
     for effect in case["host_effects"]:
@@ -150,6 +160,31 @@ def main() -> int:
         if build_rc != 0:
             sys.stderr.write(f"--- {name} (build) ---\n{build_log.read_text(encoding='utf-8', errors='replace')}")
             return 1
+
+        for index, setup_build in enumerate(case.get("setup_builds", []), start=1):
+            setup_src = ROOT / setup_build["src"]
+            setup_out = ROOT / setup_build["out"]
+            if not setup_src.exists():
+                raise SystemExit(f"{case['path']}: missing setup_build src: {setup_build['src']}")
+            setup_out.parent.mkdir(parents=True, exist_ok=True)
+            setup_log = log_dir / f"avm_{name}_setup_{index}.log"
+            setup_rc = run_cmd(
+                [
+                    args.oren_bin,
+                    "build",
+                    setup_build["src"],
+                    "--backend",
+                    "bytecode",
+                    "-o",
+                    str(setup_out.relative_to(ROOT)),
+                ],
+                setup_log,
+                timeout=180,
+            )
+            if setup_rc != 0:
+                sys.stderr.write(f"--- {name} (setup build {index}) ---\n")
+                sys.stderr.write(setup_log.read_text(encoding="utf-8", errors="replace"))
+                return 1
 
         for dir_value in case.get("setup_dirs", []):
             (ROOT / dir_value).mkdir(parents=True, exist_ok=True)

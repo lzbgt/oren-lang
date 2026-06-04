@@ -89,8 +89,19 @@ static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSockets;
     NSMutableDictionary<NSNumber*, NSString*>* _networkSessionKinds;
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSessionByteCounts;
-    uint32_t _nextNetworkSessionId;
-    BOOL _runInProgress;
+	uint32_t _nextNetworkSessionId;
+	BOOL _runInProgress;
+	OrenAVMGraphicsFrameHandler _graphicsFrameHandler;
+}
+
+static void OrenAVMRuntimeGraphicsFramePublished(void* userData, uint32_t sequence, size_t len) {
+	if (!userData) return;
+	OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
+	OrenAVMGraphicsFrameHandler handler = nil;
+	@synchronized (runtime) {
+		handler = [runtime->_graphicsFrameHandler copy];
+	}
+	if (handler) handler(sequence, (NSUInteger)len);
 }
 
 static uint32_t OrenAVMRuntimeRegisterNetworkSession(OrenAVMRuntime* runtime, int fd, NSString* kind) {
@@ -775,18 +786,36 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
 }
 
 - (void)dealloc {
-    @synchronized (self) {
-        for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
-        [_networkSockets removeAllObjects];
+	if (_handle) avm_embed_set_gfx_frame_callback(_handle, NULL, NULL, NULL);
+	@synchronized (self) {
+		for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
+		[_networkSockets removeAllObjects];
         [_networkSessionKinds removeAllObjects];
         [_networkSessionByteCounts removeAllObjects];
     }
     [_networkSession invalidateAndCancel];
-    if (_handle) avm_embed_close(_handle);
+	if (_handle) avm_embed_close(_handle);
 }
 
 - (AvmEmbedHandle*)handle {
-    return _handle;
+	return _handle;
+}
+
+- (void)setGraphicsFrameHandler:(OrenAVMGraphicsFrameHandler)graphicsFrameHandler {
+	@synchronized (self) {
+		_graphicsFrameHandler = [graphicsFrameHandler copy];
+	}
+	AvmEmbedResult result;
+	(void)avm_embed_set_gfx_frame_callback(_handle,
+	                                       graphicsFrameHandler ? OrenAVMRuntimeGraphicsFramePublished : NULL,
+	                                       graphicsFrameHandler ? (__bridge void*)self : NULL,
+	                                       &result);
+}
+
+- (OrenAVMGraphicsFrameHandler)graphicsFrameHandler {
+	@synchronized (self) {
+		return [_graphicsFrameHandler copy];
+	}
 }
 
 - (BOOL)beginExclusiveRunWithError:(NSError**)error {
@@ -1106,6 +1135,26 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return YES;
 }
 
+- (NSUInteger)capturedOutputLengthWithError:(NSError**)error {
+    size_t len = 0;
+    AvmEmbedResult result;
+    int rc = avm_embed_output_info(_handle, &len, &result);
+    if (rc != AVM_EMBED_OK) {
+        OrenAVMKitAssignError(error, @"failed to read AVM output info", &result);
+        return 0;
+    }
+    return (NSUInteger)len;
+}
+
+- (BOOL)hasGraphicsFrameWithError:(NSError**)error {
+	size_t len = 0;
+	uint32_t sequence = 0;
+	AvmEmbedResult result;
+	int rc = avm_embed_gfx_frame_info(_handle, &len, &sequence, &result);
+	if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to read GFX frame info", &result);
+	return len > 0;
+}
+
 - (NSData*)getGraphicsFrameDataWithError:(NSError**)error {
     uint8_t* bytes = NULL;
     size_t len = 0;
@@ -1125,6 +1174,27 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     int rc = avm_embed_gfx_frame_clear(_handle, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear GFX frame", &result);
     return YES;
+}
+
+- (BOOL)hasPermissionRequestWithError:(NSError**)error {
+    size_t len = 0;
+    uint32_t sequence = 0;
+    AvmEmbedResult result;
+    int rc = avm_embed_permission_request_info(_handle, &len, &sequence, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to read permission request info", &result);
+    return len > 0;
+}
+
+- (NSNumber*)permissionRequestSequenceWithError:(NSError**)error {
+    size_t len = 0;
+    uint32_t sequence = 0;
+    AvmEmbedResult result;
+    int rc = avm_embed_permission_request_info(_handle, &len, &sequence, &result);
+    if (rc != AVM_EMBED_OK) {
+        OrenAVMKitAssignError(error, @"failed to read permission request info", &result);
+        return nil;
+    }
+    return len > 0 ? @(sequence) : nil;
 }
 
 - (NSData*)getPermissionRequestDataWithError:(NSError**)error {

@@ -63,20 +63,22 @@
 </ul>
 <p>  input-event mailbox.</p>
 <ul>
-<li><code>lib/avm/avm_embed.h</code> exposes <code>avm_embed_gfx_frame_get(...)</code> and</li>
+<li><code>lib/avm/avm_embed.h</code> exposes <code>avm_embed_set_gfx_frame_callback(...)</code> for</li>
 </ul>
-<p>  <code>avm_embed_gfx_frame_clear(...)</code> for host rendering, plus</p>
-<p>  <code>avm_embed_gfx_input_put(...)</code> for host-to-OBC input events.</p>
+<p>  event-driven host wakeups, <code>avm_embed_gfx_frame_info(...)</code> /</p>
+<p>  <code>avm_embed_gfx_frame_get(...)</code> / <code>avm_embed_gfx_frame_clear(...)</code> for</p>
+<p>  accepted-frame metadata and retrieval, plus <code>avm_embed_gfx_input_put(...)</code> for</p>
+<p>  host-to-OBC input events.</p>
 <ul>
 <li><code>lib/std/ui/avm.oren</code> serializes validated <code>std:ui</code> v0 command buffers into</li>
 </ul>
 <p>  compact <code>oren.gfx.frame.bin1</code> bytes and publishes them with</p>
 <p>  <code>oren_gfx_present_frame(...)</code>.</p>
 <ul>
-<li><code>sdk/ios/OrenAVMKit</code> exposes <code>getGraphicsFrameDataWithError:</code> and</li>
+<li><code>sdk/ios/OrenAVMKit</code> exposes <code>graphicsFrameHandler</code>,</li>
 </ul>
-<p>  <code>clearGraphicsFrameWithError:</code>, plus low-level input-byte enqueue and a binary</p>
-<p>  pointer-event helper.</p>
+<p>  <code>getGraphicsFrameDataWithError:</code>, and <code>clearGraphicsFrameWithError:</code>, plus</p>
+<p>  low-level input-byte enqueue and binary input-event helpers.</p>
 <ul>
 <li><code>sdk/ios/OrenAVMKit</code> also exposes <code>OrenAVMGraphicsView</code>, a default</li>
 </ul>
@@ -209,6 +211,10 @@
 <p>Embedder API shape:</p>
 <pre><code>int avm_embed_gfx_frame_get(AvmEmbedHandle* h, uint8_t** out_data, size_t* out_len,
                             AvmEmbedResult* r);
+int avm_embed_gfx_frame_info(AvmEmbedHandle* h, size_t* out_len,
+                             uint32_t* out_sequence, AvmEmbedResult* r);
+int avm_embed_set_gfx_frame_callback(AvmEmbedHandle* h, AvmGfxFrameFn frame_fn,
+                                     void* user_data, AvmEmbedResult* r);
 int avm_embed_gfx_frame_clear(AvmEmbedHandle* h, AvmEmbedResult* r);
 int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t event_len,
                             AvmEmbedResult* r);</code></pre>
@@ -225,6 +231,12 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>AVM validates <code>OGF0</code> headers/op records before accepting OBC-published frames and</p>
 <p>validates <code>OGE0</code> headers/payload lengths before accepting host input. This keeps</p>
 <p>host adapters from having to defensively parse arbitrary byte strings from the VM.</p>
+<p>Frame callbacks report only sequence and byte length; hosts then fetch/copy on</p>
+<p>their UI/render thread. That makes the default transport event-driven without</p>
+<p>exporting VM-owned frame memory across language or process boundaries. The</p>
+<p>no-copy info API remains useful for diagnostics and constrained hosts that cannot</p>
+<p>install callbacks, but polling it is not the default path for iOS/macOS/desktop</p>
+<p>SDKs.</p>
 <p>The retained implementation uses the explicit graphics mailbox, not VFS or stdout.</p>
 <p>Frame publication is charged against AVM I/O budget so graphics output cannot grow</p>
 <p>unbounded.</p>
@@ -290,8 +302,11 @@ fn main() {
 <li>User edits/runs Oren code in Note.</li>
 <li>Note compiles source to OBC through the compiler-in-AVM or host compile path.</li>
 <li>Note opens <code>AvmEmbedHandle</code> with graphics domain enabled and deterministic budgets.</li>
-<li>Note runs one VM tick or run-to-pause interval.</li>
-<li>Note calls <code>avm_embed_gfx_frame_get</code>.</li>
+<li>Note installs a frame callback, then runs one VM tick or run-to-pause interval.</li>
+<li>The callback wakes the host render path with the accepted frame sequence/length;</li>
+</ol>
+<p>   Note calls <code>avm_embed_gfx_frame_get</code> on the render-safe path.</p>
+<ol>
 <li>Note validates schema/version/limits, renders simple v0 frames through</li>
 </ol>
 <p>   <code>OrenAVMGraphicsView</code>, or translates richer ops to Metal buffers/pipelines and</p>
@@ -402,6 +417,11 @@ fn main() {
 <li>Done: add high-resolution resize scale, latest-frame replacement/clear, and</li>
 </ol>
 <p>    FIFO pointer down/move/up ordering gates.</p>
+<ol>
+<li>Done: add event-driven GFX frame callbacks, no-copy frame info fallback, and</li>
+</ol>
+<p>    SDK renderer no-op reload semantics for empty mailboxes, so host views can</p>
+<p>    keep the last valid <code>OGF0</code> frame while awaiting the next AVM publication.</p>
 <ol>
 <li>Done: add first SDK Metal/<code>MTKView</code> adapter (<code>OrenAVMMetalView</code>) that owns the</li>
 </ol>

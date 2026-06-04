@@ -647,6 +647,16 @@ int avm_embed_set_output_capture(AvmEmbedHandle* handle, int enabled, AvmEmbedRe
     return result ? result->status : AVM_EMBED_OK;
 }
 
+int avm_embed_output_info(AvmEmbedHandle* handle, size_t* out_len, AvmEmbedResult* result) {
+    if (out_len) *out_len = 0;
+    if (!avm_embed_valid_handle(handle) || !out_len) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed output info argument");
+    }
+    *out_len = handle->vm->stdout_capture_len;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
 int avm_embed_output_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
     if (out_data) *out_data = NULL;
     if (out_len) *out_len = 0;
@@ -668,6 +678,30 @@ int avm_embed_output_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed output clear argument");
     }
     avm_embed_output_clear_vm(handle->vm);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_set_gfx_frame_callback(AvmEmbedHandle* handle, AvmGfxFrameFn frame_fn, void* user_data, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame callback argument");
+    }
+    handle->vm->gfx_frame_fn = frame_fn;
+    handle->vm->gfx_frame_user_data = user_data;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_gfx_frame_info(AvmEmbedHandle* handle, size_t* out_len, uint32_t* out_sequence, AvmEmbedResult* result) {
+    if (out_len) *out_len = 0;
+    if (out_sequence) *out_sequence = 0;
+    if (!avm_embed_valid_handle(handle) || !out_len || !out_sequence) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame info argument");
+    }
+    if (handle->vm->gfx_frame_data && handle->vm->gfx_frame_len > 0) {
+        *out_len = handle->vm->gfx_frame_len;
+        *out_sequence = handle->vm->gfx_frame_sequence;
+    }
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }
@@ -700,6 +734,7 @@ int avm_embed_gfx_frame_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
         handle->vm->gfx_frame_data = NULL;
     }
     handle->vm->gfx_frame_len = 0;
+    handle->vm->gfx_frame_sequence = 0;
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }
@@ -845,6 +880,20 @@ int avm_embed_event_put(AvmEmbedHandle* handle, const char* kind, const char* ac
     entry->detail = detail_copy;
     entry->flags = flags;
     entry->sequence = seq;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_permission_request_info(AvmEmbedHandle* handle, size_t* out_len, uint32_t* out_sequence, AvmEmbedResult* result) {
+    if (out_len) *out_len = 0;
+    if (out_sequence) *out_sequence = 0;
+    if (!avm_embed_valid_handle(handle) || !out_len || !out_sequence) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed permission request info argument");
+    }
+    if (handle->vm->permission_request_data && handle->vm->permission_request_len > 0) {
+        *out_len = handle->vm->permission_request_len;
+        *out_sequence = handle->vm->permission_request_sequence;
+    }
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }

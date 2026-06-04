@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define AVM_EMBED_ABI_VERSION 10u
+#define AVM_EMBED_ABI_VERSION 11u
 
 enum {
     AVM_EMBED_OK = 0,
@@ -71,13 +71,17 @@ int avm_embed_set_net_resolve_callback(AvmEmbedHandle* handle, AvmNetResolveFn r
 int avm_embed_vproc_put(AvmEmbedHandle* handle, const char* command, int exit_code, AvmEmbedResult* result);
 int avm_embed_vproc_set_default_exit(AvmEmbedHandle* handle, int exit_code, AvmEmbedResult* result);
 int avm_embed_set_output_capture(AvmEmbedHandle* handle, int enabled, AvmEmbedResult* result);
+int avm_embed_output_info(AvmEmbedHandle* handle, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_output_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_output_clear(AvmEmbedHandle* handle, AvmEmbedResult* result);
+int avm_embed_set_gfx_frame_callback(AvmEmbedHandle* handle, AvmGfxFrameFn frame_fn, void* user_data, AvmEmbedResult* result);
+int avm_embed_gfx_frame_info(AvmEmbedHandle* handle, size_t* out_len, uint32_t* out_sequence, AvmEmbedResult* result);
 int avm_embed_gfx_frame_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_gfx_frame_clear(AvmEmbedHandle* handle, AvmEmbedResult* result);
 int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, size_t event_len, AvmEmbedResult* result);
 int avm_embed_gfx_screen_set(AvmEmbedHandle* handle, uint32_t screen_id, uint32_t width, uint32_t height, uint32_t scale_milli, uint32_t drawable_width, uint32_t drawable_height, uint32_t target_hz_milli, uint32_t flags, AvmEmbedResult* result);
 int avm_embed_event_put(AvmEmbedHandle* handle, const char* kind, const char* action, const char* detail, uint32_t flags, AvmEmbedResult* result);
+int avm_embed_permission_request_info(AvmEmbedHandle* handle, size_t* out_len, uint32_t* out_sequence, AvmEmbedResult* result);
 int avm_embed_permission_request_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
 int avm_embed_permission_request_clear(AvmEmbedHandle* handle, AvmEmbedResult* result);
 void avm_embed_free_bytes(uint8_t* data);

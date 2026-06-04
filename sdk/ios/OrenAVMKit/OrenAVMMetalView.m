@@ -113,7 +113,18 @@ static uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
     return (uint32_t)p[0] |
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
-           ((uint32_t)p[3] << 24);
+	           ((uint32_t)p[3] << 24);
+}
+
+static BOOL OrenAVMMetalFrameDataIsValid(NSData* frame) {
+    if (frame.length < 24) return NO;
+    const uint8_t* data = (const uint8_t*)frame.bytes;
+    if (memcmp(data, "OGF0", 4) != 0) return NO;
+    uint8_t version = data[4];
+    if (version != 0 && version != 1) return NO;
+    uint16_t headerLen = version == 0 ? 24 : OrenAVMMetalReadU16LE(data + 6);
+    if (headerLen < 24 || headerLen > frame.length) return NO;
+    return OrenAVMMetalReadU32LE(data + 8) != 0 && OrenAVMMetalReadU32LE(data + 12) != 0;
 }
 
 static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {
@@ -735,8 +746,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
         return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
                                        @"metal view has no AVM runtime");
     }
+    if (![self.runtime hasGraphicsFrameWithError:error]) return YES;
     NSData* frame = [self.runtime getGraphicsFrameDataWithError:error];
     if (!frame) return NO;
+    if (!OrenAVMMetalFrameDataIsValid(frame)) return YES;
     self.frameData = frame;
     return YES;
 }
@@ -755,6 +768,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
 
 - (NSUInteger)retainedImageCount {
     return self.orenImageTextures.count;
+}
+
+- (BOOL)hasValidFrameData {
+    return OrenAVMMetalFrameDataIsValid(self.frameData);
 }
 
 - (void)resetFrameMetrics {
@@ -1715,8 +1732,8 @@ static NSData* OrenAVMMetalTextQuad(float x,
 }
 
 - (BOOL)prepareFrameResourcesWithError:(NSError**)error {
-    if (!self.frameData && self.runtime && ![self reloadFrameWithError:error]) return NO;
-    if (!self.frameData) {
+    if (!OrenAVMMetalFrameDataIsValid(self.frameData) && self.runtime && ![self reloadFrameWithError:error]) return NO;
+    if (!OrenAVMMetalFrameDataIsValid(self.frameData)) {
         return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
                                        @"metal view has no frame data");
     }

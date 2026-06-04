@@ -143,6 +143,9 @@ AvmVM* avm_new() {
     vm->net_resolve_user_data = NULL;
     vm->gfx_frame_data = NULL;
     vm->gfx_frame_len = 0;
+    vm->gfx_frame_sequence = 0;
+    vm->gfx_frame_fn = NULL;
+    vm->gfx_frame_user_data = NULL;
     vm->gfx_input_queue = NULL;
     vm->gfx_screen_available = 0;
     vm->gfx_screen_id = 0;

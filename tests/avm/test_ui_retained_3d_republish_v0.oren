@@ -1,0 +1,50 @@
+// AVM headless UI test: retained 3D draw-only frames keep publishing valid OGF0.
+
+import ui_avm "std:ui/avm"
+import bytes "std:bytes"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_ok(v) {
+    if oren_is_err(v) { fail() }
+    if v != 0 { fail() }
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    var triangle3d = bytes.pack([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0
+    ])
+    var opts = {"strict_bounds": true, "sequence": 0}
+    var first = [
+        {"op": "mesh3d", "id": 17, "triangles": triangle3d, "color": "#44ccff"},
+        {"op": "draw_mesh3d_at", "id": 17, "x": 0, "y": 0, "z": 0, "scale_milli": 1000}
+    ]
+    assert_ok(ui_avm.present_frame(first, 4, 3, opts))
+
+    var seq = 1
+    while seq < 4 {
+        opts["sequence"] = seq
+        var cmds = [
+            {"op": "draw_mesh3d_at", "id": 17, "x": seq - 1, "y": 0, "z": 0, "scale_milli": 1000}
+        ]
+        var frame = ui_avm.frame_bytes(cmds, 4, 3, opts)
+        if oren_is_err(frame) { fail() }
+        assert_eq(bytes.get_u8(frame, 0), 79)
+        assert_eq(bytes.get_u8(frame, 1), 71)
+        assert_eq(bytes.get_u8(frame, 2), 70)
+        assert_eq(bytes.get_u8(frame, 3), 48)
+        assert_ok(ui_avm.present_frame(cmds, 4, 3, opts))
+        seq = seq + 1
+    }
+}

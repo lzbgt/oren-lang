@@ -517,6 +517,11 @@
                 if (vm->gfx_frame_data) free(vm->gfx_frame_data);
                 vm->gfx_frame_data = copy;
                 vm->gfx_frame_len = len;
+                vm->gfx_frame_sequence = (uint32_t)data[24] |
+                    ((uint32_t)data[25] << 8) |
+                    ((uint32_t)data[26] << 16) |
+                    ((uint32_t)data[27] << 24);
+                if (vm->gfx_frame_fn) vm->gfx_frame_fn(vm->gfx_frame_user_data, vm->gfx_frame_sequence, len);
                 AvmValue ret = avm_int(0);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);

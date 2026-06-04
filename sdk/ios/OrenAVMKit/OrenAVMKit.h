@@ -114,11 +114,17 @@ typedef NS_ENUM(NSInteger, OrenAVMPackageInstallPolicy) {
 
 @end
 
+typedef void (^OrenAVMGraphicsFrameHandler)(uint32_t sequence, NSUInteger byteLength);
+
 @interface OrenAVMRuntime : NSObject
 
 // A runtime owns one AVM handle. Calls to runOBCData: are exclusive per runtime:
 // create a separate runtime for concurrent program execution. requestCancelWithError:
 // is intentionally callable from another host thread while a run is active.
+// graphicsFrameHandler is invoked when AVM publishes a validated OGF0 frame.
+// Keep it lightweight and schedule rendering work onto the host UI/render thread.
+@property(nonatomic, copy, nullable) OrenAVMGraphicsFrameHandler graphicsFrameHandler;
+
 - (instancetype)initWithConfig:(OrenAVMRuntimeConfig*)config NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
@@ -153,8 +159,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (nullable OrenAVMRunResult*)runOBCData:(NSData*)obcData error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)requestCancelWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearCancelWithError:(NSError* _Nullable* _Nullable)error;
+- (NSUInteger)capturedOutputLengthWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)hasGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getGraphicsFrameDataWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (BOOL)hasPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
+- (nullable NSNumber*)permissionRequestSequenceWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getPermissionRequestDataWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSDictionary<NSString*, id>*)getPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
@@ -423,6 +433,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @property(nonatomic, strong, nullable) OrenAVMRuntime* runtime;
 @property(nonatomic, copy, nullable) NSData* frameData;
+@property(nonatomic, readonly) BOOL hasValidFrameData;
 @property(nonatomic) NSUInteger retainedImagePixelLimit;
 @property(nonatomic) NSUInteger retainedImageCountLimit;
 @property(nonatomic, readonly) NSUInteger retainedImagePixelCount;
@@ -455,6 +466,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @property(nonatomic, strong, nullable) OrenAVMRuntime* runtime;
 @property(nonatomic, copy, nullable) NSData* frameData;
+@property(nonatomic, readonly) BOOL hasValidFrameData;
 @property(nonatomic) uint32_t targetHzMilli;
 @property(nonatomic) uint32_t mediaFlags;
 @property(nonatomic) uint32_t frameBudgetWarningPermille;

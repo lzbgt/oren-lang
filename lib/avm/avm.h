@@ -72,6 +72,7 @@ typedef int (*AvmNetSessionSelectFn)(void* user_data, const uint32_t* session_id
 typedef int (*AvmNetSessionAcceptFn)(void* user_data, uint32_t listener_session_id, uint32_t timeout_ms, uint32_t* out_session_id);
 typedef int (*AvmNetSessionCloseFn)(void* user_data, uint32_t session_id);
 typedef int (*AvmNetResolveFn)(void* user_data, const char* host, uint32_t timeout_ms, char*** out_ips, size_t* out_count);
+typedef void (*AvmGfxFrameFn)(void* user_data, uint32_t sequence, size_t len);
 
 typedef struct AvmFunc {
     // Code address inside AvmProgram->code (rolling: currently u16 addresses in opcodes).
@@ -240,6 +241,9 @@ typedef struct {
     // GFX frame mailbox (rolling): latest validated host-renderable frame payload.
     uint8_t* gfx_frame_data;
     size_t gfx_frame_len;
+    uint32_t gfx_frame_sequence;
+    AvmGfxFrameFn gfx_frame_fn;
+    void* gfx_frame_user_data;
     // GFX input mailbox (rolling): FIFO binary event payloads from host adapters.
     void* gfx_input_queue;
     // GFX screen/media state populated by host adapters; bytecode reads it through

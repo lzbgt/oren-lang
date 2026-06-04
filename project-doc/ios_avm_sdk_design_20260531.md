@@ -75,36 +75,49 @@ Retained SDK slices on 2026-05-31:
   proving the real host-fetch-to-OBC-read chain. It also runs live callback mode
   against the same local server.
 - The first GFX bridge slices are implemented. `std:ui/avm` serializes validated
-  `std:ui` v0 command buffers into compact `oren.gfx.frame.bin1` bytes,
-  bytecode publishes them through `oren_gfx_present_frame`, `libavm` stores the
-  latest frame in a GFX mailbox, and `OrenAVMKit` exposes frame get/clear
-  helpers. The frame header now carries sequence, native drawable size, and target
-  refresh hint metadata needed by high-refresh/high-resolution hosts.
+	  `std:ui` v0 command buffers into compact `oren.gfx.frame.bin1` bytes,
+	  bytecode publishes them through `oren_gfx_present_frame`, `libavm` stores the
+	  latest accepted frame in a GFX mailbox, and `OrenAVMKit` exposes an event-driven
+	  `graphicsFrameHandler` plus frame get/clear and no-copy info helpers. The frame
+	  header now carries sequence, native drawable size, and target refresh hint
+	  metadata needed by high-refresh/high-resolution hosts.
+- The frame protocol is intentionally bidirectional and event-based: AVM-to-host
+  rendering uses validated `OGF0` frame records, while host-to-AVM input and
+  lifecycle notifications use validated `OGE0` event records. Render loops should
+  use frame callbacks/wakeups by default, keep the last valid frame when no new
+  frame exists, and only copy frame bytes when they are about to decode/render
+  them. No-copy info APIs are for diagnostics and constrained fallback hosts such
+  as MCU-style embeddings, not the default iOS/macOS/desktop transport.
 - The low-level GUI transport is binary by design. JSON/QML-like documents may be
   used later as a high-level declarative UI/layout authoring format, but they must
   compile to the binary frame/event mailbox protocol before crossing the AVM-host
   boundary. This avoids making high-frequency drawing and input depend on JSON
   parsing or string allocation.
 - The iOS verifier compiles device/simulator SDK smokes and runs a host SDK smoke
-  that executes OBC, publishes a frame, retrieves it with
-  `getGraphicsFrameDataWithError:`, validates the binary magic/opcode, injects a
-  binary pointer event through the SDK, and clears the frame.
+	  that executes OBC, publishes a frame, retrieves it with
+	  `getGraphicsFrameDataWithError:`, validates the binary magic/opcode, checks the
+		  `graphicsFrameHandler` sequence/length event and `hasGraphicsFrameWithError:`,
+		  injects a binary pointer event through the SDK, and clears the frame.
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
 	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
 			  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`,
 				  `ellipse`, `polyline`, `fill_triangle`, `fill_triangles`, `push_camera_ortho`, `pop_camera`, `mesh2d`, `draw_mesh2d`, `destroy_mesh2d`, `mesh3d`, `mesh3d_rgba`, `mesh3d_indexed`, `material3d`, `model3d`, `draw_mesh3d`, `draw_mesh3d_at`, `draw_mesh3d_material`, `draw_mesh3d_at_material`, `draw_model3d`, `destroy_mesh3d`, `destroy_material3d`, `destroy_model3d`, `text_resource`, `draw_text`, `draw_texts`, `destroy_text`,
-		  `image_rgba`, `draw_image`, `destroy_image`, and
-		  `draw_image_rect`/`draw_image_rects`) and enqueues pointer events back through the `OGE0` input
-  mailbox. This is the default 2D fallback.
+			  `image_rgba`, `draw_image`, `destroy_image`, and
+			  `draw_image_rect`/`draw_image_rects`) and enqueues pointer events back through the `OGE0` input
+	  mailbox. This is the default 2D fallback. It exposes `hasValidFrameData`, and
+	  `reloadFrameWithError:` keeps the last valid frame when the runtime mailbox is
+	  empty.
 - The first high-volume renderer is implemented as `OrenAVMMetalView`, an
 		  `MTKView` adapter that owns the Metal draw loop, publishes host screen/media
 			  state, forwards touch events to OBC, and renders current `OGF0` fill-rect,
 								  stroke-line, stroke-rect, circle, ellipse, polyline, fill-triangle/fill-triangles, retained 2D mesh records, retained 3D triangle and indexed mesh records using orthographic XY default projection, byte-native per-triangle RGBA payloads, retained 3D material resources, retained 3D model resources, pure OBC-side `std:ui/scene3d` retained-scene builders with JSON and byte-native `.os3d` package-asset loading plus scene-level camera depth windows, named JSON references, model templates/instances, human-readable `position_xyz` or nested `transform` records, coordinate-array meshes, per-triangle `triangles_xyz_rgba` colors, richer material fields, and sampled transform keyframes lowered to numeric `.os3d`, iOS SDK package-store conformance for mounted `.os3d` scene assets, material override draws, deterministic painter-depth ordering, per-draw and retained model translation/uniform scale, and camera depth-window culling with dedicated release-manifest 3D conformance, retained RGBA image upload/draw/destroy/sub-rect and batched-atlas records, and byte-native/retained/batched text payloads through Metal
 		  pipelines. It exposes measured CPU frame-budget helpers so host apps can detect
 		  over-budget frames without reading raw Metal timing APIs. It also exposes
-		  `prepareFrameResourcesWithError:` for drawable-independent frame preparation,
-		  so host apps and CI can parse retained 3D/resource frames and inspect vertex,
-		  text-run, and image-run counts without requiring a live drawable. CoreGraphics and Metal
+			  `prepareFrameResourcesWithError:` for drawable-independent frame preparation,
+			  so host apps and CI can parse retained 3D/resource frames and inspect vertex,
+			  text-run, and image-run counts without requiring a live drawable. It uses
+			  the same empty-mailbox no-op reload contract as `OrenAVMGraphicsView`.
+			  CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
 		  can bound sprite/atlas memory. Retained text records now avoid resending
 		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.
@@ -120,9 +133,8 @@ Retained SDK slices on 2026-05-31:
   `std:ui/avm.pull_event_bytes()` or decodes them with
   `std:ui/avm.next_event()`.
 
-Not implemented yet: compiler helper Swift/Objective-C package, OBC store helper,
-Metal/3D rendering, and richer 2D drawing ops. GUI follow-up must be
-game-grade, not widget-only: the next protocol work is display-link pacing,
+Not implemented yet: richer glyph atlas batching and live-device 3D performance
+capture. GUI follow-up must be game-grade, not widget-only: the next protocol work is display-link pacing,
 retained resource handles, strict budgets, low-latency input ordering, and
 Metal/`MTKView` gates as defined in
 `project-doc/avm_ui_render_performance_design_20260531.md`.

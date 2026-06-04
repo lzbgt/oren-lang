@@ -97,6 +97,17 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     return out;
 }
 
+static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
+    if (frame.length < 24) return NO;
+    const uint8_t* data = (const uint8_t*)frame.bytes;
+    if (memcmp(data, "OGF0", 4) != 0) return NO;
+    uint8_t version = data[4];
+    if (version != 0 && version != 1) return NO;
+    uint16_t headerLen = version == 0 ? 24 : OrenAVMGfxReadU16LE(data + 6);
+    if (headerLen < 24 || headerLen > frame.length) return NO;
+    return OrenAVMGfxReadU32LE(data + 8) != 0 && OrenAVMGfxReadU32LE(data + 12) != 0;
+}
+
 @interface OrenAVMGraphicsView ()
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
@@ -129,6 +140,10 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 
 - (NSUInteger)retainedImageCount {
     return self.orenImages.count;
+}
+
+- (BOOL)hasValidFrameData {
+    return OrenAVMGfxFrameDataIsValid(self.frameData);
 }
 
 - (void)clearImageCache {
@@ -189,8 +204,10 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
         return OrenAVMGraphicsViewAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
                                         @"graphics view has no AVM runtime");
     }
+    if (![self.runtime hasGraphicsFrameWithError:error]) return YES;
     NSData* frame = [self.runtime getGraphicsFrameDataWithError:error];
     if (!frame) return NO;
+    if (!OrenAVMGfxFrameDataIsValid(frame)) return YES;
     self.frameData = frame;
     [self setNeedsDisplay];
     return YES;
@@ -294,9 +311,8 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
 - (void)drawRect:(CGRect)rect {
     (void)rect;
     NSData* frame = self.frameData;
-    if (frame.length < 24) return;
+    if (!OrenAVMGfxFrameDataIsValid(frame)) return;
     const uint8_t* data = (const uint8_t*)frame.bytes;
-    if (memcmp(data, "OGF0", 4) != 0) return;
     uint8_t version = data[4];
     uint16_t headerLen = version == 0 ? 24 : OrenAVMGfxReadU16LE(data + 6);
     if (headerLen < 24 || headerLen > frame.length) return;

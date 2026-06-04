@@ -100,8 +100,10 @@
 <p>  <code>avm_embed_vfs_put</code>, <code>avm_embed_vfs_get</code>,</p>
 <p>  <code>avm_embed_vfs_snapshot</code>, <code>avm_embed_vnet_put</code>, <code>avm_embed_vproc_put</code>,</p>
 <p>  <code>avm_embed_vproc_set_default_exit</code>, <code>avm_embed_set_output_capture</code>,</p>
-<p>  <code>avm_embed_output_get</code>, <code>avm_embed_output_clear</code>, <code>avm_embed_gfx_frame_get</code>,</p>
-<p>  <code>avm_embed_gfx_frame_clear</code>, <code>avm_embed_gfx_input_put</code>, and</p>
+<p>  <code>avm_embed_output_info</code>, <code>avm_embed_output_get</code>, <code>avm_embed_output_clear</code>,</p>
+<p>  <code>avm_embed_set_gfx_frame_callback</code>, <code>avm_embed_gfx_frame_info</code>,</p>
+<p>  <code>avm_embed_gfx_frame_get</code>, <code>avm_embed_gfx_frame_clear</code>,</p>
+<p>  <code>avm_embed_gfx_input_put</code>, <code>avm_embed_permission_request_info</code>, and</p>
 <p>  <code>avm_embed_free_bytes</code>.</p>
 <ul>
 <li>Default embed configs allow deterministic TIME alongside CORE/FS/NET/PROC/EXIT,</li>
@@ -405,12 +407,15 @@
 <ul>
 <li>The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can</li>
 </ul>
-<p>  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>
-<p>  <code>oren_gfx_present_frame</code>; embedders can read and clear it with</p>
-<p>  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. The current <code>OGF0</code></p>
-<p>  frame header includes sequence, logical size, native drawable size, scale, and</p>
-<p>  target refresh hint metadata for high-refresh/high-resolution hosts. AVM now</p>
-<p>  validates <code>OGF0</code> frame headers/op records before accepting a frame. Hosts enqueue</p>
+<p>	  publish a validated <code>std:ui</code> v0 frame through <code>std:ui/avm</code> /</p>
+<p>	  <code>oren_gfx_present_frame</code>; embedders register <code>avm_embed_set_gfx_frame_callback</code></p>
+<p>	  for event-driven frame wakeups and then read/clear accepted frames with</p>
+<p>	  <code>avm_embed_gfx_frame_get</code> and <code>avm_embed_gfx_frame_clear</code>. The sequence-aware</p>
+<p>	  <code>avm_embed_gfx_frame_info</code> call is a no-copy fallback/diagnostic path for</p>
+<p>	  constrained hosts, not the default render-loop transport. The current <code>OGF0</code></p>
+<p>	  frame header includes sequence, logical size, native drawable size, scale, and</p>
+<p>	  target refresh hint metadata for high-refresh/high-resolution hosts. AVM now</p>
+<p>	  validates <code>OGF0</code> frame headers/op records before accepting a frame. Hosts enqueue</p>
 <p>  binary input events with <code>avm_embed_gfx_input_put</code>; AVM validates <code>OGE0</code> event</p>
 <p>  headers/payload lengths before queuing them, and OBC pulls raw bytes through</p>
 <p>  <code>std:ui/avm.pull_event_bytes()</code> or structured maps through</p>
@@ -432,9 +437,13 @@
 <p>  <code>mesh3d</code>/<code>mesh3d_rgba</code>/<code>mesh3d_indexed</code>/<code>material3d</code>/<code>model3d</code>/<code>draw_mesh3d</code>/<code>draw_mesh3d_at</code>/<code>draw_mesh3d_material</code>/<code>draw_mesh3d_at_material</code>/<code>draw_model3d</code>/<code>destroy_mesh3d</code>/<code>destroy_material3d</code>/<code>destroy_model3d</code>/<code>image_rgba</code>/<code>draw_image</code>/<code>destroy_image</code>/</p>
 <p>  <code>draw_image_rect</code>/<code>draw_image_rects</code> frame subset and can enqueue pointer, resize, key, and</p>
 <p>  text events plus host-populated persistent screen state and runtime media-query</p>
-<p>  events with logical size, native drawable size, device scale, target refresh,</p>
-<p>  and host flags. OBC reads screen attributes with <code>std:ui/avm.screen(0)</code> without</p>
-<p>  consuming an input event. <code>OrenAVMMetalView</code> is now the first Metal/<code>MTKView</code></p>
+<p>	  events with logical size, native drawable size, device scale, target refresh,</p>
+<p>	  and host flags. OBC reads screen attributes with <code>std:ui/avm.screen(0)</code> without</p>
+<p>		  consuming an input event. <code>OrenAVMRuntime.graphicsFrameHandler</code> bridges the</p>
+<p>		  C frame callback to iOS hosts, both SDK renderers expose <code>hasValidFrameData</code>,</p>
+<p>		  and <code>reloadFrameWithError:</code> is no-op success when the runtime mailbox is empty,</p>
+<p>		  so event-driven render loops can keep the last valid <code>OGF0</code> frame instead of</p>
+<p>		  surfacing stale no-frame reloads as renderer failures. <code>OrenAVMMetalView</code> is now the first Metal/<code>MTKView</code></p>
 <p>  adapter: it owns the Metal draw loop, publishes host screen state, forwards touch</p>
 <p>  events into the <code>OGE0</code> mailbox, and renders current <code>OGF0</code> fill-rect/</p>
 <p>  clip-stack/translation-stack/opacity-stack/camera-depth-window/stroke-line/stroke-rect/round-rect/circle/</p>
@@ -606,15 +615,16 @@
 </ul>
 <p>  APIs, bytes/endian helpers, u8 buffer iteration, checked and wrapping integer</p>
 <p>  casts, call-stack discipline, explicit result/state hashing, attributes,</p>
-<p>  bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic</p>
-<p>  call specialization, varargs call/spread and spawn/spread packing, literal bases,</p>
-<p>  container mutation/iteration, pack views, task/group surfaces, deterministic join</p>
-<p>  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,</p>
-<p>  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,</p>
-<p>  host FS mounts, deterministic math core/rounding, exp/log,</p>
-<p>  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator</p>
-<p>  ranges, and Scene3D package-asset authoring rather than leaving those as</p>
-<p>  ad-hoc focused fixtures.</p>
+<p>	  bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic</p>
+<p>	  call specialization, varargs call/spread and spawn/spread packing, literal bases,</p>
+<p>	  container mutation/iteration, map key ordering/type hashes, pack views,</p>
+<p>	  task/group surfaces, deterministic join</p>
+<p>	  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,</p>
+<p>	  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,</p>
+<p>	  host FS mounts, deterministic math core/rounding, exp/log,</p>
+<p>	  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator</p>
+<p>	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as</p>
+<p>	  ad-hoc focused fixtures.</p>
 <p>Detailed note: <code>project-doc/ios_avm_readiness_20260507.md</code>.</p>
 <h2 id="compiler-in-avm">Compiler-in-AVM</h2>
 <p>Current verdict: <strong>release-gated smoke path is green</strong>.</p>

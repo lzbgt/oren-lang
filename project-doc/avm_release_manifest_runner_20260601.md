@@ -34,6 +34,7 @@ defaults and must resolve these fields:
 - `backend_policy`: human-readable backend policy label;
 - `budgets`: structured budget metadata;
 - `setup_dirs`: host directories to create before running the fixture;
+- `setup_builds`: child bytecode builds to materialize before running the fixture;
 - `host_effects`: expected host artifact assertions such as absent files.
 
 This makes fixture policy reviewable as data and removes hidden expectations from
@@ -57,7 +58,8 @@ The current manifest covers the curated release-gate set, one non-gate VPROC
 fixture, the default-safe language/container fixtures, and default-safe
 byte/int/call-stack/hash, varargs call/spread/spawn, task/group scheduler,
 deterministic join-timeout, explicit budget-abort fixtures, capsule/FS
-capability fixtures, and bounded trace diagnostic fixtures. The next completeness step
-is to add explicit release inclusion/exclusion and policy metadata for the
-remaining record/replay, snapshot, and multiverse fixtures,
-then gate the full wildcard path when the expected budgets/backends are declared.
+capability fixtures, map key ordering/type hash fixtures with child-bytecode setup,
+and bounded trace diagnostic fixtures. The next completeness step is to add
+explicit release inclusion/exclusion and policy metadata for the remaining
+record/replay, snapshot, and multiverse fixtures, then gate the full wildcard path
+when the expected budgets/backends are declared.

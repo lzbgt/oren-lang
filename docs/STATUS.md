@@ -60,8 +60,10 @@ Facts from the 2026-05-28 implementation pass:
   `avm_embed_vfs_put`, `avm_embed_vfs_get`,
   `avm_embed_vfs_snapshot`, `avm_embed_vnet_put`, `avm_embed_vproc_put`,
   `avm_embed_vproc_set_default_exit`, `avm_embed_set_output_capture`,
-  `avm_embed_output_get`, `avm_embed_output_clear`, `avm_embed_gfx_frame_get`,
-  `avm_embed_gfx_frame_clear`, `avm_embed_gfx_input_put`, and
+  `avm_embed_output_info`, `avm_embed_output_get`, `avm_embed_output_clear`,
+  `avm_embed_set_gfx_frame_callback`, `avm_embed_gfx_frame_info`,
+  `avm_embed_gfx_frame_get`, `avm_embed_gfx_frame_clear`,
+  `avm_embed_gfx_input_put`, `avm_embed_permission_request_info`, and
   `avm_embed_free_bytes`.
 - Default embed configs allow deterministic TIME alongside CORE/FS/NET/PROC/EXIT,
   so `std:time.now_ns`, `std:time.mono_raw`, `std:time.now_unix_ns`, and
@@ -315,12 +317,15 @@ Facts from the 2026-05-28 implementation pass:
   `putVirtualEventWithKind:action:detail:flags:` for FS/package events, while OBC
   still sees only virtual watch maps and event maps.
 - The first GUI bridge slices now exist as binary GFX mailboxes. Bytecode can
-  publish a validated `std:ui` v0 frame through `std:ui/avm` /
-  `oren_gfx_present_frame`; embedders can read and clear it with
-  `avm_embed_gfx_frame_get` and `avm_embed_gfx_frame_clear`. The current `OGF0`
-  frame header includes sequence, logical size, native drawable size, scale, and
-  target refresh hint metadata for high-refresh/high-resolution hosts. AVM now
-  validates `OGF0` frame headers/op records before accepting a frame. Hosts enqueue
+	  publish a validated `std:ui` v0 frame through `std:ui/avm` /
+	  `oren_gfx_present_frame`; embedders register `avm_embed_set_gfx_frame_callback`
+	  for event-driven frame wakeups and then read/clear accepted frames with
+	  `avm_embed_gfx_frame_get` and `avm_embed_gfx_frame_clear`. The sequence-aware
+	  `avm_embed_gfx_frame_info` call is a no-copy fallback/diagnostic path for
+	  constrained hosts, not the default render-loop transport. The current `OGF0`
+	  frame header includes sequence, logical size, native drawable size, scale, and
+	  target refresh hint metadata for high-refresh/high-resolution hosts. AVM now
+	  validates `OGF0` frame headers/op records before accepting a frame. Hosts enqueue
   binary input events with `avm_embed_gfx_input_put`; AVM validates `OGE0` event
   headers/payload lengths before queuing them, and OBC pulls raw bytes through
   `std:ui/avm.pull_event_bytes()` or structured maps through
@@ -342,9 +347,13 @@ Facts from the 2026-05-28 implementation pass:
   `mesh3d`/`mesh3d_rgba`/`mesh3d_indexed`/`material3d`/`model3d`/`draw_mesh3d`/`draw_mesh3d_at`/`draw_mesh3d_material`/`draw_mesh3d_at_material`/`draw_model3d`/`destroy_mesh3d`/`destroy_material3d`/`destroy_model3d`/`image_rgba`/`draw_image`/`destroy_image`/
   `draw_image_rect`/`draw_image_rects` frame subset and can enqueue pointer, resize, key, and
   text events plus host-populated persistent screen state and runtime media-query
-  events with logical size, native drawable size, device scale, target refresh,
-  and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
-  consuming an input event. `OrenAVMMetalView` is now the first Metal/`MTKView`
+	  events with logical size, native drawable size, device scale, target refresh,
+	  and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
+		  consuming an input event. `OrenAVMRuntime.graphicsFrameHandler` bridges the
+		  C frame callback to iOS hosts, both SDK renderers expose `hasValidFrameData`,
+		  and `reloadFrameWithError:` is no-op success when the runtime mailbox is empty,
+		  so event-driven render loops can keep the last valid `OGF0` frame instead of
+		  surfacing stale no-frame reloads as renderer failures. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/
   clip-stack/translation-stack/opacity-stack/camera-depth-window/stroke-line/stroke-rect/round-rect/circle/
@@ -498,15 +507,16 @@ Facts from the 2026-05-28 implementation pass:
 - The default AVM release gate now also covers portable stdlib bytes/buffer view
   APIs, bytes/endian helpers, u8 buffer iteration, checked and wrapping integer
   casts, call-stack discipline, explicit result/state hashing, attributes,
-  bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic
-  call specialization, varargs call/spread and spawn/spread packing, literal bases,
-  container mutation/iteration, pack views, task/group surfaces, deterministic join
-  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,
-  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,
-  host FS mounts, deterministic math core/rounding, exp/log,
-  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
-  ranges, and Scene3D package-asset authoring rather than leaving those as
-  ad-hoc focused fixtures.
+	  bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic
+	  call specialization, varargs call/spread and spawn/spread packing, literal bases,
+	  container mutation/iteration, map key ordering/type hashes, pack views,
+	  task/group surfaces, deterministic join
+	  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,
+	  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,
+	  host FS mounts, deterministic math core/rounding, exp/log,
+	  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
+	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as
+	  ad-hoc focused fixtures.
 
 Detailed note: `project-doc/ios_avm_readiness_20260507.md`.
 

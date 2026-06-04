@@ -26,15 +26,17 @@ The first retained implementation slices exist as of 2026-05-31:
 
 - `lib/avm` has a GFX capability domain, a latest-frame mailbox, and a FIFO
   input-event mailbox.
-- `lib/avm/avm_embed.h` exposes `avm_embed_gfx_frame_get(...)` and
-  `avm_embed_gfx_frame_clear(...)` for host rendering, plus
-  `avm_embed_gfx_input_put(...)` for host-to-OBC input events.
+- `lib/avm/avm_embed.h` exposes `avm_embed_set_gfx_frame_callback(...)` for
+  event-driven host wakeups, `avm_embed_gfx_frame_info(...)` /
+  `avm_embed_gfx_frame_get(...)` / `avm_embed_gfx_frame_clear(...)` for
+  accepted-frame metadata and retrieval, plus `avm_embed_gfx_input_put(...)` for
+  host-to-OBC input events.
 - `lib/std/ui/avm.oren` serializes validated `std:ui` v0 command buffers into
   compact `oren.gfx.frame.bin1` bytes and publishes them with
   `oren_gfx_present_frame(...)`.
-- `sdk/ios/OrenAVMKit` exposes `getGraphicsFrameDataWithError:` and
-  `clearGraphicsFrameWithError:`, plus low-level input-byte enqueue and a binary
-  pointer-event helper.
+- `sdk/ios/OrenAVMKit` exposes `graphicsFrameHandler`,
+  `getGraphicsFrameDataWithError:`, and `clearGraphicsFrameWithError:`, plus
+  low-level input-byte enqueue and binary input-event helpers.
 - `sdk/ios/OrenAVMKit` also exposes `OrenAVMGraphicsView`, a default
   UIKit/CoreGraphics `UIView` renderer for the current `OGF0` `fill_rect`/
   `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
@@ -163,6 +165,10 @@ Embedder API shape:
 ```c
 int avm_embed_gfx_frame_get(AvmEmbedHandle* h, uint8_t** out_data, size_t* out_len,
                             AvmEmbedResult* r);
+int avm_embed_gfx_frame_info(AvmEmbedHandle* h, size_t* out_len,
+                             uint32_t* out_sequence, AvmEmbedResult* r);
+int avm_embed_set_gfx_frame_callback(AvmEmbedHandle* h, AvmGfxFrameFn frame_fn,
+                                     void* user_data, AvmEmbedResult* r);
 int avm_embed_gfx_frame_clear(AvmEmbedHandle* h, AvmEmbedResult* r);
 int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t event_len,
                             AvmEmbedResult* r);
@@ -182,6 +188,12 @@ should extend the same binary stream.
 AVM validates `OGF0` headers/op records before accepting OBC-published frames and
 validates `OGE0` headers/payload lengths before accepting host input. This keeps
 host adapters from having to defensively parse arbitrary byte strings from the VM.
+Frame callbacks report only sequence and byte length; hosts then fetch/copy on
+their UI/render thread. That makes the default transport event-driven without
+exporting VM-owned frame memory across language or process boundaries. The
+no-copy info API remains useful for diagnostics and constrained hosts that cannot
+install callbacks, but polling it is not the default path for iOS/macOS/desktop
+SDKs.
 
 The retained implementation uses the explicit graphics mailbox, not VFS or stdout.
 Frame publication is charged against AVM I/O budget so graphics output cannot grow
@@ -245,8 +257,9 @@ Host loop:
 1. User edits/runs Oren code in Note.
 2. Note compiles source to OBC through the compiler-in-AVM or host compile path.
 3. Note opens `AvmEmbedHandle` with graphics domain enabled and deterministic budgets.
-4. Note runs one VM tick or run-to-pause interval.
-5. Note calls `avm_embed_gfx_frame_get`.
+4. Note installs a frame callback, then runs one VM tick or run-to-pause interval.
+5. The callback wakes the host render path with the accepted frame sequence/length;
+   Note calls `avm_embed_gfx_frame_get` on the render-safe path.
 6. Note validates schema/version/limits, renders simple v0 frames through
    `OrenAVMGraphicsView`, or translates richer ops to Metal buffers/pipelines and
    presents through `MTKView`.
@@ -351,20 +364,23 @@ Required gates before Note integration should be called production-ready:
    frame I/O budget, and host input queue depth.
 10. Done: add high-resolution resize scale, latest-frame replacement/clear, and
     FIFO pointer down/move/up ordering gates.
-11. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
+11. Done: add event-driven GFX frame callbacks, no-copy frame info fallback, and
+    SDK renderer no-op reload semantics for empty mailboxes, so host views can
+    keep the last valid `OGF0` frame while awaiting the next AVM publication.
+12. Done: add first SDK Metal/`MTKView` adapter (`OrenAVMMetalView`) that owns the
     Metal draw loop, publishes screen state, forwards touch input, and renders the
     current `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry records plus
     retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text
     upload/draw/destroy records.
-12. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
+13. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
     `OrenAVMMetalView`, runs a bundled OBC, renders one frame, and injects one touch.
-13. Add IME/composition helpers.
-14. Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel
+14. Add IME/composition helpers.
+15. Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel
     limits and counters.
-15. Done: add a balanced OBC-visible `push_clip_rect` / `pop_clip` scissor stack
+16. Done: add a balanced OBC-visible `push_clip_rect` / `pop_clip` scissor stack
     across validation, `OGF0`, AVM protocol checks, deterministic raster,
     CoreGraphics, Metal scissor rectangles, and iOS verifier coverage.
-16. Done: add a balanced OBC-visible `push_translate` / `pop_transform`
+17. Done: add a balanced OBC-visible `push_translate` / `pop_transform`
     translation stack across validation, `OGF0`, AVM protocol checks,
     deterministic raster, CoreGraphics CTM state, Metal vertex/scissor offsets,
     and iOS verifier coverage.
