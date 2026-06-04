@@ -58,8 +58,9 @@ assets; `scene3d-asset-demo` derives a byte-native
 named mesh/material references, model templates, instances, human-readable
 `position_xyz` or nested `transform` model transforms,
 human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
-`triangles_xyz` or `quads_xyz` direct meshes, and per-triangle
-`triangles_xyz_rgba` colors, richer material fields (`base_color`,
+imported glTF mesh assets with sampled animation, `triangles_xyz` or
+`quads_xyz` direct meshes, and per-triangle `triangles_xyz_rgba`
+colors, richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), plus sampled transform
 keyframes. The builder validates face/quad indices/material scalar ranges, resolves
 that authoring form into compact numeric `.os3d` records using `sample_time_milli`,

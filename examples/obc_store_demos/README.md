@@ -20,7 +20,7 @@ reviewable JSON source in this directory. The JSON can use named mesh/material
 references, model templates, instances, per-draw model/material/transform override
 objects, human-readable `position_xyz` or nested `transform` model transforms,
 human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays, builder-side
-glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with sparse accessors, static `POSITION` and `COLOR_0` morph target weights, material×`COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix selection, Wavefront OBJ `obj_source` / `obj_text`,
+glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with sparse accessors, static `POSITION` and `COLOR_0` morph target weights, baked skinning, sampled glTF animation, material×`COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix selection, Wavefront OBJ `obj_source` / `obj_text`,
 binary-or-ASCII STL `stl_source`,
 inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`,
 inline ASCII PLY `ply_text`, PLY face/vertex colors lowered to `mesh3d_rgba`, and core 3MF `3mf_source` ZIP mesh/build plus basematerial `displaycolor` lowering, `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded

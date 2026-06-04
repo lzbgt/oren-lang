@@ -101,6 +101,8 @@
       "name": "gltf-mesh",
       "gltf_source": "scene3d_gltf_marker.gltf",
       "gltf_node": "marker-node",
+      "gltf_animation": "marker-rise",
+      "gltf_sample_time_milli": 500,
       "gltf_offset_xyz": [4, 0, 1]
     }
   ],
