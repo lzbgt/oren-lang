@@ -472,17 +472,18 @@
 <p>  package downloads through <code>trustBundle:</code> overloads. This keeps trust parsing in</p>
 <p>  the SDK instead of duplicating it in every host app.</p>
 <ul>
-<li>The sibling Note repo now has a handoff/verifier update at commit <code>99b5a52</code></li>
+<li>The sibling Note repo now has a handoff/verifier update at commit <code>86efc55</code></li>
 </ul>
 <p>  that checks the staged SDK for signed-index package downloads, install policies,</p>
-<p>  trusted key inputs, trusted persisted package updates, and the external trust</p>
-<p>  issue tool. The Note package manager exposes a visible trusted Update action</p>
-<p>  for installed OBC packages.</p>
+<p>  trusted key inputs, trusted persisted package updates, visible update-status</p>
+<p>  checks, and the external trust issue tool. The Note package manager exposes</p>
+<p>  Check/Recheck status actions and a visible trusted Update action for installed</p>
+<p>  OBC packages.</p>
 <ul>
 <li>Store-side root trust rotation now has active key-id publication and</li>
 </ul>
-<p>  rotation-capable trust-bundle serving; next slices should add richer visible</p>
-<p>  update-status UX and operator lifecycle workflow.</p>
+<p>  rotation-capable trust-bundle serving; next slices should add richer operator</p>
+<p>  lifecycle workflow.</p>
 <ul>
 <li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
 </ul>

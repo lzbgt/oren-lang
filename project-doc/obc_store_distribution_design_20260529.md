@@ -290,12 +290,12 @@ loads generated `obc_store_trust.json` files into validated SDK key material, so
 host apps no longer need to hand-parse trust bundles before signed downloads. The
 store service now publishes active signing key IDs on dynamic index signatures and
 can serve rotation bundles containing active plus previous store public keys. The
-sibling Note repo has a handoff/verifier update at commit `99b5a52` that checks
+sibling Note repo has a handoff/verifier update at commit `86efc55` that checks
 the staged SDK for signed package downloads, install policies, trusted key inputs,
-trusted persisted package updates, and the external trust issue tool. The Note
-package manager exposes a visible trusted Update action for installed OBC
-packages. Remaining store work is richer visible update-status UX and operator
-lifecycle workflow before a public store is release-ready.
+trusted persisted package updates, visible update-status checks, and the external
+trust issue tool. The Note package manager exposes Check/Recheck status actions
+and a visible trusted Update action for installed OBC packages. Remaining store
+work is richer operator lifecycle workflow before a public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo

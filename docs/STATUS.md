@@ -183,11 +183,11 @@ Facts from the 2026-05-28 implementation pass:
   when `bundle`/`bundle_sha256` are present in `index.json`, rejects unsafe ZIP
   paths, and falls back to expanded manifest/OBC/assets otherwise.
 - The sibling Note repo handoff/verifier has been updated to consume this SDK
-  surface (`../note` commit `99b5a52`): its AVM engine checks now require
+  surface (`../note` commit `86efc55`): its AVM engine checks now require
   signed-index download APIs, install policies, trusted index/publisher key
-  inputs, trusted persisted update installs, and the external trust issue tool.
-  The package manager exposes a visible trusted Update action for installed OBC
-  packages.
+  inputs, trusted persisted update installs, visible update-status checks, and
+  the external trust issue tool. The package manager exposes Check/Recheck status
+  actions and a trusted Update action for installed OBC packages.
 - iOS SDK design is documented in `project-doc/ios_avm_sdk_design_20260531.md`:
   Oren should ship host-adapter SDK components so Note can use default
   app-policy-controlled FS/NET/PROC/TIME/GFX implementations instead of

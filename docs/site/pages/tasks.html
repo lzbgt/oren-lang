@@ -267,8 +267,9 @@
 <p>     replacement. Explicit install policy is implemented and verified for signed-index</p>
 <p>     downloads: replace, keep-existing, and fail-if-installed, including a signed</p>
 <p>     <code>0.2.0</code> update fixture. Sibling Note handoff/verifier updates now check</p>
-<p>     the staged signed package/trust SDK surface and expose a trusted package</p>
-<p>     update action in the package manager (<code>../note</code> commit <code>99b5a52</code>).</p>
+<p>     the staged signed package/trust SDK surface and expose visible update-status</p>
+<p>     checks plus trusted package updates in the package manager (<code>../note</code> commit</p>
+<p>     <code>86efc55</code>).</p>
 <p>     The store service now exposes a package update-check endpoint that returns</p>
 <p>     latest published release metadata plus <code>update_available</code>, and the iOS SDK</p>
 <p>     exposes <code>OrenAVMPackageUpdateStatus</code> so host apps can query it from an</p>
@@ -277,8 +278,7 @@
 <p>     update checks can survive app relaunch without duplicating source-store state</p>
 <p>     in each host app. The SDK can also install the latest trusted update from</p>
 <p>     that persisted source metadata.</p>
-<p>     Remaining package-store work is richer visible update-status UX and</p>
-<p>     operator lifecycle workflow.</p>
+<p>     Remaining package-store work is richer operator lifecycle workflow.</p>
 <ul>
 <li>2026-06-01: <code>scripts/issue_obc_store_trust.sh</code> and</li>
 </ul>
