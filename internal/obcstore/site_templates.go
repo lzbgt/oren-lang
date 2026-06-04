@@ -37,6 +37,7 @@ main{max-width:980px;margin:0 auto;padding:24px}
 	.tok-keyword{color:#8fd7ff;font-weight:700}.tok-decl{color:#ffd166;font-weight:700}.tok-call{color:#a8e6a1}.tok-method{color:#f4a261}.tok-string{color:#f7c59f}.tok-number{color:#f4d35e}.tok-comment{color:#8aa399}.tok-punct{color:#d7cdbb}.tok-ident{color:#f5efe0}
 	input{font:inherit;padding:10px;border:1px solid #cbbfa8;border-radius:10px;background:#fff}
 	button{font:inherit;padding:10px 14px;border:0;border-radius:10px;background:#146c5b;color:white}
+	.danger{background:#9a3b2f}.inline-form{display:inline-block;margin:3px 4px 3px 0}.inline-form select{font:inherit;padding:8px;border:1px solid #cbbfa8;border-radius:10px;background:#fff}
 	code,pre{background:#eee3d0;border-radius:8px;padding:2px 5px}pre{overflow:auto;padding:14px}
 	table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e2d7c3;padding:8px;text-align:left}
 	@media(max-width:760px){.brand{font-size:30px}main{padding:16px}input,button{width:100%;margin-top:8px}.package-card,.source-layout{grid-template-columns:1fr}.preview{max-width:none}}
@@ -191,13 +192,18 @@ const siteOpsReleasesHTML = `<!doctype html>
 <main>
 <p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/api/v0/ops/releases">JSON</a></p>
 <section class="card">
-{{if .Releases}}<table><tr><th>Package</th><th>Version</th><th>Status</th><th>Visibility</th><th>Readiness</th><th>Lifecycle endpoints</th></tr>
+{{if .Releases}}<table><tr><th>Package</th><th>Version</th><th>Status</th><th>Visibility</th><th>Readiness</th><th>Operator actions</th><th>Lifecycle endpoints</th></tr>
 {{range .Releases}}<tr>
 <td><a href="{{.PackageURL}}">{{.Publisher}}/{{.Name}}</a>{{if .Title}}<br><span class="muted">{{.Title}}</span>{{end}}</td>
 <td>{{.Version}}{{if .LatestPublished}} <span class="pill">latest</span>{{end}}</td>
 <td>{{.Status}}</td>
 <td>{{.Visibility}}</td>
 <td>{{range .Readiness}}<span class="pill">{{.}}</span>{{end}}{{range .MissingReadiness}}<span class="pill">missing {{.}}</span>{{end}}</td>
+<td>
+<form class="inline-form" method="post" action="{{.OpsPublishURL}}"><button type="submit">Publish</button></form>
+<form class="inline-form" method="post" action="{{.OpsYankURL}}"><button class="danger" type="submit">Yank</button></form>
+<form class="inline-form" method="post" action="{{.OpsVisibilityURL}}"><select name="visibility"><option value="public">public</option><option value="private">private</option></select><button type="submit">Set visibility</button></form>
+</td>
 <td><code>POST {{.PublishURL}}</code><br><code>POST {{.YankURL}}</code><br><code>POST {{.VisibilityURL}}</code></td>
 </tr>{{end}}</table>{{else}}No package releases exist yet.{{end}}
 </section>

@@ -6,6 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"time"
+)
+
+var (
+	errPackageNotFound = errors.New("package not found")
+	errReleaseNotFound = errors.New("release not found")
 )
 
 type OperatorReleaseItem struct {
@@ -23,6 +30,9 @@ type OperatorReleaseItem struct {
 	PublishURL       string   `json:"publish_url"`
 	YankURL          string   `json:"yank_url"`
 	VisibilityURL    string   `json:"visibility_url"`
+	OpsPublishURL    string   `json:"ops_publish_url"`
+	OpsYankURL       string   `json:"ops_yank_url"`
+	OpsVisibilityURL string   `json:"ops_visibility_url"`
 }
 
 type OperatorReleaseInventory struct {
@@ -66,6 +76,54 @@ func (s *Service) handleOpsReleases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, inventory)
+}
+
+func (s *Service) handleSiteOpsAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ops/actions/packages/"), "/")
+	if len(parts) < 3 || !safeID(parts[0]) || !safeID(parts[1]) {
+		http.NotFound(w, r)
+		return
+	}
+	pub, name := parts[0], parts[1]
+	switch {
+	case len(parts) == 3 && parts[2] == "visibility":
+		visibility := normalizeVisibility(r.FormValue("visibility"))
+		if !validVisibility(visibility) {
+			http.Error(w, "invalid package visibility", http.StatusBadRequest)
+			return
+		}
+		if _, err := s.setPackageVisibilityValue(pub, name, visibility); err != nil {
+			http.Error(w, err.Error(), statusForStoreError(err))
+			return
+		}
+	case len(parts) == 5 && parts[2] == "versions" && safeVersion(parts[3]):
+		version, action := parts[3], parts[4]
+		status := ""
+		switch action {
+		case "publish":
+			status = "published"
+		case "yank":
+			status = "yanked"
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		if _, err := s.setReleaseStatusValue(pub, name, version, status); err != nil {
+			http.Error(w, err.Error(), statusForStoreError(err))
+			return
+		}
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	http.Redirect(w, r, "/ops/releases", http.StatusSeeOther)
 }
 
 func (s *Service) operatorReleaseInventory() (OperatorReleaseInventory, error) {
@@ -156,6 +214,9 @@ func (s *Service) operatorReleaseItem(meta PackageMeta, rel ReleaseMeta) Operato
 		PublishURL:       "/api/v0/packages/" + rel.Publisher + "/" + rel.Name + "/versions/" + rel.Version + "/publish",
 		YankURL:          "/api/v0/packages/" + rel.Publisher + "/" + rel.Name + "/versions/" + rel.Version + "/yank",
 		VisibilityURL:    "/api/v0/packages/" + rel.Publisher + "/" + rel.Name + "/visibility",
+		OpsPublishURL:    "/ops/actions/packages/" + rel.Publisher + "/" + rel.Name + "/versions/" + rel.Version + "/publish",
+		OpsYankURL:       "/ops/actions/packages/" + rel.Publisher + "/" + rel.Name + "/versions/" + rel.Version + "/yank",
+		OpsVisibilityURL: "/ops/actions/packages/" + rel.Publisher + "/" + rel.Name + "/visibility",
 	}
 }
 
@@ -197,4 +258,17 @@ func latestPublishedByPackage(items []OperatorReleaseItem) map[string]string {
 		}
 	}
 	return out
+}
+
+func setReleaseMetaStatus(rel ReleaseMeta, status string, now time.Time) ReleaseMeta {
+	rel.Status = status
+	rel.UpdatedAt = now.UTC()
+	return rel
+}
+
+func statusForStoreError(err error) int {
+	if errors.Is(err, errPackageNotFound) || errors.Is(err, errReleaseNotFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }

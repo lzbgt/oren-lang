@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -228,8 +229,35 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("missing ops lifecycle urls=%v", lifecycle)
 	}
 	opsReleasesPage := request(t, ts, http.MethodGet, "/ops/releases", nil, true)
-	if opsReleasesPage.Code != http.StatusOK || !strings.Contains(opsReleasesPage.Body.String(), "Release Lifecycle") || !strings.Contains(opsReleasesPage.Body.String(), "plot-demo") || !strings.Contains(opsReleasesPage.Body.String(), "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/yank") {
+	if opsReleasesPage.Code != http.StatusOK || !strings.Contains(opsReleasesPage.Body.String(), "Release Lifecycle") || !strings.Contains(opsReleasesPage.Body.String(), "plot-demo") || !strings.Contains(opsReleasesPage.Body.String(), "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/yank") || !strings.Contains(opsReleasesPage.Body.String(), "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/yank") {
 		t.Fatalf("ops releases page status=%d body=%s", opsReleasesPage.Code, opsReleasesPage.Body.String())
+	}
+	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/yank", nil, false); got.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated ops yank=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/yank", nil, true); got.Code != http.StatusSeeOther {
+		t.Fatalf("ops yank status=%d body=%s", got.Code, got.Body.String())
+	}
+	yankedRelease := getJSON[map[string]any](t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0")
+	if yankedRelease["status"] != "yanked" {
+		t.Fatalf("ops yank did not update release: %v", yankedRelease)
+	}
+	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/publish", nil, true); got.Code != http.StatusSeeOther {
+		t.Fatalf("ops publish status=%d body=%s", got.Code, got.Body.String())
+	}
+	republishedRelease := getJSON[map[string]any](t, ts, "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0")
+	if republishedRelease["status"] != "published" {
+		t.Fatalf("ops publish did not update release: %v", republishedRelease)
+	}
+	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/visibility", map[string]string{"visibility": "private"}, true); got.Code != http.StatusSeeOther {
+		t.Fatalf("ops private visibility status=%d body=%s", got.Code, got.Body.String())
+	}
+	opsPrivateInventory := request(t, ts, http.MethodGet, "/api/v0/ops/releases", nil, true)
+	if !strings.Contains(opsPrivateInventory.Body.String(), `"visibility":"private"`) {
+		t.Fatalf("ops inventory missing private visibility: %s", opsPrivateInventory.Body.String())
+	}
+	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/visibility", map[string]string{"visibility": "public"}, true); got.Code != http.StatusSeeOther {
+		t.Fatalf("ops public visibility status=%d body=%s", got.Code, got.Body.String())
 	}
 
 	search := getJSON[map[string]any](t, ts, "/api/v0/packages?query=plot&capability=GFX")
@@ -581,6 +609,23 @@ func requestBearer(t *testing.T, ts *httptest.Server, method, path string, body 
 	return doRequest(t, req)
 }
 
+func requestForm(t *testing.T, ts *httptest.Server, path string, body map[string]string, auth bool) *httptest.ResponseRecorder {
+	t.Helper()
+	form := url.Values{}
+	for key, value := range body {
+		form.Set(key, value)
+	}
+	req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if auth {
+		req.SetBasicAuth("admin", "secret")
+	}
+	return doRequestNoRedirect(t, req)
+}
+
 func newJSONRequest(t *testing.T, ts *httptest.Server, method, path string, body any) *http.Request {
 	t.Helper()
 	var reader *bytes.Reader
@@ -610,6 +655,23 @@ func doRequest(t *testing.T, req *http.Request) *httptest.ResponseRecorder {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	rec.Code = resp.StatusCode
+	_, _ = rec.Body.ReadFrom(resp.Body)
+	return rec
+}
+
+func doRequestNoRedirect(t *testing.T, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	client := *http.DefaultClient
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	rec := httptest.NewRecorder()
 	rec.Code = resp.StatusCode
 	_, _ = rec.Body.ReadFrom(resp.Body)
 	return rec

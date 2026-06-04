@@ -151,7 +151,8 @@ Facts from the 2026-05-28 implementation pass:
   capability/source/permission/update metadata, authenticated operator status page/API
   for registry counts, bundle/source/signature/permission readiness, authenticated
   operator release lifecycle page/API for visibility, readiness, latest-published
-  state, and publish/yank/visibility action URLs, and deployment
+  state, publish/yank/visibility action URLs, and authenticated no-JS browser
+  forms for publishing, yanking, and package visibility changes, and deployment
   gates including active index key id, whether that key is trusted by the served
   bundle, and trust-bundle store-key count, asset serving, deterministic `.obc.zip`
   bundle upload/download/index metadata, public-by-default package visibility with

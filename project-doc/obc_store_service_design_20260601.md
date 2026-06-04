@@ -101,9 +101,11 @@ Implemented in this repo:
   capabilities/source/permission metadata and update-check URL, `/ops` for operator API/token
   lifecycle reference, authenticated `/ops/status` for registry counts plus
   deployment gates, and authenticated `/ops/releases` for release lifecycle
-  inventory. `GET /api/v0/ops/status` and `GET /api/v0/ops/releases` expose the
-  same operator data as JSON for smoke checks. The machine APIs remain the source
-  of truth.
+  inventory with no-JS publish/yank/package-visibility forms. `GET
+  /api/v0/ops/status` and `GET /api/v0/ops/releases` expose the same operator
+  data as JSON for smoke checks. The authenticated `/ops/actions/...` form
+  endpoints share the same mutation helpers as the JSON API routes so browser and
+  machine behavior do not diverge.
 - `index.json.sig` is generated dynamically when the service is configured with
   `--index-signing-key` or `OBC_STORE_INDEX_SIGN_KEY_PEM`, using P-256
   SHA-256 DER signatures over the exact stable `index.json` bytes. Dynamic
@@ -133,8 +135,8 @@ Implemented in this repo:
 
 Remaining service work:
 
-- richer operator write UX beyond the current browse/detail/publisher/operator
-  reference/status/lifecycle inventory pages;
+- richer update persistence and operator audit workflow beyond the current
+  browser/API lifecycle controls;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
@@ -261,6 +263,15 @@ POST /api/v0/packages/{publisher}/{name}/versions
 POST /api/v0/packages/{publisher}/{name}/versions/{version}/artifacts
 POST /api/v0/packages/{publisher}/{name}/versions/{version}/publish
 POST /api/v0/packages/{publisher}/{name}/versions/{version}/yank
+```
+
+Authenticated browser operator forms mirror those JSON mutations and redirect
+back to `/ops/releases` after success:
+
+```http
+POST /ops/actions/packages/{publisher}/{name}/visibility
+POST /ops/actions/packages/{publisher}/{name}/versions/{version}/publish
+POST /ops/actions/packages/{publisher}/{name}/versions/{version}/yank
 ```
 
 Publish flow:

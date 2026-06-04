@@ -243,6 +243,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/", s.handleSiteHome)
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/ops", s.handleSiteOps)
+	mux.HandleFunc("/ops/actions/", s.handleSiteOpsAction)
 	mux.HandleFunc("/ops/releases", s.handleSiteOpsReleases)
 	mux.HandleFunc("/ops/status", s.handleSiteOpsStatus)
 	mux.HandleFunc("/publishers/", s.handleSitePublisher)
@@ -622,20 +623,27 @@ func (s *Service) setPackageVisibility(w http.ResponseWriter, r *http.Request, p
 		http.Error(w, "invalid package visibility", http.StatusBadRequest)
 		return
 	}
+	meta, err := s.setPackageVisibilityValue(pub, name, visibility)
+	if err != nil {
+		http.Error(w, err.Error(), statusForStoreError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, meta)
+}
+
+func (s *Service) setPackageVisibilityValue(pub, name, visibility string) (PackageMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := s.packageMetaPath(pub, name)
 	meta, err := readJSONFile[PackageMeta](path)
 	if err != nil {
-		http.Error(w, "package not found", http.StatusNotFound)
-		return
+		return PackageMeta{}, errPackageNotFound
 	}
 	meta.Visibility = visibility
 	if err := writeJSONFile(path, meta); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return PackageMeta{}, err
 	}
-	writeJSON(w, http.StatusOK, meta)
+	return meta, nil
 }
 
 func (s *Service) rotatePublisherToken(w http.ResponseWriter, r *http.Request, publisherID string) {
@@ -945,8 +953,7 @@ func (s *Service) publishRelease(w http.ResponseWriter, r *http.Request, pub, na
 		rel.SignatureAlg = req.SignatureAlg
 		rel.SignatureP256SHA256DERHex = strings.ToLower(req.SignatureP256SHA256DERHex)
 	}
-	rel.Status = "published"
-	rel.UpdatedAt = s.now().UTC()
+	rel = setReleaseMetaStatus(rel, "published", s.now())
 	if err := writeJSONFile(path, rel); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -955,21 +962,27 @@ func (s *Service) publishRelease(w http.ResponseWriter, r *http.Request, pub, na
 }
 
 func (s *Service) setReleaseStatus(w http.ResponseWriter, pub, name, version, status string) {
+	rel, err := s.setReleaseStatusValue(pub, name, version, status)
+	if err != nil {
+		http.Error(w, err.Error(), statusForStoreError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, rel)
+}
+
+func (s *Service) setReleaseStatusValue(pub, name, version, status string) (ReleaseMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := filepath.Join(s.releaseDir(pub, name, version), "release.json")
 	rel, err := readJSONFile[ReleaseMeta](path)
 	if err != nil {
-		http.Error(w, "release not found", http.StatusNotFound)
-		return
+		return ReleaseMeta{}, errReleaseNotFound
 	}
-	rel.Status = status
-	rel.UpdatedAt = s.now().UTC()
+	rel = setReleaseMetaStatus(rel, status, s.now())
 	if err := writeJSONFile(path, rel); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return ReleaseMeta{}, err
 	}
-	writeJSON(w, http.StatusOK, rel)
+	return rel, nil
 }
 
 func (s *Service) verifyPublisherSignature(pub string, message []byte, signature []byte) error {
