@@ -296,6 +296,15 @@ fn _sphere_rings(sphere, ctx) {
     return rings
 }
 
+fn _capsule_rings(capsule, ctx) {
+    var rings = capsule["rings"]
+    if rings == nil { rings = 4 }
+    if _is_int(rings) == false || rings < 1 || rings > 48 {
+        return oren_err(4, ctx + ": capsule rings must be 1..48")
+    }
+    return rings
+}
+
 fn _spheres_triangle_count(spheres, ctx) {
     if spheres == nil { return oren_err(4, ctx + ": missing spheres_xyz") }
     var ns = oren_list_len(spheres)
@@ -575,6 +584,126 @@ fn pack_toruses_xyz(toruses, ctx) {
             seg = seg + 1
         }
         ti = ti + 1
+    }
+    return bytes.from_u8_buf(out)
+}
+
+fn _capsules_triangle_count(capsules, ctx) {
+    if capsules == nil { return oren_err(4, ctx + ": missing capsules_z") }
+    var nc = oren_list_len(capsules)
+    if oren_is_err(nc) { return oren_err(4, ctx + ": capsules_z must be list") }
+    var total = 0
+    var i = 0
+    while i < nc {
+        var capsule = capsules[i]
+        if capsule == nil { return oren_err(4, ctx + ": capsule must be object") }
+        var center = _center_xy(capsule, "capsule", ctx)
+        if oren_is_err(center) { return center }
+        var radius = _radius(capsule, "capsule", ctx)
+        if oren_is_err(radius) { return radius }
+        var z0 = _z(capsule, "z_min", "min_z", ctx + ".z_min")
+        if oren_is_err(z0) { return z0 }
+        var z1 = _z(capsule, "z_max", "max_z", ctx + ".z_max")
+        if oren_is_err(z1) { return z1 }
+        if z1 <= z0 { return oren_err(4, ctx + ": capsule z_max must be greater than z_min") }
+        var segments = _segments(capsule, "capsule", 4, ctx)
+        if oren_is_err(segments) { return segments }
+        var rings = _capsule_rings(capsule, ctx)
+        if oren_is_err(rings) { return rings }
+        total = total + segments * (2 + rings * 4)
+        i = i + 1
+    }
+    return total
+}
+
+fn _capsule_cap_axis(center, radius, z_center, segments, rings, seg, ring, top, axis) {
+    var theta = (math.pi() * 0.5) * f64(ring) / f64(rings)
+    var phi = math.tau() * f64(seg) / f64(segments)
+    var radial = f64(radius) * math.sin(theta)
+    var unit = radial * math.cos(phi)
+    if axis == 1 { unit = radial * math.sin(phi) }
+    if axis == 2 {
+        unit = f64(z_center) + f64(radius) * math.cos(theta)
+        if top == false { unit = f64(z_center) - f64(radius) * math.cos(theta) }
+        var z_rounded = math.round(unit)
+        if oren_is_err(z_rounded) { return z_rounded }
+        return ints.i32(z_rounded)
+    }
+    var rounded = math.round(f64(center) + unit)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _store_capsule_cap_point(out, off, cx, cy, radius, z_center, segments, rings, seg, ring, top, ctx) {
+    var x = _capsule_cap_axis(cx, radius, z_center, segments, rings, seg, ring, top, 0)
+    if oren_is_err(x) { return x }
+    var y = _capsule_cap_axis(cy, radius, z_center, segments, rings, seg, ring, top, 1)
+    if oren_is_err(y) { return y }
+    var z = _capsule_cap_axis(0, radius, z_center, segments, rings, seg, ring, top, 2)
+    if oren_is_err(z) { return z }
+    return _store_xyz_values(out, off, x, y, z, ctx)
+}
+
+fn _store_capsule_cap_triangle(out, off, cx, cy, radius, z_center, segments, rings, a_seg, a_ring, b_seg, b_ring, c_seg, c_ring, top, ctx) {
+    var rc = _store_capsule_cap_point(out, off + 0, cx, cy, radius, z_center, segments, rings, a_seg, a_ring, top, ctx + ".a")
+    if oren_is_err(rc) { return rc }
+    rc = _store_capsule_cap_point(out, off + 12, cx, cy, radius, z_center, segments, rings, b_seg, b_ring, top, ctx + ".b")
+    if oren_is_err(rc) { return rc }
+    return _store_capsule_cap_point(out, off + 24, cx, cy, radius, z_center, segments, rings, c_seg, c_ring, top, ctx + ".c")
+}
+
+fn pack_capsules_z(capsules, ctx) {
+    var tri_count = _capsules_triangle_count(capsules, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ci = 0
+    var nc = oren_list_len(capsules)
+    while ci < nc {
+        var capsule = capsules[ci]
+        var center = _center_xy(capsule, "capsule", ctx)
+        var radius = _radius(capsule, "capsule", ctx)
+        var z0 = _z(capsule, "z_min", "min_z", ctx + ".z_min")
+        var z1 = _z(capsule, "z_max", "max_z", ctx + ".z_max")
+        var segments = _segments(capsule, "capsule", 4, ctx)
+        var rings = _capsule_rings(capsule, ctx)
+        var cx = center[0]
+        var cy = center[1]
+        var seg = 0
+        while seg < segments {
+            var next_seg = seg + 1
+            if next_seg == segments { next_seg = 0 }
+            var a0x = _circle_coord(cx, radius, segments, seg, 0)
+            var a0y = _circle_coord(cy, radius, segments, seg, 1)
+            var b0x = _circle_coord(cx, radius, segments, next_seg, 0)
+            var b0y = _circle_coord(cy, radius, segments, next_seg, 1)
+            var rc = _store_triangle(out, off, a0x, a0y, z0, b0x, b0y, z0, b0x, b0y, z1, ctx + ".side0")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_triangle(out, off, a0x, a0y, z0, b0x, b0y, z1, a0x, a0y, z1, ctx + ".side1")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            var ring = 0
+            while ring < rings {
+                var next_ring = ring + 1
+                rc = _store_capsule_cap_triangle(out, off, cx, cy, radius, z1, segments, rings, seg, ring, next_seg, next_ring, next_seg, ring, true, ctx + ".top0")
+                if oren_is_err(rc) { return rc }
+                off = off + 36
+                rc = _store_capsule_cap_triangle(out, off, cx, cy, radius, z1, segments, rings, seg, ring, seg, next_ring, next_seg, next_ring, true, ctx + ".top1")
+                if oren_is_err(rc) { return rc }
+                off = off + 36
+                rc = _store_capsule_cap_triangle(out, off, cx, cy, radius, z0, segments, rings, seg, next_ring, next_seg, next_ring, next_seg, ring, false, ctx + ".bottom0")
+                if oren_is_err(rc) { return rc }
+                off = off + 36
+                rc = _store_capsule_cap_triangle(out, off, cx, cy, radius, z0, segments, rings, seg, next_ring, next_seg, ring, seg, ring, false, ctx + ".bottom1")
+                if oren_is_err(rc) { return rc }
+                off = off + 36
+                ring = ring + 1
+            }
+            seg = seg + 1
+        }
+        ci = ci + 1
     }
     return bytes.from_u8_buf(out)
 }

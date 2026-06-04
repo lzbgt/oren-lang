@@ -70,6 +70,17 @@
       "base_color": "#22ffaaff",
       "roughness_milli": 420,
       "metallic_milli": 0
+    },
+    {
+      "kind": "triangles",
+      "id": 49,
+      "name": "capsule-mesh",
+      "capsules_z": [
+        {"center": [4, 2], "radius": 1, "z_min": 1, "z_max": 2, "segments": 8, "rings": 3}
+      ],
+      "base_color": "#ff66ddff",
+      "roughness_milli": 460,
+      "metallic_milli": 0
     }
   ],
   "materials": [
@@ -77,7 +88,8 @@
     {"id": 37, "name": "tube-blue", "base_color": "#0088ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0},
     {"id": 40, "name": "marker-orange", "base_color": "#ffaa00ff", "opacity_milli": 1000, "roughness_milli": 450, "metallic_milli": 0},
     {"id": 43, "name": "orb-purple", "base_color": "#cc44ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0},
-    {"id": 47, "name": "ring-mint", "base_color": "#22ffaaff", "opacity_milli": 1000, "roughness_milli": 420, "metallic_milli": 0}
+    {"id": 47, "name": "ring-mint", "base_color": "#22ffaaff", "opacity_milli": 1000, "roughness_milli": 420, "metallic_milli": 0},
+    {"id": 50, "name": "capsule-rose", "base_color": "#ff66ddff", "opacity_milli": 1000, "roughness_milli": 460, "metallic_milli": 0}
   ],
   "model_templates": [
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
@@ -87,7 +99,8 @@
     {"id": 38, "name": "tube", "mesh": "tube-mesh", "material": "tube-blue", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 41, "name": "marker", "mesh": "marker-mesh", "material": "marker-orange", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 44, "name": "orb", "mesh": "orb-mesh", "material": "orb-purple", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
-    {"id": 48, "name": "ring", "mesh": "ring-mesh", "material": "ring-mint", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+    {"id": 48, "name": "ring", "mesh": "ring-mesh", "material": "ring-mint", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
+    {"id": 51, "name": "capsule", "mesh": "capsule-mesh", "material": "capsule-rose", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instance_groups": [
     {
@@ -113,6 +126,7 @@
     "marker",
     "orb",
     "ring",
+    "capsule",
     {"model": "card", "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}},
     "accent"
   ],

@@ -448,6 +448,94 @@ def pack_toruses_xyz(toruses):
     return pack_triangles_xyz(triangles)
 
 
+def capsule_center(capsule):
+    center = capsule.get("center", capsule.get("center_xy"))
+    if not isinstance(center, list) or len(center) != 2:
+        raise SystemExit("scene capsules_z center must be [x,y]")
+    return int(center[0]), int(center[1])
+
+
+def capsule_radius(capsule):
+    radius = capsule.get("radius", capsule.get("radius_xy"))
+    if radius is None:
+        raise SystemExit("scene capsules_z entries must include radius")
+    radius = int(radius)
+    if radius <= 0:
+        raise SystemExit("scene capsules_z radius must be positive")
+    return radius
+
+
+def capsule_z(capsule, primary, fallback):
+    if primary in capsule:
+        return int(capsule[primary])
+    if fallback in capsule:
+        return int(capsule[fallback])
+    raise SystemExit(f"scene capsules_z entries must include {primary}")
+
+
+def capsule_segments(capsule):
+    segments = int(capsule.get("segments", 16))
+    if segments < 4 or segments > 96:
+        raise SystemExit("scene capsules_z segments must be 4..96")
+    return segments
+
+
+def capsule_rings(capsule):
+    rings = int(capsule.get("rings", 4))
+    if rings < 1 or rings > 48:
+        raise SystemExit("scene capsules_z rings must be 1..48")
+    return rings
+
+
+def capsule_cap_point(cx, cy, zc, radius, segments, rings, seg, ring, top):
+    theta = (math.pi * 0.5) * ring / rings
+    phi = math.tau * seg / segments
+    radial = radius * math.sin(theta)
+    x = round_half_away(cx + radial * math.cos(phi))
+    y = round_half_away(cy + radial * math.sin(phi))
+    z_delta = radius * math.cos(theta)
+    z = round_half_away(zc + z_delta if top else zc - z_delta)
+    return [x, y, z]
+
+
+def pack_capsules_z(capsules):
+    triangles = []
+    for capsule in capsules:
+        if not isinstance(capsule, dict):
+            raise SystemExit("scene capsules_z entries must be objects")
+        cx, cy = capsule_center(capsule)
+        radius = capsule_radius(capsule)
+        z0 = capsule_z(capsule, "z_min", "min_z")
+        z1 = capsule_z(capsule, "z_max", "max_z")
+        if z1 <= z0:
+            raise SystemExit("scene capsules_z z_max must be greater than z_min")
+        segments = capsule_segments(capsule)
+        rings = capsule_rings(capsule)
+        for seg in range(segments):
+            next_seg = 0 if seg + 1 == segments else seg + 1
+            a0 = cylinder_point(cx, cy, radius, segments, seg, z0)
+            b0 = cylinder_point(cx, cy, radius, segments, next_seg, z0)
+            a1 = cylinder_point(cx, cy, radius, segments, seg, z1)
+            b1 = cylinder_point(cx, cy, radius, segments, next_seg, z1)
+            triangles.append([a0, b0, b1])
+            triangles.append([a0, b1, a1])
+            for ring in range(rings):
+                next_ring = ring + 1
+                top_a = capsule_cap_point(cx, cy, z1, radius, segments, rings, seg, ring, True)
+                top_b = capsule_cap_point(cx, cy, z1, radius, segments, rings, next_seg, next_ring, True)
+                top_c = capsule_cap_point(cx, cy, z1, radius, segments, rings, next_seg, ring, True)
+                top_d = capsule_cap_point(cx, cy, z1, radius, segments, rings, seg, next_ring, True)
+                triangles.append([top_a, top_b, top_c])
+                triangles.append([top_a, top_d, top_b])
+                bot_a = capsule_cap_point(cx, cy, z0, radius, segments, rings, seg, next_ring, False)
+                bot_b = capsule_cap_point(cx, cy, z0, radius, segments, rings, next_seg, next_ring, False)
+                bot_c = capsule_cap_point(cx, cy, z0, radius, segments, rings, next_seg, ring, False)
+                bot_d = capsule_cap_point(cx, cy, z0, radius, segments, rings, seg, ring, False)
+                triangles.append([bot_a, bot_b, bot_c])
+                triangles.append([bot_a, bot_c, bot_d])
+    return pack_triangles_xyz(triangles)
+
+
 def pack_triangles_xyz_rgba(triangles):
     out = bytearray()
     for tri in triangles:
@@ -761,6 +849,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_ellipsoids_xyz(mesh["ellipsoids_xyz"])
             elif mesh.get("toruses_xyz") is not None:
                 payload = pack_toruses_xyz(mesh["toruses_xyz"])
+            elif mesh.get("capsules_z") is not None:
+                payload = pack_capsules_z(mesh["capsules_z"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""

@@ -21,7 +21,7 @@ references, model templates, instances, per-draw model/material/transform overri
 objects, human-readable `position_xyz` or nested `transform` model transforms,
 human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
 `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
-cylinders/cones/spheres/ellipsoids/toruses, per-triangle `triangles_xyz_rgba` colors,
+cylinders/cones/spheres/ellipsoids/toruses/capsules, per-triangle `triangles_xyz_rgba` colors,
 richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform
 keyframes. The build helper validates face/quad indices/material scalar ranges and
