@@ -12,6 +12,7 @@
 //   {"t":"array","a":[JsonValue...]}
 //   {"t":"object","o":{ string_key: JsonValue, ... }}  // map iteration yields keys in sorted order
 
+import raw "std:buffer/raw"
 import list "std:list"
 
 struct JsonValue {
@@ -55,6 +56,11 @@ fn _streq(a, b) {
         i = i + 1
     }
     return true
+}
+
+fn _buf_put_u8(out, pos, b) {
+    raw._store_u8_buf_unchecked_direct(out, pos, b)
+    return pos + 1
 }
 
 fn _skip_ws(bs, pos) {
@@ -129,13 +135,15 @@ fn _parse_string(bs, pos) {
     if bs[pos] != 34 { return _err("expected '\"'", pos) }
     pos = pos + 1
 
-    var out = []
+    var out = raw.u8_new_uninit(n - pos)
+    if oren_is_err(out) { return _err("string buffer allocation failed", pos) }
+    var out_pos = 0
     while pos < n {
         var ch = bs[pos]
         if ch == 34 {
             // closing quote
             pos = pos + 1
-            var s = oren_string_from_bytes(out)
+            var s = oren_string_from_bytes_slice(out, 0, out_pos)
             if s == nil { return _err("string_from_bytes failed", pos) }
             return _ok(jstring(s), pos)
         }
@@ -144,21 +152,21 @@ fn _parse_string(bs, pos) {
             pos = pos + 1
             if pos >= n { return _err("unexpected EOF in escape", pos) }
             var e = bs[pos]
-            if e == 34 { list.push(out, 34) }
+            if e == 34 { out_pos = _buf_put_u8(out, out_pos, 34) }
             else {
-                if e == 92 { list.push(out, 92) }
+                if e == 92 { out_pos = _buf_put_u8(out, out_pos, 92) }
                 else {
-                    if e == 47 { list.push(out, 47) }
+                    if e == 47 { out_pos = _buf_put_u8(out, out_pos, 47) }
                     else {
-                        if e == 98 { list.push(out, 8) }    // \b
+                        if e == 98 { out_pos = _buf_put_u8(out, out_pos, 8) }    // \b
                         else {
-                            if e == 102 { list.push(out, 12) }  // \f
+                            if e == 102 { out_pos = _buf_put_u8(out, out_pos, 12) }  // \f
                             else {
-                                if e == 110 { list.push(out, 10) }  // \n
+                                if e == 110 { out_pos = _buf_put_u8(out, out_pos, 10) }  // \n
                                 else {
-                                    if e == 114 { list.push(out, 13) }  // \r
+                                    if e == 114 { out_pos = _buf_put_u8(out, out_pos, 13) }  // \r
                                     else {
-                                        if e == 116 { list.push(out, 9) }   // \t
+                                        if e == 116 { out_pos = _buf_put_u8(out, out_pos, 9) }   // \t
                                         else {
                                             if e == 117 {
                                                 // \uXXXX not supported in rolling v0 (no unicode scalar model yet).
@@ -177,7 +185,7 @@ fn _parse_string(bs, pos) {
             pos = pos + 1
         } else {
             // raw byte (UTF-8 passthrough)
-            list.push(out, ch)
+            out_pos = _buf_put_u8(out, out_pos, ch)
             pos = pos + 1
         }
     }
@@ -341,27 +349,30 @@ fn parse(s): JsonValue {
 
 fn _escape_string(s) {
     var bs = oren_bytes_from_string(s)
-    var out = []
+    var n = list.len(bs)
+    var out = raw.u8_new_uninit(n * 2)
+    if oren_is_err(out) { return out }
+    var out_pos = 0
     var i = 0
-    while i < list.len(bs) {
+    while i < n {
         var b = bs[i]
         if b == 34 { // "
-            list.push(out, 92); list.push(out, 34)
+            out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 34)
         } else {
             if b == 92 { // \
-                list.push(out, 92); list.push(out, 92)
+                out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 92)
             } else {
                 if b == 10 { // \n
-                    list.push(out, 92); list.push(out, 110)
+                    out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 110)
                 } else {
                     if b == 13 { // \r
-                        list.push(out, 92); list.push(out, 114)
+                        out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 114)
                     } else {
                         if b == 9 { // \t
-                            list.push(out, 92); list.push(out, 116)
+                            out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 116)
                         } else {
                             // pass through raw byte (UTF-8)
-                            list.push(out, b)
+                            out_pos = _buf_put_u8(out, out_pos, b)
                         }
                     }
                 }
@@ -369,7 +380,7 @@ fn _escape_string(s) {
         }
         i = i + 1
     }
-    return oren_string_from_bytes(out)
+    return oren_string_from_bytes_slice(out, 0, out_pos)
 }
 
 fn encode(jv) {

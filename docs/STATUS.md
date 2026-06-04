@@ -442,7 +442,8 @@ Facts from the 2026-05-28 implementation pass:
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
   exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
   `std:bytes.to_string` now uses direct byte-slice conversion instead of list
-  materialization, and YAML comment stripping plus line/trim/key splitting avoid
+  materialization, JSON/YAML scalar parse and escape paths write exact-size
+  `u8_buf` output, and YAML comment stripping plus line/trim/key splitting avoid
   list-of-byte reconstruction. `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
