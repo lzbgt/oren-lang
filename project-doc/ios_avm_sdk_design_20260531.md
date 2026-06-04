@@ -338,6 +338,11 @@ Public OBC store helper.
   already-installed same-version package, or fail if the target version is already
   installed. The retained gate proves same-version keep/fail behavior and installing
   a signed `0.2.0` package alongside `0.1.0`.
+- `OrenAVMPackageUpdateStatus` lets host apps query the store update endpoint from
+  either an installed package plus store base/index URL or an explicit update URL.
+  The SDK parses publisher/name/current/latest version fields, exposes
+  `updateAvailable`, and keeps update discovery separate from install so apps can
+  present user or policy decisions before applying an install policy.
 - Signature/cert enforcement is host policy. The SDK provides strict signed
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting

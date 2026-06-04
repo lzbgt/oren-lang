@@ -280,7 +280,9 @@ stage into a temporary package directory before replacing the final package path
 Signed-index installs now expose replace, keep-existing, and fail-if-installed
 policies so host apps can make update behavior explicit. The store service also
 has a package update-check endpoint that returns the semver-selected latest
-published release plus an `update_available` flag. `OrenAVMOBCTrustBundle`
+published release plus an `update_available` flag, and the iOS SDK exposes
+`OrenAVMPackageUpdateStatus` so host apps can consume that endpoint before
+choosing an install policy. `OrenAVMOBCTrustBundle`
 loads generated `obc_store_trust.json` files into validated SDK key material, so
 host apps no longer need to hand-parse trust bundles before signed downloads. The
 store service now publishes active signing key IDs on dynamic index signatures and

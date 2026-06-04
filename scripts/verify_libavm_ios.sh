@@ -861,6 +861,27 @@ int main(void) {
                                                                      options:0
                                                                        error:nil];
             if (![serviceBundleOnlySource isEqualToData:[@"print(\"service-bundle-source\")\n" dataUsingEncoding:NSUTF8StringEncoding]]) return 126;
+            OrenAVMPackageUpdateStatus* updateStatus = [store packageUpdateStatusForPackage:package
+                                                                                storeBaseURL:[NSURL URLWithString:servicePackageIndexURL]
+                                                                                allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                              timeoutSeconds:5.0
+                                                                                       error:&error];
+            if (!updateStatus || !updateStatus.updateAvailable) return 162;
+            if (![updateStatus.publisher isEqual:@"oren-labs"] ||
+                ![updateStatus.name isEqual:@"sdk-package-service"] ||
+                ![updateStatus.currentVersion isEqual:@"0.1.0"] ||
+                ![updateStatus.latestVersion isEqual:@"0.2.0"]) return 163;
+            if (![updateStatus.latestRelease[@"version"] isEqual:@"0.2.0"]) return 164;
+            NSURLComponents* updateURL = [NSURLComponents componentsWithURL:[NSURL URLWithString:servicePackageIndexURL]
+                                                      resolvingAgainstBaseURL:NO];
+            updateURL.path = @"/api/v0/packages/oren-labs/sdk-package-service/update";
+            updateURL.queryItems = @[[NSURLQueryItem queryItemWithName:@"current_version" value:@"0.2.0"]];
+            OrenAVMPackageUpdateStatus* currentStatus = [store packageUpdateStatusFromURL:updateURL.URL
+                                                                             allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                           timeoutSeconds:5.0
+                                                                                    error:&error];
+            if (!currentStatus || currentStatus.updateAvailable ||
+                ![currentStatus.latestVersion isEqual:@"0.2.0"]) return 165;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 118;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];
@@ -1639,6 +1660,65 @@ msg.write_text(release["manifest_sha256"], encoding="utf-8")
 subprocess.check_call(["openssl", "dgst", "-sha256", "-sign", str(sign_key), "-out", str(sig), str(msg)], stdout=subprocess.DEVNULL)
 post(
     "/api/v0/packages/oren-labs/sdk-package-service/versions/0.1.0/publish",
+    {
+        "signature_alg": "p256-sha256-der",
+        "signature_p256_sha256_der_hex": sig.read_bytes().hex(),
+    },
+    publisher_auth,
+)
+manifest_for_bundle_v2 = dict(manifest_for_bundle)
+manifest_for_bundle_v2["version"] = "0.2.0"
+bundle_io_v2 = io.BytesIO()
+with zipfile.ZipFile(bundle_io_v2, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for name, body in [
+        ("package.json", (json.dumps(manifest_for_bundle_v2, indent=2, sort_keys=True) + "\n").encode("utf-8")),
+        ("program.obc", obc_path.read_bytes()),
+        ("assets/config.txt", b"pkg-asset"),
+        ("assets/source/main.oren", b"print(\"service-bundle-source\")\n"),
+    ]:
+        info = zipfile.ZipInfo(name)
+        info.date_time = (2026, 1, 1, 0, 0, 0)
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zf.writestr(info, body)
+release_v2 = post(
+    "/api/v0/packages/oren-labs/sdk-package-service/versions",
+    {
+        "version": "0.2.0",
+        "program_obc_base64": base64.b64encode(obc_path.read_bytes()).decode("ascii"),
+        "release_bundle_base64": base64.b64encode(bundle_io_v2.getvalue()).decode("ascii"),
+        "tags": ["sdk", "service", "update"],
+        "min_app": "0.1.0",
+        "manifest": {
+            "title": "SDK Service Package Smoke v2",
+            "summary": "Verifies SDK update status from obc-store-server",
+            "oren_min": "0.0.rolling",
+            "avm_abi_min": 8,
+            "capabilities": ["CORE", "FS", "EXIT"],
+            "time_mode": "deterministic",
+            "budgets": {
+                "gas": 5000000,
+                "heap_bytes": 33554432,
+                "io_bytes": 1048576,
+                "frame_commands": 1024,
+            },
+            "vfs_mounts": [
+                {"virtual": "assets", "package_path": "assets", "read_only": True}
+            ],
+        },
+        "assets": [
+            {
+                "path": "assets/config.txt",
+                "media_type": "text/plain",
+                "content_base64": base64.b64encode(b"pkg-asset").decode("ascii"),
+            }
+        ],
+    },
+    publisher_auth,
+)
+msg.write_text(release_v2["manifest_sha256"], encoding="utf-8")
+subprocess.check_call(["openssl", "dgst", "-sha256", "-sign", str(sign_key), "-out", str(sig), str(msg)], stdout=subprocess.DEVNULL)
+post(
+    "/api/v0/packages/oren-labs/sdk-package-service/versions/0.2.0/publish",
     {
         "signature_alg": "p256-sha256-der",
         "signature_p256_sha256_der_hex": sig.read_bytes().hex(),

@@ -130,6 +130,9 @@ Facts from the 2026-05-28 implementation pass:
   the final install path. Explicit install policy is implemented for signed-index
   downloads: replace, keep-existing, and fail-if-installed are SDK-visible, and the
   iOS verifier proves same-version keep/fail behavior plus a signed `0.2.0` update.
+  `OrenAVMPackageUpdateStatus` lets host apps query the store update endpoint from
+  either an installed package or an explicit update URL before choosing an install
+  policy.
 - OBC store trust/key tooling is available as `scripts/issue_obc_store_trust.sh`
   and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
   by default under `../oren-ca/private`, exports SDK-ready public key bytes and
@@ -154,7 +157,8 @@ Facts from the 2026-05-28 implementation pass:
   verified by external `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`, while Basic Auth
   remains for local bring-up. Publisher package/version/release writes also
   accept publisher-scoped bearer tokens limited to that publisher id, with JSON
-  APIs for token rotation and revocation. Host apps can call
+  APIs for token rotation and revocation. Host apps and the iOS package-store SDK
+  can call
   `/api/v0/packages/{publisher}/{name}/update?current_version=...` to get
   semver-aware latest published release metadata and an `update_available` flag.
   `scripts/deploy_obc_store_service.sh` now supports an opt-in systemd service

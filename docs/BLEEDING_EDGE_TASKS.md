@@ -201,8 +201,10 @@ This file is the concise task view. Detailed implementation status lives in
      `0.2.0` update fixture. A sibling Note handoff/verifier update now checks
      the staged signed package/trust SDK surface (`../note` commit `35995ee`).
      The store service now exposes a package update-check endpoint that returns
-     latest published release metadata plus `update_available`; remaining
-     package-store work is richer update persistence and visible Note
+     latest published release metadata plus `update_available`, and the iOS SDK
+     exposes `OrenAVMPackageUpdateStatus` so host apps can query it from an
+     installed package or explicit update URL before applying an install policy.
+     Remaining package-store work is richer update persistence and visible Note
      install/update/remove UX.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app

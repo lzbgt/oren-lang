@@ -303,6 +303,17 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 
 @end
 
+@interface OrenAVMPackageUpdateStatus : NSObject
+
+@property(nonatomic, readonly, copy) NSString* publisher;
+@property(nonatomic, readonly, copy) NSString* name;
+@property(nonatomic, readonly, copy) NSString* currentVersion;
+@property(nonatomic, readonly, copy) NSString* latestVersion;
+@property(nonatomic, readonly) BOOL updateAvailable;
+@property(nonatomic, readonly, copy) NSDictionary<NSString*, id>* latestRelease;
+
+@end
+
 @interface OrenAVMPackageStore : NSObject
 
 - (nullable OrenAVMPackage*)loadPackageAtDirectoryURL:(NSURL*)directoryURL
@@ -376,6 +387,15 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                    packageID:(NSString*)packageID
                                      version:(NSString*)version
                                        error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackageUpdateStatus*)packageUpdateStatusFromURL:(NSURL*)updateURL
+                                                      allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                                    timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                             error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackageUpdateStatus*)packageUpdateStatusForPackage:(OrenAVMPackage*)package
+                                                         storeBaseURL:(NSURL*)storeBaseURL
+                                                         allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                                       timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                                error:(NSError* _Nullable* _Nullable)error;
 
 + (NSString*)sha256HexForData:(NSData*)data;
 

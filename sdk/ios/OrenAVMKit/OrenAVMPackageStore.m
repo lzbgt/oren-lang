@@ -423,6 +423,27 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
     return YES;
 }
 
+static NSURL* OrenAVMPackageUpdateURL(NSURL* storeBaseURL, NSString* publisher, NSString* name, NSString* currentVersion) {
+    if (!storeBaseURL || publisher.length == 0 || name.length == 0) return nil;
+    NSURLComponents* components = [NSURLComponents componentsWithURL:storeBaseURL resolvingAgainstBaseURL:NO];
+    if (!components) return nil;
+    NSString* indexPath = @"/api/v0/index.json";
+    NSString* root = components.path ?: @"";
+    if ([root hasSuffix:indexPath]) {
+        root = [root substringToIndex:root.length - indexPath.length];
+    }
+    root = [root stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]];
+    NSString* route = [NSString stringWithFormat:@"api/v0/packages/%@/%@/update", publisher, name];
+    components.path = root.length > 0 ? [NSString stringWithFormat:@"/%@/%@", root, route] : [@"/" stringByAppendingString:route];
+    if (currentVersion.length > 0) {
+        NSURLQueryItem* item = [NSURLQueryItem queryItemWithName:@"current_version" value:currentVersion];
+        components.queryItems = @[item];
+    } else {
+        components.queryItems = @[];
+    }
+    return components.URL;
+}
+
 @interface OrenAVMPackage ()
 - (instancetype)initWithDirectoryURL:(NSURL*)directoryURL
                             manifest:(NSDictionary<NSString*, id>*)manifest
@@ -455,6 +476,45 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
     _version = [version copy];
     _capabilities = [capabilities copy];
     return self;
+}
+
+@end
+
+@interface OrenAVMPackageUpdateStatus ()
+- (instancetype)initWithPublisher:(NSString*)publisher
+                              name:(NSString*)name
+                    currentVersion:(NSString*)currentVersion
+                     latestVersion:(NSString*)latestVersion
+                   updateAvailable:(BOOL)updateAvailable
+                     latestRelease:(NSDictionary<NSString*, id>*)latestRelease;
+@end
+
+@implementation OrenAVMPackageUpdateStatus
+
+- (instancetype)initWithPublisher:(NSString*)publisher
+                              name:(NSString*)name
+                    currentVersion:(NSString*)currentVersion
+                     latestVersion:(NSString*)latestVersion
+                   updateAvailable:(BOOL)updateAvailable
+                     latestRelease:(NSDictionary<NSString*, id>*)latestRelease {
+    self = [super init];
+    if (!self) return nil;
+    _publisher = [publisher copy];
+    _name = [name copy];
+    _currentVersion = [currentVersion copy];
+    _latestVersion = [latestVersion copy];
+    _updateAvailable = updateAvailable;
+    _latestRelease = [latestRelease copy];
+    return self;
+}
+
+- (instancetype)init {
+    return [self initWithPublisher:@""
+                              name:@""
+                    currentVersion:@""
+                     latestVersion:@""
+                   updateAvailable:NO
+                     latestRelease:@{}];
 }
 
 @end
@@ -523,6 +583,57 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
                                              publisher:publisher
                                                version:version
                                           capabilities:capabilities];
+}
+
+- (OrenAVMPackageUpdateStatus*)packageUpdateStatusFromURL:(NSURL*)updateURL
+                                             allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                           timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                    error:(NSError**)error {
+    NSData* data = nil;
+    if (!OrenAVMPackageFetchURLData(updateURL, allowedHosts, timeoutSeconds, &data, error)) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update status must be a JSON object");
+        return nil;
+    }
+    NSDictionary<NSString*, id>* status = (NSDictionary<NSString*, id>*)json;
+    NSString* publisher = OrenAVMPackageString(status, @"publisher");
+    NSString* name = OrenAVMPackageString(status, @"name");
+    NSString* currentVersion = OrenAVMPackageString(status, @"current_version") ?: @"";
+    NSString* latestVersion = OrenAVMPackageString(status, @"latest_version") ?: @"";
+    NSNumber* updateAvailable = OrenAVMPackageNumber(status, @"update_available");
+    id latestRaw = status[@"latest_release"];
+    NSDictionary<NSString*, id>* latestRelease = [latestRaw isKindOfClass:[NSDictionary class]] ? (NSDictionary<NSString*, id>*)latestRaw : @{};
+    if (publisher.length == 0 || name.length == 0 || !updateAvailable) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update status is invalid");
+        return nil;
+    }
+    return [[OrenAVMPackageUpdateStatus alloc] initWithPublisher:publisher
+                                                           name:name
+                                                 currentVersion:currentVersion
+                                                  latestVersion:latestVersion
+                                                updateAvailable:updateAvailable.boolValue
+                                                  latestRelease:latestRelease];
+}
+
+- (OrenAVMPackageUpdateStatus*)packageUpdateStatusForPackage:(OrenAVMPackage*)package
+                                                storeBaseURL:(NSURL*)storeBaseURL
+                                                allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                              timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                       error:(NSError**)error {
+    if (!package || package.publisher.length == 0 || package.name.length == 0 || package.version.length == 0) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update check requires a package");
+        return nil;
+    }
+    NSURL* updateURL = OrenAVMPackageUpdateURL(storeBaseURL, package.publisher, package.name, package.version);
+    if (!updateURL) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update URL is invalid");
+        return nil;
+    }
+    return [self packageUpdateStatusFromURL:updateURL
+                               allowedHosts:allowedHosts
+                             timeoutSeconds:timeoutSeconds
+                                      error:error];
 }
 
 - (OrenAVMPackage*)downloadPackageFromIndexURL:(NSURL*)indexURL
