@@ -150,8 +150,8 @@
 <p>  validation can gate per-frame image upload bytes/count, and SDK renderers expose</p>
 <p>  retained image count/pixel limits and counters. Retained text records avoid</p>
 <p>  resending repeated UTF-8 labels every frame, and Metal batches repeated</p>
-<p>  <code>draw_texts</code> positions for one retained label into one textured run; true glyph</p>
-<p>  atlas packing remains a later text-memory/performance step.</p>
+<p>  <code>draw_texts</code> positions for one retained label into one textured run, and Metal</p>
+<p>  packs retained text into bounded atlas pages with same-atlas run coalescing.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>

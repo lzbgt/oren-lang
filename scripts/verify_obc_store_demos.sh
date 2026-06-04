@@ -650,7 +650,15 @@ def verify_scene3d_3mf_lowering():
         <triangles>
           <triangle v1="0" v2="1" v3="2"/>
           <triangle v1="1" v2="3" v3="2" pid="1" p1="1"/>
+          <triangle v1="0" v2="3" v3="1"/>
         </triangles>
+        <t:trianglesets xmlns:t="http://schemas.microsoft.com/3dmanufacturing/trianglesets/2021/07">
+          <t:triangleset name="front" identifier="seg:front">
+            <t:ref index="1"/>
+            <t:ref index="1"/>
+            <t:refrange startindex="2" endindex="2"/>
+          </t:triangleset>
+        </t:trianglesets>
       </mesh>
     </object>
     <object id="3" type="model" name="component-tri">
@@ -697,6 +705,14 @@ def verify_scene3d_3mf_lowering():
     data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
     if not data.startswith(b"OS3D01\x00\x00") or b"\xff\x00\x00\xff" not in data or b"\x00\xff\x00\xff" not in data:
         raise SystemExit("scene 3MF basematerial RGBA lowering did not produce expected colors")
+    scene["meshes"][0]["3mf_triangle_set"] = "front"
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+    if (
+        not data.startswith(b"OS3D01\x00\x00") or
+        data.count(b"\x00\xff\x00\xff") != 1 or
+        data.count(b"\xff\x00\x00\xff") != 1
+    ):
+        raise SystemExit("scene 3MF triangle-set RGBA lowering did not select expected colors")
 
 
 verify_scene3d_obj_lowering()

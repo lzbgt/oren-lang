@@ -86,6 +86,16 @@ def parse_color(value):
         raise SystemExit("scene 3MF basematerial displaycolor must be hexadecimal") from exc
 
 
+def parse_resource_index(value, context):
+    try:
+        idx = int(value)
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(f"scene 3MF {context} index must be an integer") from exc
+    if idx < 0:
+        raise SystemExit(f"scene 3MF {context} index must be non-negative")
+    return idx
+
+
 def parse_basematerials(resources):
     groups = {}
     for group in children(resources, "basematerials"):
@@ -107,7 +117,7 @@ def material_color(groups, pid, pindex, context):
     group = groups.get(pid)
     if group is None:
         return None
-    idx = int(pindex)
+    idx = parse_resource_index(pindex, context)
     if idx < 0 or idx >= len(group):
         raise SystemExit(f"scene 3MF {context} material index out of bounds")
     return group[idx]
@@ -184,7 +194,52 @@ def mat_det3(m):
     )
 
 
-def parse_mesh(object_elem, material_groups, unit_scale, matrix, inherited_property, vertices, faces, face_colors):
+def triangle_set_selector(mesh):
+    ref = mesh.get("3mf_triangle_set", mesh.get("threemf_triangle_set"))
+    if ref is None:
+        return None
+    return str(ref)
+
+
+def selected_triangle_set_indices(mesh_elem, selector, triangle_count):
+    if selector is None:
+        return None
+    sets_elem = child(mesh_elem, "trianglesets")
+    if sets_elem is None:
+        raise SystemExit("scene 3MF triangle set requested but mesh has no trianglesets")
+    selected = None
+    for set_index, tri_set in enumerate(children(sets_elem, "triangleset")):
+        if selector in (str(set_index), tri_set.get("name"), tri_set.get("identifier")):
+            selected = tri_set
+            break
+    if selected is None:
+        raise SystemExit("scene 3MF triangle set not found")
+    indices = []
+    seen = set()
+    for item in list(selected):
+        name = local_name(item.tag)
+        if name == "ref":
+            refs = [parse_resource_index(item.get("index"), "triangle-set ref")]
+        elif name == "refrange":
+            start = parse_resource_index(item.get("startindex"), "triangle-set range")
+            end = parse_resource_index(item.get("endindex"), "triangle-set range")
+            if end < start:
+                raise SystemExit("scene 3MF triangle-set range end must be >= start")
+            refs = range(start, end + 1)
+        else:
+            continue
+        for idx in refs:
+            if idx >= triangle_count:
+                raise SystemExit("scene 3MF triangle-set index out of bounds")
+            if idx not in seen:
+                seen.add(idx)
+                indices.append(idx)
+    if not indices:
+        raise SystemExit("scene 3MF triangle set must reference at least one triangle")
+    return set(indices)
+
+
+def parse_mesh(object_elem, material_groups, unit_scale, matrix, inherited_property, triangle_selector, vertices, faces, face_colors):
     mesh = child(object_elem, "mesh")
     if mesh is None:
         return False
@@ -206,8 +261,16 @@ def parse_mesh(object_elem, material_groups, unit_scale, matrix, inherited_prope
     default_pid = object_elem.get("pid", inherited_property[0])
     default_pindex = object_elem.get("pindex", inherited_property[1])
     flip = mat_det3(matrix) < 0.0
-    for tri in children(triangles_elem, "triangle"):
-        face = [int(tri.get("v1")), int(tri.get("v2")), int(tri.get("v3"))]
+    triangles = children(triangles_elem, "triangle")
+    selected_indices = selected_triangle_set_indices(mesh, triangle_selector, len(triangles))
+    for tri_index, tri in enumerate(triangles):
+        if selected_indices is not None and tri_index not in selected_indices:
+            continue
+        face = [
+            parse_resource_index(tri.get("v1"), "triangle vertex"),
+            parse_resource_index(tri.get("v2"), "triangle vertex"),
+            parse_resource_index(tri.get("v3"), "triangle vertex"),
+        ]
         if len(set(face)) != 3:
             raise SystemExit("scene 3MF triangle vertices must be distinct")
         if any(idx < 0 or idx >= count for idx in face):
@@ -226,13 +289,13 @@ def parse_mesh(object_elem, material_groups, unit_scale, matrix, inherited_prope
     return True
 
 
-def collect_object(object_id, objects, material_groups, unit_scale, matrix, inherited_property, vertices, faces, face_colors, stack):
+def collect_object(object_id, objects, material_groups, unit_scale, matrix, inherited_property, triangle_selector, vertices, faces, face_colors, stack):
     if object_id in stack:
         raise SystemExit("scene 3MF component cycle")
     obj = objects.get(object_id)
     if obj is None:
         raise SystemExit("scene 3MF object reference not found")
-    if parse_mesh(obj, material_groups, unit_scale, matrix, inherited_property, vertices, faces, face_colors):
+    if parse_mesh(obj, material_groups, unit_scale, matrix, inherited_property, triangle_selector, vertices, faces, face_colors):
         return
     comps = child(obj, "components")
     if comps is None:
@@ -249,6 +312,7 @@ def collect_object(object_id, objects, material_groups, unit_scale, matrix, inhe
             unit_scale,
             mat_mul(parse_matrix(comp.get("transform")), matrix),
             inherited_property,
+            triangle_selector,
             vertices,
             faces,
             face_colors,
@@ -284,9 +348,10 @@ def threemf_mesh_data(mesh, base_dir):
         raise SystemExit("scene 3MF model missing resources")
     material_groups = parse_basematerials(resources)
     objects = {obj.get("id"): obj for obj in children(resources, "object") if obj.get("id") is not None}
+    tri_selector = triangle_set_selector(mesh)
     target_object = selected_object_id(mesh, objects)
     if target_object is not None:
-        collect_object(target_object, objects, material_groups, THREEMF_UNITS_TO_MM[unit], mat_identity(), (None, None), vertices, faces, face_colors, set())
+        collect_object(target_object, objects, material_groups, THREEMF_UNITS_TO_MM[unit], mat_identity(), (None, None), tri_selector, vertices, faces, face_colors, set())
     else:
         build = child(model, "build")
         if build is None:
@@ -305,6 +370,7 @@ def threemf_mesh_data(mesh, base_dir):
                 THREEMF_UNITS_TO_MM[unit],
                 parse_matrix(item.get("transform")),
                 (item.get("pid"), item.get("pindex")),
+                tri_selector,
                 vertices,
                 faces,
                 face_colors,

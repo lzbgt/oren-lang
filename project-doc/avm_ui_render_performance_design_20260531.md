@@ -101,8 +101,8 @@ Implemented as of 2026-05-31:
   validation can gate per-frame image upload bytes/count, and SDK renderers expose
   retained image count/pixel limits and counters. Retained text records avoid
   resending repeated UTF-8 labels every frame, and Metal batches repeated
-  `draw_texts` positions for one retained label into one textured run; true glyph
-  atlas packing remains a later text-memory/performance step.
+  `draw_texts` positions for one retained label into one textured run, and Metal
+  packs retained text into bounded atlas pages with same-atlas run coalescing.
 - Host helpers can enqueue pointer, resize, key, UTF-8 text, compact
   gamepad/controller state, coalesced motion, focus, and IME/composition input
   events.

@@ -120,8 +120,8 @@ Retained SDK slices on 2026-05-31:
 			  CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
 	  can bound sprite/atlas memory. Retained text records now avoid resending
-	  repeated UTF-8 labels every frame, and Metal batches `draw_texts` positions for
-	  one retained label into one textured run; true glyph atlas packing remains pending.
+	  repeated UTF-8 labels every frame, and Metal uses bounded text-atlas packing
+	  plus same-atlas run coalescing for repeated retained labels.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, UTF-8 text-input events, and compact
   gamepad/controller state plus coalesced motion, focus, and IME/composition
@@ -134,8 +134,7 @@ Retained SDK slices on 2026-05-31:
   `std:ui/avm.pull_event_bytes()` or decodes them with
   `std:ui/avm.next_event()`.
 
-Not implemented yet: richer glyph atlas batching and live-device 3D performance
-capture. GUI follow-up must be game-grade, not widget-only: the next protocol work is display-link pacing,
+Not implemented yet: live-device 3D performance capture. GUI follow-up must be game-grade, not widget-only: the next protocol work is display-link pacing,
 retained resource handles, strict budgets, low-latency input ordering, and
 Metal/`MTKView` gates as defined in
 `project-doc/avm_ui_render_performance_design_20260531.md`.

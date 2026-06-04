@@ -180,8 +180,8 @@
 <p>			  CoreGraphics and Metal</p>
 <p>	  renderers also expose retained image count/pixel limits and counters so host apps</p>
 <p>	  can bound sprite/atlas memory. Retained text records now avoid resending</p>
-<p>	  repeated UTF-8 labels every frame, and Metal batches <code>draw_texts</code> positions for</p>
-<p>	  one retained label into one textured run; true glyph atlas packing remains pending.</p>
+<p>	  repeated UTF-8 labels every frame, and Metal uses bounded text-atlas packing</p>
+<p>	  plus same-atlas run coalescing for repeated retained labels.</p>
 <ul>
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>
@@ -197,8 +197,7 @@
 <p>  Host code enqueues them; Oren/OBC pulls them with</p>
 <p>  <code>std:ui/avm.pull_event_bytes()</code> or decodes them with</p>
 <p>  <code>std:ui/avm.next_event()</code>.</p>
-<p>Not implemented yet: richer glyph atlas batching and live-device 3D performance</p>
-<p>capture. GUI follow-up must be game-grade, not widget-only: the next protocol work is display-link pacing,</p>
+<p>Not implemented yet: live-device 3D performance capture. GUI follow-up must be game-grade, not widget-only: the next protocol work is display-link pacing,</p>
 <p>retained resource handles, strict budgets, low-latency input ordering, and</p>
 <p>Metal/<code>MTKView</code> gates as defined in</p>
 <p><code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
