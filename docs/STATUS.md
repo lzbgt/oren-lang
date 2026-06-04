@@ -133,7 +133,8 @@ Facts from the 2026-05-28 implementation pass:
 - OBC store trust/key tooling is available as `scripts/issue_obc_store_trust.sh`
   and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
   by default under `../oren-ca/private`, exports SDK-ready public key bytes and
-  `trust/obc_store_trust.json`, and self-checks signing/verification.
+  `trust/obc_store_trust.json`, supports rotation bundles with previous store
+  public keys, and self-checks signing/verification.
   `OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)` now loads that JSON into
   validated SDK key material, and the package store has signed-index overloads
   that accept the bundle directly.
@@ -143,11 +144,13 @@ Facts from the 2026-05-28 implementation pass:
   browser browse/detail/publisher/operator pages, package detail release
   capability/source/permission metadata, authenticated operator status page/API
   for registry counts, bundle/source/signature/permission readiness, and deployment
-  gates, asset serving, deterministic `.obc.zip`
+  gates including active index key id, whether that key is trusted by the served
+  bundle, and trust-bundle store-key count, asset serving, deterministic `.obc.zip`
   bundle upload/download/index metadata, public-by-default package visibility with
   publisher/admin private toggle, yanking, and dynamic `index.json.sig` generation
-  from an external
-  P-256 key path. Write endpoints now accept a deploy-safe admin bearer token
+  from an external P-256 key path. Signature responses include
+  `X-Oren-Signing-Key-ID` and `X-Oren-Signature-Alg` when dynamic signing is
+  enabled. Write endpoints now accept a deploy-safe admin bearer token
   verified by external `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`, while Basic Auth
   remains for local bring-up. Publisher package/version/release writes also
   accept publisher-scoped bearer tokens limited to that publisher id, with JSON

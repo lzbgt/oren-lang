@@ -5,6 +5,7 @@ out_dir="${OREN_CA_DIR:-../oren-ca}"
 store_id="${OREN_OBC_STORE_ID:-oren-store-dev}"
 publisher_id="${OREN_OBC_PUBLISHER_ID:-oren-labs}"
 force=0
+previous_store_ids=()
 
 usage() {
   cat <<'USAGE'
@@ -16,6 +17,9 @@ never written into this repository unless you explicitly point --out-dir here.
 Options:
   --out-dir DIR        output trust/key directory (default: ${OREN_CA_DIR:-../oren-ca})
   --store-id ID       logical store key id (default: ${OREN_OBC_STORE_ID:-oren-store-dev})
+  --previous-store-id ID
+                     include an existing previous store public key in the trust bundle
+                     (repeatable; key must already exist under DIR/public)
   --publisher-id ID   logical publisher id (default: ${OREN_OBC_PUBLISHER_ID:-oren-labs})
   --force             replace existing private keys
   -h, --help          show this help
@@ -36,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --store-id)
       store_id="${2:?missing --store-id value}"
+      shift 2
+      ;;
+    --previous-store-id)
+      previous_store_ids+=("${2:?missing --previous-store-id value}")
       shift 2
       ;;
     --publisher-id)
@@ -82,14 +90,6 @@ print(base64.b64encode(pub).decode("ascii"))
 PY
 }
 
-json_escape() {
-  python3 - "$1" <<'PY'
-import json
-import sys
-print(json.dumps(sys.argv[1]))
-PY
-}
-
 store_safe="$(safe_id "$store_id")"
 publisher_safe="$(safe_id "$publisher_id")"
 private_dir="$out_dir/private"
@@ -127,33 +127,59 @@ extract_x963_b64 "$store_key" > "$store_pub_b64"
 extract_x963_b64 "$publisher_key" > "$publisher_pub_b64"
 
 generated_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-store_key_b64="$(cat "$store_pub_b64")"
-publisher_key_b64="$(cat "$publisher_pub_b64")"
-store_id_json="$(json_escape "$store_id")"
-publisher_id_json="$(json_escape "$publisher_id")"
-generated_at_json="$(json_escape "$generated_at")"
-store_key_json="$(json_escape "$store_key_b64")"
-publisher_key_json="$(json_escape "$publisher_key_b64")"
+store_key_b64="$(< "$store_pub_b64")"
+publisher_key_b64="$(< "$publisher_pub_b64")"
+previous_args=()
+for previous_store_id in "${previous_store_ids[@]}"; do
+  previous_safe="$(safe_id "$previous_store_id")"
+  previous_pub_b64="$public_dir/store_${previous_safe}.p256.x963.b64"
+  if [[ ! -f "$previous_pub_b64" ]]; then
+    printf 'missing previous store public key: %s\n' "$previous_pub_b64" >&2
+    exit 2
+  fi
+  previous_args+=("$previous_store_id" "$(< "$previous_pub_b64")")
+done
 
-cat > "$trust_json" <<JSON
-{
-  "schema": "oren.obc.trust.v0",
-  "generated_at": $generated_at_json,
-  "store_keys": [
-    {
-      "id": $store_id_json,
-      "alg": "p256-sha256-der",
-      "public_key_x963_b64": $store_key_json
-    }
-  ],
-  "publisher_keys": {
-    $publisher_id_json: {
-      "alg": "p256-sha256-der",
-      "public_key_x963_b64": $publisher_key_json
-    }
-  }
+python3 - "$trust_json" "$generated_at" "$store_id" "$store_key_b64" "$publisher_id" "$publisher_key_b64" "${previous_args[@]}" <<'PY'
+import json
+import sys
+
+trust_path, generated_at, store_id, store_key, publisher_id, publisher_key, *previous = sys.argv[1:]
+if len(previous) % 2:
+    raise SystemExit("previous store id/public-key args must be pairs")
+
+seen = set()
+store_keys = []
+
+def add_store_key(key_id, key_b64):
+    if key_id in seen:
+        return
+    seen.add(key_id)
+    store_keys.append({
+        "id": key_id,
+        "alg": "p256-sha256-der",
+        "public_key_x963_b64": key_b64,
+    })
+
+add_store_key(store_id, store_key)
+for i in range(0, len(previous), 2):
+    add_store_key(previous[i], previous[i + 1])
+
+bundle = {
+    "schema": "oren.obc.trust.v0",
+    "generated_at": generated_at,
+    "store_keys": store_keys,
+    "publisher_keys": {
+        publisher_id: {
+            "alg": "p256-sha256-der",
+            "public_key_x963_b64": publisher_key,
+        }
+    },
 }
-JSON
+with open(trust_path, "w", encoding="utf-8") as f:
+    json.dump(bundle, f, indent=2)
+    f.write("\n")
+PY
 
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/oren-obc-trust.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -172,4 +198,5 @@ OBC store trust material ready.
 
 Host app hint:
   OREN_OBC_TRUST_BUNDLE=$trust_json
+  OBC_STORE_INDEX_SIGN_KEY_ID=$store_id
 EOF

@@ -39,17 +39,21 @@ type Config struct {
 	AdminPassword          string
 	AdminTokenSHA256Hex    string
 	IndexSigningKeyPEMPath string
+	IndexSigningKeyID      string
+	TrustBundlePath        string
 	Now                    func() time.Time
 }
 
 type Service struct {
-	dataDir        string
-	adminUser      string
-	adminPassword  string
-	adminTokenHash []byte
-	indexSigner    *ecdsa.PrivateKey
-	now            func() time.Time
-	mu             sync.Mutex
+	dataDir           string
+	adminUser         string
+	adminPassword     string
+	adminTokenHash    []byte
+	indexSigner       *ecdsa.PrivateKey
+	indexSigningKeyID string
+	trustBundlePath   string
+	now               func() time.Time
+	mu                sync.Mutex
 }
 
 type Publisher struct {
@@ -137,27 +141,31 @@ type PackageVisibilityUpdate struct {
 }
 
 type OperatorStatus struct {
-	Schema                 string `json:"schema"`
-	Service                string `json:"service"`
-	GeneratedAt            string `json:"generated_at"`
-	PublisherCount         int    `json:"publisher_count"`
-	ActivePublisherCount   int    `json:"active_publisher_count"`
-	DisabledPublisherCount int    `json:"disabled_publisher_count"`
-	PackageCount           int    `json:"package_count"`
-	PublicPackageCount     int    `json:"public_package_count"`
-	PrivatePackageCount    int    `json:"private_package_count"`
-	ReleaseCount           int    `json:"release_count"`
-	PublishedReleaseCount  int    `json:"published_release_count"`
-	YankedReleaseCount     int    `json:"yanked_release_count"`
-	DraftReleaseCount      int    `json:"draft_release_count"`
-	BundleReleaseCount     int    `json:"bundle_release_count"`
-	SignedReleaseCount     int    `json:"signed_release_count"`
-	SourceReleaseCount     int    `json:"source_release_count"`
-	SourceAssetCount       int    `json:"source_asset_count"`
-	PermissionDefaultCount int    `json:"permission_default_count"`
-	SignedIndexEnabled     bool   `json:"signed_index_enabled"`
-	TrustBundleAvailable   bool   `json:"trust_bundle_available"`
-	AdminAuthConfigured    bool   `json:"admin_auth_configured"`
+	Schema                 string   `json:"schema"`
+	Service                string   `json:"service"`
+	GeneratedAt            string   `json:"generated_at"`
+	PublisherCount         int      `json:"publisher_count"`
+	ActivePublisherCount   int      `json:"active_publisher_count"`
+	DisabledPublisherCount int      `json:"disabled_publisher_count"`
+	PackageCount           int      `json:"package_count"`
+	PublicPackageCount     int      `json:"public_package_count"`
+	PrivatePackageCount    int      `json:"private_package_count"`
+	ReleaseCount           int      `json:"release_count"`
+	PublishedReleaseCount  int      `json:"published_release_count"`
+	YankedReleaseCount     int      `json:"yanked_release_count"`
+	DraftReleaseCount      int      `json:"draft_release_count"`
+	BundleReleaseCount     int      `json:"bundle_release_count"`
+	SignedReleaseCount     int      `json:"signed_release_count"`
+	SourceReleaseCount     int      `json:"source_release_count"`
+	SourceAssetCount       int      `json:"source_asset_count"`
+	PermissionDefaultCount int      `json:"permission_default_count"`
+	SignedIndexEnabled     bool     `json:"signed_index_enabled"`
+	IndexSigningKeyID      string   `json:"index_signing_key_id,omitempty"`
+	IndexSigningKeyTrusted bool     `json:"index_signing_key_trusted"`
+	TrustBundleAvailable   bool     `json:"trust_bundle_available"`
+	TrustBundleStoreKeys   int      `json:"trust_bundle_store_keys"`
+	TrustBundleStoreKeyIDs []string `json:"trust_bundle_store_key_ids,omitempty"`
+	AdminAuthConfigured    bool     `json:"admin_auth_configured"`
 }
 
 type ReleaseMeta struct {
@@ -185,6 +193,17 @@ type ReleasePublishRequest struct {
 	SignatureP256SHA256DERHex string `json:"signature_p256_sha256_der_hex,omitempty"`
 }
 
+type trustBundleFile struct {
+	Schema    string          `json:"schema"`
+	StoreKeys []trustStoreKey `json:"store_keys"`
+}
+
+type trustStoreKey struct {
+	ID               string `json:"id"`
+	Alg              string `json:"alg"`
+	PublicKeyX963B64 string `json:"public_key_x963_b64"`
+}
+
 func New(cfg Config) (*Service, error) {
 	if cfg.DataDir == "" {
 		return nil, errors.New("data dir is required")
@@ -197,12 +216,22 @@ func New(cfg Config) (*Service, error) {
 		return nil, err
 	}
 	var indexSigner *ecdsa.PrivateKey
+	indexSigningKeyID := strings.TrimSpace(cfg.IndexSigningKeyID)
 	if cfg.IndexSigningKeyPEMPath != "" {
 		key, err := loadP256PrivateKey(cfg.IndexSigningKeyPEMPath)
 		if err != nil {
 			return nil, err
 		}
 		indexSigner = key
+		if indexSigningKeyID == "" {
+			indexSigningKeyID = derivedP256KeyID(&key.PublicKey)
+		}
+	}
+	if indexSigner == nil && indexSigningKeyID != "" {
+		return nil, errors.New("index signing key id requires an index signing key")
+	}
+	if indexSigningKeyID != "" && !safeID(indexSigningKeyID) {
+		return nil, errors.New("index signing key id must contain only letters, digits, '_', '.', or '-'")
 	}
 	var adminTokenHash []byte
 	if cfg.AdminTokenSHA256Hex != "" {
@@ -213,12 +242,14 @@ func New(cfg Config) (*Service, error) {
 		adminTokenHash = body
 	}
 	return &Service{
-		dataDir:        cfg.DataDir,
-		adminUser:      cfg.AdminUser,
-		adminPassword:  cfg.AdminPassword,
-		adminTokenHash: adminTokenHash,
-		indexSigner:    indexSigner,
-		now:            now,
+		dataDir:           cfg.DataDir,
+		adminUser:         cfg.AdminUser,
+		adminPassword:     cfg.AdminPassword,
+		adminTokenHash:    adminTokenHash,
+		indexSigner:       indexSigner,
+		indexSigningKeyID: indexSigningKeyID,
+		trustBundlePath:   strings.TrimSpace(cfg.TrustBundlePath),
+		now:               now,
 	}, nil
 }
 
@@ -1304,12 +1335,16 @@ func (s *Service) handleIndexSignature(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Oren-Signature-Alg", "p256-sha256-der")
+	if s.indexSigningKeyID != "" {
+		w.Header().Set("X-Oren-Signing-Key-ID", s.indexSigningKeyID)
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(sig)
 }
 
 func (s *Service) handleTrustBundle(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, filepath.Join(s.dataDir, "trust", "obc_store_trust.json"))
+	http.ServeFile(w, r, s.currentTrustBundlePath())
 }
 
 func (s *Service) handleArtifactByHash(w http.ResponseWriter, r *http.Request) {
@@ -1374,12 +1409,27 @@ func (s *Service) publishedReleases() ([]ReleaseMeta, error) {
 
 func (s *Service) operatorStatus() (OperatorStatus, error) {
 	status := OperatorStatus{
-		Schema:               indexSchema,
-		Service:              "obc-store",
-		GeneratedAt:          s.now().UTC().Format(time.RFC3339),
-		SignedIndexEnabled:   s.indexSigner != nil,
-		AdminAuthConfigured:  s.adminPassword != "" || len(s.adminTokenHash) > 0,
-		TrustBundleAvailable: fileExists(filepath.Join(s.dataDir, "trust", "obc_store_trust.json")),
+		Schema:              indexSchema,
+		Service:             "obc-store",
+		GeneratedAt:         s.now().UTC().Format(time.RFC3339),
+		SignedIndexEnabled:  s.indexSigner != nil,
+		IndexSigningKeyID:   s.indexSigningKeyID,
+		AdminAuthConfigured: s.adminPassword != "" || len(s.adminTokenHash) > 0,
+	}
+	trustAvailable, trustKeyIDs, err := s.trustBundleStoreKeyIDs()
+	if err != nil {
+		return status, err
+	}
+	status.TrustBundleAvailable = trustAvailable
+	status.TrustBundleStoreKeyIDs = trustKeyIDs
+	status.TrustBundleStoreKeys = len(trustKeyIDs)
+	if status.IndexSigningKeyID != "" {
+		for _, id := range trustKeyIDs {
+			if id == status.IndexSigningKeyID {
+				status.IndexSigningKeyTrusted = true
+				break
+			}
+		}
 	}
 	pubRoot := filepath.Join(s.dataDir, "publishers")
 	if err := filepath.WalkDir(pubRoot, func(path string, d os.DirEntry, err error) error {
@@ -1602,6 +1652,54 @@ func readJSONFile[T any](path string) (T, error) {
 func fileExists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
+}
+
+func (s *Service) currentTrustBundlePath() string {
+	if s.trustBundlePath != "" {
+		return s.trustBundlePath
+	}
+	return filepath.Join(s.dataDir, "trust", "obc_store_trust.json")
+}
+
+func (s *Service) trustBundleStoreKeyIDs() (bool, []string, error) {
+	path := s.currentTrustBundlePath()
+	if !fileExists(path) {
+		return false, nil, nil
+	}
+	bundle, err := readJSONFile[trustBundleFile](path)
+	if err != nil {
+		return true, nil, err
+	}
+	ids := make([]string, 0, len(bundle.StoreKeys))
+	for _, key := range bundle.StoreKeys {
+		id := strings.TrimSpace(key.ID)
+		if id != "" {
+			ids = append(ids, id)
+		}
+		if key.Alg != "p256-sha256-der" {
+			return true, ids, fmt.Errorf("trust bundle store key %q uses unsupported alg %q", id, key.Alg)
+		}
+		if _, err := parseP256PublicKeyX963Base64(key.PublicKeyX963B64); err != nil {
+			return true, ids, fmt.Errorf("trust bundle store key %q: %w", id, err)
+		}
+	}
+	return true, ids, nil
+}
+
+func derivedP256KeyID(key *ecdsa.PublicKey) string {
+	body := p256PublicKeyX963(key)
+	sum := sha256.Sum256(body)
+	return "p256-" + hex.EncodeToString(sum[:8])
+}
+
+func p256PublicKeyX963(key *ecdsa.PublicKey) []byte {
+	x := key.X.Bytes()
+	y := key.Y.Bytes()
+	body := make([]byte, 65)
+	body[0] = 4
+	copy(body[33-len(x):33], x)
+	copy(body[65-len(y):65], y)
+	return body
 }
 
 func marshalJSON(v any) ([]byte, error) {

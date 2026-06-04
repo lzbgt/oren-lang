@@ -352,8 +352,9 @@ Public OBC store helper.
   trusted key inputs, and the external trust issue tool. Further Note app
   implementation should proceed through that handoff because another Note-side
   agent is active.
-- Next slices should add root trust rotation, richer update UX/persistence, and
-  visible Note install/update/remove UX.
+- Store-side root trust rotation now has active key-id publication and
+  rotation-capable trust-bundle serving; next slices should add richer update
+  UX/persistence and visible Note install/update/remove UX.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

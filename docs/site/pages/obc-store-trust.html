@@ -44,6 +44,13 @@
 <h2 id="tool">Tool</h2>
 <p>Use:</p>
 <pre><code>scripts/issue_obc_store_trust.sh --out-dir ../oren-ca --store-id oren-store-dev --publisher-id oren-labs</code></pre>
+<p>During store-root rotation, issue the new active store key and keep previous</p>
+<p>public keys in the bundle before switching clients or the service:</p>
+<pre><code>scripts/issue_obc_store_trust.sh \
+  --out-dir ../oren-ca \
+  --store-id oren-store-2026q2 \
+  --previous-store-id oren-store-2026q1 \
+  --publisher-id oren-labs</code></pre>
 <p>or:</p>
 <pre><code>make issue-obc-store-trust OREN_CA_DIR=../oren-ca</code></pre>
 <p>The tool writes:</p>
@@ -57,7 +64,9 @@
 <li><code>../oren-ca/trust/obc_store_trust.json</code>: host-app trust bundle.</li>
 </ul>
 <p>The script also signs and verifies a local smoke message with both generated keys</p>
-<p>and validates the trust JSON.</p>
+<p>and validates the trust JSON. The active store key is written first in</p>
+<p><code>store_keys</code>; repeated <code>--previous-store-id</code> values append already-issued public</p>
+<p>store keys without touching their private keys.</p>
 <h2 id="host-app-consumption">Host App Consumption</h2>
 <p>Sibling host apps such as <code>../note</code> should not infer trust material from this repo.</p>
 <p>They should read a public trust bundle or a local config path, for example:</p>
@@ -77,7 +86,11 @@
 <h2 id="rotation">Rotation</h2>
 <p>Key rotation should add new public keys to the trust bundle before packages depend</p>
 <p>on them. Old keys should stay accepted until installed packages and store indexes no</p>
-<p>longer need them. Private key escrow, revocation publication, and production CA</p>
+<p>longer need them. The store service accepts <code>OBC_STORE_INDEX_SIGN_KEY_ID</code> and</p>
+<p><code>OBC_STORE_TRUST_BUNDLE</code>; dynamic <code>index.json.sig</code> responses include</p>
+<p><code>X-Oren-Signing-Key-ID</code>, and <code>/ops/status</code> reports the active signer plus</p>
+<p>trust-bundle store-key IDs, including whether the active signer is trusted by the</p>
+<p>served bundle. Private key escrow, revocation publication, and production CA</p>
 <p>operations remain outside this repo.</p>
     </main>
     <aside class="toc">

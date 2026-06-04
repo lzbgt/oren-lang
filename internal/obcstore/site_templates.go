@@ -168,12 +168,14 @@ const siteOpsStatusHTML = `<!doctype html>
 <tr><th>Source metadata</th><td>{{.SourceReleaseCount}} release(s), {{.SourceAssetCount}} linked source asset(s)</td></tr>
 <tr><th>Permission defaults</th><td>{{.PermissionDefaultCount}} default grant record(s)</td></tr>
 </table></section>
-<section class="card"><h2>Deployment Gates</h2><table>
-<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
-<tr><th>Trust bundle</th><td>{{.TrustBundleAvailable}}</td></tr>
-<tr><th>Admin auth</th><td>{{.AdminAuthConfigured}}</td></tr>
-<tr><th>Generated at</th><td>{{.GeneratedAt}}</td></tr>
-</table></section>
+	<section class="card"><h2>Deployment Gates</h2><table>
+	<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
+	<tr><th>Index signing key</th><td>{{if .IndexSigningKeyID}}{{.IndexSigningKeyID}}{{else}}not configured{{end}}</td></tr>
+	<tr><th>Active key trusted</th><td>{{.IndexSigningKeyTrusted}}</td></tr>
+	<tr><th>Trust bundle</th><td>{{.TrustBundleAvailable}} ({{.TrustBundleStoreKeys}} store key(s){{if .TrustBundleStoreKeyIDs}}: {{range $i, $id := .TrustBundleStoreKeyIDs}}{{if $i}}, {{end}}{{$id}}{{end}}{{end}})</td></tr>
+	<tr><th>Admin auth</th><td>{{.AdminAuthConfigured}}</td></tr>
+	<tr><th>Generated at</th><td>{{.GeneratedAt}}</td></tr>
+	</table></section>
 <section class="card"><h2>Smoke Commands</h2><pre>curl -fsS https://store.hubstack.cn/healthz
 curl -fsS https://store.hubstack.cn/api/v0/index.json
 curl -fsS -u "$OBC_STORE_ADMIN_USERNAME:$OBC_STORE_ADMIN_PASSWORD" https://store.hubstack.cn/api/v0/ops/status</pre></section>

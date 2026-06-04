@@ -268,15 +268,18 @@
 <p>     downloads: replace, keep-existing, and fail-if-installed, including a signed</p>
 <p>     <code>0.2.0</code> update fixture. A sibling Note handoff/verifier update now checks</p>
 <p>     the staged signed package/trust SDK surface (<code>../note</code> commit <code>35995ee</code>).</p>
-<p>     Remaining package-store work is root trust rotation, richer update UX/</p>
-<p>     persistence, and visible Note install/update/remove UX.</p>
+<p>     Remaining package-store work is richer update UX/persistence and visible</p>
+<p>     Note install/update/remove UX.</p>
 <ul>
 <li>2026-06-01: <code>scripts/issue_obc_store_trust.sh</code> and</li>
 </ul>
 <p>     <code>make issue-obc-store-trust</code> issue store/publisher P-256 keys and host-app</p>
 <p>     trust bundles into an external directory such as <code>../oren-ca/</code>; private keys</p>
-<p>     remain outside this repo. <code>OrenAVMOBCTrustBundle</code> now loads the generated</p>
-<p>     JSON and feeds signed-index package downloads directly.</p>
+<p>     remain outside this repo. The tool can include previous store public keys in</p>
+<p>     the bundle for root rotation, and the service publishes the active index</p>
+<p>     signing key id through signature headers and operator status.</p>
+<p>     <code>OrenAVMOBCTrustBundle</code> now loads the generated JSON and feeds signed-index</p>
+<p>     package downloads directly.</p>
 <ol>
 <li><strong>AVM full-suite manifest coverage</strong></li>
 </ol>

@@ -104,7 +104,12 @@ Implemented in this repo:
   operator smoke checks. The machine APIs remain the source of truth.
 - `index.json.sig` is generated dynamically when the service is configured with
   `--index-signing-key` or `OBC_STORE_INDEX_SIGN_KEY_PEM`, using P-256
-  SHA-256 DER signatures over the exact stable `index.json` bytes.
+  SHA-256 DER signatures over the exact stable `index.json` bytes. Dynamic
+  signatures publish `X-Oren-Signature-Alg` and `X-Oren-Signing-Key-ID`.
+- `/api/v0/trust/bundle.json` serves `OBC_STORE_TRUST_BUNDLE` when configured,
+  otherwise the data-dir trust bundle. Rotation bundles can include the active
+  store public key plus previous store public keys before clients depend on the
+  new active signer.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
 - Version uploads validate manifest `permission_defaults` shape before accepting a
@@ -116,16 +121,18 @@ Implemented in this repo:
   install, and run that package from the service endpoint.
 - Verification target: `make verify-obc-store-service`.
 
-Remaining service work before deployment:
+Remaining service work:
 
-- signed index rotation/key-id publication beyond the current single-key signer;
 - richer operator UX beyond the current browse/detail/publisher/operator
   reference/status pages;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
   cross-builds the Go binary, uploads external admin env values, and copies the
-  index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`. It can also
+  index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`. It can copy
+  the public trust bundle with `OBC_STORE_COPY_TRUST_BUNDLE=1`, set
+  `OBC_STORE_INDEX_SIGN_KEY_ID`, and pass `OBC_STORE_TRUST_BUNDLE` to the service.
+  It can also
   install/restart `oren-obc-store.service` when `OBC_STORE_INSTALL_SYSTEMD=1`,
   bind the service to `OBC_STORE_LISTEN_ADDR` for the Traefik backend, and run a
   remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`. Operators can inspect

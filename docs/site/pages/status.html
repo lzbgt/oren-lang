@@ -191,7 +191,8 @@
 </ul>
 <p>  and <code>make issue-obc-store-trust</code>. It writes private P-256 keys outside the repo</p>
 <p>  by default under <code>../oren-ca/private</code>, exports SDK-ready public key bytes and</p>
-<p>  <code>trust/obc_store_trust.json</code>, and self-checks signing/verification.</p>
+<p>  <code>trust/obc_store_trust.json</code>, supports rotation bundles with previous store</p>
+<p>  public keys, and self-checks signing/verification.</p>
 <p>  <code>OrenAVMOBCTrustBundle.loadTrustBundleAtURL(...)</code> now loads that JSON into</p>
 <p>  validated SDK key material, and the package store has signed-index overloads</p>
 <p>  that accept the bundle directly.</p>
@@ -203,11 +204,13 @@
 <p>  browser browse/detail/publisher/operator pages, package detail release</p>
 <p>  capability/source/permission metadata, authenticated operator status page/API</p>
 <p>  for registry counts, bundle/source/signature/permission readiness, and deployment</p>
-<p>  gates, asset serving, deterministic <code>.obc.zip</code></p>
+<p>  gates including active index key id, whether that key is trusted by the served</p>
+<p>  bundle, and trust-bundle store-key count, asset serving, deterministic <code>.obc.zip</code></p>
 <p>  bundle upload/download/index metadata, public-by-default package visibility with</p>
 <p>  publisher/admin private toggle, yanking, and dynamic <code>index.json.sig</code> generation</p>
-<p>  from an external</p>
-<p>  P-256 key path. Write endpoints now accept a deploy-safe admin bearer token</p>
+<p>  from an external P-256 key path. Signature responses include</p>
+<p>  <code>X-Oren-Signing-Key-ID</code> and <code>X-Oren-Signature-Alg</code> when dynamic signing is</p>
+<p>  enabled. Write endpoints now accept a deploy-safe admin bearer token</p>
 <p>  verified by external <code>OBC_STORE_ADMIN_TOKEN_SHA256_HEX</code>, while Basic Auth</p>
 <p>  remains for local bring-up. Publisher package/version/release writes also</p>
 <p>  accept publisher-scoped bearer tokens limited to that publisher id, with JSON</p>

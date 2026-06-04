@@ -14,6 +14,17 @@ Use:
 scripts/issue_obc_store_trust.sh --out-dir ../oren-ca --store-id oren-store-dev --publisher-id oren-labs
 ```
 
+During store-root rotation, issue the new active store key and keep previous
+public keys in the bundle before switching clients or the service:
+
+```bash
+scripts/issue_obc_store_trust.sh \
+  --out-dir ../oren-ca \
+  --store-id oren-store-2026q2 \
+  --previous-store-id oren-store-2026q1 \
+  --publisher-id oren-labs
+```
+
 or:
 
 ```bash
@@ -29,7 +40,9 @@ The tool writes:
 - `../oren-ca/trust/obc_store_trust.json`: host-app trust bundle.
 
 The script also signs and verifies a local smoke message with both generated keys
-and validates the trust JSON.
+and validates the trust JSON. The active store key is written first in
+`store_keys`; repeated `--previous-store-id` values append already-issued public
+store keys without touching their private keys.
 
 ## Host App Consumption
 
@@ -60,5 +73,9 @@ AVM capability gates and only sees virtual resources.
 
 Key rotation should add new public keys to the trust bundle before packages depend
 on them. Old keys should stay accepted until installed packages and store indexes no
-longer need them. Private key escrow, revocation publication, and production CA
+longer need them. The store service accepts `OBC_STORE_INDEX_SIGN_KEY_ID` and
+`OBC_STORE_TRUST_BUNDLE`; dynamic `index.json.sig` responses include
+`X-Oren-Signing-Key-ID`, and `/ops/status` reports the active signer plus
+trust-bundle store-key IDs, including whether the active signer is trusted by the
+served bundle. Private key escrow, revocation publication, and production CA
 operations remain outside this repo.

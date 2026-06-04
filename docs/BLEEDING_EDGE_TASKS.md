@@ -200,13 +200,16 @@ This file is the concise task view. Detailed implementation status lives in
      downloads: replace, keep-existing, and fail-if-installed, including a signed
      `0.2.0` update fixture. A sibling Note handoff/verifier update now checks
      the staged signed package/trust SDK surface (`../note` commit `35995ee`).
-     Remaining package-store work is root trust rotation, richer update UX/
-     persistence, and visible Note install/update/remove UX.
+     Remaining package-store work is richer update UX/persistence and visible
+     Note install/update/remove UX.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys
-     remain outside this repo. `OrenAVMOBCTrustBundle` now loads the generated
-     JSON and feeds signed-index package downloads directly.
+     remain outside this repo. The tool can include previous store public keys in
+     the bundle for root rotation, and the service publishes the active index
+     signing key id through signature headers and operator status.
+     `OrenAVMOBCTrustBundle` now loads the generated JSON and feeds signed-index
+     package downloads directly.
 
 2. **AVM full-suite manifest coverage**
    - `make test-avm` now runs through `tests/avm/release_manifest.json`, which records

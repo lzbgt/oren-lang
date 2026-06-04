@@ -14,6 +14,8 @@ func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	dataDir := flag.String("data-dir", "build/obc-store", "store data directory")
 	indexSigningKey := flag.String("index-signing-key", os.Getenv("OBC_STORE_INDEX_SIGN_KEY_PEM"), "optional P-256 private key PEM for /api/v0/index.json.sig")
+	indexSigningKeyID := flag.String("index-signing-key-id", os.Getenv("OBC_STORE_INDEX_SIGN_KEY_ID"), "logical key id for the active index signing key")
+	trustBundle := flag.String("trust-bundle", os.Getenv("OBC_STORE_TRUST_BUNDLE"), "optional trust bundle JSON path for /api/v0/trust/bundle.json")
 	flag.Parse()
 
 	adminUser := os.Getenv("OBC_STORE_ADMIN_USERNAME")
@@ -25,6 +27,8 @@ func main() {
 		AdminPassword:          adminPassword,
 		AdminTokenSHA256Hex:    adminTokenHash,
 		IndexSigningKeyPEMPath: *indexSigningKey,
+		IndexSigningKeyID:      *indexSigningKeyID,
+		TrustBundlePath:        *trustBundle,
 	})
 	if err != nil {
 		log.Fatalf("failed to initialize OBC store: %v", err)

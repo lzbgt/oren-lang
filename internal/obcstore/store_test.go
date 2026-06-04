@@ -271,12 +271,20 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 func TestStoreSignsStableIndex(t *testing.T) {
 	dir := t.TempDir()
 	key, keyPath := writeTestP256Key(t, dir)
+	previousKey, _ := writeTestP256Key(t, t.TempDir())
 	publisherKey, _ := writeTestP256Key(t, t.TempDir())
+	trustPath := filepath.Join(t.TempDir(), "obc_store_trust.json")
+	writeTestTrustBundle(t, trustPath, map[string]*ecdsa.PublicKey{
+		"store-2026q2": &key.PublicKey,
+		"store-2026q1": &previousKey.PublicKey,
+	})
 	svc, err := New(Config{
 		DataDir:                dir,
 		AdminUser:              "admin",
 		AdminPassword:          "secret",
 		IndexSigningKeyPEMPath: keyPath,
+		IndexSigningKeyID:      "store-2026q2",
+		TrustBundlePath:        trustPath,
 		Now: func() time.Time {
 			return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 		},
@@ -338,6 +346,36 @@ func TestStoreSignsStableIndex(t *testing.T) {
 	entry := packages[0].(map[string]any)
 	if entry["signature_alg"] != "p256-sha256-der" || entry["signature_p256_sha256_der_hex"] != hex.EncodeToString(packageSig) {
 		t.Fatalf("missing package signature entry=%v", entry)
+	}
+	sigResp, err := http.Get(ts.URL + "/api/v0/index.json.sig")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sigResp.Body.Close()
+	if sigResp.Header.Get("X-Oren-Signing-Key-ID") != "store-2026q2" {
+		t.Fatalf("missing signing key id header: %q", sigResp.Header.Get("X-Oren-Signing-Key-ID"))
+	}
+	if sigResp.Header.Get("X-Oren-Signature-Alg") != "p256-sha256-der" {
+		t.Fatalf("missing signature alg header: %q", sigResp.Header.Get("X-Oren-Signature-Alg"))
+	}
+	trust := getJSON[map[string]any](t, ts, "/api/v0/trust/bundle.json")
+	if keys := trust["store_keys"].([]any); len(keys) != 2 {
+		t.Fatalf("trust bundle should expose active and previous keys: %v", trust)
+	}
+	statusResp := request(t, ts, http.MethodGet, "/api/v0/ops/status", nil, true)
+	if statusResp.Code != http.StatusOK {
+		t.Fatalf("ops status=%d body=%s", statusResp.Code, statusResp.Body.String())
+	}
+	var status map[string]any
+	if err := json.Unmarshal(statusResp.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status["index_signing_key_id"] != "store-2026q2" || status["trust_bundle_store_keys"].(float64) != 2 || status["index_signing_key_trusted"] != true {
+		t.Fatalf("bad rotation status: %v", status)
+	}
+	statusIDs := status["trust_bundle_store_key_ids"].([]any)
+	if statusIDs[0] != "store-2026q2" || statusIDs[1] != "store-2026q1" {
+		t.Fatalf("bad trust key ids: %v", statusIDs)
 	}
 }
 
@@ -516,13 +554,36 @@ func writeTestP256Key(t *testing.T, dir string) (*ecdsa.PrivateKey, string) {
 }
 
 func p256PublicKeyX963Base64(key *ecdsa.PublicKey) string {
-	x := key.X.Bytes()
-	y := key.Y.Bytes()
-	body := make([]byte, 65)
-	body[0] = 4
-	copy(body[33-len(x):33], x)
-	copy(body[65-len(y):65], y)
-	return base64.StdEncoding.EncodeToString(body)
+	return base64.StdEncoding.EncodeToString(p256PublicKeyX963(key))
+}
+
+func writeTestTrustBundle(t *testing.T, path string, storeKeys map[string]*ecdsa.PublicKey) {
+	t.Helper()
+	ids := make([]string, 0, len(storeKeys))
+	for id := range storeKeys {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
+	keys := make([]map[string]string, 0, len(ids))
+	for _, id := range ids {
+		keys = append(keys, map[string]string{
+			"id":                  id,
+			"alg":                 "p256-sha256-der",
+			"public_key_x963_b64": p256PublicKeyX963Base64(storeKeys[id]),
+		})
+	}
+	body, err := json.MarshalIndent(map[string]any{
+		"schema":       "oren.obc.trust.v0",
+		"generated_at": "2026-06-01T00:00:00Z",
+		"store_keys":   keys,
+	}, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(body, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func getJSON[T any](t *testing.T, ts *httptest.Server, path string) T {

@@ -19,7 +19,10 @@ Optional:
   OBC_STORE_ADMIN_ENV=../oren-ca/obc-store-admin.env
   OBC_STORE_ADMIN_TOKEN_SHA256_HEX=<sha256 hex of deploy bearer token>
   OBC_STORE_INDEX_SIGN_KEY_PEM=../oren-ca/private/store_oren-store-dev_p256.pem
+  OBC_STORE_INDEX_SIGN_KEY_ID=oren-store-dev
   OBC_STORE_COPY_INDEX_SIGNING_KEY=1
+  OBC_STORE_TRUST_BUNDLE=../oren-ca/trust/obc_store_trust.json
+  OBC_STORE_COPY_TRUST_BUNDLE=1
   OBC_STORE_SSH_OPTS="-o BatchMode=yes"
   OBC_STORE_INSTALL_SYSTEMD=1
   OBC_STORE_SYSTEMD_SERVICE=oren-obc-store.service
@@ -72,6 +75,9 @@ admin_env="${OBC_STORE_ADMIN_ENV:-../oren-ca/obc-store-admin.env}"
 ssh_opts="${OBC_STORE_SSH_OPTS:-}"
 copy_index_key="${OBC_STORE_COPY_INDEX_SIGNING_KEY:-0}"
 index_key="${OBC_STORE_INDEX_SIGN_KEY_PEM:-}"
+index_key_id="${OBC_STORE_INDEX_SIGN_KEY_ID:-}"
+copy_trust_bundle="${OBC_STORE_COPY_TRUST_BUNDLE:-0}"
+trust_bundle="${OBC_STORE_TRUST_BUNDLE:-}"
 install_systemd="${OBC_STORE_INSTALL_SYSTEMD:-0}"
 systemd_service="${OBC_STORE_SYSTEMD_SERVICE:-oren-obc-store.service}"
 systemd_sudo="${OBC_STORE_SYSTEMD_SUDO:-sudo -n}"
@@ -148,6 +154,20 @@ if [[ "$copy_index_key" == "1" ]]; then
   remote_index_key="$remote_dir/private/index-signing-key.pem"
 fi
 
+remote_trust_bundle=""
+if [[ "$copy_trust_bundle" == "1" ]]; then
+  if [[ -z "$trust_bundle" || ! -f "$trust_bundle" ]]; then
+    echo "ERROR: OBC_STORE_COPY_TRUST_BUNDLE=1 requires OBC_STORE_TRUST_BUNDLE" >&2
+    exit 2
+  fi
+  ssh $ssh_opts "$ssh_target" "mkdir -p '$remote_dir/trust' && chmod 755 '$remote_dir/trust'"
+  scp $ssh_opts "$trust_bundle" "$ssh_target:$remote_dir/trust/obc_store_trust.json.new"
+  ssh $ssh_opts "$ssh_target" "chmod 644 '$remote_dir/trust/obc_store_trust.json.new' && mv '$remote_dir/trust/obc_store_trust.json.new' '$remote_dir/trust/obc_store_trust.json'"
+  remote_trust_bundle="$remote_dir/trust/obc_store_trust.json"
+elif [[ -n "$trust_bundle" ]]; then
+  remote_trust_bundle="$trust_bundle"
+fi
+
 env_tmp="$tmp_dir/obc-store.env"
 {
   printf 'OBC_STORE_ADMIN_USERNAME=%q\n' "$OBC_STORE_ADMIN_USERNAME"
@@ -159,6 +179,12 @@ env_tmp="$tmp_dir/obc-store.env"
   fi
   if [[ -n "$remote_index_key" ]]; then
     printf 'OBC_STORE_INDEX_SIGN_KEY_PEM=%q\n' "$remote_index_key"
+  fi
+  if [[ -n "$index_key_id" ]]; then
+    printf 'OBC_STORE_INDEX_SIGN_KEY_ID=%q\n' "$index_key_id"
+  fi
+  if [[ -n "$remote_trust_bundle" ]]; then
+    printf 'OBC_STORE_TRUST_BUNDLE=%q\n' "$remote_trust_bundle"
   fi
 } > "$env_tmp"
 scp $ssh_opts "$env_tmp" "$ssh_target:$remote_dir/obc-store.env.new"

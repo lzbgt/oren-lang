@@ -327,11 +327,13 @@ packages/...</code></pre>
 <p>policies so host apps can make update behavior explicit. <code>OrenAVMOBCTrustBundle</code></p>
 <p>loads generated <code>obc_store_trust.json</code> files into validated SDK key material, so</p>
 <p>host apps no longer need to hand-parse trust bundles before signed downloads. The</p>
+<p>store service now publishes active signing key IDs on dynamic index signatures and</p>
+<p>can serve rotation bundles containing active plus previous store public keys. The</p>
 <p>sibling Note repo has a handoff/verifier update at commit <code>35995ee</code> that checks</p>
 <p>the staged SDK for signed package downloads, install policies, trusted key inputs,</p>
-<p>and the external trust issue tool. Remaining store work is root trust rotation,</p>
-<p>richer update UX/persistence, and visible Note install/update/remove UX before a</p>
-<p>public store is release-ready.</p>
+<p>and the external trust issue tool. Remaining store work is richer update</p>
+<p>UX/persistence and visible Note install/update/remove UX before a public store is</p>
+<p>release-ready.</p>
 <p>Key custody rule: private signing keys and any root CA material must live outside</p>
 <p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
 <p>may document paths and commit public trust anchors or test public keys, but must</p>
@@ -339,7 +341,8 @@ packages/...</code></pre>
 <p>trust bundle or a local config path that points at <code>../oren-ca/</code> during development.</p>
 <p>The helper tool <code>scripts/issue_obc_store_trust.sh</code> creates the current P-256 store</p>
 <p>and publisher signing material plus a public trust bundle in that external</p>
-<p>directory; see <code>project-doc/obc_store_trust_tooling_20260601.md</code>.</p>
+<p>directory, and can include previous store public keys for root rotation; see</p>
+<p><code>project-doc/obc_store_trust_tooling_20260601.md</code>.</p>
 <h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
 <p>Suggested public repository:</p>
 <pre><code>store.hubstack.cn backing store or mirror repo:

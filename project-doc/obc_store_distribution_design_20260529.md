@@ -281,11 +281,13 @@ Signed-index installs now expose replace, keep-existing, and fail-if-installed
 policies so host apps can make update behavior explicit. `OrenAVMOBCTrustBundle`
 loads generated `obc_store_trust.json` files into validated SDK key material, so
 host apps no longer need to hand-parse trust bundles before signed downloads. The
+store service now publishes active signing key IDs on dynamic index signatures and
+can serve rotation bundles containing active plus previous store public keys. The
 sibling Note repo has a handoff/verifier update at commit `35995ee` that checks
 the staged SDK for signed package downloads, install policies, trusted key inputs,
-and the external trust issue tool. Remaining store work is root trust rotation,
-richer update UX/persistence, and visible Note install/update/remove UX before a
-public store is release-ready.
+and the external trust issue tool. Remaining store work is richer update
+UX/persistence and visible Note install/update/remove UX before a public store is
+release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo
@@ -294,7 +296,8 @@ not commit private keys. Sibling apps such as `../note` should consume a public
 trust bundle or a local config path that points at `../oren-ca/` during development.
 The helper tool `scripts/issue_obc_store_trust.sh` creates the current P-256 store
 and publisher signing material plus a public trust bundle in that external
-directory; see `project-doc/obc_store_trust_tooling_20260601.md`.
+directory, and can include previous store public keys for root rotation; see
+`project-doc/obc_store_trust_tooling_20260601.md`.
 
 ## Initial Public Repo Shape
 
