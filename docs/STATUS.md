@@ -501,12 +501,11 @@ Facts from the 2026-05-28 implementation pass:
   bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic
   call specialization, varargs call/spread and spawn/spread packing, literal bases,
   container mutation/iteration, pack views, task/group surfaces, deterministic join
-  timeout, bounded trace diagnostics, deterministic math core/rounding, exp/log,
+  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,
+  trace-byte heap-budget exemption, deterministic math core/rounding, exp/log,
   trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
   ranges, and Scene3D package-asset authoring rather than leaving those as
   ad-hoc focused fixtures.
-- A direct `AVM_IO_BYTES=128` run of `test_budget_io_fs` returns the expected
-  `AVM_ERR_BUDGET`, proving that specific runtime behavior while exposing harness debt.
 
 Detailed note: `project-doc/ios_avm_readiness_20260507.md`.
 

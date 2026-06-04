@@ -609,14 +609,11 @@
 <p>  bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic</p>
 <p>  call specialization, varargs call/spread and spawn/spread packing, literal bases,</p>
 <p>  container mutation/iteration, pack views, task/group surfaces, deterministic join</p>
-<p>  timeout, bounded trace diagnostics, deterministic math core/rounding, exp/log,</p>
+<p>  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,</p>
+<p>  trace-byte heap-budget exemption, deterministic math core/rounding, exp/log,</p>
 <p>  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator</p>
 <p>  ranges, and Scene3D package-asset authoring rather than leaving those as</p>
 <p>  ad-hoc focused fixtures.</p>
-<ul>
-<li>A direct <code>AVM_IO_BYTES=128</code> run of <code>test_budget_io_fs</code> returns the expected</li>
-</ul>
-<p>  <code>AVM_ERR_BUDGET</code>, proving that specific runtime behavior while exposing harness debt.</p>
 <p>Detailed note: <code>project-doc/ios_avm_readiness_20260507.md</code>.</p>
 <h2 id="compiler-in-avm">Compiler-in-AVM</h2>
 <p>Current verdict: <strong>release-gated smoke path is green</strong>.</p>

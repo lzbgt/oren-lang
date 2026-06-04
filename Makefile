@@ -248,6 +248,9 @@ endif
 		tests/avm/test_time_rng_record_replay_mem.oren \
 		tests/avm/test_budget_gas.oren \
 		tests/avm/test_budget_timeout.oren \
+		tests/avm/test_budget_io_fs.oren \
+		tests/avm/test_budget_log_mem.oren \
+		tests/avm/test_budget_mem.oren \
 		tests/avm/test_call_depth_limit.oren \
 		tests/avm/test_call_stack_discipline.oren \
 		tests/avm/test_arith_invalid.oren \
@@ -277,6 +280,7 @@ endif
 		tests/avm/test_state_hash_repeat.oren \
 		tests/avm/test_trace_hash_repeat.oren \
 		tests/avm/test_trace_bytes_truncate.oren \
+		tests/avm/test_trace_bytes_mem_budget.oren \
 		tests/avm/test_nested_containers.oren \
 		tests/avm/test_pack_view.oren \
 		tests/avm/test_struct_member_set.oren \

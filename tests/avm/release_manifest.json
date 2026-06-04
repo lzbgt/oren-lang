@@ -37,6 +37,27 @@
       "avm_args": ["--timeout-ms", "5", "--print-run-json"],
       "budgets": {"timeout_ms": 5}
     },
+    {
+      "path": "tests/avm/test_budget_io_fs.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=9"},
+      "env": {"AVM_IO_BYTES": "128"},
+      "budgets": {"io_bytes": 128}
+    },
+    {
+      "path": "tests/avm/test_budget_log_mem.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=9"},
+      "env": {"AVM_LOG_BYTES": "4"},
+      "budgets": {"log_bytes": 4},
+      "host_effects": [
+        {"path": "build/avm_log_budget_should_not_write.txt", "expect": "absent"}
+      ]
+    },
+    {
+      "path": "tests/avm/test_budget_mem.oren",
+      "expected": {"exit_code": 1, "error_contains": "AVM error: code=9"},
+      "env": {"AVM_MEM_BYTES": "2048"},
+      "budgets": {"heap_bytes": 2048}
+    },
     {"path": "tests/avm/test_call_depth_limit.oren"},
     {"path": "tests/avm/test_call_stack_discipline.oren"},
     {
@@ -124,6 +145,13 @@
       "env": {"AVM_TRACE_BYTES": "8"},
       "backend_policy": "trace-bytes-truncate",
       "budgets": {"trace_bytes": 8}
+    },
+    {
+      "path": "tests/avm/test_trace_bytes_mem_budget.oren",
+      "avm_args": ["--print-run-json", "--print-trace-bytes-hex"],
+      "env": {"AVM_MEM_BYTES": "64", "AVM_TRACE_BYTES": "4096"},
+      "backend_policy": "trace-bytes-heap-exempt",
+      "budgets": {"heap_bytes": 64, "trace_bytes": 4096}
     },
     {"path": "tests/avm/test_nested_containers.oren"},
     {"path": "tests/avm/test_pack_view.oren"},
