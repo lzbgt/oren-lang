@@ -1,0 +1,67 @@
+@myorg.tag(name="avm-std-math-trig")
+
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("avm std math trig FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a, b, eps, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var PI = math.pi()
+var TAU = math.tau()
+
+assert_close(math.sin(0.0), 0.0, 1e-15, 10, "sin(0)")
+assert_close(math.cos(0.0), 1.0, 1e-15, 11, "cos(0)")
+assert_close(math.sin(PI / 2.0), 1.0, 1e-10, 12, "sin(pi/2)")
+assert_close(math.cos(PI), -1.0, 1e-10, 13, "cos(pi)")
+assert_close(math.sin(0.0 - PI / 2.0), -1.0, 1e-10, 14, "sin(-pi/2)")
+
+assert_close(math.atan(1.0), PI / 4.0, 1e-12, 20, "atan(1)")
+assert_close(math.atan(-1.0), 0.0 - PI / 4.0, 1e-12, 21, "atan(-1)")
+assert_close(math.atan2(1.0, 1.0), PI / 4.0, 1e-12, 22, "atan2 q1")
+assert_close(math.atan2(1.0, -1.0), 3.0 * PI / 4.0, 1e-12, 23, "atan2 q2")
+assert_close(math.atan2(-1.0, -1.0), 0.0 - 3.0 * PI / 4.0, 1e-12, 24, "atan2 q3")
+assert_close(math.atan2(-1.0, 1.0), 0.0 - PI / 4.0, 1e-12, 25, "atan2 q4")
+assert_close(math.atan2(0.0, -1.0), PI, 1e-12, 26, "atan2 positive zero negative x")
+assert_close(math.atan2(1.0, 0.0), PI / 2.0, 1e-12, 27, "atan2 positive y zero x")
+
+var x = 12345.6789
+var xp = x + TAU
+assert_true(xp != x, 30, "x+tau must be representable")
+
+var s1 = math.sin(x)
+if oren_is_err(s1) { fail(31, "sin returned err") }
+var c1 = math.cos(x)
+if oren_is_err(c1) { fail(32, "cos returned err") }
+var s2 = math.sin(xp)
+if oren_is_err(s2) { fail(33, "sin x+tau returned err") }
+var c2 = math.cos(xp)
+if oren_is_err(c2) { fail(34, "cos x+tau returned err") }
+assert_close(s1, s2, 1e-10, 35, "sin periodicity")
+assert_close(c1, c2, 1e-10, 36, "cos periodicity")
+
+var sn = math.sin(0.0 - x)
+if oren_is_err(sn) { fail(37, "sin negative returned err") }
+var cn = math.cos(0.0 - x)
+if oren_is_err(cn) { fail(38, "cos negative returned err") }
+assert_close(sn, 0.0 - s1, 1e-10, 39, "sin odd symmetry")
+assert_close(cn, c1, 1e-10, 40, "cos even symmetry")
+
+assert_true(oren_is_err(math.sin(math.inf())), 50, "sin(inf) must err")
+assert_true(oren_is_err(math.cos(math.inf())), 51, "cos(inf) must err")
+assert_true(oren_is_err(math.atan(0.0 / 0.0)), 52, "atan(NaN) must err")
+
+print("avm std math trig OK")
+exit(0)

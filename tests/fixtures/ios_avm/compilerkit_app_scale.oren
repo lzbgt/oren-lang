@@ -7,6 +7,7 @@ import iter "std:iter"
 import json "std:json"
 import linalg "std:linalg"
 import list "std:list"
+import math "std:math"
 import scene3d "std:ui/scene3d"
 import sha1 "std:crypto/sha1"
 import sha256 "std:crypto/sha256"
@@ -91,6 +92,8 @@ fn check_numeric_buffers() {
     check(linalg.reduce_sum_i64_list_int_slots([7, 8, 9]) == 24, 46, "linalg reduce list")
     check(linalg.dot_i64_list_int_slots([7, 8, 9], [1, 2, 3]) == 50, 47, "linalg dot list")
     check(oren_is_err(linalg.dot_i64_list_int_slots([1, 2], [1])), 48, "linalg fallible mismatch")
+    check(math.abs_f(math.sin(math.pi() / 2.0) - 1.0) < 1e-10, 49, "math trig")
+    check(math.abs_f(math.atan2(1.0, 1.0) - math.pi() / 4.0) < 1e-12, 491, "math atan2")
 }
 
 fn check_scene3d() {

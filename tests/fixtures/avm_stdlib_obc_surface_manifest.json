@@ -93,7 +93,9 @@
         "assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 50)",
         "assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 51)",
         "assert_close(math.log10(1000.0), 3.0, 1e-10, 52)",
-        "assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 53)"
+        "assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 53)",
+        "assert_close(math.sin(math.pi() / 2.0), 1.0, 1e-10, 54)",
+        "assert_close(math.atan2(1.0, 1.0), math.pi() / 4.0, 1e-12, 55)"
       ]
     },
     {
