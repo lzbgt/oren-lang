@@ -165,17 +165,37 @@ fn main() {
     var src =
         "import list \"std:list\"\n" +
         "import time \"std:time\"\n" +
+        "import bytes \"std:bytes\"\n" +
+        "import json \"std:json\"\n" +
+        "import ints \"std:ints\"\n" +
+        "import iter \"std:iter\"\n" +
+        "import sha256 \"std:crypto/sha256\"\n" +
+        "import buffer \"std:buffer\"\n" +
         "fn main() {\n" +
         "    var sr = time.sleep_ms(1)\n" +
         "    if sr != 0 { oren_exit(2) }\n" +
         "    if time.now_unix_ns() < 0 { oren_exit(3) }\n" +
         "    var xs = []\n" +
         "    list.push(xs, 4)\n" +
-        "    if list.len(xs) == 1 && xs[0] == 4 {\n" +
-        "        oren_exit(7)\n" +
-        "    } else {\n" +
-        "        oren_exit(1)\n" +
-        "    }\n" +
+        "    if list.len(xs) != 1 || xs[0] != 4 { oren_exit(4) }\n" +
+        "    var b = bytes.from_string(\"abc\")\n" +
+        "    if b.text() != \"abc\" { oren_exit(5) }\n" +
+        "    if b.sha256_hex() != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { oren_exit(6) }\n" +
+        "    if sha256.hex(b) != b.sha256_hex() { oren_exit(8) }\n" +
+        "    var parsed = json.parse(\"{\\\"x\\\":5}\")\n" +
+        "    if oren_is_err(parsed) == true { oren_exit(9) }\n" +
+        "    if oren_type_tag(parsed) != 7 { oren_exit(9) }\n" +
+        "    if parsed.text() != \"{\\\"x\\\":5}\" { oren_exit(9) }\n" +
+        "    if \"{\\\"y\\\":6}\".json().text() != \"{\\\"y\\\":6}\" { oren_exit(10) }\n" +
+        "    if ints.checked_u8(255) != 255 { oren_exit(11) }\n" +
+        "    if oren_is_err(ints.checked_u8(256)) != true { oren_exit(12) }\n" +
+        "    var sum = 0\n" +
+        "    for x in iter.range(4) { sum = sum + x }\n" +
+        "    if sum != 6 { oren_exit(13) }\n" +
+        "    var ub = buffer.u8_from_string(\"abcdef\")\n" +
+        "    if ub.slice(1, 3).text() != \"bcd\" { oren_exit(14) }\n" +
+        "    if ub.matrix(2, 3).row(1).text() != \"def\" { oren_exit(15) }\n" +
+        "    oren_exit(7)\n" +
         "}\n" +
         "main()\n"
 
@@ -233,6 +253,11 @@ fn main() {
     var pr = oren_avm_run_obc_bytes(program_obc, cfg_run)
     if pr["exit_code"] != 7 {
         print("program exit_code=" + oren_int_to_string(pr["exit_code"]))
+        var pe = pr["last_error"]
+        if oren_is_err(pe) {
+            print("program err_code=" + oren_int_to_string(oren_err_code(pe)))
+            print("program err_msg=" + oren_err_msg(pe))
+        }
         fail(300, "compiled program exit_code mismatch")
     }
 

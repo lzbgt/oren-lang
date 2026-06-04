@@ -257,7 +257,7 @@ fn _parse_object(bs, pos) {
         pos = _skip_ws(bs, pos)
         var rk = _parse_string(bs, pos)
         if rk["ok"] != 1 { return rk }
-        var k = rk["v"]["s"]
+        var k = rk["v"].s
         pos = _skip_ws(bs, rk["pos"])
         if pos >= n { return _err("unexpected EOF in object", pos) }
         if bs[pos] != 58 { return _err("expected ':'", pos) }
@@ -373,20 +373,20 @@ fn _escape_string(s) {
 }
 
 fn encode(jv) {
-    var t = jv["t"]
+    var t = jv.t
     if _streq(t, "null") { return "null" }
     if _streq(t, "bool") {
-        if jv["b"] != 0 { return "true" }
+        if jv.b != 0 { return "true" }
         return "false"
     }
     if _streq(t, "int") {
-        return oren_int_to_string(jv["i"])
+        return oren_int_to_string(jv.i)
     }
     if _streq(t, "string") {
-        return "\"" + _escape_string(jv["s"]) + "\""
+        return "\"" + _escape_string(jv.s) + "\""
     }
     if _streq(t, "array") {
-        var a = jv["a"]
+        var a = jv.a
         var out = "["
         var i = 0
         while i < list.len(a) {
@@ -398,7 +398,7 @@ fn encode(jv) {
         return out
     }
     if _streq(t, "object") {
-        var o = jv["o"]
+        var o = jv.o
         var out2 = "{"
         var first = 1
         for k in o {

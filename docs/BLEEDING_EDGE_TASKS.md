@@ -63,7 +63,7 @@ This file is the concise task view. Detailed implementation status lives in
      ranges, and Scene3D package assets.
    - Remaining required work: Note-side Swift UX integration, allocator ownership
      or explicit single-VM guard, stderr or richer structured diagnostic capture
-     if the Note UI needs it, broader compiler-in-AVM surface coverage, and CI
+     if the Note UI needs it, app-scale compiler-in-AVM programs, and CI
      coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
@@ -136,8 +136,8 @@ This file is the concise task view. Detailed implementation status lives in
      materializing Oren byte lists.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
-	     `buf.matrix(2, 3).row(1).text()` instead of routing through root-level
-	     projection helpers.
+	     `buf.matrix(2, 3).row(1).text()` without explicit local annotations
+	     instead of routing through root-level projection helpers.
 	     `make verify-stdlib-api-shape` now blocks known bad root-helper regressions:
 	     public fallible APIs should use the normal verb and return `value | oren_err`,
 	     while syscall-style primitives use explicit `*_raw` names. The guard now covers

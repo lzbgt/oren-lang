@@ -1,6 +1,6 @@
 # Oren Status
 
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-04
 
 This is the current implementation status. It replaces the former rolling log with a
 small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.
@@ -511,7 +511,10 @@ Working evidence:
   `build/oren_compiler.obc` into a nested AVM universe and compiles a small program
   through VFS.
 - `tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren` additionally
-  passes `build/stdlib_bundle.obc` as a stdlib OBC resource.
+  passes `build/stdlib_bundle.obc` as a stdlib OBC resource and compiles/runs a
+  multi-module child program covering list/time, bytes and SHA-256 receiver
+  methods, JSON parse/text chaining, checked integer casts, iterator ranges, and
+  zero-copy buffer slice/matrix receiver chains.
 - `scripts/verify_compiler_in_avm_ios_chain.sh` builds both OBC resources with
   `./oren`, runs the stdlib-OBC nested compiler harness through `./avm`, and is
   called by `make verify-libavm-ios`.
@@ -536,8 +539,8 @@ Missing for production:
 - allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
 - continued manifest promotion for non-curated AVM fixtures where runtime cost is
   justified;
-- broader compiler-in-AVM stdlib surface coverage beyond the current smoke
-  program.
+- broader app-scale compiler-in-AVM programs, richer diagnostics capture, and CI
+  coverage beyond the current curated smoke program.
 
 ## Scientific Stdlib Math
 
@@ -581,7 +584,8 @@ Working evidence:
    - Add Swift/Objective-C smoke host.
    - Finish lifecycle maturity: allocator ownership/reentrancy, explicit resource
      loading, and app-level failure policy.
-   - Expand compiler/stdlib OBC smoke coverage beyond the current release gate.
+   - Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs
+     and CI-hosted lifecycle checks.
 
 2. **AVM fixture manifest coverage**
    - Keep expanding `tests/avm/release_manifest.json` beyond the curated release-gate

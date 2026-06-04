@@ -123,7 +123,7 @@
 <li>Remaining required work: Note-side Swift UX integration, allocator ownership</li>
 </ul>
 <p>     or explicit single-VM guard, stderr or richer structured diagnostic capture</p>
-<p>     if the Note UI needs it, broader compiler-in-AVM surface coverage, and CI</p>
+<p>     if the Note UI needs it, app-scale compiler-in-AVM programs, and CI</p>
 <p>     coverage.</p>
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
@@ -202,8 +202,8 @@
 <p>     materializing Oren byte lists.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
-<p>	     <code>buf.matrix(2, 3).row(1).text()</code> instead of routing through root-level</p>
-<p>	     projection helpers.</p>
+<p>	     <code>buf.matrix(2, 3).row(1).text()</code> without explicit local annotations</p>
+<p>	     instead of routing through root-level projection helpers.</p>
 <p>	     <code>make verify-stdlib-api-shape</code> now blocks known bad root-helper regressions:</p>
 <p>	     public fallible APIs should use the normal verb and return <code>value | oren_err</code>,</p>
 <p>	     while syscall-style primitives use explicit <code>*_raw</code> names. The guard now covers</p>

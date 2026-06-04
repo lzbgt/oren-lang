@@ -37,7 +37,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-06-01</p>
+<p><strong>Last updated:</strong> 2026-06-04</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -620,7 +620,10 @@
 <ul>
 <li><code>tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren</code> additionally</li>
 </ul>
-<p>  passes <code>build/stdlib_bundle.obc</code> as a stdlib OBC resource.</p>
+<p>  passes <code>build/stdlib_bundle.obc</code> as a stdlib OBC resource and compiles/runs a</p>
+<p>  multi-module child program covering list/time, bytes and SHA-256 receiver</p>
+<p>  methods, JSON parse/text chaining, checked integer casts, iterator ranges, and</p>
+<p>  zero-copy buffer slice/matrix receiver chains.</p>
 <ul>
 <li><code>scripts/verify_compiler_in_avm_ios_chain.sh</code> builds both OBC resources with</li>
 </ul>
@@ -654,9 +657,9 @@
 </ul>
 <p>  justified;</p>
 <ul>
-<li>broader compiler-in-AVM stdlib surface coverage beyond the current smoke</li>
+<li>broader app-scale compiler-in-AVM programs, richer diagnostics capture, and CI</li>
 </ul>
-<p>  program.</p>
+<p>  coverage beyond the current curated smoke program.</p>
 <h2 id="scientific-stdlib-math">Scientific Stdlib Math</h2>
 <p>Current verdict: **portable deterministic foundation, still expanding toward C/C++</p>
 <p>mathlib breadth**.</p>
@@ -715,8 +718,9 @@
 </ul>
 <p>     loading, and app-level failure policy.</p>
 <ul>
-<li>Expand compiler/stdlib OBC smoke coverage beyond the current release gate.</li>
+<li>Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs</li>
 </ul>
+<p>     and CI-hosted lifecycle checks.</p>
 <ol>
 <li><strong>AVM fixture manifest coverage</strong></li>
 </ol>

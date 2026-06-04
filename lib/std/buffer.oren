@@ -90,8 +90,8 @@ fn _matrix_wrap(v) {
 }
 
 // Constructors (thin wrappers)
-fn u8_new(n) { return raw.u8_new(n) }
-fn u8_new_uninit(n) { return raw.u8_new_uninit(n) }
+fn u8_new(n): []u8 { return raw.u8_new(n) }
+fn u8_new_uninit(n): []u8 { return raw.u8_new_uninit(n) }
 fn i32_new(n) { return raw.i32_new(n) }
 fn i32_new_uninit(n) { return raw.i32_new_uninit(n) }
 fn i64_new(n) { return raw.i64_new(n) }
@@ -150,15 +150,15 @@ fn u8_pack_into(out: []u8, xs) { return raw.u8_pack_into(out, xs) }
 
 fn u8_unpack(buf: []u8) { return raw.u8_unpack(buf) }
 
-fn u8_from_string(s) { return raw.u8_from_string(s) }
+fn u8_from_string(s): []u8 { return raw.u8_from_string(s) }
 
-fn u8_from_string_slice(s, off, n) { return raw.u8_from_string_slice(s, off, n) }
+fn u8_from_string_slice(s, off, n): []u8 { return raw.u8_from_string_slice(s, off, n) }
 
 fn u8_to_string(buf: []u8) { return raw.u8_to_string(buf) }
 
-fn u8_from_bytes(bytes) { return raw.u8_from_bytes(bytes) }
+fn u8_from_bytes(bytes): []u8 { return raw.u8_from_bytes(bytes) }
 
-fn u8_from_bytes_slice(bytes, off, n) { return raw.u8_from_bytes_slice(bytes, off, n) }
+fn u8_from_bytes_slice(bytes, off, n): []u8 { return raw.u8_from_bytes_slice(bytes, off, n) }
 
 fn u8_to_bytes(buf: []u8) { return raw.u8_to_bytes(buf) }
 
