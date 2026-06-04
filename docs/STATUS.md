@@ -496,9 +496,10 @@ Facts from the 2026-05-28 implementation pass:
   `AVM_TESTS="..."` overrides still work; paths not present in the manifest run with
   default zero-exit virtual-backend policy.
 - The default AVM release gate now also covers portable stdlib bytes/buffer view
-  APIs, u8 buffer iteration, checked integer casts, attributes, bool/float
-  ops, for/for-in lowering over lists/maps/strings/bytes, generic call
-  specialization, literal bases, container mutation/iteration, pack views,
+  APIs, bytes/endian helpers, u8 buffer iteration, checked and wrapping integer
+  casts, call-stack discipline, explicit result/state hashing, attributes,
+  bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic
+  call specialization, literal bases, container mutation/iteration, pack views,
   deterministic math core/rounding, exp/log, and trig/atan vectors, float
   diagnostic formatting, crypto hash vectors, iterator ranges, and Scene3D
   package-asset authoring rather than leaving those as ad-hoc focused fixtures.

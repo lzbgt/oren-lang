@@ -38,6 +38,7 @@
       "budgets": {"timeout_ms": 5}
     },
     {"path": "tests/avm/test_call_depth_limit.oren"},
+    {"path": "tests/avm/test_call_stack_discipline.oren"},
     {
       "path": "tests/avm/test_arith_invalid.oren",
       "expected": {"exit_code": 1, "error_contains": "AVM error: code=4"}
@@ -105,8 +106,11 @@
     {"path": "tests/avm/test_for_in_string.oren"},
     {"path": "tests/avm/test_generic_call_specialization.oren"},
     {"path": "tests/avm/test_int_literal_bases.oren"},
+    {"path": "tests/avm/test_int_casts.oren"},
     {"path": "tests/avm/test_list_append_grow.oren"},
     {"path": "tests/avm/test_map_iter_deterministic.oren"},
+    {"path": "tests/avm/test_result_hash_repeat.oren"},
+    {"path": "tests/avm/test_state_hash_repeat.oren"},
     {"path": "tests/avm/test_nested_containers.oren"},
     {"path": "tests/avm/test_pack_view.oren"},
     {"path": "tests/avm/test_struct_member_set.oren"},
@@ -114,6 +118,8 @@
     {"path": "tests/avm/test_list_dot_opcodes.oren"},
     {"path": "tests/avm/test_list_int_basic.oren"},
     {"path": "tests/avm/test_float_to_string.oren"},
+    {"path": "tests/avm/test_bytes_basic.oren"},
+    {"path": "tests/avm/test_bytes_set_endian.oren"},
     {"path": "tests/avm/test_std_math_core.oren"},
     {"path": "tests/avm/test_std_math_pow.oren"},
     {"path": "tests/avm/test_std_math_exp_log.oren"},
