@@ -268,8 +268,9 @@ This file is the concise task view. Detailed implementation status lives in
 
 4. **Scientific stdlib math breadth**
    - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
-   - Current retained surface includes `modf`, `pow` / `power` for integer, negative,
-     fractional positive-base, infinity edge, and negative-base real-domain cases,
+   - Current retained surface includes `fmod`, IEEE-style nearest-even
+     `remainder`, `modf`, `pow` / `power` for integer, negative, fractional
+     positive-base, infinity edge, and negative-base real-domain cases,
     `cbrt` with subnormal/sign/non-finite coverage, cancellation-aware
     `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
     inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated

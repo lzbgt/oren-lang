@@ -1,0 +1,41 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math remainder FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_close(math.remainder(5.5, 2.0), 0.0 - 0.5, 1e-12, 10, "nearest quotient")
+assert_close(math.remainder(4.5, 2.0), 0.5, 1e-12, 11, "positive non-tie")
+assert_close(math.remainder(5.0, 2.0), 1.0, 1e-12, 12, "tie to even low")
+assert_close(math.remainder(7.0, 2.0), 0.0 - 1.0, 1e-12, 13, "tie to even high")
+assert_close(math.remainder(0.0 - 5.0, 2.0), 0.0 - 1.0, 1e-12, 14, "negative tie low")
+assert_close(math.remainder(0.0 - 7.0, 2.0), 1.0, 1e-12, 15, "negative tie high")
+assert_close(math.remainder(5.0, 0.0 - 2.0), 1.0, 1e-12, 16, "negative divisor")
+assert_close(math.remainder(0.0, 2.0), 0.0, 0.0, 17, "zero dividend")
+assert_close(math.remainder(5.0, math.inf()), 5.0, 0.0, 18, "infinite divisor")
+
+var r: f64 = math.remainder(123.75, 10.0)
+assert_close(r, 3.75, 1e-12, 30, "fractional quotient")
+assert_true(r <= 5.0, 31, "range upper bound")
+assert_true(r >= 0.0 - 5.0, 32, "range lower bound")
+
+assert_true(oren_is_err(math.remainder(1.0, 0.0)), 40, "zero divisor")
+assert_true(oren_is_err(math.remainder(math.inf(), 1.0)), 41, "inf dividend")
+assert_true(oren_is_err(math.remainder(0.0 / 0.0, 1.0)), 42, "nan dividend")
+assert_true(oren_is_err(math.remainder(1.0, 0.0 / 0.0)), 43, "nan divisor")
+
+print("module math remainder OK")
+exit(0)

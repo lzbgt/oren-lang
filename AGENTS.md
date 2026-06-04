@@ -29,6 +29,9 @@ Boundary: this is architecture review and setup guidance, not guaranteed product
 
 - Be fact-oriented: avoid guesses. Prefer math, theory, and primary sources (docs, code, tests).
 - Be proactive: surface hidden risks, propose concrete next steps, and add guardrails (tests/fixtures) when appropriate.
+- Guardrails must be justified by the feature, ABI, performance, or regression risk they protect.
+  Prefer feature/performance implementation first, then the smallest focused fixture or gate that
+  proves that work; avoid broad guard-only sweeps that slow rolling refactors without new proof.
 - For STEM explanations, be educational and give step-by-step concrete examples.
 
 ## Web research policy

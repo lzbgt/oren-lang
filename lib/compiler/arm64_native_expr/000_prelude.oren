@@ -651,6 +651,8 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "round", "_round") { return true }
             if native_name_is_or_has_suffix(nm, "trunc", "_trunc") { return true }
             if native_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
+            if native_name_is_or_has_suffix(nm, "_round_ties_even", "_round_ties_even") { return true }
+            if native_name_is_or_has_suffix(nm, "remainder", "_remainder") { return true }
             if native_name_is_or_has_suffix(nm, "sqrt", "_sqrt") { return true }
             if native_name_is_or_has_suffix(nm, "cbrt", "_cbrt") { return true }
             if native_name_is_or_has_suffix(nm, "powi", "_powi") { return true }

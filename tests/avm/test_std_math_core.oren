@@ -44,6 +44,11 @@ assert_close(math.trunc(0.0 - 1.9), 0.0 - 1.0, 1e-12, 37, "trunc negative")
 assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 40, "fmod positive")
 assert_close(math.fmod(0.0 - 5.5, 2.0), 0.0 - 1.5, 1e-12, 41, "fmod negative")
 assert_true(oren_is_err(math.fmod(1.0, 0.0)), 42, "fmod zero divisor")
+assert_close(math.remainder(5.5, 2.0), 0.0 - 0.5, 1e-12, 43, "remainder nearest quotient")
+assert_close(math.remainder(5.0, 2.0), 1.0, 1e-12, 44, "remainder tie even low")
+assert_close(math.remainder(7.0, 2.0), 0.0 - 1.0, 1e-12, 45, "remainder tie even high")
+assert_close(math.remainder(0.0 - 7.0, 2.0), 1.0, 1e-12, 46, "remainder negative tie")
+assert_true(oren_is_err(math.remainder(1.0, 0.0)), 47, "remainder zero divisor")
 
 var nanv = 0.0 / 0.0
 assert_true(math.is_nan(nanv), 50, "is_nan")

@@ -221,6 +221,48 @@ fn fmod(x: f64, y: f64) {
     return x - q * y
 }
 
+fn _round_ties_even(x: f64) {
+    if is_nan(x) { return oren_err(4, "round_ties_even: NaN") }
+    if is_inf(x) { return x }
+    if x == 0.0 { return x }
+    // Every f64 with |x| >= 2^52 is already integral.
+    var integral_lim = 4503599627370496.0
+    if x >= integral_lim || x <= 0.0 - integral_lim { return x }
+
+    var t: f64 = trunc(x)
+    if oren_is_err(t) { return t }
+    var frac: f64 = x - t
+    var af: f64 = frac
+    if af < 0.0 { af = 0.0 - af }
+    if af < 0.5 { return t }
+    if af > 0.5 {
+        if x > 0.0 { return t + 1.0 }
+        return t - 1.0
+    }
+
+    var ti = trunc_i64_from_f(t)
+    if oren_is_err(ti) { return ti }
+    if (abs_i(ti) & 1) == 0 { return t }
+    if x > 0.0 { return t + 1.0 }
+    return t - 1.0
+}
+
+fn remainder(x: f64, y: f64) {
+    // IEEE-style remainder: x - n*y where n is nearest integer to x/y,
+    // choosing the even integer when the quotient is exactly halfway.
+    if is_nan(x) || is_nan(y) { return oren_err(4, "remainder: NaN") }
+    if y == 0.0 { return oren_err(4, "remainder: zero divisor") }
+    if is_inf(x) { return oren_err(4, "remainder: inf dividend") }
+    if is_inf(y) { return x }
+    if x == 0.0 { return x }
+
+    var n: f64 = _round_ties_even(x / y)
+    if oren_is_err(n) { return n }
+    var r: f64 = x - n * y
+    if r == 0.0 { return copysign(0.0, x) }
+    return r
+}
+
 // --- sqrt / pow (HPC foundation) ---
 //
 // sqrt(x) semantics:
