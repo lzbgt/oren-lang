@@ -100,6 +100,7 @@
       "id": 58,
       "name": "gltf-mesh",
       "gltf_source": "scene3d_gltf_marker.gltf",
+      "gltf_node": "marker-node",
       "gltf_offset_xyz": [4, 0, 1]
     }
   ],

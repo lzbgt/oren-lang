@@ -436,12 +436,104 @@ def gltf_accessor_color(doc, accessor_index, base_dir):
     return out
 
 
+def gltf_node_index(doc, mesh):
+    node_ref = mesh.get("gltf_node")
+    if node_ref is None:
+        return None
+    nodes = doc.get("nodes", [])
+    if isinstance(node_ref, int):
+        if node_ref < 0 or node_ref >= len(nodes):
+            raise SystemExit("scene glTF node index out of bounds")
+        return node_ref
+    for i, node in enumerate(nodes):
+        if node.get("name") == node_ref:
+            return i
+    raise SystemExit("scene glTF node not found")
+
+
+def gltf_node_vec3(node, key, default):
+    value = node.get(key, default)
+    if not isinstance(value, list) or len(value) != 3:
+        raise SystemExit(f"scene glTF node {key} must be [x,y,z]")
+    return (float(value[0]), float(value[1]), float(value[2]))
+
+
+def gltf_node_local_transform(node):
+    if node.get("matrix") is not None:
+        raise SystemExit("scene glTF node matrix transforms are not supported yet")
+    if node.get("rotation") is not None:
+        raise SystemExit("scene glTF node rotation transforms are not supported yet")
+    scale = gltf_node_vec3(node, "scale", [1.0, 1.0, 1.0])
+    translation = gltf_node_vec3(node, "translation", [0.0, 0.0, 0.0])
+    return scale, translation
+
+
+def gltf_node_parent_map(nodes):
+    parents = {}
+    for parent_idx, node in enumerate(nodes):
+        for child in node.get("children", []):
+            child_idx = int(child)
+            if child_idx < 0 or child_idx >= len(nodes):
+                raise SystemExit("scene glTF child node index out of bounds")
+            if child_idx in parents:
+                raise SystemExit("scene glTF node has multiple parents")
+            parents[child_idx] = parent_idx
+    return parents
+
+
+def gltf_node_global_transform(doc, node_index):
+    nodes = doc.get("nodes", [])
+    parents = gltf_node_parent_map(nodes)
+    chain = []
+    seen = set()
+    idx = node_index
+    while idx is not None:
+        if idx in seen:
+            raise SystemExit("scene glTF node hierarchy cycle")
+        seen.add(idx)
+        chain.append(idx)
+        idx = parents.get(idx)
+    scale = (1.0, 1.0, 1.0)
+    translation = (0.0, 0.0, 0.0)
+    for idx in reversed(chain):
+        local_scale, local_translation = gltf_node_local_transform(nodes[idx])
+        translation = (
+            translation[0] + scale[0] * local_translation[0],
+            translation[1] + scale[1] * local_translation[1],
+            translation[2] + scale[2] * local_translation[2],
+        )
+        scale = (
+            scale[0] * local_scale[0],
+            scale[1] * local_scale[1],
+            scale[2] * local_scale[2],
+        )
+    return scale, translation
+
+
+def gltf_apply_node_transform(v, node_transform):
+    scale, translation = node_transform
+    return [
+        float(v[0]) * scale[0] + translation[0],
+        float(v[1]) * scale[1] + translation[1],
+        float(v[2]) * scale[2] + translation[2],
+    ]
+
+
 def gltf_mesh_data(mesh, base_dir):
     doc = gltf_source_json(mesh, base_dir)
     asset = doc.get("asset", {})
     if str(asset.get("version", "")).split(".", 1)[0] != "2":
         raise SystemExit("scene glTF asset.version must be 2.x")
-    mesh_index = int(mesh.get("gltf_mesh", 0))
+    node_index = gltf_node_index(doc, mesh)
+    node_transform = ((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
+    if node_index is not None:
+        node = doc.get("nodes", [])[node_index]
+        if node.get("mesh") is None:
+            raise SystemExit("scene glTF node does not reference a mesh")
+        mesh_index = int(node["mesh"])
+        node_transform = gltf_node_global_transform(doc, node_index)
+    else:
+        mesh_index = int(mesh.get("gltf_mesh", 0))
     meshes = doc.get("meshes", [])
     if mesh_index < 0 or mesh_index >= len(meshes):
         raise SystemExit("scene glTF mesh index out of bounds")
@@ -458,7 +550,7 @@ def gltf_mesh_data(mesh, base_dir):
             raise SystemExit("scene glTF primitive missing POSITION accessor")
         positions = gltf_accessor_values(doc, int(attributes["POSITION"]), base_dir)
         base_vertex = len(vertices)
-        vertices.extend(positions)
+        vertices.extend([gltf_apply_node_transform(pos, node_transform) for pos in positions])
         colors = None
         if attributes.get("COLOR_0") is not None:
             colors = gltf_accessor_color(doc, int(attributes["COLOR_0"]), base_dir)

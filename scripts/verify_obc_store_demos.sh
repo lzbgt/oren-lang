@@ -125,6 +125,25 @@ def verify_scene3d_gltf_lowering():
     if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
         raise SystemExit("scene GLB BIN-buffer RGBA lowering did not produce expected payload")
 
+    node_gltf = json.loads(json.dumps(gltf))
+    node_gltf["nodes"] = [
+        {"name": "root", "children": [1], "translation": [1.0, 2.0, 3.0], "scale": [2.0, 2.0, 2.0]},
+        {"name": "child", "mesh": 0, "translation": [10.0, 20.0, 30.0], "scale": [2.0, 3.0, 4.0]},
+    ]
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles", "id": 1, "gltf_json": node_gltf, "gltf_node": "child", "color": "#ffffffff"}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if (
+        not data.startswith(b"OS3D01\x00\x00") or
+        struct.pack("<iii", 21, 42, 63) not in data or
+        struct.pack("<iii", 25, 42, 63) not in data
+    ):
+        raise SystemExit("scene glTF node transform lowering did not produce expected coordinates")
+
 
 def verify_scene3d_stl_lowering():
     stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"
