@@ -129,7 +129,8 @@ This file is the concise task view. Detailed implementation status lives in
      path on exact-size `u8_buf` output. SHA-1/SHA-256 digest outputs and native
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      Huffman string encode/decode and full header-block encoding now write
-     exact-size `u8_buf` payloads instead of materializing Oren byte lists.
+     exact-size `u8_buf` payloads, and PEM/Base64 body handling avoids
+     materializing Oren byte lists.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
 	     `buf.matrix(2, 3).row(1).text()` instead of routing through root-level

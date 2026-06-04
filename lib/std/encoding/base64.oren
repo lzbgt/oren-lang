@@ -50,7 +50,7 @@ fn _set_out(out, idx, v) {
 
 fn encode_bytes(input_bytes) {
     if input_bytes == nil {
-        input_bytes = oren_bytes_pack([])
+        input_bytes = oren_u8_buf_new(0)
     }
 
     var n = bytesm.len(input_bytes)
