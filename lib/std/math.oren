@@ -616,6 +616,56 @@ fn tanh(x: f64) {
     return y
 }
 
+fn asinh(x: f64) {
+    if is_nan(x) { return oren_err(4, "asinh: NaN") }
+    if x == 0.0 { return x }
+    if is_inf(x) { return x }
+
+    var ax = abs_f(x)
+    if ax < 1e-8 { return x }
+    var y = 0.0
+    if ax > 1.0e154 {
+        y = ln(ax)
+        if oren_is_err(y) { return y }
+        y = y + 0.6931471805599453
+    } else {
+        var root = sqrt(ax * ax + 1.0)
+        if oren_is_err(root) { return root }
+        y = ln(ax + root)
+        if oren_is_err(y) { return y }
+    }
+    if signbit(x) { return 0.0 - y }
+    return y
+}
+
+fn acosh(x: f64) {
+    if is_nan(x) { return oren_err(4, "acosh: NaN") }
+    if x < 1.0 { return oren_err(4, "acosh: domain") }
+    if x == 1.0 { return 0.0 }
+    if is_inf(x) { return x }
+    if x > 1.0e154 {
+        var y_large = ln(x)
+        if oren_is_err(y_large) { return y_large }
+        return y_large + 0.6931471805599453
+    }
+    var left = sqrt(x - 1.0)
+    if oren_is_err(left) { return left }
+    var right = sqrt(x + 1.0)
+    if oren_is_err(right) { return right }
+    return ln(x + left * right)
+}
+
+fn atanh(x: f64) {
+    if is_nan(x) { return oren_err(4, "atanh: NaN") }
+    if x < -1.0 || x > 1.0 { return oren_err(4, "atanh: domain") }
+    if x == 0.0 { return x }
+    if x == 1.0 { return inf() }
+    if x == -1.0 { return neg_inf() }
+    var ax = abs_f(x)
+    if ax < 1e-8 { return x }
+    return 0.5 * ln((1.0 + x) / (1.0 - x))
+}
+
 // --- trig (deterministic, no host libm) ---
 //
 // v0 design:
