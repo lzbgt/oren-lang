@@ -697,11 +697,11 @@
 <p>  finite trig reduction, quadrant <code>atan2</code>, and non-finite error behavior in</p>
 <p>  bytecode.</p>
 <ul>
-<li>The huge-trig Payne-Hanek fixture is backend-safe again after AVM/C</li>
+<li>The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity</li>
 </ul>
-<p>  <code>oren_float_to_string</code> support, but compiled C/AVM still fail its 2^53</p>
-<p>  periodicity assertion while the native test path passes. Treat that as the</p>
-<p>  next reducer/parity investigation, not release-gated behavior.</p>
+<p>  vector and is release-gated in AVM. The earlier 2^53 assertion was invalid:</p>
+<p>  at that magnitude <code>x + tau</code> rounds to <code>x + 6</code>, not <code>x + 2pi</code>, so it tested</p>
+<p>  floating-point addition granularity rather than trig periodicity.</p>
 <h2 id="current-p0-w5-work">Current P0 / W5 Work</h2>
 <ol>
 <li><strong>Runtime robustness</strong></li>

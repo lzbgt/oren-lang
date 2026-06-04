@@ -59,9 +59,29 @@ if oren_is_err(cn) { fail(38, "cos negative returned err") }
 assert_close(sn, 0.0 - s1, 1e-10, 39, "sin odd symmetry")
 assert_close(cn, c1, 1e-10, 40, "cos even symmetry")
 
-assert_true(oren_is_err(math.sin(math.inf())), 50, "sin(inf) must err")
-assert_true(oren_is_err(math.cos(math.inf())), 51, "cos(inf) must err")
-assert_true(oren_is_err(math.atan(0.0 / 0.0)), 52, "atan(NaN) must err")
+var huge = 1099511627776.0 // 2^40, beyond Cody-Waite; forces Payne-Hanek reduction.
+var huge_next = huge + TAU
+assert_true(huge_next != huge, 41, "huge+tau must be representable")
+var hs1 = math.sin(huge)
+if oren_is_err(hs1) { fail(42, "huge sin returned err") }
+var hs2 = math.sin(huge_next)
+if oren_is_err(hs2) { fail(43, "huge sin x+tau returned err") }
+var hc1 = math.cos(huge)
+if oren_is_err(hc1) { fail(44, "huge cos returned err") }
+var hc2 = math.cos(huge_next)
+if oren_is_err(hc2) { fail(45, "huge cos x+tau returned err") }
+assert_close(hs1, hs2, 1e-4, 46, "huge sin periodicity")
+assert_close(hc1, hc2, 1e-4, 47, "huge cos periodicity")
+var hsn = math.sin(0.0 - huge)
+if oren_is_err(hsn) { fail(48, "huge negative sin returned err") }
+var hcn = math.cos(0.0 - huge)
+if oren_is_err(hcn) { fail(49, "huge negative cos returned err") }
+assert_close(hsn, 0.0 - hs1, 1e-8, 50, "huge sin odd symmetry")
+assert_close(hcn, hc1, 1e-8, 51, "huge cos even symmetry")
+
+assert_true(oren_is_err(math.sin(math.inf())), 60, "sin(inf) must err")
+assert_true(oren_is_err(math.cos(math.inf())), 61, "cos(inf) must err")
+assert_true(oren_is_err(math.atan(0.0 / 0.0)), 62, "atan(NaN) must err")
 
 print("avm std math trig OK")
 exit(0)

@@ -23,7 +23,7 @@ fn assert_close(a, b, eps, code, msg) {
 // suite integration-first and small.
 
 var TAU = math.tau()
-var x = 9007199254740992.0 // 2^53, large enough to break naive x/(pi/2) rounding
+var x = 1099511627776.0 // 2^40, large enough to force Payne-Hanek reduction.
 
 var xp = x + TAU
 assert_true(xp != x, 10, "x+tau must be representable != x for this test to be meaningful")
@@ -39,9 +39,10 @@ var c2 = math.cos(xp)
 if oren_is_err(c2) { fail(14, "cos(x+tau) returned Err for huge x") }
 
 // Periodicity: sin/cos(x+2pi) == sin/cos(x).
-// Tolerance is loose: we only need to catch catastrophic reduction failures.
-assert_close(s1, s2, 1e-8, 20, "sin periodicity failed")
-assert_close(c1, c2, 1e-8, 21, "cos periodicity failed")
+// Tolerance is loose: x+tau rounds to the nearest f64 value, so this catches
+// catastrophic reduction failures without pretending the rounded input is exact.
+assert_close(s1, s2, 1e-4, 20, "sin periodicity failed")
+assert_close(c1, c2, 1e-4, 21, "cos periodicity failed")
 
 // Basic symmetry sanity for large magnitude.
 var sn = math.sin(0.0 - x)

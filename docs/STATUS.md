@@ -571,10 +571,10 @@ Working evidence:
   are now in the curated `make test-avm` set, so the iOS AVM path proves pow,
   finite trig reduction, quadrant `atan2`, and non-finite error behavior in
   bytecode.
-- The huge-trig Payne-Hanek fixture is backend-safe again after AVM/C
-  `oren_float_to_string` support, but compiled C/AVM still fail its 2^53
-  periodicity assertion while the native test path passes. Treat that as the
-  next reducer/parity investigation, not release-gated behavior.
+- The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity
+  vector and is release-gated in AVM. The earlier 2^53 assertion was invalid:
+  at that magnitude `x + tau` rounds to `x + 6`, not `x + 2pi`, so it tested
+  floating-point addition granularity rather than trig periodicity.
 
 ## Current P0 / W5 Work
 
