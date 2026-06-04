@@ -380,8 +380,9 @@ Facts from the 2026-05-28 implementation pass:
   model/material/transform override objects that lower to generated retained
   models, human-readable `position_xyz` or nested `transform` records,
   human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
-  `triangles_xyz` or `quads_xyz` direct meshes, and per-triangle
-  `triangles_xyz_rgba` colors. Material authoring accepts `color` or
+  `triangles_xyz` or `quads_xyz` direct meshes, compact `boxes_xyz`
+  cuboid primitives, and per-triangle `triangles_xyz_rgba` colors.
+  Material authoring accepts `color` or
   `base_color` plus optional `opacity_milli`, `roughness_milli`, and
   `metallic_milli`, lowering the v0 renderer-visible output to deterministic
   `material3d` colors. JSON loaders can sample transform keyframes via

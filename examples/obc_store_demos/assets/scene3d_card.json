@@ -2,17 +2,11 @@
   "schema": "oren.ui.scene3d.v0",
   "meshes": [
     {
-      "kind": "indexed",
+      "kind": "triangles",
       "id": 31,
       "name": "card-mesh",
-      "vertices_xyz": [
-        [0, 0, 0],
-        [2, 0, 0],
-        [2, 2, 0],
-        [0, 2, 0]
-      ],
-      "quads": [
-        [0, 1, 2, 3]
+      "boxes_xyz": [
+        {"min": [0, 0, 0], "max": [2, 2, 1]}
       ],
       "base_color": "#223344",
       "roughness_milli": 600,

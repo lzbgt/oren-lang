@@ -151,6 +151,12 @@ fn _store_i32_le(out, off, v, ctx) {
     return _store_u32_le(out, off, u, ctx)
 }
 
+fn _store_xyz_values(out, off, x, y, z, ctx) {
+    var rc = _store_i32_le(out, off + 0, x, ctx + ".x"); if oren_is_err(rc) { return rc }
+    rc = _store_i32_le(out, off + 4, y, ctx + ".y"); if oren_is_err(rc) { return rc }
+    return _store_i32_le(out, off + 8, z, ctx + ".z")
+}
+
 fn _pack_vertices_xyz(points, ctx) {
     if points == nil { return oren_err(4, ctx + ": missing vertices_xyz") }
     var np = oren_list_len(points)
@@ -162,9 +168,8 @@ fn _pack_vertices_xyz(points, ctx) {
         var p = points[i]
         if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": vertex must be [x,y,z]") }
         var off = i * 12
-        var rc = _store_i32_le(out, off + 0, p[0], ctx + ".x"); if oren_is_err(rc) { return rc }
-        rc = _store_i32_le(out, off + 4, p[1], ctx + ".y"); if oren_is_err(rc) { return rc }
-        rc = _store_i32_le(out, off + 8, p[2], ctx + ".z"); if oren_is_err(rc) { return rc }
+        var rc = _store_xyz_values(out, off, p[0], p[1], p[2], ctx)
+        if oren_is_err(rc) { return rc }
         i = i + 1
     }
     return bytes.from_u8_buf(out)
@@ -281,9 +286,7 @@ fn _pack_triangles_xyz(triangles, ctx) {
 
 fn _store_point_xyz(out, off, p, ctx) {
     if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": vertex must be [x,y,z]") }
-    var rc = _store_i32_le(out, off + 0, p[0], ctx + ".x"); if oren_is_err(rc) { return rc }
-    rc = _store_i32_le(out, off + 4, p[1], ctx + ".y"); if oren_is_err(rc) { return rc }
-    return _store_i32_le(out, off + 8, p[2], ctx + ".z")
+    return _store_xyz_values(out, off, p[0], p[1], p[2], ctx)
 }
 
 fn _pack_quads_xyz(quads, ctx) {
@@ -303,6 +306,73 @@ fn _pack_quads_xyz(quads, ctx) {
         rc = _store_point_xyz(out, off + 36, q[0], ctx + ".a"); if oren_is_err(rc) { return rc }
         rc = _store_point_xyz(out, off + 48, q[2], ctx + ".c"); if oren_is_err(rc) { return rc }
         rc = _store_point_xyz(out, off + 60, q[3], ctx + ".d"); if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return bytes.from_u8_buf(out)
+}
+
+fn _store_box_triangle(out, off, ax, ay, az, bx, by, bz, cx, cy, cz, ctx) {
+    var rc = _store_xyz_values(out, off + 0, ax, ay, az, ctx + ".a")
+    if oren_is_err(rc) { return rc }
+    rc = _store_xyz_values(out, off + 12, bx, by, bz, ctx + ".b")
+    if oren_is_err(rc) { return rc }
+    return _store_xyz_values(out, off + 24, cx, cy, cz, ctx + ".c")
+}
+
+fn _pack_boxes_xyz(boxes, ctx) {
+    if boxes == nil { return oren_err(4, ctx + ": missing boxes_xyz") }
+    var nb = oren_list_len(boxes)
+    if oren_is_err(nb) { return oren_err(4, ctx + ": boxes_xyz must be list") }
+    var out = raw.u8_new_uninit(nb * 432)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < nb {
+        var box = boxes[i]
+        if box == nil { return oren_err(4, ctx + ": box must be object") }
+        var lo = box["min"]
+        if lo == nil { lo = box["min_xyz"] }
+        var hi = box["max"]
+        if hi == nil { hi = box["max_xyz"] }
+        if lo == nil || hi == nil {
+            return oren_err(4, ctx + ": box must include min/max")
+        }
+        if oren_list_len(lo) != 3 || oren_list_len(hi) != 3 {
+            return oren_err(4, ctx + ": box min/max must be [x,y,z]")
+        }
+        var x0 = lo[0]; var y0 = lo[1]; var z0 = lo[2]
+        var x1 = hi[0]; var y1 = hi[1]; var z1 = hi[2]
+        if _is_int(x0) == false || _is_int(y0) == false || _is_int(z0) == false ||
+           _is_int(x1) == false || _is_int(y1) == false || _is_int(z1) == false {
+            return oren_err(4, ctx + ": box min/max must be i32")
+        }
+        if x1 <= x0 || y1 <= y0 || z1 <= z0 {
+            return oren_err(4, ctx + ": box max must be greater than min")
+        }
+        var off = i * 432
+        var rc = _store_box_triangle(out, off + 0, x0, y0, z0, x1, y0, z0, x1, y1, z0, ctx + ".front0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 36, x0, y0, z0, x1, y1, z0, x0, y1, z0, ctx + ".front1")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 72, x0, y0, z1, x1, y1, z1, x1, y0, z1, ctx + ".back0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 108, x0, y0, z1, x0, y1, z1, x1, y1, z1, ctx + ".back1")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 144, x0, y0, z0, x0, y1, z0, x0, y1, z1, ctx + ".left0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 180, x0, y0, z0, x0, y1, z1, x0, y0, z1, ctx + ".left1")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 216, x1, y0, z0, x1, y0, z1, x1, y1, z1, ctx + ".right0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 252, x1, y0, z0, x1, y1, z1, x1, y1, z0, ctx + ".right1")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 288, x0, y1, z0, x1, y1, z0, x1, y1, z1, ctx + ".top0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 324, x0, y1, z0, x1, y1, z1, x0, y1, z1, ctx + ".top1")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 360, x0, y0, z0, x0, y0, z1, x1, y0, z1, ctx + ".bottom0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_box_triangle(out, off + 396, x0, y0, z0, x1, y0, z1, x1, y0, z0, ctx + ".bottom1")
+        if oren_is_err(rc) { return rc }
         i = i + 1
     }
     return bytes.from_u8_buf(out)
@@ -359,6 +429,8 @@ fn _asset_mesh(m) {
             tris = _pack_triangles_xyz(m["triangles_xyz"], "ui.scene3d mesh.triangles_xyz")
         } else if m["quads_xyz"] != nil {
             tris = _pack_quads_xyz(m["quads_xyz"], "ui.scene3d mesh.quads_xyz")
+        } else if m["boxes_xyz"] != nil {
+            tris = _pack_boxes_xyz(m["boxes_xyz"], "ui.scene3d mesh.boxes_xyz")
         } else {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }

@@ -110,6 +110,43 @@ def pack_quads_xyz(quads):
     return pack_triangles_xyz(triangles)
 
 
+def box_min_max(box):
+    if not isinstance(box, dict):
+        raise SystemExit("scene boxes_xyz entries must be objects")
+    lo = box.get("min", box.get("min_xyz"))
+    hi = box.get("max", box.get("max_xyz"))
+    if not isinstance(lo, list) or not isinstance(hi, list) or len(lo) != 3 or len(hi) != 3:
+        raise SystemExit("scene boxes_xyz entries must include min/max [x,y,z]")
+    x0, y0, z0 = (int(lo[0]), int(lo[1]), int(lo[2]))
+    x1, y1, z1 = (int(hi[0]), int(hi[1]), int(hi[2]))
+    if x1 <= x0 or y1 <= y0 or z1 <= z0:
+        raise SystemExit("scene boxes_xyz max must be greater than min")
+    return x0, y0, z0, x1, y1, z1
+
+
+def pack_boxes_xyz(boxes):
+    triangles = []
+    for box in boxes:
+        x0, y0, z0, x1, y1, z1 = box_min_max(box)
+        triangles.extend(
+            [
+                [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0]],
+                [[x0, y0, z0], [x1, y1, z0], [x0, y1, z0]],
+                [[x0, y0, z1], [x1, y1, z1], [x1, y0, z1]],
+                [[x0, y0, z1], [x0, y1, z1], [x1, y1, z1]],
+                [[x0, y0, z0], [x0, y1, z0], [x0, y1, z1]],
+                [[x0, y0, z0], [x0, y1, z1], [x0, y0, z1]],
+                [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1]],
+                [[x1, y0, z0], [x1, y1, z1], [x1, y1, z0]],
+                [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1]],
+                [[x0, y1, z0], [x1, y1, z1], [x0, y1, z1]],
+                [[x0, y0, z0], [x0, y0, z1], [x1, y0, z1]],
+                [[x0, y0, z0], [x1, y0, z1], [x1, y0, z0]],
+            ]
+        )
+    return pack_triangles_xyz(triangles)
+
+
 def pack_triangles_xyz_rgba(triangles):
     out = bytearray()
     for tri in triangles:
@@ -409,6 +446,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_triangles_xyz(mesh["triangles_xyz"])
             elif mesh.get("quads_xyz") is not None:
                 payload = pack_quads_xyz(mesh["quads_xyz"])
+            elif mesh.get("boxes_xyz") is not None:
+                payload = pack_boxes_xyz(mesh["boxes_xyz"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""
