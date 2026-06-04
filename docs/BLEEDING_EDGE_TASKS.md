@@ -61,10 +61,10 @@ This file is the concise task view. Detailed implementation status lives in
    - Default AVM gate breadth now includes portable stdlib bytes/buffer views,
      u8 buffer iteration, checked integer casts, crypto hash vectors, iterator
      ranges, and Scene3D package assets.
-   - Remaining required work: Note-side Swift UX integration, allocator ownership
-     or explicit single-VM guard, stderr or richer structured diagnostic capture
-     if the Note UI needs it, app-scale compiler-in-AVM programs, and CI
-     coverage.
+   - Remaining required work: Note-side Swift UX integration, same-handle
+     host-thread confinement guardrails in higher-level SDK wrappers, stderr or
+     richer structured diagnostic capture if the Note UI needs it, app-scale
+     compiler-in-AVM programs, and CI coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
    - Stdlib OBC gate: `make verify-libavm-ios` now also runs

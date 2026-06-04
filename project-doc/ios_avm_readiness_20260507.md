@@ -95,13 +95,17 @@ allocator/lifecycle hardening.
 - Lifecycle hardening after 2026-05-28: `avm_new()` returns `NULL` on VM/stack
   allocation failure, and iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK`
   so production packaging does not hard-abort on teardown leak diagnostics.
+- Lifecycle hardening after 2026-06-04: AVM allocation owner, unbudgeted-allocation,
+  and last-allocation-error context is thread-local. Separate `LibAVM` handles may
+  run on separate host threads without sharing allocator owner state; a single
+  VM/handle remains host-thread-confined.
 - iOS host-effect hardening after 2026-05-28: `AVM_IOS_EMBED` compiles out the
   unavailable `system()` path; PROC must use virtual fixtures/defaults in iOS
   embed builds.
 - Runtime maturity: `docs/STATUS.md` and `docs/DESIGN.md` already mark the AVM backend as rolling: single-threaded, `malloc` heap, no GC, rolling opcode/ABI stability, rolling capability/budget fields, and deterministic scheduling still in progress.
 - Remaining API/embedding risks: `lib/avm/avm.h` has fixed `MAX_GLOBALS`,
-  `MAX_FRAMES`, and `AVM_STACK_SIZE`; allocator ownership in `lib/avm/avm_alloc.c`
-  is held in global state; no Swift/Objective-C app-host gate exists yet.
+  `MAX_FRAMES`, and `AVM_STACK_SIZE`; same-handle concurrent host entry is not
+  supported; no Swift/Objective-C app-host gate exists yet.
 - Curated AVM gate: `make avm && make test-avm` passes in `build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log`.
 - Current AVM gate: `make test-avm` passes in `build/logs/make_test_avm_20260528_libavm_ios_embed_v1.log`.
 - Current iOS full-chain gate: `make verify-libavm-ios` passes in
@@ -136,7 +140,11 @@ allocator/lifecycle hardening.
   `stdlib_bundle.obc`, feeds source/stdlib resources through VirtualFS, runs the
   compiler with deterministic stdlib-OBC argv, and returns output OBC plus
   compiler diagnostics/result data to the host app.
-- P1/W4: Finish embedder lifecycle. Make allocator ownership reentrant or explicitly single-VM guarded, document the app failure model, and keep host-only paths unavailable in iOS builds.
+- Done 2026-06-04: Finish allocator-owner lifecycle hardening. Allocation owner,
+  unbudgeted-allocation, and last-allocation-error context is thread-local; the
+  desktop `LibAVM` C verifier now runs a two-thread embedder smoke with separate
+  handles. App failure model: separate handles may run on separate host threads,
+  but a single VM/handle is host-thread-confined.
 - P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.
 
 ## Verification Artifacts

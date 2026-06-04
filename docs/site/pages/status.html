@@ -585,9 +585,10 @@
 </ul>
 <p>  capability/budget fields.</p>
 <ul>
-<li><code>lib/avm/avm_alloc.c</code> uses global allocation-owner state, which is not a polished</li>
+<li><code>lib/avm/avm_alloc.c</code> keeps allocation-owner, unbudgeted-allocation, and</li>
 </ul>
-<p>  reentrant embedder story.</p>
+<p>  last-allocation-error context thread-local. Separate <code>LibAVM</code> handles may run</p>
+<p>  on separate host threads; a single VM/handle remains host-thread-confined.</p>
 <ul>
 <li>Curated <code>make avm &amp;&amp; make test-avm</code> passes through</li>
 </ul>
@@ -652,7 +653,10 @@
 <p>  install/run APIs into the app UX, including diagnostics display and permission</p>
 <p>  prompts;</p>
 <ul>
-<li>allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;</li>
+<li>same-handle host-thread confinement must remain documented and guarded in SDK</li>
+</ul>
+<p>  wrappers as higher-level host APIs grow;</p>
+<ul>
 <li>continued manifest promotion for non-curated AVM fixtures where runtime cost is</li>
 </ul>
 <p>  justified;</p>
@@ -714,9 +718,9 @@
 <ul>
 <li>Keep <code>make verify-libavm-ios</code> green.</li>
 <li>Add Swift/Objective-C smoke host.</li>
-<li>Finish lifecycle maturity: allocator ownership/reentrancy, explicit resource</li>
+<li>Preserve allocator thread-local owner isolation, explicit resource loading, and</li>
 </ul>
-<p>     loading, and app-level failure policy.</p>
+<p>     app-level failure policy as SDK wrappers grow.</p>
 <ul>
 <li>Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs</li>
 </ul>

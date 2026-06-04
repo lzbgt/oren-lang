@@ -55,6 +55,7 @@ OREN
 cat > "$SMOKE_C" <<'SMOKE'
 #include "avm_embed.h"
 
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,6 +90,68 @@ static int read_file(const char* path, uint8_t** out_data, size_t* out_len) {
     *out_data = data;
     *out_len = (size_t)len;
     return 0;
+}
+
+typedef struct {
+    const char* obc_path;
+    int worker_id;
+} WorkerArg;
+
+static int run_embed_smoke_once(const char* obc_path, int worker_id) {
+    uint8_t* obc = NULL;
+    size_t obc_len = 0;
+    if (read_file(obc_path, &obc, &obc_len) != 0) return 1;
+
+    AvmEmbedConfig config;
+    AvmEmbedResult result;
+    avm_embed_config_default(&config);
+    avm_embed_result_clear(&result);
+    AvmEmbedHandle* handle = avm_embed_open(&config, &result);
+    if (!handle) {
+        free(obc);
+        return 2;
+    }
+    if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) {
+        avm_embed_close(handle);
+        free(obc);
+        return 3;
+    }
+    char vfs_path[64];
+    char vfs_body[64];
+    snprintf(vfs_path, sizeof(vfs_path), "/thread/%d.txt", worker_id);
+    snprintf(vfs_body, sizeof(vfs_body), "worker-%d", worker_id);
+    if (avm_embed_vfs_put(handle, vfs_path, (const uint8_t*)vfs_body, strlen(vfs_body), &result) != AVM_EMBED_OK) {
+        avm_embed_close(handle);
+        free(obc);
+        return 4;
+    }
+    if (avm_embed_run_obc_bytes(handle, obc, obc_len, &result) != AVM_EMBED_OK || result.exit_code != 0) {
+        avm_embed_close(handle);
+        free(obc);
+        return 5;
+    }
+    uint8_t* out = NULL;
+    size_t out_len = 0;
+    if (avm_embed_output_get(handle, &out, &out_len, &result) != AVM_EMBED_OK) {
+        avm_embed_close(handle);
+        free(obc);
+        return 6;
+    }
+    int ok = out && out_len >= strlen("desktop-libavm-ok") &&
+             memmem(out, out_len, "desktop-libavm-ok", strlen("desktop-libavm-ok")) != NULL;
+    avm_embed_free_bytes(out);
+    avm_embed_close(handle);
+    free(obc);
+    return ok ? 0 : 7;
+}
+
+static void* worker_main(void* arg_ptr) {
+    WorkerArg* arg = (WorkerArg*)arg_ptr;
+    for (int i = 0; i < 16; i++) {
+        int rc = run_embed_smoke_once(arg->obc_path, arg->worker_id * 1000 + i);
+        if (rc != 0) return (void*)(intptr_t)rc;
+    }
+    return (void*)0;
 }
 
 int main(int argc, char** argv) {
@@ -143,6 +206,29 @@ int main(int argc, char** argv) {
     if (!ok) {
         fprintf(stderr, "missing captured output\n");
         return 8;
+    }
+    WorkerArg args[2] = {
+        { argv[1], 1 },
+        { argv[1], 2 },
+    };
+    pthread_t threads[2];
+    for (int i = 0; i < 2; i++) {
+        if (pthread_create(&threads[i], NULL, worker_main, &args[i]) != 0) {
+            fprintf(stderr, "thread create failed\n");
+            return 9;
+        }
+    }
+    for (int i = 0; i < 2; i++) {
+        void* thread_status = NULL;
+        if (pthread_join(threads[i], &thread_status) != 0) {
+            fprintf(stderr, "thread join failed\n");
+            return 10;
+        }
+        int thread_rc = (int)(intptr_t)thread_status;
+        if (thread_rc != 0) {
+            fprintf(stderr, "thread embed smoke failed: %d\n", thread_rc);
+            return 11;
+        }
     }
     puts("OK: desktop LibAVM C embed smoke passed");
     return 0;

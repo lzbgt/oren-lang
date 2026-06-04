@@ -484,8 +484,9 @@ Facts from the 2026-05-28 implementation pass:
   cleanup should keep text helpers explicit at API boundaries.
 - `lib/avm/avm.h` still exposes fixed global/frame/stack limits and rolling
   capability/budget fields.
-- `lib/avm/avm_alloc.c` uses global allocation-owner state, which is not a polished
-  reentrant embedder story.
+- `lib/avm/avm_alloc.c` keeps allocation-owner, unbudgeted-allocation, and
+  last-allocation-error context thread-local. Separate `LibAVM` handles may run
+  on separate host threads; a single VM/handle remains host-thread-confined.
 - Curated `make avm && make test-avm` passes through
   `tests/avm/release_manifest.json`, not Makefile case arms.
 - The manifest records fixture path, release-gate inclusion, expected exit/error,
@@ -536,7 +537,8 @@ Missing for production:
 - Note-side Swift integration of `OrenAVMCompilerKit` and the package-store
   install/run APIs into the app UX, including diagnostics display and permission
   prompts;
-- allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
+- same-handle host-thread confinement must remain documented and guarded in SDK
+  wrappers as higher-level host APIs grow;
 - continued manifest promotion for non-curated AVM fixtures where runtime cost is
   justified;
 - broader app-scale compiler-in-AVM programs, richer diagnostics capture, and CI
@@ -582,8 +584,8 @@ Working evidence:
 1. **AVM iOS embeddability + compiler-in-AVM release gate**
    - Keep `make verify-libavm-ios` green.
    - Add Swift/Objective-C smoke host.
-   - Finish lifecycle maturity: allocator ownership/reentrancy, explicit resource
-     loading, and app-level failure policy.
+   - Preserve allocator thread-local owner isolation, explicit resource loading, and
+     app-level failure policy as SDK wrappers grow.
    - Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs
      and CI-hosted lifecycle checks.
 

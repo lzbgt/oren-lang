@@ -19,6 +19,16 @@
 // Large RAW/BUF blocks: prefer mmap so memory can be returned to OS on free.
 #define AVM_RAW_MMAP_THRESHOLD ((size_t)(1u << 20)) // 1 MiB
 
+#if defined(_MSC_VER)
+#define AVM_THREAD_LOCAL __declspec(thread)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define AVM_THREAD_LOCAL _Thread_local
+#elif defined(__GNUC__) || defined(__clang__)
+#define AVM_THREAD_LOCAL __thread
+#else
+#define AVM_THREAD_LOCAL
+#endif
+
 typedef struct AvmAllocHdr {
     uint64_t magic;
     AvmVM* owner;
@@ -39,9 +49,11 @@ typedef struct AvmAllocHdr {
 static const uint64_t AVM_ALLOC_MAGIC = 0x41564d414c4c4f43ull; // "AVMALLOC"
 static const uint8_t AVM_ALLOC_FLAG_FREELIST = 1u << 0;
 
-static AvmVM* g_alloc_owner = NULL;
-static int g_alloc_unbudgeted = 0;
-static int g_last_alloc_err = 0; // 0=none, else AVM_ERR_* (budget/internal)
+// Allocation owner context is host-thread-local. Distinct embedder handles may
+// run on distinct host threads; a single VM/handle is still thread-confined.
+static AVM_THREAD_LOCAL AvmVM* g_alloc_owner = NULL;
+static AVM_THREAD_LOCAL int g_alloc_unbudgeted = 0;
+static AVM_THREAD_LOCAL int g_last_alloc_err = 0; // 0=none, else AVM_ERR_* (budget/internal)
 
 void avm_alloc_owner_push(AvmVM* vm, AvmVM** prev) {
     if (prev) *prev = g_alloc_owner;
