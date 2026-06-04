@@ -495,16 +495,60 @@ cat > "$TMP_DIR/sdk_smoke.m" <<'SMOKE'
 #endif
 #import "OrenAVMKit/OrenAVMKit.h"
 #include "embed_chain_obc.h"
+#include "cancel_spin_obc.h"
 #include "host_fs_chain_obc.h"
 
+#include <pthread.h>
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static uint64_t host_now_ns(void) {
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+typedef struct {
+    __unsafe_unretained OrenAVMRuntime* runtime;
+    __unsafe_unretained NSData* obc;
+    int saw_result;
+    NSInteger status;
+} SDKConcurrentRunCtx;
+
+static void* sdk_concurrent_run_main(void* arg) {
+    @autoreleasepool {
+        SDKConcurrentRunCtx* ctx = (SDKConcurrentRunCtx*)arg;
+        NSError* error = nil;
+        OrenAVMRunResult* result = [ctx->runtime runOBCData:ctx->obc error:&error];
+        ctx->saw_result = result != nil;
+        ctx->status = result ? result.status : (error ? error.code : -1);
+    }
+    return NULL;
+}
+
+static int run_sdk_concurrent_run_guard_smoke(void) {
+    OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig deterministicDefaults];
+    cfg.gasLimit = 0;
+    OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
+    if (!runtime) return 170;
+    NSData* spinObc = [NSData dataWithBytes:kCancelSpinObc length:kCancelSpinObcLen];
+    SDKConcurrentRunCtx ctx = { runtime, spinObc, 0, 0 };
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, sdk_concurrent_run_main, &ctx) != 0) return 171;
+    usleep(10000);
+    NSError* error = nil;
+    OrenAVMRunResult* second = [runtime runOBCData:spinObc error:&error];
+    if (second != nil) return 172;
+    if (!error || error.code != AVM_EMBED_ERR_INVALID_ARG) return 173;
+    NSString* message = error.userInfo[NSLocalizedDescriptionKey];
+    if (![message containsString:@"already running"]) return 174;
+    if (![runtime requestCancelWithError:&error]) return 175;
+    if (pthread_join(thread, NULL) != 0) return 176;
+    if (ctx.saw_result || ctx.status != AVM_EMBED_ERR_VM) return 177;
+    if (![runtime clearCancelWithError:&error]) return 178;
+    return 0;
 }
 
 int main(void) {
@@ -539,6 +583,8 @@ int main(void) {
         if (cfg.liveNetworkMaxSessions == 0) return 80;
         if (cfg.liveNetworkSessionByteLimitBytes == 0) return 81;
         if (sessionByteLimit) cfg.liveNetworkSessionByteLimitBytes = (uint64_t)sessionByteLimit.longLongValue;
+        int concurrentGuard = run_sdk_concurrent_run_guard_smoke();
+        if (concurrentGuard != 0) return concurrentGuard;
 
         OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
         if (!runtime) return 35;

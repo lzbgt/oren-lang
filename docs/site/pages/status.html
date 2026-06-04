@@ -653,10 +653,6 @@
 <p>  install/run APIs into the app UX, including diagnostics display and permission</p>
 <p>  prompts;</p>
 <ul>
-<li>same-handle host-thread confinement must remain documented and guarded in SDK</li>
-</ul>
-<p>  wrappers as higher-level host APIs grow;</p>
-<ul>
 <li>continued manifest promotion for non-curated AVM fixtures where runtime cost is</li>
 </ul>
 <p>  justified;</p>
@@ -718,9 +714,10 @@
 <ul>
 <li>Keep <code>make verify-libavm-ios</code> green.</li>
 <li>Add Swift/Objective-C smoke host.</li>
-<li>Preserve allocator thread-local owner isolation, explicit resource loading, and</li>
+<li>Preserve allocator thread-local owner isolation, one-run-per-runtime SDK</li>
 </ul>
-<p>     app-level failure policy as SDK wrappers grow.</p>
+<p>     guardrails, explicit resource loading, and app-level failure policy as SDK</p>
+<p>     wrappers grow.</p>
 <ul>
 <li>Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs</li>
 </ul>

@@ -159,6 +159,11 @@
 <p>  run on separate host threads without sharing allocator owner state; a single</p>
 <p>  VM/handle remains host-thread-confined.</p>
 <ul>
+<li>SDK lifecycle hardening after 2026-06-04: <code>OrenAVMRuntime</code> rejects a second</li>
+</ul>
+<p>  concurrent <code>runOBCData:error:</code> on the same runtime with an SDK error while still</p>
+<p>  allowing cross-thread <code>requestCancelWithError:</code> for active runs.</p>
+<ul>
 <li>iOS host-effect hardening after 2026-05-28: <code>AVM_IOS_EMBED</code> compiles out the</li>
 </ul>
 <p>  unavailable <code>system()</code> path; PROC must use virtual fixtures/defaults in iOS</p>
@@ -167,8 +172,7 @@
 <li>Runtime maturity: <code>docs/STATUS.md</code> and <code>docs/DESIGN.md</code> already mark the AVM backend as rolling: single-threaded, <code>malloc</code> heap, no GC, rolling opcode/ABI stability, rolling capability/budget fields, and deterministic scheduling still in progress.</li>
 <li>Remaining API/embedding risks: <code>lib/avm/avm.h</code> has fixed <code>MAX_GLOBALS</code>,</li>
 </ul>
-<p>  <code>MAX_FRAMES</code>, and <code>AVM_STACK_SIZE</code>; same-handle concurrent host entry is not</p>
-<p>  supported; no Swift/Objective-C app-host gate exists yet.</p>
+<p>  <code>MAX_FRAMES</code>, and <code>AVM_STACK_SIZE</code>; no Swift/Objective-C app-host gate exists yet.</p>
 <ul>
 <li>Curated AVM gate: <code>make avm &amp;&amp; make test-avm</code> passes in <code>build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log</code>.</li>
 <li>Current AVM gate: <code>make test-avm</code> passes in <code>build/logs/make_test_avm_20260528_libavm_ios_embed_v1.log</code>.</li>
@@ -220,6 +224,12 @@
 <p>  desktop <code>LibAVM</code> C verifier now runs a two-thread embedder smoke with separate</p>
 <p>  handles. App failure model: separate handles may run on separate host threads,</p>
 <p>  but a single VM/handle is host-thread-confined.</p>
+<ul>
+<li>Done 2026-06-04: Add SDK same-runtime run guard. <code>OrenAVMRuntime</code> enforces one</li>
+</ul>
+<p>  active <code>runOBCData:error:</code> per runtime, returns a structured busy error for</p>
+<p>  concurrent run attempts, and keeps <code>requestCancelWithError:</code> callable from</p>
+<p>  another host thread.</p>
 <ul>
 <li>P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.</li>
 </ul>

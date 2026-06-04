@@ -116,6 +116,9 @@ typedef NS_ENUM(NSInteger, OrenAVMPackageInstallPolicy) {
 
 @interface OrenAVMRuntime : NSObject
 
+// A runtime owns one AVM handle. Calls to runOBCData: are exclusive per runtime:
+// create a separate runtime for concurrent program execution. requestCancelWithError:
+// is intentionally callable from another host thread while a run is active.
 - (instancetype)initWithConfig:(OrenAVMRuntimeConfig*)config NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 

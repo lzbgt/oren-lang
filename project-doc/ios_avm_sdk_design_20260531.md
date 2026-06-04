@@ -137,6 +137,9 @@ Core Swift/Objective-C wrapper around `LibAVM.xcframework`.
 - Loads bundled or downloaded `.obc` bytes.
 - Provides default deterministic config and interactive config.
 - Runs AVM on a worker queue, never the iOS main thread.
+- Enforces one active `runOBCData:error:` per runtime. Apps that need
+  concurrent OBC execution must create separate runtimes; cancellation remains
+  cross-thread through `requestCancelWithError:`.
 - Surfaces `AvmEmbedResult`, stdout, diagnostics, and package metadata.
 - Owns lifecycle rules for cancellation, teardown, and app backgrounding.
 

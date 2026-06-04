@@ -99,13 +99,15 @@ allocator/lifecycle hardening.
   and last-allocation-error context is thread-local. Separate `LibAVM` handles may
   run on separate host threads without sharing allocator owner state; a single
   VM/handle remains host-thread-confined.
+- SDK lifecycle hardening after 2026-06-04: `OrenAVMRuntime` rejects a second
+  concurrent `runOBCData:error:` on the same runtime with an SDK error while still
+  allowing cross-thread `requestCancelWithError:` for active runs.
 - iOS host-effect hardening after 2026-05-28: `AVM_IOS_EMBED` compiles out the
   unavailable `system()` path; PROC must use virtual fixtures/defaults in iOS
   embed builds.
 - Runtime maturity: `docs/STATUS.md` and `docs/DESIGN.md` already mark the AVM backend as rolling: single-threaded, `malloc` heap, no GC, rolling opcode/ABI stability, rolling capability/budget fields, and deterministic scheduling still in progress.
 - Remaining API/embedding risks: `lib/avm/avm.h` has fixed `MAX_GLOBALS`,
-  `MAX_FRAMES`, and `AVM_STACK_SIZE`; same-handle concurrent host entry is not
-  supported; no Swift/Objective-C app-host gate exists yet.
+  `MAX_FRAMES`, and `AVM_STACK_SIZE`; no Swift/Objective-C app-host gate exists yet.
 - Curated AVM gate: `make avm && make test-avm` passes in `build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log`.
 - Current AVM gate: `make test-avm` passes in `build/logs/make_test_avm_20260528_libavm_ios_embed_v1.log`.
 - Current iOS full-chain gate: `make verify-libavm-ios` passes in
@@ -145,6 +147,10 @@ allocator/lifecycle hardening.
   desktop `LibAVM` C verifier now runs a two-thread embedder smoke with separate
   handles. App failure model: separate handles may run on separate host threads,
   but a single VM/handle is host-thread-confined.
+- Done 2026-06-04: Add SDK same-runtime run guard. `OrenAVMRuntime` enforces one
+  active `runOBCData:error:` per runtime, returns a structured busy error for
+  concurrent run attempts, and keeps `requestCancelWithError:` callable from
+  another host thread.
 - P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.
 
 ## Verification Artifacts

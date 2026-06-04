@@ -90,6 +90,7 @@ static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
     NSMutableDictionary<NSNumber*, NSString*>* _networkSessionKinds;
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSessionByteCounts;
     uint32_t _nextNetworkSessionId;
+    BOOL _runInProgress;
 }
 
 static uint32_t OrenAVMRuntimeRegisterNetworkSession(OrenAVMRuntime* runtime, int fd, NSString* kind) {
@@ -788,6 +789,24 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     return _handle;
 }
 
+- (BOOL)beginExclusiveRunWithError:(NSError**)error {
+    @synchronized (self) {
+        if (_runInProgress) {
+            return OrenAVMKitAssignSDKError(error,
+                                           AVM_EMBED_ERR_INVALID_ARG,
+                                           @"OrenAVMRuntime is already running; use one runtime per concurrent run or call requestCancelWithError:");
+        }
+        _runInProgress = YES;
+    }
+    return YES;
+}
+
+- (void)endExclusiveRun {
+    @synchronized (self) {
+        _runInProgress = NO;
+    }
+}
+
 - (BOOL)setArgv:(NSArray<NSString*>*)argv error:(NSError**)error {
     NSUInteger count = argv.count;
     const char** cargv = NULL;
@@ -1052,21 +1071,25 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 }
 
 - (OrenAVMRunResult*)runOBCData:(NSData*)obcData error:(NSError**)error {
+    if (![self beginExclusiveRunWithError:error]) return nil;
+    OrenAVMRunResult* runResult = nil;
     AvmEmbedResult result;
     int rc = avm_embed_run_obc_bytes(_handle, obcData.bytes, obcData.length, &result);
     if (rc != AVM_EMBED_OK) {
         OrenAVMKitAssignError(error, @"failed to run OBC", &result);
-        return nil;
+    } else {
+        uint8_t* stdoutBytes = NULL;
+        size_t stdoutLen = 0;
+        AvmEmbedResult outputResult;
+        NSData* stdoutData = [NSData data];
+        if (avm_embed_output_get(_handle, &stdoutBytes, &stdoutLen, &outputResult) == AVM_EMBED_OK) {
+            stdoutData = [NSData dataWithBytes:stdoutBytes length:stdoutLen];
+            avm_embed_free_bytes(stdoutBytes);
+        }
+        runResult = [[OrenAVMRunResult alloc] initWithResult:&result stdoutData:stdoutData];
     }
-    uint8_t* stdoutBytes = NULL;
-    size_t stdoutLen = 0;
-    AvmEmbedResult outputResult;
-    NSData* stdoutData = [NSData data];
-    if (avm_embed_output_get(_handle, &stdoutBytes, &stdoutLen, &outputResult) == AVM_EMBED_OK) {
-        stdoutData = [NSData dataWithBytes:stdoutBytes length:stdoutLen];
-        avm_embed_free_bytes(stdoutBytes);
-    }
-    return [[OrenAVMRunResult alloc] initWithResult:&result stdoutData:stdoutData];
+    [self endExclusiveRun];
+    return runResult;
 }
 
 - (BOOL)requestCancelWithError:(NSError**)error {

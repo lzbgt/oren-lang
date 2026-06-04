@@ -537,8 +537,6 @@ Missing for production:
 - Note-side Swift integration of `OrenAVMCompilerKit` and the package-store
   install/run APIs into the app UX, including diagnostics display and permission
   prompts;
-- same-handle host-thread confinement must remain documented and guarded in SDK
-  wrappers as higher-level host APIs grow;
 - continued manifest promotion for non-curated AVM fixtures where runtime cost is
   justified;
 - broader app-scale compiler-in-AVM programs, richer diagnostics capture, and CI
@@ -584,8 +582,9 @@ Working evidence:
 1. **AVM iOS embeddability + compiler-in-AVM release gate**
    - Keep `make verify-libavm-ios` green.
    - Add Swift/Objective-C smoke host.
-   - Preserve allocator thread-local owner isolation, explicit resource loading, and
-     app-level failure policy as SDK wrappers grow.
+   - Preserve allocator thread-local owner isolation, one-run-per-runtime SDK
+     guardrails, explicit resource loading, and app-level failure policy as SDK
+     wrappers grow.
    - Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs
      and CI-hosted lifecycle checks.
 
