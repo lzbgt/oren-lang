@@ -331,6 +331,56 @@ def gltf_multiply_rgba(a, b):
     return tuple(round_half_away(float(a[i]) * float(b[i]) / 255.0) for i in range(4))
 
 
+def gltf_morph_color_deltas(doc, accessor_index, base_dir):
+    accessors = doc.get("accessors", [])
+    accessor = accessors[int(accessor_index)]
+    values = gltf_accessor_values(doc, int(accessor_index), base_dir)
+    component_type = int(accessor.get("componentType"))
+    normalized = bool(accessor.get("normalized", False))
+    out = []
+    for value in values:
+        channels = []
+        for channel in value[:4]:
+            if component_type == 5126:
+                channels.append(float(channel) * 255.0)
+            elif normalized:
+                if component_type == 5120:
+                    channels.append(max(-128, min(127, int(channel))) * 255.0 / 127.0)
+                elif component_type == 5121:
+                    channels.append(max(0, min(255, int(channel))))
+                elif component_type == 5122:
+                    channels.append(max(-32768, min(32767, int(channel))) * 255.0 / 32767.0)
+                elif component_type == 5123:
+                    channels.append(max(0, min(65535, int(channel))) * 255.0 / 65535.0)
+                else:
+                    raise SystemExit("scene glTF normalized COLOR_0 morph componentType unsupported")
+            else:
+                channels.append(float(channel))
+        while len(channels) < 4:
+            channels.append(0.0)
+        out.append(tuple(channels[:4]))
+    return out
+
+
+def gltf_apply_color_morphs(doc, primitive, mesh_obj, node_weights, base_dir, colors):
+    targets = primitive.get("targets")
+    if targets is None or colors is None:
+        return colors
+    weights = gltf_weights(node_weights if node_weights is not None else mesh_obj.get("weights"), len(targets), "morph")
+    out = [list(color) for color in colors]
+    for target_index, target in enumerate(targets):
+        weight = weights[target_index]
+        if weight == 0.0 or target.get("COLOR_0") is None:
+            continue
+        deltas = gltf_morph_color_deltas(doc, int(target["COLOR_0"]), base_dir)
+        if len(deltas) != len(out):
+            raise SystemExit("scene glTF COLOR_0 morph target count must match COLOR_0 count")
+        for i, delta in enumerate(deltas):
+            for channel in range(4):
+                out[i][channel] = max(0, min(255, round_half_away(float(out[i][channel]) + delta[channel] * weight)))
+    return [tuple(color) for color in out]
+
+
 def mat_identity():
     return [
         [1.0, 0.0, 0.0, 0.0],
@@ -524,6 +574,7 @@ def gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, base_dir, verti
             colors = gltf_accessor_color(doc, int(attributes["COLOR_0"]), base_dir)
             if len(colors) != len(positions):
                 raise SystemExit("scene glTF COLOR_0 count must match POSITION count")
+            colors = gltf_apply_color_morphs(doc, primitive, mesh_obj, node_weights, base_dir, colors)
         vertex_colors.extend(colors if colors is not None else [None] * len(positions))
         local_indices = gltf_indices_for_primitive(doc, primitive, len(positions), base_dir)
         local_faces = gltf_primitive_faces(local_indices, mode)

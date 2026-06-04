@@ -168,6 +168,42 @@ def verify_scene3d_gltf_lowering():
     if struct.pack("<iii", 4, 0, 0) not in data or struct.pack("<iii", 6, 0, 0) in data:
         raise SystemExit("scene glTF node-weight POSITION morph override did not produce expected coordinates")
 
+    color_morph_payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        color_morph_payload += struct.pack("<fff", *vertex)
+    for color in ((0.0, 0.0, 0.0, 1.0), (0.25, 0.0, 0.0, 1.0), (0.0, 0.25, 0.0, 1.0)):
+        color_morph_payload += struct.pack("<ffff", *color)
+    for delta in ((0.5, 0.0, 0.0, 0.0), (0.5, 0.0, 0.0, 0.0), (0.0, 0.5, 0.0, 0.0)):
+        color_morph_payload += struct.pack("<ffff", *delta)
+    color_morph_uri = "data:application/octet-stream;base64," + base64.b64encode(color_morph_payload).decode("ascii")
+    color_morph_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": color_morph_uri, "byteLength": len(color_morph_payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 48},
+            {"buffer": 0, "byteOffset": 84, "byteLength": 48},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC4"},
+            {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"},
+        ],
+        "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [0.5, 1.0, 1.0, 1.0]}}],
+        "meshes": [{
+            "weights": [0.5],
+            "primitives": [{
+                "attributes": {"POSITION": 0, "COLOR_0": 1},
+                "targets": [{"COLOR_0": 2}],
+                "material": 0,
+            }],
+        }],
+    }
+    scene["meshes"][0] = {"kind": "triangles_rgba", "id": 1, "gltf_json": color_morph_gltf}
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if b"\x20\x2a\x00\xff" not in data:
+        raise SystemExit("scene glTF COLOR_0 morph target lowering did not produce expected averaged RGBA")
+
     topo_payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)):
         topo_payload += struct.pack("<fff", *vertex)
