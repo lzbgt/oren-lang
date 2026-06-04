@@ -1446,6 +1446,19 @@ run_step_checked "math cbrt smoke (bytecode)" "$math_cbrt_log" \
   "$compiler" test "$math_cbrt_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_cbrt_log"
 
+echo "== math inverse trig smoke (native/C/bytecode) =="
+math_inverse_trig_src="tests/modules/test_math_inverse_trig.oren"
+math_inverse_trig_log="build/logs/${compiler_base}_math_inverse_trig.log"
+rm -f "$math_inverse_trig_log" 2>/dev/null || true
+
+run_step_checked "math inverse trig smoke (native)" "$math_inverse_trig_log" \
+  "$compiler" test "$math_inverse_trig_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math inverse trig smoke (C)" "$math_inverse_trig_log" \
+  "$compiler" test "$math_inverse_trig_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math inverse trig smoke (bytecode)" "$math_inverse_trig_log" \
+  "$compiler" test "$math_inverse_trig_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_inverse_trig_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

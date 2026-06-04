@@ -104,6 +104,7 @@ fn _arm64_inverse_cond(cond) {
     if cond == 0 { return 1 }   // EQ -> NE
     if cond == 1 { return 0 }   // NE -> EQ
     if cond == 4 { return 5 }   // MI -> PL
+    if cond == 5 { return 4 }   // PL -> MI
     if cond == 10 { return 11 } // GE -> LT
     if cond == 11 { return 10 } // LT -> GE
     if cond == 12 { return 13 } // GT -> LE

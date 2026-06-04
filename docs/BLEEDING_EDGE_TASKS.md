@@ -271,7 +271,7 @@ This file is the concise task view. Detailed implementation status lives in
    - Current retained surface includes `pow` / `power` for integer, negative,
      fractional positive-base, infinity edge, and negative-base real-domain cases,
      `cbrt` with subnormal/sign/non-finite coverage, plus release-gated `sin`,
-     `cos`, `tan`, `atan`, and `atan2` bytecode coverage.
+     `cos`, `tan`, `atan`, `atan2`, `asin`, and `acos` bytecode coverage.
    - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
 5. **Native scheduler / green-task integration**

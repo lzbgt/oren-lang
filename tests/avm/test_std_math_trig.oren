@@ -41,6 +41,16 @@ assert_close(math.atan2(-1.0, 1.0), 0.0 - PI / 4.0, 1e-12, 25, "atan2 q4")
 assert_close(math.atan2(0.0, -1.0), PI, 1e-12, 26, "atan2 positive zero negative x")
 assert_close(math.atan2(1.0, 0.0), PI / 2.0, 1e-12, 27, "atan2 positive y zero x")
 
+assert_close(math.asin(0.0), 0.0, 0.0, 70, "asin zero")
+assert_close(math.asin(0.5), PI / 6.0, 1e-10, 71, "asin half")
+assert_close(math.asin(-0.5), 0.0 - PI / 6.0, 1e-10, 72, "asin negative half")
+assert_close(math.asin(1.0), PI / 2.0, 1e-12, 73, "asin one")
+assert_close(math.asin(-1.0), 0.0 - PI / 2.0, 1e-12, 74, "asin negative one")
+assert_close(math.acos(1.0), 0.0, 0.0, 75, "acos one")
+assert_close(math.acos(0.5), PI / 3.0, 1e-10, 76, "acos half")
+assert_close(math.acos(-0.5), 2.0 * PI / 3.0, 1e-10, 77, "acos negative half")
+assert_close(math.acos(-1.0), PI, 1e-12, 78, "acos negative one")
+
 var x = 12345.6789
 var xp = x + TAU
 assert_true(xp != x, 30, "x+tau must be representable")
@@ -93,6 +103,10 @@ assert_true(oren_is_err(math.cos(math.inf())), 61, "cos(inf) must err")
 assert_true(oren_is_err(math.atan(0.0 / 0.0)), 62, "atan(NaN) must err")
 assert_true(oren_is_err(math.tan(math.inf())), 63, "tan(inf) must err")
 assert_true(oren_is_err(math.tan(0.0 / 0.0)), 64, "tan(NaN) must err")
+assert_true(oren_is_err(math.asin(1.1)), 65, "asin domain must err")
+assert_true(oren_is_err(math.acos(-1.1)), 66, "acos domain must err")
+assert_true(oren_is_err(math.asin(0.0 / 0.0)), 67, "asin(NaN) must err")
+assert_true(oren_is_err(math.acos(0.0 / 0.0)), 68, "acos(NaN) must err")
 
 print("avm std math trig OK")
 exit(0)

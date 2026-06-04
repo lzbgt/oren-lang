@@ -1,0 +1,55 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math inverse trig FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var PI = math.pi()
+
+var asin_zero: f64 = math.asin(0.0)
+assert_close(asin_zero, 0.0, 0.0, 10, "asin zero")
+var asin_half: f64 = math.asin(0.5)
+assert_close(asin_half, PI / 6.0, 1e-10, 11, "asin half")
+var asin_neg_half: f64 = math.asin(0.0 - 0.5)
+assert_close(asin_neg_half, 0.0 - PI / 6.0, 1e-10, 12, "asin negative half")
+var asin_one: f64 = math.asin(1.0)
+assert_close(asin_one, PI / 2.0, 1e-12, 13, "asin one")
+var asin_neg_one: f64 = math.asin(0.0 - 1.0)
+assert_close(asin_neg_one, 0.0 - PI / 2.0, 1e-12, 14, "asin negative one")
+
+var acos_one: f64 = math.acos(1.0)
+assert_close(acos_one, 0.0, 0.0, 20, "acos one")
+var acos_half: f64 = math.acos(0.5)
+assert_close(acos_half, PI / 3.0, 1e-10, 21, "acos half")
+var acos_neg_half: f64 = math.acos(0.0 - 0.5)
+assert_close(acos_neg_half, 2.0 * PI / 3.0, 1e-10, 22, "acos negative half")
+var acos_neg_one: f64 = math.acos(0.0 - 1.0)
+assert_close(acos_neg_one, PI, 1e-12, 23, "acos negative one")
+
+var asin_quarter: f64 = math.asin(0.25)
+assert_close(math.sin(asin_quarter), 0.25, 1e-10, 30, "sin asin roundtrip")
+var acos_quarter: f64 = math.acos(0.25)
+assert_close(math.cos(acos_quarter), 0.25, 1e-10, 31, "cos acos roundtrip")
+
+assert_true(oren_is_err(math.asin(1.1)), 40, "asin domain")
+assert_true(oren_is_err(math.asin(0.0 - 1.1)), 41, "asin negative domain")
+assert_true(oren_is_err(math.acos(1.1)), 42, "acos domain")
+assert_true(oren_is_err(math.acos(0.0 - 1.1)), 43, "acos negative domain")
+assert_true(oren_is_err(math.asin(0.0 / 0.0)), 44, "asin nan")
+assert_true(oren_is_err(math.acos(0.0 / 0.0)), 45, "acos nan")
+
+print("module math inverse trig OK")
+exit(0)

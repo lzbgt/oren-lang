@@ -523,7 +523,7 @@ Facts from the 2026-05-28 implementation pass:
 	  plus host-prefix inheritance, record/replay env/exit/FS/proc flows,
 	  snapshot/resume tasks/VFS/record-log flows, state-hash VFS inclusion,
 	  trace-byte repeat/native-event coverage, deterministic math core/rounding, exp/log,
-	  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
+	  trig/inverse-trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
 	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as
 	  ad-hoc focused fixtures.
 
@@ -587,7 +587,7 @@ Working evidence:
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
   bit helpers, rounding, `sqrt`, `cbrt`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `exp2`, `exp`, `log2`, `ln`, `sin`, `cos`, `tan`, `atan`,
-  and `atan2`.
+  `atan2`, `asin`, and `acos`.
 - `pow` / `power` cover the app-visible cases `power(2,-1)` and
   `power(2,4.3)` through deterministic integer-exponent and
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
@@ -598,7 +598,8 @@ Working evidence:
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/sign helpers,
   pow, `frexp`/`ldexp` decomposition and scaling, `cbrt`, `hypot`,
-  exp/log/log2/log10, finite sin/cos/tan reduction, quadrant `atan2`, and
+  exp/log/log2/log10, finite sin/cos/tan reduction, quadrant `atan2`,
+  inverse-trig `asin`/`acos`, and
   non-finite error behavior in bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity
   vector and is release-gated in AVM. The earlier 2^53 assertion was invalid:
