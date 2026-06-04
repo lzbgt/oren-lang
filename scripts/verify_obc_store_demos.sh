@@ -164,6 +164,23 @@ def verify_scene3d_gltf_lowering():
     if struct.pack("<iii", 7, 8, 9) not in data or struct.pack("<iii", 8, 8, 9) not in data:
         raise SystemExit("scene glTF node matrix lowering did not produce expected coordinates")
 
+    scene_gltf = json.loads(json.dumps(gltf))
+    scene_gltf["nodes"] = [
+        {"name": "left", "mesh": 0, "translation": [2.0, 0.0, 0.0]},
+        {"name": "right", "mesh": 0, "translation": [0.0, 5.0, 0.0]},
+    ]
+    scene_gltf["scenes"] = [{"name": "all", "nodes": [0, 1]}]
+    scene_gltf["scene"] = 0
+    scene["meshes"][0] = {"kind": "triangles", "id": 1, "gltf_json": scene_gltf, "gltf_scene": "all", "color": "#ffffffff"}
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if (
+        struct.pack("<iii", 2, 0, 0) not in data or
+        struct.pack("<iii", 3, 0, 0) not in data or
+        struct.pack("<iii", 0, 5, 0) not in data or
+        struct.pack("<iii", 0, 6, 0) not in data
+    ):
+        raise SystemExit("scene glTF scene lowering did not include all transformed mesh nodes")
+
 
 def verify_scene3d_stl_lowering():
     stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"

@@ -324,6 +324,21 @@ def gltf_node_index(doc, mesh):
     raise SystemExit("scene glTF node not found")
 
 
+def gltf_scene_index(doc, mesh):
+    scenes = doc.get("scenes", [])
+    scene_ref = mesh.get("gltf_scene", doc.get("scene", 0))
+    if not scenes:
+        raise SystemExit("scene glTF scene selection requires scenes")
+    if isinstance(scene_ref, int):
+        if scene_ref < 0 or scene_ref >= len(scenes):
+            raise SystemExit("scene glTF scene index out of bounds")
+        return scene_ref
+    for i, scene in enumerate(scenes):
+        if scene.get("name") == scene_ref:
+            return i
+    raise SystemExit("scene glTF scene not found")
+
+
 def gltf_node_parent_map(nodes):
     parents = {}
     for parent_idx, node in enumerate(nodes):
@@ -367,28 +382,10 @@ def gltf_apply_node_transform(v, matrix):
     ]
 
 
-def gltf_mesh_data(mesh, base_dir):
-    doc = gltf_source_json(mesh, base_dir)
-    asset = doc.get("asset", {})
-    if str(asset.get("version", "")).split(".", 1)[0] != "2":
-        raise SystemExit("scene glTF asset.version must be 2.x")
-    node_index = gltf_node_index(doc, mesh)
-    node_matrix = mat_identity()
-    if node_index is not None:
-        node = doc.get("nodes", [])[node_index]
-        if node.get("mesh") is None:
-            raise SystemExit("scene glTF node does not reference a mesh")
-        mesh_index = int(node["mesh"])
-        node_matrix = gltf_node_global_matrix(doc, node_index)
-    else:
-        mesh_index = int(mesh.get("gltf_mesh", 0))
+def gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, vertex_colors, face_colors):
     meshes = doc.get("meshes", [])
     if mesh_index < 0 or mesh_index >= len(meshes):
         raise SystemExit("scene glTF mesh index out of bounds")
-    vertices = []
-    faces = []
-    vertex_colors = []
-    face_colors = []
     for primitive in meshes[mesh_index].get("primitives", []):
         mode = int(primitive.get("mode", 4))
         if mode != 4:
@@ -413,6 +410,60 @@ def gltf_mesh_data(mesh, base_dir):
             face = [base_vertex + local_indices[i], base_vertex + local_indices[i + 1], base_vertex + local_indices[i + 2]]
             faces.append(face)
             face_colors.append(material_color if colors is None else None)
+
+
+def gltf_collect_scene_targets(doc, scene_index):
+    scenes = doc.get("scenes", [])
+    nodes = doc.get("nodes", [])
+    scene = scenes[scene_index]
+    roots = scene.get("nodes", [])
+    if not isinstance(roots, list):
+        raise SystemExit("scene glTF scene nodes must be a list")
+    targets = []
+
+    def walk(node_index, parent_matrix, path):
+        if node_index < 0 or node_index >= len(nodes):
+            raise SystemExit("scene glTF scene node index out of bounds")
+        if node_index in path:
+            raise SystemExit("scene glTF node hierarchy cycle")
+        node = nodes[node_index]
+        matrix = mat_mul(parent_matrix, gltf_node_local_matrix(node))
+        if node.get("mesh") is not None:
+            targets.append((int(node["mesh"]), matrix))
+        next_path = path | {node_index}
+        for child in node.get("children", []):
+            walk(int(child), matrix, next_path)
+
+    for root in roots:
+        walk(int(root), mat_identity(), set())
+    if not targets:
+        raise SystemExit("scene glTF scene has no mesh nodes")
+    return targets
+
+
+def gltf_mesh_targets(doc, mesh):
+    node_index = gltf_node_index(doc, mesh)
+    if node_index is not None:
+        node = doc.get("nodes", [])[node_index]
+        if node.get("mesh") is None:
+            raise SystemExit("scene glTF node does not reference a mesh")
+        return [(int(node["mesh"]), gltf_node_global_matrix(doc, node_index))]
+    if mesh.get("gltf_scene") is not None or (mesh.get("gltf_mesh") is None and doc.get("scenes") is not None):
+        return gltf_collect_scene_targets(doc, gltf_scene_index(doc, mesh))
+    return [(int(mesh.get("gltf_mesh", 0)), mat_identity())]
+
+
+def gltf_mesh_data(mesh, base_dir):
+    doc = gltf_source_json(mesh, base_dir)
+    asset = doc.get("asset", {})
+    if str(asset.get("version", "")).split(".", 1)[0] != "2":
+        raise SystemExit("scene glTF asset.version must be 2.x")
+    vertices = []
+    faces = []
+    vertex_colors = []
+    face_colors = []
+    for mesh_index, node_matrix in gltf_mesh_targets(doc, mesh):
+        gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, vertex_colors, face_colors)
     if not vertices:
         raise SystemExit("scene glTF mesh has no vertices")
     if not faces:
