@@ -448,6 +448,32 @@ static NSURL* OrenAVMPackageInstallMetadataURL(NSURL* packageRoot) {
     return packageRoot.isFileURL ? [packageRoot URLByAppendingPathComponent:@".oren-install.json" isDirectory:NO] : nil;
 }
 
+static int64_t OrenAVMPackageUnixMillis(void) {
+    return (int64_t)([[NSDate date] timeIntervalSince1970] * 1000.0);
+}
+
+static NSDictionary* OrenAVMPackageReadInstallMetadata(NSURL* packageRoot, NSError** error) {
+    NSURL* metaURL = OrenAVMPackageInstallMetadataURL(packageRoot);
+    if (!metaURL) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata path is invalid");
+        return nil;
+    }
+    NSData* data = [NSData dataWithContentsOfURL:metaURL options:0 error:error];
+    if (!data) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata must be a JSON object");
+        return nil;
+    }
+    NSDictionary* metadata = (NSDictionary*)json;
+    NSString* schema = OrenAVMPackageString(metadata, @"schema");
+    if (![schema isEqualToString:@"oren.obc.package.install.v0"]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata is invalid");
+        return nil;
+    }
+    return metadata;
+}
+
 static BOOL OrenAVMPackageWriteInstallMetadata(NSURL* packageRoot,
                                                NSURL* indexURL,
                                                NSDictionary* manifest,
@@ -464,7 +490,7 @@ static BOOL OrenAVMPackageWriteInstallMetadata(NSURL* packageRoot,
         @"name": name,
         @"version": version,
         @"store_index_url": indexURL.absoluteString ?: @"",
-        @"installed_at_unix_ms": @((int64_t)([[NSDate date] timeIntervalSince1970] * 1000.0))
+        @"installed_at_unix_ms": @(OrenAVMPackageUnixMillis())
     };
     NSData* data = [NSJSONSerialization dataWithJSONObject:metadata options:NSJSONWritingPrettyPrinted error:error];
     if (!data) return NO;
@@ -472,23 +498,11 @@ static BOOL OrenAVMPackageWriteInstallMetadata(NSURL* packageRoot,
 }
 
 static NSURL* OrenAVMPackageReadInstallIndexURL(NSURL* packageRoot, NSError** error) {
-    NSURL* metaURL = OrenAVMPackageInstallMetadataURL(packageRoot);
-    if (!metaURL) {
-        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata path is invalid");
-        return nil;
-    }
-    NSData* data = [NSData dataWithContentsOfURL:metaURL options:0 error:error];
-    if (!data) return nil;
-    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
-    if (![json isKindOfClass:[NSDictionary class]]) {
-        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata must be a JSON object");
-        return nil;
-    }
-    NSDictionary* metadata = (NSDictionary*)json;
-    NSString* schema = OrenAVMPackageString(metadata, @"schema");
+    NSDictionary* metadata = OrenAVMPackageReadInstallMetadata(packageRoot, error);
+    if (!metadata) return nil;
     NSString* url = OrenAVMPackageString(metadata, @"store_index_url");
-    if (![schema isEqualToString:@"oren.obc.package.install.v0"] || url.length == 0) {
-        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata is invalid");
+    if (url.length == 0) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata URL is missing");
         return nil;
     }
     NSURL* indexURL = [NSURL URLWithString:url];
@@ -543,7 +557,8 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
                     currentVersion:(NSString*)currentVersion
                      latestVersion:(NSString*)latestVersion
                    updateAvailable:(BOOL)updateAvailable
-                     latestRelease:(NSDictionary<NSString*, id>*)latestRelease;
+                     latestRelease:(NSDictionary<NSString*, id>*)latestRelease
+                checkedAtUnixMillis:(int64_t)checkedAtUnixMillis;
 @end
 
 @implementation OrenAVMPackageUpdateStatus
@@ -553,7 +568,8 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
                     currentVersion:(NSString*)currentVersion
                      latestVersion:(NSString*)latestVersion
                    updateAvailable:(BOOL)updateAvailable
-                     latestRelease:(NSDictionary<NSString*, id>*)latestRelease {
+                     latestRelease:(NSDictionary<NSString*, id>*)latestRelease
+                checkedAtUnixMillis:(int64_t)checkedAtUnixMillis {
     self = [super init];
     if (!self) return nil;
     _publisher = [publisher copy];
@@ -562,6 +578,7 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
     _latestVersion = [latestVersion copy];
     _updateAvailable = updateAvailable;
     _latestRelease = [latestRelease copy];
+    _checkedAtUnixMillis = checkedAtUnixMillis;
     return self;
 }
 
@@ -571,10 +588,63 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
                     currentVersion:@""
                      latestVersion:@""
                    updateAvailable:NO
-                     latestRelease:@{}];
+                     latestRelease:@{}
+                checkedAtUnixMillis:0];
 }
 
 @end
+
+static OrenAVMPackageUpdateStatus* OrenAVMPackageUpdateStatusFromDictionary(NSDictionary<NSString*, id>* status,
+                                                                            int64_t checkedAtUnixMillis,
+                                                                            NSError** error) {
+    NSString* publisher = OrenAVMPackageString(status, @"publisher");
+    NSString* name = OrenAVMPackageString(status, @"name");
+    NSString* currentVersion = OrenAVMPackageString(status, @"current_version") ?: @"";
+    NSString* latestVersion = OrenAVMPackageString(status, @"latest_version") ?: @"";
+    NSNumber* updateAvailable = OrenAVMPackageNumber(status, @"update_available");
+    id latestRaw = status[@"latest_release"];
+    NSDictionary<NSString*, id>* latestRelease = [latestRaw isKindOfClass:[NSDictionary class]] ? (NSDictionary<NSString*, id>*)latestRaw : @{};
+    NSNumber* persistedCheckedAt = OrenAVMPackageNumber(status, @"checked_at_unix_ms");
+    if (checkedAtUnixMillis <= 0 && persistedCheckedAt) checkedAtUnixMillis = persistedCheckedAt.longLongValue;
+    if (publisher.length == 0 || name.length == 0 || !updateAvailable || checkedAtUnixMillis <= 0) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update status is invalid");
+        return nil;
+    }
+    return [[OrenAVMPackageUpdateStatus alloc] initWithPublisher:publisher
+                                                           name:name
+                                                 currentVersion:currentVersion
+                                                  latestVersion:latestVersion
+                                                updateAvailable:updateAvailable.boolValue
+                                                  latestRelease:latestRelease
+                                            checkedAtUnixMillis:checkedAtUnixMillis];
+}
+
+static NSDictionary<NSString*, id>* OrenAVMPackageUpdateStatusDictionary(OrenAVMPackageUpdateStatus* status) {
+    if (!status) return nil;
+    return @{
+        @"publisher": status.publisher ?: @"",
+        @"name": status.name ?: @"",
+        @"current_version": status.currentVersion ?: @"",
+        @"latest_version": status.latestVersion ?: @"",
+        @"update_available": @(status.updateAvailable),
+        @"latest_release": status.latestRelease ?: @{},
+        @"checked_at_unix_ms": @(status.checkedAtUnixMillis)
+    };
+}
+
+static BOOL OrenAVMPackageWriteLastUpdateStatus(NSURL* packageRoot,
+                                                OrenAVMPackageUpdateStatus* status,
+                                                NSError** error) {
+    NSURL* metaURL = OrenAVMPackageInstallMetadataURL(packageRoot);
+    if (!metaURL || !status) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update history path is invalid");
+    NSDictionary* metadata = OrenAVMPackageReadInstallMetadata(packageRoot, error);
+    if (!metadata) return NO;
+    NSMutableDictionary<NSString*, id>* out = [metadata mutableCopy];
+    out[@"last_update_check"] = OrenAVMPackageUpdateStatusDictionary(status);
+    NSData* data = [NSJSONSerialization dataWithJSONObject:out options:NSJSONWritingPrettyPrinted error:error];
+    if (!data) return NO;
+    return [data writeToURL:metaURL options:NSDataWritingAtomic error:error];
+}
 
 @implementation OrenAVMPackageStore
 
@@ -653,24 +723,7 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
         OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update status must be a JSON object");
         return nil;
     }
-    NSDictionary<NSString*, id>* status = (NSDictionary<NSString*, id>*)json;
-    NSString* publisher = OrenAVMPackageString(status, @"publisher");
-    NSString* name = OrenAVMPackageString(status, @"name");
-    NSString* currentVersion = OrenAVMPackageString(status, @"current_version") ?: @"";
-    NSString* latestVersion = OrenAVMPackageString(status, @"latest_version") ?: @"";
-    NSNumber* updateAvailable = OrenAVMPackageNumber(status, @"update_available");
-    id latestRaw = status[@"latest_release"];
-    NSDictionary<NSString*, id>* latestRelease = [latestRaw isKindOfClass:[NSDictionary class]] ? (NSDictionary<NSString*, id>*)latestRaw : @{};
-    if (publisher.length == 0 || name.length == 0 || !updateAvailable) {
-        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update status is invalid");
-        return nil;
-    }
-    return [[OrenAVMPackageUpdateStatus alloc] initWithPublisher:publisher
-                                                           name:name
-                                                 currentVersion:currentVersion
-                                                  latestVersion:latestVersion
-                                                updateAvailable:updateAvailable.boolValue
-                                                  latestRelease:latestRelease];
+    return OrenAVMPackageUpdateStatusFromDictionary((NSDictionary<NSString*, id>*)json, OrenAVMPackageUnixMillis(), error);
 }
 
 - (OrenAVMPackageUpdateStatus*)packageUpdateStatusForPackage:(OrenAVMPackage*)package
@@ -704,11 +757,29 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
     NSURL* indexURL = OrenAVMPackageReadInstallIndexURL(package.directoryURL, error);
     if (!indexURL) return nil;
     NSSet<NSString*>* effectiveAllowedHosts = OrenAVMPackageEffectiveAllowedHosts(allowedHosts, indexURL);
-    return [self packageUpdateStatusForPackage:package
-                                  storeBaseURL:indexURL
-                                  allowedHosts:effectiveAllowedHosts
-                                timeoutSeconds:timeoutSeconds
-                                         error:error];
+    OrenAVMPackageUpdateStatus* status = [self packageUpdateStatusForPackage:package
+                                                                storeBaseURL:indexURL
+                                                                allowedHosts:effectiveAllowedHosts
+                                                              timeoutSeconds:timeoutSeconds
+                                                                       error:error];
+    if (status) (void)OrenAVMPackageWriteLastUpdateStatus(package.directoryURL, status, nil);
+    return status;
+}
+
+- (OrenAVMPackageUpdateStatus*)lastKnownPackageUpdateStatusForInstalledPackage:(OrenAVMPackage*)package
+                                                                         error:(NSError**)error {
+    if (!package) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update history requires a package");
+        return nil;
+    }
+    NSDictionary* metadata = OrenAVMPackageReadInstallMetadata(package.directoryURL, error);
+    if (!metadata) return nil;
+    id raw = metadata[@"last_update_check"];
+    if (![raw isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update history is missing");
+        return nil;
+    }
+    return OrenAVMPackageUpdateStatusFromDictionary((NSDictionary<NSString*, id>*)raw, 0, error);
 }
 
 - (OrenAVMPackage*)downloadUpdateForInstalledPackage:(OrenAVMPackage*)package
@@ -730,6 +801,7 @@ static NSSet<NSString*>* OrenAVMPackageEffectiveAllowedHosts(NSSet<NSString*>* a
                                                               timeoutSeconds:timeoutSeconds
                                                                        error:error];
     if (!status) return nil;
+    (void)OrenAVMPackageWriteLastUpdateStatus(package.directoryURL, status, nil);
     if (!status.updateAvailable || status.latestVersion.length == 0) {
         OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package is already current");
         return nil;

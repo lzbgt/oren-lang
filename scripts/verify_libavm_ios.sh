@@ -894,6 +894,12 @@ int main(void) {
                 : nil;
             if (!persistedStatus || !persistedStatus.updateAvailable ||
                 ![persistedStatus.latestVersion isEqual:@"0.2.0"]) return 166;
+            if (persistedStatus.checkedAtUnixMillis <= 0) return 169;
+            OrenAVMPackageUpdateStatus* cachedStatus = [store lastKnownPackageUpdateStatusForInstalledPackage:reloadedServicePackage
+                                                                                                        error:&error];
+            if (!cachedStatus || !cachedStatus.updateAvailable ||
+                ![cachedStatus.latestVersion isEqual:@"0.2.0"] ||
+                cachedStatus.checkedAtUnixMillis != persistedStatus.checkedAtUnixMillis) return 170;
             OrenAVMPackage* serviceUpdatedPackage = reloadedServicePackage
                 ? [store downloadUpdateForInstalledPackage:reloadedServicePackage
                                    destinationDirectoryURL:[NSURL fileURLWithPath:servicePackageDownloadDir isDirectory:YES]
@@ -906,6 +912,10 @@ int main(void) {
                 fprintf(stderr, "OBC package update install failed: %s\n", error.localizedDescription.UTF8String ?: "");
                 return 167;
             }
+            OrenAVMPackageUpdateStatus* cachedAfterInstall = [store lastKnownPackageUpdateStatusForInstalledPackage:reloadedServicePackage
+                                                                                                             error:&error];
+            if (!cachedAfterInstall || !cachedAfterInstall.updateAvailable ||
+                ![cachedAfterInstall.latestVersion isEqual:@"0.2.0"]) return 171;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 118;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];

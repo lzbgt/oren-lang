@@ -331,7 +331,9 @@ packages/...</code></pre>
 <p>choosing an install policy. Remote SDK installs persist source index metadata in</p>
 <p>the installed package directory, allowing update checks after app relaunch without</p>
 <p>duplicating source-store state in every host app. The SDK can also install the</p>
-<p>latest trusted update from that persisted source metadata. <code>OrenAVMOBCTrustBundle</code></p>
+<p>latest trusted update from that persisted source metadata, and it persists the</p>
+<p>last-known update status/check timestamp after successful installed-package</p>
+<p>checks so host UI can restore update state offline. <code>OrenAVMOBCTrustBundle</code></p>
 <p>loads generated <code>obc_store_trust.json</code> files into validated SDK key material, so</p>
 <p>host apps no longer need to hand-parse trust bundles before signed downloads. The</p>
 <p>store service now publishes active signing key IDs on dynamic index signatures and</p>
@@ -342,9 +344,8 @@ packages/...</code></pre>
 <p>trust issue tool. The Note package manager exposes Check/Recheck status actions</p>
 <p>and a visible trusted Update action for installed OBC packages. The store also has</p>
 <p>authenticated operator lifecycle controls, update inventory pages/APIs, and</p>
-<p>append-only mutation audit logs. Remaining store work is deployment polish and any</p>
-<p>host-side update history persistence beyond installed package metadata before a</p>
-<p>public store is release-ready.</p>
+<p>append-only mutation audit logs. Remaining store work is deployment polish before</p>
+<p>a public store is release-ready.</p>
 <p>Key custody rule: private signing keys and any root CA material must live outside</p>
 <p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
 <p>may document paths and commit public trust anchors or test public keys, but must</p>

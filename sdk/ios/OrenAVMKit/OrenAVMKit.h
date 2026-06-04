@@ -311,6 +311,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 @property(nonatomic, readonly, copy) NSString* latestVersion;
 @property(nonatomic, readonly) BOOL updateAvailable;
 @property(nonatomic, readonly, copy) NSDictionary<NSString*, id>* latestRelease;
+@property(nonatomic, readonly) int64_t checkedAtUnixMillis;
 
 @end
 
@@ -400,6 +401,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                                                   allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
                                                                 timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                                                          error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackageUpdateStatus*)lastKnownPackageUpdateStatusForInstalledPackage:(OrenAVMPackage*)package
+                                                                                  error:(NSError* _Nullable* _Nullable)error;
 - (nullable OrenAVMPackage*)downloadUpdateForInstalledPackage:(OrenAVMPackage*)package
                                       destinationDirectoryURL:(NSURL*)destinationDirectoryURL
                                                  allowedHosts:(nullable NSSet<NSString*>*)allowedHosts

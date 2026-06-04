@@ -285,7 +285,9 @@ published release plus an `update_available` flag, and the iOS SDK exposes
 choosing an install policy. Remote SDK installs persist source index metadata in
 the installed package directory, allowing update checks after app relaunch without
 duplicating source-store state in every host app. The SDK can also install the
-latest trusted update from that persisted source metadata. `OrenAVMOBCTrustBundle`
+latest trusted update from that persisted source metadata, and it persists the
+last-known update status/check timestamp after successful installed-package
+checks so host UI can restore update state offline. `OrenAVMOBCTrustBundle`
 loads generated `obc_store_trust.json` files into validated SDK key material, so
 host apps no longer need to hand-parse trust bundles before signed downloads. The
 store service now publishes active signing key IDs on dynamic index signatures and
@@ -296,9 +298,8 @@ trusted persisted package updates, visible update-status checks, and the externa
 trust issue tool. The Note package manager exposes Check/Recheck status actions
 and a visible trusted Update action for installed OBC packages. The store also has
 authenticated operator lifecycle controls, update inventory pages/APIs, and
-append-only mutation audit logs. Remaining store work is deployment polish and any
-host-side update history persistence beyond installed package metadata before a
-public store is release-ready.
+append-only mutation audit logs. Remaining store work is deployment polish before
+a public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo

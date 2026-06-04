@@ -135,7 +135,8 @@ Facts from the 2026-05-28 implementation pass:
   policy, and remote installs persist their source index URL so later app launches
   can check updates without a separate host-side mapping table. The SDK can now
   install the latest trusted update for a reloaded package from that persisted
-  source metadata.
+  source metadata, and successful installed-package checks persist a compact
+  last-known update status with check time for offline host UI recovery.
 - OBC store trust/key tooling is available as `scripts/issue_obc_store_trust.sh`
   and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
   by default under `../oren-ca/private`, exports SDK-ready public key bytes and

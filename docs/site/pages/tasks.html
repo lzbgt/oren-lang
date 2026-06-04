@@ -245,8 +245,7 @@
 <p>	     publish/yank/visibility action URLs, no-JS browser forms for those</p>
 <p>	     release/package mutations, authenticated update inventory page/API for</p>
 <p>	     latest/superseded package versions, and authenticated append-only audit</p>
-<p>	     page/API for successful store mutations; deployment polish and any</p>
-<p>	     host-side update history persistence beyond installed package metadata remain.</p>
+<p>	     page/API for successful store mutations; deployment polish remains.</p>
 <p>     Design note:</p>
 <p>     <code>project-doc/obc_store_distribution_design_20260529.md</code>.</p>
 <p>     Curated demo package sources now live under <code>examples/obc_store_demos/</code>;</p>
@@ -283,9 +282,9 @@
 <p>     Remote installs persist their source index URL inside SDK install metadata, so</p>
 <p>     update checks can survive app relaunch without duplicating source-store state</p>
 <p>     in each host app. The SDK can also install the latest trusted update from</p>
-<p>     that persisted source metadata.</p>
-<p>	     Remaining package-store work is deployment polish and any host-side update</p>
-<p>	     history persistence beyond installed package metadata.</p>
+<p>     that persisted source metadata, and successful installed-package checks persist</p>
+<p>     a last-known update status/check timestamp for offline host UI recovery.</p>
+<p>	     Remaining package-store work is deployment polish.</p>
 <ul>
 <li>2026-06-01: <code>scripts/issue_obc_store_trust.sh</code> and</li>
 </ul>

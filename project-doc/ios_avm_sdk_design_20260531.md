@@ -347,7 +347,10 @@ Public OBC store helper.
   identity, so later app launches can query update status for a loaded installed
   package without rebuilding a host-side package-to-store mapping table. The SDK
   can then install the latest trusted update for that package through the same
-  signed-index and publisher-signature policy.
+  signed-index and publisher-signature policy. Successful installed-package update
+  checks also persist the last-known status and check timestamp in the install
+  metadata, giving host UI an offline state after relaunch without storing a
+  separate package-update database.
 - Signature/cert enforcement is host policy. The SDK provides strict signed
   verification for safe defaults, but a host app may deliberately use the unsigned
   download/local load path after user confirmation, equivalent to a platform letting
@@ -366,8 +369,8 @@ Public OBC store helper.
 - Store-side root trust rotation now has active key-id publication,
   rotation-capable trust-bundle serving, browser operator lifecycle controls,
   operator update inventory, and append-only mutation audit logs; next slices
-  should add live signing/deployment hardening plus any host-side update history
-  persistence beyond installed package metadata.
+  should add live signing/deployment hardening plus remaining operator workflow
+  polish.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

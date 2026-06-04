@@ -179,8 +179,7 @@ This file is the concise task view. Detailed implementation status lives in
 	     publish/yank/visibility action URLs, no-JS browser forms for those
 	     release/package mutations, authenticated update inventory page/API for
 	     latest/superseded package versions, and authenticated append-only audit
-	     page/API for successful store mutations; deployment polish and any
-	     host-side update history persistence beyond installed package metadata remain.
+	     page/API for successful store mutations; deployment polish remains.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
      Curated demo package sources now live under `examples/obc_store_demos/`;
@@ -215,9 +214,9 @@ This file is the concise task view. Detailed implementation status lives in
      Remote installs persist their source index URL inside SDK install metadata, so
      update checks can survive app relaunch without duplicating source-store state
      in each host app. The SDK can also install the latest trusted update from
-     that persisted source metadata.
-	     Remaining package-store work is deployment polish and any host-side update
-	     history persistence beyond installed package metadata.
+     that persisted source metadata, and successful installed-package checks persist
+     a last-known update status/check timestamp for offline host UI recovery.
+	     Remaining package-store work is deployment polish.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys

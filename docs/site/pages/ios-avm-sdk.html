@@ -457,7 +457,10 @@
 <p>  identity, so later app launches can query update status for a loaded installed</p>
 <p>  package without rebuilding a host-side package-to-store mapping table. The SDK</p>
 <p>  can then install the latest trusted update for that package through the same</p>
-<p>  signed-index and publisher-signature policy.</p>
+<p>  signed-index and publisher-signature policy. Successful installed-package update</p>
+<p>  checks also persist the last-known status and check timestamp in the install</p>
+<p>  metadata, giving host UI an offline state after relaunch without storing a</p>
+<p>  separate package-update database.</p>
 <ul>
 <li>Signature/cert enforcement is host policy. The SDK provides strict signed</li>
 </ul>
@@ -484,8 +487,8 @@
 </ul>
 <p>  rotation-capable trust-bundle serving, browser operator lifecycle controls,</p>
 <p>  operator update inventory, and append-only mutation audit logs; next slices</p>
-<p>  should add live signing/deployment hardening plus any host-side update history</p>
-<p>  persistence beyond installed package metadata.</p>
+<p>  should add live signing/deployment hardening plus remaining operator workflow</p>
+<p>  polish.</p>
 <ul>
 <li>Applies package capabilities, budgets, assets, and time mode. GUI requirements</li>
 </ul>

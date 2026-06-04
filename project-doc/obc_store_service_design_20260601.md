@@ -126,7 +126,8 @@ Implemented in this repo:
   `OrenAVMPackageUpdateStatus`, keeping update discovery separate from signed
   package install policy, and records the source index URL during remote package
   install so later update checks and trusted update installs do not require a
-  separate host mapping table.
+  separate host mapping table. Successful installed-package checks persist the
+  last-known status and check timestamp in install metadata for offline host UI.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
 - Version uploads validate manifest `permission_defaults` shape before accepting a
@@ -140,8 +141,7 @@ Implemented in this repo:
 
 Remaining service work:
 
-- deployment/operator polish plus any host-side update history persistence beyond
-  installed package metadata;
+- deployment/operator polish;
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
