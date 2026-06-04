@@ -33,6 +33,7 @@ defaults and must resolve these fields:
 - `deterministic`: whether the case is expected to be deterministic;
 - `backend_policy`: human-readable backend policy label;
 - `budgets`: structured budget metadata;
+- `setup_dirs`: host directories to create before running the fixture;
 - `host_effects`: expected host artifact assertions such as absent files.
 
 This makes fixture policy reviewable as data and removes hidden expectations from
@@ -55,8 +56,8 @@ to the manifest with explicit metadata instead of relying on defaults.
 The current manifest covers the curated release-gate set, one non-gate VPROC
 fixture, the default-safe language/container fixtures, and default-safe
 byte/int/call-stack/hash, varargs call/spread/spawn, task/group scheduler,
-deterministic join-timeout, explicit budget-abort fixtures, and bounded trace
-diagnostic fixtures. The next completeness step
+deterministic join-timeout, explicit budget-abort fixtures, capsule/FS
+capability fixtures, and bounded trace diagnostic fixtures. The next completeness step
 is to add explicit release inclusion/exclusion and policy metadata for the
-remaining host-effect, record/replay, snapshot, and multiverse fixtures,
+remaining record/replay, snapshot, and multiverse fixtures,
 then gate the full wildcard path when the expected budgets/backends are declared.

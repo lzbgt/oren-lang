@@ -255,6 +255,14 @@ endif
 		tests/avm/test_call_stack_discipline.oren \
 		tests/avm/test_arith_invalid.oren \
 		tests/avm/test_vfs_no_host_fs.oren \
+		tests/avm/test_capability_deny_fs.oren \
+		tests/avm/test_capsule_allow_fs.oren \
+		tests/avm/test_capsule_defaults.oren \
+		tests/avm/test_error_read_file.oren \
+		tests/avm/test_fs_helpers_vfs.oren \
+		tests/avm/test_fs_mounts_host_backend.oren \
+		tests/avm/test_oren_env_bridge_capsule.oren \
+		tests/avm/test_read_bytes_roundtrip.oren \
 		tests/avm/test_vproc_no_host_proc.oren \
 		tests/avm/test_vnet_no_host_net.oren \
 		tests/avm/test_avm_permission_request_v0.oren \

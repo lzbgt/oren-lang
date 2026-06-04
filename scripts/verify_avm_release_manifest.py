@@ -72,6 +72,9 @@ def validate_case(case: dict[str, Any]) -> None:
         raise SystemExit(f"{case['path']}: backend_policy must be non-empty string")
     if not isinstance(case.get("budgets"), dict):
         raise SystemExit(f"{case['path']}: budgets must be object")
+    setup_dirs = case.get("setup_dirs", [])
+    if not isinstance(setup_dirs, list) or not all(isinstance(x, str) for x in setup_dirs):
+        raise SystemExit(f"{case['path']}: setup_dirs must be list<string>")
     if not isinstance(case.get("host_effects"), list):
         raise SystemExit(f"{case['path']}: host_effects must be list")
     for effect in case["host_effects"]:
@@ -148,6 +151,8 @@ def main() -> int:
             sys.stderr.write(f"--- {name} (build) ---\n{build_log.read_text(encoding='utf-8', errors='replace')}")
             return 1
 
+        for dir_value in case.get("setup_dirs", []):
+            (ROOT / dir_value).mkdir(parents=True, exist_ok=True)
         for effect in case["host_effects"]:
             target = ROOT / effect["path"]
             if effect["expect"] == "absent" and target.exists():
