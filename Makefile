@@ -251,6 +251,14 @@ endif
 		tests/avm/test_std_time_avm.oren \
 		tests/avm/test_time_rng_deterministic.oren \
 		tests/avm/test_time_rng_record_replay_mem.oren \
+		tests/avm/test_record_replay_env.oren \
+		tests/avm/test_record_replay_exit.oren \
+		tests/avm/test_record_replay_fs.oren \
+		tests/avm/test_record_replay_mem_fs.oren \
+		tests/avm/test_record_replay_proc.oren \
+		tests/avm/test_snapshot_resume_record_log.oren \
+		tests/avm/test_snapshot_tasks_resume.oren \
+		tests/avm/test_snapshot_vfs_resume.oren \
 		tests/avm/test_budget_gas.oren \
 		tests/avm/test_budget_timeout.oren \
 		tests/avm/test_budget_io_fs.oren \
@@ -293,7 +301,10 @@ endif
 		tests/avm/test_map_key_types.oren \
 		tests/avm/test_result_hash_repeat.oren \
 		tests/avm/test_state_hash_repeat.oren \
+		tests/avm/test_state_hash_includes_vfs.oren \
 		tests/avm/test_trace_hash_repeat.oren \
+		tests/avm/test_trace_bytes_repeat.oren \
+		tests/avm/test_trace_events_native.oren \
 		tests/avm/test_trace_bytes_truncate.oren \
 		tests/avm/test_trace_bytes_mem_budget.oren \
 		tests/avm/test_nested_containers.oren \

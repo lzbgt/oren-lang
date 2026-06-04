@@ -63,8 +63,8 @@ cat > "$compilerkit_src" <<'OBJC'
 int main(void) {
     @autoreleasepool {
         NSError* error = nil;
-        OrenAVMCompilerKit* kit = [OrenAVMCompilerKit compilerKitWithCompilerOBCURL:[NSURL fileURLWithPath:@"build/plugins/oren.obc"]
-                                                                       stdlibOBCURL:[NSURL fileURLWithPath:@"build/plugins/stdlib_bundle.obc"]
+        OrenAVMCompilerKit* kit = [OrenAVMCompilerKit compilerKitWithCompilerOBCURL:[NSURL fileURLWithPath:@"build/oren_compiler.obc"]
+                                                                       stdlibOBCURL:[NSURL fileURLWithPath:@"build/stdlib_bundle.obc"]
                                                                              error:&error];
         if (!kit) { fprintf(stderr, "CompilerKit load failed: %s\n", error.localizedDescription.UTF8String); return 10; }
         if (kit.compilerHeapLimitBytes < 384ull * 1024ull * 1024ull) {

@@ -124,6 +124,159 @@
     {"path": "tests/avm/test_time_rng_deterministic.oren"},
     {"path": "tests/avm/test_time_rng_record_replay_mem.oren"},
     {
+      "path": "tests/avm/test_record_replay_env.oren",
+      "backend_policy": "record-replay-env",
+      "phases": [
+        {
+          "name": "record",
+          "env": {"AVM_RECORD_MEM": "1", "AVM_RR_ENV_KEY": "recorded"},
+          "avm_args": ["--print-run-json", "--print-record-log-hex"],
+          "captures": [{"name": "RECORD_LOG_HEX", "prefix": "RECORD_LOG_HEX ", "required": true}]
+        },
+        {
+          "name": "replay",
+          "env_from_captures": {"AVM_REPLAY_LOG_HEX": "record.RECORD_LOG_HEX"},
+          "avm_args": ["--print-run-json"]
+        }
+      ],
+      "assertions": [{"op": "nonempty", "capture": "record.RECORD_LOG_HEX"}]
+    },
+    {
+      "path": "tests/avm/test_record_replay_exit.oren",
+      "backend_policy": "record-replay-exit",
+      "phases": [
+        {
+          "name": "record",
+          "env": {"AVM_RECORD_MEM": "1"},
+          "avm_args": ["--print-run-json", "--print-record-log-hex"],
+          "captures": [{"name": "RECORD_LOG_HEX", "prefix": "RECORD_LOG_HEX ", "required": true}]
+        },
+        {
+          "name": "replay",
+          "env_from_captures": {"AVM_REPLAY_LOG_HEX": "record.RECORD_LOG_HEX"},
+          "avm_args": ["--print-run-json"]
+        }
+      ],
+      "assertions": [{"op": "nonempty", "capture": "record.RECORD_LOG_HEX"}]
+    },
+    {
+      "path": "tests/avm/test_record_replay_fs.oren",
+      "backend_policy": "record-replay-host-fs",
+      "phases": [
+        {
+          "name": "record",
+          "env": {"AVM_RECORD_MEM": "1"},
+          "avm_args": ["--print-run-json", "--print-record-log-hex"],
+          "cleanup_paths": ["build/avm_rr_fs.txt"],
+          "host_effects": [{"path": "build/avm_rr_fs.txt", "expect": "present"}],
+          "captures": [{"name": "RECORD_LOG_HEX", "prefix": "RECORD_LOG_HEX ", "required": true}]
+        },
+        {
+          "name": "replay",
+          "env_from_captures": {"AVM_REPLAY_LOG_HEX": "record.RECORD_LOG_HEX"},
+          "avm_args": ["--print-run-json"],
+          "cleanup_paths": ["build/avm_rr_fs.txt"],
+          "host_effects": [{"path": "build/avm_rr_fs.txt", "expect": "absent"}]
+        }
+      ],
+      "assertions": [{"op": "nonempty", "capture": "record.RECORD_LOG_HEX"}]
+    },
+    {
+      "path": "tests/avm/test_record_replay_mem_fs.oren",
+      "backend_policy": "record-replay-mem-fs",
+      "phases": [
+        {
+          "name": "record",
+          "env": {"AVM_RECORD_MEM": "1"},
+          "avm_args": ["--print-run-json", "--print-record-log-hex"],
+          "cleanup_paths": ["build/avm_rr_mem_fs.txt"],
+          "host_effects": [{"path": "build/avm_rr_mem_fs.txt", "expect": "present"}],
+          "captures": [{"name": "RECORD_LOG_HEX", "prefix": "RECORD_LOG_HEX ", "required": true}]
+        },
+        {
+          "name": "replay",
+          "env_from_captures": {"AVM_REPLAY_LOG_HEX": "record.RECORD_LOG_HEX"},
+          "avm_args": ["--print-run-json"],
+          "cleanup_paths": ["build/avm_rr_mem_fs.txt"],
+          "host_effects": [{"path": "build/avm_rr_mem_fs.txt", "expect": "absent"}]
+        }
+      ],
+      "assertions": [{"op": "nonempty", "capture": "record.RECORD_LOG_HEX"}]
+    },
+    {
+      "path": "tests/avm/test_record_replay_proc.oren",
+      "backend_policy": "record-replay-host-proc",
+      "phases": [
+        {
+          "name": "record",
+          "env": {"AVM_RECORD_MEM": "1"},
+          "avm_args": ["--print-run-json", "--print-record-log-hex"],
+          "cleanup_paths": ["build/avm_rr_proc.txt"],
+          "host_effects": [{"path": "build/avm_rr_proc.txt", "expect": "present"}],
+          "captures": [{"name": "RECORD_LOG_HEX", "prefix": "RECORD_LOG_HEX ", "required": true}]
+        },
+        {
+          "name": "replay",
+          "env_from_captures": {"AVM_REPLAY_LOG_HEX": "record.RECORD_LOG_HEX"},
+          "avm_args": ["--print-run-json"],
+          "cleanup_paths": ["build/avm_rr_proc.txt"],
+          "host_effects": [{"path": "build/avm_rr_proc.txt", "expect": "absent"}]
+        }
+      ],
+      "assertions": [{"op": "nonempty", "capture": "record.RECORD_LOG_HEX"}]
+    },
+    {
+      "path": "tests/avm/test_snapshot_resume_record_log.oren",
+      "backend_policy": "snapshot-resume-record-log",
+      "phases": [
+        {
+          "name": "pause",
+          "avm_args": ["--step-limit", "1000", "--snapshot-out", "build/avm_snapshot_record_log.bin", "--print-run-json"],
+          "expected": {"exit_code": 2, "error_contains": ""},
+          "cleanup_paths": ["build/avm_snapshot_record_log.bin"],
+          "host_effects": [{"path": "build/avm_snapshot_record_log.bin", "expect": "present"}]
+        },
+        {
+          "name": "resume",
+          "avm_args": ["--snapshot-in", "build/avm_snapshot_record_log.bin", "--print-run-json"]
+        }
+      ]
+    },
+    {
+      "path": "tests/avm/test_snapshot_tasks_resume.oren",
+      "backend_policy": "snapshot-resume-scheduler",
+      "phases": [
+        {
+          "name": "pause",
+          "avm_args": ["--step-limit", "1000", "--snapshot-out", "build/avm_snapshot_tasks.bin", "--print-run-json"],
+          "expected": {"exit_code": 2, "error_contains": ""},
+          "cleanup_paths": ["build/avm_snapshot_tasks.bin"],
+          "host_effects": [{"path": "build/avm_snapshot_tasks.bin", "expect": "present"}]
+        },
+        {
+          "name": "resume",
+          "avm_args": ["--snapshot-in", "build/avm_snapshot_tasks.bin", "--print-run-json"]
+        }
+      ]
+    },
+    {
+      "path": "tests/avm/test_snapshot_vfs_resume.oren",
+      "backend_policy": "snapshot-resume-vfs",
+      "phases": [
+        {
+          "name": "pause",
+          "avm_args": ["--step-limit", "1000", "--snapshot-out", "build/avm_snapshot_vfs.bin", "--fs-backend", "vfs", "--print-run-json"],
+          "expected": {"exit_code": 2, "error_contains": ""},
+          "cleanup_paths": ["build/avm_snapshot_vfs.bin"],
+          "host_effects": [{"path": "build/avm_snapshot_vfs.bin", "expect": "present"}]
+        },
+        {
+          "name": "resume",
+          "avm_args": ["--snapshot-in", "build/avm_snapshot_vfs.bin", "--print-run-json"]
+        }
+      ]
+    },
+    {
       "path": "tests/avm/test_budget_gas.oren",
       "expected": {"exit_code": 1, "error_contains": "AVM error: code=9"},
       "env": {"AVM_GAS": "20000"},
@@ -339,9 +492,60 @@
     {"path": "tests/avm/test_result_hash_repeat.oren"},
     {"path": "tests/avm/test_state_hash_repeat.oren"},
     {
+      "path": "tests/avm/test_state_hash_includes_vfs.oren",
+      "backend_policy": "state-hash-includes-vfs",
+      "phases": [
+        {
+          "name": "host",
+          "avm_args": ["--print-run-json", "--print-state-hash"],
+          "cleanup_paths": ["build/avm_state_hash_vfs.txt"],
+          "host_effects": [{"path": "build/avm_state_hash_vfs.txt", "expect": "present"}],
+          "captures": [{"name": "STATE_HASH", "prefix": "STATE_HASH ", "required": true}]
+        },
+        {
+          "name": "vfs",
+          "avm_args": ["--fs-backend", "vfs", "--print-run-json", "--print-state-hash"],
+          "cleanup_paths": ["build/avm_state_hash_vfs.txt"],
+          "host_effects": [{"path": "build/avm_state_hash_vfs.txt", "expect": "absent"}],
+          "captures": [{"name": "STATE_HASH", "prefix": "STATE_HASH ", "required": true}]
+        }
+      ],
+      "assertions": [{"op": "ne", "left": "host.STATE_HASH", "right": "vfs.STATE_HASH"}]
+    },
+    {
       "path": "tests/avm/test_trace_hash_repeat.oren",
       "avm_args": ["--repeat", "2", "--print-run-json", "--print-trace-hash"],
       "backend_policy": "trace-hash-repeat"
+    },
+    {
+      "path": "tests/avm/test_trace_bytes_repeat.oren",
+      "backend_policy": "trace-bytes-repeat",
+      "phases": [
+        {
+          "name": "first",
+          "avm_args": ["--print-run-json", "--print-trace-bytes-hex"],
+          "captures": [{"name": "TRACE_BYTES_HEX", "prefix": "TRACE_BYTES_HEX ", "required": true}]
+        },
+        {
+          "name": "second",
+          "avm_args": ["--print-run-json", "--print-trace-bytes-hex"],
+          "captures": [{"name": "TRACE_BYTES_HEX", "prefix": "TRACE_BYTES_HEX ", "required": true}]
+        }
+      ],
+      "assertions": [{"op": "eq", "left": "first.TRACE_BYTES_HEX", "right": "second.TRACE_BYTES_HEX"}]
+    },
+    {
+      "path": "tests/avm/test_trace_events_native.oren",
+      "avm_args": ["--print-run-json", "--print-trace-bytes-hex"],
+      "backend_policy": "trace-events-native",
+      "phases": [
+        {
+          "name": "run",
+          "avm_args": ["--print-run-json", "--print-trace-bytes-hex"],
+          "captures": [{"name": "TRACE_BYTES_HEX", "prefix": "TRACE_BYTES_HEX ", "required": true}]
+        }
+      ],
+      "assertions": [{"op": "nonempty", "capture": "run.TRACE_BYTES_HEX"}]
     },
     {
       "path": "tests/avm/test_trace_bytes_truncate.oren",

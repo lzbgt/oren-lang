@@ -92,6 +92,80 @@ def validate_case(case: dict[str, Any]) -> None:
             raise SystemExit(f"{case['path']}: host_effects entries require expect absent/present")
         if not isinstance(effect.get("path"), str) or not effect["path"]:
             raise SystemExit(f"{case['path']}: host_effect path must be non-empty string")
+    phases = case.get("phases", [])
+    if not isinstance(phases, list):
+        raise SystemExit(f"{case['path']}: phases must be list")
+    seen_phase_names: set[str] = set()
+    for phase in phases:
+        validate_phase(case, phase, seen_phase_names)
+    assertions = case.get("assertions", [])
+    if not isinstance(assertions, list):
+        raise SystemExit(f"{case['path']}: assertions must be list")
+    for assertion in assertions:
+        validate_assertion(case, assertion)
+
+
+def validate_phase(case: dict[str, Any], phase: dict[str, Any], seen: set[str]) -> None:
+    if not isinstance(phase, dict):
+        raise SystemExit(f"{case['path']}: phase entries must be object")
+    name = phase.get("name")
+    if not isinstance(name, str) or not name:
+        raise SystemExit(f"{case['path']}: phase.name must be non-empty string")
+    if name in seen:
+        raise SystemExit(f"{case['path']}: duplicate phase name: {name}")
+    seen.add(name)
+    if "avm_args" in phase and (
+        not isinstance(phase["avm_args"], list) or not all(isinstance(x, str) for x in phase["avm_args"])
+    ):
+        raise SystemExit(f"{case['path']} phase {name}: avm_args must be list<string>")
+    if "env" in phase and not isinstance(phase["env"], dict):
+        raise SystemExit(f"{case['path']} phase {name}: env must be object")
+    env_from = phase.get("env_from_captures", {})
+    if not isinstance(env_from, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env_from.items()):
+        raise SystemExit(f"{case['path']} phase {name}: env_from_captures must be object<string,string>")
+    if "expected" in phase:
+        expected = phase["expected"]
+        if not isinstance(expected, dict) or not isinstance(expected.get("exit_code"), int):
+            raise SystemExit(f"{case['path']} phase {name}: expected.exit_code must be int")
+        if not isinstance(expected.get("error_contains", ""), str):
+            raise SystemExit(f"{case['path']} phase {name}: expected.error_contains must be string")
+    cleanup_paths = phase.get("cleanup_paths", [])
+    if not isinstance(cleanup_paths, list) or not all(isinstance(x, str) for x in cleanup_paths):
+        raise SystemExit(f"{case['path']} phase {name}: cleanup_paths must be list<string>")
+    host_effects = phase.get("host_effects", [])
+    if not isinstance(host_effects, list):
+        raise SystemExit(f"{case['path']} phase {name}: host_effects must be list")
+    for effect in host_effects:
+        if not isinstance(effect, dict) or effect.get("expect") not in {"absent", "present"}:
+            raise SystemExit(f"{case['path']} phase {name}: host_effects entries require expect absent/present")
+        if not isinstance(effect.get("path"), str) or not effect["path"]:
+            raise SystemExit(f"{case['path']} phase {name}: host_effect path must be non-empty string")
+    captures = phase.get("captures", [])
+    if not isinstance(captures, list):
+        raise SystemExit(f"{case['path']} phase {name}: captures must be list")
+    for capture in captures:
+        if not isinstance(capture, dict):
+            raise SystemExit(f"{case['path']} phase {name}: capture entries must be object")
+        if not isinstance(capture.get("name"), str) or not capture["name"]:
+            raise SystemExit(f"{case['path']} phase {name}: capture.name must be non-empty string")
+        if not isinstance(capture.get("prefix"), str) or not capture["prefix"]:
+            raise SystemExit(f"{case['path']} phase {name}: capture.prefix must be non-empty string")
+        if "required" in capture and not isinstance(capture["required"], bool):
+            raise SystemExit(f"{case['path']} phase {name}: capture.required must be bool")
+
+
+def validate_assertion(case: dict[str, Any], assertion: dict[str, Any]) -> None:
+    if not isinstance(assertion, dict):
+        raise SystemExit(f"{case['path']}: assertion entries must be object")
+    op = assertion.get("op")
+    if op not in {"eq", "ne", "present", "nonempty"}:
+        raise SystemExit(f"{case['path']}: assertion.op must be eq/ne/present/nonempty")
+    if op in {"eq", "ne"}:
+        if not isinstance(assertion.get("left"), str) or not isinstance(assertion.get("right"), str):
+            raise SystemExit(f"{case['path']}: {op} assertion requires left/right capture names")
+    else:
+        if not isinstance(assertion.get("capture"), str):
+            raise SystemExit(f"{case['path']}: {op} assertion requires capture")
 
 
 def default_case(defaults: dict[str, Any], fixture_path: str) -> dict[str, Any]:
@@ -116,6 +190,53 @@ def run_cmd(cmd: list[str], log_path: pathlib.Path, env: dict[str, str] | None =
 
 def sanitize_name(path_value: str) -> str:
     return pathlib.Path(path_value).stem.replace("/", "_").replace(" ", "_")
+
+
+def default_phase(case: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": "run",
+        "avm_args": case["avm_args"],
+        "env": {},
+        "expected": case["expected"],
+        "host_effects": case["host_effects"],
+    }
+
+
+def capture_output(case: dict[str, Any], phase: dict[str, Any], combined: str, captures: dict[str, str]) -> None:
+    phase_name = phase["name"]
+    for capture in phase.get("captures", []):
+        prefix = capture["prefix"]
+        value = None
+        for line in combined.splitlines():
+            if line.startswith(prefix):
+                value = line[len(prefix):].strip()
+        if value is None:
+            if capture.get("required", True):
+                raise RuntimeError(f"{case['path']} phase {phase_name}: missing capture prefix {prefix!r}")
+            continue
+        captures[f"{phase_name}.{capture['name']}"] = value
+
+
+def check_assertions(case: dict[str, Any], captures: dict[str, str]) -> None:
+    for assertion in case.get("assertions", []):
+        op = assertion["op"]
+        if op in {"present", "nonempty"}:
+            key = assertion["capture"]
+            if key not in captures:
+                raise RuntimeError(f"{case['path']}: missing capture {key!r}")
+            if op == "nonempty" and captures[key] == "":
+                raise RuntimeError(f"{case['path']}: capture {key!r} is empty")
+            continue
+        left_key = assertion["left"]
+        right_key = assertion["right"]
+        if left_key not in captures or right_key not in captures:
+            raise RuntimeError(f"{case['path']}: missing captures for assertion {left_key!r} {op} {right_key!r}")
+        left = captures[left_key]
+        right = captures[right_key]
+        if op == "eq" and left != right:
+            raise RuntimeError(f"{case['path']}: expected {left_key} == {right_key}, got {left!r} != {right!r}")
+        if op == "ne" and left == right:
+            raise RuntimeError(f"{case['path']}: expected {left_key} != {right_key}, both were {left!r}")
 
 
 def main() -> int:
@@ -186,36 +307,68 @@ def main() -> int:
                 sys.stderr.write(setup_log.read_text(encoding="utf-8", errors="replace"))
                 return 1
 
-        for dir_value in case.get("setup_dirs", []):
-            (ROOT / dir_value).mkdir(parents=True, exist_ok=True)
-        for effect in case["host_effects"]:
-            target = ROOT / effect["path"]
-            if effect["expect"] == "absent" and target.exists():
-                target.unlink()
-
-        env = os.environ.copy()
-        for key, value in case["env"].items():
-            env[str(key)] = str(value)
-        run_rc = run_cmd([args.avm_bin, *case["avm_args"], str(obc.relative_to(ROOT))], run_log, env=env, timeout=180)
-        combined = run_log.read_text(encoding="utf-8", errors="replace")
-        expected = case["expected"]
-        if run_rc != expected["exit_code"]:
-            sys.stderr.write(f"--- {name} (run rc={run_rc}, expected {expected['exit_code']}) ---\n{combined}")
-            return 1
-        needle = expected.get("error_contains", "")
-        if needle and needle not in combined:
-            sys.stderr.write(f"--- {name} (missing expected error {needle!r}) ---\n{combined}")
-            return 1
-        for effect in case["host_effects"]:
-            target = ROOT / effect["path"]
-            if effect["expect"] == "absent" and target.exists():
-                sys.stderr.write(f"--- {name} (host artifact exists) ---\nexpected absent: {effect['path']}\n")
-                return 1
-            if effect["expect"] == "present" and not target.exists():
-                sys.stderr.write(f"--- {name} (host artifact missing) ---\nexpected present: {effect['path']}\n")
-                return 1
+        phases = case.get("phases") or [default_phase(case)]
+        captures: dict[str, str] = {}
         with build_log.open("a", encoding="utf-8") as log:
-            log.write(combined)
+            for phase in phases:
+                phase_name = phase["name"]
+                phase_log = run_log if len(phases) == 1 else log_dir / f"avm_{name}_{phase_name}.out"
+                for dir_value in case.get("setup_dirs", []):
+                    (ROOT / dir_value).mkdir(parents=True, exist_ok=True)
+                for path_value in phase.get("cleanup_paths", []):
+                    target = ROOT / path_value
+                    if target.exists():
+                        target.unlink()
+                phase_effects = phase.get("host_effects", case["host_effects"])
+                for effect in phase_effects:
+                    target = ROOT / effect["path"]
+                    if effect["expect"] == "absent" and target.exists():
+                        target.unlink()
+
+                env = os.environ.copy()
+                for key, value in case["env"].items():
+                    env[str(key)] = str(value)
+                for key, value in phase.get("env", {}).items():
+                    env[str(key)] = str(value)
+                for key, capture_key in phase.get("env_from_captures", {}).items():
+                    if capture_key not in captures:
+                        sys.stderr.write(f"--- {name} phase {phase_name} (missing env capture) ---\n{capture_key}\n")
+                        return 1
+                    env[str(key)] = captures[capture_key]
+
+                phase_args = phase.get("avm_args", case["avm_args"])
+                run_rc = run_cmd([args.avm_bin, *phase_args, str(obc.relative_to(ROOT))], phase_log, env=env, timeout=180)
+                combined = phase_log.read_text(encoding="utf-8", errors="replace")
+                expected = phase.get("expected", case["expected"])
+                if run_rc != expected["exit_code"]:
+                    sys.stderr.write(
+                        f"--- {name} phase {phase_name} (run rc={run_rc}, expected {expected['exit_code']}) ---\n{combined}"
+                    )
+                    return 1
+                needle = expected.get("error_contains", "")
+                if needle and needle not in combined:
+                    sys.stderr.write(f"--- {name} phase {phase_name} (missing expected error {needle!r}) ---\n{combined}")
+                    return 1
+                for effect in phase_effects:
+                    target = ROOT / effect["path"]
+                    if effect["expect"] == "absent" and target.exists():
+                        sys.stderr.write(f"--- {name} phase {phase_name} (host artifact exists) ---\nexpected absent: {effect['path']}\n")
+                        return 1
+                    if effect["expect"] == "present" and not target.exists():
+                        sys.stderr.write(f"--- {name} phase {phase_name} (host artifact missing) ---\nexpected present: {effect['path']}\n")
+                        return 1
+                try:
+                    capture_output(case, phase, combined, captures)
+                except RuntimeError as exc:
+                    sys.stderr.write(f"--- {name} phase {phase_name} (capture) ---\n{exc}\n{combined}")
+                    return 1
+                log.write(f"\n--- phase {phase_name} ---\n")
+                log.write(combined)
+            try:
+                check_assertions(case, captures)
+            except RuntimeError as exc:
+                sys.stderr.write(f"--- {name} (assertion) ---\n{exc}\n")
+                return 1
             log.write(
                 f"\nmanifest: deterministic={case['deterministic']} "
                 f"backend_policy={case['backend_policy']} budgets={json.dumps(case['budgets'], sort_keys=True)}\n"

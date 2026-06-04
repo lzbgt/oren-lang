@@ -607,7 +607,9 @@
 <ul>
 <li>The manifest records fixture path, release-gate inclusion, expected exit/error,</li>
 </ul>
-<p>  environment budgets, backend policy, deterministic mode, and host-effect checks.</p>
+<p>  environment budgets, backend policy, deterministic mode, setup builds,</p>
+<p>  multi-phase record/replay or snapshot/resume runs, line-prefix captures,</p>
+<p>  cross-phase assertions, and host-effect checks.</p>
 <p>  <code>AVM_TESTS=&quot;...&quot;</code> overrides still work; paths not present in the manifest run with</p>
 <p>  default zero-exit virtual-backend policy.</p>
 <ul>
@@ -622,7 +624,9 @@
 <p>	  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,</p>
 <p>	  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,</p>
 <p>	  host FS mounts, nested multiverse AVM/VNET/VPROC/VFS fixtures, VFS inheritance</p>
-<p>	  plus host-prefix inheritance, deterministic math core/rounding, exp/log,</p>
+<p>	  plus host-prefix inheritance, record/replay env/exit/FS/proc flows,</p>
+<p>	  snapshot/resume tasks/VFS/record-log flows, state-hash VFS inclusion,</p>
+<p>	  trace-byte repeat/native-event coverage, deterministic math core/rounding, exp/log,</p>
 <p>	  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator</p>
 <p>	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as</p>
 <p>	  ad-hoc focused fixtures.</p>
@@ -760,10 +764,10 @@
 <li><strong>AVM fixture manifest coverage</strong></li>
 </ol>
 <ul>
-<li>Keep expanding <code>tests/avm/release_manifest.json</code> beyond the curated release-gate</li>
+<li>Existing <code>tests/avm/test_*.oren</code> fixtures now carry manifest metadata.</li>
+<li>Keep adding explicit manifest policy when new AVM fixtures or host-effect</li>
 </ul>
-<p>     set so full-suite AVM fixtures carry explicit env, expected rc/error, backend</p>
-<p>     policy, deterministic mode, and host-effect assertions.</p>
+<p>     surfaces are introduced.</p>
 <ol>
 <li><strong>Cross-backend parity</strong></li>
 </ol>

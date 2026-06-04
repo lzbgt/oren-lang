@@ -245,10 +245,12 @@ This file is the concise task view. Detailed implementation status lives in
    - `make test-avm` now runs through `tests/avm/release_manifest.json`, which records
      fixture path, expected rc/error, env budgets, backend policy, deterministic mode,
      host-effect checks, and release-gate inclusion.
+   - The manifest runner now supports multi-phase cases with per-phase env/args,
+     cleanup, host-effect checks, line-prefix captures, and cross-phase assertions.
    - Nested multiverse AVM/VNET/VPROC/VFS fixtures and VFS inheritance are now
      release-gated with explicit setup builds and deny-default host policy.
-   - Remaining wildcard-release work is concentrated in multi-phase record/replay,
-     snapshot, state-hash, and trace fixtures that need explicit runner policy.
+   - Existing `tests/avm/test_*.oren` fixtures are now all present in the manifest;
+     future work should add release metadata when new AVM fixtures are introduced.
 
 3. **Cross-backend parity gates**
    - Expand only where current fixtures expose gaps.

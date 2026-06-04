@@ -321,13 +321,17 @@
 <p>     fixture path, expected rc/error, env budgets, backend policy, deterministic mode,</p>
 <p>     host-effect checks, and release-gate inclusion.</p>
 <ul>
+<li>The manifest runner now supports multi-phase cases with per-phase env/args,</li>
+</ul>
+<p>     cleanup, host-effect checks, line-prefix captures, and cross-phase assertions.</p>
+<ul>
 <li>Nested multiverse AVM/VNET/VPROC/VFS fixtures and VFS inheritance are now</li>
 </ul>
 <p>     release-gated with explicit setup builds and deny-default host policy.</p>
 <ul>
-<li>Remaining wildcard-release work is concentrated in multi-phase record/replay,</li>
+<li>Existing <code>tests/avm/test_*.oren</code> fixtures are now all present in the manifest;</li>
 </ul>
-<p>     snapshot, state-hash, and trace fixtures that need explicit runner policy.</p>
+<p>     future work should add release metadata when new AVM fixtures are introduced.</p>
 <ol>
 <li><strong>Cross-backend parity gates</strong></li>
 </ol>

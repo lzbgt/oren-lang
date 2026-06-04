@@ -501,7 +501,9 @@ Facts from the 2026-05-28 implementation pass:
 - Curated `make avm && make test-avm` passes through
   `tests/avm/release_manifest.json`, not Makefile case arms.
 - The manifest records fixture path, release-gate inclusion, expected exit/error,
-  environment budgets, backend policy, deterministic mode, and host-effect checks.
+  environment budgets, backend policy, deterministic mode, setup builds,
+  multi-phase record/replay or snapshot/resume runs, line-prefix captures,
+  cross-phase assertions, and host-effect checks.
   `AVM_TESTS="..."` overrides still work; paths not present in the manifest run with
   default zero-exit virtual-backend policy.
 - The default AVM release gate now also covers portable stdlib bytes/buffer view
@@ -514,7 +516,9 @@ Facts from the 2026-05-28 implementation pass:
 	  timeout, gas/timeout/IO/log/heap budget aborts, bounded trace diagnostics,
 	  trace-byte heap-budget exemption, capsule/default-deny FS policy, VFS helpers,
 	  host FS mounts, nested multiverse AVM/VNET/VPROC/VFS fixtures, VFS inheritance
-	  plus host-prefix inheritance, deterministic math core/rounding, exp/log,
+	  plus host-prefix inheritance, record/replay env/exit/FS/proc flows,
+	  snapshot/resume tasks/VFS/record-log flows, state-hash VFS inclusion,
+	  trace-byte repeat/native-event coverage, deterministic math core/rounding, exp/log,
 	  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
 	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as
 	  ad-hoc focused fixtures.
@@ -621,9 +625,9 @@ Working evidence:
      fixture toward multi-file app suites and CI-hosted lifecycle checks.
 
 2. **AVM fixture manifest coverage**
-   - Keep expanding `tests/avm/release_manifest.json` beyond the curated release-gate
-     set so full-suite AVM fixtures carry explicit env, expected rc/error, backend
-     policy, deterministic mode, and host-effect assertions.
+   - Existing `tests/avm/test_*.oren` fixtures now carry manifest metadata.
+   - Keep adding explicit manifest policy when new AVM fixtures or host-effect
+     surfaces are introduced.
 
 3. **Cross-backend parity**
    - Expand only around real gaps; keep C/native/OBC fixtures aligned.

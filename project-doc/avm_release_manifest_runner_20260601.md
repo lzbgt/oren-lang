@@ -35,7 +35,12 @@ defaults and must resolve these fields:
 - `budgets`: structured budget metadata;
 - `setup_dirs`: host directories to create before running the fixture;
 - `setup_builds`: child bytecode builds to materialize before running the fixture;
-- `host_effects`: expected host artifact assertions such as absent files.
+- `host_effects`: expected host artifact assertions such as absent files;
+- `phases`: optional multi-run phase records for record/replay, snapshot/resume,
+  state-hash, and trace repeat fixtures;
+- `captures` / `assertions`: line-prefix captures such as `RECORD_LOG_HEX`,
+  `STATE_HASH`, and `TRACE_BYTES_HEX`, plus cross-phase equality, inequality,
+  presence, and non-empty assertions.
 
 This makes fixture policy reviewable as data and removes hidden expectations from
 Makefile shell branches.
@@ -54,13 +59,10 @@ to the manifest with explicit metadata instead of relying on defaults.
 
 ## Next Work
 
-The current manifest covers the curated release-gate set, one non-gate VPROC
-fixture, the default-safe language/container fixtures, default-safe
-byte/int/call-stack/hash, varargs call/spread/spawn, task/group scheduler,
-deterministic join-timeout, explicit budget-abort fixtures, capsule/FS
-capability fixtures, map key ordering/type hash fixtures with child-bytecode setup,
-nested multiverse AVM/VNET/VPROC/VFS fixtures, VFS inheritance plus host-prefix
-inheritance, and bounded trace diagnostic fixtures. The next completeness step is
-to add explicit release inclusion/exclusion and policy metadata for the remaining
-multi-phase record/replay, snapshot, state-hash, and trace fixtures, then gate the
-full wildcard path when the expected budgets/backends are declared.
+The current manifest covers every tracked `tests/avm/test_*.oren` fixture with
+explicit metadata, including record/replay, snapshot/resume, state-hash, trace,
+nested multiverse AVM/VNET/VPROC/VFS, VFS inheritance plus host-prefix
+inheritance, and child-bytecode setup builds. The next completeness step is no
+longer manifesting existing fixtures; it is adding new release cases only when
+new AVM/runtime surfaces are introduced or when focused fixtures expose a real
+gap.
