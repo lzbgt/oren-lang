@@ -389,10 +389,13 @@ Facts from the 2026-05-28 implementation pass:
   model/material/transform override objects that lower to generated retained
   models, human-readable `position_xyz` or nested `transform` records,
   human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
-  `triangles_xyz` or `quads_xyz` direct meshes, compact `boxes_xyz`
-  cuboid primitives, `prisms_xy` extruded polygon solids, bounded
-  `cylinders_z`, `cones_z`, and `spheres_xyz` primitives, and per-triangle
-  `triangles_xyz_rgba` colors.
+	  `triangles_xyz` or `quads_xyz` direct meshes, compact `boxes_xyz`
+	  cuboid primitives, `prisms_xy` extruded polygon solids, bounded
+	  `cylinders_z`, `cones_z`, and `spheres_xyz` primitives, and per-triangle
+	  `triangles_xyz_rgba` colors. Curved solid packers now live in the
+	  dedicated `std:ui/scene3d_shapes` helper module, keeping the retained-scene
+	  orchestration file small enough for continued package-format expansion
+	  without changing the public JSON schema or renderer ABI.
   Material authoring accepts `color` or
   `base_color` plus optional `opacity_milli`, `roughness_milli`, and
   `metallic_milli`, lowering the v0 renderer-visible output to deterministic

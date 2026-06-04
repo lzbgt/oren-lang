@@ -204,10 +204,13 @@ This file is the concise task view. Detailed implementation status lives in
      are published as release presentation metadata outside package manifests,
      client runtime assets, and bundles. Package detail pages render declared
      Oren source in-browser with syntax highlighting and an AST outline.
-     Scene3D package assets now include compact `boxes_xyz` cuboid authoring,
-     `prisms_xy` extruded polygon authoring, and bounded
-     `cylinders_z`/`cones_z`/`spheres_xyz` authoring that lower to existing
-     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
+	     Scene3D package assets now include compact `boxes_xyz` cuboid authoring,
+	     `prisms_xy` extruded polygon authoring, and bounded
+	     `cylinders_z`/`cones_z`/`spheres_xyz` authoring that lower to existing
+	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
+	     Curved solid packers are split into `std:ui/scene3d_shapes` so broader
+	     package formats can keep growing without pushing `std:ui/scene3d` toward
+	     the source-line guardrail.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
      manifest schema/ABI/hash validation, capability/budget/time config derivation,
      read-only package asset mounting into VirtualFS, package OBC run, HTTP
