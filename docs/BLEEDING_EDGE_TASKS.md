@@ -34,11 +34,12 @@ This file is the concise task view. Detailed implementation status lives in
 
 1. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop
-     `LibAVM.xcframework` packaging, and a C embedder API now exist. The public API
-     includes argv, VFS input/output, VirtualNET fixture, VirtualPROC fixture/default,
-     deterministic TIME by default, and stdout-capture helpers required by app-host
-     compile/run bridges. `make verify-libavm-ios` now proves host compile-to-OBC,
-     iOS C smoke linkage, host embedder
+     `LibAVM.xcframework` packaging, Linux x64 static `LibAVM` packaging, and a C
+     embedder API now exist. The public API includes argv, VFS input/output,
+     VirtualNET fixture, VirtualPROC fixture/default, deterministic TIME by default,
+     and stdout-capture helpers required by app-host compile/run bridges.
+     `make verify-libavm-ios` now proves host compile-to-OBC, iOS C smoke linkage,
+     host embedder
      argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a
      nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public
      `OrenAVMCompilerKit` SDK helper that compiles source to OBC through AVM
@@ -46,6 +47,10 @@ This file is the concise task view. Detailed implementation status lives in
    - Desktop SDK gate: `make verify-libavm-desktop` builds macOS arm64/x86_64
      `LibAVM.xcframework` slices, checks public embedder symbols in both archives,
      and runs local host C and Swift embedders against OBC bytes.
+   - Linux x64 SDK gate: `make verify-libavm-linux-x64` cross-builds the C embedder
+     static library with Zig, exports headers/module-map/pkg-config metadata, checks
+     x86_64 ELF output and embedder symbols, and compiles a Linux x64 host embedder
+     smoke. Runtime execution is QEMU-gated when an emulator is present.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.

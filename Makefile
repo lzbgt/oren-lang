@@ -1721,15 +1721,21 @@ $(AVM_BIN): $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
 	fi
 	@$(AVM_CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o "$(AVM_BIN)" $(AVM_C_SRC)
 
-.PHONY: libavm-ios libavm-ios-xcframework libavm-desktop libavm-macos verify-libavm-desktop verify-libavm-ios verify-compiler-in-avm-ios-chain verify-avm-stdlib-obc-surface verify-libavm-ios-full-chain
+.PHONY: libavm-ios libavm-ios-xcframework libavm-desktop libavm-macos libavm-linux-x64 verify-libavm-desktop verify-libavm-linux-x64 verify-libavm-ios verify-compiler-in-avm-ios-chain verify-avm-stdlib-obc-surface verify-libavm-ios-full-chain
 libavm-ios libavm-ios-xcframework:
 	@./scripts/build_libavm_ios.sh
 
 libavm-desktop libavm-macos:
 	@./scripts/build_libavm_desktop.sh
 
+libavm-linux-x64:
+	@./scripts/build_libavm_linux_x64.sh
+
 verify-libavm-desktop: oren avm
 	@./scripts/verify_libavm_desktop.sh
+
+verify-libavm-linux-x64: oren avm
+	@./scripts/verify_libavm_linux_x64.sh
 
 verify-libavm-ios: oren avm
 	@./scripts/verify_libavm_ios.sh

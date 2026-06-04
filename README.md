@@ -138,7 +138,7 @@ Oren currently has three execution paths:
 | C backend | Portable bootstrap and cross-checking through a host C toolchain. | Useful baseline. |
 | Native backend | Mach-O / ELF / PE output for local/server/desktop execution. | Most mature on macOS arm64; x64 is active bring-up. |
 | OBC + AVM | Deterministic bytecode for capability-governed host apps. | Strong smoke/conformance gates; still rolling for production embedding. |
-| Desktop SDK | macOS `LibAVM.xcframework` for C/C++/Swift hosts. | Verified arm64 and x86_64 static slices with C and Swift embedder smokes. |
+| Desktop SDK | macOS `LibAVM.xcframework` plus Linux x64 static `LibAVM` for C/C++/Swift hosts. | macOS runs C and Swift embedder smokes; Linux x64 is Zig-built, symbol-checked, and link-smoked. |
 
 Build native:
 
@@ -169,6 +169,7 @@ make test
 make test-avm
 make verify-libavm-ios
 make verify-libavm-desktop
+make verify-libavm-linux-x64
 make verify-obc-store-service
 ```
 

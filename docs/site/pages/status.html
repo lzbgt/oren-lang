@@ -48,9 +48,9 @@
 <li>native tagged-value convergence is incomplete;</li>
 <li>allocator/GC/runtime robustness is still a W5 gate;</li>
 <li>Tier-1 platform breadth is uneven;</li>
-<li>AVM now has iOS and macOS desktop xcframework packaging gates, an embedder C</li>
+<li>AVM now has iOS, macOS desktop, and Linux x64 SDK packaging gates, an embedder</li>
 </ul>
-<p>  API with argv, VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers,</p>
+<p>  C API with argv, VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers,</p>
 <p>  plus a full compiler-in-AVM smoke gate, but still needs app-host lifecycle</p>
 <p>  coverage before it should be called a complete production app package.</p>
 <h2 id="backend-readiness">Backend Readiness</h2>
@@ -75,6 +75,14 @@
 <p>  for macOS arm64 and x86_64, exports the same public C embedder headers/module</p>
 <p>  map, symbol-checks both static-library slices, and runs host C and Swift</p>
 <p>  embedder smokes against OBC bytes on the local macOS architecture.</p>
+<ul>
+<li><code>make verify-libavm-linux-x64</code> uses Zig to build</li>
+</ul>
+<p>  <code>build/libavm/linux-x64/lib/x86_64-linux-gnu/libavm.a</code>, exports headers,</p>
+<p>  a module map, and <code>libavm.pc</code>, checks the x86_64 ELF objects and embedder</p>
+<p>  symbols, then compiles a Linux x64 C host embedder smoke. It executes that</p>
+<p>  smoke only when <code>qemu-x86_64</code> is available or <code>VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1</code></p>
+<p>  is set.</p>
 <ul>
 <li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
 </ul>
