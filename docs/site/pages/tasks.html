@@ -115,10 +115,15 @@
 <p>     by default, but expand through a manifest/size gate so bundle build time remains</p>
 <p>     acceptable; keep host-only modules out until AVM shims exist.</p>
 <ul>
+<li>Default AVM gate breadth now includes portable stdlib bytes/buffer views,</li>
+</ul>
+<p>     u8 buffer iteration, checked integer casts, crypto hash vectors, iterator</p>
+<p>     ranges, and Scene3D package assets.</p>
+<ul>
 <li>Remaining required work: Note-side Swift UX integration, allocator ownership</li>
 </ul>
 <p>     or explicit single-VM guard, stderr or richer structured diagnostic capture</p>
-<p>     if the Note UI needs it, broader compiler/stdlib surface coverage, and CI</p>
+<p>     if the Note UI needs it, broader compiler-in-AVM surface coverage, and CI</p>
 <p>     coverage.</p>
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>

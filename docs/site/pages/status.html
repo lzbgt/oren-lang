@@ -599,6 +599,12 @@
 <p>  <code>AVM_TESTS=&quot;...&quot;</code> overrides still work; paths not present in the manifest run with</p>
 <p>  default zero-exit virtual-backend policy.</p>
 <ul>
+<li>The default AVM release gate now also covers portable stdlib bytes/buffer view</li>
+</ul>
+<p>  APIs, u8 buffer iteration, checked integer casts, crypto hash vectors,</p>
+<p>  iterator ranges, and Scene3D package-asset authoring rather than leaving those</p>
+<p>  as ad-hoc focused fixtures.</p>
+<ul>
 <li>A direct <code>AVM_IO_BYTES=128</code> run of <code>test_budget_io_fs</code> returns the expected</li>
 </ul>
 <p>  <code>AVM_ERR_BUDGET</code>, proving that specific runtime behavior while exposing harness debt.</p>
@@ -644,9 +650,13 @@
 <p>  prompts;</p>
 <ul>
 <li>allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;</li>
-<li>broader manifest coverage for non-curated AVM fixtures;</li>
-<li>broader stdlib/compiler surface coverage beyond the current smoke program.</li>
+<li>continued manifest promotion for non-curated AVM fixtures where runtime cost is</li>
 </ul>
+<p>  justified;</p>
+<ul>
+<li>broader compiler-in-AVM stdlib surface coverage beyond the current smoke</li>
+</ul>
+<p>  program.</p>
 <h2 id="scientific-stdlib-math">Scientific Stdlib Math</h2>
 <p>Current verdict: **portable deterministic foundation, still expanding toward C/C++</p>
 <p>mathlib breadth**.</p>

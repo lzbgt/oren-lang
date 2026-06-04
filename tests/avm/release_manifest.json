@@ -97,6 +97,12 @@
     {"path": "tests/avm/test_list_dot_opcodes.oren"},
     {"path": "tests/avm/test_list_int_basic.oren"},
     {"path": "tests/avm/test_std_math_pow.oren"},
+    {"path": "tests/avm/test_std_bytes_portable.oren"},
+    {"path": "tests/avm/test_std_buffer_views_portable.oren"},
+    {"path": "tests/avm/test_u8_buf_views.oren"},
+    {"path": "tests/avm/test_int_casts_checked.oren"},
+    {"path": "tests/avm/test_crypto_sha256_vectors.oren"},
+    {"path": "tests/avm/test_iter_range.oren"},
     {
       "path": "tests/avm/test_list_freelist_env.oren",
       "env": {

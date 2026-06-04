@@ -58,9 +58,12 @@ This file is the concise task view. Detailed implementation status lives in
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.
+   - Default AVM gate breadth now includes portable stdlib bytes/buffer views,
+     u8 buffer iteration, checked integer casts, crypto hash vectors, iterator
+     ranges, and Scene3D package assets.
    - Remaining required work: Note-side Swift UX integration, allocator ownership
      or explicit single-VM guard, stderr or richer structured diagnostic capture
-     if the Note UI needs it, broader compiler/stdlib surface coverage, and CI
+     if the Note UI needs it, broader compiler-in-AVM surface coverage, and CI
      coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.

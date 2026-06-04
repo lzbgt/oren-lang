@@ -492,6 +492,10 @@ Facts from the 2026-05-28 implementation pass:
   environment budgets, backend policy, deterministic mode, and host-effect checks.
   `AVM_TESTS="..."` overrides still work; paths not present in the manifest run with
   default zero-exit virtual-backend policy.
+- The default AVM release gate now also covers portable stdlib bytes/buffer view
+  APIs, u8 buffer iteration, checked integer casts, crypto hash vectors,
+  iterator ranges, and Scene3D package-asset authoring rather than leaving those
+  as ad-hoc focused fixtures.
 - A direct `AVM_IO_BYTES=128` run of `test_budget_io_fs` returns the expected
   `AVM_ERR_BUDGET`, proving that specific runtime behavior while exposing harness debt.
 
@@ -530,8 +534,10 @@ Missing for production:
   install/run APIs into the app UX, including diagnostics display and permission
   prompts;
 - allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
-- broader manifest coverage for non-curated AVM fixtures;
-- broader stdlib/compiler surface coverage beyond the current smoke program.
+- continued manifest promotion for non-curated AVM fixtures where runtime cost is
+  justified;
+- broader compiler-in-AVM stdlib surface coverage beyond the current smoke
+  program.
 
 ## Scientific Stdlib Math
 

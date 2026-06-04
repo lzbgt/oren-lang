@@ -260,6 +260,12 @@ endif
 		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \
 		tests/avm/test_std_math_pow.oren \
+		tests/avm/test_std_bytes_portable.oren \
+		tests/avm/test_std_buffer_views_portable.oren \
+		tests/avm/test_u8_buf_views.oren \
+		tests/avm/test_int_casts_checked.oren \
+		tests/avm/test_crypto_sha256_vectors.oren \
+		tests/avm/test_iter_range.oren \
 		tests/avm/test_list_freelist_env.oren \
 		tests/avm/test_ui_color_v0.oren \
 		tests/avm/test_ui_layout_v0.oren \
@@ -268,6 +274,7 @@ endif
 		tests/avm/test_ui_raster_v0.oren \
 		tests/avm/test_ui_2d_conformance_v0.oren \
 		tests/avm/test_ui_3d_conformance_v0.oren \
+		tests/avm/test_ui_scene3d_v0.oren \
 		tests/avm/test_ui_avm_mailbox_v0.oren \
 		tests/avm/test_ui_avm_event_decode_v0.oren \
 		tests/avm/test_ui_avm_protocol_validation_v0.oren \
