@@ -39,8 +39,8 @@ Facts from the 2026-05-28 implementation pass:
   links a tiny iOS embedder smoke for both SDKs.
 - `make verify-libavm-desktop` builds `build/libavm/desktop/LibAVM.xcframework`
   for macOS arm64 and x86_64, exports the same public C embedder headers/module
-  map, symbol-checks both static-library slices, and runs a host C embedder smoke
-  against OBC bytes on the local macOS architecture.
+  map, symbol-checks both static-library slices, and runs host C and Swift
+  embedder smokes against OBC bytes on the local macOS architecture.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:

@@ -35,7 +35,10 @@ OREN_SRC="$TMP_DIR/desktop_embed_smoke.oren"
 OBC_OUT="$TMP_DIR/desktop_embed_smoke.obc"
 SMOKE_C="$TMP_DIR/desktop_embed_smoke.c"
 SMOKE_BIN="$TMP_DIR/desktop_embed_smoke"
+SWIFT_SRC="$TMP_DIR/desktop_embed_smoke.swift"
+SWIFT_BIN="$TMP_DIR/desktop_embed_swift_smoke"
 SMOKE_LOG="$LOG_DIR/libavm_desktop_embed_smoke.log"
+SWIFT_LOG="$LOG_DIR/libavm_desktop_swift_smoke.log"
 
 cat > "$OREN_SRC" <<'OREN'
 fn main() {
@@ -159,5 +162,66 @@ cc -std=c11 -D_DARWIN_C_SOURCE -I"$OUT_ROOT/include" "$SMOKE_C" "$HOST_SLICE" \
   -o "$SMOKE_BIN" > "$LOG_DIR/libavm_desktop_host_compile.log" 2>&1
 "$SMOKE_BIN" "$OBC_OUT" > "$SMOKE_LOG" 2>&1
 grep -F "OK: desktop LibAVM C embed smoke passed" "$SMOKE_LOG" >/dev/null
+
+cat > "$SWIFT_SRC" <<'SWIFT'
+import Foundation
+import LibAVM
+
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data((message + "\n").utf8))
+    exit(1)
+}
+
+if CommandLine.arguments.count != 2 {
+    fail("usage: desktop_embed_swift_smoke program.obc")
+}
+
+let obc = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
+var config = AvmEmbedConfig()
+var result = AvmEmbedResult()
+avm_embed_config_default(&config)
+avm_embed_result_clear(&result)
+
+guard let handle = avm_embed_open(&config, &result) else {
+    fail("open failed")
+}
+defer {
+    avm_embed_close(handle)
+}
+
+if avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK {
+    fail("capture failed")
+}
+
+let runStatus = obc.withUnsafeBytes { rawBuffer -> Int32 in
+    let ptr = rawBuffer.bindMemory(to: UInt8.self).baseAddress
+    return avm_embed_run_obc_bytes(handle, ptr, obc.count, &result)
+}
+if runStatus != AVM_EMBED_OK || result.exit_code != 0 {
+    fail("run failed")
+}
+
+var outPtr: UnsafeMutablePointer<UInt8>? = nil
+var outLen = 0
+if avm_embed_output_get(handle, &outPtr, &outLen, &result) != AVM_EMBED_OK {
+    fail("output failed")
+}
+guard let outPtr else {
+    fail("missing output")
+}
+let outData = Data(bytes: outPtr, count: outLen)
+avm_embed_free_bytes(outPtr)
+let text = String(data: outData, encoding: .utf8) ?? ""
+if !text.contains("desktop-libavm-ok") {
+    fail("missing captured output")
+}
+
+print("OK: desktop LibAVM Swift embed smoke passed")
+SWIFT
+
+swiftc -I"$OUT_ROOT/include" "$SWIFT_SRC" "$HOST_SLICE" \
+  -o "$SWIFT_BIN" > "$LOG_DIR/libavm_desktop_swift_compile.log" 2>&1
+"$SWIFT_BIN" "$OBC_OUT" > "$SWIFT_LOG" 2>&1
+grep -F "OK: desktop LibAVM Swift embed smoke passed" "$SWIFT_LOG" >/dev/null
 
 echo "OK: desktop LibAVM SDK verification passed"

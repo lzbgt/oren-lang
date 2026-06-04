@@ -43,9 +43,9 @@ This file is the concise task view. Detailed implementation status lives in
      nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public
      `OrenAVMCompilerKit` SDK helper that compiles source to OBC through AVM
      VirtualFS/argv.
-   - Desktop C SDK gate: `make verify-libavm-desktop` builds macOS arm64/x86_64
+   - Desktop SDK gate: `make verify-libavm-desktop` builds macOS arm64/x86_64
      `LibAVM.xcframework` slices, checks public embedder symbols in both archives,
-     and runs a local host C embedder against OBC bytes.
+     and runs local host C and Swift embedders against OBC bytes.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.
