@@ -32,6 +32,7 @@
 
 import json "std:json"
 
+import raw "std:buffer/raw"
 import list "std:list"
 
 struct YamlValue {
@@ -127,27 +128,33 @@ fn _strip_comments_text(s) {
     // Not a full YAML tokenizer; designed to be deterministic and safe for common inputs.
     if s == nil { return nil }
     var bs = oren_bytes_from_string(s)
-    var out = []
+    var n = list.len(bs)
+    var out = raw.u8_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var o = 0
 
     var in_quote = false
     var in_line_comment = false
     var in_block_comment = false
 
     var i = 0
-    while i < list.len(bs) {
+    while i < n {
         var b = bs[i]
 
         if in_line_comment {
             // Consume until newline, but keep newline bytes.
             if b == 10 { // \n
-                list.push(out, 10)
+                raw._store_u8_buf_unchecked_direct(out, o, 10)
+                o = o + 1
                 in_line_comment = false
             } else {
                 if b == 13 { // \r
-                    list.push(out, 13)
+                    raw._store_u8_buf_unchecked_direct(out, o, 13)
+                    o = o + 1
                     // keep optional \n if present
-                    if i + 1 < list.len(bs) && bs[i + 1] == 10 {
-                        list.push(out, 10)
+                    if i + 1 < n && bs[i + 1] == 10 {
+                        raw._store_u8_buf_unchecked_direct(out, o, 10)
+                        o = o + 1
                         i = i + 1
                     }
                     in_line_comment = false
@@ -159,13 +166,19 @@ fn _strip_comments_text(s) {
 
         if in_block_comment {
             // Preserve newlines; otherwise drop bytes until closing '*/'.
-            if b == 42 && i + 1 < list.len(bs) && bs[i + 1] == 47 {
+            if b == 42 && i + 1 < n && bs[i + 1] == 47 {
                 in_block_comment = false
                 i = i + 2
                 continue
             }
-            if b == 10 { list.push(out, 10) }
-            if b == 13 { list.push(out, 13) }
+            if b == 10 {
+                raw._store_u8_buf_unchecked_direct(out, o, 10)
+                o = o + 1
+            }
+            if b == 13 {
+                raw._store_u8_buf_unchecked_direct(out, o, 13)
+                o = o + 1
+            }
             i = i + 1
             continue
         }
@@ -173,14 +186,17 @@ fn _strip_comments_text(s) {
         if in_quote {
             // Preserve escapes so we don't accidentally terminate on an escaped quote.
             if b == 92 { // '\\'
-                list.push(out, b)
-                if i + 1 < list.len(bs) {
-                    list.push(out, bs[i + 1])
+                raw._store_u8_buf_unchecked_direct(out, o, b)
+                o = o + 1
+                if i + 1 < n {
+                    raw._store_u8_buf_unchecked_direct(out, o, bs[i + 1])
+                    o = o + 1
                     i = i + 2
                     continue
                 }
             }
-            list.push(out, b)
+            raw._store_u8_buf_unchecked_direct(out, o, b)
+            o = o + 1
             if b == 34 { in_quote = false } // '"'
             i = i + 1
             continue
@@ -197,7 +213,8 @@ fn _strip_comments_text(s) {
 
         if b == 34 { // '"'
             in_quote = true
-            list.push(out, b)
+            raw._store_u8_buf_unchecked_direct(out, o, b)
+            o = o + 1
             i = i + 1
             continue
         }
@@ -208,14 +225,14 @@ fn _strip_comments_text(s) {
                 i = i + 1
                 continue
             }
-            if b == 47 && i + 1 < list.len(bs) {
-                var n = bs[i + 1]
-                if n == 47 { // '//'
+            if b == 47 && i + 1 < n {
+                var nb = bs[i + 1]
+                if nb == 47 { // '//'
                     in_line_comment = true
                     i = i + 2
                     continue
                 }
-                if n == 42 { // '/*'
+                if nb == 42 { // '/*'
                     in_block_comment = true
                     i = i + 2
                     continue
@@ -224,11 +241,12 @@ fn _strip_comments_text(s) {
         }
 
         // normal byte
-        list.push(out, b)
+        raw._store_u8_buf_unchecked_direct(out, o, b)
+        o = o + 1
         i = i + 1
     }
 
-    return oren_string_from_bytes(out)
+    return oren_string_from_bytes_slice(out, 0, o)
 }
 
 fn _line_indent(line) {

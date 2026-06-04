@@ -540,8 +540,8 @@
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/quad/color package assets through</p>
 <p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
 <p>  <code>std:bytes.to_string</code> now uses direct byte-slice conversion instead of list</p>
-<p>  materialization, and YAML line/trim/key splitting uses direct string slicing</p>
-<p>  instead of list-of-byte reconstruction. <code>std:buffer</code></p>
+<p>  materialization, and YAML comment stripping plus line/trim/key splitting avoid</p>
+<p>  list-of-byte reconstruction. <code>std:buffer</code></p>
 <p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
 <p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
 <p>  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>
