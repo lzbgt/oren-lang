@@ -66,9 +66,9 @@ rendered Oren source with AST outline.
 
 [![Scene3D asset demo preview](https://raw.githubusercontent.com/lzbgt/oren-lang/master/docs/assets/showcases/scene3d-asset-demo.png)](https://store.hubstack.cn/packages/oren-labs/scene3d-asset-demo)
 
-Byte-native `.os3d` package assets, compact cuboid/extruded-polygon/cylinder/cone
-authoring, retained Scene3D meshes/materials/models, camera metadata, and package
-VFS mounting.
+Byte-native `.os3d` package assets, compact cuboid/extruded-polygon/cylinder/cone/sphere
+authoring, retained Scene3D meshes/materials/models, camera metadata, and
+package VFS mounting.
 
 Screenshots are store presentation metadata, not client runtime assets: they are
 not declared in package manifests and are not included in downloaded OBC bundles.

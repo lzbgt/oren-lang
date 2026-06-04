@@ -286,6 +286,68 @@ def pack_cones_z(cones):
     return pack_triangles_xyz(triangles)
 
 
+def sphere_center(sphere):
+    center = sphere.get("center", sphere.get("center_xyz"))
+    if not isinstance(center, list) or len(center) != 3:
+        raise SystemExit("scene spheres_xyz center must be [x,y,z]")
+    return int(center[0]), int(center[1]), int(center[2])
+
+
+def sphere_radius(sphere):
+    radius = sphere.get("radius")
+    if radius is None:
+        raise SystemExit("scene spheres_xyz entries must include radius")
+    radius = int(radius)
+    if radius <= 0:
+        raise SystemExit("scene spheres_xyz radius must be positive")
+    return radius
+
+
+def sphere_segments(sphere):
+    segments = int(sphere.get("segments", 16))
+    if segments < 4 or segments > 96:
+        raise SystemExit("scene spheres_xyz segments must be 4..96")
+    return segments
+
+
+def sphere_rings(sphere):
+    rings = int(sphere.get("rings", 8))
+    if rings < 2 or rings > 48:
+        raise SystemExit("scene spheres_xyz rings must be 2..48")
+    return rings
+
+
+def sphere_point(cx, cy, cz, radius, segments, rings, seg, ring):
+    theta = math.pi * ring / rings
+    phi = math.tau * seg / segments
+    x = round_half_away(cx + radius * math.sin(theta) * math.cos(phi))
+    y = round_half_away(cy + radius * math.sin(theta) * math.sin(phi))
+    z = round_half_away(cz + radius * math.cos(theta))
+    return [x, y, z]
+
+
+def pack_spheres_xyz(spheres):
+    triangles = []
+    for sphere in spheres:
+        if not isinstance(sphere, dict):
+            raise SystemExit("scene spheres_xyz entries must be objects")
+        cx, cy, cz = sphere_center(sphere)
+        radius = sphere_radius(sphere)
+        segments = sphere_segments(sphere)
+        rings = sphere_rings(sphere)
+        for ring in range(rings):
+            next_ring = ring + 1
+            for seg in range(segments):
+                next_seg = 0 if seg + 1 == segments else seg + 1
+                a = sphere_point(cx, cy, cz, radius, segments, rings, seg, ring)
+                b = sphere_point(cx, cy, cz, radius, segments, rings, next_seg, next_ring)
+                c = sphere_point(cx, cy, cz, radius, segments, rings, next_seg, ring)
+                d = sphere_point(cx, cy, cz, radius, segments, rings, seg, next_ring)
+                triangles.append([a, b, c])
+                triangles.append([a, d, b])
+    return pack_triangles_xyz(triangles)
+
+
 def pack_triangles_xyz_rgba(triangles):
     out = bytearray()
     for tri in triangles:
@@ -593,6 +655,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_cylinders_z(mesh["cylinders_z"])
             elif mesh.get("cones_z") is not None:
                 payload = pack_cones_z(mesh["cones_z"])
+            elif mesh.get("spheres_xyz") is not None:
+                payload = pack_spheres_xyz(mesh["spheres_xyz"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""

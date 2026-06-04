@@ -48,12 +48,24 @@
       "base_color": "#ffaa00ff",
       "roughness_milli": 450,
       "metallic_milli": 0
+    },
+    {
+      "kind": "triangles",
+      "id": 42,
+      "name": "orb-mesh",
+      "spheres_xyz": [
+        {"center": [2, 2, 1], "radius": 1, "segments": 8, "rings": 4}
+      ],
+      "base_color": "#cc44ffff",
+      "roughness_milli": 500,
+      "metallic_milli": 0
     }
   ],
   "materials": [
     {"id": 32, "name": "card-green", "base_color": "#00ff00ff", "opacity_milli": 1000, "roughness_milli": 350, "metallic_milli": 0},
     {"id": 37, "name": "tube-blue", "base_color": "#0088ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0},
-    {"id": 40, "name": "marker-orange", "base_color": "#ffaa00ff", "opacity_milli": 1000, "roughness_milli": 450, "metallic_milli": 0}
+    {"id": 40, "name": "marker-orange", "base_color": "#ffaa00ff", "opacity_milli": 1000, "roughness_milli": 450, "metallic_milli": 0},
+    {"id": 43, "name": "orb-purple", "base_color": "#cc44ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0}
   ],
   "model_templates": [
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
@@ -61,7 +73,8 @@
   "instances": [
     {"id": 33, "name": "card", "template": "card-template", "transform": {"position_xyz": [1, 1, 0]}},
     {"id": 38, "name": "tube", "mesh": "tube-mesh", "material": "tube-blue", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
-    {"id": 41, "name": "marker", "mesh": "marker-mesh", "material": "marker-orange", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+    {"id": 41, "name": "marker", "mesh": "marker-mesh", "material": "marker-orange", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
+    {"id": 44, "name": "orb", "mesh": "orb-mesh", "material": "orb-purple", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instance_groups": [
     {
@@ -85,6 +98,7 @@
   "draw": [
     "tube",
     "marker",
+    "orb",
     {"model": "card", "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}},
     "accent"
   ],
