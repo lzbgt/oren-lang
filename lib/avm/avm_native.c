@@ -13,6 +13,15 @@
 
 #include <unistd.h>
 
+static int avm_native_mkdir_portable(const char* path, int mode) {
+#if defined(_WIN32)
+    (void)mode;
+    return mkdir(path);
+#else
+    return mkdir(path, mode);
+#endif
+}
+
 // SIMD build-time gating (rolling; runtime opt-in via AVM_ENABLE_SIMD=1):
 // - Compiles NEON paths only when targeting arm64 with NEON available.
 // - SIMD must never change semantics; scalar fallback remains authoritative.

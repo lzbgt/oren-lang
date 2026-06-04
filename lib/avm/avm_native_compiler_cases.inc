@@ -298,11 +298,11 @@
             for (char* p = path + 1; *p; p++) {
                 if (*p == '/') {
                     *p = 0;
-                    if (mkdir(path, 0777) != 0 && errno != EEXIST) { rc = -errno; *p = '/'; break; }
+                    if (avm_native_mkdir_portable(path, 0777) != 0 && errno != EEXIST) { rc = -errno; *p = '/'; break; }
                     *p = '/';
                 }
             }
-            if (rc == 0 && mkdir(path, 0777) != 0 && errno != EEXIST) rc = -errno;
+            if (rc == 0 && avm_native_mkdir_portable(path, 0777) != 0 && errno != EEXIST) rc = -errno;
             res = avm_int(rc);
             break;
         }

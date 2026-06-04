@@ -48,11 +48,12 @@
 <li>native tagged-value convergence is incomplete;</li>
 <li>allocator/GC/runtime robustness is still a W5 gate;</li>
 <li>Tier-1 platform breadth is uneven;</li>
-<li>AVM now has iOS, macOS desktop, and Linux x64 SDK packaging gates, an embedder</li>
+<li>AVM now has iOS, macOS desktop, Linux x64, and Windows x64 SDK packaging gates,</li>
 </ul>
-<p>  C API with argv, VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers,</p>
-<p>  plus a full compiler-in-AVM smoke gate, but still needs app-host lifecycle</p>
-<p>  coverage before it should be called a complete production app package.</p>
+<p>  an embedder C API with argv, VirtualFS, VirtualNET, VirtualPROC, and</p>
+<p>  stdout-capture helpers, plus a full compiler-in-AVM smoke gate, but still needs</p>
+<p>  app-host lifecycle coverage before it should be called a complete production</p>
+<p>  app package.</p>
 <h2 id="backend-readiness">Backend Readiness</h2>
 <table>
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
@@ -83,6 +84,13 @@
 <p>  symbols, then compiles a Linux x64 C host embedder smoke. It executes that</p>
 <p>  smoke only when <code>qemu-x86_64</code> is available or <code>VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1</code></p>
 <p>  is set.</p>
+<ul>
+<li><code>make verify-libavm-windows-x64</code> uses Zig to build</li>
+</ul>
+<p>  <code>build/libavm/windows-x64/lib/x86_64-windows-gnu/libavm.a</code>, exports headers</p>
+<p>  and a module map, checks amd64 COFF objects and embedder symbols, then compiles</p>
+<p>  a Windows x64 PE host embedder smoke. It executes that smoke only when Wine is</p>
+<p>  available or <code>VERIFY_LIBAVM_WINDOWS_X64_REQUIRE_RUN=1</code> is set.</p>
 <ul>
 <li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
 </ul>

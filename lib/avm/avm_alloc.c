@@ -3,10 +3,17 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <malloc.h>
+#include <windows.h>
+#else
 #include <sys/mman.h>
+#endif
 
+#if !defined(_WIN32)
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #define MAP_ANONYMOUS MAP_ANON
+#endif
 #endif
 
 // Large RAW/BUF blocks: prefer mmap so memory can be returned to OS on free.
@@ -20,7 +27,7 @@ typedef struct AvmAllocHdr {
     uint32_t alloc_id;   // 0 if untracked/unowned
     uint32_t alloc_pc;   // best-effort VM pc at allocation time (rolling)
     uint8_t alloc_kind;  // best-effort classification (rolling)
-    uint8_t alloc_backend; // 0=malloc, 1=mmap (rolling)
+    uint8_t alloc_backend; // 0=malloc, 1=os-page, 2=aligned-malloc (rolling)
     uint8_t alloc_flags; // rolling flags (see AVM_ALLOC_FLAG_*)
     // Pad so `sizeof(AvmAllocHdr)` is 64 bytes.
     // This enables 64-byte-aligned user pointers for BUF allocations when using posix_memalign.
@@ -59,6 +66,26 @@ static AvmAllocHdr* avm_alloc_hdr_from_ptr(void* p) {
     AvmAllocHdr* h = ((AvmAllocHdr*)p) - 1;
     if (h->magic != AVM_ALLOC_MAGIC) return NULL;
     return h;
+}
+
+static void avm_alloc_backend_free(AvmAllocHdr* h) {
+    if (!h) return;
+    if (h->alloc_backend == 1) {
+#if defined(_WIN32)
+        (void)VirtualFree((void*)h, 0, MEM_RELEASE);
+#else
+        size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
+        (void)munmap((void*)h, total);
+#endif
+    } else if (h->alloc_backend == 2) {
+#if defined(_WIN32)
+        _aligned_free(h);
+#else
+        free(h);
+#endif
+    } else {
+        free(h);
+    }
 }
 
 static unsigned avm_freelist_bucket_index(size_t size) {
@@ -239,9 +266,18 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     size_t total = sizeof(AvmAllocHdr) + size;
     AvmAllocHdr* h = NULL;
     // Typed buffers are hot in HPC-style workloads; align to cache line for NEON-friendly kernels.
-    // We keep this deterministic and portable by using `posix_memalign` (free-able with `free`).
+    // Use platform-native aligned allocation so BUF/RAW data starts cache-line aligned.
     if (kind == AVM_ALLOC_KIND_BUF || kind == AVM_ALLOC_KIND_RAW) {
         if (size >= AVM_RAW_MMAP_THRESHOLD) {
+#if defined(_WIN32)
+            void* base = VirtualAlloc(NULL, total, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            if (!base) {
+                g_last_alloc_err = AVM_ERR_INTERNAL;
+                return NULL;
+            }
+            h = (AvmAllocHdr*)base;
+            h->alloc_backend = 1;
+#else
             void* base = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
             if (base == MAP_FAILED) {
                 g_last_alloc_err = AVM_ERR_INTERNAL;
@@ -249,7 +285,17 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
             }
             h = (AvmAllocHdr*)base;
             h->alloc_backend = 1;
+#endif
         } else {
+#if defined(_WIN32)
+            void* p = _aligned_malloc(total, 64u);
+            if (!p) {
+                g_last_alloc_err = AVM_ERR_INTERNAL;
+                return NULL;
+            }
+            h = (AvmAllocHdr*)p;
+            h->alloc_backend = 2;
+#else
             void* p = NULL;
             int er = posix_memalign(&p, 64u, total);
             if (er != 0 || !p) {
@@ -258,6 +304,7 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
             }
             h = (AvmAllocHdr*)p;
             h->alloc_backend = 0;
+#endif
         }
     } else {
         h = (AvmAllocHdr*)malloc(total);
@@ -331,12 +378,7 @@ void avm_heap_free(void* p) {
         return;
     }
     h->magic = 0;
-    if (h->alloc_backend == 1) {
-        size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
-        (void)munmap((void*)h, total);
-    } else {
-        free(h);
-    }
+    avm_alloc_backend_free(h);
 }
 
 int avm_heap_is_owned_by(AvmVM* vm, void* p) {
@@ -455,12 +497,7 @@ void avm_release_unreachable_allocs(AvmVM* vm) {
         if (h->charged_size && vm->heap_used_bytes >= h->charged_size) vm->heap_used_bytes -= h->charged_size;
         else if (h->charged_size) vm->heap_used_bytes = 0;
         h->magic = 0;
-        if (h->alloc_backend == 1) {
-            size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
-            (void)munmap((void*)h, total);
-        } else {
-            free(h);
-        }
+        avm_alloc_backend_free(h);
         h = next;
     }
     vm->heap_allocs_head = NULL;
@@ -474,12 +511,7 @@ void avm_release_tmp_freelist(AvmVM* vm) {
         while (h) {
             AvmAllocHdr* next = h->next;
             h->magic = 0;
-            if (h->alloc_backend == 1) {
-                size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
-                (void)munmap((void*)h, total);
-            } else {
-                free(h);
-            }
+            avm_alloc_backend_free(h);
             h = next;
         }
         vm->tmp_freelist_buckets[bi] = NULL;
@@ -494,12 +526,7 @@ void avm_release_list_freelist(AvmVM* vm) {
         while (h) {
             AvmAllocHdr* next = h->next;
             h->magic = 0;
-            if (h->alloc_backend == 1) {
-                size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
-                (void)munmap((void*)h, total);
-            } else {
-                free(h);
-            }
+            avm_alloc_backend_free(h);
             h = next;
         }
         vm->list_freelist_buckets[bi] = NULL;

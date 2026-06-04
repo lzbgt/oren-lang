@@ -14,10 +14,11 @@ surfaces, but the following blockers remain:
 - native tagged-value convergence is incomplete;
 - allocator/GC/runtime robustness is still a W5 gate;
 - Tier-1 platform breadth is uneven;
-- AVM now has iOS, macOS desktop, and Linux x64 SDK packaging gates, an embedder
-  C API with argv, VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers,
-  plus a full compiler-in-AVM smoke gate, but still needs app-host lifecycle
-  coverage before it should be called a complete production app package.
+- AVM now has iOS, macOS desktop, Linux x64, and Windows x64 SDK packaging gates,
+  an embedder C API with argv, VirtualFS, VirtualNET, VirtualPROC, and
+  stdout-capture helpers, plus a full compiler-in-AVM smoke gate, but still needs
+  app-host lifecycle coverage before it should be called a complete production
+  app package.
 
 ## Backend Readiness
 
@@ -47,6 +48,11 @@ Facts from the 2026-05-28 implementation pass:
   symbols, then compiles a Linux x64 C host embedder smoke. It executes that
   smoke only when `qemu-x86_64` is available or `VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1`
   is set.
+- `make verify-libavm-windows-x64` uses Zig to build
+  `build/libavm/windows-x64/lib/x86_64-windows-gnu/libavm.a`, exports headers
+  and a module map, checks amd64 COFF objects and embedder symbols, then compiles
+  a Windows x64 PE host embedder smoke. It executes that smoke only when Wine is
+  available or `VERIFY_LIBAVM_WINDOWS_X64_REQUIRE_RUN=1` is set.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:

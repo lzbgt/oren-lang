@@ -82,8 +82,8 @@
 <ul>
 <li>Current verdict: iOS <code>LibAVM.xcframework</code> packaging, macOS desktop</li>
 </ul>
-<p>     <code>LibAVM.xcframework</code> packaging, Linux x64 static <code>LibAVM</code> packaging, and a C</p>
-<p>     embedder API now exist. The public API includes argv, VFS input/output,</p>
+<p>     <code>LibAVM.xcframework</code> packaging, Linux x64 static <code>LibAVM</code> packaging, Windows</p>
+<p>     x64 static <code>LibAVM</code> packaging, and a C embedder API now exist. The public API includes argv, VFS input/output,</p>
 <p>     VirtualNET fixture, VirtualPROC fixture/default, deterministic TIME by default,</p>
 <p>     and stdout-capture helpers required by app-host compile/run bridges.</p>
 <p>     <code>make verify-libavm-ios</code> now proves host compile-to-OBC, iOS C smoke linkage,</p>
@@ -103,6 +103,12 @@
 <p>     static library with Zig, exports headers/module-map/pkg-config metadata, checks</p>
 <p>     x86_64 ELF output and embedder symbols, and compiles a Linux x64 host embedder</p>
 <p>     smoke. Runtime execution is QEMU-gated when an emulator is present.</p>
+<ul>
+<li>Windows x64 SDK gate: <code>make verify-libavm-windows-x64</code> cross-builds the C</li>
+</ul>
+<p>     embedder static library with Zig, exports headers/module-map metadata, checks</p>
+<p>     amd64 COFF output and embedder symbols, and compiles a Windows x64 host</p>
+<p>     embedder smoke. Runtime execution is Wine-gated when available.</p>
 <ul>
 <li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
 </ul>
