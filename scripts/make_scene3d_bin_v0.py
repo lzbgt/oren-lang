@@ -252,14 +252,29 @@ def threemf_transform_vertex(v, mesh):
 
 
 def pack_threemf_indexed(mesh, base_dir):
-    vertices, faces = threemf_mesh_data(mesh, base_dir)
+    vertices, faces, _ = threemf_mesh_data(mesh, base_dir)
     return pack_vertices_xyz([threemf_transform_vertex(v, mesh) for v in vertices]), pack_faces(faces, len(vertices))
 
 
 def pack_threemf_triangles(mesh, base_dir):
-    vertices, faces = threemf_mesh_data(mesh, base_dir)
+    vertices, faces, _ = threemf_mesh_data(mesh, base_dir)
     points = [threemf_transform_vertex(v, mesh) for v in vertices]
     return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
+
+
+def pack_threemf_triangles_rgba(mesh, base_dir):
+    vertices, faces, face_colors = threemf_mesh_data(mesh, base_dir)
+    points = [threemf_transform_vertex(v, mesh) for v in vertices]
+    triangles = []
+    for i, face in enumerate(faces):
+        color = face_colors[i]
+        if color is None:
+            raise SystemExit("scene 3MF triangles_rgba mesh requires basematerial colors")
+        triangles.append({
+            "vertices": [points[face[0]], points[face[1]], points[face[2]]],
+            "color": color_hex_from_rgba(color[0], color[1], color[2], color[3]),
+        })
+    return pack_triangles_xyz_rgba(triangles)
 
 
 def has_ply_mesh(mesh):
@@ -1454,6 +1469,8 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
             kind_id = 3
             if has_gltf_mesh(mesh):
                 payload = pack_gltf_triangles_rgba(mesh, base_dir)
+            elif has_threemf_mesh(mesh):
+                payload = pack_threemf_triangles_rgba(mesh, base_dir)
             elif has_ply_mesh(mesh):
                 payload = pack_ply_triangles_rgba(mesh, base_dir)
             elif mesh.get("triangles_xyz_rgba") is not None:

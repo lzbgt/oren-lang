@@ -69,6 +69,50 @@ def children(elem, name):
     return [item for item in list(elem) if local_name(item.tag) == name]
 
 
+def parse_color(value):
+    raw = str(value or "")
+    if not raw.startswith("#") or len(raw) not in (7, 9):
+        raise SystemExit("scene 3MF basematerial displaycolor must be #RRGGBB or #RRGGBBAA")
+    if len(raw) == 7:
+        raw += "ff"
+    try:
+        return (
+            int(raw[1:3], 16),
+            int(raw[3:5], 16),
+            int(raw[5:7], 16),
+            int(raw[7:9], 16),
+        )
+    except ValueError as exc:
+        raise SystemExit("scene 3MF basematerial displaycolor must be hexadecimal") from exc
+
+
+def parse_basematerials(resources):
+    groups = {}
+    for group in children(resources, "basematerials"):
+        group_id = group.get("id")
+        if group_id is None:
+            raise SystemExit("scene 3MF basematerials missing id")
+        colors = []
+        for base in children(group, "base"):
+            colors.append(parse_color(base.get("displaycolor")))
+        groups[group_id] = colors
+    return groups
+
+
+def material_color(groups, pid, pindex, context):
+    if pid is None and pindex is None:
+        return None
+    if pid is None or pindex is None:
+        raise SystemExit(f"scene 3MF {context} material must include pid and pindex")
+    group = groups.get(pid)
+    if group is None:
+        return None
+    idx = int(pindex)
+    if idx < 0 or idx >= len(group):
+        raise SystemExit(f"scene 3MF {context} material index out of bounds")
+    return group[idx]
+
+
 def threemf_source_bytes(mesh, base_dir):
     rel = mesh.get("3mf_source", mesh.get("threemf_source"))
     if rel is None:
@@ -140,7 +184,7 @@ def mat_det3(m):
     )
 
 
-def parse_mesh(object_elem, unit_scale, matrix, vertices, faces):
+def parse_mesh(object_elem, material_groups, unit_scale, matrix, inherited_property, vertices, faces, face_colors):
     mesh = child(object_elem, "mesh")
     if mesh is None:
         return False
@@ -159,6 +203,8 @@ def parse_mesh(object_elem, unit_scale, matrix, vertices, faces):
     count = len(vertices) - base
     if count < 3:
         raise SystemExit("scene 3MF mesh must contain at least 3 vertices")
+    default_pid = object_elem.get("pid", inherited_property[0])
+    default_pindex = object_elem.get("pindex", inherited_property[1])
     flip = mat_det3(matrix) < 0.0
     for tri in children(triangles_elem, "triangle"):
         face = [int(tri.get("v1")), int(tri.get("v2")), int(tri.get("v3"))]
@@ -166,19 +212,27 @@ def parse_mesh(object_elem, unit_scale, matrix, vertices, faces):
             raise SystemExit("scene 3MF triangle vertices must be distinct")
         if any(idx < 0 or idx >= count for idx in face):
             raise SystemExit("scene 3MF triangle index out of bounds")
+        tri_pid = tri.get("pid", default_pid)
+        p1 = tri.get("p1", default_pindex)
+        p2 = tri.get("p2", p1)
+        p3 = tri.get("p3", p1)
+        if tri_pid in material_groups and (p1 != p2 or p1 != p3):
+            raise SystemExit("scene 3MF basematerial gradients are unsupported by Core")
+        color = material_color(material_groups, tri_pid, p1, "triangle")
         if flip:
             face = [face[0], face[2], face[1]]
         faces.append([base + idx for idx in face])
+        face_colors.append(color)
     return True
 
 
-def collect_object(object_id, objects, unit_scale, matrix, vertices, faces, stack):
+def collect_object(object_id, objects, material_groups, unit_scale, matrix, inherited_property, vertices, faces, face_colors, stack):
     if object_id in stack:
         raise SystemExit("scene 3MF component cycle")
     obj = objects.get(object_id)
     if obj is None:
         raise SystemExit("scene 3MF object reference not found")
-    if parse_mesh(obj, unit_scale, matrix, vertices, faces):
+    if parse_mesh(obj, material_groups, unit_scale, matrix, inherited_property, vertices, faces, face_colors):
         return
     comps = child(obj, "components")
     if comps is None:
@@ -188,7 +242,18 @@ def collect_object(object_id, objects, unit_scale, matrix, vertices, faces, stac
         child_id = comp.get("objectid")
         if child_id is None:
             raise SystemExit("scene 3MF component missing objectid")
-        collect_object(child_id, objects, unit_scale, mat_mul(parse_matrix(comp.get("transform")), matrix), vertices, faces, next_stack)
+        collect_object(
+            child_id,
+            objects,
+            material_groups,
+            unit_scale,
+            mat_mul(parse_matrix(comp.get("transform")), matrix),
+            inherited_property,
+            vertices,
+            faces,
+            face_colors,
+            next_stack,
+        )
 
 
 def selected_object_id(mesh, objects):
@@ -208,6 +273,7 @@ def threemf_mesh_data(mesh, base_dir):
     data = threemf_source_bytes(mesh, base_dir)
     vertices = []
     faces = []
+    face_colors = []
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         model = ET.fromstring(read_zip_part(zf, threemf_root_model_path(zf)))
     unit = model.get("unit", "millimeter")
@@ -216,10 +282,11 @@ def threemf_mesh_data(mesh, base_dir):
     resources = child(model, "resources")
     if resources is None:
         raise SystemExit("scene 3MF model missing resources")
+    material_groups = parse_basematerials(resources)
     objects = {obj.get("id"): obj for obj in children(resources, "object") if obj.get("id") is not None}
     target_object = selected_object_id(mesh, objects)
     if target_object is not None:
-        collect_object(target_object, objects, THREEMF_UNITS_TO_MM[unit], mat_identity(), vertices, faces, set())
+        collect_object(target_object, objects, material_groups, THREEMF_UNITS_TO_MM[unit], mat_identity(), (None, None), vertices, faces, face_colors, set())
     else:
         build = child(model, "build")
         if build is None:
@@ -231,9 +298,20 @@ def threemf_mesh_data(mesh, base_dir):
             object_id = item.get("objectid")
             if object_id is None:
                 raise SystemExit("scene 3MF build item missing objectid")
-            collect_object(object_id, objects, THREEMF_UNITS_TO_MM[unit], parse_matrix(item.get("transform")), vertices, faces, set())
+            collect_object(
+                object_id,
+                objects,
+                material_groups,
+                THREEMF_UNITS_TO_MM[unit],
+                parse_matrix(item.get("transform")),
+                (item.get("pid"), item.get("pindex")),
+                vertices,
+                faces,
+                face_colors,
+                set(),
+            )
     if not vertices:
         raise SystemExit("scene 3MF mesh has no vertices")
     if not faces:
         raise SystemExit("scene 3MF mesh has no triangle faces")
-    return vertices, faces
+    return vertices, faces, face_colors

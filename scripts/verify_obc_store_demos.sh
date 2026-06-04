@@ -371,15 +371,21 @@ def verify_scene3d_3mf_lowering():
     model_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
   <resources>
-    <object id="2" type="model" name="tri">
+    <basematerials id="1">
+      <base name="red" displaycolor="#ff0000ff"/>
+      <base name="green" displaycolor="#00ff00ff"/>
+    </basematerials>
+    <object id="2" type="model" name="tri" pid="1" pindex="0">
       <mesh>
         <vertices>
           <vertex x="0" y="0" z="0"/>
           <vertex x="1" y="0" z="0"/>
           <vertex x="0" y="1" z="0"/>
+          <vertex x="1" y="1" z="0"/>
         </vertices>
         <triangles>
           <triangle v1="0" v2="1" v3="2"/>
+          <triangle v1="1" v2="3" v3="2" pid="1" p1="1"/>
         </triangles>
       </mesh>
     </object>
@@ -418,6 +424,15 @@ def verify_scene3d_3mf_lowering():
             struct.pack("<iii", 10, 13, 14) not in data
         ):
             raise SystemExit(f"scene 3MF {kind} lowering did not produce expected coordinates")
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles_rgba", "id": 1, "3mf_source": source_path.name}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+    if not data.startswith(b"OS3D01\x00\x00") or b"\xff\x00\x00\xff" not in data or b"\x00\xff\x00\xff" not in data:
+        raise SystemExit("scene 3MF basematerial RGBA lowering did not produce expected colors")
 
 
 verify_scene3d_obj_lowering()
