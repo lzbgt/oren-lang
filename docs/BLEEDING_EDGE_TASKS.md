@@ -198,8 +198,9 @@ This file is the concise task view. Detailed implementation status lives in
      are implemented and verified, with staged remote install before final path
      replacement. Explicit install policy is implemented and verified for signed-index
      downloads: replace, keep-existing, and fail-if-installed, including a signed
-     `0.2.0` update fixture. A sibling Note handoff/verifier update now checks
-     the staged signed package/trust SDK surface (`../note` commit `35995ee`).
+     `0.2.0` update fixture. Sibling Note handoff/verifier updates now check
+     the staged signed package/trust SDK surface and expose a trusted package
+     update action in the package manager (`../note` commit `99b5a52`).
      The store service now exposes a package update-check endpoint that returns
      latest published release metadata plus `update_available`, and the iOS SDK
      exposes `OrenAVMPackageUpdateStatus` so host apps can query it from an
@@ -208,8 +209,8 @@ This file is the concise task view. Detailed implementation status lives in
      update checks can survive app relaunch without duplicating source-store state
      in each host app. The SDK can also install the latest trusted update from
      that persisted source metadata.
-     Remaining package-store work is richer update persistence and visible Note
-     install/update/remove UX.
+     Remaining package-store work is richer visible update-status UX and
+     operator lifecycle workflow.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys

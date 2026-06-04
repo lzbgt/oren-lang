@@ -357,14 +357,14 @@ Public OBC store helper.
   `oren.obc.trust.v0` schema and P-256 X9.63 public keys, and feeds signed-index
   package downloads through `trustBundle:` overloads. This keeps trust parsing in
   the SDK instead of duplicating it in every host app.
-- The sibling Note repo now has a handoff/verifier update at commit `35995ee`
+- The sibling Note repo now has a handoff/verifier update at commit `99b5a52`
   that checks the staged SDK for signed-index package downloads, install policies,
-  trusted key inputs, and the external trust issue tool. Further Note app
-  implementation should proceed through that handoff because another Note-side
-  agent is active.
+  trusted key inputs, trusted persisted package updates, and the external trust
+  issue tool. The Note package manager exposes a visible trusted Update action
+  for installed OBC packages.
 - Store-side root trust rotation now has active key-id publication and
-  rotation-capable trust-bundle serving; next slices should add richer update
-  UX/persistence and visible Note install/update/remove UX.
+  rotation-capable trust-bundle serving; next slices should add richer visible
+  update-status UX and operator lifecycle workflow.
 - Applies package capabilities, budgets, assets, and time mode. GUI requirements
   remain host/app policy until the Metal/GFX release gate is stronger.
 

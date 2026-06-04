@@ -336,11 +336,12 @@ packages/...</code></pre>
 <p>host apps no longer need to hand-parse trust bundles before signed downloads. The</p>
 <p>store service now publishes active signing key IDs on dynamic index signatures and</p>
 <p>can serve rotation bundles containing active plus previous store public keys. The</p>
-<p>sibling Note repo has a handoff/verifier update at commit <code>35995ee</code> that checks</p>
+<p>sibling Note repo has a handoff/verifier update at commit <code>99b5a52</code> that checks</p>
 <p>the staged SDK for signed package downloads, install policies, trusted key inputs,</p>
-<p>and the external trust issue tool. Remaining store work is richer update</p>
-<p>UX/persistence and visible Note install/update/remove UX before a public store is</p>
-<p>release-ready.</p>
+<p>trusted persisted package updates, and the external trust issue tool. The Note</p>
+<p>package manager exposes a visible trusted Update action for installed OBC</p>
+<p>packages. Remaining store work is richer visible update-status UX and operator</p>
+<p>lifecycle workflow before a public store is release-ready.</p>
 <p>Key custody rule: private signing keys and any root CA material must live outside</p>
 <p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
 <p>may document paths and commit public trust anchors or test public keys, but must</p>
