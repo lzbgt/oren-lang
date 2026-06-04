@@ -201,6 +201,36 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Source metadata") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
 		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
 	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/releases", nil, false); got.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated ops releases=%d body=%s", got.Code, got.Body.String())
+	}
+	opsReleasesResp := request(t, ts, http.MethodGet, "/api/v0/ops/releases", nil, true)
+	if opsReleasesResp.Code != http.StatusOK {
+		t.Fatalf("ops releases status=%d body=%s", opsReleasesResp.Code, opsReleasesResp.Body.String())
+	}
+	var opsReleases map[string]any
+	if err := json.Unmarshal(opsReleasesResp.Body.Bytes(), &opsReleases); err != nil {
+		t.Fatalf("decode ops releases: %v body=%s", err, opsReleasesResp.Body.String())
+	}
+	releaseItems := opsReleases["releases"].([]any)
+	if len(releaseItems) != 1 {
+		t.Fatalf("ops releases items=%v", releaseItems)
+	}
+	lifecycle := releaseItems[0].(map[string]any)
+	if lifecycle["publisher"] != "oren-labs" || lifecycle["name"] != "plot-demo" || lifecycle["version"] != "0.1.0" || lifecycle["latest_published"] != true {
+		t.Fatalf("bad ops release lifecycle=%v", lifecycle)
+	}
+	readiness := lifecycle["readiness"].([]any)
+	if !containsAnyString(readiness, "bundle") || !containsAnyString(readiness, "source") || !containsAnyString(readiness, "permissions") {
+		t.Fatalf("missing ops readiness=%v", readiness)
+	}
+	if !strings.Contains(lifecycle["publish_url"].(string), "/publish") || !strings.Contains(lifecycle["yank_url"].(string), "/yank") || !strings.Contains(lifecycle["visibility_url"].(string), "/visibility") {
+		t.Fatalf("missing ops lifecycle urls=%v", lifecycle)
+	}
+	opsReleasesPage := request(t, ts, http.MethodGet, "/ops/releases", nil, true)
+	if opsReleasesPage.Code != http.StatusOK || !strings.Contains(opsReleasesPage.Body.String(), "Release Lifecycle") || !strings.Contains(opsReleasesPage.Body.String(), "plot-demo") || !strings.Contains(opsReleasesPage.Body.String(), "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/yank") {
+		t.Fatalf("ops releases page status=%d body=%s", opsReleasesPage.Code, opsReleasesPage.Body.String())
+	}
 
 	search := getJSON[map[string]any](t, ts, "/api/v0/packages?query=plot&capability=GFX")
 	found := search["packages"].([]any)
@@ -605,6 +635,15 @@ func writeTestP256Key(t *testing.T, dir string) (*ecdsa.PrivateKey, string) {
 
 func p256PublicKeyX963Base64(key *ecdsa.PublicKey) string {
 	return base64.StdEncoding.EncodeToString(p256PublicKeyX963(key))
+}
+
+func containsAnyString(xs []any, want string) bool {
+	for _, x := range xs {
+		if s, ok := x.(string); ok && s == want {
+			return true
+		}
+	}
+	return false
 }
 
 func writeTestTrustBundle(t *testing.T, path string, storeKeys map[string]*ecdsa.PublicKey) {

@@ -174,7 +174,10 @@ This file is the concise task view. Detailed implementation status lives in
 	     served by release download APIs, advertised in `index.json`, and preferred
 	     by the iOS SDK installer with expanded-artifact fallback. Operator status
 	     now exposes deployment gates plus bundle/source/signature/permission
-	     readiness counts; live deployment and richer operator/browser UX remain.
+	     readiness counts, and authenticated operator release lifecycle inventory
+	     pages/APIs expose visibility, readiness, latest-published state, and
+	     publish/yank/visibility action URLs; live deployment and richer operator
+	     write UX remain.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
      Curated demo package sources now live under `examples/obc_store_demos/`;
@@ -210,7 +213,7 @@ This file is the concise task view. Detailed implementation status lives in
      update checks can survive app relaunch without duplicating source-store state
      in each host app. The SDK can also install the latest trusted update from
      that persisted source metadata.
-     Remaining package-store work is richer operator lifecycle workflow.
+     Remaining package-store work is richer operator write workflow.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys

@@ -6,12 +6,13 @@ import (
 )
 
 var (
-	siteHomeTemplate      = template.Must(template.New("store-home").Parse(siteHomeHTML))
-	sitePackageTemplate   = template.Must(template.New("store-package").Parse(sitePackageHTML))
-	sitePublisherTemplate = template.Must(template.New("store-publisher").Parse(sitePublisherHTML))
-	siteSourceTemplate    = template.Must(template.New("store-source").Parse(siteSourceHTML))
-	siteOpsTemplate       = template.Must(template.New("store-ops").Parse(siteOpsHTML))
-	siteOpsStatusTemplate = template.Must(template.New("store-ops-status").Parse(siteOpsStatusHTML))
+	siteHomeTemplate        = template.Must(template.New("store-home").Parse(siteHomeHTML))
+	sitePackageTemplate     = template.Must(template.New("store-package").Parse(sitePackageHTML))
+	sitePublisherTemplate   = template.Must(template.New("store-publisher").Parse(sitePublisherHTML))
+	siteSourceTemplate      = template.Must(template.New("store-source").Parse(siteSourceHTML))
+	siteOpsTemplate         = template.Must(template.New("store-ops").Parse(siteOpsHTML))
+	siteOpsStatusTemplate   = template.Must(template.New("store-ops-status").Parse(siteOpsStatusHTML))
+	siteOpsReleasesTemplate = template.Must(template.New("store-ops-releases").Parse(siteOpsReleasesHTML))
 )
 
 func renderHTML(w http.ResponseWriter, tmpl *template.Template, data any) {
@@ -133,7 +134,7 @@ const siteOpsHTML = `<!doctype html>
 <title>OBC Store Operator Guide</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Operator Guide</h1><p>Minimal publish and token lifecycle reference.</p></header>
 <main>
-<section class="card"><h2>Deployment status</h2><p><a href="/ops/status">Authenticated operator status page</a> · <code>GET /api/v0/ops/status</code></p></section>
+	<section class="card"><h2>Deployment status</h2><p><a href="/ops/status">Authenticated operator status page</a> · <a href="/ops/releases">authenticated release lifecycle inventory</a> · <code>GET /api/v0/ops/status</code></p></section>
 <section class="card"><h2>Public endpoints</h2><pre>GET /healthz
 GET /api/v0/health
 	GET /api/v0/index.json
@@ -158,7 +159,7 @@ const siteOpsStatusHTML = `<!doctype html>
 <title>OBC Store Operator Status</title><style>` + siteCSS + `</style></head>
 <body><header><h1 class="brand">Operator Status</h1><p>Authenticated deployment summary for store.hubstack.cn.</p></header>
 <main>
-<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/api/v0/ops/status">status JSON</a></p>
+	<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/releases">release lifecycle</a> · <a href="/api/v0/ops/status">status JSON</a></p>
 <section class="card"><h2>Registry Counts</h2><table>
 <tr><th>Publishers</th><td>{{.PublisherCount}} total, {{.ActivePublisherCount}} active, {{.DisabledPublisherCount}} disabled</td></tr>
 <tr><th>Packages</th><td>{{.PackageCount}} total, {{.PublicPackageCount}} public, {{.PrivatePackageCount}} private</td></tr>
@@ -180,5 +181,24 @@ const siteOpsStatusHTML = `<!doctype html>
 	</table></section>
 <section class="card"><h2>Smoke Commands</h2><pre>curl -fsS https://store.hubstack.cn/healthz
 curl -fsS https://store.hubstack.cn/api/v0/index.json
-curl -fsS -u "$OBC_STORE_ADMIN_USERNAME:$OBC_STORE_ADMIN_PASSWORD" https://store.hubstack.cn/api/v0/ops/status</pre></section>
+	curl -fsS -u "$OBC_STORE_ADMIN_USERNAME:$OBC_STORE_ADMIN_PASSWORD" https://store.hubstack.cn/api/v0/ops/status</pre></section>
+	</main></body></html>`
+
+const siteOpsReleasesHTML = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OBC Store Release Lifecycle</title><style>` + siteCSS + `</style></head>
+<body><header><h1 class="brand">Release Lifecycle</h1><p>Authenticated operator inventory for package visibility, release state, readiness, and next actions.</p></header>
+<main>
+<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/api/v0/ops/releases">JSON</a></p>
+<section class="card">
+{{if .Releases}}<table><tr><th>Package</th><th>Version</th><th>Status</th><th>Visibility</th><th>Readiness</th><th>Lifecycle endpoints</th></tr>
+{{range .Releases}}<tr>
+<td><a href="{{.PackageURL}}">{{.Publisher}}/{{.Name}}</a>{{if .Title}}<br><span class="muted">{{.Title}}</span>{{end}}</td>
+<td>{{.Version}}{{if .LatestPublished}} <span class="pill">latest</span>{{end}}</td>
+<td>{{.Status}}</td>
+<td>{{.Visibility}}</td>
+<td>{{range .Readiness}}<span class="pill">{{.}}</span>{{end}}{{range .MissingReadiness}}<span class="pill">missing {{.}}</span>{{end}}</td>
+<td><code>POST {{.PublishURL}}</code><br><code>POST {{.YankURL}}</code><br><code>POST {{.VisibilityURL}}</code></td>
+</tr>{{end}}</table>{{else}}No package releases exist yet.{{end}}
+</section>
 </main></body></html>`
