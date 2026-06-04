@@ -469,16 +469,54 @@ def gltf_apply_node_transform(v, matrix):
     ]
 
 
-def gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, vertex_colors, face_colors):
+def gltf_weights(value, count, context):
+    if value is None:
+        return [0.0] * count
+    if not isinstance(value, list):
+        raise SystemExit(f"scene glTF {context} weights must be a list")
+    if len(value) < count:
+        raise SystemExit(f"scene glTF {context} weights must cover all morph targets")
+    return [float(v) for v in value[:count]]
+
+
+def gltf_apply_position_morphs(doc, primitive, mesh_obj, node_weights, base_dir, positions):
+    targets = primitive.get("targets")
+    if targets is None:
+        return positions
+    if not isinstance(targets, list):
+        raise SystemExit("scene glTF primitive targets must be a list")
+    weights = gltf_weights(node_weights if node_weights is not None else mesh_obj.get("weights"), len(targets), "morph")
+    out = [list(pos) for pos in positions]
+    for target_index, target in enumerate(targets):
+        weight = weights[target_index]
+        if weight == 0.0:
+            continue
+        if target.get("POSITION") is None:
+            continue
+        deltas = gltf_accessor_values(doc, int(target["POSITION"]), base_dir)
+        if len(deltas) != len(out):
+            raise SystemExit("scene glTF POSITION morph target count must match POSITION count")
+        for i, delta in enumerate(deltas):
+            if len(delta) != 3:
+                raise SystemExit("scene glTF POSITION morph target must be VEC3")
+            out[i][0] += float(delta[0]) * weight
+            out[i][1] += float(delta[1]) * weight
+            out[i][2] += float(delta[2]) * weight
+    return out
+
+
+def gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, base_dir, vertices, faces, vertex_colors, face_colors):
     meshes = doc.get("meshes", [])
     if mesh_index < 0 or mesh_index >= len(meshes):
         raise SystemExit("scene glTF mesh index out of bounds")
-    for primitive in meshes[mesh_index].get("primitives", []):
+    mesh_obj = meshes[mesh_index]
+    for primitive in mesh_obj.get("primitives", []):
         mode = int(primitive.get("mode", 4))
         attributes = primitive.get("attributes", {})
         if attributes.get("POSITION") is None:
             raise SystemExit("scene glTF primitive missing POSITION accessor")
         positions = gltf_accessor_values(doc, int(attributes["POSITION"]), base_dir)
+        positions = gltf_apply_position_morphs(doc, primitive, mesh_obj, node_weights, base_dir, positions)
         base_vertex = len(vertices)
         vertices.extend([gltf_apply_node_transform(pos, node_matrix) for pos in positions])
         colors = None
@@ -516,7 +554,7 @@ def gltf_collect_scene_targets(doc, scene_index):
         node = nodes[node_index]
         matrix = mat_mul(parent_matrix, gltf_node_local_matrix(node))
         if node.get("mesh") is not None:
-            targets.append((int(node["mesh"]), matrix))
+            targets.append((int(node["mesh"]), matrix, node.get("weights")))
         next_path = path | {node_index}
         for child in node.get("children", []):
             walk(int(child), matrix, next_path)
@@ -534,10 +572,10 @@ def gltf_mesh_targets(doc, mesh):
         node = doc.get("nodes", [])[node_index]
         if node.get("mesh") is None:
             raise SystemExit("scene glTF node does not reference a mesh")
-        return [(int(node["mesh"]), gltf_node_global_matrix(doc, node_index))]
+        return [(int(node["mesh"]), gltf_node_global_matrix(doc, node_index), node.get("weights"))]
     if mesh.get("gltf_scene") is not None or (mesh.get("gltf_mesh") is None and doc.get("scenes") is not None):
         return gltf_collect_scene_targets(doc, gltf_scene_index(doc, mesh))
-    return [(int(mesh.get("gltf_mesh", 0)), mat_identity())]
+    return [(int(mesh.get("gltf_mesh", 0)), mat_identity(), None)]
 
 
 def gltf_mesh_data(mesh, base_dir):
@@ -549,8 +587,8 @@ def gltf_mesh_data(mesh, base_dir):
     faces = []
     vertex_colors = []
     face_colors = []
-    for mesh_index, node_matrix in gltf_mesh_targets(doc, mesh):
-        gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, vertex_colors, face_colors)
+    for mesh_index, node_matrix, node_weights in gltf_mesh_targets(doc, mesh):
+        gltf_append_mesh(doc, mesh_index, node_matrix, node_weights, base_dir, vertices, faces, vertex_colors, face_colors)
     if not vertices:
         raise SystemExit("scene glTF mesh has no vertices")
     if not faces:

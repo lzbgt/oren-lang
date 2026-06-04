@@ -136,6 +136,38 @@ def verify_scene3d_gltf_lowering():
     if sparse_expected not in data:
         raise SystemExit("scene glTF sparse POSITION accessor lowering did not produce expected triangle")
 
+    morph_payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        morph_payload += struct.pack("<fff", *vertex)
+    for delta in ((10.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 0.0, 0.0)):
+        morph_payload += struct.pack("<fff", *delta)
+    morph_uri = "data:application/octet-stream;base64," + base64.b64encode(morph_payload).decode("ascii")
+    morph_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": morph_uri, "byteLength": len(morph_payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 36},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"},
+        ],
+        "meshes": [{
+            "weights": [0.5],
+            "primitives": [{"attributes": {"POSITION": 0}, "targets": [{"POSITION": 1}]}],
+        }],
+        "nodes": [{"name": "morph", "mesh": 0, "weights": [0.25], "translation": [1.0, 0.0, 0.0]}],
+    }
+    scene["meshes"][0] = {"kind": "triangles", "id": 1, "gltf_json": morph_gltf, "color": "#ffffffff"}
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<iii", 5, 0, 0) not in data:
+        raise SystemExit("scene glTF mesh-weight POSITION morph lowering did not produce expected coordinates")
+    scene["meshes"][0]["gltf_node"] = "morph"
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<iii", 4, 0, 0) not in data or struct.pack("<iii", 6, 0, 0) in data:
+        raise SystemExit("scene glTF node-weight POSITION morph override did not produce expected coordinates")
+
     topo_payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)):
         topo_payload += struct.pack("<fff", *vertex)
