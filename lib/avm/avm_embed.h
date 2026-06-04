@@ -16,7 +16,8 @@ enum {
     AVM_EMBED_OK = 0,
     AVM_EMBED_ERR_INVALID_ARG = 1,
     AVM_EMBED_ERR_ALLOC = 2,
-    AVM_EMBED_ERR_VM = 3
+    AVM_EMBED_ERR_VM = 3,
+    AVM_EMBED_ERR_BUSY = 4
 };
 
 typedef struct AvmEmbedHandle AvmEmbedHandle;

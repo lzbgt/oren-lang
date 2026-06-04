@@ -588,7 +588,9 @@
 <li><code>lib/avm/avm_alloc.c</code> keeps allocation-owner, unbudgeted-allocation, and</li>
 </ul>
 <p>  last-allocation-error context thread-local. Separate <code>LibAVM</code> handles may run</p>
-<p>  on separate host threads; a single VM/handle remains host-thread-confined.</p>
+<p>  on separate host threads. A single VM/handle remains host-thread-confined for</p>
+<p>  mutation/teardown, but concurrent same-handle run attempts now fail fast with</p>
+<p>  <code>AVM_EMBED_ERR_BUSY</code> instead of racing VM program state.</p>
 <ul>
 <li>Curated <code>make avm &amp;&amp; make test-avm</code> passes through</li>
 </ul>
@@ -722,10 +724,9 @@
 <ul>
 <li>Keep <code>make verify-libavm-ios</code> green.</li>
 <li>Add Swift/Objective-C smoke host.</li>
-<li>Preserve allocator thread-local owner isolation, one-run-per-runtime SDK</li>
+<li>Preserve allocator thread-local owner isolation, same-handle run guardrails,</li>
 </ul>
-<p>     guardrails, explicit resource loading, and app-level failure policy as SDK</p>
-<p>     wrappers grow.</p>
+<p>     explicit resource loading, and app-level failure policy as SDK wrappers grow.</p>
 <ul>
 <li>Keep expanding compiler/stdlib OBC coverage beyond the shared app-scale</li>
 </ul>

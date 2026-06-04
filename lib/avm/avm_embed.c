@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 
 #define AVM_EMBED_HANDLE_MAGIC UINT64_C(0x41564d454d424544)
@@ -15,6 +16,7 @@ struct AvmEmbedHandle {
     AvmEmbedProgram* owned_program;
     int argc;
     char** argv;
+    atomic_int run_in_progress;
 };
 
 struct AvmEmbedProgram {
@@ -81,6 +83,21 @@ void avm_embed_config_interactive_default(AvmEmbedConfig* config) {
 
 static int avm_embed_valid_handle(AvmEmbedHandle* handle) {
     return handle && handle->magic == AVM_EMBED_HANDLE_MAGIC && handle->vm;
+}
+
+static int avm_embed_enter_run(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed run argument");
+    }
+    int expected = 0;
+    if (!atomic_compare_exchange_strong(&handle->run_in_progress, &expected, 1)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_BUSY, AVM_ERR_INVALID_ARG, "AVM embed handle is already running");
+    }
+    return AVM_EMBED_OK;
+}
+
+static void avm_embed_leave_run(AvmEmbedHandle* handle) {
+    if (handle) atomic_store(&handle->run_in_progress, 0);
 }
 
 static void avm_embed_output_clear_vm(AvmVM* vm) {
@@ -1206,30 +1223,35 @@ int avm_embed_clear_cancel(AvmEmbedHandle* handle, AvmEmbedResult* result) {
     return result ? result->status : AVM_EMBED_OK;
 }
 
-int avm_embed_run_loaded(AvmEmbedHandle* handle, AvmEmbedResult* result) {
-    if (!avm_embed_valid_handle(handle)) {
-        if (result) {
-            avm_embed_result_clear(result);
-            result->status = AVM_EMBED_ERR_INVALID_ARG;
-            result->avm_error_code = AVM_ERR_INVALID_ARG;
-            avm_embed_set_message(result, "invalid AVM embed run argument");
-        }
-        return AVM_EMBED_ERR_INVALID_ARG;
-    }
+static int avm_embed_run_loaded_unchecked(AvmEmbedHandle* handle, AvmEmbedResult* result) {
     if (handle->vm->stdout_capture_enabled) avm_embed_output_clear_vm(handle->vm);
     avm_run(handle->vm);
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : (avm_is_err_val(handle->vm->last_error) ? AVM_EMBED_ERR_VM : AVM_EMBED_OK);
 }
 
+int avm_embed_run_loaded(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    int guard_rc = avm_embed_enter_run(handle, result);
+    if (guard_rc != AVM_EMBED_OK) return guard_rc;
+    int rc = avm_embed_run_loaded_unchecked(handle, result);
+    avm_embed_leave_run(handle);
+    return rc;
+}
+
 int avm_embed_run_program(AvmEmbedHandle* handle, AvmProgram* program, AvmEmbedResult* result) {
+    int guard_rc = avm_embed_enter_run(handle, result);
+    if (guard_rc != AVM_EMBED_OK) return guard_rc;
     int rc = avm_embed_load_program(handle, program, result);
-    if (rc != AVM_EMBED_OK) return rc;
-    return avm_embed_run_loaded(handle, result);
+    if (rc == AVM_EMBED_OK) rc = avm_embed_run_loaded_unchecked(handle, result);
+    avm_embed_leave_run(handle);
+    return rc;
 }
 
 int avm_embed_run_obc_bytes(AvmEmbedHandle* handle, const uint8_t* data, size_t len, AvmEmbedResult* result) {
+    int guard_rc = avm_embed_enter_run(handle, result);
+    if (guard_rc != AVM_EMBED_OK) return guard_rc;
     int rc = avm_embed_load_obc_bytes(handle, data, len, result);
-    if (rc != AVM_EMBED_OK) return rc;
-    return avm_embed_run_loaded(handle, result);
+    if (rc == AVM_EMBED_OK) rc = avm_embed_run_loaded_unchecked(handle, result);
+    avm_embed_leave_run(handle);
+    return rc;
 }

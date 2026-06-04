@@ -486,7 +486,9 @@ Facts from the 2026-05-28 implementation pass:
   capability/budget fields.
 - `lib/avm/avm_alloc.c` keeps allocation-owner, unbudgeted-allocation, and
   last-allocation-error context thread-local. Separate `LibAVM` handles may run
-  on separate host threads; a single VM/handle remains host-thread-confined.
+  on separate host threads. A single VM/handle remains host-thread-confined for
+  mutation/teardown, but concurrent same-handle run attempts now fail fast with
+  `AVM_EMBED_ERR_BUSY` instead of racing VM program state.
 - Curated `make avm && make test-avm` passes through
   `tests/avm/release_manifest.json`, not Makefile case arms.
 - The manifest records fixture path, release-gate inclusion, expected exit/error,
@@ -588,9 +590,8 @@ Working evidence:
 1. **AVM iOS embeddability + compiler-in-AVM release gate**
    - Keep `make verify-libavm-ios` green.
    - Add Swift/Objective-C smoke host.
-   - Preserve allocator thread-local owner isolation, one-run-per-runtime SDK
-     guardrails, explicit resource loading, and app-level failure policy as SDK
-     wrappers grow.
+   - Preserve allocator thread-local owner isolation, same-handle run guardrails,
+     explicit resource loading, and app-level failure policy as SDK wrappers grow.
    - Keep expanding compiler/stdlib OBC coverage beyond the shared app-scale
      fixture toward multi-file app suites and CI-hosted lifecycle checks.
 

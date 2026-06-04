@@ -156,8 +156,10 @@
 <li>Lifecycle hardening after 2026-06-04: AVM allocation owner, unbudgeted-allocation,</li>
 </ul>
 <p>  and last-allocation-error context is thread-local. Separate <code>LibAVM</code> handles may</p>
-<p>  run on separate host threads without sharing allocator owner state; a single</p>
-<p>  VM/handle remains host-thread-confined.</p>
+<p>  run on separate host threads without sharing allocator owner state. A single</p>
+<p>  VM/handle remains host-thread-confined for mutation/teardown, while concurrent</p>
+<p>  same-handle run attempts return <code>AVM_EMBED_ERR_BUSY</code> instead of racing VM</p>
+<p>  program state.</p>
 <ul>
 <li>SDK lifecycle hardening after 2026-06-04: <code>OrenAVMRuntime</code> rejects a second</li>
 </ul>
@@ -222,8 +224,10 @@
 </ul>
 <p>  unbudgeted-allocation, and last-allocation-error context is thread-local; the</p>
 <p>  desktop <code>LibAVM</code> C verifier now runs a two-thread embedder smoke with separate</p>
-<p>  handles. App failure model: separate handles may run on separate host threads,</p>
-<p>  but a single VM/handle is host-thread-confined.</p>
+<p>  handles and a deterministic same-handle busy smoke. App failure model:</p>
+<p>  separate handles may run on separate host threads, but a single VM/handle is</p>
+<p>  host-thread-confined for mutation/teardown and rejects concurrent runs with</p>
+<p>  <code>AVM_EMBED_ERR_BUSY</code>.</p>
 <ul>
 <li>Done 2026-06-04: Add SDK same-runtime run guard. <code>OrenAVMRuntime</code> enforces one</li>
 </ul>

@@ -97,8 +97,10 @@ allocator/lifecycle hardening.
   so production packaging does not hard-abort on teardown leak diagnostics.
 - Lifecycle hardening after 2026-06-04: AVM allocation owner, unbudgeted-allocation,
   and last-allocation-error context is thread-local. Separate `LibAVM` handles may
-  run on separate host threads without sharing allocator owner state; a single
-  VM/handle remains host-thread-confined.
+  run on separate host threads without sharing allocator owner state. A single
+  VM/handle remains host-thread-confined for mutation/teardown, while concurrent
+  same-handle run attempts return `AVM_EMBED_ERR_BUSY` instead of racing VM
+  program state.
 - SDK lifecycle hardening after 2026-06-04: `OrenAVMRuntime` rejects a second
   concurrent `runOBCData:error:` on the same runtime with an SDK error while still
   allowing cross-thread `requestCancelWithError:` for active runs.
@@ -145,8 +147,10 @@ allocator/lifecycle hardening.
 - Done 2026-06-04: Finish allocator-owner lifecycle hardening. Allocation owner,
   unbudgeted-allocation, and last-allocation-error context is thread-local; the
   desktop `LibAVM` C verifier now runs a two-thread embedder smoke with separate
-  handles. App failure model: separate handles may run on separate host threads,
-  but a single VM/handle is host-thread-confined.
+  handles and a deterministic same-handle busy smoke. App failure model:
+  separate handles may run on separate host threads, but a single VM/handle is
+  host-thread-confined for mutation/teardown and rejects concurrent runs with
+  `AVM_EMBED_ERR_BUSY`.
 - Done 2026-06-04: Add SDK same-runtime run guard. `OrenAVMRuntime` enforces one
   active `runOBCData:error:` per runtime, returns a structured busy error for
   concurrent run attempts, and keeps `requestCancelWithError:` callable from

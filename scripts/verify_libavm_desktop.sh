@@ -32,7 +32,9 @@ nm -g "$OUT_ROOT/macos-x86_64/libavm.a" | grep -F _avm_embed_run_obc_bytes >/dev
 find "$OUT_ROOT/LibAVM.xcframework" -name libavm.a -print | grep -q .
 
 OREN_SRC="$TMP_DIR/desktop_embed_smoke.oren"
+BLOCKING_OREN_SRC="$TMP_DIR/desktop_embed_blocking_net.oren"
 OBC_OUT="$TMP_DIR/desktop_embed_smoke.obc"
+BLOCKING_OBC_OUT="$TMP_DIR/desktop_embed_blocking_net.obc"
 SMOKE_C="$TMP_DIR/desktop_embed_smoke.c"
 SMOKE_BIN="$TMP_DIR/desktop_embed_smoke"
 SWIFT_SRC="$TMP_DIR/desktop_embed_smoke.swift"
@@ -51,6 +53,25 @@ OREN
 
 "$OREN_COMPILER" build "$OREN_SRC" --backend bytecode -o "$OBC_OUT" \
   > "$LOG_DIR/libavm_desktop_obc_build.log" 2>&1
+
+cat > "$BLOCKING_OREN_SRC" <<'OREN'
+import http "std:net/avm/http"
+
+fn main() {
+    var resp = http.get("https://example.local/block")
+    if oren_is_err(resp) { oren_exit(10) }
+    var text = resp.text()
+    if oren_is_err(text) { oren_exit(11) }
+    if text != "blocked-ok" { oren_exit(12) }
+    print(text)
+    oren_exit(0)
+}
+
+main()
+OREN
+
+"$OREN_COMPILER" build "$BLOCKING_OREN_SRC" --backend bytecode -o "$BLOCKING_OBC_OUT" \
+  > "$LOG_DIR/libavm_desktop_blocking_net_obc_build.log" 2>&1
 
 cat > "$SMOKE_C" <<'SMOKE'
 #include "avm_embed.h"
@@ -96,6 +117,47 @@ typedef struct {
     const char* obc_path;
     int worker_id;
 } WorkerArg;
+
+typedef struct {
+    pthread_mutex_t mu;
+    pthread_cond_t cv;
+    int entered;
+    int release;
+} BlockingFetch;
+
+typedef struct {
+    AvmEmbedHandle* handle;
+    AvmProgram* program;
+    AvmEmbedResult result;
+    int rc;
+} SharedRunArg;
+
+static int blocking_fetch(void* user_data, const char* url, uint8_t** out_data, size_t* out_len) {
+    (void)url;
+    BlockingFetch* state = (BlockingFetch*)user_data;
+    pthread_mutex_lock(&state->mu);
+    state->entered = 1;
+    pthread_cond_broadcast(&state->cv);
+    while (!state->release) {
+        pthread_cond_wait(&state->cv, &state->mu);
+    }
+    pthread_mutex_unlock(&state->mu);
+
+    const char* body = "blocked-ok";
+    size_t len = strlen(body);
+    uint8_t* copy = (uint8_t*)malloc(len);
+    if (!copy) return 1;
+    memcpy(copy, body, len);
+    *out_data = copy;
+    *out_len = len;
+    return 0;
+}
+
+static void* shared_run_main(void* arg_ptr) {
+    SharedRunArg* arg = (SharedRunArg*)arg_ptr;
+    arg->rc = avm_embed_run_program(arg->handle, arg->program, &arg->result);
+    return NULL;
+}
 
 static int run_embed_smoke_once(const char* obc_path, int worker_id) {
     uint8_t* obc = NULL;
@@ -145,6 +207,87 @@ static int run_embed_smoke_once(const char* obc_path, int worker_id) {
     return ok ? 0 : 7;
 }
 
+static int verify_same_handle_busy_guard(const char* obc_path) {
+    uint8_t* obc = NULL;
+    size_t obc_len = 0;
+    if (read_file(obc_path, &obc, &obc_len) != 0) return 20;
+
+    AvmEmbedResult result;
+    AvmEmbedProgram* program = NULL;
+    avm_embed_result_clear(&result);
+    if (avm_embed_program_from_obc_bytes(obc, obc_len, 1, &program, &result) != AVM_EMBED_OK) {
+        free(obc);
+        return 21;
+    }
+
+    AvmEmbedConfig config;
+    avm_embed_config_default(&config);
+    AvmEmbedHandle* handle = avm_embed_open(&config, &result);
+    if (!handle) {
+        avm_embed_program_free(program);
+        free(obc);
+        return 22;
+    }
+
+    BlockingFetch fetch_state;
+    memset(&fetch_state, 0, sizeof(fetch_state));
+    pthread_mutex_init(&fetch_state.mu, NULL);
+    pthread_cond_init(&fetch_state.cv, NULL);
+    if (avm_embed_set_net_fetch_callback(handle, blocking_fetch, &fetch_state, &result) != AVM_EMBED_OK) {
+        avm_embed_close(handle);
+        avm_embed_program_free(program);
+        free(obc);
+        return 23;
+    }
+
+    SharedRunArg run_arg;
+    memset(&run_arg, 0, sizeof(run_arg));
+    run_arg.handle = handle;
+    run_arg.program = avm_embed_program_view(program);
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, shared_run_main, &run_arg) != 0) {
+        avm_embed_close(handle);
+        avm_embed_program_free(program);
+        free(obc);
+        return 24;
+    }
+
+    pthread_mutex_lock(&fetch_state.mu);
+    while (!fetch_state.entered) {
+        pthread_cond_wait(&fetch_state.cv, &fetch_state.mu);
+    }
+    pthread_mutex_unlock(&fetch_state.mu);
+
+    AvmEmbedResult busy_result;
+    avm_embed_result_clear(&busy_result);
+    int busy_rc = avm_embed_run_program(handle, avm_embed_program_view(program), &busy_result);
+    int busy_ok = busy_rc == AVM_EMBED_ERR_BUSY &&
+                  busy_result.status == AVM_EMBED_ERR_BUSY &&
+                  strstr(busy_result.message, "already running") != NULL;
+
+    pthread_mutex_lock(&fetch_state.mu);
+    fetch_state.release = 1;
+    pthread_cond_broadcast(&fetch_state.cv);
+    pthread_mutex_unlock(&fetch_state.mu);
+
+    if (pthread_join(thread, NULL) != 0) {
+        avm_embed_close(handle);
+        avm_embed_program_free(program);
+        free(obc);
+        return 25;
+    }
+    int run_ok = run_arg.rc == AVM_EMBED_OK && run_arg.result.exit_code == 0;
+
+    avm_embed_close(handle);
+    avm_embed_program_free(program);
+    free(obc);
+    pthread_cond_destroy(&fetch_state.cv);
+    pthread_mutex_destroy(&fetch_state.mu);
+    if (!busy_ok) return 26;
+    if (!run_ok) return 27;
+    return 0;
+}
+
 static void* worker_main(void* arg_ptr) {
     WorkerArg* arg = (WorkerArg*)arg_ptr;
     for (int i = 0; i < 16; i++) {
@@ -155,8 +298,8 @@ static void* worker_main(void* arg_ptr) {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s program.obc\n", argv[0]);
+    if (argc != 3) {
+        fprintf(stderr, "usage: %s program.obc blocking-net.obc\n", argv[0]);
         return 2;
     }
     uint8_t* obc = NULL;
@@ -230,6 +373,11 @@ int main(int argc, char** argv) {
             return 11;
         }
     }
+    int busy_rc = verify_same_handle_busy_guard(argv[2]);
+    if (busy_rc != 0) {
+        fprintf(stderr, "same-handle busy guard failed: %d\n", busy_rc);
+        return 12;
+    }
     puts("OK: desktop LibAVM C embed smoke passed");
     return 0;
 }
@@ -246,7 +394,7 @@ esac
 
 cc -std=c11 -D_DARWIN_C_SOURCE -I"$OUT_ROOT/include" "$SMOKE_C" "$HOST_SLICE" \
   -o "$SMOKE_BIN" > "$LOG_DIR/libavm_desktop_host_compile.log" 2>&1
-"$SMOKE_BIN" "$OBC_OUT" > "$SMOKE_LOG" 2>&1
+"$SMOKE_BIN" "$OBC_OUT" "$BLOCKING_OBC_OUT" > "$SMOKE_LOG" 2>&1
 grep -F "OK: desktop LibAVM C embed smoke passed" "$SMOKE_LOG" >/dev/null
 
 cat > "$SWIFT_SRC" <<'SWIFT'
