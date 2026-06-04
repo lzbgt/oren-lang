@@ -486,6 +486,7 @@ fn infer_container_kind(expr, kind_env) {
             // avoid unsafe pointer/int heuristics in x64 native.
             if nm == "string_concat" { return "string" }
             if nm == "oren_int_to_string" { return "string" }
+            if nm == "oren_float_to_string" { return "string" }
             if nm == "oren_string_slice" { return "string" }
 
             // Length helpers return int.

@@ -497,8 +497,9 @@ Facts from the 2026-05-28 implementation pass:
   default zero-exit virtual-backend policy.
 - The default AVM release gate now also covers portable stdlib bytes/buffer view
   APIs, u8 buffer iteration, checked integer casts, deterministic math
-  trig/atan vectors, crypto hash vectors, iterator ranges, and Scene3D
-  package-asset authoring rather than leaving those as ad-hoc focused fixtures.
+  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
+  ranges, and Scene3D package-asset authoring rather than leaving those as
+  ad-hoc focused fixtures.
 - A direct `AVM_IO_BYTES=128` run of `test_budget_io_fs` returns the expected
   `AVM_ERR_BUDGET`, proving that specific runtime behavior while exposing harness debt.
 
@@ -570,6 +571,10 @@ Working evidence:
   are now in the curated `make test-avm` set, so the iOS AVM path proves pow,
   finite trig reduction, quadrant `atan2`, and non-finite error behavior in
   bytecode.
+- The huge-trig Payne-Hanek fixture is backend-safe again after AVM/C
+  `oren_float_to_string` support, but compiled C/AVM still fail its 2^53
+  periodicity assertion while the native test path passes. Treat that as the
+  next reducer/parity investigation, not release-gated behavior.
 
 ## Current P0 / W5 Work
 

@@ -14,7 +14,7 @@ fn assert_close(a, b, eps, code, msg) {
     var d = a - b
     if d < 0.0 { d = 0.0 - d }
     if d <= eps { return 0 }
-    fail(code, msg + " (|a-b|=" + oren_float_to_string(d) + ")")
+    fail(code, msg)
 }
 
 // Goal: make sure trig does not degrade for large |x| (Payne–Hanek reduction path).

@@ -1014,6 +1014,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_string_char_code_at" { native_id = 9 }
         if name == "oren_string_eq" { native_id = 151 }
         if name == "oren_int_to_string" { native_id = 10 }
+        if name == "oren_float_to_string" { native_id = 11 }
         // Container ops (rolling): accept both kernel intrinsics (`oren_*`) and
         // stable-stdlib names (`STD_*`) so bytecode stays fast even if wrapper
         // inlining is skipped for some reason.

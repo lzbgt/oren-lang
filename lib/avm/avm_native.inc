@@ -319,6 +319,15 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 11: { // oren_float_to_string
+            if (nargs > 0 && args[0].type == AVM_VAL_FLOAT) {
+                char buf[64];
+                snprintf(buf, sizeof(buf), "%f", args[0].as.f);
+                res.type = AVM_VAL_STRING;
+                res.as.p = my_strdup(buf);
+            }
+            break;
+        }
         case 12: // oren_list_len
             if (nargs > 0 && args[0].type == AVM_VAL_LIST) {
                 res.type = AVM_VAL_INT;

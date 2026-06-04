@@ -605,8 +605,9 @@
 <li>The default AVM release gate now also covers portable stdlib bytes/buffer view</li>
 </ul>
 <p>  APIs, u8 buffer iteration, checked integer casts, deterministic math</p>
-<p>  trig/atan vectors, crypto hash vectors, iterator ranges, and Scene3D</p>
-<p>  package-asset authoring rather than leaving those as ad-hoc focused fixtures.</p>
+<p>  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator</p>
+<p>  ranges, and Scene3D package-asset authoring rather than leaving those as</p>
+<p>  ad-hoc focused fixtures.</p>
 <ul>
 <li>A direct <code>AVM_IO_BYTES=128</code> run of <code>test_budget_io_fs</code> returns the expected</li>
 </ul>
@@ -695,6 +696,12 @@
 <p>  are now in the curated <code>make test-avm</code> set, so the iOS AVM path proves pow,</p>
 <p>  finite trig reduction, quadrant <code>atan2</code>, and non-finite error behavior in</p>
 <p>  bytecode.</p>
+<ul>
+<li>The huge-trig Payne-Hanek fixture is backend-safe again after AVM/C</li>
+</ul>
+<p>  <code>oren_float_to_string</code> support, but compiled C/AVM still fail its 2^53</p>
+<p>  periodicity assertion while the native test path passes. Treat that as the</p>
+<p>  next reducer/parity investigation, not release-gated behavior.</p>
 <h2 id="current-p0-w5-work">Current P0 / W5 Work</h2>
 <ol>
 <li><strong>Runtime robustness</strong></li>

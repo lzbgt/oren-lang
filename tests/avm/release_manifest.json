@@ -97,6 +97,7 @@
     {"path": "tests/avm/test_list_sum_opcodes.oren"},
     {"path": "tests/avm/test_list_dot_opcodes.oren"},
     {"path": "tests/avm/test_list_int_basic.oren"},
+    {"path": "tests/avm/test_float_to_string.oren"},
     {"path": "tests/avm/test_std_math_pow.oren"},
     {"path": "tests/avm/test_std_math_trig.oren"},
     {"path": "tests/avm/test_std_bytes_portable.oren"},

@@ -259,6 +259,7 @@ endif
 		tests/avm/test_list_sum_opcodes.oren \
 		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \
+		tests/avm/test_float_to_string.oren \
 		tests/avm/test_std_math_pow.oren \
 		tests/avm/test_std_math_trig.oren \
 		tests/avm/test_std_bytes_portable.oren \

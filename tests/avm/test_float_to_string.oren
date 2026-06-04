@@ -1,0 +1,24 @@
+@myorg.tag(name="avm-float-to-string")
+
+fn fail(code, msg) {
+    print("avm float_to_string FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn check(cond, code, msg) {
+    if cond { return 0 }
+    fail(code, msg)
+}
+
+var a = oren_float_to_string(1.5)
+check(a == "1.500000", 10, "positive format")
+check(oren_string_len(a) == 8, 11, "positive string length")
+
+var b = oren_float_to_string(0.0 - 2.25)
+check(b == "-2.250000", 20, "negative format")
+
+var c = "value=" + oren_float_to_string(3.0)
+check(c == "value=3.000000", 30, "concat type inference")
+
+print("avm float_to_string OK")
+exit(0)
