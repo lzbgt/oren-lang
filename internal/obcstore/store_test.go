@@ -379,6 +379,56 @@ func TestStoreSignsStableIndex(t *testing.T) {
 	}
 }
 
+func TestStorePackageUpdateCheck(t *testing.T) {
+	svc, err := New(Config{
+		DataDir:       t.TempDir(),
+		AdminUser:     "admin",
+		AdminPassword: "secret",
+		Now: func() time.Time {
+			return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(svc.Handler())
+	defer ts.Close()
+
+	if got := request(t, ts, http.MethodPost, "/api/v0/publishers", map[string]any{"id": "oren-labs"}, true); got.Code != http.StatusCreated {
+		t.Fatalf("publisher status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := request(t, ts, http.MethodPost, "/api/v0/packages", map[string]any{"publisher": "oren-labs", "name": "update-demo"}, true); got.Code != http.StatusCreated {
+		t.Fatalf("package status=%d body=%s", got.Code, got.Body.String())
+	}
+	for _, version := range []string{"0.2.0", "0.10.0", "0.10.0-beta.1"} {
+		upload := map[string]any{
+			"version":            version,
+			"program_obc_base64": base64.StdEncoding.EncodeToString([]byte{0xcd, 0x0e}),
+		}
+		if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/update-demo/versions", upload, true); got.Code != http.StatusCreated {
+			t.Fatalf("version %s status=%d body=%s", version, got.Code, got.Body.String())
+		}
+		if got := request(t, ts, http.MethodPost, "/api/v0/packages/oren-labs/update-demo/versions/"+version+"/publish", map[string]any{}, true); got.Code != http.StatusOK {
+			t.Fatalf("publish %s status=%d body=%s", version, got.Code, got.Body.String())
+		}
+	}
+	status := getJSON[map[string]any](t, ts, "/api/v0/packages/oren-labs/update-demo/update?current_version=0.2.0")
+	if status["latest_version"] != "0.10.0" || status["update_available"] != true {
+		t.Fatalf("bad update status: %v", status)
+	}
+	latest := status["latest_release"].(map[string]any)
+	if latest["version"] != "0.10.0" || latest["status"] != "published" {
+		t.Fatalf("bad latest release: %v", latest)
+	}
+	current := getJSON[map[string]any](t, ts, "/api/v0/packages/oren-labs/update-demo/update?current_version=0.10.0")
+	if current["latest_version"] != "0.10.0" || current["update_available"] != false {
+		t.Fatalf("current version should not need update: %v", current)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/packages/oren-labs/update-demo/update?current_version=bad/version", nil, false); got.Code != http.StatusBadRequest {
+		t.Fatalf("bad current_version status=%d body=%s", got.Code, got.Body.String())
+	}
+}
+
 func TestStoreAcceptsBearerAdminTokenHash(t *testing.T) {
 	sum := sha256.Sum256([]byte("deploy-token"))
 	svc, err := New(Config{

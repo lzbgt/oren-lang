@@ -86,8 +86,9 @@ const sitePackageHTML = `<!doctype html>
 	    <td>{{.Status}}</td>
 	  </tr>{{end}}</table>{{else}}No published releases.{{end}}
 	</section>
-	<section class="card"><h2>Install Metadata</h2><pre>package={{.Meta.Publisher}}/{{.Meta.Name}}
-	index=https://store.hubstack.cn/api/v0/index.json</pre></section>
+		<section class="card"><h2>Install Metadata</h2><pre>package={{.Meta.Publisher}}/{{.Meta.Name}}
+		index=https://store.hubstack.cn/api/v0/index.json
+		update=https://store.hubstack.cn/api/v0/packages/{{.Meta.Publisher}}/{{.Meta.Name}}/update?current_version=&lt;installed-version&gt;</pre></section>
 	</main></body></html>`
 
 const siteSourceHTML = `<!doctype html>
@@ -135,10 +136,11 @@ const siteOpsHTML = `<!doctype html>
 <section class="card"><h2>Deployment status</h2><p><a href="/ops/status">Authenticated operator status page</a> · <code>GET /api/v0/ops/status</code></p></section>
 <section class="card"><h2>Public endpoints</h2><pre>GET /healthz
 GET /api/v0/health
-GET /api/v0/index.json
-	GET /api/v0/index.json.sig
-	GET /api/v0/packages?query=plot&amp;capability=GFX</pre>
-	<p>Packages are public by default. Private packages are omitted from public browse/search/index/download surfaces.</p></section>
+	GET /api/v0/index.json
+		GET /api/v0/index.json.sig
+		GET /api/v0/packages?query=plot&amp;capability=GFX
+		GET /api/v0/packages/{publisher}/{name}/update?current_version=0.1.0</pre>
+		<p>Packages are public by default. Private packages are omitted from public browse/search/index/download surfaces.</p></section>
 <section class="card"><h2>Publisher token lifecycle</h2><pre>POST   /api/v0/publishers/{publisher}/token
 DELETE /api/v0/publishers/{publisher}/token
 Authorization: Bearer &lt;current publisher token or admin token&gt;

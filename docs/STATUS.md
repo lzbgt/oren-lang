@@ -142,7 +142,7 @@ Facts from the 2026-05-28 implementation pass:
   `cmd/obc-store-server` and `internal/obcstore`. It supports admin-authenticated
   publisher/package/release publish, public list/search/index/download endpoints,
   browser browse/detail/publisher/operator pages, package detail release
-  capability/source/permission metadata, authenticated operator status page/API
+  capability/source/permission/update metadata, authenticated operator status page/API
   for registry counts, bundle/source/signature/permission readiness, and deployment
   gates including active index key id, whether that key is trusted by the served
   bundle, and trust-bundle store-key count, asset serving, deterministic `.obc.zip`
@@ -154,7 +154,9 @@ Facts from the 2026-05-28 implementation pass:
   verified by external `OBC_STORE_ADMIN_TOKEN_SHA256_HEX`, while Basic Auth
   remains for local bring-up. Publisher package/version/release writes also
   accept publisher-scoped bearer tokens limited to that publisher id, with JSON
-  APIs for token rotation and revocation.
+  APIs for token rotation and revocation. Host apps can call
+  `/api/v0/packages/{publisher}/{name}/update?current_version=...` to get
+  semver-aware latest published release metadata and an `update_available` flag.
   `scripts/deploy_obc_store_service.sh` now supports an opt-in systemd service
   install/restart path, configurable listen address for Traefik, and an optional
   remote `/api/v0/health` probe. The live cloud host currently runs

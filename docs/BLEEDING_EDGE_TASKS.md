@@ -200,8 +200,10 @@ This file is the concise task view. Detailed implementation status lives in
      downloads: replace, keep-existing, and fail-if-installed, including a signed
      `0.2.0` update fixture. A sibling Note handoff/verifier update now checks
      the staged signed package/trust SDK surface (`../note` commit `35995ee`).
-     Remaining package-store work is richer update UX/persistence and visible
-     Note install/update/remove UX.
+     The store service now exposes a package update-check endpoint that returns
+     latest published release metadata plus `update_available`; remaining
+     package-store work is richer update persistence and visible Note
+     install/update/remove UX.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and
      `make issue-obc-store-trust` issue store/publisher P-256 keys and host-app
      trust bundles into an external directory such as `../oren-ca/`; private keys

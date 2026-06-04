@@ -98,7 +98,7 @@ Implemented in this repo:
 - Browser endpoints expose a server-rendered package store surface: `/` for
   search/browse, `/publishers/{publisher}` for public publisher package lists,
   `/packages/{publisher}/{name}` for release download links plus manifest-derived
-  capabilities/source/permission metadata, `/ops` for operator API/token
+  capabilities/source/permission metadata and update-check URL, `/ops` for operator API/token
   lifecycle reference, and authenticated `/ops/status` for registry counts plus
   deployment gates. `GET /api/v0/ops/status` exposes the same status as JSON for
   operator smoke checks. The machine APIs remain the source of truth.
@@ -110,6 +110,10 @@ Implemented in this repo:
   otherwise the data-dir trust bundle. Rotation bundles can include the active
   store public key plus previous store public keys before clients depend on the
   new active signer.
+- `GET /api/v0/packages/{publisher}/{name}/update?current_version=...` returns
+  the latest published release and an `update_available` boolean using
+  semver-aware natural ordering, so host apps do not need to duplicate update
+  selection logic.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
 - Version uploads validate manifest `permission_defaults` shape before accepting a

@@ -324,7 +324,9 @@ packages/...</code></pre>
 <p>lifecycle helpers for list, load, and remove installed packages, and remote installs</p>
 <p>stage into a temporary package directory before replacing the final package path.</p>
 <p>Signed-index installs now expose replace, keep-existing, and fail-if-installed</p>
-<p>policies so host apps can make update behavior explicit. <code>OrenAVMOBCTrustBundle</code></p>
+<p>policies so host apps can make update behavior explicit. The store service also</p>
+<p>has a package update-check endpoint that returns the semver-selected latest</p>
+<p>published release plus an <code>update_available</code> flag. <code>OrenAVMOBCTrustBundle</code></p>
 <p>loads generated <code>obc_store_trust.json</code> files into validated SDK key material, so</p>
 <p>host apps no longer need to hand-parse trust bundles before signed downloads. The</p>
 <p>store service now publishes active signing key IDs on dynamic index signatures and</p>
