@@ -24,6 +24,39 @@ harness_obc="build/tmp/compiler_in_avm_vfs_stdlib_obc_harness_${tag}.obc"
 compilerkit_src="build/tmp/compilerkit_smoke_${tag}.m"
 compilerkit_bin="build/tmp/compilerkit_smoke_${tag}"
 compilerkit_log="build/logs/run_compilerkit_smoke_${tag}.log"
+watchdog_seconds="${OREN_VERIFY_COMPILER_IN_AVM_WATCHDOG_SECONDS:-240}"
+progress_interval_seconds="${OREN_VERIFY_PROGRESS_INTERVAL_SECONDS:-15}"
+
+run_with_progress_watchdog() {
+  local label="$1"
+  local limit_seconds="$2"
+  local log_file="$3"
+  shift 3
+
+  "$@" >"$log_file" 2>&1 &
+  local pid=$!
+  local start
+  start="$(date +%s)"
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    sleep "$progress_interval_seconds"
+    local now elapsed
+    now="$(date +%s)"
+    elapsed=$((now - start))
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      echo "== ${label} still running: ${elapsed}s pid=${pid} =="
+      ps -o pid,etime,pcpu,pmem,comm,args -p "$pid" || true
+    fi
+    if (( elapsed >= limit_seconds )); then
+      echo "FAIL: ${label} exceeded ${limit_seconds}s watchdog" >&2
+      ps -o pid,ppid,etime,pcpu,pmem,comm,args -p "$pid" >&2 || true
+      tail -n 220 "$log_file" >&2 || true
+      kill "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+  done
+  wait "$pid"
+}
 
 echo "== build AVM stdlib/compiler OBC plugins =="
 OREN_COMPILER="$COMPILER" OREN_BUILD_COMPILER_OBC=1 ./scripts/build_avm_plugins.sh >"$plugins_log" 2>&1 || {
@@ -44,7 +77,7 @@ echo "== build compiler-in-AVM harness =="
 }
 
 echo "== run compiler-in-AVM harness =="
-./avm "$harness_obc" >"$harness_run_log" 2>&1 || {
+run_with_progress_watchdog "compiler-in-AVM harness" "$watchdog_seconds" "$harness_run_log" ./avm "$harness_obc" || {
   echo "FAIL: compiler-in-AVM harness failed" >&2
   tail -n 220 "$harness_run_log" >&2 || true
   exit 5
@@ -124,11 +157,13 @@ clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK
   tail -n 180 "$compilerkit_log" >&2 || true
   exit 7
 }
-"$compilerkit_bin" >>"$compilerkit_log" 2>&1 || {
+run_with_progress_watchdog "CompilerKit SDK smoke" "$watchdog_seconds" "$compilerkit_log.run" "$compilerkit_bin" || {
+  cat "$compilerkit_log.run" >>"$compilerkit_log" 2>/dev/null || true
   echo "FAIL: CompilerKit SDK smoke failed" >&2
   tail -n 220 "$compilerkit_log" >&2 || true
   exit 8
 }
+cat "$compilerkit_log.run" >>"$compilerkit_log" 2>/dev/null || true
 
 echo "OK: compiler-in-AVM iOS embedding chain passed"
 echo "logs:"

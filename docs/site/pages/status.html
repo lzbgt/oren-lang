@@ -427,9 +427,15 @@
 <p>  down/move/up ordering before mixed key/text events.</p>
 <p>  <code>OrenAVMKit</code> exposes matching Objective-C</p>
 <p>  helpers including a convenience binary pointer-event encoder. The iOS verifier</p>
-<p>  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>
-<p>  publishes a binary frame, retrieves it through the SDK, injects a binary pointer</p>
-<p>  event, and consumes it from OBC. <code>OrenAVMGraphicsView</code> is now the default</p>
+<p>	  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>
+<p>	  publishes multiple binary frames through the event callback path, verifies the</p>
+<p>	  first and final callback sequence/length metadata, retrieves the retained</p>
+<p>	  frame through the SDK, feeds multiple distinct frames through the same SDK</p>
+<p>	  renderer objects, injects a binary pointer event, and consumes it from OBC.</p>
+<p>	  The nested compiler-in-AVM phases in the iOS verifier emit periodic PID/CPU</p>
+<p>	  progress diagnostics and fail through a bounded watchdog, so silent long</p>
+<p>	  runs are handled as hang symptoms rather than assumed-normal delays.</p>
+<p>	  <code>OrenAVMGraphicsView</code> is now the default</p>
 <p>  UIKit/CoreGraphics 2D renderer for the current <code>OGF0</code> <code>fill_rect</code>/</p>
 <p>  <code>push_clip_rect</code>/<code>pop_clip</code>/<code>push_translate</code>/<code>pop_transform</code>/</p>
 <p>  <code>push_opacity</code>/<code>pop_opacity</code>/<code>push_camera_ortho</code>/<code>pop_camera</code>/<code>text</code>/<code>text_bytes</code>/<code>text_resource</code>/</p>

@@ -150,10 +150,15 @@
 <ul>
 <li>The iOS verifier compiles device/simulator SDK smokes and runs a host SDK smoke</li>
 </ul>
-<p>	  that executes OBC, publishes a frame, retrieves it with</p>
-<p>	  <code>getGraphicsFrameDataWithError:</code>, validates the binary magic/opcode, checks the</p>
-<p>		  <code>graphicsFrameHandler</code> sequence/length event and <code>hasGraphicsFrameWithError:</code>,</p>
-<p>		  injects a binary pointer event through the SDK, and clears the frame.</p>
+<p>	  that executes OBC, publishes multiple frames through the event callback path,</p>
+<p>	  retrieves the retained frame with <code>getGraphicsFrameDataWithError:</code>, validates</p>
+<p>	  the binary magic/opcode, checks first and last <code>graphicsFrameHandler</code></p>
+<p>	  sequence/length events and <code>hasGraphicsFrameWithError:</code>, feeds multiple</p>
+<p>	  distinct frames through the same SDK renderer objects, injects a binary</p>
+<p>	  pointer event through the SDK, and clears the frame.</p>
+<p>  The nested compiler-in-AVM phases used by this verifier now emit periodic</p>
+<p>  PID/CPU progress diagnostics and have a bounded watchdog, so a silent long run</p>
+<p>  is treated as a potential hang symptom instead of being accepted as normal.</p>
 <ul>
 <li>The first default iOS renderer is implemented as <code>OrenAVMGraphicsView</code>, a</li>
 </ul>

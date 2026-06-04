@@ -618,9 +618,15 @@ int main(void) {
         if (!runtime) return 35;
         NSError* error = nil;
         __block NSUInteger graphicsFrameHandlerCount = 0;
+        __block uint32_t graphicsFrameHandlerFirstSequence = 0;
+        __block NSUInteger graphicsFrameHandlerFirstLength = 0;
         __block uint32_t graphicsFrameHandlerSequence = 0;
         __block NSUInteger graphicsFrameHandlerLength = 0;
         runtime.graphicsFrameHandler = ^(uint32_t sequence, NSUInteger byteLength) {
+            if (graphicsFrameHandlerCount == 0) {
+                graphicsFrameHandlerFirstSequence = sequence;
+                graphicsFrameHandlerFirstLength = byteLength;
+            }
             graphicsFrameHandlerCount += 1;
             graphicsFrameHandlerSequence = sequence;
             graphicsFrameHandlerLength = byteLength;
@@ -695,7 +701,8 @@ int main(void) {
         }
         if (expectedExit != 9) return 0;
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
-        if (graphicsFrameHandlerCount < 1) return 183;
+        if (graphicsFrameHandlerCount != 2) return 183;
+        if (graphicsFrameHandlerFirstSequence != 7u || graphicsFrameHandlerFirstLength != 1102u) return 184;
         if (graphicsFrameHandlerSequence != 8u || graphicsFrameHandlerLength != 1102u) return 184;
         if ([runtime capturedOutputLengthWithError:&error] != 14) return 180;
         if (![runtime hasPermissionRequestWithError:&error]) return 181;
@@ -1088,6 +1095,13 @@ int main(void) {
         if (metalView.preferredFramesPerSecond != 90) return 130;
         if (metalView.lastFrameTargetBudgetNs != 11111111ull) return 132;
         metalView.targetHzMilli = 120000;
+        metalView.frameData = [NSData dataWithBytes:imageOnlyFrameBytes length:sizeof(imageOnlyFrameBytes)];
+        if (!metalView.hasValidFrameData) return 185;
+        if (![metalView prepareFrameResourcesWithError:&error]) return 186;
+        if (metalView.retainedImageCount != 1 || metalView.retainedImagePixelCount != 1) return 187;
+        metalView.frameData = frame;
+        if (![metalView prepareFrameResourcesWithError:&error]) return 188;
+        if (metalView.lastFrameTextRunCount != 2u || metalView.lastFrameImageRunCount != 3u) return 189;
         [metalView resetFrameMetrics];
         if (metalView.renderedFrameCount != 0 || metalView.lastFrameCPUNs != 0) return 133;
         if (metalView.lastFrameBudgetUsagePermille != 0 || metalView.lastFrameOverBudget || metalView.lastFrameImageRunCount != 0) return 141;

@@ -94,10 +94,15 @@ Retained SDK slices on 2026-05-31:
   boundary. This avoids making high-frequency drawing and input depend on JSON
   parsing or string allocation.
 - The iOS verifier compiles device/simulator SDK smokes and runs a host SDK smoke
-	  that executes OBC, publishes a frame, retrieves it with
-	  `getGraphicsFrameDataWithError:`, validates the binary magic/opcode, checks the
-		  `graphicsFrameHandler` sequence/length event and `hasGraphicsFrameWithError:`,
-		  injects a binary pointer event through the SDK, and clears the frame.
+	  that executes OBC, publishes multiple frames through the event callback path,
+	  retrieves the retained frame with `getGraphicsFrameDataWithError:`, validates
+	  the binary magic/opcode, checks first and last `graphicsFrameHandler`
+	  sequence/length events and `hasGraphicsFrameWithError:`, feeds multiple
+	  distinct frames through the same SDK renderer objects, injects a binary
+	  pointer event through the SDK, and clears the frame.
+  The nested compiler-in-AVM phases used by this verifier now emit periodic
+  PID/CPU progress diagnostics and have a bounded watchdog, so a silent long run
+  is treated as a potential hang symptom instead of being accepted as normal.
 - The first default iOS renderer is implemented as `OrenAVMGraphicsView`, a
 	  UIKit/CoreGraphics `UIView` that decodes the current `OGF0` binary frame subset
 			  (`fill_rect`, `text`/`text_bytes`, `stroke_line`, `stroke_rect`, `circle`,

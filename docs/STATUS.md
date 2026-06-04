@@ -337,9 +337,15 @@ Facts from the 2026-05-28 implementation pass:
   down/move/up ordering before mixed key/text events.
   `OrenAVMKit` exposes matching Objective-C
   helpers including a convenience binary pointer-event encoder. The iOS verifier
-  checks exported symbols, device/simulator SDK linkage, and a host OBC run that
-  publishes a binary frame, retrieves it through the SDK, injects a binary pointer
-  event, and consumes it from OBC. `OrenAVMGraphicsView` is now the default
+	  checks exported symbols, device/simulator SDK linkage, and a host OBC run that
+	  publishes multiple binary frames through the event callback path, verifies the
+	  first and final callback sequence/length metadata, retrieves the retained
+	  frame through the SDK, feeds multiple distinct frames through the same SDK
+	  renderer objects, injects a binary pointer event, and consumes it from OBC.
+	  The nested compiler-in-AVM phases in the iOS verifier emit periodic PID/CPU
+	  progress diagnostics and fail through a bounded watchdog, so silent long
+	  runs are handled as hang symptoms rather than assumed-normal delays.
+	  `OrenAVMGraphicsView` is now the default
   UIKit/CoreGraphics 2D renderer for the current `OGF0` `fill_rect`/
   `push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/
   `push_opacity`/`pop_opacity`/`push_camera_ortho`/`pop_camera`/`text`/`text_bytes`/`text_resource`/
