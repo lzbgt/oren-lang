@@ -554,16 +554,17 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     OrenAVMMetalAppendArcLines(vertices, x + r, y + h - r, r, pi * 0.5f, pi, lw, logicalWidth, logicalHeight, rgba);
 }
 
-static NSData* OrenAVMMetalTextureQuad(float x,
-                                       float y,
-                                       float w,
-                                       float h,
-                                       float logicalWidth,
-                                       float logicalHeight,
-                                       float u0,
-                                       float v0,
-                                       float u1,
-                                       float v1) {
+static void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
+                                          float x,
+                                          float y,
+                                          float w,
+                                          float h,
+                                          float logicalWidth,
+                                          float logicalHeight,
+                                          float u0,
+                                          float v0,
+                                          float u1,
+                                          float v1) {
     OrenAVMMetalTextVertex out[6];
     out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
                                       OrenAVMMetalClipY(y, logicalHeight),
@@ -589,7 +590,22 @@ static NSData* OrenAVMMetalTextureQuad(float x,
                                       OrenAVMMetalClipY(y + h, logicalHeight),
                                       u0,
                                       v1};
-    return [NSData dataWithBytes:out length:sizeof(out)];
+    [vertices appendBytes:out length:sizeof(out)];
+}
+
+static NSData* OrenAVMMetalTextureQuad(float x,
+                                       float y,
+                                       float w,
+                                       float h,
+                                       float logicalWidth,
+                                       float logicalHeight,
+                                       float u0,
+                                       float v0,
+                                       float u1,
+                                       float v1) {
+    NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
+    OrenAVMMetalAppendTextureQuad(vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
+    return [vertices copy];
 }
 
 static NSData* OrenAVMMetalTextQuad(float x,
@@ -1008,6 +1024,41 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                         (float)entry.logicalSize.height,
                                         logicalWidth,
                                         logicalHeight);
+    run.opacity = opacity;
+    return run;
+}
+
+- (OrenAVMMetalTextRun*)orenTextBatchRunWithText:(NSString*)text
+                                       positions:(const uint8_t*)positions
+                                   positionCount:(uint32_t)positionCount
+                                      translateX:(float)translateX
+                                      translateY:(float)translateY
+                                            rgba:(const uint8_t*)rgba
+                                         opacity:(float)opacity
+                                    logicalWidth:(float)logicalWidth
+                                   logicalHeight:(float)logicalHeight {
+    if (!positions || positionCount == 0) return nil;
+    OrenAVMMetalTextCacheEntry* entry = [self orenTextCacheEntryWithText:text rgba:rgba];
+    if (!entry) return nil;
+    NSMutableData* vertices = [NSMutableData dataWithCapacity:(NSUInteger)positionCount * sizeof(OrenAVMMetalTextVertex) * 6u];
+    for (uint32_t i = 0; i < positionCount; i++) {
+        const uint8_t* p = positions + ((size_t)i * 8u);
+        OrenAVMMetalAppendTextureQuad(vertices,
+                                      (float)OrenAVMMetalReadU32LE(p) + translateX,
+                                      (float)OrenAVMMetalReadU32LE(p + 4) + translateY,
+                                      (float)entry.logicalSize.width,
+                                      (float)entry.logicalSize.height,
+                                      logicalWidth,
+                                      logicalHeight,
+                                      0.0f,
+                                      0.0f,
+                                      1.0f,
+                                      1.0f);
+    }
+    if (vertices.length == 0) return nil;
+    OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
+    run.texture = entry.texture;
+    run.vertices = [vertices copy];
     run.opacity = opacity;
     return run;
 }
@@ -1608,20 +1659,19 @@ static NSData* OrenAVMMetalTextQuad(float x,
             uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
             OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
             if (resource.text && resource.rgba.length == 4 && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-                for (uint32_t pi = 0; pi < posCount; pi++) {
-                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
-                    OrenAVMMetalTextRun* run = [self orenTextRunWithText:resource.text
-                                                                       x:(float)OrenAVMMetalReadU32LE(p) + tx
-                                                                       y:(float)OrenAVMMetalReadU32LE(p + 4) + ty
-                                                                    rgba:resource.rgba.bytes
-                                                                 opacity:opacity
-                                                            logicalWidth:(float)logicalW
-                                                           logicalHeight:(float)logicalH];
-                    if (run) {
-                        run.hasScissor = clip.enabled;
-                        run.scissor = clip.rect;
-                        [textRuns addObject:run];
-                    }
+                OrenAVMMetalTextRun* run = [self orenTextBatchRunWithText:resource.text
+                                                                 positions:payload + 8
+                                                             positionCount:posCount
+                                                                translateX:tx
+                                                                translateY:ty
+                                                                      rgba:resource.rgba.bytes
+                                                                   opacity:opacity
+                                                              logicalWidth:(float)logicalW
+                                                             logicalHeight:(float)logicalH];
+                if (run) {
+                    run.hasScissor = clip.enabled;
+                    run.scissor = clip.rect;
+                    [textRuns addObject:run];
                 }
             }
         } else if (opcode == 70 && payloadLen == 4) {

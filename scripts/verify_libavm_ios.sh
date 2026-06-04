@@ -1070,7 +1070,7 @@ int main(void) {
         if (!metalView.hasValidFrameData) return 174;
         if (![metalView prepareFrameResourcesWithError:&error]) return 162;
         if (metalView.lastFrameVertexCount < 140u) return 163;
-        if (metalView.lastFrameTextRunCount != 3u) return 164;
+        if (metalView.lastFrameTextRunCount != 2u) return 164;
         if (metalView.lastFrameImageRunCount != 3u) return 165;
         if (metalView.retainedImageCount != 0 || metalView.retainedImagePixelCount != 0) return 166;
         metalView.targetHzMilli = 120000;

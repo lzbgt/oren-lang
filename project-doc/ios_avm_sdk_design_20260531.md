@@ -119,8 +119,9 @@ Retained SDK slices on 2026-05-31:
 			  the same empty-mailbox no-op reload contract as `OrenAVMGraphicsView`.
 			  CoreGraphics and Metal
 	  renderers also expose retained image count/pixel limits and counters so host apps
-		  can bound sprite/atlas memory. Retained text records now avoid resending
-		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.
+	  can bound sprite/atlas memory. Retained text records now avoid resending
+	  repeated UTF-8 labels every frame, and Metal batches `draw_texts` positions for
+	  one retained label into one textured run; true glyph atlas packing remains pending.
 - The binary input helper set now covers pointer events, resize events,
   media-query events, key events, UTF-8 text-input events, and compact
   gamepad/controller state plus coalesced motion, focus, and IME/composition

@@ -179,8 +179,9 @@
 <p>			  the same empty-mailbox no-op reload contract as <code>OrenAVMGraphicsView</code>.</p>
 <p>			  CoreGraphics and Metal</p>
 <p>	  renderers also expose retained image count/pixel limits and counters so host apps</p>
-<p>		  can bound sprite/atlas memory. Retained text records now avoid resending</p>
-<p>		  repeated UTF-8 labels every frame; richer glyph atlas batching remains pending.</p>
+<p>	  can bound sprite/atlas memory. Retained text records now avoid resending</p>
+<p>	  repeated UTF-8 labels every frame, and Metal batches <code>draw_texts</code> positions for</p>
+<p>	  one retained label into one textured run; true glyph atlas packing remains pending.</p>
 <ul>
 <li>The binary input helper set now covers pointer events, resize events,</li>
 </ul>
