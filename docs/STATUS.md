@@ -391,7 +391,8 @@ Facts from the 2026-05-28 implementation pass:
   human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
   `triangles_xyz` or `quads_xyz` direct meshes, compact `boxes_xyz`
   cuboid primitives, `prisms_xy` extruded polygon solids, bounded
-  `cylinders_z` primitives, and per-triangle `triangles_xyz_rgba` colors.
+  `cylinders_z` and `cones_z` primitives, and per-triangle
+  `triangles_xyz_rgba` colors.
   Material authoring accepts `color` or
   `base_color` plus optional `opacity_milli`, `roughness_milli`, and
   `metallic_milli`, lowering the v0 renderer-visible output to deterministic

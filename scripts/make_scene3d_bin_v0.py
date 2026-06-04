@@ -265,6 +265,27 @@ def pack_cylinders_z(cylinders):
     return pack_triangles_xyz(triangles)
 
 
+def pack_cones_z(cones):
+    triangles = []
+    for cone in cones:
+        if not isinstance(cone, dict):
+            raise SystemExit("scene cones_z entries must be objects")
+        cx, cy = cylinder_center(cone)
+        radius = cylinder_radius(cone)
+        z0 = cylinder_z(cone, "z_min", "min_z")
+        z1 = cylinder_z(cone, "z_max", "max_z")
+        if z1 <= z0:
+            raise SystemExit("scene cones_z z_max must be greater than z_min")
+        segments = cylinder_segments(cone)
+        for i in range(segments):
+            nxt = 0 if i + 1 == segments else i + 1
+            a0 = cylinder_point(cx, cy, radius, segments, i, z0)
+            b0 = cylinder_point(cx, cy, radius, segments, nxt, z0)
+            triangles.append([[cx, cy, z0], b0, a0])
+            triangles.append([a0, b0, [cx, cy, z1]])
+    return pack_triangles_xyz(triangles)
+
+
 def pack_triangles_xyz_rgba(triangles):
     out = bytearray()
     for tri in triangles:
@@ -570,6 +591,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_prisms_xy(mesh["prisms_xy"])
             elif mesh.get("cylinders_z") is not None:
                 payload = pack_cylinders_z(mesh["cylinders_z"])
+            elif mesh.get("cones_z") is not None:
+                payload = pack_cones_z(mesh["cones_z"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""
