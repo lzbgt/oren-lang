@@ -231,6 +231,9 @@ packages/...</code></pre>
 <p>dynamic Traefik route is checked in at <code>deploy/obc-store-traefik.dynamic.yml</code>,</p>
 <p>and the deploy script can regenerate it with</p>
 <p><code>scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config</code>.</p>
+<p><code>make verify-obc-store-live-route</code> performs a public HTTPS smoke against the live</p>
+<p>route and demo index; strict release-readiness checks can be enabled with</p>
+<p><code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code>.</p>
 <p>API/service detail lives in <code>project-doc/obc_store_service_design_20260601.md</code>.</p>
 <h2 id="ios-app-flow">iOS App Flow</h2>
 <ol>

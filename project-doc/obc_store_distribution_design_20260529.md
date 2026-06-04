@@ -197,6 +197,9 @@ treat private signing keys/root CA material as external to this repo. The defaul
 dynamic Traefik route is checked in at `deploy/obc-store-traefik.dynamic.yml`,
 and the deploy script can regenerate it with
 `scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`.
+`make verify-obc-store-live-route` performs a public HTTPS smoke against the live
+route and demo index; strict release-readiness checks can be enabled with
+`OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1`.
 
 API/service detail lives in `project-doc/obc_store_service_design_20260601.md`.
 

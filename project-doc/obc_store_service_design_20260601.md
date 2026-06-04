@@ -363,7 +363,10 @@ Before deployment:
    `OrenAVMPackageStore`, and runs in AVM.
 3. Traefik route smoke for `https://store.hubstack.cn/api/v0/health`; the
    generated dynamic route should match `deploy/obc-store-traefik.dynamic.yml`
-   for the default `172.20.0.1:18080` backend.
+   for the default `172.20.0.1:18080` backend. `make
+   verify-obc-store-live-route` checks the public HTTPS route and demo package
+   index visibility; set `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` to make
+   signed-index/trust/update endpoint gaps fail the gate.
 4. Private key scan proving no private key material is committed.
 5. Backup/restore smoke for metadata DB and artifact storage.
 6. Rate limits and max upload/package sizes.
