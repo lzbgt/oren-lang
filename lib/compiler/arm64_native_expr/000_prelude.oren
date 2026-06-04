@@ -649,6 +649,9 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "floor", "_floor") { return true }
             if native_name_is_or_has_suffix(nm, "ceil", "_ceil") { return true }
             if native_name_is_or_has_suffix(nm, "round", "_round") { return true }
+            if native_name_is_or_has_suffix(nm, "round_even", "_round_even") { return true }
+            if native_name_is_or_has_suffix(nm, "nearbyint", "_nearbyint") { return true }
+            if native_name_is_or_has_suffix(nm, "rint", "_rint") { return true }
             if native_name_is_or_has_suffix(nm, "trunc", "_trunc") { return true }
             if native_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
             if native_name_is_or_has_suffix(nm, "_round_ties_even", "_round_ties_even") { return true }
@@ -666,6 +669,7 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "ldexp", "_ldexp") { return true }
             if native_name_is_or_has_suffix(nm, "scalbn", "_scalbn") { return true }
             if native_name_is_or_has_suffix(nm, "scalbln", "_scalbln") { return true }
+            if native_name_is_or_has_suffix(nm, "logb", "_logb") { return true }
             if native_name_is_or_has_suffix(nm, "_exp_taylor", "_exp_taylor") { return true }
             if native_name_is_or_has_suffix(nm, "exp2", "_exp2") { return true }
             if native_name_is_or_has_suffix(nm, "exp", "_exp") { return true }

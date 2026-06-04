@@ -264,6 +264,18 @@ fn _round_ties_even(x: f64) {
     return t - 1.0
 }
 
+fn round_even(x: f64) {
+    return _round_ties_even(x)
+}
+
+fn nearbyint(x: f64) {
+    return _round_ties_even(x)
+}
+
+fn rint(x: f64) {
+    return _round_ties_even(x)
+}
+
 fn remainder(x: f64, y: f64) {
     // IEEE-style remainder: x - n*y where n is nearest integer to x/y,
     // choosing the even integer when the quotient is exactly halfway.
@@ -533,6 +545,41 @@ fn scalbn(x: f64, n) {
 
 fn scalbln(x: f64, n) {
     return ldexp(x, n)
+}
+
+fn _u64_floor_log2(n) {
+    if n <= 0 { return oren_err(4, "floor_log2: non-positive") }
+    var p = 0
+    while n >= 2 {
+        n = n >> 1
+        p = p + 1
+    }
+    return p
+}
+
+fn ilogb(x: f64) {
+    // Unbiased binary exponent of |x|. Returns Err for zero, NaN, and infinity.
+    if is_nan(x) { return oren_err(4, "ilogb: NaN") }
+    if x == 0.0 { return oren_err(4, "ilogb: zero") }
+    if is_inf(x) { return oren_err(4, "ilogb: inf") }
+    var b = _f64_bits(x)
+    if oren_is_err(b) { return b }
+    var exp = (b >> 52) & 2047
+    if exp != 0 { return exp - 1023 }
+    var mant = b & 4503599627370495
+    var mlog = _u64_floor_log2(mant)
+    if oren_is_err(mlog) { return mlog }
+    return i64(mlog) - 1074
+}
+
+fn logb(x: f64) {
+    if is_nan(x) { return oren_err(4, "logb: NaN") }
+    if x == 0.0 { return oren_err(4, "logb: zero") }
+    if is_inf(x) { return inf() }
+    var e = ilogb(x)
+    if oren_is_err(e) { return e }
+    var ef: f64 = 0.0 + e
+    return ef
 }
 
 fn frexp(x: f64) {

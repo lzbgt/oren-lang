@@ -1,0 +1,52 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math logb round_even FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var tiny = math.pow2i(0 - 1074)
+assert_true(math.ilogb(1.0) == 0, 10, "ilogb one")
+assert_true(math.ilogb(8.0) == 3, 11, "ilogb eight")
+assert_true(math.ilogb(0.125) == 0 - 3, 12, "ilogb fraction")
+assert_true(math.ilogb(tiny) == 0 - 1074, 13, "ilogb smallest")
+assert_true(math.ilogb(math.pow2i(0 - 1022)) == 0 - 1022, 14, "ilogb min normal")
+assert_true(oren_is_err(math.ilogb(0.0)), 15, "ilogb zero")
+assert_true(oren_is_err(math.ilogb(math.inf())), 16, "ilogb inf")
+assert_true(oren_is_err(math.ilogb(0.0 / 0.0)), 17, "ilogb nan")
+
+assert_close(math.logb(8.0), 3.0, 0.0, 20, "logb eight")
+assert_close(math.logb(0.125), 0.0 - 3.0, 0.0, 21, "logb fraction")
+assert_true(math.is_inf(math.logb(math.inf())), 22, "logb inf")
+assert_true(oren_is_err(math.logb(0.0)), 23, "logb zero")
+
+assert_close(math.round_even(2.5), 2.0, 0.0, 30, "round_even low tie")
+assert_close(math.round_even(3.5), 4.0, 0.0, 31, "round_even high tie")
+assert_close(math.round_even(0.0 - 2.5), 0.0 - 2.0, 0.0, 32, "round_even negative low tie")
+assert_close(math.round_even(0.0 - 3.5), 0.0 - 4.0, 0.0, 33, "round_even negative high tie")
+assert_close(math.nearbyint(1.6), 2.0, 0.0, 34, "nearbyint")
+assert_close(math.rint(1.4), 1.0, 0.0, 35, "rint")
+
+var lb = math.logb(16.0)
+assert_true(lb > 3.0 && lb < 5.0, 40, "unannotated logb float metadata")
+var re = math.round_even(5.5)
+assert_true(re > 5.0 && re < 7.0, 41, "unannotated round_even metadata")
+
+assert_true(oren_is_err(math.round_even(0.0 / 0.0)), 50, "round_even nan")
+assert_true(oren_is_err(math.nearbyint(0.0 / 0.0)), 51, "nearbyint nan")
+assert_true(oren_is_err(math.rint(0.0 / 0.0)), 52, "rint nan")
+
+print("module math logb round_even OK")
+exit(0)

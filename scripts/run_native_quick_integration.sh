@@ -1485,6 +1485,19 @@ run_step_checked "math nextafter smoke (bytecode)" "$math_nextafter_log" \
   "$compiler" test "$math_nextafter_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_nextafter_log"
 
+echo "== math logb/round_even smoke (native/C/bytecode) =="
+math_logb_round_even_src="tests/modules/test_math_logb_round_even.oren"
+math_logb_round_even_log="build/logs/${compiler_base}_math_logb_round_even.log"
+rm -f "$math_logb_round_even_log" 2>/dev/null || true
+
+run_step_checked "math logb/round_even smoke (native)" "$math_logb_round_even_log" \
+  "$compiler" test "$math_logb_round_even_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math logb/round_even smoke (C)" "$math_logb_round_even_log" \
+  "$compiler" test "$math_logb_round_even_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math logb/round_even smoke (bytecode)" "$math_logb_round_even_log" \
+  "$compiler" test "$math_logb_round_even_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_logb_round_even_log"
+
 echo "== math inverse trig smoke (native/C/bytecode) =="
 math_inverse_trig_src="tests/modules/test_math_inverse_trig.oren"
 math_inverse_trig_log="build/logs/${compiler_base}_math_inverse_trig.log"

@@ -705,7 +705,8 @@
 <li>Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and</li>
 </ul>
 <p>  bit helpers, normal/subnormal classification, rounding, <code>fmod</code>, nearest-even</p>
-<p>  <code>remainder</code>, <code>modf</code>, <code>fdim</code>, <code>nextafter</code> / <code>nexttoward</code>, <code>sqrt</code>,</p>
+<p>  <code>remainder</code>, <code>modf</code>, public ties-to-even rounding aliases, <code>ilogb</code> / <code>logb</code>,</p>
+<p>  <code>fdim</code>, <code>nextafter</code> / <code>nexttoward</code>, <code>sqrt</code>,</p>
 <p>  <code>cbrt</code>, <code>powi</code>, <code>pow</code>, <code>power</code>, <code>pow2i</code>,</p>
 <p>  <code>ldexp</code>, <code>frexp</code>, <code>scalbn</code>, <code>scalbln</code>, <code>exp2</code>, <code>exp</code>, <code>expm1</code>, <code>exp10</code>, <code>log1p</code>, <code>log2</code>, <code>ln</code>,</p>
 <p>  <code>log10</code>, <code>sinh</code>, <code>cosh</code>, <code>tanh</code>, <code>asinh</code>, <code>acosh</code>, <code>atanh</code>, <code>sin</code>, <code>cos</code>,</p>
@@ -723,7 +724,8 @@
 <p>  <code>tests/avm/test_std_math_exp_log.oren</code>, and</p>
 <p>  <code>tests/avm/test_std_math_trig.oren</code> are now in the curated <code>make test-avm</code></p>
 <p>  set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/sign</p>
-<p>  helpers, normal/subnormal classification, <code>fdim</code>, <code>nextafter</code>/<code>nexttoward</code>,</p>
+<p>  helpers, public ties-to-even rounding aliases, normal/subnormal classification,</p>
+<p>  <code>ilogb</code>/<code>logb</code>, <code>fdim</code>, <code>nextafter</code>/<code>nexttoward</code>,</p>
 <p>  pow, <code>modf</code>, <code>frexp</code>/<code>ldexp</code>/<code>scalbn</code> decomposition and scaling, <code>cbrt</code>, <code>hypot</code>,</p>
 <p>  exp/log/log2/log10, cancellation-aware <code>expm1</code>/<code>log1p</code>, hyperbolic</p>
 <p>  <code>sinh</code>/<code>cosh</code>/<code>tanh</code>, and inverse hyperbolic <code>asinh</code>/<code>acosh</code>/<code>atanh</code>,</p>
