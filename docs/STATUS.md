@@ -439,10 +439,12 @@ Facts from the 2026-05-28 implementation pass:
 	  package opts into HTML/XML parsing.
 	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical
 	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
-		  indexed byte access instead of unpacking the whole message to a list. HPACK
-		  Huffman string encode/decode and full header-block encoding now write
-		  exact-size `u8_buf` payloads instead of building intermediate Oren byte
-		  lists. JSON,
+		  indexed byte access instead of unpacking the whole message to a list, and
+		  write fixed-size digest `u8_buf` outputs directly instead of packing
+		  result byte lists. Native crypto RNG now fills its result `u8_buf`
+		  directly. HPACK Huffman string encode/decode and full header-block
+		  encoding now write exact-size `u8_buf` payloads instead of building
+		  intermediate Oren byte lists. JSON,
 		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,
 			  HTTP/2 parser records, UI color parsing, PPM encoding, public
 			  `std:bytes` helpers, public `std:buffer` facade plus importable

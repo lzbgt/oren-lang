@@ -18,7 +18,7 @@ trait Sha1Bytes {
 }
 
 fn _input_bytes_or_err(input_bytes, ctx) {
-    if input_bytes == nil { return oren_bytes_pack([]) }
+    if input_bytes == nil { return oren_u8_buf_new(0) }
     var n = bytesm.len(input_bytes)
     if oren_is_err(n) {
         return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
@@ -68,13 +68,13 @@ fn _u32_be_at(input_bytes, orig_len, bit_len, pos) {
     return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 }
 
-fn _push_u32_be(out, x) {
+fn _store_u32_be(out, off, x) {
     x = _u32(x)
-    list.push(out, (x >> 24) & 255)
-    list.push(out, (x >> 16) & 255)
-    list.push(out, (x >> 8) & 255)
-    list.push(out, x & 255)
-    return nil
+    oren_buf_store_u8(out, off + 0, (x >> 24) & 255)
+    oren_buf_store_u8(out, off + 1, (x >> 16) & 255)
+    oren_buf_store_u8(out, off + 2, (x >> 8) & 255)
+    oren_buf_store_u8(out, off + 3, x & 255)
+    return off + 4
 }
 
 fn sha1_bytes(input_bytes) {
@@ -152,13 +152,15 @@ fn sha1_bytes(input_bytes) {
         off = off + 64
     }
 
-    var out = []
-    _push_u32_be(out, h0)
-    _push_u32_be(out, h1)
-    _push_u32_be(out, h2)
-    _push_u32_be(out, h3)
-    _push_u32_be(out, h4)
-    return oren_bytes_pack(out)
+    var out = oren_u8_buf_new_uninit(20)
+    if oren_is_err(out) { return out }
+    var out_off = 0
+    out_off = _store_u32_be(out, out_off, h0)
+    out_off = _store_u32_be(out, out_off, h1)
+    out_off = _store_u32_be(out, out_off, h2)
+    out_off = _store_u32_be(out, out_off, h3)
+    out_off = _store_u32_be(out, out_off, h4)
+    return out
 }
 
 fn sha1_hex(input_bytes) {

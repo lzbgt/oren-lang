@@ -126,9 +126,10 @@ This file is the concise task view. Detailed implementation status lives in
      Base64 and crypto hashes now follow the same rule with
      `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
      `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
-     path on exact-size `u8_buf` output. HPACK Huffman string encode/decode and
-     full header-block encoding now write exact-size `u8_buf` payloads instead
-     of materializing Oren byte lists.
+     path on exact-size `u8_buf` output. SHA-1/SHA-256 digest outputs and native
+     RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
+     Huffman string encode/decode and full header-block encoding now write
+     exact-size `u8_buf` payloads instead of materializing Oren byte lists.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
 	     `buf.matrix(2, 3).row(1).text()` instead of routing through root-level

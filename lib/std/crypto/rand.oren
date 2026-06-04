@@ -13,7 +13,6 @@
 // - This is a host effect and is not intended for AVM deterministic execution.
 // - Native runtime implementation: `oren_getentropy` (syscall/Win32 backed).
 
-import list "std:list"
 import result "std:result"
 
 fn fill_raw(ptr, len) {
@@ -30,22 +29,15 @@ fn fill(ptr, len) {
 fn bytes(n) {
     if oren_type_tag(n) == 0 { n = 0 }
     if n < 0 { return oren_err(4, "rand.bytes: n < 0") }
-    if n == 0 { return oren_bytes_pack([]) }
+    var out = oren_u8_buf_new_uninit(n)
+    if oren_is_err(out) { return out }
+    if n == 0 { return out }
 
-    var p = oren_ptr_alloc(n)
-    if p == 0 { return oren_err(12, "rand.bytes: alloc failed") }
+    var p = native_buf_data_ptr(out)
+    if p == 0 { return oren_err(12, "rand.bytes: bytes ptr nil") }
     var rc = oren_getentropy(p, n)
     if rc < 0 {
-        oren_ptr_free(p)
         return result.ok_or_errno(rc, "rand.bytes")
     }
-
-    var xs = []
-    var i = 0
-    while i < n {
-        list.push(xs, ptr_get_byte(p + i) & 255)
-        i = i + 1
-    }
-    oren_ptr_free(p)
-    return oren_bytes_pack(xs)
+    return out
 }
