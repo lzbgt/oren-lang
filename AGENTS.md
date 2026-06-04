@@ -23,6 +23,7 @@ Boundary: this is architecture review and setup guidance, not guaranteed product
 
 - Rolling refactors are allowed; backward compatibility is not required unless explicitly requested.
 - When uncertain, treat `docs/` as the first source of truth. If still unclear, do the smallest experiment (or read the implementation) to get facts.
+- This repo-local `AGENTS.md` may be modified when project operating rules need to be corrected or clarified. Do not modify global agent memory such as `~/.codex/AGENTS.md` unless the user explicitly asks for global memory changes.
 
 ## Engineering standard
 
