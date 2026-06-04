@@ -596,8 +596,8 @@ Working evidence:
   same source-level semantics.
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
   bit helpers, normal/subnormal classification, rounding, `fmod`, nearest-even
-  `remainder`, `modf`, public ties-to-even rounding aliases, `ilogb` / `logb`,
-  `fdim`, `nextafter` / `nexttoward`, `sqrt`,
+  `remainder`, `modf`, public ties-to-even rounding aliases, degree/radian
+  conversion, `ilogb` / `logb`, `fdim`, `nextafter` / `nexttoward`, `sqrt`,
   `cbrt`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `scalbn`, `scalbln`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,
@@ -611,7 +611,8 @@ Working evidence:
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/sign
-  helpers, public ties-to-even rounding aliases, normal/subnormal classification,
+  helpers, public ties-to-even rounding aliases, degree/radian conversion,
+  normal/subnormal classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,
   pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`,
   exp/log/log2/log10, cancellation-aware `expm1`/`log1p`, hyperbolic

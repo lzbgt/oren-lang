@@ -939,6 +939,8 @@ fn erf(x: f64) {
 
 fn pi() { return 3.141592653589793 }
 fn tau() { return 6.283185307179586 }
+fn radians(deg: f64): f64 { return deg * (pi() / 180.0) }
+fn degrees(rad: f64): f64 { return rad * (180.0 / pi()) }
 
 fn _sin_poly(r: f64) {
     var r2 = r * r
