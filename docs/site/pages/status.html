@@ -623,7 +623,7 @@
 </ul>
 <p>  passes <code>build/stdlib_bundle.obc</code> as a stdlib OBC resource and compiles/runs</p>
 <p>  the shared <code>tests/fixtures/ios_avm/compilerkit_app_scale.oren</code> program. The</p>
-<p>  child program covers trait-backed receiver methods, struct field chains,</p>
+<p>  child program covers generic-constrained trait receiver methods, struct field chains,</p>
 <p>  Base64/SHA/JSON/YAML/CBOR method chains, checked integer casts, iterator</p>
 <p>  ranges, zero-copy buffer slice/matrix receiver chains, linalg fallible APIs,</p>
 <p>  Scene3D package authoring, and time.</p>
@@ -648,6 +648,12 @@
 <p>  VFS <code>write_bytes</code> support for BYTES, current CLI args (<code>--platform</code>,</p>
 <p>  <code>--no-cache</code>) for embedded compiler runs, and SDK-visible CompilerKit compile</p>
 <p>  budgets so host apps can size full-stdlib OBC compilation deliberately.</p>
+<ul>
+<li>Generic monomorphization now reruns impl/method lowering after specialization,</li>
+</ul>
+<p>  so methods inside generated generic function clones constrained by a trait</p>
+<p>  lower to concrete impl functions instead of falling back to runtime member lookup. The dedicated</p>
+<p>  AVM regression is <code>tests/avm/test_generic_trait_constraints.oren</code>.</p>
 <p>Missing for production:</p>
 <ul>
 <li>Note-side Swift integration of <code>OrenAVMCompilerKit</code> and the package-store</li>

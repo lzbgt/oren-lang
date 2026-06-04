@@ -93,6 +93,7 @@
     {"path": "tests/avm/test_avm_permission_request_v0.oren"},
     {"path": "tests/avm/test_avm_events_v0.oren"},
     {"path": "tests/avm/test_switch.oren"},
+    {"path": "tests/avm/test_generic_trait_constraints.oren"},
     {"path": "tests/avm/test_list_sum_opcodes.oren"},
     {"path": "tests/avm/test_list_dot_opcodes.oren"},
     {"path": "tests/avm/test_list_int_basic.oren"},

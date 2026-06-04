@@ -1,0 +1,42 @@
+// AVM coverage for generic functions constrained by traits.
+// The monomorphized clone must still lower receiver method calls.
+
+fn fail(code) {
+    print("avm generic_trait_constraints FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+trait Add1 {
+    fn add1(self, rhs);
+}
+
+trait Mul1 {
+    fn mul1(self, rhs);
+}
+
+impl Add1 for i32 {
+    fn add1(self, rhs): i32 { return self + rhs }
+}
+
+impl Mul1 for i32 {
+    fn mul1(self, rhs): i32 { return self * rhs }
+}
+
+fn plus_one[T: Add1](x: T): T {
+    return x.add1(1)
+}
+
+fn mul2_plus1[T: Mul1 + Add1](x: T): T {
+    return x.mul1(2).add1(1)
+}
+
+assert_eq(plus_one[i32](41), 42, 10)
+assert_eq(mul2_plus1[i32](10), 21, 20)
+
+print("avm generic_trait_constraints OK")
+exit(0)

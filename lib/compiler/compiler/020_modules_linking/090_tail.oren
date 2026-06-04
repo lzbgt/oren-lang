@@ -90,6 +90,29 @@
     }
     if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.generic_mono.done", "", t0) }
 
+    // Generic monomorphization creates new concrete functions after the first
+    // impl-lowering pass. Re-run method lowering so trait receiver calls inside
+    // generated specializations lower to zero-cost impl functions too.
+    linked["impl_lowering_errors"] = nil
+    if trace_passes { print("[trace] pass: impl_lowering.post_generic_mono") }
+    impl_lowering.lower_linked_program_in_place(linked)
+    if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
+        var first_impl_err = linked["impl_lowering_errors"][0]
+        emit_diag("compile", 1, first_impl_err)
+        print("Impl lowering errors:")
+        var ei_impl = 0
+        while ei_impl < oren_list_len(linked["impl_lowering_errors"]) {
+            print(linked["impl_lowering_errors"][ei_impl])
+            ei_impl = ei_impl + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt7b = oren_time_now_ns() - t0
+        print("[phase] pass impl_lowering.post_generic_mono +" + oren_int_to_string(dt7b / 1000000) + "ms")
+    }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.impl_lowering.post_generic_mono.done", "", t0) }
+
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
     // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
     if trace_passes { print("[trace] pass: abi_layout") }

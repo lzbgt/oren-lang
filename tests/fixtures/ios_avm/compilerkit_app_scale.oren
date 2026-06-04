@@ -21,7 +21,11 @@ trait ScaleAdd {
 }
 
 impl ScaleAdd for i64 {
-    fn scale_add(self, scale, bias) { return self * scale + bias }
+    fn scale_add(self, scale, bias): i64 { return self * scale + bias }
+}
+
+fn scaled[T: ScaleAdd](x: T): T {
+    return x.scale_add(3, 2)
 }
 
 fn fail(code, msg) {
@@ -43,7 +47,7 @@ fn check_language_surface() {
     check(area(r) == 20, 10, "struct field chain")
 
     var v: i64 = 5
-    check(v.scale_add(3, 2) == 17, 11, "trait receiver method")
+    check(scaled[i64](v) == 17, 11, "generic trait receiver method")
 }
 
 fn check_codecs() {

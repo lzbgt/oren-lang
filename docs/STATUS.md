@@ -514,7 +514,7 @@ Working evidence:
 - `tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren` additionally
   passes `build/stdlib_bundle.obc` as a stdlib OBC resource and compiles/runs
   the shared `tests/fixtures/ios_avm/compilerkit_app_scale.oren` program. The
-  child program covers trait-backed receiver methods, struct field chains,
+  child program covers generic-constrained trait receiver methods, struct field chains,
   Base64/SHA/JSON/YAML/CBOR method chains, checked integer casts, iterator
   ranges, zero-copy buffer slice/matrix receiver chains, linalg fallible APIs,
   Scene3D package authoring, and time.
@@ -533,6 +533,10 @@ Working evidence:
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
   `--no-cache`) for embedded compiler runs, and SDK-visible CompilerKit compile
   budgets so host apps can size full-stdlib OBC compilation deliberately.
+- Generic monomorphization now reruns impl/method lowering after specialization,
+  so methods inside generated generic function clones constrained by a trait
+  lower to concrete impl functions instead of falling back to runtime member lookup. The dedicated
+  AVM regression is `tests/avm/test_generic_trait_constraints.oren`.
 
 Missing for production:
 
