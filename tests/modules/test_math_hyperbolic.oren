@@ -1,0 +1,62 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math hyperbolic FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var sinh_zero: f64 = math.sinh(0.0)
+assert_close(sinh_zero, 0.0, 0.0, 10, "sinh zero")
+var sinh_one: f64 = math.sinh(1.0)
+assert_close(sinh_one, 1.1752011936438014, 1e-10, 11, "sinh one")
+var sinh_neg_one: f64 = math.sinh(0.0 - 1.0)
+assert_close(sinh_neg_one, 0.0 - 1.1752011936438014, 1e-10, 12, "sinh negative one")
+
+var cosh_zero: f64 = math.cosh(0.0)
+assert_close(cosh_zero, 1.0, 0.0, 20, "cosh zero")
+var cosh_one: f64 = math.cosh(1.0)
+assert_close(cosh_one, 1.5430806348152437, 1e-10, 21, "cosh one")
+var cosh_neg_one: f64 = math.cosh(0.0 - 1.0)
+assert_close(cosh_neg_one, cosh_one, 1e-12, 22, "cosh even")
+
+var tanh_zero: f64 = math.tanh(0.0)
+assert_close(tanh_zero, 0.0, 0.0, 30, "tanh zero")
+var tanh_one: f64 = math.tanh(1.0)
+assert_close(tanh_one, 0.7615941559557649, 1e-10, 31, "tanh one")
+var tanh_neg_one: f64 = math.tanh(0.0 - 1.0)
+assert_close(tanh_neg_one, 0.0 - 0.7615941559557649, 1e-10, 32, "tanh negative one")
+
+var identity: f64 = cosh_one * cosh_one - sinh_one * sinh_one
+assert_close(identity, 1.0, 1e-9, 40, "cosh^2 - sinh^2")
+assert_close(sinh_one / cosh_one, tanh_one, 1e-10, 41, "tanh ratio")
+
+var sinh_inf: f64 = math.sinh(math.inf())
+assert_true(math.is_inf(sinh_inf), 50, "sinh +inf")
+var sinh_neg_inf: f64 = math.sinh(math.neg_inf())
+assert_true(math.is_inf(sinh_neg_inf), 51, "sinh -inf")
+assert_true(math.signbit(sinh_neg_inf), 52, "sinh -inf sign")
+var cosh_neg_inf: f64 = math.cosh(math.neg_inf())
+assert_true(math.is_inf(cosh_neg_inf), 53, "cosh -inf")
+assert_true(!math.signbit(cosh_neg_inf), 54, "cosh -inf positive")
+assert_close(math.tanh(math.inf()), 1.0, 0.0, 55, "tanh +inf")
+assert_close(math.tanh(math.neg_inf()), 0.0 - 1.0, 0.0, 56, "tanh -inf")
+assert_close(math.tanh(21.0), 1.0, 0.0, 57, "tanh saturation")
+
+assert_true(oren_is_err(math.sinh(0.0 / 0.0)), 60, "sinh NaN")
+assert_true(oren_is_err(math.cosh(0.0 / 0.0)), 61, "cosh NaN")
+assert_true(oren_is_err(math.tanh(0.0 / 0.0)), 62, "tanh NaN")
+
+print("module math hyperbolic OK")
+exit(0)

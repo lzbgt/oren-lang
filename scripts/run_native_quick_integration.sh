@@ -1459,6 +1459,19 @@ run_step_checked "math inverse trig smoke (bytecode)" "$math_inverse_trig_log" \
   "$compiler" test "$math_inverse_trig_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_inverse_trig_log"
 
+echo "== math hyperbolic smoke (native/C/bytecode) =="
+math_hyperbolic_src="tests/modules/test_math_hyperbolic.oren"
+math_hyperbolic_log="build/logs/${compiler_base}_math_hyperbolic.log"
+rm -f "$math_hyperbolic_log" 2>/dev/null || true
+
+run_step_checked "math hyperbolic smoke (native)" "$math_hyperbolic_log" \
+  "$compiler" test "$math_hyperbolic_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math hyperbolic smoke (C)" "$math_hyperbolic_log" \
+  "$compiler" test "$math_hyperbolic_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math hyperbolic smoke (bytecode)" "$math_hyperbolic_log" \
+  "$compiler" test "$math_hyperbolic_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_hyperbolic_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

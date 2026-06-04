@@ -571,6 +571,51 @@ fn exp10(x: f64) {
     return exp2(x * LOG2_10)
 }
 
+fn sinh(x: f64) {
+    if is_nan(x) { return oren_err(4, "sinh: NaN") }
+    if x == 0.0 { return x }
+    if is_inf(x) { return x }
+
+    var ax = abs_f(x)
+    if ax < 1e-8 { return x }
+    var e = exp(ax)
+    if oren_is_err(e) { return e }
+    var y = (e - 1.0 / e) / 2.0
+    if signbit(x) { return 0.0 - y }
+    return y
+}
+
+fn cosh(x: f64) {
+    if is_nan(x) { return oren_err(4, "cosh: NaN") }
+    if is_inf(x) { return inf() }
+
+    var ax = abs_f(x)
+    var e = exp(ax)
+    if oren_is_err(e) { return e }
+    return (e + 1.0 / e) / 2.0
+}
+
+fn tanh(x: f64) {
+    if is_nan(x) { return oren_err(4, "tanh: NaN") }
+    if x == 0.0 { return x }
+    if is_inf(x) {
+        if signbit(x) { return 0.0 - 1.0 }
+        return 1.0
+    }
+
+    var ax = abs_f(x)
+    if ax < 1e-8 { return x }
+    if ax > 20.0 {
+        if signbit(x) { return 0.0 - 1.0 }
+        return 1.0
+    }
+    var e2 = exp(2.0 * ax)
+    if oren_is_err(e2) { return e2 }
+    var y = (e2 - 1.0) / (e2 + 1.0)
+    if signbit(x) { return 0.0 - y }
+    return y
+}
+
 // --- trig (deterministic, no host libm) ---
 //
 // v0 design:

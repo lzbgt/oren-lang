@@ -666,6 +666,9 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "log", "_log") { return true }
             if native_name_is_or_has_suffix(nm, "lnf", "_lnf") { return true }
             if native_name_is_or_has_suffix(nm, "ln", "_ln") { return true }
+            if native_name_is_or_has_suffix(nm, "sinh", "_sinh") { return true }
+            if native_name_is_or_has_suffix(nm, "cosh", "_cosh") { return true }
+            if native_name_is_or_has_suffix(nm, "tanh", "_tanh") { return true }
             if native_name_is_or_has_suffix(nm, "pi", "_pi") { return true }
             if native_name_is_or_has_suffix(nm, "tau", "_tau") { return true }
             if native_name_is_or_has_suffix(nm, "_sin_poly", "_sin_poly") { return true }

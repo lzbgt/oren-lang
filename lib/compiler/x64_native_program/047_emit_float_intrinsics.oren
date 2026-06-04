@@ -86,6 +86,9 @@ fn _x64_expr_is_floaty(ctx, expr) {
             if _x64_name_is_or_has_suffix(nm, "log", "_log") { return true }
             if _x64_name_is_or_has_suffix(nm, "lnf", "_lnf") { return true }
             if _x64_name_is_or_has_suffix(nm, "ln", "_ln") { return true }
+            if _x64_name_is_or_has_suffix(nm, "sinh", "_sinh") { return true }
+            if _x64_name_is_or_has_suffix(nm, "cosh", "_cosh") { return true }
+            if _x64_name_is_or_has_suffix(nm, "tanh", "_tanh") { return true }
             if _x64_name_is_or_has_suffix(nm, "pi", "_pi") { return true }
             if _x64_name_is_or_has_suffix(nm, "tau", "_tau") { return true }
             if _x64_name_is_or_has_suffix(nm, "nan", "_nan") { return true }

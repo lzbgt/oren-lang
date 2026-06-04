@@ -705,8 +705,8 @@
 <li>Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and</li>
 </ul>
 <p>  bit helpers, rounding, <code>sqrt</code>, <code>cbrt</code>, <code>powi</code>, <code>pow</code>, <code>power</code>, <code>pow2i</code>,</p>
-<p>  <code>ldexp</code>, <code>frexp</code>, <code>exp2</code>, <code>exp</code>, <code>log2</code>, <code>ln</code>, <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>atan</code>,</p>
-<p>  <code>atan2</code>, <code>asin</code>, and <code>acos</code>.</p>
+<p>  <code>ldexp</code>, <code>frexp</code>, <code>exp2</code>, <code>exp</code>, <code>exp10</code>, <code>log2</code>, <code>ln</code>, <code>log10</code>, <code>sinh</code>,</p>
+<p>  <code>cosh</code>, <code>tanh</code>, <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>atan</code>, <code>atan2</code>, <code>asin</code>, and <code>acos</code>.</p>
 <ul>
 <li><code>pow</code> / <code>power</code> cover the app-visible cases <code>power(2,-1)</code> and</li>
 </ul>
@@ -721,7 +721,8 @@
 <p>  <code>tests/avm/test_std_math_trig.oren</code> are now in the curated <code>make test-avm</code></p>
 <p>  set, so the iOS AVM path proves core predicates/rounding/fmod/sign helpers,</p>
 <p>  pow, <code>frexp</code>/<code>ldexp</code> decomposition and scaling, <code>cbrt</code>, <code>hypot</code>,</p>
-<p>  exp/log/log2/log10, finite sin/cos/tan reduction, quadrant <code>atan2</code>,</p>
+<p>  exp/log/log2/log10 plus hyperbolic <code>sinh</code>/<code>cosh</code>/<code>tanh</code>,</p>
+<p>  finite sin/cos/tan reduction, quadrant <code>atan2</code>,</p>
 <p>  inverse-trig <code>asin</code>/<code>acos</code>, and</p>
 <p>  non-finite error behavior in bytecode.</p>
 <ul>
