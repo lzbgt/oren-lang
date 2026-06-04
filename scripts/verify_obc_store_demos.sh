@@ -92,8 +92,64 @@ def verify_scene3d_stl_lowering():
         raise SystemExit("scene binary STL lowering did not produce OS3D01")
 
 
+def verify_scene3d_ply_lowering():
+    ply_text = """ply
+format ascii 1.0
+element vertex 4
+property float x
+property float y
+property float z
+element face 1
+property list uchar int vertex_indices
+end_header
+0 0 0
+1 0 0
+1 1 0
+0 1 0
+4 0 1 2 3
+"""
+    for kind in ("triangles", "indexed"):
+        scene = {
+            "schema": "oren.ui.scene3d.v0",
+            "meshes": [{"kind": kind, "id": 1, "ply_text": ply_text, "color": "#ffffffff"}],
+            "models": [{"id": 2, "mesh_id": 1}],
+            "draw": [2],
+        }
+        data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+        if not data.startswith(b"OS3D01\x00\x00"):
+            raise SystemExit(f"scene ASCII PLY {kind} lowering did not produce OS3D01")
+
+    binary_path = out_root / "scene3d_binary_ply_smoke.ply"
+    header = (
+        "ply\n"
+        "format binary_little_endian 1.0\n"
+        "element vertex 3\n"
+        "property float x\n"
+        "property float y\n"
+        "property float z\n"
+        "element face 1\n"
+        "property list uchar int vertex_indices\n"
+        "end_header\n"
+    ).encode("ascii")
+    payload = bytearray(header)
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        payload += struct.pack("<fff", *vertex)
+    payload += struct.pack("<Biii", 3, 0, 1, 2)
+    binary_path.write_bytes(payload)
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles", "id": 1, "ply_source": binary_path.name, "color": "#ffffffff"}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+    if not data.startswith(b"OS3D01\x00\x00"):
+        raise SystemExit("scene binary PLY lowering did not produce OS3D01")
+
+
 verify_scene3d_obj_lowering()
 verify_scene3d_stl_lowering()
+verify_scene3d_ply_lowering()
 
 
 def write_deterministic_zip(zip_path, files):
@@ -317,7 +373,7 @@ def render_demo_preview(name):
         for yy, row in enumerate(scene):
             for xx, fill in enumerate(row):
                 rect(pixels, w, h, grid_x + xx * cell, grid_y + yy * cell, cell - 3, cell - 3, fill)
-        draw_text(pixels, w, h, 300, 146, "OBJ + STL + CAPSULE", "#e38b29", 2)
+        draw_text(pixels, w, h, 300, 146, "OBJ + STL + PLY", "#e38b29", 2)
         draw_text(pixels, w, h, 300, 182, "MESH + MATERIAL + MODEL", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 218, "PACKAGE VFS: ASSETS/", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 254, "RASTER CHECK 7X7 OK", "#00d084", 2)

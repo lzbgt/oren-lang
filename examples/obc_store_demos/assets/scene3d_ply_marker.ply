@@ -1,0 +1,15 @@
+ply
+format ascii 1.0
+comment Oren Scene3D PLY authoring smoke
+element vertex 4
+property float x
+property float y
+property float z
+element face 1
+property list uchar int vertex_indices
+end_header
+5 4 1
+6 4 1
+6 5 1
+5 5 1
+4 0 1 2 3

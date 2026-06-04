@@ -85,6 +85,15 @@
       "base_color": "#f5efe0ff",
       "roughness_milli": 520,
       "metallic_milli": 0
+    },
+    {
+      "kind": "triangles",
+      "id": 55,
+      "name": "ply-mesh",
+      "ply_source": "scene3d_ply_marker.ply",
+      "base_color": "#66ddffff",
+      "roughness_milli": 480,
+      "metallic_milli": 0
     }
   ],
   "materials": [
@@ -94,7 +103,8 @@
     {"id": 43, "name": "orb-purple", "base_color": "#cc44ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0},
     {"id": 47, "name": "ring-mint", "base_color": "#22ffaaff", "opacity_milli": 1000, "roughness_milli": 420, "metallic_milli": 0},
     {"id": 50, "name": "capsule-rose", "base_color": "#ff66ddff", "opacity_milli": 1000, "roughness_milli": 460, "metallic_milli": 0},
-    {"id": 53, "name": "badge-paper", "base_color": "#f5efe0ff", "opacity_milli": 1000, "roughness_milli": 520, "metallic_milli": 0}
+    {"id": 53, "name": "badge-paper", "base_color": "#f5efe0ff", "opacity_milli": 1000, "roughness_milli": 520, "metallic_milli": 0},
+    {"id": 56, "name": "ply-cyan", "base_color": "#66ddffff", "opacity_milli": 1000, "roughness_milli": 480, "metallic_milli": 0}
   ],
   "model_templates": [
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
@@ -106,7 +116,8 @@
     {"id": 44, "name": "orb", "mesh": "orb-mesh", "material": "orb-purple", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 48, "name": "ring", "mesh": "ring-mesh", "material": "ring-mint", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
     {"id": 51, "name": "capsule", "mesh": "capsule-mesh", "material": "capsule-rose", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
-    {"id": 54, "name": "badge", "mesh": "badge-mesh", "material": "badge-paper", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
+    {"id": 54, "name": "badge", "mesh": "badge-mesh", "material": "badge-paper", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}},
+    {"id": 57, "name": "ply-marker", "mesh": "ply-mesh", "material": "ply-cyan", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instance_groups": [
     {
@@ -134,6 +145,7 @@
     "ring",
     "capsule",
     "badge",
+    "ply-marker",
     {"model": "card", "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}},
     "accent"
   ],
