@@ -318,6 +318,7 @@ endif
 		tests/avm/test_bytes_set_endian.oren \
 		tests/avm/test_std_math_core.oren \
 		tests/avm/test_std_math_pow.oren \
+		tests/avm/test_std_math_decompose.oren \
 		tests/avm/test_std_math_exp_log.oren \
 		tests/avm/test_std_math_trig.oren \
 		tests/avm/test_std_bytes_portable.oren \

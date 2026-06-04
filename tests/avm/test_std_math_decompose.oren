@@ -1,0 +1,60 @@
+@myorg.tag(name="avm-std-math-decompose")
+
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("avm std math decompose FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a, b, eps, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+fn assert_frexp(x, mantissa, exp, eps, code, msg) {
+    var p = math.frexp(x)
+    if oren_is_err(p) { fail(code, msg + " returned err") }
+    assert_close(p[0], mantissa, eps, code + 1, msg + " mantissa")
+    assert_true(p[1] == exp, code + 2, msg + " exp")
+    assert_close(math.ldexp(p[0], p[1]), x, eps, code + 3, msg + " roundtrip")
+}
+
+assert_frexp(12.0, 0.75, 4, 1e-12, 10, "frexp positive normal")
+assert_frexp(0.0 - 12.0, 0.0 - 0.75, 4, 1e-12, 20, "frexp negative normal")
+assert_frexp(0.15625, 0.625, 0 - 2, 1e-12, 30, "frexp fractional normal")
+
+var z = math.frexp(0.0)
+assert_true(!oren_is_err(z), 40, "frexp zero ok")
+assert_close(z[0], 0.0, 0.0, 41, "frexp zero mantissa")
+assert_true(z[1] == 0, 42, "frexp zero exp")
+
+var tiny = math.pow2i(0 - 1074)
+assert_true(tiny > 0.0, 50, "pow2i smallest subnormal")
+assert_frexp(tiny, 0.5, 0 - 1073, 0.0, 51, "frexp smallest subnormal")
+assert_close(math.ldexp(0.5, 0 - 1073), tiny, 0.0, 55, "ldexp smallest subnormal")
+
+assert_close(math.ldexp(1.5, 3), 12.0, 1e-12, 60, "ldexp scale up")
+assert_close(math.ldexp(12.0, 0 - 3), 1.5, 1e-12, 61, "ldexp scale down")
+assert_true(math.is_inf(math.ldexp(1.0, 2048)), 62, "ldexp overflow")
+assert_close(math.ldexp(1.0, 0 - 2048), 0.0, 0.0, 63, "ldexp underflow")
+assert_true(math.is_inf(math.ldexp(math.inf(), 5)), 64, "ldexp inf")
+assert_true(oren_is_err(math.ldexp(0.0 / 0.0, 1)), 65, "ldexp nan error")
+assert_true(oren_is_err(math.frexp(0.0 / 0.0)), 66, "frexp nan error")
+
+assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 70, "hypot classic")
+assert_close(math.hypot(0.0 - 3.0, 4.0), 5.0, 1e-12, 71, "hypot signs")
+assert_close(math.hypot(0.0, 0.0), 0.0, 0.0, 72, "hypot zero")
+assert_close(math.hypot(3000000.0, 4000000.0), 5000000.0, 1e-6, 73, "hypot scaled")
+assert_true(math.is_inf(math.hypot(math.inf(), 1.0)), 74, "hypot inf")
+assert_true(oren_is_err(math.hypot(0.0 / 0.0, 1.0)), 75, "hypot nan error")
+
+print("avm std math decompose OK")
+exit(0)

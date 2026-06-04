@@ -592,11 +592,12 @@ Working evidence:
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
   fractional exponents as real-domain errors.
 - `tests/avm/test_std_math_core.oren`, `tests/avm/test_std_math_pow.oren`,
+  `tests/avm/test_std_math_decompose.oren`,
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/sign helpers,
-  pow, exp/log/log2/log10, finite trig reduction, quadrant `atan2`, and
-  non-finite error behavior in bytecode.
+  pow, `frexp`/`ldexp` decomposition and scaling, `hypot`, exp/log/log2/log10,
+  finite trig reduction, quadrant `atan2`, and non-finite error behavior in bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity
   vector and is release-gated in AVM. The earlier 2^53 assertion was invalid:
   at that magnitude `x + tau` rounds to `x + 6`, not `x + 2pi`, so it tested

@@ -572,6 +572,7 @@
     {"path": "tests/avm/test_bytes_set_endian.oren"},
     {"path": "tests/avm/test_std_math_core.oren"},
     {"path": "tests/avm/test_std_math_pow.oren"},
+    {"path": "tests/avm/test_std_math_decompose.oren"},
     {"path": "tests/avm/test_std_math_exp_log.oren"},
     {"path": "tests/avm/test_std_math_trig.oren"},
     {"path": "tests/avm/test_std_bytes_portable.oren"},
