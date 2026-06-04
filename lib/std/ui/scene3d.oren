@@ -378,6 +378,112 @@ fn _pack_boxes_xyz(boxes, ctx) {
     return bytes.from_u8_buf(out)
 }
 
+fn _prism_points(prism) {
+    var points = prism["points"]
+    if points == nil { points = prism["points_xy"] }
+    return points
+}
+
+fn _prism_z(prism, primary, fallback, ctx) {
+    var v = prism[primary]
+    if v == nil { v = prism[fallback] }
+    if _is_int(v) == false { return oren_err(4, ctx + ": expected i32") }
+    return v
+}
+
+fn _validate_xy_point(p, ctx) {
+    if p == nil || oren_list_len(p) != 2 { return oren_err(4, ctx + ": point must be [x,y]") }
+    if _is_int(p[0]) == false || _is_int(p[1]) == false {
+        return oren_err(4, ctx + ": point must contain i32")
+    }
+    return 0
+}
+
+fn _prisms_triangle_count(prisms, ctx) {
+    if prisms == nil { return oren_err(4, ctx + ": missing prisms_xy") }
+    var np = oren_list_len(prisms)
+    if oren_is_err(np) { return oren_err(4, ctx + ": prisms_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < np {
+        var prism = prisms[i]
+        if prism == nil { return oren_err(4, ctx + ": prism must be object") }
+        var points = _prism_points(prism)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || n < 3 { return oren_err(4, ctx + ": prism points must contain at least 3 [x,y] entries") }
+        var z0 = _prism_z(prism, "z_min", "min_z", ctx + ".z_min")
+        if oren_is_err(z0) { return z0 }
+        var z1 = _prism_z(prism, "z_max", "max_z", ctx + ".z_max")
+        if oren_is_err(z1) { return z1 }
+        if z1 <= z0 { return oren_err(4, ctx + ": prism z_max must be greater than z_min") }
+        var j = 0
+        while j < n {
+            var rc = _validate_xy_point(points[j], ctx + ".point")
+            if oren_is_err(rc) { return rc }
+            j = j + 1
+        }
+        total = total + n * 4 - 4
+        i = i + 1
+    }
+    return total
+}
+
+fn _store_prism_point(out, off, p, z, ctx) {
+    return _store_xyz_values(out, off, p[0], p[1], z, ctx)
+}
+
+fn _store_prism_triangle(out, off, a, za, b, zb, c, zc, ctx) {
+    var rc = _store_prism_point(out, off + 0, a, za, ctx + ".a")
+    if oren_is_err(rc) { return rc }
+    rc = _store_prism_point(out, off + 12, b, zb, ctx + ".b")
+    if oren_is_err(rc) { return rc }
+    return _store_prism_point(out, off + 24, c, zc, ctx + ".c")
+}
+
+fn _pack_prisms_xy(prisms, ctx) {
+    var tri_count = _prisms_triangle_count(prisms, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var pi = 0
+    var np = oren_list_len(prisms)
+    while pi < np {
+        var prism = prisms[pi]
+        var points = _prism_points(prism)
+        var n = oren_list_len(points)
+        var z0 = _prism_z(prism, "z_min", "min_z", ctx + ".z_min")
+        var z1 = _prism_z(prism, "z_max", "max_z", ctx + ".z_max")
+        var p0 = points[0]
+        var i = 1
+        while i < n - 1 {
+            var rc = _store_prism_triangle(out, off, p0, z0, points[i + 1], z0, points[i], z0, ctx + ".bottom")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_prism_triangle(out, off, p0, z1, points[i], z1, points[i + 1], z1, ctx + ".top")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            i = i + 1
+        }
+        i = 0
+        while i < n {
+            var next = i + 1
+            if next == n { next = 0 }
+            var a = points[i]
+            var b = points[next]
+            var rc2 = _store_prism_triangle(out, off, a, z0, b, z0, b, z1, ctx + ".side0")
+            if oren_is_err(rc2) { return rc2 }
+            off = off + 36
+            rc2 = _store_prism_triangle(out, off, a, z0, b, z1, a, z1, ctx + ".side1")
+            if oren_is_err(rc2) { return rc2 }
+            off = off + 36
+            i = i + 1
+        }
+        pi = pi + 1
+    }
+    return bytes.from_u8_buf(out)
+}
+
 fn _store_rgba(out, off, color, ctx) {
     var c = ui_color.parse_hex(color)
     if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
@@ -431,6 +537,8 @@ fn _asset_mesh(m) {
             tris = _pack_quads_xyz(m["quads_xyz"], "ui.scene3d mesh.quads_xyz")
         } else if m["boxes_xyz"] != nil {
             tris = _pack_boxes_xyz(m["boxes_xyz"], "ui.scene3d mesh.boxes_xyz")
+        } else if m["prisms_xy"] != nil {
+            tris = _pack_prisms_xy(m["prisms_xy"], "ui.scene3d mesh.prisms_xy")
         } else {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }

@@ -5,8 +5,8 @@
       "kind": "triangles",
       "id": 31,
       "name": "card-mesh",
-      "boxes_xyz": [
-        {"min": [0, 0, 0], "max": [2, 2, 1]}
+      "prisms_xy": [
+        {"points": [[0, 0], [2, 0], [2, 2], [0, 2]], "z_min": 0, "z_max": 1}
       ],
       "base_color": "#223344",
       "roughness_milli": 600,

@@ -147,6 +147,53 @@ def pack_boxes_xyz(boxes):
     return pack_triangles_xyz(triangles)
 
 
+def prism_points(prism):
+    if not isinstance(prism, dict):
+        raise SystemExit("scene prisms_xy entries must be objects")
+    points = prism.get("points", prism.get("points_xy"))
+    if not isinstance(points, list) or len(points) < 3:
+        raise SystemExit("scene prisms_xy points must contain at least 3 [x,y] entries")
+    for point in points:
+        if not isinstance(point, list) or len(point) != 2:
+            raise SystemExit("scene prisms_xy points must be [x,y]")
+        int(point[0])
+        int(point[1])
+    return points
+
+
+def prism_z(prism, primary, fallback):
+    if primary in prism:
+        return int(prism[primary])
+    if fallback in prism:
+        return int(prism[fallback])
+    raise SystemExit(f"scene prisms_xy entries must include {primary}")
+
+
+def pack_prisms_xy(prisms):
+    triangles = []
+    for prism in prisms:
+        points = prism_points(prism)
+        z0 = prism_z(prism, "z_min", "min_z")
+        z1 = prism_z(prism, "z_max", "max_z")
+        if z1 <= z0:
+            raise SystemExit("scene prisms_xy z_max must be greater than z_min")
+        p0 = points[0]
+        for i in range(1, len(points) - 1):
+            p1 = points[i]
+            p2 = points[i + 1]
+            triangles.append(
+                [[p0[0], p0[1], z0], [p2[0], p2[1], z0], [p1[0], p1[1], z0]]
+            )
+            triangles.append(
+                [[p0[0], p0[1], z1], [p1[0], p1[1], z1], [p2[0], p2[1], z1]]
+            )
+        for i, a in enumerate(points):
+            b = points[(i + 1) % len(points)]
+            triangles.append([[a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1]])
+            triangles.append([[a[0], a[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]])
+    return pack_triangles_xyz(triangles)
+
+
 def pack_triangles_xyz_rgba(triangles):
     out = bytearray()
     for tri in triangles:
@@ -448,6 +495,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_quads_xyz(mesh["quads_xyz"])
             elif mesh.get("boxes_xyz") is not None:
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
+            elif mesh.get("prisms_xy") is not None:
+                payload = pack_prisms_xy(mesh["prisms_xy"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""
