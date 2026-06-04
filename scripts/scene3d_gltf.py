@@ -142,8 +142,6 @@ def gltf_accessor_values(doc, accessor_index, base_dir):
     if accessor_index < 0 or accessor_index >= len(accessors):
         raise SystemExit("scene glTF accessor index out of bounds")
     accessor = accessors[accessor_index]
-    if accessor.get("sparse") is not None:
-        raise SystemExit("scene glTF sparse accessors are not supported")
     component_type = int(accessor.get("componentType"))
     if component_type not in GLTF_COMPONENTS:
         raise SystemExit("scene glTF accessor componentType unsupported")
@@ -157,7 +155,12 @@ def gltf_accessor_values(doc, accessor_index, base_dir):
         raise SystemExit("scene glTF accessor count out of bounds")
     view_index = accessor.get("bufferView")
     if view_index is None:
-        return [[0] * component_count for _ in range(count)]
+        values = [[0] * component_count for _ in range(count)]
+        sparse = accessor.get("sparse")
+        if sparse is not None:
+            item_size = struct.calcsize("<" + component_fmt * component_count)
+            gltf_apply_sparse_accessor(doc, sparse, base_dir, values, component_fmt, component_count, item_size)
+        return values
     views = doc.get("bufferViews", [])
     view_index = int(view_index)
     if view_index < 0 or view_index >= len(views):
@@ -180,7 +183,64 @@ def gltf_accessor_values(doc, accessor_index, base_dir):
         if pos < view_offset or pos + item_size > view_end or pos + item_size > len(data):
             raise SystemExit("scene glTF accessor payload truncated")
         values.append(list(struct.unpack_from(fmt, data, pos)))
+    sparse = accessor.get("sparse")
+    if sparse is not None:
+        gltf_apply_sparse_accessor(doc, sparse, base_dir, values, component_fmt, component_count, item_size)
     return values
+
+
+def gltf_sparse_indices(doc, sparse, base_dir, count):
+    spec = sparse.get("indices", {})
+    component_type = int(spec.get("componentType"))
+    if component_type not in (5121, 5123, 5125):
+        raise SystemExit("scene glTF sparse indices componentType unsupported")
+    component_fmt, component_size = GLTF_COMPONENTS[component_type]
+    view_index = int(spec.get("bufferView"))
+    views = doc.get("bufferViews", [])
+    if view_index < 0 or view_index >= len(views):
+        raise SystemExit("scene glTF sparse indices bufferView out of bounds")
+    view = views[view_index]
+    data = gltf_buffer_bytes(doc, int(view["buffer"]), base_dir)
+    view_offset = int(view.get("byteOffset", 0))
+    view_len = int(view.get("byteLength", len(data) - view_offset))
+    start = view_offset + int(spec.get("byteOffset", 0))
+    end = view_offset + view_len
+    out = []
+    fmt = "<" + component_fmt
+    for i in range(count):
+        pos = start + i * component_size
+        if pos < view_offset or pos + component_size > end or pos + component_size > len(data):
+            raise SystemExit("scene glTF sparse indices payload truncated")
+        out.append(int(struct.unpack_from(fmt, data, pos)[0]))
+    if any(idx < 0 for idx in out) or any(out[i] >= out[i + 1] for i in range(len(out) - 1)):
+        raise SystemExit("scene glTF sparse indices must be strictly increasing")
+    return out
+
+
+def gltf_apply_sparse_accessor(doc, sparse, base_dir, values, component_fmt, component_count, item_size):
+    count = int(sparse.get("count", 0))
+    if count < 0 or count > len(values):
+        raise SystemExit("scene glTF sparse count out of bounds")
+    indices = gltf_sparse_indices(doc, sparse, base_dir, count)
+    spec = sparse.get("values", {})
+    view_index = int(spec.get("bufferView"))
+    views = doc.get("bufferViews", [])
+    if view_index < 0 or view_index >= len(views):
+        raise SystemExit("scene glTF sparse values bufferView out of bounds")
+    view = views[view_index]
+    data = gltf_buffer_bytes(doc, int(view["buffer"]), base_dir)
+    view_offset = int(view.get("byteOffset", 0))
+    view_len = int(view.get("byteLength", len(data) - view_offset))
+    start = view_offset + int(spec.get("byteOffset", 0))
+    end = view_offset + view_len
+    fmt = "<" + component_fmt * component_count
+    for i, target in enumerate(indices):
+        if target >= len(values):
+            raise SystemExit("scene glTF sparse index out of bounds")
+        pos = start + i * item_size
+        if pos < view_offset or pos + item_size > end or pos + item_size > len(data):
+            raise SystemExit("scene glTF sparse values payload truncated")
+        values[target] = list(struct.unpack_from(fmt, data, pos))
 
 
 def gltf_indices_for_primitive(doc, primitive, vertex_count, base_dir):

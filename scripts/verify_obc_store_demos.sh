@@ -103,6 +103,39 @@ def verify_scene3d_gltf_lowering():
     if not data.startswith(b"OS3D01\x00\x00") or b"\x1a\x35\x4f\xff" not in data:
         raise SystemExit("scene glTF material times vertex-color RGBA lowering did not produce averaged payload")
 
+    sparse_payload = bytearray(b"\x01\x02\x00\x00")
+    for vertex in ((5.0, 0.0, 0.0), (0.0, 7.0, 0.0)):
+        sparse_payload += struct.pack("<fff", *vertex)
+    sparse_uri = "data:application/octet-stream;base64," + base64.b64encode(sparse_payload).decode("ascii")
+    sparse_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": sparse_uri, "byteLength": len(sparse_payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 2},
+            {"buffer": 0, "byteOffset": 4, "byteLength": 24},
+        ],
+        "accessors": [{
+            "componentType": 5126,
+            "count": 3,
+            "type": "VEC3",
+            "sparse": {
+                "count": 2,
+                "indices": {"bufferView": 0, "componentType": 5121},
+                "values": {"bufferView": 1},
+            },
+        }],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+    }
+    scene["meshes"][0] = {"kind": "triangles", "id": 1, "gltf_json": sparse_gltf, "color": "#ffffffff"}
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    sparse_expected = (
+        struct.pack("<iii", 0, 0, 0) +
+        struct.pack("<iii", 5, 0, 0) +
+        struct.pack("<iii", 0, 7, 0)
+    )
+    if sparse_expected not in data:
+        raise SystemExit("scene glTF sparse POSITION accessor lowering did not produce expected triangle")
+
     topo_payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)):
         topo_payload += struct.pack("<fff", *vertex)
