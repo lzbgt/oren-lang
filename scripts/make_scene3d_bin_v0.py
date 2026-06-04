@@ -272,7 +272,7 @@ def ply_parse_header(data):
             if len(parts) != 3 or parts[2] != "1.0":
                 raise SystemExit(f"unsupported scene PLY format line {line_no}")
             fmt = parts[1]
-            if fmt not in ("ascii", "binary_little_endian"):
+            if fmt not in ("ascii", "binary_little_endian", "binary_big_endian"):
                 raise SystemExit(f"unsupported scene PLY format: {fmt}")
         elif parts[0] == "element":
             if len(parts) != 3:
@@ -331,28 +331,28 @@ def ply_record_from_ascii_tokens(props, tokens, line_no):
     return scalars, lists
 
 
-def ply_read_binary_scalar(data, pos, typ):
-    fmt = "<" + PLY_SCALAR[typ][0]
-    size = struct.calcsize(fmt)
+def ply_read_binary_scalar(data, pos, typ, endian):
+    scalar_fmt = endian + PLY_SCALAR[typ][0]
+    size = struct.calcsize(scalar_fmt)
     if pos + size > len(data):
         raise SystemExit("scene binary PLY payload truncated")
-    return struct.unpack_from(fmt, data, pos)[0], pos + size
+    return struct.unpack_from(scalar_fmt, data, pos)[0], pos + size
 
 
-def ply_record_from_binary(data, pos, props):
+def ply_record_from_binary(data, pos, props, endian):
     scalars = {}
     lists = {}
     for prop in props:
         if prop[0] == "scalar":
-            value, pos = ply_read_binary_scalar(data, pos, prop[1])
+            value, pos = ply_read_binary_scalar(data, pos, prop[1], endian)
             scalars[prop[2]] = value
         else:
-            n, pos = ply_read_binary_scalar(data, pos, prop[1])
+            n, pos = ply_read_binary_scalar(data, pos, prop[1], endian)
             if n < 0:
                 raise SystemExit("scene binary PLY list count negative")
             vals = []
             for _ in range(int(n)):
-                value, pos = ply_read_binary_scalar(data, pos, prop[2])
+                value, pos = ply_read_binary_scalar(data, pos, prop[2], endian)
                 vals.append(value)
             lists[prop[3]] = vals
     return scalars, lists, pos
@@ -408,10 +408,11 @@ def ply_mesh_data(mesh, base_dir):
                 elif element["name"] == "face":
                     ply_add_faces(faces, lists, len(vertices))
     else:
+        endian = "<" if fmt == "binary_little_endian" else ">"
         pos = body_start
         for element in elements:
             for _ in range(element["count"]):
-                scalars, lists, pos = ply_record_from_binary(data, pos, element["properties"])
+                scalars, lists, pos = ply_record_from_binary(data, pos, element["properties"], endian)
                 if element["name"] == "vertex":
                     ply_add_vertex(vertices, scalars)
                 elif element["name"] == "face":

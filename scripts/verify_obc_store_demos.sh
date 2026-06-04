@@ -119,7 +119,7 @@ end_header
         if not data.startswith(b"OS3D01\x00\x00"):
             raise SystemExit(f"scene ASCII PLY {kind} lowering did not produce OS3D01")
 
-    binary_path = out_root / "scene3d_binary_ply_smoke.ply"
+    binary_path = out_root / "scene3d_binary_little_ply_smoke.ply"
     header = (
         "ply\n"
         "format binary_little_endian 1.0\n"
@@ -144,7 +144,29 @@ end_header
     }
     data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
     if not data.startswith(b"OS3D01\x00\x00"):
-        raise SystemExit("scene binary PLY lowering did not produce OS3D01")
+        raise SystemExit("scene binary little-endian PLY lowering did not produce OS3D01")
+
+    binary_be_path = out_root / "scene3d_binary_big_ply_smoke.ply"
+    header = (
+        "ply\n"
+        "format binary_big_endian 1.0\n"
+        "element vertex 3\n"
+        "property float x\n"
+        "property float y\n"
+        "property float z\n"
+        "element face 1\n"
+        "property list uchar int vertex_indices\n"
+        "end_header\n"
+    ).encode("ascii")
+    payload = bytearray(header)
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        payload += struct.pack(">fff", *vertex)
+    payload += struct.pack(">Biii", 3, 0, 1, 2)
+    binary_be_path.write_bytes(payload)
+    scene["meshes"][0]["ply_source"] = binary_be_path.name
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+    if not data.startswith(b"OS3D01\x00\x00"):
+        raise SystemExit("scene binary big-endian PLY lowering did not produce OS3D01")
 
 
 verify_scene3d_obj_lowering()
