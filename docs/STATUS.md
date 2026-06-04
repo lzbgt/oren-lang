@@ -647,6 +647,10 @@ Working evidence:
      direct-call parameter trait inference. Monomorphic float/int evidence marks
      native params for correct carrier lowering; mixed or unknown generic evidence
      remains explicit instead of guessing from untagged runtime bits.
+   - 2026-06-05: native top-level global initializers now preserve precomputed
+     float-return carrier traits through the synthesized startup assignment path,
+     so unannotated `std:math` float results compare correctly on arm64 native and
+     x64 native compile metadata stays aligned.
 
 4. **Native scheduler and green-task maturity**
    - Keep focused runtime gates cheap and deterministic.

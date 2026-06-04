@@ -219,11 +219,17 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
                 if oren_type_tag(goff_enc) == 0 { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
                 var goff = goff_enc - 1
+                var global_floaty = _x64_expr_is_floaty(ctx, op["expr"])
+                if op["__oren_top_level_global_init"] == true &&
+                   ctx["globals_floaty"] != nil &&
+                   ctx["globals_floaty"][name] == true {
+                    global_floaty = true
+                }
                 if ctx["globals_floaty"] != nil {
-                    ctx["globals_floaty"][name] = _x64_expr_is_floaty(ctx, op["expr"])
+                    ctx["globals_floaty"][name] = global_floaty
                 }
                 if ctx["globals_inty"] != nil {
-                    ctx["globals_inty"][name] = _x64_expr_is_inty(ctx, op["expr"])
+                    ctx["globals_inty"][name] = _x64_expr_is_inty(ctx, op["expr"]) && global_floaty != true
                 }
                 if ctx["globals_int_const"] != nil {
                     ctx["globals_int_const"][name] = _x64_expr_int_const(ctx, op["expr"])

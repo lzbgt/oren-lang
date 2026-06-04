@@ -178,8 +178,12 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
             if static_int_preinit && _arm64_is_plain_integer_literal(stx["value"]) {
                 // Plain integer literals are side-effect-free and were already written into `.data`.
             } else {
-                // Execute global initializer in-order.
-                oren_list_push(top_stmts, {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]})
+                // Execute global initializer in-order. Keep the precomputed global
+                // carrier trait so startup lowering cannot downgrade float-return
+                // initializers before later top-level comparisons read the slot.
+                var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
+                init_assign["__oren_top_level_global_init"] = true
+                oren_list_push(top_stmts, init_assign)
             }
         } else {
             oren_list_push(top_stmts, stx)

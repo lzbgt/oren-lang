@@ -135,6 +135,12 @@ fn native_compile_stmt_assign(ctx, stmt, native_compile_expr_fn) {
     if oren_type_tag(global_off_enc) != 0 {
         var global_off = global_off_enc - 1
         _arm64_emit_store_x0_to_global(ctx, global_off)
+        if stmt["__oren_top_level_global_init"] == true &&
+           ctx["globals_floaty"] != nil &&
+           ctx["globals_floaty"][name] == true {
+            is_floaty = true
+            is_inty = false
+        }
         _arm64_store_static_traits(ctx, false, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
         return nil
     }

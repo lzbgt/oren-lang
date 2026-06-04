@@ -27,7 +27,7 @@ assert_close(math.remainder(5.0, 0.0 - 2.0), 1.0, 1e-12, 16, "negative divisor")
 assert_close(math.remainder(0.0, 2.0), 0.0, 0.0, 17, "zero dividend")
 assert_close(math.remainder(5.0, math.inf()), 5.0, 0.0, 18, "infinite divisor")
 
-var r: f64 = math.remainder(123.75, 10.0)
+var r = math.remainder(123.75, 10.0)
 assert_close(r, 3.75, 1e-12, 30, "fractional quotient")
 assert_true(r <= 5.0, 31, "range upper bound")
 assert_true(r >= 0.0 - 5.0, 32, "range lower bound")

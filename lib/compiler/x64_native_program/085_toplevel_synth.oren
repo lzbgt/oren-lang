@@ -126,6 +126,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             // Store as offset+1 so a real offset of 0 is representable while still using `nil`
             // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm2] = off2 + 1
+            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm2] = _x64_expr_is_floaty(ctx, st2["value"]) }
         }
         i = i + 1
     }
@@ -140,7 +141,9 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     while j < oren_list_len(user_ordered) {
         var stx = user_ordered[j]
         if stx != nil && stx["type"] == "Var" {
-            oren_list_push(top_stmts, {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]})
+            var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
+            init_assign["__oren_top_level_global_init"] = true
+            oren_list_push(top_stmts, init_assign)
         } else {
             oren_list_push(top_stmts, stx)
         }

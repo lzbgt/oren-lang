@@ -401,7 +401,11 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             var v2 = st["value"]
             if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: assign name must be identifier"); return nil }
             if v2 == nil { err(ctx, "x64 native v0: assign missing value"); return nil }
-            oren_list_push(ops, {"op": "assign_i32", "tok": tok, "name": name_node2["value"], "expr": v2})
+            var assign_op = {"op": "assign_i32", "tok": tok, "name": name_node2["value"], "expr": v2}
+            if st["__oren_top_level_global_init"] == true {
+                assign_op["__oren_top_level_global_init"] = true
+            }
+            oren_list_push(ops, assign_op)
             i = i + 1
             continue
         }
