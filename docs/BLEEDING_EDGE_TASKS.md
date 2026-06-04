@@ -273,7 +273,8 @@ This file is the concise task view. Detailed implementation status lives in
     `cbrt` with subnormal/sign/non-finite coverage, cancellation-aware
     `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
     inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated
-    `sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, and `acos` bytecode coverage.
+    `sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, `acos`, and approximate
+    real-valued `erf`/`erfc` bytecode coverage.
    - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
 5. **Native scheduler / green-task integration**

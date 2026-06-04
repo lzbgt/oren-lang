@@ -1485,6 +1485,19 @@ run_step_checked "math exp/log special smoke (bytecode)" "$math_exp_log_special_
   "$compiler" test "$math_exp_log_special_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_exp_log_special_log"
 
+echo "== math erf smoke (native/C/bytecode) =="
+math_erf_src="tests/modules/test_math_erf.oren"
+math_erf_log="build/logs/${compiler_base}_math_erf.log"
+rm -f "$math_erf_log" 2>/dev/null || true
+
+run_step_checked "math erf smoke (native)" "$math_erf_log" \
+  "$compiler" test "$math_erf_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math erf smoke (C)" "$math_erf_log" \
+  "$compiler" test "$math_erf_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math erf smoke (bytecode)" "$math_erf_log" \
+  "$compiler" test "$math_erf_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_erf_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

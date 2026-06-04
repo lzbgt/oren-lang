@@ -1,0 +1,982 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>DLMF: §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals</title>
+<link rel="shortcut icon" href="./style/DLMF-16.png" type="image/png">
+<script type="text/javascript"><!--
+	var PATH="DLMF:/7.2";
+	var ROOT="./";
+      //--></script>
+<script type="text/javascript" src="./style/jquery.js"><!-- non-empty so ie6 will accept it --></script>
+<script type="text/javascript" src="./style/jquery.leaveNotice.js"><!-- non-empty so ie6 will accept it --></script>
+<script type="text/javascript" src="./style/DLMF.js"><!-- non-empty so ie6 will accept it --></script>
+<script async="" type="text/javascript" id="_fed_an_ua_tag" src="https://dap.digitalgov.gov/Universal-Federated-Analytics-Min.js?agency=DOC&amp;subagency=NIST&amp;pua=UA-37115410-44&amp;yt=true&amp;exts=ppsx,pps,f90,sch,rtf,wrl,txz,m1v,xlsm,msi,xsd,f,tif,eps,mpg,xml,pl,xlt,c"><!-- non-empty so ie6 will accept it --></script><script async="" src="https://www.googletagmanager.com/gtag/js?id=G-BZB64W4M0L"></script><script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BZB64W4M0L');
+      </script>
+<link rel="stylesheet" type="text/css" href="./style/LaTeXML.css">
+<link rel="stylesheet" type="text/css" href="./style/DLMF.css">
+<link rel="stylesheet" type="text/css" href="./style/print.css" media="print">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="top" href="./" title="DLMF">
+<link rel="copyright" href="./about/notices" title="Copyright">
+<link rel="search" href="./search/search" title="Search">
+<link rel="help" class="ltx_help" href="./help/" title="Help">
+<link rel="up" href="./7#PT2" title="Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="up up" href="./7" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="start" href="./" title="">
+<link rel="prev" href="./7.1" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="next" href="./7.3" title="§7.3 Graphics ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.1" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.3" title="§7.3 Graphics ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.4" title="§7.4 Symmetry ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.5" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.6" title="§7.6 Series Expansions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.7" title="§7.7 Integral Representations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.8" title="§7.8 Inequalities ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.9" title="§7.9 Continued Fractions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.10" title="§7.10 Derivatives ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.11" title="§7.11 Relations to Other Functions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.12" title="§7.12 Asymptotic Expansions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.13" title="§7.13 Zeros ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.14" title="§7.14 Integrals ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.15" title="§7.15 Sums ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.16" title="§7.16 Generalized Error Functions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.17" title="§7.17 Inverse Error Functions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.18" title="§7.18 Repeated Integrals of the Complementary Error Function ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.19" title="§7.19 Voigt Functions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.20" title="§7.20 Mathematical Applications ‣ Applications ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.21" title="§7.21 Physical Applications ‣ Applications ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.22" title="§7.22 Methods of Computation ‣ Computation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.23" title="§7.23 Tables ‣ Computation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.24" title="§7.24 Approximations ‣ Computation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="section" href="./7.25" title="§7.25 Software ‣ Computation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="sidebar" href="./7.SB1" title="Sidebar 7.SB1: Diffraction from a Straightedge ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="document" href="./front/foreword" title="Foreword">
+<link rel="document" href="./front/preface" title="Preface">
+<link rel="document" href="./front/introduction" title="Mathematical Introduction">
+<link rel="chapter" href="./1" title="Chapter 1 Algebraic and Analytic Methods">
+<link rel="chapter" href="./2" title="Chapter 2 Asymptotic Approximations">
+<link rel="chapter" href="./3" title="Chapter 3 Numerical Methods">
+<link rel="chapter" href="./4" title="Chapter 4 Elementary Functions">
+<link rel="chapter" href="./5" title="Chapter 5 Gamma Function">
+<link rel="chapter" href="./6" title="Chapter 6 Exponential, Logarithmic, Sine, and Cosine Integrals">
+<link rel="chapter" href="./7" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals">
+<link rel="chapter" href="./8" title="Chapter 8 Incomplete Gamma and Related Functions">
+<link rel="chapter" href="./9" title="Chapter 9 Airy and Related Functions">
+<link rel="chapter" href="./10" title="Chapter 10 Bessel Functions">
+<link rel="chapter" href="./11" title="Chapter 11 Struve and Related Functions">
+<link rel="chapter" href="./12" title="Chapter 12 Parabolic Cylinder Functions">
+<link rel="chapter" href="./13" title="Chapter 13 Confluent Hypergeometric Functions">
+<link rel="chapter" href="./14" title="Chapter 14 Legendre and Related Functions">
+<link rel="chapter" href="./15" title="Chapter 15 Hypergeometric Function">
+<link rel="chapter" href="./16" title="Chapter 16 Generalized Hypergeometric Functions and Meijer 𝐺-Function">
+<link rel="chapter" href="./17" title="Chapter 17 𝑞-Hypergeometric and Related Functions">
+<link rel="chapter" href="./18" title="Chapter 18 Orthogonal Polynomials">
+<link rel="chapter" href="./19" title="Chapter 19 Elliptic Integrals">
+<link rel="chapter" href="./20" title="Chapter 20 Theta Functions">
+<link rel="chapter" href="./21" title="Chapter 21 Multidimensional Theta Functions">
+<link rel="chapter" href="./22" title="Chapter 22 Jacobian Elliptic Functions">
+<link rel="chapter" href="./23" title="Chapter 23 Weierstrass Elliptic and Modular Functions">
+<link rel="chapter" href="./24" title="Chapter 24 Bernoulli and Euler Polynomials">
+<link rel="chapter" href="./25" title="Chapter 25 Zeta and Related Functions">
+<link rel="chapter" href="./26" title="Chapter 26 Combinatorial Analysis">
+<link rel="chapter" href="./27" title="Chapter 27 Functions of Number Theory">
+<link rel="chapter" href="./28" title="Chapter 28 Mathieu Functions and Hill’s Equation">
+<link rel="chapter" href="./29" title="Chapter 29 Lamé Functions">
+<link rel="chapter" href="./30" title="Chapter 30 Spheroidal Wave Functions">
+<link rel="chapter" href="./31" title="Chapter 31 Heun Functions">
+<link rel="chapter" href="./32" title="Chapter 32 Painlevé Transcendents">
+<link rel="chapter" href="./33" title="Chapter 33 Coulomb Functions">
+<link rel="chapter" href="./34" title="Chapter 34 3⁢𝑗,6⁢𝑗,9⁢𝑗 Symbols">
+<link rel="chapter" href="./35" title="Chapter 35 Functions of Matrix Argument">
+<link rel="chapter" href="./36" title="Chapter 36 Integrals with Coalescing Saddles">
+<link rel="bibliography" href="./bib/" title="Bibliography">
+<link rel="index" href="./idx/" title="Index">
+<link rel="glossary" href="./not/" title="Notations">
+<link rel="document" href="./lof/" title="List of Figures">
+<link rel="document" href="./lot/" title="List of Tables">
+<link rel="document" href="./software/" title="Software Index">
+<link rel="document" href="./errata/" title="Errata">
+<link rel="document" href="./help/" title="Need Help?">
+<link rel="document" href="./search/" title="Advanced Search">
+<link rel="document" href="./about/" title="About the Project">
+<meta name="keywords" lang="en" content="Dawson’s integral, Faddeeva (or Faddeyeva) function, Fresnel integrals, Goodwin–Staton integral, auxiliary functions, auxiliary functions for Fresnel integrals, definition, definitions, error functions, relations to other functions, values at infinity">
+</head>
+<body class="color_default textfont_default titlefont_default fontsize_default navbar_default">
+<div class="ltx_page_navbar">
+<div class="ltx_page_navlogo"><a href="./" title="Digital Library of Mathematical Functions"><span>DLMF</span></a></div>
+<div class="ltx_page_navitems">
+<form method="get" action="./search/search">
+<ul>
+<li><a href="./idx/">Index</a></li>
+<li><a href="./not/">Notations</a></li>
+<li><small><input type="text" name="q" value="" size="6" class="ltx_page_navitem_search"><button type="submit">Search</button></small></li>
+<li><a href="./help/" class="ltx_help">Help?</a></li>
+<li><a href="./help/cite">Citing</a></li>
+<li><a href="./help/customize" class="ltx_customize">Customize</a></li>
+<li id="showinfo"><a href="" onclick="showInfo(); return false;" title="Show Annotations">Annotate</a></li>
+<li id="hideinfo"><a href="" onclick="hideInfo(); return false;">UnAnnotate</a></li>
+</ul>
+</form>
+</div>
+<div class="ltx_page_navsponsors">
+<div><a href="./about/" class="ltx_page_navabout">About the Project</a></div>
+</div>
+</div>
+<div class="ltx_page_main">
+<div class="ltx_page_header">
+<a href="./7" title="" class="ltx_ref" rel="up up"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">7 </span>Error Functions, Dawson’s and Fresnel Integrals</span></a><a href="./7#PT2" title="In Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref" rel="up"><span class="ltx_text ltx_ref_title">Properties</span></a><a href="./7.1" title="In Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref" rel="prev"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">7.1 </span>Special Notation</span></a><a href="./7.3" title="In Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref" rel="next"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">7.3 </span>Graphics</span></a>
+</div>
+<div class="ltx_page_content">
+<section class="ltx_section ltx_leqno">
+<h1 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">§7.2 </span>Definitions</h1>
+<div id="info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./12.7#ii.p1" title="§12.7(ii) Error Functions, Dawson’s Integral, and Probability Function ‣ §12.7 Relations to Other Functions ‣ Properties ‣ Chapter 12 Parabolic Cylinder Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§12.7(ii)</span></a>,
+<a href="./7.10#info" title="§7.10 Derivatives ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.10</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2" title="" class="ltx_ref">http://dlmf.nist.gov/7.2</a></dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<h6>Contents</h6>
+<ol class="ltx_toclist ltx_toclist_section">
+<li class="ltx_tocentry"><a href="#i"><span class="ltx_tag ltx_tag_subsection">§7.2(i) </span>Error Functions</a></li>
+<li class="ltx_tocentry"><a href="#ii"><span class="ltx_tag ltx_tag_subsection">§7.2(ii) </span>Dawson’s Integral</a></li>
+<li class="ltx_tocentry"><a href="#iii"><span class="ltx_tag ltx_tag_subsection">§7.2(iii) </span>Fresnel Integrals</a></li>
+<li class="ltx_tocentry"><a href="#iv"><span class="ltx_tag ltx_tag_subsection">§7.2(iv) </span>Auxiliary Functions</a></li>
+<li class="ltx_tocentry"><a href="#v"><span class="ltx_tag ltx_tag_subsection">§7.2(v) </span>Goodwin–Staton Integral</a></li>
+</ol>
+<section id="i" class="ltx_subsection">
+<h2 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">§7.2(i) </span>Error Functions</h2>
+<div id="i.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Faddeeva%20%28or%20Faddeyeva%29%20function">Faddeeva (or Faddeyeva) function</a>, <a class="ltx_keyword" href="./search/search?q=definition">definition</a>, <a class="ltx_keyword" href="./search/search?q=definitions">definitions</a>, <a class="ltx_keyword" href="./search/search?q=error%20functions">error functions</a>
+</dd>
+<dt>Notes:</dt>
+<dd>See <cite class="ltx_cite ltx_citemacro_citet">Olver (<a href="./bib/O#bib1809" title="Asymptotics and Special Functions" class="ltx_ref">1997b</a>, pp. 43–44)</cite> and
+<cite class="ltx_cite ltx_citemacro_citet">Temme (<a href="./bib/T#bib2230" title="Special Functions: An Introduction to the Classical Functions of Mathematical Physics" class="ltx_ref">1996b</a>, pp. 180, 182–183, 275–276)</cite>.</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./12.13#i.p1" title="§12.13(i) Addition Theorems ‣ §12.13 Sums ‣ Properties ‣ Chapter 12 Parabolic Cylinder Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§12.13(i)</span></a>,
+<a href="./13.18#ii.p1" title="§13.18(ii) Incomplete Gamma Functions ‣ §13.18 Relations to Other Functions ‣ Whittaker Functions ‣ Chapter 13 Confluent Hypergeometric Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§13.18(ii)</span></a>,
+<a href="./13.6#ii.p1" title="§13.6(ii) Incomplete Gamma Functions ‣ §13.6 Relations to Other Functions ‣ Kummer Functions ‣ Chapter 13 Confluent Hypergeometric Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§13.6(ii)</span></a>,
+<a href="./2.11#iii.p5" title="§2.11(iii) Exponentially-Improved Expansions ‣ §2.11 Remainder Terms; Stokes Phenomenon ‣ Areas ‣ Chapter 2 Asymptotic Approximations" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§2.11(iii)</span></a>,
+<a href="./32.10#iv.p2" title="§32.10(iv) Fourth Painlevé Equation ‣ §32.10 Special Function Solutions ‣ Properties ‣ Chapter 32 Painlevé Transcendents" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§32.10(iv)</span></a>,
+<a href="./8.18#Px2.p1" title="Symmetric Case ‣ §8.18(ii) Large Parameters: Uniform Asymptotic Expansions ‣ §8.18 Asymptotic Expansions of 𝐼_𝑥(𝑎,𝑏) ‣ Related Functions ‣ Chapter 8 Incomplete Gamma and Related Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§8.18(ii)</span></a>,
+<a href="./8.4#p1" title="§8.4 Special Values ‣ Incomplete Gamma Functions ‣ Chapter 8 Incomplete Gamma and Related Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§8.4</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.i" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.i</a></dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="i.p1" class="ltx_para">
+<table id="E1" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.1</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E1.png" altimg-height="55px" altimg-valign="-21px" altimg-width="212px" alttext="\operatorname{erf}z=\frac{2}{\sqrt{\pi}}\int_{0}^{z}e^{-t^{2}}\,\mathrm{d}t," display="block"><mrow><mrow><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow><mo>=</mo><mrow><mfrac><mn>2</mn><msqrt><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></msqrt></mfrac><mo>⁢</mo><mrow><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mn>0</mn><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></msubsup><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mo>−</mo><msup><mi>t</mi><mn>2</mn></msup></mrow></msup><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E1.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m35.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\operatorname{erf}\NVar{z}" display="inline"><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>: error function</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./4.2#E11" title="(4.2.11) ‣ §4.2(ii) Logarithms to a General Base 𝑎 ‣ §4.2 Definitions ‣ Logarithm, Exponential, Powers ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m27.png" altimg-height="13px" altimg-valign="-2px" altimg-width="14px" alttext="\mathrm{e}" display="inline"><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi></math>: base of natural logarithm</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.1.1</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>,
+<a href="./7.6#ii.info" title="§7.6(ii) Expansions in Series of Spherical Bessel Functions ‣ §7.6 Series Expansions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.6(ii)</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E1" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E1</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E1.tex">TeX</a>, <a href="./7.2.E1.pmml">pMML</a>, <a href="./7.2.E1.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#i.info" title="§7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(i)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+<table id="E2" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.2</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E2.png" altimg-height="55px" altimg-valign="-21px" altimg-width="330px" alttext="\operatorname{erfc}z=\frac{2}{\sqrt{\pi}}\int_{z}^{\infty}e^{-t^{2}}\,\mathrm{%
+d}t=1-\operatorname{erf}z," display="block"><mrow><mrow><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow><mo>=</mo><mrow><mfrac><mn>2</mn><msqrt><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></msqrt></mfrac><mo>⁢</mo><mrow><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mi mathvariant="normal">∞</mi></msubsup><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mo>−</mo><msup><mi>t</mi><mn>2</mn></msup></mrow></msup><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow><mo>=</mo><mrow><mn>1</mn><mo>−</mo><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E2.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m33.png" altimg-height="18px" altimg-valign="-2px" altimg-width="51px" alttext="\operatorname{erfc}\NVar{z}" display="inline"><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>: complementary error function</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./7.2#E1" title="(7.2.1) ‣ §7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m35.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\operatorname{erf}\NVar{z}" display="inline"><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>: error function</a>,
+<a href="./4.2#E11" title="(4.2.11) ‣ §4.2(ii) Logarithms to a General Base 𝑎 ‣ §4.2 Definitions ‣ Logarithm, Exponential, Powers ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m27.png" altimg-height="13px" altimg-valign="-2px" altimg-width="14px" alttext="\mathrm{e}" display="inline"><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi></math>: base of natural logarithm</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.1.2</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>,
+<a href="./7.7#i.info" title="§7.7(i) Error Functions and Dawson’s Integral ‣ §7.7 Integral Representations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.7(i)</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E2" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E2</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E2.tex">TeX</a>, <a href="./7.2.E2.pmml">pMML</a>, <a href="./7.2.E2.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#i.info" title="§7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(i)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+<div id="i.p2" class="ltx_para">
+<table id="E3" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.3</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E3.png" altimg-height="129px" altimg-valign="-22px" altimg-width="310px" alttext="w\left(z\right)=e^{-z^{2}}\left(1+\frac{2i}{\sqrt{\pi}}\int_{0}^{z}e^{t^{2}}\,%
+\mathrm{d}t\right)=e^{-z^{2}}\operatorname{erfc}\left(-iz\right)." display="block"><mrow><mrow><mrow><mi href="./7.2#E3" title="Faddeeva (or Faddeyeva) function">w</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mo>−</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow></msup><mo>⁢</mo><mrow><mo>(</mo><mrow><mn>1</mn><mo>+</mo><mrow><mfrac><mrow><mn>2</mn><mo>⁢</mo><mi href="./1.9#E1" mathvariant="normal" title="imaginary unit">i</mi></mrow><msqrt><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></msqrt></mfrac><mo>⁢</mo><mrow><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mn>0</mn><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></msubsup><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><msup><mi>t</mi><mn>2</mn></msup></msup><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow></mrow><mo>)</mo></mrow></mrow><mo>=</mo><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mo>−</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow></msup><mo lspace="0.167em">⁢</mo><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mo>−</mo><mrow><mi href="./1.9#E1" mathvariant="normal" title="imaginary unit">i</mi><mo>⁢</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></mrow><mo>)</mo></mrow></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E3.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m40.png" altimg-height="25px" altimg-valign="-7px" altimg-width="50px" alttext="w\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E3" title="Faddeeva (or Faddeyeva) function">w</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Faddeeva (or Faddeyeva) function</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./7.2#E2" title="(7.2.2) ‣ §7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m33.png" altimg-height="18px" altimg-valign="-2px" altimg-width="51px" alttext="\operatorname{erfc}\NVar{z}" display="inline"><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>: complementary error function</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./4.2#E11" title="(4.2.11) ‣ §4.2(ii) Logarithms to a General Base 𝑎 ‣ §4.2 Definitions ‣ Logarithm, Exponential, Powers ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m27.png" altimg-height="13px" altimg-valign="-2px" altimg-width="14px" alttext="\mathrm{e}" display="inline"><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi></math>: base of natural logarithm</a>,
+<a href="./1.9#E1" title="(1.9.1) ‣ §1.9(i) Complex Numbers ‣ §1.9 Calculus of a Complex Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m32.png" altimg-height="18px" altimg-valign="-2px" altimg-width="10px" alttext="\mathrm{i}" display="inline"><mi href="./1.9#E1" mathvariant="normal" title="imaginary unit">i</mi></math>: imaginary unit</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Faddeeva%20%28or%20Faddeyeva%29%20function">Faddeeva (or Faddeyeva) function</a>, <a class="ltx_keyword" href="./search/search?q=definition">definition</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.1.3</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.19#i.info" title="§7.19(i) Definitions ‣ §7.19 Voigt Functions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.19(i)</span></a>,
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>,
+<a href="./errata/#V1.0.17.I2.ix2" title="In Other Changes ‣ Version 1.0.17 (December 22, 2017) ‣ Errata" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Erratum (V1.0.17) for  Equation (<span class="ltx_text ltx_ref_tag">7.2.3</span>)</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E3" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E3</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E3.tex">TeX</a>, <a href="./7.2.E3.pmml">pMML</a>, <a href="./7.2.E3.png">png</a>
+</dd>
+<dt>Clarification (effective with 1.0.17):</dt>
+<dd>
+Originally named as a complementary error function, this has
+been renamed as the Faddeeva (or Faddeyeva) function.
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#i.info" title="§7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(i)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+<div id="i.p3" class="ltx_para">
+<p class="ltx_p"><math class="ltx_Math" altimg="m36.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\operatorname{erf}z" display="inline"><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>, <math class="ltx_Math" altimg="m34.png" altimg-height="18px" altimg-valign="-2px" altimg-width="51px" alttext="\operatorname{erfc}z" display="inline"><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>, and <math class="ltx_Math" altimg="m41.png" altimg-height="25px" altimg-valign="-7px" altimg-width="50px" alttext="w\left(z\right)" display="inline"><mrow><mi href="./7.2#E3" title="Faddeeva (or Faddeyeva) function">w</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math> are entire functions of <math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>, as is
+<math class="ltx_Math" altimg="m18.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="F\left(z\right)" display="inline"><mrow><mi href="./7.2#E5" title="Dawson’s integral">F</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math> in the next subsection.</p>
+</div>
+<section id="Px1" class="ltx_paragraph">
+<h3 class="ltx_title ltx_title_paragraph">Values at Infinity</h3>
+<div id="Px1.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=error%20functions">error functions</a>, <a class="ltx_keyword" href="./search/search?q=values%20at%20infinity">values at infinity</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#i.info" title="§7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(i)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="Px1.p1" class="ltx_para">
+<table id="E4" class="ltx_equationgroup ltx_eqn_table">
+<tbody>
+<tr id="Ex1" class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="3" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equationgroup ltx_align_left">7.2.4</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m13.png" altimg-height="36px" altimg-valign="-17px" altimg-width="96px" alttext="\displaystyle\lim_{z\to\infty}\operatorname{erf}z" display="inline"><mrow><munder><mo movablelimits="false">lim</mo><mrow><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo stretchy="false">→</mo><mi mathvariant="normal">∞</mi></mrow></munder><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math class="ltx_Math" altimg="m2.png" altimg-height="23px" altimg-valign="-6px" altimg-width="45px" alttext="\displaystyle=1," display="inline"><mrow><mrow><mi></mi><mo>=</mo><mn>1</mn></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr id="Ex2" class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m12.png" altimg-height="36px" altimg-valign="-17px" altimg-width="103px" alttext="\displaystyle\lim_{z\to\infty}\operatorname{erfc}z" display="inline"><mrow><munder><mo movablelimits="false">lim</mo><mrow><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo stretchy="false">→</mo><mi mathvariant="normal">∞</mi></mrow></munder><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell">
+<math class="ltx_Math" altimg="m1.png" altimg-height="19px" altimg-valign="-2px" altimg-width="39px" alttext="\displaystyle=0" display="inline"><mrow><mi></mi><mo>=</mo><mn>0</mn></mrow></math>,
+</td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr class="ltx_eqn_row"><td class="ltx_eqn_cell ltx_align_right" colspan="4"><span class="ltx_constraint"><math class="ltx_Math" altimg="m45.png" altimg-height="29px" altimg-valign="-9px" altimg-width="209px" alttext="|\operatorname{ph}z|\leq\tfrac{1}{4}\pi-\delta(&lt;\tfrac{1}{4}\pi)" display="inline"><mrow><mrow><mo stretchy="false">|</mo><mrow><mi href="./1.9#E7" title="phase">ph</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow><mo stretchy="false">|</mo></mrow><mo>≤</mo><mrow><mrow><mrow><mfrac><mn>1</mn><mn>4</mn></mfrac><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></mrow><mo>−</mo><mi>δ</mi></mrow><mspace style="width:0.3888888888888889em;" width="0.3888888888888889em"></mspace><mrow><mo stretchy="false">(</mo><mrow><mi></mi><mo>&lt;</mo><mrow><mfrac><mn>1</mn><mn>4</mn></mfrac><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></math>.</span></td></tr>
+<tr><td class="ltx_align_right" colspan="5">
+<div id="E4.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./7.2#E2" title="(7.2.2) ‣ §7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m33.png" altimg-height="18px" altimg-valign="-2px" altimg-width="51px" alttext="\operatorname{erfc}\NVar{z}" display="inline"><mrow><mi href="./7.2#E2" title="complementary error function">erfc</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>: complementary error function</a>,
+<a href="./7.2#E1" title="(7.2.1) ‣ §7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m35.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\operatorname{erf}\NVar{z}" display="inline"><mrow><mi href="./7.2#E1" title="error function">erf</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></math>: error function</a>,
+<a href="./1.9#E7" title="(1.9.7) ‣ Modulus and Phase ‣ §1.9(i) Complex Numbers ‣ §1.9 Calculus of a Complex Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m37.png" altimg-height="22px" altimg-valign="-6px" altimg-width="27px" alttext="\operatorname{ph}" display="inline"><mi href="./1.9#E7" title="phase">ph</mi></math>: phase</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.1.16</span> (in different form)</span>
+</dd>
+<dt>Referenced by:</dt>
+<dd><a href="./7.7#i.info" title="§7.7(i) Error Functions and Dawson’s Integral ‣ §7.7 Integral Representations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.7(i)</span></a></dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E4" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E4</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E4a.tex">TeX</a>, <a href="./7.2.E4b.tex">TeX</a>, <a href="./7.2.E4a.pmml">pMML</a>, <a href="./7.2.E4b.pmml">pMML</a>, <a href="./7.2.E4a.png">png</a>, <a href="./7.2.E4b.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#Px1.info" title="Values at Infinity ‣ §7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(i)</span></a>,
+<a href="./7.2#i.info" title="§7.2(i) Error Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(i)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="ii" class="ltx_subsection">
+<h2 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">§7.2(ii) </span>Dawson’s Integral</h2>
+<div id="ii.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Dawson%20integral">Dawson’s integral</a>, <a class="ltx_keyword" href="./search/search?q=definition">definition</a>
+</dd>
+<dt>Notes:</dt>
+<dd>See <cite class="ltx_cite ltx_citemacro_citet">Olver (<a href="./bib/O#bib1809" title="Asymptotics and Special Functions" class="ltx_ref">1997b</a>, pp. 43–44)</cite> and
+<cite class="ltx_cite ltx_citemacro_citet">Temme (<a href="./bib/T#bib2230" title="Special Functions: An Introduction to the Classical Functions of Mathematical Physics" class="ltx_ref">1996b</a>, pp. 180, 182–183, 275–276)</cite>.</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./8.11#iv.p3" title="§8.11(iv) Large 𝑎, Bounded (𝑥-𝑎)/(2⁢𝑎)^{1/2} ‣ §8.11 Asymptotic Approximations and Expansions ‣ Incomplete Gamma Functions ‣ Chapter 8 Incomplete Gamma and Related Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§8.11(iv)</span></a>,
+<a href="./8.12#p1" title="§8.12 Uniform Asymptotic Expansions for Large Parameter ‣ Incomplete Gamma Functions ‣ Chapter 8 Incomplete Gamma and Related Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§8.12</span></a>,
+<a href="./8.4#p1" title="§8.4 Special Values ‣ Incomplete Gamma Functions ‣ Chapter 8 Incomplete Gamma and Related Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§8.4</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.ii" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.ii</a></dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="ii.p1" class="ltx_para">
+<table id="E5" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.5</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E5.png" altimg-height="61px" altimg-valign="-21px" altimg-width="264px" alttext="F\left(z\right)=e^{-z^{2}}\int_{0}^{z}e^{t^{2}}\,\mathrm{d}t." display="block"><mrow><mrow><mrow><mi href="./7.2#E5" title="Dawson’s integral">F</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mo>−</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow></msup><mo>⁢</mo><mrow><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mn>0</mn><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></msubsup><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><msup><mi>t</mi><mn>2</mn></msup></msup><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E5.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m17.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="F\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E5" title="Dawson’s integral">F</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Dawson’s integral</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./4.2#E11" title="(4.2.11) ‣ §4.2(ii) Logarithms to a General Base 𝑎 ‣ §4.2 Definitions ‣ Logarithm, Exponential, Powers ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m27.png" altimg-height="13px" altimg-valign="-2px" altimg-width="14px" alttext="\mathrm{e}" display="inline"><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi></math>: base of natural logarithm</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.1.1</span></span>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E5" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E5</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E5.tex">TeX</a>, <a href="./7.2.E5.pmml">pMML</a>, <a href="./7.2.E5.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#ii.info" title="§7.2(ii) Dawson’s Integral ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(ii)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="iii" class="ltx_subsection">
+<h2 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">§7.2(iii) </span>Fresnel Integrals</h2>
+<div id="iii.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Fresnel%20integrals">Fresnel integrals</a>, <a class="ltx_keyword" href="./search/search?q=definition">definition</a>
+</dd>
+<dt>Notes:</dt>
+<dd>See <cite class="ltx_cite ltx_citemacro_citet">Olver (<a href="./bib/O#bib1809" title="Asymptotics and Special Functions" class="ltx_ref">1997b</a>, pp. 43–44)</cite> and
+<cite class="ltx_cite ltx_citemacro_citet">Temme (<a href="./bib/T#bib2230" title="Special Functions: An Introduction to the Classical Functions of Mathematical Physics" class="ltx_ref">1996b</a>, pp. 180, 182–183, 275–276)</cite>.</dd>
+<dt>Referenced by:</dt>
+<dd><a href="./11.10#vi.p1" title="§11.10(vi) Relations to Other Functions ‣ §11.10 Anger–Weber Functions ‣ Related Functions ‣ Chapter 11 Struve and Related Functions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§11.10(vi)</span></a></dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.iii" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.iii</a></dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="iii.p1" class="ltx_para">
+<table id="EGx1" class="ltx_equationgroup ltx_eqn_table">
+
+<tbody id="E6">
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.6</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m14.png" altimg-height="40px" altimg-valign="-7px" altimg-width="70px" alttext="\displaystyle\mathcal{F}\left(z\right)" display="inline"><mrow><mi class="ltx_font_mathcaligraphic" href="./7.2#E6" title="Fresnel integral">ℱ</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math class="ltx_Math" altimg="m5.png" altimg-height="55px" altimg-valign="-21px" altimg-width="152px" alttext="\displaystyle=\int_{z}^{\infty}e^{\tfrac{1}{2}\pi\mathrm{i}t^{2}}\,\mathrm{d}t," display="inline"><mrow><mrow><mi></mi><mo>=</mo><mrow><mstyle displaystyle="true"><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mi mathvariant="normal">∞</mi></msubsup></mstyle><mrow><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mstyle scriptlevel="-1"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><mi href="./1.9#E1" mathvariant="normal" title="imaginary unit">i</mi><mo>⁢</mo><msup><mi>t</mi><mn>2</mn></msup></mrow></msup><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="5">
+<div id="E6.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m24.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="\mathcal{F}\left(\NVar{z}\right)" display="inline"><mrow><mi class="ltx_font_mathcaligraphic" href="./7.2#E6" title="Fresnel integral">ℱ</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./4.2#E11" title="(4.2.11) ‣ §4.2(ii) Logarithms to a General Base 𝑎 ‣ §4.2 Definitions ‣ Logarithm, Exponential, Powers ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m27.png" altimg-height="13px" altimg-valign="-2px" altimg-width="14px" alttext="\mathrm{e}" display="inline"><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi></math>: base of natural logarithm</a>,
+<a href="./1.9#E1" title="(1.9.1) ‣ §1.9(i) Complex Numbers ‣ §1.9 Calculus of a Complex Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m32.png" altimg-height="18px" altimg-valign="-2px" altimg-width="10px" alttext="\mathrm{i}" display="inline"><mi href="./1.9#E1" mathvariant="normal" title="imaginary unit">i</mi></math>: imaginary unit</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>,
+<a href="./7.7#ii.info" title="§7.7(ii) Auxiliary Functions ‣ §7.7 Integral Representations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.7(ii)</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E6" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E6</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E6.tex">TeX</a>, <a href="./7.2.E6.pmml">pMML</a>, <a href="./7.2.E6.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#iii.info" title="§7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iii)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+<tbody id="E7">
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.7</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m8.png" altimg-height="40px" altimg-valign="-7px" altimg-width="70px" alttext="\displaystyle C\left(z\right)" display="inline"><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math class="ltx_Math" altimg="m3.png" altimg-height="61px" altimg-valign="-21px" altimg-width="193px" alttext="\displaystyle=\int_{0}^{z}\cos\left(\tfrac{1}{2}\pi t^{2}\right)\,\mathrm{d}t," display="inline"><mrow><mrow><mi></mi><mo>=</mo><mrow><mstyle displaystyle="true"><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mn>0</mn><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></msubsup></mstyle><mrow><mrow><mi href="./4.14#E2" title="cosine function">cos</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mfrac><mn>1</mn><mn>2</mn></mfrac><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><msup><mi>t</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="5">
+<div id="E7.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m15.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="C\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./4.14#E2" title="(4.14.2) ‣ §4.14 Definitions and Periodicity ‣ Trigonometric Functions ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m22.png" altimg-height="13px" altimg-valign="-2px" altimg-width="46px" alttext="\cos\NVar{z}" display="inline"><mrow><mi href="./4.14#E2" title="cosine function">cos</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./4.1#t1.r4" title="complex variable">z</mi></mrow></math>: cosine function</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.3.1</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>,
+<a href="./7.6#i.info" title="§7.6(i) Power Series ‣ §7.6 Series Expansions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.6(i)</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E7" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E7</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E7.tex">TeX</a>, <a href="./7.2.E7.pmml">pMML</a>, <a href="./7.2.E7.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#iii.info" title="§7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iii)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+<tbody id="E8">
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.8</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m9.png" altimg-height="40px" altimg-valign="-7px" altimg-width="67px" alttext="\displaystyle S\left(z\right)" display="inline"><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math class="ltx_Math" altimg="m4.png" altimg-height="61px" altimg-valign="-21px" altimg-width="190px" alttext="\displaystyle=\int_{0}^{z}\sin\left(\tfrac{1}{2}\pi t^{2}\right)\,\mathrm{d}t," display="inline"><mrow><mrow><mi></mi><mo>=</mo><mrow><mstyle displaystyle="true"><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mn>0</mn><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></msubsup></mstyle><mrow><mrow><mi href="./4.14#E1" title="sine function">sin</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mfrac><mn>1</mn><mn>2</mn></mfrac><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><msup><mi>t</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="5">
+<div id="E8.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m20.png" altimg-height="25px" altimg-valign="-7px" altimg-width="48px" alttext="S\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a>,
+<a href="./4.14#E1" title="(4.14.1) ‣ §4.14 Definitions and Periodicity ‣ Trigonometric Functions ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m39.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\sin\NVar{z}" display="inline"><mrow><mi href="./4.14#E1" title="sine function">sin</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./4.1#t1.r4" title="complex variable">z</mi></mrow></math>: sine function</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.3.2</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>,
+<a href="./7.6#i.info" title="§7.6(i) Power Series ‣ §7.6 Series Expansions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.6(i)</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E8" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E8</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E8.tex">TeX</a>, <a href="./7.2.E8.pmml">pMML</a>, <a href="./7.2.E8.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#iii.info" title="§7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iii)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+<div id="iii.p2" class="ltx_para">
+<p class="ltx_p"><math class="ltx_Math" altimg="m25.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="\mathcal{F}\left(z\right)" display="inline"><mrow><mi class="ltx_font_mathcaligraphic" href="./7.2#E6" title="Fresnel integral">ℱ</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>, <math class="ltx_Math" altimg="m16.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="C\left(z\right)" display="inline"><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>, and <math class="ltx_Math" altimg="m21.png" altimg-height="25px" altimg-valign="-7px" altimg-width="48px" alttext="S\left(z\right)" display="inline"><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math> are entire functions
+of <math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>, as are <math class="ltx_Math" altimg="m29.png" altimg-height="25px" altimg-valign="-7px" altimg-width="42px" alttext="\mathrm{f}\left(z\right)" display="inline"><mrow><mi href="./7.2#E10" mathvariant="normal" title="auxiliary function for Fresnel integrals">f</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math> and <math class="ltx_Math" altimg="m31.png" altimg-height="25px" altimg-valign="-7px" altimg-width="45px" alttext="\mathrm{g}\left(z\right)" display="inline"><mrow><mi href="./7.2#E11" mathvariant="normal" title="auxiliary function for Fresnel integrals">g</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math> in the next subsection.</p>
+</div>
+<section id="Px2" class="ltx_paragraph">
+<h3 class="ltx_title ltx_title_paragraph">Values at Infinity</h3>
+<div id="Px2.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Fresnel%20integrals">Fresnel integrals</a>, <a class="ltx_keyword" href="./search/search?q=values%20at%20infinity">values at infinity</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#iii.info" title="§7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iii)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="Px2.p1" class="ltx_para">
+<table id="E9" class="ltx_equationgroup ltx_eqn_table">
+<tbody>
+<tr id="Ex3" class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="2" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equationgroup ltx_align_left">7.2.9</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m10.png" altimg-height="50px" altimg-valign="-17px" altimg-width="105px" alttext="\displaystyle\lim_{x\to\infty}C\left(x\right)" display="inline"><mrow><munder><mo movablelimits="false">lim</mo><mrow><mi href="./7.1#p1.t1.r1" title="real variable">x</mi><mo stretchy="false">→</mo><mi mathvariant="normal">∞</mi></mrow></munder><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r1" title="real variable">x</mi><mo>)</mo></mrow></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math class="ltx_Math" altimg="m6.png" altimg-height="31px" altimg-valign="-9px" altimg-width="48px" alttext="\displaystyle=\tfrac{1}{2}," display="inline"><mrow><mrow><mi></mi><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr id="Ex4" class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math class="ltx_Math" altimg="m11.png" altimg-height="50px" altimg-valign="-17px" altimg-width="103px" alttext="\displaystyle\lim_{x\to\infty}S\left(x\right)" display="inline"><mrow><munder><mo movablelimits="false">lim</mo><mrow><mi href="./7.1#p1.t1.r1" title="real variable">x</mi><mo stretchy="false">→</mo><mi mathvariant="normal">∞</mi></mrow></munder><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r1" title="real variable">x</mi><mo>)</mo></mrow></mrow></mrow></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math class="ltx_Math" altimg="m7.png" altimg-height="31px" altimg-valign="-9px" altimg-width="48px" alttext="\displaystyle=\tfrac{1}{2}." display="inline"><mrow><mrow><mi></mi><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac></mrow><mo lspace="0em">.</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="5">
+<div id="E9.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Symbols:</dt>
+<dd>
+<a href="./7.2#E7" title="(7.2.7) ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m15.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="C\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</a>,
+<a href="./7.2#E8" title="(7.2.8) ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m20.png" altimg-height="25px" altimg-valign="-7px" altimg-width="48px" alttext="S\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</a> and
+<a href="./7.1#p1.t1.r1" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi href="./7.1#p1.t1.r1" title="real variable">x</mi></math>:  real variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.3.20</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd><a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a></dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E9" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E9</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E9a.tex">TeX</a>, <a href="./7.2.E9b.tex">TeX</a>, <a href="./7.2.E9a.pmml">pMML</a>, <a href="./7.2.E9b.pmml">pMML</a>, <a href="./7.2.E9a.png">png</a>, <a href="./7.2.E9b.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#Px2.info" title="Values at Infinity ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iii)</span></a>,
+<a href="./7.2#iii.info" title="§7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iii)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="iv" class="ltx_subsection">
+<h2 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">§7.2(iv) </span>Auxiliary Functions</h2>
+<div id="iv.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Fresnel%20integrals">Fresnel integrals</a>, <a class="ltx_keyword" href="./search/search?q=auxiliary%20functions">auxiliary functions</a>, <a class="ltx_keyword" href="./search/search?q=auxiliary%20functions%20for%20Fresnel%20integrals">auxiliary functions for Fresnel integrals</a>, <a class="ltx_keyword" href="./search/search?q=definitions">definitions</a>, <a class="ltx_keyword" href="./search/search?q=relations%20to%20other%20functions">relations to other functions</a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.iv" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.iv</a></dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="iv.p1" class="ltx_para">
+<table id="E10" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.10</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E10.png" altimg-height="222px" altimg-valign="-9px" altimg-width="180px" alttext="\mathrm{f}\left(z\right)=\left(\tfrac{1}{2}-S\left(z\right)\right)\cos\left(%
+\tfrac{1}{2}\pi z^{2}\right)-\left(\tfrac{1}{2}-C\left(z\right)\right)\sin%
+\left(\tfrac{1}{2}\pi z^{2}\right)," display="block"><mrow><mrow><mrow><mi href="./7.2#E10" mathvariant="normal" title="auxiliary function for Fresnel integrals">f</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>−</mo><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></mrow><mo>)</mo></mrow><mo lspace="0.167em">⁢</mo><mrow><mi href="./4.14#E2" title="cosine function">cos</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></mrow><mo>−</mo><mrow><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>−</mo><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></mrow><mo>)</mo></mrow><mo lspace="0.167em">⁢</mo><mrow><mi href="./4.14#E1" title="sine function">sin</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E10.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m28.png" altimg-height="25px" altimg-valign="-7px" altimg-width="42px" alttext="\mathrm{f}\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E10" mathvariant="normal" title="auxiliary function for Fresnel integrals">f</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: auxiliary function for Fresnel integrals</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./7.2#E7" title="(7.2.7) ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m15.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="C\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</a>,
+<a href="./7.2#E8" title="(7.2.8) ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m20.png" altimg-height="25px" altimg-valign="-7px" altimg-width="48px" alttext="S\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</a>,
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./4.14#E2" title="(4.14.2) ‣ §4.14 Definitions and Periodicity ‣ Trigonometric Functions ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m22.png" altimg-height="13px" altimg-valign="-2px" altimg-width="46px" alttext="\cos\NVar{z}" display="inline"><mrow><mi href="./4.14#E2" title="cosine function">cos</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./4.1#t1.r4" title="complex variable">z</mi></mrow></math>: cosine function</a>,
+<a href="./4.14#E1" title="(4.14.1) ‣ §4.14 Definitions and Periodicity ‣ Trigonometric Functions ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m39.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\sin\NVar{z}" display="inline"><mrow><mi href="./4.14#E1" title="sine function">sin</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./4.1#t1.r4" title="complex variable">z</mi></mrow></math>: sine function</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.3.5</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.4#info" title="§7.4 Symmetry ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.4</span></a>,
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E10" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E10</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E10.tex">TeX</a>, <a href="./7.2.E10.pmml">pMML</a>, <a href="./7.2.E10.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#iv.info" title="§7.2(iv) Auxiliary Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iv)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+<table id="E11" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.11</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E11.png" altimg-height="222px" altimg-valign="-9px" altimg-width="180px" alttext="\mathrm{g}\left(z\right)=\left(\tfrac{1}{2}-C\left(z\right)\right)\cos\left(%
+\tfrac{1}{2}\pi z^{2}\right)+\left(\tfrac{1}{2}-S\left(z\right)\right)\sin%
+\left(\tfrac{1}{2}\pi z^{2}\right)." display="block"><mrow><mrow><mrow><mi href="./7.2#E11" mathvariant="normal" title="auxiliary function for Fresnel integrals">g</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>−</mo><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></mrow><mo>)</mo></mrow><mo lspace="0.167em">⁢</mo><mrow><mi href="./4.14#E2" title="cosine function">cos</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></mrow><mo>+</mo><mrow><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>−</mo><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></mrow><mo>)</mo></mrow><mo lspace="0.167em">⁢</mo><mrow><mi href="./4.14#E1" title="sine function">sin</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mstyle displaystyle="false"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo>⁢</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi><mo>⁢</mo><msup><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E11.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m30.png" altimg-height="25px" altimg-valign="-7px" altimg-width="45px" alttext="\mathrm{g}\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E11" mathvariant="normal" title="auxiliary function for Fresnel integrals">g</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: auxiliary function for Fresnel integrals</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./7.2#E7" title="(7.2.7) ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m15.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="C\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E7" title="Fresnel integral">C</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</a>,
+<a href="./7.2#E8" title="(7.2.8) ‣ §7.2(iii) Fresnel Integrals ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m20.png" altimg-height="25px" altimg-valign="-7px" altimg-width="48px" alttext="S\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E8" title="Fresnel integral">S</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Fresnel integral</a>,
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./4.14#E2" title="(4.14.2) ‣ §4.14 Definitions and Periodicity ‣ Trigonometric Functions ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m22.png" altimg-height="13px" altimg-valign="-2px" altimg-width="46px" alttext="\cos\NVar{z}" display="inline"><mrow><mi href="./4.14#E2" title="cosine function">cos</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./4.1#t1.r4" title="complex variable">z</mi></mrow></math>: cosine function</a>,
+<a href="./4.14#E1" title="(4.14.1) ‣ §4.14 Definitions and Periodicity ‣ Trigonometric Functions ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m39.png" altimg-height="18px" altimg-valign="-2px" altimg-width="44px" alttext="\sin\NVar{z}" display="inline"><mrow><mi href="./4.14#E1" title="sine function">sin</mi><mo lspace="0.167em">⁡</mo><mi class="ltx_nvar" href="./4.1#t1.r4" title="complex variable">z</mi></mrow></math>: sine function</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">7.3.6</span></span>
+</dd>
+<dt>Referenced by:</dt>
+<dd>
+<a href="./7.4#info" title="§7.4 Symmetry ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.4</span></a>,
+<a href="./7.5#info" title="§7.5 Interrelations ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.5</span></a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E11" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E11</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E11.tex">TeX</a>, <a href="./7.2.E11.pmml">pMML</a>, <a href="./7.2.E11.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#iv.info" title="§7.2(iv) Auxiliary Functions ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(iv)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="v" class="ltx_subsection">
+<h2 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">§7.2(v) </span>Goodwin–Staton Integral</h2>
+<div id="v.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Keywords:</dt>
+<dd>
+<a class="ltx_keyword" href="./search/search?q=Goodwin%E2%80%93Staton%20integral">Goodwin–Staton integral</a>, <a class="ltx_keyword" href="./search/search?q=definition">definition</a>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.v" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.v</a></dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="v.p1" class="ltx_para">
+<table id="E12" class="ltx_equation ltx_eqn_table">
+
+<tbody>
+<tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_left"><span class="ltx_tag ltx_tag_equation ltx_align_left">7.2.12</span></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math class="ltx_Math" altimg="E12.png" altimg-height="66px" altimg-valign="-21px" altimg-width="251px" alttext="G\left(z\right)=\int_{0}^{\infty}\frac{e^{-t^{2}}}{t+z}\,\mathrm{d}t," display="block"><mrow><mrow><mrow><mi href="./7.2#E12" title="Goodwin–Staton integral">G</mi><mo>⁡</mo><mrow><mo>(</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow><mo rspace="0.111em">=</mo><mrow><msubsup><mo href="./1.4#iv" title="integral">∫</mo><mn>0</mn><mi mathvariant="normal">∞</mi></msubsup><mrow><mfrac><msup><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi><mrow><mo>−</mo><msup><mi>t</mi><mn>2</mn></msup></mrow></msup><mrow><mi>t</mi><mo>+</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow></mfrac><mo lspace="0em">⁢</mo><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi>t</mi></mrow></mrow></mrow></mrow><mo>,</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr>
+<tr class="ltx_eqn_row"><td class="ltx_eqn_cell ltx_align_right" colspan="4"><span class="ltx_constraint"><math class="ltx_Math" altimg="m44.png" altimg-height="25px" altimg-valign="-7px" altimg-width="97px" alttext="|\operatorname{ph}z|&lt;\pi" display="inline"><mrow><mrow><mo stretchy="false">|</mo><mrow><mi href="./1.9#E7" title="phase">ph</mi><mo lspace="0.167em">⁡</mo><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></mrow><mo stretchy="false">|</mo></mrow><mo>&lt;</mo><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></mrow></math>.</span></td></tr>
+<tr><td class="ltx_align_right" colspan="4">
+<div id="E12.info" class="ltx_metadata ltx_info">
+<span href="" class="ltx_infoicon ltx_icon" title="Show Annotations"><span class="ltx_font_bold">ⓘ</span></span>
+<div class="ltx_infocontent">
+<dl>
+<dt>Defines:</dt>
+<dd><span class="ltx_text ltx_font_bold"><math class="ltx_Math" altimg="m19.png" altimg-height="25px" altimg-valign="-7px" altimg-width="51px" alttext="G\left(\NVar{z}\right)" display="inline"><mrow><mi href="./7.2#E12" title="Goodwin–Staton integral">G</mi><mo>⁡</mo><mrow><mo>(</mo><mi class="ltx_nvar" href="./7.1#p1.t1.r2" title="complex variable">z</mi><mo>)</mo></mrow></mrow></math>: Goodwin–Staton integral</span></dd>
+<dt>Symbols:</dt>
+<dd>
+<a href="./3.12#E1" title="(3.12.1) ‣ §3.12 Mathematical Constants ‣ Areas ‣ Chapter 3 Numerical Methods" class="ltx_ref"><math class="ltx_Math" altimg="m38.png" altimg-height="13px" altimg-valign="-2px" altimg-width="17px" alttext="\pi" display="inline"><mi href="./3.12#E1" title="the ratio of the circumference of a circle to its diameter">π</mi></math>: the ratio of the circumference of a circle to its diameter</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m26.png" altimg-height="18px" altimg-valign="-2px" altimg-width="28px" alttext="\,\mathrm{d}\NVar{x}" display="inline"><mrow><mo href="./1.4#iv" rspace="0em" title="differential of 𝑥">d</mo><mi class="ltx_nvar">x</mi></mrow></math>: differential of <math class="ltx_Math" altimg="m42.png" altimg-height="13px" altimg-valign="-2px" altimg-width="16px" alttext="x" display="inline"><mi>x</mi></math></a>,
+<a href="./4.2#E11" title="(4.2.11) ‣ §4.2(ii) Logarithms to a General Base 𝑎 ‣ §4.2 Definitions ‣ Logarithm, Exponential, Powers ‣ Chapter 4 Elementary Functions" class="ltx_ref"><math class="ltx_Math" altimg="m27.png" altimg-height="13px" altimg-valign="-2px" altimg-width="14px" alttext="\mathrm{e}" display="inline"><mi href="./4.2#E11" mathvariant="normal" title="base of natural logarithm">e</mi></math>: base of natural logarithm</a>,
+<a href="./1.4#iv" title="§1.4(iv) Indefinite Integrals ‣ §1.4 Calculus of One Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m23.png" altimg-height="27px" altimg-valign="-8px" altimg-width="18px" alttext="\int" display="inline"><mo href="./1.4#iv" title="integral">∫</mo></math>: integral</a>,
+<a href="./1.9#E7" title="(1.9.7) ‣ Modulus and Phase ‣ §1.9(i) Complex Numbers ‣ §1.9 Calculus of a Complex Variable ‣ Topics of Discussion ‣ Chapter 1 Algebraic and Analytic Methods" class="ltx_ref"><math class="ltx_Math" altimg="m37.png" altimg-height="22px" altimg-valign="-6px" altimg-width="27px" alttext="\operatorname{ph}" display="inline"><mi href="./1.9#E7" title="phase">ph</mi></math>: phase</a> and
+<a href="./7.1#p1.t1.r2" title="§7.1 Special Notation ‣ Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><math class="ltx_Math" altimg="m43.png" altimg-height="13px" altimg-valign="-2px" altimg-width="15px" alttext="z" display="inline"><mi href="./7.1#p1.t1.r2" title="complex variable">z</mi></math>:  complex variable</a>
+</dd>
+<dt>A&amp;S Ref:</dt>
+<dd> <span class="ltx_origref"><span class="ltx_tag">27.6</span> (in different notation)</span>
+</dd>
+<dt>Permalink:</dt>
+<dd><a href="./7.2.E12" title="" class="ltx_ref">http://dlmf.nist.gov/7.2.E12</a></dd>
+<dt>Encodings:</dt>
+<dd>
+<a href="./7.2.E12.tex">TeX</a>, <a href="./7.2.E12.pmml">pMML</a>, <a href="./7.2.E12.png">png</a>
+</dd>
+<dt>See also:</dt>
+<dd>Annotations for <a href="./7.2#v.info" title="§7.2(v) Goodwin–Staton Integral ‣ §7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2(v)</span></a>,
+<a href="./7.2#info" title="§7.2 Definitions ‣ Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">§7.2</span></a> and
+<a href="./7#info" title="Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Ch.7</span></a>
+</dd>
+</dl>
+</div>
+</div>
+</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+</div>
+<div class="ltx_page_footer">
+<div class="ltx_siblings">
+<a href="./7.1" title="In Notation ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref" rel="prev"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">7.1 </span>Special Notation</span></a><a href="./7.3" title="In Properties ‣ Chapter 7 Error Functions, Dawson’s and Fresnel Integrals" class="ltx_ref" rel="next"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">7.3 </span>Graphics</span></a>
+</div>
+<div class="ltx_footer_links ltx_centering">
+<a href="./about/notices">© 2010–2026 NIST</a> / <a href="./about/notices#S2">Disclaimer</a> / <a href="/cdn-cgi/l/email-protection#256169686308434040414744464e654b4c56510b424a53">Feedback</a>;
+ Version 1.2.6;
+Release date 2026-03-15.</div>
+<span id="pagesettings"></span>
+<div class="ltx_nist_logo"><a href="http://www.nist.gov/"><img src="./style/nistidc.png" width="500" alt="NIST"></a></div>
+<div class="ltx_nist_links ltx_align_right">
+<a href="https://www.nist.gov/privacy-policy">Site Privacy</a> <a href="https://www.nist.gov/oism/accessibility">Accessibility</a> <a href="https://www.nist.gov/privacy">Privacy Program</a> <a href="https://www.nist.gov/oism/copyrights">Copyrights</a> <a href="https://www.commerce.gov/vulnerability-disclosure-policy">Vulnerability Disclosure</a> <a href="https://www.nist.gov/no-fear-act-policy">No Fear Act Policy</a> <a href="https://www.nist.gov/foia">FOIA</a> <a href="https://www.nist.gov/environmental-policy-statement">Environmental Policy</a> <a href="https://www.nist.gov/summary-report-scientific-integrity">Scientific Integrity</a> <a href="https://www.nist.gov/nist-information-quality-standards">Information Quality Standards</a> <a href="https://www.commerce.gov/">Commerce.gov</a> <a href="http://www.science.gov/">Science.gov</a> <a href="http://www.usa.gov/">USA.gov</a>
+</div>
+</div>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a068866d886625da',t:'MTc4MDU5Mjc1NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

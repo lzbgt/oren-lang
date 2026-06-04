@@ -713,6 +713,50 @@ fn atanh(x: f64) {
     return 0.5 * ln((1.0 + x) / (1.0 - x))
 }
 
+fn _erfc_positive_approx(x: f64) {
+    // Abramowitz-Stegun-style five-term approximation for real x >= 0.
+    // This is deterministic and good enough for the current scientific stdlib tier;
+    // later libm-parity work can replace it with a correctly rounded kernel.
+    if x > 26.0 { return 0.0 }
+    var p = 0.3275911
+    var t = 1.0 / (1.0 + p * x)
+    var a1 = 0.254829592
+    var a2 = 0.0 - 0.284496736
+    var a3 = 1.421413741
+    var a4 = 0.0 - 1.453152027
+    var a5 = 1.061405429
+    var poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t)
+    var e = exp(0.0 - x * x)
+    if oren_is_err(e) { return e }
+    return poly * e
+}
+
+fn erfc(x: f64) {
+    if is_nan(x) { return oren_err(4, "erfc: NaN") }
+    if is_inf(x) {
+        if signbit(x) { return 2.0 }
+        return 0.0
+    }
+    var ax = abs_f(x)
+    var y = _erfc_positive_approx(ax)
+    if oren_is_err(y) { return y }
+    if signbit(x) { return 2.0 - y }
+    return y
+}
+
+fn erf(x: f64) {
+    if is_nan(x) { return oren_err(4, "erf: NaN") }
+    if is_inf(x) {
+        if signbit(x) { return 0.0 - 1.0 }
+        return 1.0
+    }
+    var y = erfc(abs_f(x))
+    if oren_is_err(y) { return y }
+    var r = 1.0 - y
+    if signbit(x) { return 0.0 - r }
+    return r
+}
+
 // --- trig (deterministic, no host libm) ---
 //
 // v0 design:

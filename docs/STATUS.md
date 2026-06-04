@@ -588,7 +588,7 @@ Working evidence:
   bit helpers, rounding, `sqrt`, `cbrt`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,
-  `tan`, `atan`, `atan2`, `asin`, and `acos`.
+  `tan`, `atan`, `atan2`, `asin`, `acos`, `erf`, and `erfc`.
 - `pow` / `power` cover the app-visible cases `power(2,-1)` and
   `power(2,4.3)` through deterministic integer-exponent and
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
@@ -601,7 +601,7 @@ Working evidence:
   pow, `frexp`/`ldexp` decomposition and scaling, `cbrt`, `hypot`,
   exp/log/log2/log10, cancellation-aware `expm1`/`log1p`, hyperbolic
   `sinh`/`cosh`/`tanh`, and inverse hyperbolic `asinh`/`acosh`/`atanh`,
-  finite sin/cos/tan reduction, quadrant `atan2`,
+  approximate real-valued error functions `erf`/`erfc`, finite sin/cos/tan reduction, quadrant `atan2`,
   inverse-trig `asin`/`acos`, and
   non-finite error behavior in bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity

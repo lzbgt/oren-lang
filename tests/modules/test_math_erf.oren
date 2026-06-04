@@ -1,0 +1,44 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math erf FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_close(math.erf(0.0), 0.0, 2e-7, 10, "erf zero")
+assert_close(math.erfc(0.0), 1.0, 2e-7, 11, "erfc zero")
+assert_close(math.erf(0.5), 0.5204998778130465, 3e-7, 12, "erf half")
+assert_close(math.erfc(0.5), 0.4795001221869535, 3e-7, 13, "erfc half")
+assert_close(math.erf(1.0), 0.8427007929497149, 3e-7, 14, "erf one")
+assert_close(math.erfc(1.0), 0.1572992070502851, 3e-7, 15, "erfc one")
+assert_close(math.erf(2.0), 0.9953222650189527, 3e-7, 16, "erf two")
+assert_close(math.erfc(2.0), 0.004677734981047266, 3e-7, 17, "erfc two")
+
+var e1: f64 = math.erf(1.25)
+var c1: f64 = math.erfc(1.25)
+assert_close(e1 + c1, 1.0, 1e-12, 30, "erf erfc sum")
+assert_close(math.erf(0.0 - 1.25), 0.0 - e1, 1e-12, 31, "erf odd")
+assert_close(math.erfc(0.0 - 1.25), 2.0 - c1, 1e-12, 32, "erfc negative relation")
+
+assert_close(math.erf(math.inf()), 1.0, 0.0, 40, "erf +inf")
+assert_close(math.erf(math.neg_inf()), 0.0 - 1.0, 0.0, 41, "erf -inf")
+assert_close(math.erfc(math.inf()), 0.0, 0.0, 42, "erfc +inf")
+assert_close(math.erfc(math.neg_inf()), 2.0, 0.0, 43, "erfc -inf")
+
+assert_true(oren_is_err(math.erf(0.0 / 0.0)), 50, "erf NaN")
+assert_true(oren_is_err(math.erfc(0.0 / 0.0)), 51, "erfc NaN")
+
+print("module math erf OK")
+exit(0)
