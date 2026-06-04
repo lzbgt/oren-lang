@@ -10,6 +10,8 @@
 import list "std:list"
 import bytes "std:bytes"
 import json "std:json"
+import ints "std:ints"
+import math "std:math"
 import raw "std:buffer/raw"
 import ui_color "std:ui/color"
 
@@ -484,6 +486,134 @@ fn _pack_prisms_xy(prisms, ctx) {
     return bytes.from_u8_buf(out)
 }
 
+fn _cylinder_center(cyl, ctx) {
+    var center = cyl["center"]
+    if center == nil { center = cyl["center_xy"] }
+    if center == nil || oren_list_len(center) != 2 {
+        return oren_err(4, ctx + ": cylinder center must be [x,y]")
+    }
+    if _is_int(center[0]) == false || _is_int(center[1]) == false {
+        return oren_err(4, ctx + ": cylinder center must contain i32")
+    }
+    return center
+}
+
+fn _cylinder_radius(cyl, ctx) {
+    var radius = cyl["radius"]
+    if radius == nil { radius = cyl["radius_xy"] }
+    if _is_int(radius) == false || radius <= 0 {
+        return oren_err(4, ctx + ": cylinder radius must be positive i32")
+    }
+    return radius
+}
+
+fn _cylinder_z(cyl, primary, fallback, ctx) {
+    var v = cyl[primary]
+    if v == nil { v = cyl[fallback] }
+    if _is_int(v) == false { return oren_err(4, ctx + ": expected i32") }
+    return v
+}
+
+fn _cylinder_segments(cyl, ctx) {
+    var segments = cyl["segments"]
+    if segments == nil { segments = 16 }
+    if _is_int(segments) == false || segments < 3 || segments > 96 {
+        return oren_err(4, ctx + ": cylinder segments must be 3..96")
+    }
+    return segments
+}
+
+fn _cylinders_triangle_count(cylinders, ctx) {
+    if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
+    var nc = oren_list_len(cylinders)
+    if oren_is_err(nc) { return oren_err(4, ctx + ": cylinders_z must be list") }
+    var total = 0
+    var i = 0
+    while i < nc {
+        var cyl = cylinders[i]
+        if cyl == nil { return oren_err(4, ctx + ": cylinder must be object") }
+        var center = _cylinder_center(cyl, ctx)
+        if oren_is_err(center) { return center }
+        var radius = _cylinder_radius(cyl, ctx)
+        if oren_is_err(radius) { return radius }
+        var z0 = _cylinder_z(cyl, "z_min", "min_z", ctx + ".z_min")
+        if oren_is_err(z0) { return z0 }
+        var z1 = _cylinder_z(cyl, "z_max", "max_z", ctx + ".z_max")
+        if oren_is_err(z1) { return z1 }
+        if z1 <= z0 { return oren_err(4, ctx + ": cylinder z_max must be greater than z_min") }
+        var segments = _cylinder_segments(cyl, ctx)
+        if oren_is_err(segments) { return segments }
+        total = total + segments * 4
+        i = i + 1
+    }
+    return total
+}
+
+fn _circle_coord(center, radius, segments, index, axis) {
+    var angle = math.tau() * f64(index) / f64(segments)
+    var unit = math.cos(angle)
+    if axis == 1 { unit = math.sin(angle) }
+    var rounded = math.round(f64(center) + f64(radius) * unit)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _store_cylinder_triangle(out, off, ax, ay, az, bx, by, bz, cx, cy, cz, ctx) {
+    var rc = _store_xyz_values(out, off + 0, ax, ay, az, ctx + ".a")
+    if oren_is_err(rc) { return rc }
+    rc = _store_xyz_values(out, off + 12, bx, by, bz, ctx + ".b")
+    if oren_is_err(rc) { return rc }
+    return _store_xyz_values(out, off + 24, cx, cy, cz, ctx + ".c")
+}
+
+fn _pack_cylinders_z(cylinders, ctx) {
+    var tri_count = _cylinders_triangle_count(cylinders, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ci = 0
+    var nc = oren_list_len(cylinders)
+    while ci < nc {
+        var cyl = cylinders[ci]
+        var center = _cylinder_center(cyl, ctx)
+        var radius = _cylinder_radius(cyl, ctx)
+        var z0 = _cylinder_z(cyl, "z_min", "min_z", ctx + ".z_min")
+        var z1 = _cylinder_z(cyl, "z_max", "max_z", ctx + ".z_max")
+        var segments = _cylinder_segments(cyl, ctx)
+        var cx = center[0]
+        var cy = center[1]
+        var i = 0
+        while i < segments {
+            var next = i + 1
+            if next == segments { next = 0 }
+            var ax = _circle_coord(cx, radius, segments, i, 0)
+            if oren_is_err(ax) { return ax }
+            var ay = _circle_coord(cy, radius, segments, i, 1)
+            if oren_is_err(ay) { return ay }
+            var bx = _circle_coord(cx, radius, segments, next, 0)
+            if oren_is_err(bx) { return bx }
+            var by = _circle_coord(cy, radius, segments, next, 1)
+            if oren_is_err(by) { return by }
+            var rc = _store_cylinder_triangle(out, off, cx, cy, z0, bx, by, z0, ax, ay, z0, ctx + ".bottom")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_cylinder_triangle(out, off, cx, cy, z1, ax, ay, z1, bx, by, z1, ctx + ".top")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_cylinder_triangle(out, off, ax, ay, z0, bx, by, z0, bx, by, z1, ctx + ".side0")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_cylinder_triangle(out, off, ax, ay, z0, bx, by, z1, ax, ay, z1, ctx + ".side1")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            i = i + 1
+        }
+        ci = ci + 1
+    }
+    return bytes.from_u8_buf(out)
+}
+
 fn _store_rgba(out, off, color, ctx) {
     var c = ui_color.parse_hex(color)
     if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
@@ -539,6 +669,8 @@ fn _asset_mesh(m) {
             tris = _pack_boxes_xyz(m["boxes_xyz"], "ui.scene3d mesh.boxes_xyz")
         } else if m["prisms_xy"] != nil {
             tris = _pack_prisms_xy(m["prisms_xy"], "ui.scene3d mesh.prisms_xy")
+        } else if m["cylinders_z"] != nil {
+            tris = _pack_cylinders_z(m["cylinders_z"], "ui.scene3d mesh.cylinders_z")
         } else {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }

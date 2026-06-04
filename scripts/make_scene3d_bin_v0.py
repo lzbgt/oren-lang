@@ -2,6 +2,7 @@
 """Build byte-native OS3D01 scene assets from reviewable JSON."""
 
 import json
+import math
 import pathlib
 import sys
 
@@ -191,6 +192,76 @@ def pack_prisms_xy(prisms):
             b = points[(i + 1) % len(points)]
             triangles.append([[a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1]])
             triangles.append([[a[0], a[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]])
+    return pack_triangles_xyz(triangles)
+
+
+def cylinder_center(cyl):
+    center = cyl.get("center", cyl.get("center_xy"))
+    if not isinstance(center, list) or len(center) != 2:
+        raise SystemExit("scene cylinders_z center must be [x,y]")
+    return int(center[0]), int(center[1])
+
+
+def cylinder_radius(cyl):
+    radius = cyl.get("radius", cyl.get("radius_xy"))
+    if radius is None:
+        raise SystemExit("scene cylinders_z entries must include radius")
+    radius = int(radius)
+    if radius <= 0:
+        raise SystemExit("scene cylinders_z radius must be positive")
+    return radius
+
+
+def cylinder_z(cyl, primary, fallback):
+    if primary in cyl:
+        return int(cyl[primary])
+    if fallback in cyl:
+        return int(cyl[fallback])
+    raise SystemExit(f"scene cylinders_z entries must include {primary}")
+
+
+def cylinder_segments(cyl):
+    segments = int(cyl.get("segments", 16))
+    if segments < 3 or segments > 96:
+        raise SystemExit("scene cylinders_z segments must be 3..96")
+    return segments
+
+
+def round_half_away(x):
+    if x >= 0:
+        return math.floor(x + 0.5)
+    return math.ceil(x - 0.5)
+
+
+def cylinder_point(cx, cy, radius, segments, idx, z):
+    angle = math.tau * idx / segments
+    x = round_half_away(cx + radius * math.cos(angle))
+    y = round_half_away(cy + radius * math.sin(angle))
+    return [x, y, z]
+
+
+def pack_cylinders_z(cylinders):
+    triangles = []
+    for cyl in cylinders:
+        if not isinstance(cyl, dict):
+            raise SystemExit("scene cylinders_z entries must be objects")
+        cx, cy = cylinder_center(cyl)
+        radius = cylinder_radius(cyl)
+        z0 = cylinder_z(cyl, "z_min", "min_z")
+        z1 = cylinder_z(cyl, "z_max", "max_z")
+        if z1 <= z0:
+            raise SystemExit("scene cylinders_z z_max must be greater than z_min")
+        segments = cylinder_segments(cyl)
+        for i in range(segments):
+            nxt = 0 if i + 1 == segments else i + 1
+            a0 = cylinder_point(cx, cy, radius, segments, i, z0)
+            b0 = cylinder_point(cx, cy, radius, segments, nxt, z0)
+            a1 = cylinder_point(cx, cy, radius, segments, i, z1)
+            b1 = cylinder_point(cx, cy, radius, segments, nxt, z1)
+            triangles.append([[cx, cy, z0], b0, a0])
+            triangles.append([[cx, cy, z1], a1, b1])
+            triangles.append([a0, b0, b1])
+            triangles.append([a0, b1, a1])
     return pack_triangles_xyz(triangles)
 
 
@@ -497,6 +568,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
             elif mesh.get("prisms_xy") is not None:
                 payload = pack_prisms_xy(mesh["prisms_xy"])
+            elif mesh.get("cylinders_z") is not None:
+                payload = pack_cylinders_z(mesh["cylinders_z"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""

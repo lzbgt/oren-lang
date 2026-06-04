@@ -26,16 +26,29 @@
           "color": "#ff0000ff"
         }
       ]
+    },
+    {
+      "kind": "triangles",
+      "id": 36,
+      "name": "tube-mesh",
+      "cylinders_z": [
+        {"center": [2, 1], "radius": 1, "z_min": 0, "z_max": 1, "segments": 8}
+      ],
+      "base_color": "#0088ffff",
+      "roughness_milli": 500,
+      "metallic_milli": 0
     }
   ],
   "materials": [
-    {"id": 32, "name": "card-green", "base_color": "#00ff00ff", "opacity_milli": 1000, "roughness_milli": 350, "metallic_milli": 0}
+    {"id": 32, "name": "card-green", "base_color": "#00ff00ff", "opacity_milli": 1000, "roughness_milli": 350, "metallic_milli": 0},
+    {"id": 37, "name": "tube-blue", "base_color": "#0088ffff", "opacity_milli": 1000, "roughness_milli": 500, "metallic_milli": 0}
   ],
   "model_templates": [
     {"name": "card-template", "mesh": "card-mesh", "material": "card-green", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instances": [
-    {"id": 33, "name": "card", "template": "card-template", "transform": {"position_xyz": [1, 1, 0]}}
+    {"id": 33, "name": "card", "template": "card-template", "transform": {"position_xyz": [1, 1, 0]}},
+    {"id": 38, "name": "tube", "mesh": "tube-mesh", "material": "tube-blue", "transform": {"position_xyz": [0, 0, 0], "scale_milli": 1000}}
   ],
   "instance_groups": [
     {
@@ -57,6 +70,7 @@
   "sample_time_milli": 1000,
   "camera": {"near_z": 0, "far_z": 2},
   "draw": [
+    "tube",
     {"model": "card", "transform": {"position_xyz": [1, 1, 0], "scale_milli": 1000}},
     "accent"
   ],
