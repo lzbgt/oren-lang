@@ -924,9 +924,7 @@ void avm_run(AvmVM* vm) {
                 // Build args_list = [fixed_args..., spread_items...].
                 AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
                 if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
-                list->count = total;
-                list->capacity = total;
-                list->all_int = 1;
+                list->count = total; list->capacity = total; list->all_int = 1;
                 list->items = NULL;
                 if (total > 0) {
                     list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)total, AVM_ALLOC_KIND_LIST);
@@ -1020,10 +1018,15 @@ void avm_run(AvmVM* vm) {
                 fixed |= (uint16_t)code[vm->pc++] << 8;
                 if (vm->sp < (int)fixed + 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on NEW_LIST_SPREAD")); break; }
                 AvmValue spread = vm->stack[vm->sp - 1];
-                if (spread.type != AVM_VAL_LIST || !spread.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "NEW_LIST_SPREAD expects list as spread arg")); break; }
-                AvmList* sl = spread.as.l;
-                int total = (int)fixed + sl->count;
-                if (sl->count < 0 || total < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "NEW_LIST_SPREAD invalid count")); break; }
+                int spread_count = -1;
+                if (spread.type == AVM_VAL_LIST && spread.as.l) spread_count = spread.as.l->count;
+                else if (spread.type == AVM_VAL_LIST_INT && spread.as.li) spread_count = spread.as.li->count;
+                if (spread_count < 0) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "NEW_LIST_SPREAD expects list as spread arg"));
+                    break;
+                }
+                int total = (int)fixed + spread_count;
+                if (total < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "NEW_LIST_SPREAD invalid count")); break; }
 
                 AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
                 if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
@@ -1039,9 +1042,17 @@ void avm_run(AvmVM* vm) {
                         list->items[i] = vm->stack[base + i];
                         if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
                     }
-                    for (int i = 0; i < sl->count; i++) {
-                        list->items[(int)fixed + i] = sl->items[i];
-                        if (list->all_int && list->items[(int)fixed + i].type != AVM_VAL_INT) list->all_int = 0;
+                    if (spread.type == AVM_VAL_LIST) {
+                        AvmList* sl = spread.as.l;
+                        for (int i = 0; i < spread_count; i++) {
+                            list->items[(int)fixed + i] = sl->items[i];
+                            if (list->all_int && list->items[(int)fixed + i].type != AVM_VAL_INT) list->all_int = 0;
+                        }
+                    } else {
+                        AvmListInt* sl = spread.as.li;
+                        for (int i = 0; i < spread_count; i++) {
+                            list->items[(int)fixed + i] = avm_int(sl->items[i]);
+                        }
                     }
                 }
 

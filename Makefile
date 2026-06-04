@@ -268,6 +268,7 @@ endif
 		tests/avm/test_for_in_string.oren \
 		tests/avm/test_generic_call_specialization.oren \
 		tests/avm/test_varargs_call_spread.oren \
+		tests/avm/test_varargs_spawn.oren \
 		tests/avm/test_int_literal_bases.oren \
 		tests/avm/test_int_casts.oren \
 		tests/avm/test_list_append_grow.oren \

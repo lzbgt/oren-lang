@@ -499,8 +499,8 @@ Facts from the 2026-05-28 implementation pass:
   APIs, bytes/endian helpers, u8 buffer iteration, checked and wrapping integer
   casts, call-stack discipline, explicit result/state hashing, attributes,
   bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic
-  call specialization, varargs call/spread packing, literal bases, container
-  mutation/iteration, pack views, task/group surfaces, deterministic join
+  call specialization, varargs call/spread and spawn/spread packing, literal bases,
+  container mutation/iteration, pack views, task/group surfaces, deterministic join
   timeout, bounded trace diagnostics, deterministic math core/rounding, exp/log,
   trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
   ranges, and Scene3D package-asset authoring rather than leaving those as
