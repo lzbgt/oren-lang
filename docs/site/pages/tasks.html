@@ -80,16 +80,22 @@
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
 <ul>
-<li>Current verdict: iOS <code>LibAVM.xcframework</code> packaging and a C embedder API now</li>
+<li>Current verdict: iOS <code>LibAVM.xcframework</code> packaging, macOS desktop</li>
 </ul>
-<p>     exist. The public API includes argv, VFS input/output, VirtualNET fixture,</p>
-<p>     VirtualPROC fixture/default, deterministic TIME by default, and stdout-capture</p>
-<p>     helpers required by app-host compile/run bridges. <code>make verify-libavm-ios</code></p>
-<p>     now proves host compile-to-OBC, iOS C smoke linkage, host embedder</p>
+<p>     <code>LibAVM.xcframework</code> packaging, and a C embedder API now exist. The public API</p>
+<p>     includes argv, VFS input/output, VirtualNET fixture, VirtualPROC fixture/default,</p>
+<p>     deterministic TIME by default, and stdout-capture helpers required by app-host</p>
+<p>     compile/run bridges. <code>make verify-libavm-ios</code> now proves host compile-to-OBC,</p>
+<p>     iOS C smoke linkage, host embedder</p>
 <p>     argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a</p>
 <p>     nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public</p>
 <p>     <code>OrenAVMCompilerKit</code> SDK helper that compiles source to OBC through AVM</p>
 <p>     VirtualFS/argv.</p>
+<ul>
+<li>Desktop C SDK gate: <code>make verify-libavm-desktop</code> builds macOS arm64/x86_64</li>
+</ul>
+<p>     <code>LibAVM.xcframework</code> slices, checks public embedder symbols in both archives,</p>
+<p>     and runs a local host C embedder against OBC bytes.</p>
 <ul>
 <li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
 </ul>

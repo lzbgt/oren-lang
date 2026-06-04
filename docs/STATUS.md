@@ -14,10 +14,10 @@ surfaces, but the following blockers remain:
 - native tagged-value convergence is incomplete;
 - allocator/GC/runtime robustness is still a W5 gate;
 - Tier-1 platform breadth is uneven;
-- AVM now has an iOS xcframework packaging gate, embedder C API with argv,
-  VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers, plus a full
-  compiler-in-AVM smoke gate, but still needs app-host lifecycle coverage before
-  it should be called a complete production iOS package.
+- AVM now has iOS and macOS desktop xcframework packaging gates, an embedder C
+  API with argv, VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers,
+  plus a full compiler-in-AVM smoke gate, but still needs app-host lifecycle
+  coverage before it should be called a complete production app package.
 
 ## Backend Readiness
 
@@ -28,7 +28,7 @@ surfaces, but the following blockers remain:
 | Native x64 Linux/Windows | Active bring-up with compile/runtime gates. | Not fully mature. |
 | Bytecode / AVM | Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces. | Experimental for production embedding. |
 
-## AVM and iOS Readiness
+## AVM SDK Readiness
 
 Current verdict: **production-chain smoke ready, not fully app-production mature**.
 
@@ -37,6 +37,10 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-libavm-ios` builds `build/libavm/ios/LibAVM.xcframework` for
   `iphoneos-arm64` and `iphonesimulator-arm64`, exports public AVM headers, and
   links a tiny iOS embedder smoke for both SDKs.
+- `make verify-libavm-desktop` builds `build/libavm/desktop/LibAVM.xcframework`
+  for macOS arm64 and x86_64, exports the same public C embedder headers/module
+  map, symbol-checks both static-library slices, and runs a host C embedder smoke
+  against OBC bytes on the local macOS architecture.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:
