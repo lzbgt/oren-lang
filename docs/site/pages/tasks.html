@@ -190,10 +190,9 @@
 <p>     Base64 and crypto hashes now follow the same rule with</p>
 <p>     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
 <p>     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
-<p>     path on exact-size <code>u8_buf</code> output. HPACK Huffman string encode/decode</p>
-<p>     now also writes exact-size <code>u8_buf</code> payloads instead of materializing</p>
-<p>     Oren byte lists; the full HPACK header-block encoder remains the next</p>
-<p>     protocol byte-packing cleanup.</p>
+<p>     path on exact-size <code>u8_buf</code> output. HPACK Huffman string encode/decode and</p>
+<p>     full header-block encoding now write exact-size <code>u8_buf</code> payloads instead</p>
+<p>     of materializing Oren byte lists.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
 <p>	     <code>buf.matrix(2, 3).row(1).text()</code> instead of routing through root-level</p>

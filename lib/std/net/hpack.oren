@@ -572,6 +572,25 @@ fn _table_add(t, name, value) {
     return nil
 }
 
+fn _table_clone(t) {
+    if t == nil { return table_new(4096) }
+    var max = oren_map_get_str(t, "max")
+    var size = oren_map_get_str(t, "size")
+    if oren_type_tag(max) == 0 { max = 4096 }
+    if oren_type_tag(size) == 0 { size = 0 }
+    var es = oren_map_get_str(t, "entries")
+    var copy = []
+    if es != nil {
+        var i = 0
+        while i < list.len(es) {
+            var e = es[i]
+            list.push(copy, {"name": oren_map_get_str(e, "name"), "value": oren_map_get_str(e, "value")})
+            i = i + 1
+        }
+    }
+    return {"max": max, "size": size, "entries": copy}
+}
+
 fn _lookup_indexed(t, idx) {
     // Resolve an indexed header field representation (static + dynamic).
     if idx >= 1 && idx <= _STATIC_LEN {
@@ -816,22 +835,36 @@ fn _index_name_only(table, name) {
     return 0
 }
 
-fn _encode_int_into(out, first_flags, prefix_bits, v) {
-    // RFC 7541 §5.1.
+fn _encode_int_len(prefix_bits, v) {
+    if v < 0 { v = 0 }
+    var max = (1 << prefix_bits) - 1
+    if v < max { return 1 }
+    v = v - max
+    var n = 1
+    while v >= 128 {
+        n = n + 1
+        v = v / 128
+    }
+    return n + 1
+}
+
+fn _encode_int_write(dst, pos, first_flags, prefix_bits, v) {
     if v < 0 { v = 0 }
     var max = (1 << prefix_bits) - 1
     if v < max {
-        list.push(out, (first_flags | v) & 255)
-        return nil
+        ptr_set_byte(dst + pos, (first_flags | v) & 255)
+        return pos + 1
     }
-    list.push(out, (first_flags | max) & 255)
+    ptr_set_byte(dst + pos, (first_flags | max) & 255)
+    pos = pos + 1
     v = v - max
     while v >= 128 {
-        list.push(out, ((v % 128) + 128) & 255)
+        ptr_set_byte(dst + pos, ((v % 128) + 128) & 255)
+        pos = pos + 1
         v = v / 128
     }
-    list.push(out, v & 255)
-    return nil
+    ptr_set_byte(dst + pos, v & 255)
+    return pos + 1
 }
 
 fn _huff_encode_bytes_from_string(s) {
@@ -894,37 +927,169 @@ fn _huff_encoded_len_from_string(s) {
     return (bits + 7) / 8
 }
 
-fn _encode_string_into(out, s, use_huffman) {
-    // RFC 7541 §5.2.
+fn _huff_encode_string_write(dst, pos, s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    var acc = 0
+    var acc_bits = 0
+    var i = 0
+    while i < n {
+        var sym = oren_string_byte_at_unchecked(s, i) & 255
+        var code = _HUFF_CODE_LSB[sym]
+        var bits = _HUFF_BITS[sym]
+        acc = (acc << bits) | code
+        acc_bits = acc_bits + bits
+        while acc_bits >= 8 {
+            var shift = acc_bits - 8
+            ptr_set_byte(dst + pos, (acc >> shift) & 255)
+            pos = pos + 1
+            acc = acc & ((1 << shift) - 1)
+            acc_bits = shift
+        }
+        i = i + 1
+    }
+    if acc_bits > 0 {
+        var pad = 8 - acc_bits
+        acc = (acc << pad) | ((1 << pad) - 1)
+        ptr_set_byte(dst + pos, acc & 255)
+        pos = pos + 1
+    }
+    return pos
+}
+
+fn _encode_string_len(s, use_huffman) {
     if s == nil { s = "" }
     if oren_type_tag(use_huffman) == 0 { use_huffman = 0 }
-
+    var n = 0
     if use_huffman != 0 {
-        var hb = _huff_encode_bytes_from_string(s)
-        if oren_is_err(hb) { return hb }
-        var hn = oren_buf_len(hb)
-        if oren_is_err(hn) { return hn }
-        _encode_int_into(out, 128, 7, hn)
-        if hn > 0 {
-            var p = native_buf_data_ptr(hb)
-            if p == 0 { return oren_err(4, "hpack.encode_string: bytes ptr nil") }
-            var i = 0
-            while i < hn {
-                list.push(out, ptr_get_byte(p + i) & 255)
-                i = i + 1
-            }
-        }
-        return nil
+        n = _huff_encoded_len_from_string(s)
+    } else {
+        n = oren_string_len(s)
+    }
+    return _encode_int_len(7, n) + n
+}
+
+fn _encode_string_write(dst, pos, s, use_huffman) {
+    if s == nil { s = "" }
+    if oren_type_tag(use_huffman) == 0 { use_huffman = 0 }
+    if use_huffman != 0 {
+        var hn = _huff_encoded_len_from_string(s)
+        pos = _encode_int_write(dst, pos, 128, 7, hn)
+        return _huff_encode_string_write(dst, pos, s)
+    }
+    var n = oren_string_len(s)
+    pos = _encode_int_write(dst, pos, 0, 7, n)
+    var i = 0
+    while i < n {
+        ptr_set_byte(dst + pos, oren_string_byte_at_unchecked(s, i) & 255)
+        pos = pos + 1
+        i = i + 1
+    }
+    return pos
+}
+
+fn _encoded_header_block_len(table, headers, use_huffman, tmax) {
+    var out_len = 0
+    if tmax != nil {
+        out_len = out_len + _encode_int_len(5, tmax)
+        table["max"] = tmax
+        _table_evict_to_fit(table)
     }
 
-    var n = oren_string_len(s)
-    _encode_int_into(out, 0, 7, n)
-    var i2 = 0
-    while i2 < n {
-        list.push(out, oren_string_byte_at_unchecked(s, i2) & 255)
-        i2 = i2 + 1
+    var i = 0
+    while i < list.len(headers) {
+        var h = headers[i]
+        var name = oren_map_get_str(h, "name")
+        var value = oren_map_get_str(h, "value")
+        if name == nil { name = "" }
+        if value == nil { value = "" }
+
+        var idx = _index_exact(table, name, value)
+        if idx > 0 {
+            out_len = out_len + _encode_int_len(7, idx)
+            i = i + 1
+            continue
+        }
+
+        var mode = oren_map_get_str(h, "index")
+        if mode == nil { mode = "inc" }
+        var name_idx = _index_name_only(table, name)
+
+        if _str_eq_bytes(mode, "inc") {
+            out_len = out_len + _encode_int_len(6, name_idx)
+            if name_idx == 0 { out_len = out_len + _encode_string_len(name, use_huffman) }
+            out_len = out_len + _encode_string_len(value, use_huffman)
+            _table_add(table, name, value)
+            i = i + 1
+            continue
+        }
+
+        if _str_eq_bytes(mode, "never") {
+            out_len = out_len + _encode_int_len(4, name_idx)
+            if name_idx == 0 { out_len = out_len + _encode_string_len(name, use_huffman) }
+            out_len = out_len + _encode_string_len(value, use_huffman)
+            i = i + 1
+            continue
+        }
+
+        out_len = out_len + _encode_int_len(4, name_idx)
+        if name_idx == 0 { out_len = out_len + _encode_string_len(name, use_huffman) }
+        out_len = out_len + _encode_string_len(value, use_huffman)
+        i = i + 1
     }
-    return nil
+    return {"ok": 1, "n": out_len}
+}
+
+fn _encode_header_block_write(table, headers, use_huffman, tmax, dst) {
+    var pos = 0
+    if tmax != nil {
+        pos = _encode_int_write(dst, pos, 32, 5, tmax)
+        table["max"] = tmax
+        _table_evict_to_fit(table)
+    }
+
+    var i = 0
+    while i < list.len(headers) {
+        var h = headers[i]
+        var name = oren_map_get_str(h, "name")
+        var value = oren_map_get_str(h, "value")
+        if name == nil { name = "" }
+        if value == nil { value = "" }
+
+        var idx = _index_exact(table, name, value)
+        if idx > 0 {
+            pos = _encode_int_write(dst, pos, 128, 7, idx)
+            i = i + 1
+            continue
+        }
+
+        var mode = oren_map_get_str(h, "index")
+        if mode == nil { mode = "inc" }
+        var name_idx = _index_name_only(table, name)
+
+        if _str_eq_bytes(mode, "inc") {
+            pos = _encode_int_write(dst, pos, 64, 6, name_idx)
+            if name_idx == 0 { pos = _encode_string_write(dst, pos, name, use_huffman) }
+            pos = _encode_string_write(dst, pos, value, use_huffman)
+            _table_add(table, name, value)
+            i = i + 1
+            continue
+        }
+
+        if _str_eq_bytes(mode, "never") {
+            pos = _encode_int_write(dst, pos, 16, 4, name_idx)
+            if name_idx == 0 { pos = _encode_string_write(dst, pos, name, use_huffman) }
+            pos = _encode_string_write(dst, pos, value, use_huffman)
+            i = i + 1
+            continue
+        }
+
+        pos = _encode_int_write(dst, pos, 0, 4, name_idx)
+        if name_idx == 0 { pos = _encode_string_write(dst, pos, name, use_huffman) }
+        pos = _encode_string_write(dst, pos, value, use_huffman)
+        i = i + 1
+    }
+    return {"ok": 1, "n": pos}
 }
 
 fn encode_header_block(table, headers, opts) {
@@ -947,75 +1112,19 @@ fn encode_header_block(table, headers, opts) {
     var use_huffman = oren_map_get_str(opts, "huffman")
     if use_huffman == nil { use_huffman = 1 }
 
-    var out = [] // list<u8>
-
     var tmax = oren_map_get_str(opts, "table_max")
-    if tmax != nil {
-        // Dynamic Table Size Update (001xxxxx), prefix=5.
-        _encode_int_into(out, 32, 5, tmax)
-        table["max"] = tmax
-        _table_evict_to_fit(table)
-    }
+    var sizing_table = _table_clone(table)
+    var lr = _encoded_header_block_len(sizing_table, headers, use_huffman, tmax)
+    if lr["ok"] != 1 { return lr }
 
-    var i = 0
-    while i < list.len(headers) {
-        var h = headers[i]
-        var name = oren_map_get_str(h, "name")
-        var value = oren_map_get_str(h, "value")
-        if name == nil { name = "" }
-        if value == nil { value = "" }
+    var out_len = lr["n"]
+    var out = oren_u8_buf_new_uninit(out_len)
+    if oren_is_err(out) { return {"ok": 0, "err": "hpack.encode_header_block: alloc failed"} }
+    var dst = native_buf_data_ptr(out)
+    if dst == 0 && out_len > 0 { return {"ok": 0, "err": "hpack.encode_header_block: bytes ptr nil"} }
 
-        // Prefer indexed representation when we can.
-        var idx = _index_exact(table, name, value)
-        if idx > 0 {
-            _encode_int_into(out, 128, 7, idx)
-            i = i + 1
-            continue
-        }
-
-        var mode = oren_map_get_str(h, "index")
-        if mode == nil { mode = "inc" }
-
-        // Choose name index if possible; otherwise literal name.
-        var name_idx = _index_name_only(table, name)
-
-        if _str_eq_bytes(mode, "inc") {
-            // Literal Header Field with Incremental Indexing (01xxxxxx), prefix=6.
-            _encode_int_into(out, 64, 6, name_idx)
-            if name_idx == 0 {
-                var rc0 = _encode_string_into(out, name, use_huffman)
-                if oren_is_err(rc0) { return {"ok": 0, "err": "hpack.encode_header_block: name encode failed"} }
-            }
-            var rc1 = _encode_string_into(out, value, use_huffman)
-            if oren_is_err(rc1) { return {"ok": 0, "err": "hpack.encode_header_block: value encode failed"} }
-            _table_add(table, name, value)
-            i = i + 1
-            continue
-        }
-
-        if _str_eq_bytes(mode, "never") {
-            // Literal Header Field Never Indexed (0001xxxx), prefix=4.
-            _encode_int_into(out, 16, 4, name_idx)
-            if name_idx == 0 {
-                var rc2 = _encode_string_into(out, name, use_huffman)
-                if oren_is_err(rc2) { return {"ok": 0, "err": "hpack.encode_header_block: name encode failed"} }
-            }
-            var rc3 = _encode_string_into(out, value, use_huffman)
-            if oren_is_err(rc3) { return {"ok": 0, "err": "hpack.encode_header_block: value encode failed"} }
-            i = i + 1
-            continue
-        }
-
-        // Default: without indexing (0000xxxx), prefix=4.
-        _encode_int_into(out, 0, 4, name_idx)
-        if name_idx == 0 {
-            var rc4 = _encode_string_into(out, name, use_huffman)
-            if oren_is_err(rc4) { return {"ok": 0, "err": "hpack.encode_header_block: name encode failed"} }
-        }
-        var rc5 = _encode_string_into(out, value, use_huffman)
-        if oren_is_err(rc5) { return {"ok": 0, "err": "hpack.encode_header_block: value encode failed"} }
-        i = i + 1
-    }
-
-    return {"ok": 1, "b": oren_bytes_pack(out), "table": table}
+    var wr = _encode_header_block_write(table, headers, use_huffman, tmax, dst)
+    if wr["ok"] != 1 { return wr }
+    if wr["n"] != out_len { return {"ok": 0, "err": "hpack.encode_header_block: encoded length mismatch"} }
+    return {"ok": 1, "b": out, "table": table}
 }

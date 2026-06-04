@@ -49,6 +49,12 @@ fn main() {
         print("got     =" + got)
         _fail("hex mismatch")
     }
+    if t["size"] != 57 { _fail("encode_header_block table size") }
+    if oren_list_len(t["entries"]) != 1 { _fail("encode_header_block table entries") }
+    var r_again = hpack.encode_header_block(t, headers, {"huffman": 1})
+    if r_again["ok"] != 1 { _fail("encode_header_block second encode failed") }
+    if _str_eq_bytes(oren_bytes_to_hex(r_again["b"]), "828684be") != true { _fail("encode_header_block second encode dynamic index") }
+
     var tr = hpack.encode_header_block(hpack.table_new(4096), headers, {"huffman": 1})
     if tr["ok"] != 1 { _fail("encode_header_block err") }
     var got2 = oren_bytes_to_hex(tr["b"])
