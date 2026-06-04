@@ -144,6 +144,26 @@ def verify_scene3d_gltf_lowering():
     ):
         raise SystemExit("scene glTF node transform lowering did not produce expected coordinates")
 
+    rot_gltf = json.loads(json.dumps(gltf))
+    rot_gltf["nodes"] = [
+        {"name": "rot", "mesh": 0, "translation": [1.0, 2.0, 3.0], "rotation": [0.0, 0.0, 0.70710678118, 0.70710678118]},
+    ]
+    scene["meshes"][0]["gltf_json"] = rot_gltf
+    scene["meshes"][0]["gltf_node"] = "rot"
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<iii", 1, 3, 3) not in data or struct.pack("<iii", 0, 2, 3) not in data:
+        raise SystemExit("scene glTF node rotation lowering did not produce expected coordinates")
+
+    matrix_gltf = json.loads(json.dumps(gltf))
+    matrix_gltf["nodes"] = [
+        {"name": "matrix", "mesh": 0, "matrix": [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 7.0, 8.0, 9.0, 1.0]},
+    ]
+    scene["meshes"][0]["gltf_json"] = matrix_gltf
+    scene["meshes"][0]["gltf_node"] = "matrix"
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<iii", 7, 8, 9) not in data or struct.pack("<iii", 8, 8, 9) not in data:
+        raise SystemExit("scene glTF node matrix lowering did not produce expected coordinates")
+
 
 def verify_scene3d_stl_lowering():
     stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"
