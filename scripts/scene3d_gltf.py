@@ -429,6 +429,35 @@ def mat_from_quat(q):
     ]
 
 
+def quat_normalize(q):
+    if len(q) != 4:
+        raise SystemExit("scene glTF rotation value must be VEC4")
+    x, y, z, w = (float(q[0]), float(q[1]), float(q[2]), float(q[3]))
+    n = math.sqrt(x * x + y * y + z * z + w * w)
+    if n <= 0.0:
+        raise SystemExit("scene glTF rotation value must be nonzero")
+    return [x / n, y / n, z / n, w / n]
+
+
+def quat_slerp(a, b, t):
+    qa = quat_normalize(a)
+    qb = quat_normalize(b)
+    dot = sum(qa[i] * qb[i] for i in range(4))
+    if dot < 0.0:
+        dot = -dot
+        qb = [-v for v in qb]
+    if dot > 0.9995:
+        return quat_normalize([qa[i] + (qb[i] - qa[i]) * t for i in range(4)])
+    dot = max(-1.0, min(1.0, dot))
+    angle = math.acos(dot)
+    denom = math.sin(angle)
+    if denom == 0.0:
+        return qa
+    s0 = math.sin(angle * (1.0 - t)) / denom
+    s1 = math.sin(angle * t) / denom
+    return quat_normalize([qa[i] * s0 + qb[i] * s1 for i in range(4)])
+
+
 def gltf_node_vec3(node, key, default):
     value = node.get(key, default)
     if not isinstance(value, list) or len(value) != 3:
@@ -528,6 +557,196 @@ def gltf_weights(value, count, context):
     if len(value) < count:
         raise SystemExit(f"scene glTF {context} weights must cover all morph targets")
     return [float(v) for v in value[:count]]
+
+
+def gltf_normalized_component(component_type, value):
+    if component_type == 5120:
+        return max(float(int(value)) / 127.0, -1.0)
+    if component_type == 5121:
+        return float(max(0, min(255, int(value)))) / 255.0
+    if component_type == 5122:
+        return max(float(int(value)) / 32767.0, -1.0)
+    if component_type == 5123:
+        return float(max(0, min(65535, int(value)))) / 65535.0
+    raise SystemExit("scene glTF normalized animation componentType unsupported")
+
+
+def gltf_animation_values(doc, accessor_index, base_dir, path, target_count):
+    accessor = gltf_accessor_object(doc, accessor_index)
+    component_type = int(accessor.get("componentType"))
+    accessor_type = accessor.get("type")
+    values = gltf_accessor_values(doc, int(accessor_index), base_dir)
+    normalized = bool(accessor.get("normalized", False))
+
+    def decoded(value):
+        if component_type == 5126:
+            return [float(v) for v in value]
+        if normalized and component_type in (5120, 5121, 5122, 5123):
+            return [gltf_normalized_component(component_type, v) for v in value]
+        raise SystemExit("scene glTF animation integer outputs must be normalized")
+
+    if path in ("translation", "scale"):
+        if accessor_type != "VEC3" or component_type != 5126:
+            raise SystemExit(f"scene glTF {path} animation output must be float VEC3")
+        return [decoded(value) for value in values]
+    if path == "rotation":
+        if accessor_type != "VEC4" or component_type not in (5120, 5121, 5122, 5123, 5126):
+            raise SystemExit("scene glTF rotation animation output must be VEC4")
+        return [quat_normalize(decoded(value)) for value in values]
+    if path == "weights":
+        if target_count <= 0:
+            raise SystemExit("scene glTF weights animation requires morph targets")
+        if accessor_type != "SCALAR" or component_type not in (5120, 5121, 5122, 5123, 5126):
+            raise SystemExit("scene glTF weights animation output must be SCALAR")
+        scalars = [decoded(value)[0] for value in values]
+        if len(scalars) % target_count != 0:
+            raise SystemExit("scene glTF weights animation output count must match morph target count")
+        return [scalars[i:i + target_count] for i in range(0, len(scalars), target_count)]
+    raise SystemExit("scene glTF animation target path unsupported")
+
+
+def gltf_node_morph_target_count(doc, node_index):
+    node = doc.get("nodes", [])[node_index]
+    mesh_index = node.get("mesh")
+    if mesh_index is None:
+        return 0
+    meshes = doc.get("meshes", [])
+    mesh_index = int(mesh_index)
+    if mesh_index < 0 or mesh_index >= len(meshes):
+        raise SystemExit("scene glTF animation target mesh index out of bounds")
+    mesh = meshes[mesh_index]
+    count = len(mesh.get("weights", []))
+    for primitive in mesh.get("primitives", []):
+        targets = primitive.get("targets", [])
+        if targets is not None:
+            count = max(count, len(targets))
+    return count
+
+
+def gltf_animation_index(doc, mesh):
+    if mesh.get("gltf_animation") is None and mesh.get("gltf_sample_time_milli") is None:
+        return None
+    animations = doc.get("animations", [])
+    if not animations:
+        raise SystemExit("scene glTF animation sampling requires animations")
+    ref = mesh.get("gltf_animation", 0)
+    if isinstance(ref, int):
+        if ref < 0 or ref >= len(animations):
+            raise SystemExit("scene glTF animation index out of bounds")
+        return ref
+    for i, animation in enumerate(animations):
+        if animation.get("name") == ref:
+            return i
+    raise SystemExit("scene glTF animation not found")
+
+
+def gltf_animation_segment(times, sample_time):
+    if not times:
+        raise SystemExit("scene glTF animation input must be non-empty")
+    if any(times[i] > times[i + 1] for i in range(len(times) - 1)):
+        raise SystemExit("scene glTF animation input times must be ascending")
+    if sample_time <= times[0]:
+        return 0, 0, 0.0
+    last = len(times) - 1
+    if sample_time >= times[last]:
+        return last, last, 0.0
+    for i in range(last):
+        if sample_time == times[i]:
+            return i, i, 0.0
+        if times[i] <= sample_time < times[i + 1]:
+            duration = times[i + 1] - times[i]
+            if duration <= 0.0:
+                raise SystemExit("scene glTF animation input times must be strictly ascending inside sampled span")
+            return i, i + 1, (sample_time - times[i]) / duration
+    return last, last, 0.0
+
+
+def gltf_lerp_value(a, b, t, path):
+    if path == "rotation":
+        return quat_slerp(a, b, t)
+    return [float(a[i]) * (1.0 - t) + float(b[i]) * t for i in range(len(a))]
+
+
+def gltf_cubic_value(values, k0, k1, t, duration, path):
+    p0 = values[k0 * 3 + 1]
+    m0 = values[k0 * 3 + 2]
+    m1 = values[k1 * 3]
+    p1 = values[k1 * 3 + 1]
+    t2 = t * t
+    t3 = t2 * t
+    out = []
+    for i in range(len(p0)):
+        out.append(
+            (2.0 * t3 - 3.0 * t2 + 1.0) * p0[i] +
+            (t3 - 2.0 * t2 + t) * duration * m0[i] +
+            (-2.0 * t3 + 3.0 * t2) * p1[i] +
+            (t3 - t2) * duration * m1[i]
+        )
+    return quat_normalize(out) if path == "rotation" else out
+
+
+def gltf_sample_animation_value(times, values, interpolation, sample_time, path):
+    k0, k1, t = gltf_animation_segment(times, sample_time)
+    if interpolation == "CUBICSPLINE":
+        if len(values) != len(times) * 3:
+            raise SystemExit("scene glTF CUBICSPLINE output count must be three values per keyframe")
+        if k0 == k1:
+            return values[k0 * 3 + 1]
+        return gltf_cubic_value(values, k0, k1, t, times[k1] - times[k0], path)
+    if len(values) != len(times):
+        raise SystemExit("scene glTF animation output count must match input count")
+    if interpolation == "STEP" or k0 == k1:
+        return values[k0]
+    if interpolation == "LINEAR":
+        return gltf_lerp_value(values[k0], values[k1], t, path)
+    raise SystemExit("scene glTF animation interpolation unsupported")
+
+
+def gltf_apply_animation_sample(doc, mesh, base_dir):
+    animation_index = gltf_animation_index(doc, mesh)
+    if animation_index is None:
+        return doc
+    sample_time = float(int(mesh.get("gltf_sample_time_milli", 0))) / 1000.0
+    if sample_time < 0.0:
+        raise SystemExit("scene glTF sample time must be non-negative")
+    doc = dict(doc)
+    doc["nodes"] = [dict(node) for node in doc.get("nodes", [])]
+    animation = doc.get("animations", [])[animation_index]
+    samplers = animation.get("samplers", [])
+    channels = animation.get("channels", [])
+    seen_targets = set()
+    for channel in channels:
+        sampler_index = int(channel.get("sampler", -1))
+        if sampler_index < 0 or sampler_index >= len(samplers):
+            raise SystemExit("scene glTF animation sampler index out of bounds")
+        target = channel.get("target", {})
+        if target.get("node") is None:
+            continue
+        node_index = int(target["node"])
+        if node_index < 0 or node_index >= len(doc["nodes"]):
+            raise SystemExit("scene glTF animation target node out of bounds")
+        path = target.get("path")
+        if path not in ("translation", "rotation", "scale", "weights"):
+            raise SystemExit("scene glTF animation target path unsupported")
+        target_key = (node_index, path)
+        if target_key in seen_targets:
+            raise SystemExit("scene glTF animation target path duplicated")
+        seen_targets.add(target_key)
+        sampler = samplers[sampler_index]
+        input_accessor = gltf_accessor_object(doc, int(sampler.get("input")))
+        if input_accessor.get("type") != "SCALAR" or int(input_accessor.get("componentType")) != 5126:
+            raise SystemExit("scene glTF animation input accessor must be float SCALAR")
+        input_values = gltf_accessor_values(doc, int(sampler.get("input")), base_dir)
+        times = [float(value[0]) for value in input_values]
+        target_count = gltf_node_morph_target_count(doc, node_index) if path == "weights" else 0
+        output_values = gltf_animation_values(doc, int(sampler.get("output")), base_dir, path, target_count)
+        interpolation = str(sampler.get("interpolation", "LINEAR"))
+        sampled = gltf_sample_animation_value(times, output_values, interpolation, sample_time, path)
+        node = doc["nodes"][node_index]
+        if path in ("translation", "rotation", "scale") and node.get("matrix") is not None:
+            raise SystemExit("scene glTF animation cannot target TRS on a matrix node")
+        node[path] = sampled
+    return doc
 
 
 def gltf_apply_position_morphs(doc, primitive, mesh_obj, node_weights, base_dir, positions):
@@ -775,6 +994,7 @@ def gltf_mesh_data(mesh, base_dir):
     asset = doc.get("asset", {})
     if str(asset.get("version", "")).split(".", 1)[0] != "2":
         raise SystemExit("scene glTF asset.version must be 2.x")
+    doc = gltf_apply_animation_sample(doc, mesh, base_dir)
     vertices = []
     faces = []
     vertex_colors = []

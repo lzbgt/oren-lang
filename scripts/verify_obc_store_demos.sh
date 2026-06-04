@@ -356,6 +356,118 @@ def verify_scene3d_gltf_lowering():
     if skin_expected not in data or struct.pack("<iii", 103, 4, 5) in data:
         raise SystemExit("scene glTF skinning lowering did not apply joint transform while ignoring mesh node transform")
 
+    anim_payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        anim_payload += struct.pack("<fff", *vertex)
+    for delta in ((0.0, 2.0, 0.0), (0.0, 2.0, 0.0), (0.0, 2.0, 0.0)):
+        anim_payload += struct.pack("<fff", *delta)
+    anim_payload += struct.pack("<ff", 0.0, 1.0)
+    anim_payload += struct.pack("<ffffff", 0.0, 0.0, 0.0, 6.0, 0.0, 0.0)
+    anim_payload += struct.pack("<ffffffff", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0)
+    anim_payload += struct.pack("<ffffff", 1.0, 1.0, 1.0, 3.0, 3.0, 1.0)
+    anim_payload += struct.pack("<ff", 0.0, 1.0)
+    anim_uri = "data:application/octet-stream;base64," + base64.b64encode(anim_payload).decode("ascii")
+    anim_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": anim_uri, "byteLength": len(anim_payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 72, "byteLength": 8},
+            {"buffer": 0, "byteOffset": 80, "byteLength": 24},
+            {"buffer": 0, "byteOffset": 104, "byteLength": 32},
+            {"buffer": 0, "byteOffset": 136, "byteLength": 24},
+            {"buffer": 0, "byteOffset": 160, "byteLength": 8},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 2, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0.0], "max": [1.0]},
+            {"bufferView": 3, "componentType": 5126, "count": 2, "type": "VEC3"},
+            {"bufferView": 4, "componentType": 5126, "count": 2, "type": "VEC4"},
+            {"bufferView": 5, "componentType": 5126, "count": 2, "type": "VEC3"},
+            {"bufferView": 6, "componentType": 5126, "count": 2, "type": "SCALAR"},
+        ],
+        "meshes": [{
+            "primitives": [{"attributes": {"POSITION": 0}, "targets": [{"POSITION": 1}]}],
+        }],
+        "nodes": [{"name": "animated", "mesh": 0}],
+        "animations": [{
+            "name": "sampled",
+            "channels": [
+                {"sampler": 0, "target": {"node": 0, "path": "translation"}},
+                {"sampler": 1, "target": {"node": 0, "path": "rotation"}},
+                {"sampler": 2, "target": {"node": 0, "path": "scale"}},
+                {"sampler": 3, "target": {"node": 0, "path": "weights"}},
+            ],
+            "samplers": [
+                {"input": 2, "output": 3, "interpolation": "LINEAR"},
+                {"input": 2, "output": 4, "interpolation": "LINEAR"},
+                {"input": 2, "output": 5, "interpolation": "LINEAR"},
+                {"input": 2, "output": 6, "interpolation": "LINEAR"},
+            ],
+        }],
+    }
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "gltf_json": anim_gltf,
+        "gltf_node": "animated",
+        "gltf_animation": "sampled",
+        "gltf_sample_time_milli": 500,
+        "color": "#ffffffff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    anim_expected = (
+        struct.pack("<iii", 1, 0, 0) +
+        struct.pack("<iii", 1, 2, 0) +
+        struct.pack("<iii", -1, 0, 0)
+    )
+    if anim_expected not in data:
+        raise SystemExit("scene glTF animation sampling did not apply transform and morph channels")
+
+    cubic_payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        cubic_payload += struct.pack("<fff", *vertex)
+    cubic_payload += struct.pack("<ff", 0.0, 1.0)
+    for value in (
+        (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+        (0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+    ):
+        cubic_payload += struct.pack("<fff", *value)
+    cubic_uri = "data:application/octet-stream;base64," + base64.b64encode(cubic_payload).decode("ascii")
+    cubic_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": cubic_uri, "byteLength": len(cubic_payload)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 8},
+            {"buffer": 0, "byteOffset": 44, "byteLength": 72},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0.0], "max": [1.0]},
+            {"bufferView": 2, "componentType": 5126, "count": 6, "type": "VEC3"},
+        ],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+        "nodes": [{"name": "cubic", "mesh": 0}],
+        "animations": [{
+            "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}],
+            "samplers": [{"input": 1, "output": 2, "interpolation": "CUBICSPLINE"}],
+        }],
+    }
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "gltf_json": cubic_gltf,
+        "gltf_node": "cubic",
+        "gltf_sample_time_milli": 500,
+        "color": "#ffffffff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<iii", 2, 0, 0) not in data or struct.pack("<iii", 3, 0, 0) not in data:
+        raise SystemExit("scene glTF CUBICSPLINE animation sampling did not produce expected translation")
+
 
 def verify_scene3d_stl_lowering():
     stl_text = "solid smoke\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid smoke\n"
