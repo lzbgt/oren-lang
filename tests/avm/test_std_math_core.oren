@@ -1,0 +1,64 @@
+@myorg.tag(name="avm-std-math-core")
+
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("avm std math core FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a, b, eps, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_true(math.abs_i(0 - 5) == 5, 10, "abs_i")
+assert_true(math.min_i(1, 2) == 1, 11, "min_i")
+assert_true(math.max_i(1, 2) == 2, 12, "max_i")
+assert_true(math.clamp_i(99, 0, 10) == 10, 13, "clamp_i high")
+assert_true(math.clamp_i(0 - 5, 0, 10) == 0, 14, "clamp_i low")
+
+assert_close(math.abs_f(0.0 - 1.25), 1.25, 1e-12, 20, "abs_f")
+assert_close(math.fabs(0.0 - 1.25), 1.25, 1e-12, 21, "fabs")
+assert_close(math.fmin(1.0, 2.0), 1.0, 1e-12, 22, "fmin")
+assert_close(math.fmax(1.0, 2.0), 2.0, 1e-12, 23, "fmax")
+assert_close(math.clamp_f(99.0, 0.0, 10.0), 10.0, 1e-12, 24, "clamp_f high")
+assert_close(math.clamp_f(0.0 - 5.0, 0.0, 10.0), 0.0, 1e-12, 25, "clamp_f low")
+
+assert_close(math.floor(1.9), 1.0, 1e-12, 30, "floor positive")
+assert_close(math.floor(0.0 - 1.1), 0.0 - 2.0, 1e-12, 31, "floor negative")
+assert_close(math.ceil(1.1), 2.0, 1e-12, 32, "ceil positive")
+assert_close(math.ceil(0.0 - 1.9), 0.0 - 1.0, 1e-12, 33, "ceil negative")
+assert_close(math.round(1.5), 2.0, 1e-12, 34, "round positive half")
+assert_close(math.round(0.0 - 1.5), 0.0 - 2.0, 1e-12, 35, "round negative half")
+assert_close(math.trunc(1.9), 1.0, 1e-12, 36, "trunc positive")
+assert_close(math.trunc(0.0 - 1.9), 0.0 - 1.0, 1e-12, 37, "trunc negative")
+
+assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 40, "fmod positive")
+assert_close(math.fmod(0.0 - 5.5, 2.0), 0.0 - 1.5, 1e-12, 41, "fmod negative")
+assert_true(oren_is_err(math.fmod(1.0, 0.0)), 42, "fmod zero divisor")
+
+var nanv = 0.0 / 0.0
+assert_true(math.is_nan(nanv), 50, "is_nan")
+assert_true(!math.is_finite(math.inf()), 51, "is_finite inf")
+assert_true(math.is_finite(3.0), 52, "is_finite normal")
+assert_true(math.is_inf(math.inf()), 53, "is_inf")
+assert_true(math.signbit(0.0 - 1.0), 54, "signbit negative")
+assert_true(!math.signbit(0.0), 55, "signbit positive zero")
+
+var neg_one = math.copysign(1.0, 0.0 - 1.0)
+assert_close(neg_one, 0.0 - 1.0, 1e-12, 60, "copysign negative")
+assert_true(math.signbit(neg_one), 61, "copysign signbit")
+var pos_one = math.copysign(0.0 - 1.0, 0.0)
+assert_close(pos_one, 1.0, 1e-12, 62, "copysign positive")
+assert_true(!math.signbit(pos_one), 63, "copysign positive signbit")
+
+print("avm std math core OK")
+exit(0)
