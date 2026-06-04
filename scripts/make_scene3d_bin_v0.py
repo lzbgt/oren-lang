@@ -92,6 +92,101 @@ def pack_quads(quads, vertex_count):
     return pack_faces(faces, vertex_count)
 
 
+def has_obj_mesh(mesh):
+    return mesh.get("obj_source") is not None or mesh.get("obj_text") is not None
+
+
+def obj_source_text(mesh, base_dir):
+    if mesh.get("obj_text") is not None:
+        text = mesh["obj_text"]
+        if not isinstance(text, str):
+            raise SystemExit("scene obj_text must be a string")
+        return text
+    rel = mesh.get("obj_source")
+    if rel is None:
+        raise SystemExit("scene OBJ mesh must include obj_source or obj_text")
+    if base_dir is None:
+        raise SystemExit("scene obj_source requires a source directory")
+    rel_path = pathlib.PurePosixPath(str(rel))
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        raise SystemExit("scene obj_source must be a safe relative path")
+    path = base_dir / pathlib.Path(*rel_path.parts)
+    if not path.is_file():
+        raise SystemExit(f"scene obj_source not found: {rel}")
+    return path.read_text(encoding="utf-8")
+
+
+def parse_obj_vertex_index(token, vertex_count, line_no):
+    raw = token.split("/")[0]
+    if raw == "":
+        raise SystemExit(f"scene OBJ face missing vertex index on line {line_no}")
+    idx = int(raw)
+    if idx == 0:
+        raise SystemExit(f"scene OBJ indices are 1-based on line {line_no}")
+    if idx < 0:
+        idx = vertex_count + idx
+    else:
+        idx -= 1
+    if idx < 0 or idx >= vertex_count:
+        raise SystemExit(f"scene OBJ face index out of bounds on line {line_no}")
+    return idx
+
+
+def obj_mesh_data(mesh, base_dir):
+    vertices = []
+    faces = []
+    for line_no, raw in enumerate(obj_source_text(mesh, base_dir).splitlines(), 1):
+        line = raw.split("#", 1)[0].strip()
+        if line == "":
+            continue
+        parts = line.split()
+        tag = parts[0]
+        if tag == "v":
+            if len(parts) < 4:
+                raise SystemExit(f"scene OBJ vertex must have x y z on line {line_no}")
+            vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
+        elif tag == "f":
+            if len(parts) < 4:
+                raise SystemExit(f"scene OBJ face must have at least 3 vertices on line {line_no}")
+            face = [parse_obj_vertex_index(tok, len(vertices), line_no) for tok in parts[1:]]
+            for i in range(1, len(face) - 1):
+                faces.append([face[0], face[i], face[i + 1]])
+        elif tag in ("vt", "vn", "o", "g", "s", "usemtl", "mtllib"):
+            continue
+        else:
+            raise SystemExit(f"unsupported scene OBJ line {line_no}: {tag}")
+    if not vertices:
+        raise SystemExit("scene OBJ mesh has no vertices")
+    if not faces:
+        raise SystemExit("scene OBJ mesh has no faces")
+    return vertices, faces
+
+
+def obj_transform_vertex(v, mesh):
+    scale_milli = int(mesh.get("obj_scale_milli", 1000))
+    if scale_milli <= 0:
+        raise SystemExit("scene OBJ obj_scale_milli must be positive")
+    offset = mesh.get("obj_offset_xyz", [0, 0, 0])
+    if not isinstance(offset, list) or len(offset) != 3:
+        raise SystemExit("scene OBJ obj_offset_xyz must be [x,y,z]")
+    return [
+        round_half_away(v[0] * scale_milli / 1000.0 + int(offset[0])),
+        round_half_away(v[1] * scale_milli / 1000.0 + int(offset[1])),
+        round_half_away(v[2] * scale_milli / 1000.0 + int(offset[2])),
+    ]
+
+
+def pack_obj_indexed(mesh, base_dir):
+    vertices, faces = obj_mesh_data(mesh, base_dir)
+    return pack_vertices_xyz([obj_transform_vertex(v, mesh) for v in vertices]), pack_faces(faces, len(vertices))
+
+
+def pack_obj_triangles(mesh, base_dir):
+    vertices, faces = obj_mesh_data(mesh, base_dir)
+    points = [obj_transform_vertex(v, mesh) for v in vertices]
+    return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
+
+
 def pack_triangles_xyz(triangles):
     out = bytearray()
     for tri in triangles:
@@ -796,7 +891,7 @@ def normalize_scene(scene):
     return out
 
 
-def scene3d_bin_v0(scene_bytes):
+def scene3d_bin_v0(scene_bytes, base_dir=None):
     scene = normalize_scene(json.loads(scene_bytes))
     out = bytearray(b"OS3D01\x00\x00")
     meshes = scene.get("meshes", [])
@@ -815,23 +910,28 @@ def scene3d_bin_v0(scene_bytes):
         kind = mesh.get("kind", "triangles")
         if kind == "indexed":
             kind_id = 1
-            payload = (
-                pack_vertices_xyz(mesh["vertices_xyz"])
-                if mesh.get("vertices_xyz") is not None
-                else bytes(mesh["vertices"])
-            )
-            if len(payload) % 12 != 0:
-                raise SystemExit("scene indexed mesh vertex bytes must be multiple of 12")
-            vertex_count = len(payload) // 12
-            if mesh.get("faces") is not None:
-                indices = pack_faces(mesh["faces"], vertex_count)
-            elif mesh.get("quads") is not None:
-                indices = pack_quads(mesh["quads"], vertex_count)
+            if has_obj_mesh(mesh):
+                payload, indices = pack_obj_indexed(mesh, base_dir)
             else:
-                indices = bytes(mesh["indices"])
+                payload = (
+                    pack_vertices_xyz(mesh["vertices_xyz"])
+                    if mesh.get("vertices_xyz") is not None
+                    else bytes(mesh["vertices"])
+                )
+                if len(payload) % 12 != 0:
+                    raise SystemExit("scene indexed mesh vertex bytes must be multiple of 12")
+                vertex_count = len(payload) // 12
+                if mesh.get("faces") is not None:
+                    indices = pack_faces(mesh["faces"], vertex_count)
+                elif mesh.get("quads") is not None:
+                    indices = pack_quads(mesh["quads"], vertex_count)
+                else:
+                    indices = bytes(mesh["indices"])
         elif kind == "triangles":
             kind_id = 2
-            if mesh.get("triangles_xyz") is not None:
+            if has_obj_mesh(mesh):
+                payload = pack_obj_triangles(mesh, base_dir)
+            elif mesh.get("triangles_xyz") is not None:
                 payload = pack_triangles_xyz(mesh["triangles_xyz"])
             elif mesh.get("quads_xyz") is not None:
                 payload = pack_quads_xyz(mesh["quads_xyz"])
@@ -886,7 +986,7 @@ def main(argv):
     src = pathlib.Path(argv[1])
     out = pathlib.Path(argv[2])
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(scene3d_bin_v0(src.read_text(encoding="utf-8")))
+    out.write_bytes(scene3d_bin_v0(src.read_text(encoding="utf-8"), src.parent))
 
 
 if __name__ == "__main__":

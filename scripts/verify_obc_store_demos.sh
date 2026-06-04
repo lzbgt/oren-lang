@@ -43,6 +43,23 @@ packages_root.mkdir(parents=True, exist_ok=True)
 bundles_root.mkdir(parents=True, exist_ok=True)
 
 
+def verify_scene3d_obj_lowering():
+    obj_text = "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3 4\n"
+    for kind in ("triangles", "indexed"):
+        scene = {
+            "schema": "oren.ui.scene3d.v0",
+            "meshes": [{"kind": kind, "id": 1, "obj_text": obj_text, "color": "#ffffffff"}],
+            "models": [{"id": 2, "mesh_id": 1}],
+            "draw": [2],
+        }
+        data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+        if not data.startswith(b"OS3D01\x00\x00"):
+            raise SystemExit(f"scene OBJ {kind} lowering did not produce OS3D01")
+
+
+verify_scene3d_obj_lowering()
+
+
 def write_deterministic_zip(zip_path, files):
     with zipfile.ZipFile(
         zip_path,
@@ -264,10 +281,10 @@ def render_demo_preview(name):
         for yy, row in enumerate(scene):
             for xx, fill in enumerate(row):
                 rect(pixels, w, h, grid_x + xx * cell, grid_y + yy * cell, cell - 3, cell - 3, fill)
-        draw_text(pixels, w, h, 300, 146, "PRISM + CYLINDER + ELLIPSOID", "#e38b29", 2)
+        draw_text(pixels, w, h, 300, 146, "OBJ + CAPSULE + TORUS", "#e38b29", 2)
         draw_text(pixels, w, h, 300, 182, "MESH + MATERIAL + MODEL", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 218, "PACKAGE VFS: ASSETS/", "#f5efe0", 2)
-        draw_text(pixels, w, h, 300, 254, "RASTER CHECK 4X4 OK", "#00d084", 2)
+        draw_text(pixels, w, h, 300, 254, "RASTER CHECK 7X7 OK", "#00d084", 2)
     else:
         # Faithful 2x scale rendering of examples/obc_store_demos/ui_card.oren.
         draw_scaled_rect(pixels, w, h, 0, 0, 320, 180, "#102820")
@@ -311,7 +328,7 @@ for item in spec:
         asset_out.parent.mkdir(parents=True, exist_ok=True)
         asset_bytes = asset_source.read_bytes()
         if asset.get("format") == "scene3d_bin_v0":
-            asset_bytes = scene3d_module.scene3d_bin_v0(asset_bytes)
+            asset_bytes = scene3d_module.scene3d_bin_v0(asset_bytes, asset_source.parent)
         asset_out.write_bytes(asset_bytes)
         extra_assets.append((asset, asset_out, asset_bytes))
     obc_path = pkg_dir / "program.obc"

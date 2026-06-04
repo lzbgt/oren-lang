@@ -19,8 +19,8 @@ The `scene3d-asset-demo` package derives `assets/scene3d_card.os3d` from the
 reviewable JSON source in this directory. The JSON can use named mesh/material
 references, model templates, instances, per-draw model/material/transform override
 objects, human-readable `position_xyz` or nested `transform` model transforms,
-human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
-`triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
+human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays, builder-side
+Wavefront OBJ `obj_source` / `obj_text` mesh lowering, `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
 cylinders/cones/spheres/ellipsoids/toruses/capsules, per-triangle `triangles_xyz_rgba` colors,
 richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform
