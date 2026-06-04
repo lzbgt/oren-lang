@@ -94,31 +94,26 @@ fn _trim(s) {
 fn _split_lines(s) {
     var bs = oren_bytes_from_string(s)
     var out = []
-    var cur = []
+    var start = 0
     var i = 0
-    while i < list.len(bs) {
+    var n = list.len(bs)
+    while i < n {
         var b = bs[i]
         if b == 10 { // \n
-            var line = oren_string_from_bytes(cur)
-            list.push(out, line)
-            cur = []
+            list.push(out, oren_string_slice(s, start, i))
             i = i + 1
+            start = i
             continue
         }
         if b == 13 { // \r
-            // consume optional \n
-            var line2 = oren_string_from_bytes(cur)
-            list.push(out, line2)
-            cur = []
-            if i + 1 < list.len(bs) && bs[i + 1] == 10 { i = i + 2 } else { i = i + 1 }
+            list.push(out, oren_string_slice(s, start, i))
+            if i + 1 < n && bs[i + 1] == 10 { i = i + 2 } else { i = i + 1 }
+            start = i
             continue
         }
-        list.push(cur, b)
         i = i + 1
     }
-    // final line
-    var last = oren_string_from_bytes(cur)
-    list.push(out, last)
+    list.push(out, oren_string_slice(s, start, n))
     return out
 }
 
