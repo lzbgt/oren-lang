@@ -1806,7 +1806,7 @@ $(AVM_BIN): $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
 	fi
 	@$(AVM_CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o "$(AVM_BIN)" $(AVM_C_SRC)
 
-.PHONY: libavm-ios libavm-ios-xcframework libavm-desktop libavm-macos libavm-linux-x64 libavm-windows-x64 verify-libavm-desktop verify-libavm-linux-x64 verify-libavm-windows-x64 verify-libavm-ios verify-compiler-in-avm-ios-chain verify-avm-stdlib-obc-surface verify-libavm-ios-full-chain
+.PHONY: libavm-ios libavm-ios-xcframework libavm-desktop libavm-macos libavm-linux-x64 libavm-windows-x64 verify-libavm-desktop verify-libavm-linux-x64 verify-libavm-windows-x64 verify-libavm-ios verify-compiler-in-avm-ios-chain verify-avm-stdlib-obc-surface verify-libavm-ios-full-chain capture-ios-live-3d-performance
 libavm-ios libavm-ios-xcframework:
 	@./scripts/build_libavm_ios.sh
 
@@ -1840,6 +1840,9 @@ verify-avm-stdlib-obc-surface: oren avm
 	@./scripts/verify_avm_stdlib_obc_surface.sh
 
 verify-libavm-ios-full-chain: verify-libavm-ios
+
+capture-ios-live-3d-performance: oren avm
+	@./scripts/capture_ios_live_3d_performance.sh
 
 # --- Example Builds ---
 

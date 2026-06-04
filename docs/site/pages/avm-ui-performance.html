@@ -153,6 +153,15 @@
 <p>  <code>draw_texts</code> positions for one retained label into one textured run, and Metal</p>
 <p>  packs retained text into bounded atlas pages with same-atlas run coalescing.</p>
 <ul>
+<li>Live-device capture is now scripted through</li>
+</ul>
+<p>  <code>make capture-ios-live-3d-performance</code>. The target builds a generated iPhoneOS</p>
+<p>  app that embeds a 3D OBC frame, drives <code>OrenAVMMetalView</code>, and writes</p>
+<p>  CPU/vertex/run metrics under <code>build/ios-live-3d/</code> when launched with</p>
+<p>  <code>OREN_IOS_LIVE_INSTALL=1</code>. The default target stops after building the app and</p>
+<p>  recording <code>devicectl</code>/<code>xctrace</code> preflight artifacts so normal verification does</p>
+<p>  not mutate a physical device or require signing credentials.</p>
+<ul>
 <li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>
 <p>  gamepad/controller state, coalesced motion, focus, and IME/composition input</p>
@@ -618,15 +627,20 @@
 <p>    CoreGraphics alpha state, Metal geometry/image/text opacity, iOS verifier,</p>
 <p>    and the 2D conformance scene.</p>
 <ol>
-<li>Add richer text atlas batching and mesh rendering on the Metal path.</li>
+<li>Done: add richer retained text atlas packing/coalescing plus retained 2D/3D</li>
+</ol>
+<p>    mesh rendering on the Metal path.</p>
+<ol>
 <li>Done: add <code>round_rect {x,y,w,h,r,fill,width,color}</code> across validation,</li>
 </ol>
 <p>    binary frames, AVM protocol validation, deterministic raster, CoreGraphics</p>
 <p>    fallback, Metal, iOS verifier, and the 2D conformance scene.</p>
 <ol>
 <li>Add richer 2D and 3D command sets.</li>
-<li>Add game/app package smoke in the Note host or iOS SDK harness.</li>
+<li>Add signed live-device app capture in the Note host or iOS SDK harness once</li>
 </ol>
+<p>    physical-device developer services and a matching provisioning profile are</p>
+<p>    available.</p>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>

@@ -497,10 +497,18 @@
 <p>  runs an <code>OrenAVMPackageStore</code> package that mounts a bundled <code>.os3d</code> scene</p>
 <p>  asset and raster-checks it through OBC. <code>OrenAVMMetalView</code> now exposes</p>
 <p>  drawable-independent <code>prepareFrameResourcesWithError:</code> so host apps and</p>
-<p>	  headless verifiers can parse retained 3D/resource frames and inspect vertex,</p>
-<p>	  text-run, and image-run metrics even when no <code>CAMetalDrawable</code> is available.</p>
-<p>		  Remaining game-grade work is live-device 3D performance capture and broader</p>
-<p>	  package scene formats. The next GUI contract is</p>
+<p>  headless verifiers can parse retained 3D/resource frames and inspect vertex,</p>
+<p>  text-run, and image-run metrics even when no <code>CAMetalDrawable</code> is available.</p>
+<p>  <code>make capture-ios-live-3d-performance</code> now builds a generated iPhoneOS app</p>
+<p>  harness that runs a 3D OBC frame through <code>OrenAVMMetalView</code>, records device</p>
+<p>  preflight data, and can install/launch through <code>devicectl</code> to write live</p>
+<p>  CPU/vertex/run metrics when a matching provisioning profile and device</p>
+<p>  developer services are available. The 2026-06-05 preflight saw <code>blu-ip</code></p>
+<p>  paired in <code>devicectl</code>, but <code>xctrace</code> still listed it offline and CoreDevice</p>
+<p>  reported <code>ddiServicesAvailable=false</code>, so the actual live run remains blocked</p>
+<p>  by device/developer-service state rather than renderer code.</p>
+<p>  Remaining game-grade work is completing a signed live-device 3D capture run</p>
+<p>  and broader package scene formats. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>
 <p>  and Metal/<code>MTKView</code> conformance gates are documented in</p>

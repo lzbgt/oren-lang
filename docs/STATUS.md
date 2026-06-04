@@ -407,10 +407,18 @@ Facts from the 2026-05-28 implementation pass:
   runs an `OrenAVMPackageStore` package that mounts a bundled `.os3d` scene
   asset and raster-checks it through OBC. `OrenAVMMetalView` now exposes
   drawable-independent `prepareFrameResourcesWithError:` so host apps and
-	  headless verifiers can parse retained 3D/resource frames and inspect vertex,
-	  text-run, and image-run metrics even when no `CAMetalDrawable` is available.
-		  Remaining game-grade work is live-device 3D performance capture and broader
-	  package scene formats. The next GUI contract is
+  headless verifiers can parse retained 3D/resource frames and inspect vertex,
+  text-run, and image-run metrics even when no `CAMetalDrawable` is available.
+  `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
+  harness that runs a 3D OBC frame through `OrenAVMMetalView`, records device
+  preflight data, and can install/launch through `devicectl` to write live
+  CPU/vertex/run metrics when a matching provisioning profile and device
+  developer services are available. The 2026-06-05 preflight saw `blu-ip`
+  paired in `devicectl`, but `xctrace` still listed it offline and CoreDevice
+  reported `ddiServicesAvailable=false`, so the actual live run remains blocked
+  by device/developer-service state rather than renderer code.
+  Remaining game-grade work is completing a signed live-device 3D capture run
+  and broader package scene formats. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in

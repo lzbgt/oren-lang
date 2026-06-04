@@ -103,6 +103,13 @@ Implemented as of 2026-05-31:
   resending repeated UTF-8 labels every frame, and Metal batches repeated
   `draw_texts` positions for one retained label into one textured run, and Metal
   packs retained text into bounded atlas pages with same-atlas run coalescing.
+- Live-device capture is now scripted through
+  `make capture-ios-live-3d-performance`. The target builds a generated iPhoneOS
+  app that embeds a 3D OBC frame, drives `OrenAVMMetalView`, and writes
+  CPU/vertex/run metrics under `build/ios-live-3d/` when launched with
+  `OREN_IOS_LIVE_INSTALL=1`. The default target stops after building the app and
+  recording `devicectl`/`xctrace` preflight artifacts so normal verification does
+  not mutate a physical device or require signing credentials.
 - Host helpers can enqueue pointer, resize, key, UTF-8 text, compact
   gamepad/controller state, coalesced motion, focus, and IME/composition input
   events.
@@ -451,9 +458,12 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     validation, binary frames, AVM protocol checks, deterministic raster,
     CoreGraphics alpha state, Metal geometry/image/text opacity, iOS verifier,
     and the 2D conformance scene.
-24. Add richer text atlas batching and mesh rendering on the Metal path.
+24. Done: add richer retained text atlas packing/coalescing plus retained 2D/3D
+    mesh rendering on the Metal path.
 25. Done: add `round_rect {x,y,w,h,r,fill,width,color}` across validation,
     binary frames, AVM protocol validation, deterministic raster, CoreGraphics
     fallback, Metal, iOS verifier, and the 2D conformance scene.
 26. Add richer 2D and 3D command sets.
-26. Add game/app package smoke in the Note host or iOS SDK harness.
+27. Add signed live-device app capture in the Note host or iOS SDK harness once
+    physical-device developer services and a matching provisioning profile are
+    available.

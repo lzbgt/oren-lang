@@ -109,20 +109,24 @@ This file is the concise task view. Detailed implementation status lives in
      display-link pacing, retained resource handles, budget gates, low-latency
 	     input ordering, Metal/`MTKView`, richer drawing ops, compact gamepad/controller
 	     and coalesced motion events, focus records, and IME/composition records.
-	     The `OGF0` frame header now includes
+     The `OGF0` frame header now includes
      sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
      frames plus `OGE0` host input/media-query events before accepting them. OBC
      can read host-populated screen attributes at runtime through
      `std:ui/avm.screen(0)` and can consume media-change events through the same
      virtual event channel: logical size, native drawable size, scale, target
-	     refresh, and host flags. Curated gates now
+     refresh, and host flags. Curated gates now
      cover malformed-frame rejection, op-count cap rejection, frame I/O-budget
      rejection, the host input queue depth cap, non-1000 resize scale propagation,
      latest-frame replacement/clear semantics, and FIFO pointer down/move/up
      ordering before mixed key/text events. Metal retained text now uses bounded
      SDK-side atlas packing plus same-atlas/scissor/opacity run coalescing so
      repeated and adjacent labels reduce texture churn and draw calls without
-     changing the `OGF0` protocol.
+     changing the `OGF0` protocol. `make capture-ios-live-3d-performance`
+     now builds the generated iPhoneOS live 3D capture app and records
+     `devicectl`/`xctrace` preflight artifacts; install/launch is opt-in via
+     `OREN_IOS_LIVE_INSTALL=1` because it requires a matching provisioning
+     profile and device developer services.
    - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
      hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
      may convert at the boundary but must not force list-of-byte round trips.
