@@ -180,8 +180,9 @@ This file is the concise task view. Detailed implementation status lives in
 	     release/package mutations, authenticated update inventory page/API for
 	     latest/superseded package versions, authenticated append-only audit
 	     page/API for successful store mutations, checked Traefik dynamic route
-	     generation for the cloud-host backend, and a public live-route smoke target
-	     with strict release-readiness mode; live deployment polish remains.
+	     generation for the cloud-host backend, a public live-route smoke target
+	     with strict release-readiness mode, and a local data-dir backup/restore
+	     smoke for metadata plus artifacts; live deployment polish remains.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.
      Curated demo package sources now live under `examples/obc_store_demos/`;
@@ -266,7 +267,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Keep x64 Linux/Windows and arm64 Linux bring-up behind focused compile/runtime gates.
 
 4. **Docs and source guardrails**
-   - No source file should exceed 2000 lines.
+   - No source file should exceed 2000 lines; `make verify-source-line-guard`
+     enforces this for tracked first-party source files.
    - Keep canonical docs concise; archive raw history in logs or focused project notes.
 
 5. **Oren language tooling**

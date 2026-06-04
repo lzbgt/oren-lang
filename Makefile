@@ -858,11 +858,17 @@ verify-docs-site:
 	@./scripts/build_docs_site.py
 	@./scripts/verify_docs_site.py
 
+verify-source-line-guard:
+	@./scripts/verify_source_line_guard.sh
+
 issue-obc-store-trust:
 	@./scripts/issue_obc_store_trust.sh
 
 verify-obc-store-service:
 	@go test ./cmd/obc-store-server ./internal/obcstore
+
+verify-obc-store-backup-restore:
+	@go test ./internal/obcstore -run TestStoreDataDirBackupRestore -count=1
 
 verify-obc-store-demos: oren avm
 	@./scripts/verify_obc_store_demos.sh

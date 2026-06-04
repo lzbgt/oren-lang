@@ -368,7 +368,11 @@ Before deployment:
    index visibility; set `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` to make
    signed-index/trust/update endpoint gaps fail the gate.
 4. Private key scan proving no private key material is committed.
-5. Backup/restore smoke for metadata DB and artifact storage.
+5. Backup/restore smoke for metadata DB and artifact storage:
+   `make verify-obc-store-backup-restore` publishes a package into a temporary
+   file-backed store, copies the data directory as the backup unit, boots a fresh
+   service from the restored copy, and verifies index metadata plus program,
+   bundle, and asset bytes.
 6. Rate limits and max upload/package sizes.
 7. Audit log append/read smoke.
 

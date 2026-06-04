@@ -240,8 +240,11 @@
 <p>  are public smoke endpoints for browser/API reachability. `make</p>
 <p>  verify-obc-store-live-route` checks the public HTTPS route, public index, and</p>
 <p>  first-party demo package visibility, while</p>
-<p>  <code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code> upgrades signed-index/trust/update</p>
-<p>  endpoint warnings into deployment failures. The live store is</p>
+<p>	  <code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code> upgrades signed-index/trust/update</p>
+<p>	  endpoint warnings into deployment failures. `make</p>
+<p>	  verify-obc-store-backup-restore` publishes a fixture package, copies the</p>
+<p>	  file-backed store data directory, and proves a restored service preserves</p>
+<p>	  index metadata plus program, bundle, and asset bytes. The live store is</p>
 <p>  populated with first-party <code>oren-labs</code> <code>science-calculator</code>, <code>ui-card-demo</code>,</p>
 <p>  and <code>scene3d-asset-demo</code> <code>.obc.zip</code> releases with screenshot previews from</p>
 <p>  <code>examples/obc_store_demos/</code>.</p>
@@ -614,7 +617,9 @@
 <p>  <code>OrenAVMRunResult</code> live in <code>OrenAVMRuntimeTypes.m</code>, while</p>
 <p>  <code>OrenAVMGraphicsView</code> lives in its own UIKit/CoreGraphics implementation file;</p>
 <p>  this keeps the core runtime file below the 2000-line source guardrail while</p>
-<p>  GUI/NET/FS providers continue to grow.</p>
+<p>  GUI/NET/FS providers continue to grow. <code>make verify-source-line-guard</code> now</p>
+<p>  checks tracked first-party source files against that limit while excluding</p>
+<p>  generated site, archived web research, vendor, and build artifacts.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

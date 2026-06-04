@@ -180,8 +180,11 @@ Facts from the 2026-05-28 implementation pass:
   are public smoke endpoints for browser/API reachability. `make
   verify-obc-store-live-route` checks the public HTTPS route, public index, and
   first-party demo package visibility, while
-  `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` upgrades signed-index/trust/update
-  endpoint warnings into deployment failures. The live store is
+	  `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` upgrades signed-index/trust/update
+	  endpoint warnings into deployment failures. `make
+	  verify-obc-store-backup-restore` publishes a fixture package, copies the
+	  file-backed store data directory, and proves a restored service preserves
+	  index metadata plus program, bundle, and asset bytes. The live store is
   populated with first-party `oren-labs` `science-calculator`, `ui-card-demo`,
   and `scene3d-asset-demo` `.obc.zip` releases with screenshot previews from
   `examples/obc_store_demos/`.
@@ -503,7 +506,9 @@ Working evidence:
   `OrenAVMRunResult` live in `OrenAVMRuntimeTypes.m`, while
   `OrenAVMGraphicsView` lives in its own UIKit/CoreGraphics implementation file;
   this keeps the core runtime file below the 2000-line source guardrail while
-  GUI/NET/FS providers continue to grow.
+  GUI/NET/FS providers continue to grow. `make verify-source-line-guard` now
+  checks tracked first-party source files against that limit while excluding
+  generated site, archived web research, vendor, and build artifacts.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
