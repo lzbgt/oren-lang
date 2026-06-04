@@ -179,11 +179,14 @@
 <p>     can read host-populated screen attributes at runtime through</p>
 <p>     <code>std:ui/avm.screen(0)</code> and can consume media-change events through the same</p>
 <p>     virtual event channel: logical size, native drawable size, scale, target</p>
-<p>     refresh, and host flags. Curated gates now</p>
+<p>	     refresh, and host flags. Curated gates now</p>
 <p>     cover malformed-frame rejection, op-count cap rejection, frame I/O-budget</p>
 <p>     rejection, the host input queue depth cap, non-1000 resize scale propagation,</p>
 <p>     latest-frame replacement/clear semantics, and FIFO pointer down/move/up</p>
-<p>     ordering before mixed key/text events.</p>
+<p>     ordering before mixed key/text events. Metal retained text now uses bounded</p>
+<p>     SDK-side atlas packing plus same-atlas/scissor/opacity run coalescing so</p>
+<p>     repeated and adjacent labels reduce texture churn and draw calls without</p>
+<p>     changing the <code>OGF0</code> protocol.</p>
 <ul>
 <li>High-priority cleanup: remove legacy stdlib byte/string conversion paths from</li>
 </ul>

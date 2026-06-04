@@ -115,11 +115,14 @@ This file is the concise task view. Detailed implementation status lives in
      can read host-populated screen attributes at runtime through
      `std:ui/avm.screen(0)` and can consume media-change events through the same
      virtual event channel: logical size, native drawable size, scale, target
-     refresh, and host flags. Curated gates now
+	     refresh, and host flags. Curated gates now
      cover malformed-frame rejection, op-count cap rejection, frame I/O-budget
      rejection, the host input queue depth cap, non-1000 resize scale propagation,
      latest-frame replacement/clear semantics, and FIFO pointer down/move/up
-     ordering before mixed key/text events.
+     ordering before mixed key/text events. Metal retained text now uses bounded
+     SDK-side atlas packing plus same-atlas/scissor/opacity run coalescing so
+     repeated and adjacent labels reduce texture churn and draw calls without
+     changing the `OGF0` protocol.
    - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
      hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
      may convert at the boundary but must not force list-of-byte round trips.

@@ -1,4 +1,5 @@
 #import "OrenAVMKit.h"
+#import "OrenAVMMetalText.h"
 
 #import <TargetConditionals.h>
 
@@ -19,13 +20,6 @@ typedef struct {
 } OrenAVMMetalVertex;
 
 typedef struct {
-    float x;
-    float y;
-    float u;
-    float v;
-} OrenAVMMetalTextVertex;
-
-typedef struct {
     BOOL enabled;
     MTLScissorRect rect;
 } OrenAVMMetalScissorState;
@@ -37,25 +31,6 @@ typedef struct {
 @end
 
 @implementation OrenAVMMetalVertexRun
-@end
-
-@interface OrenAVMMetalTextRun : NSObject
-@property(nonatomic, strong) id<MTLTexture> texture;
-@property(nonatomic, strong) NSData* vertices;
-@property(nonatomic) BOOL hasScissor;
-@property(nonatomic) MTLScissorRect scissor;
-@property(nonatomic) float opacity;
-@end
-
-@implementation OrenAVMMetalTextRun
-@end
-
-@interface OrenAVMMetalTextResource : NSObject
-@property(nonatomic, copy) NSString* text;
-@property(nonatomic, copy) NSData* rgba;
-@end
-
-@implementation OrenAVMMetalTextResource
 @end
 
 @interface OrenAVMMetalImageRun : NSObject
@@ -91,17 +66,6 @@ typedef struct {
 @implementation OrenAVMMetalMesh3DResource
 @end
 
-@interface OrenAVMMetalTextCacheEntry : NSObject
-@property(nonatomic, strong) id<MTLTexture> texture;
-@property(nonatomic) CGSize logicalSize;
-@property(nonatomic) NSUInteger pixelCount;
-@end
-
-@implementation OrenAVMMetalTextCacheEntry
-@end
-
-static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
-static const NSUInteger OrenAVMMetalTextCacheEntryLimit = 256u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
 
@@ -554,69 +518,6 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     OrenAVMMetalAppendArcLines(vertices, x + r, y + h - r, r, pi * 0.5f, pi, lw, logicalWidth, logicalHeight, rgba);
 }
 
-static void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
-                                          float x,
-                                          float y,
-                                          float w,
-                                          float h,
-                                          float logicalWidth,
-                                          float logicalHeight,
-                                          float u0,
-                                          float v0,
-                                          float u1,
-                                          float v1) {
-    OrenAVMMetalTextVertex out[6];
-    out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      u0,
-                                      v0};
-    out[1] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      u1,
-                                      v0};
-    out[2] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      u0,
-                                      v1};
-    out[3] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      u1,
-                                      v0};
-    out[4] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      u1,
-                                      v1};
-    out[5] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      u0,
-                                      v1};
-    [vertices appendBytes:out length:sizeof(out)];
-}
-
-static NSData* OrenAVMMetalTextureQuad(float x,
-                                       float y,
-                                       float w,
-                                       float h,
-                                       float logicalWidth,
-                                       float logicalHeight,
-                                       float u0,
-                                       float v0,
-                                       float u1,
-                                       float v1) {
-    NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
-    OrenAVMMetalAppendTextureQuad(vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
-    return [vertices copy];
-}
-
-static NSData* OrenAVMMetalTextQuad(float x,
-                                    float y,
-                                    float w,
-                                    float h,
-                                    float logicalWidth,
-                                    float logicalHeight) {
-    return OrenAVMMetalTextureQuad(x, y, w, h, logicalWidth, logicalHeight, 0.0f, 0.0f, 1.0f, 1.0f);
-}
-
 @interface OrenAVMMetalView () <MTKViewDelegate>
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
@@ -624,6 +525,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
 @property(nonatomic, strong) NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
 @property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
 @property(nonatomic) NSUInteger orenTextCachePixels;
+@property(nonatomic, strong, nullable) OrenAVMMetalTextAtlas* orenTextAtlas;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
@@ -771,9 +673,10 @@ static NSData* OrenAVMMetalTextQuad(float x,
 }
 
 - (void)clearTextTextureCache {
-    [self.orenTextCache removeAllObjects];
-    [self.orenTextCacheOrder removeAllObjects];
-    self.orenTextCachePixels = 0;
+    NSUInteger pixels = self.orenTextCachePixels;
+    OrenAVMMetalClearTextTextureCache(self.orenTextCache, self.orenTextCacheOrder, &pixels);
+    self.orenTextCachePixels = pixels;
+    self.orenTextAtlas = nil;
 }
 
 - (void)clearImageTextureCache {
@@ -904,163 +807,6 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                           targetHzMilli:hz
                                                   flags:self.mediaFlags
                                                   error:error];
-}
-
-- (NSString*)orenTextCacheKeyWithText:(NSString*)text rgba:(const uint8_t*)rgba scaleMilli:(uint32_t)scaleMilli {
-    return [NSString stringWithFormat:@"%u:%u:%u:%u:%u:%@",
-            scaleMilli,
-            (unsigned)rgba[0],
-            (unsigned)rgba[1],
-            (unsigned)rgba[2],
-            (unsigned)rgba[3],
-            text ?: @""];
-}
-
-- (void)orenTouchTextCacheKey:(NSString*)key {
-    if (!key) return;
-    [self.orenTextCacheOrder removeObject:key];
-    [self.orenTextCacheOrder addObject:key];
-}
-
-- (void)orenTrimTextCache {
-    while ((self.orenTextCachePixels > OrenAVMMetalTextCachePixelLimit ||
-            self.orenTextCacheOrder.count > OrenAVMMetalTextCacheEntryLimit) &&
-           self.orenTextCacheOrder.count > 0) {
-        NSString* key = self.orenTextCacheOrder.firstObject;
-        [self.orenTextCacheOrder removeObjectAtIndex:0];
-        OrenAVMMetalTextCacheEntry* entry = self.orenTextCache[key];
-        if (entry) {
-            self.orenTextCachePixels = self.orenTextCachePixels > entry.pixelCount
-                ? self.orenTextCachePixels - entry.pixelCount
-                : 0;
-            [self.orenTextCache removeObjectForKey:key];
-        }
-    }
-}
-
-- (OrenAVMMetalTextCacheEntry*)orenTextCacheEntryWithText:(NSString*)text rgba:(const uint8_t*)rgba {
-    if (!text || text.length == 0 || !self.device) return nil;
-    UIFont* font = [UIFont systemFontOfSize:14.0];
-    UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
-                                     green:(CGFloat)rgba[1] / 255.0
-                                      blue:(CGFloat)rgba[2] / 255.0
-                                     alpha:(CGFloat)rgba[3] / 255.0];
-    NSDictionary<NSAttributedStringKey, id>* attrs = @{
-        NSForegroundColorAttributeName: color,
-        NSFontAttributeName: font
-    };
-    CGSize textSize = [text sizeWithAttributes:attrs];
-    if (textSize.width <= 0.0 || textSize.height <= 0.0) return nil;
-    CGFloat scale = self.window.screen.scale;
-    if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
-    if (scale <= 0.0) scale = 1.0;
-    uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
-    NSString* cacheKey = [self orenTextCacheKeyWithText:text rgba:rgba scaleMilli:scaleMilli];
-    OrenAVMMetalTextCacheEntry* cached = self.orenTextCache[cacheKey];
-    if (cached) {
-        [self orenTouchTextCacheKey:cacheKey];
-        return cached;
-    }
-
-    NSUInteger pixelWidth = (NSUInteger)ceil(textSize.width * scale);
-    NSUInteger pixelHeight = (NSUInteger)ceil(textSize.height * scale);
-    if (pixelWidth == 0 || pixelHeight == 0 || pixelWidth > 4096u || pixelHeight > 4096u) return nil;
-
-    NSMutableData* pixels = [NSMutableData dataWithLength:pixelWidth * pixelHeight * 4u];
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes,
-                                             pixelWidth,
-                                             pixelHeight,
-                                             8,
-                                             pixelWidth * 4u,
-                                             colorSpace,
-                                             kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
-    CGColorSpaceRelease(colorSpace);
-    if (!ctx) return nil;
-    CGContextClearRect(ctx, CGRectMake(0.0, 0.0, (CGFloat)pixelWidth, (CGFloat)pixelHeight));
-    CGContextScaleCTM(ctx, scale, scale);
-    UIGraphicsPushContext(ctx);
-    [text drawAtPoint:CGPointZero withAttributes:attrs];
-    UIGraphicsPopContext();
-    CGContextRelease(ctx);
-
-    MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                                                         width:pixelWidth
-                                                                                        height:pixelHeight
-                                                                                     mipmapped:NO];
-    descriptor.usage = MTLTextureUsageShaderRead;
-    id<MTLTexture> texture = [self.device newTextureWithDescriptor:descriptor];
-    if (!texture) return nil;
-    [texture replaceRegion:MTLRegionMake2D(0, 0, pixelWidth, pixelHeight)
-               mipmapLevel:0
-                 withBytes:pixels.bytes
-               bytesPerRow:pixelWidth * 4u];
-
-    OrenAVMMetalTextCacheEntry* entry = [[OrenAVMMetalTextCacheEntry alloc] init];
-    entry.texture = texture;
-    entry.logicalSize = textSize;
-    entry.pixelCount = pixelWidth * pixelHeight;
-    self.orenTextCache[cacheKey] = entry;
-    self.orenTextCachePixels += entry.pixelCount;
-    [self orenTouchTextCacheKey:cacheKey];
-    [self orenTrimTextCache];
-    return entry;
-}
-
-- (OrenAVMMetalTextRun*)orenTextRunWithText:(NSString*)text
-                                          x:(float)x
-                                          y:(float)y
-                                        rgba:(const uint8_t*)rgba
-                                     opacity:(float)opacity
-                                logicalWidth:(float)logicalWidth
-                               logicalHeight:(float)logicalHeight {
-    OrenAVMMetalTextCacheEntry* entry = [self orenTextCacheEntryWithText:text rgba:rgba];
-    if (!entry) return nil;
-    OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
-    run.texture = entry.texture;
-    run.vertices = OrenAVMMetalTextQuad(x,
-                                        y,
-                                        (float)entry.logicalSize.width,
-                                        (float)entry.logicalSize.height,
-                                        logicalWidth,
-                                        logicalHeight);
-    run.opacity = opacity;
-    return run;
-}
-
-- (OrenAVMMetalTextRun*)orenTextBatchRunWithText:(NSString*)text
-                                       positions:(const uint8_t*)positions
-                                   positionCount:(uint32_t)positionCount
-                                      translateX:(float)translateX
-                                      translateY:(float)translateY
-                                            rgba:(const uint8_t*)rgba
-                                         opacity:(float)opacity
-                                    logicalWidth:(float)logicalWidth
-                                   logicalHeight:(float)logicalHeight {
-    if (!positions || positionCount == 0) return nil;
-    OrenAVMMetalTextCacheEntry* entry = [self orenTextCacheEntryWithText:text rgba:rgba];
-    if (!entry) return nil;
-    NSMutableData* vertices = [NSMutableData dataWithCapacity:(NSUInteger)positionCount * sizeof(OrenAVMMetalTextVertex) * 6u];
-    for (uint32_t i = 0; i < positionCount; i++) {
-        const uint8_t* p = positions + ((size_t)i * 8u);
-        OrenAVMMetalAppendTextureQuad(vertices,
-                                      (float)OrenAVMMetalReadU32LE(p) + translateX,
-                                      (float)OrenAVMMetalReadU32LE(p + 4) + translateY,
-                                      (float)entry.logicalSize.width,
-                                      (float)entry.logicalSize.height,
-                                      logicalWidth,
-                                      logicalHeight,
-                                      0.0f,
-                                      0.0f,
-                                      1.0f,
-                                      1.0f);
-    }
-    if (vertices.length == 0) return nil;
-    OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
-    run.texture = entry.texture;
-    run.vertices = [vertices copy];
-    run.opacity = opacity;
-    return run;
 }
 
 - (void)orenPutImageTextureWithID:(uint32_t)imageID
@@ -1608,13 +1354,23 @@ static NSData* OrenAVMMetalTextQuad(float x,
                 NSString* text = [[NSString alloc] initWithBytes:payload + 16
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
-                OrenAVMMetalTextRun* run = [self orenTextRunWithText:text
-                                                                    x:(float)x + tx
-                                                                    y:(float)y + ty
-                                                                  rgba:payload + 8
-                                                               opacity:opacity
-                                                          logicalWidth:(float)logicalW
-                                                         logicalHeight:(float)logicalH];
+                NSUInteger textCachePixels = self.orenTextCachePixels;
+                OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
+                OrenAVMMetalTextRun* run = OrenAVMMetalCreateTextRun(self.device,
+                                                                     self.window.screen,
+                                                                     &textAtlas,
+                                                                     self.orenTextCache,
+                                                                     self.orenTextCacheOrder,
+                                                                     &textCachePixels,
+                                                                     text,
+                                                                     (float)x + tx,
+                                                                     (float)y + ty,
+                                                                     payload + 8,
+                                                                     opacity,
+                                                                     (float)logicalW,
+                                                                     (float)logicalH);
+                self.orenTextCachePixels = textCachePixels;
+                self.orenTextAtlas = textAtlas;
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
@@ -1641,13 +1397,23 @@ static NSData* OrenAVMMetalTextQuad(float x,
             uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
             OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
             if (resource.text && resource.rgba.length == 4) {
-                OrenAVMMetalTextRun* run = [self orenTextRunWithText:resource.text
-                                                                   x:(float)x + tx
-                                                                   y:(float)y + ty
-                                                                 rgba:resource.rgba.bytes
-                                                              opacity:opacity
-                                                         logicalWidth:(float)logicalW
-                                                        logicalHeight:(float)logicalH];
+                NSUInteger textCachePixels = self.orenTextCachePixels;
+                OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
+                OrenAVMMetalTextRun* run = OrenAVMMetalCreateTextRun(self.device,
+                                                                     self.window.screen,
+                                                                     &textAtlas,
+                                                                     self.orenTextCache,
+                                                                     self.orenTextCacheOrder,
+                                                                     &textCachePixels,
+                                                                     resource.text,
+                                                                     (float)x + tx,
+                                                                     (float)y + ty,
+                                                                     resource.rgba.bytes,
+                                                                     opacity,
+                                                                     (float)logicalW,
+                                                                     (float)logicalH);
+                self.orenTextCachePixels = textCachePixels;
+                self.orenTextAtlas = textAtlas;
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
@@ -1659,15 +1425,25 @@ static NSData* OrenAVMMetalTextQuad(float x,
             uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
             OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
             if (resource.text && resource.rgba.length == 4 && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-                OrenAVMMetalTextRun* run = [self orenTextBatchRunWithText:resource.text
-                                                                 positions:payload + 8
-                                                             positionCount:posCount
-                                                                translateX:tx
-                                                                translateY:ty
-                                                                      rgba:resource.rgba.bytes
-                                                                   opacity:opacity
-                                                              logicalWidth:(float)logicalW
-                                                             logicalHeight:(float)logicalH];
+                NSUInteger textCachePixels = self.orenTextCachePixels;
+                OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
+                OrenAVMMetalTextRun* run = OrenAVMMetalCreateTextBatchRun(self.device,
+                                                                          self.window.screen,
+                                                                          &textAtlas,
+                                                                          self.orenTextCache,
+                                                                          self.orenTextCacheOrder,
+                                                                          &textCachePixels,
+                                                                          resource.text,
+                                                                          payload + 8,
+                                                                          posCount,
+                                                                          tx,
+                                                                          ty,
+                                                                          resource.rgba.bytes,
+                                                                          opacity,
+                                                                          (float)logicalW,
+                                                                          (float)logicalH);
+                self.orenTextCachePixels = textCachePixels;
+                self.orenTextAtlas = textAtlas;
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
@@ -1795,12 +1571,13 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                     clearColor:&clearColor
                                                                       textRuns:textRuns
                                                                      imageRuns:imageRuns];
+    NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = OrenAVMMetalCoalesceTextRuns(textRuns);
     uint32_t vertexCount = 0;
     for (OrenAVMMetalVertexRun* run in vertexRuns) {
         vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
     }
     self.lastFrameVertexCount = vertexCount;
-    self.lastFrameTextRunCount = (uint32_t)textRuns.count;
+    self.lastFrameTextRunCount = (uint32_t)coalescedTextRuns.count;
     self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
     self.lastFrameCPUNs = OrenAVMMetalNowNs() - cpuStartNs;
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
@@ -1829,12 +1606,13 @@ static NSData* OrenAVMMetalTextQuad(float x,
                                                                     clearColor:&clearColor
                                                                       textRuns:textRuns
                                                                      imageRuns:imageRuns];
+    NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = OrenAVMMetalCoalesceTextRuns(textRuns);
     uint32_t vertexCount = 0;
     for (OrenAVMMetalVertexRun* run in vertexRuns) {
         vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
     }
     self.lastFrameVertexCount = vertexCount;
-    self.lastFrameTextRunCount = (uint32_t)textRuns.count;
+    self.lastFrameTextRunCount = (uint32_t)coalescedTextRuns.count;
     self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
     pass.colorAttachments[0].clearColor = clearColor;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -1873,7 +1651,7 @@ static NSData* OrenAVMMetalTextQuad(float x,
                          vertexStart:0
                          vertexCount:run.vertices.length / sizeof(OrenAVMMetalTextVertex)];
         }
-        for (OrenAVMMetalTextRun* run in textRuns) {
+        for (OrenAVMMetalTextRun* run in coalescedTextRuns) {
             if (!run.texture || run.vertices.length == 0) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
