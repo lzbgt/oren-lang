@@ -80,8 +80,10 @@ fn _x64_expr_is_floaty(ctx, expr) {
             if _x64_name_is_or_has_suffix(nm, "_exp_taylor", "_exp_taylor") { return true }
             if _x64_name_is_or_has_suffix(nm, "exp2", "_exp2") { return true }
             if _x64_name_is_or_has_suffix(nm, "exp", "_exp") { return true }
+            if _x64_name_is_or_has_suffix(nm, "expm1", "_expm1") { return true }
             if _x64_name_is_or_has_suffix(nm, "exp10", "_exp10") { return true }
             if _x64_name_is_or_has_suffix(nm, "log2", "_log2") { return true }
+            if _x64_name_is_or_has_suffix(nm, "log1p", "_log1p") { return true }
             if _x64_name_is_or_has_suffix(nm, "log10", "_log10") { return true }
             if _x64_name_is_or_has_suffix(nm, "log", "_log") { return true }
             if _x64_name_is_or_has_suffix(nm, "lnf", "_lnf") { return true }

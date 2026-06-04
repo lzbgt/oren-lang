@@ -1,0 +1,52 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math exp/log special FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var expm1_zero: f64 = math.expm1(0.0)
+assert_close(expm1_zero, 0.0, 0.0, 10, "expm1 zero")
+assert_close(math.expm1(1.0), 1.718281828459045, 1e-10, 11, "expm1 one")
+assert_close(math.expm1(0.0 - 1.0), 0.0 - 0.6321205588285577, 1e-10, 12, "expm1 negative one")
+assert_close(math.expm1(1e-9), 1.0000000005e-9, 1e-18, 13, "expm1 small positive")
+assert_close(math.expm1(0.0 - 1e-9), 0.0 - 9.999999995e-10, 1e-18, 14, "expm1 small negative")
+
+var log1p_zero: f64 = math.log1p(0.0)
+assert_close(log1p_zero, 0.0, 0.0, 20, "log1p zero")
+assert_close(math.log1p(1.0), 0.6931471805599453, 1e-10, 21, "log1p one")
+assert_close(math.log1p(0.0 - 0.5), 0.0 - 0.6931471805599453, 1e-10, 22, "log1p negative half")
+assert_close(math.log1p(1e-9), 9.999999995e-10, 1e-18, 23, "log1p small positive")
+assert_close(math.log1p(0.0 - 1e-9), 0.0 - 1.0000000005e-9, 1e-18, 24, "log1p small negative")
+
+var x: f64 = 0.125
+assert_close(math.log1p(math.expm1(x)), x, 1e-10, 30, "log1p expm1 roundtrip")
+assert_close(math.expm1(math.log1p(x)), x, 1e-10, 31, "expm1 log1p roundtrip")
+
+var expm1_inf: f64 = math.expm1(math.inf())
+assert_true(math.is_inf(expm1_inf), 40, "expm1 +inf")
+assert_close(math.expm1(math.neg_inf()), 0.0 - 1.0, 0.0, 41, "expm1 -inf")
+var log1p_inf: f64 = math.log1p(math.inf())
+assert_true(math.is_inf(log1p_inf), 42, "log1p +inf")
+var log1p_neg_one: f64 = math.log1p(0.0 - 1.0)
+assert_true(math.is_inf(log1p_neg_one), 43, "log1p -1")
+assert_true(math.signbit(log1p_neg_one), 44, "log1p -1 sign")
+
+assert_true(oren_is_err(math.expm1(0.0 / 0.0)), 50, "expm1 NaN")
+assert_true(oren_is_err(math.log1p(0.0 / 0.0)), 51, "log1p NaN")
+assert_true(oren_is_err(math.log1p(0.0 - 1.5)), 52, "log1p domain")
+
+print("module math exp/log special OK")
+exit(0)

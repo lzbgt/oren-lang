@@ -1472,6 +1472,19 @@ run_step_checked "math hyperbolic smoke (bytecode)" "$math_hyperbolic_log" \
   "$compiler" test "$math_hyperbolic_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_hyperbolic_log"
 
+echo "== math exp/log special smoke (native/C/bytecode) =="
+math_exp_log_special_src="tests/modules/test_math_exp_log_special.oren"
+math_exp_log_special_log="build/logs/${compiler_base}_math_exp_log_special.log"
+rm -f "$math_exp_log_special_log" 2>/dev/null || true
+
+run_step_checked "math exp/log special smoke (native)" "$math_exp_log_special_log" \
+  "$compiler" test "$math_exp_log_special_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math exp/log special smoke (C)" "$math_exp_log_special_log" \
+  "$compiler" test "$math_exp_log_special_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math exp/log special smoke (bytecode)" "$math_exp_log_special_log" \
+  "$compiler" test "$math_exp_log_special_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_exp_log_special_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

@@ -503,6 +503,31 @@ fn exp(x: f64) {
     return exp2(x * INV_LN2)
 }
 
+fn expm1(x: f64) {
+    if is_nan(x) { return oren_err(4, "expm1: NaN") }
+    if x == 0.0 { return x }
+    if is_inf(x) {
+        if signbit(x) { return 0.0 - 1.0 }
+        return x
+    }
+
+    var ax = abs_f(x)
+    if ax < 1e-5 {
+        var term = x
+        var sum = x
+        var i = 2
+        while i <= 18 {
+            term = term * x / f64(i)
+            sum = sum + term
+            i = i + 1
+        }
+        return sum
+    }
+    var y = exp(x)
+    if oren_is_err(y) { return y }
+    return y - 1.0
+}
+
 fn log2(x: f64) {
     // Returns log2(x) for x > 0.
     if is_nan(x) { return oren_err(4, "log2: NaN") }
@@ -552,6 +577,28 @@ fn ln(x: f64) {
     if oren_is_err(v) { return v }
     var LN2 = 0.6931471805599453
     return v * LN2
+}
+
+fn log1p(x: f64) {
+    if is_nan(x) { return oren_err(4, "log1p: NaN") }
+    if x == 0.0 { return x }
+    if x == -1.0 { return neg_inf() }
+    if x < -1.0 { return oren_err(4, "log1p: domain") }
+    if is_inf(x) { return x }
+
+    var ax = abs_f(x)
+    if ax < 1e-5 {
+        var term = x
+        var sum = x
+        var k = 2
+        while k <= 41 {
+            term = 0.0 - term * x
+            sum = sum + term / f64(k)
+            k = k + 1
+        }
+        return sum
+    }
+    return ln(1.0 + x)
 }
 
 fn log(x: f64) {
