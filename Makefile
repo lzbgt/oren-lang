@@ -253,10 +253,26 @@ endif
 		tests/avm/test_vfs_no_host_fs.oren \
 				tests/avm/test_vproc_no_host_proc.oren \
 				tests/avm/test_vnet_no_host_net.oren \
-				tests/avm/test_avm_permission_request_v0.oren \
-				tests/avm/test_avm_events_v0.oren \
-				tests/avm/test_switch.oren \
-		tests/avm/test_list_sum_opcodes.oren \
+					tests/avm/test_avm_permission_request_v0.oren \
+					tests/avm/test_avm_events_v0.oren \
+					tests/avm/test_switch.oren \
+					tests/avm/test_attributes_fields_params.oren \
+					tests/avm/test_attributes_noop.oren \
+					tests/avm/test_bool_bit_ops.oren \
+					tests/avm/test_float_ops.oren \
+					tests/avm/test_for_break_continue.oren \
+					tests/avm/test_for_in_bytes.oren \
+					tests/avm/test_for_in_list.oren \
+					tests/avm/test_for_in_map_keys.oren \
+					tests/avm/test_for_in_string.oren \
+					tests/avm/test_generic_call_specialization.oren \
+					tests/avm/test_int_literal_bases.oren \
+					tests/avm/test_list_append_grow.oren \
+					tests/avm/test_map_iter_deterministic.oren \
+					tests/avm/test_nested_containers.oren \
+					tests/avm/test_pack_view.oren \
+					tests/avm/test_struct_member_set.oren \
+			tests/avm/test_list_sum_opcodes.oren \
 		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \
 		tests/avm/test_float_to_string.oren \

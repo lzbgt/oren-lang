@@ -52,7 +52,9 @@ to the manifest with explicit metadata instead of relying on defaults.
 
 ## Next Work
 
-The current manifest covers the curated release-gate set and one non-gate VPROC
-fixture. The next completeness step is to add every `tests/avm/*.oren` fixture
-with explicit release inclusion/exclusion and policy metadata, then gate the full
+The current manifest covers the curated release-gate set, one non-gate VPROC
+fixture, and the default-safe language/container fixtures that run with
+zero-exit virtual backend policy. The next completeness step is to add explicit
+release inclusion/exclusion and policy metadata for the remaining host-effect,
+budget, record/replay, snapshot, and multiverse fixtures, then gate the full
 wildcard path when the expected budgets/backends are declared.
