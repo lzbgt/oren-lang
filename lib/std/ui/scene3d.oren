@@ -546,6 +546,8 @@ fn _asset_mesh(m) {
             tris = shapes.pack_cones_z(m["cones_z"], "ui.scene3d mesh.cones_z")
         } else if m["spheres_xyz"] != nil {
             tris = shapes.pack_spheres_xyz(m["spheres_xyz"], "ui.scene3d mesh.spheres_xyz")
+        } else if m["ellipsoids_xyz"] != nil {
+            tris = shapes.pack_ellipsoids_xyz(m["ellipsoids_xyz"], "ui.scene3d mesh.ellipsoids_xyz")
         } else {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }

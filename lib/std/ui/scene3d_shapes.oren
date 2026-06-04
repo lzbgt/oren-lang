@@ -256,6 +256,33 @@ fn _sphere_radius(sphere, ctx) {
     return radius
 }
 
+fn _ellipsoid_radii(ellipsoid, ctx) {
+    var radii = ellipsoid["radii"]
+    if radii == nil { radii = ellipsoid["radii_xyz"] }
+    if radii != nil {
+        if oren_list_len(radii) != 3 {
+            return oren_err(4, ctx + ": ellipsoid radii must be [rx,ry,rz]")
+        }
+        if _is_int(radii[0]) == false || _is_int(radii[1]) == false || _is_int(radii[2]) == false {
+            return oren_err(4, ctx + ": ellipsoid radii must contain i32")
+        }
+        if radii[0] <= 0 || radii[1] <= 0 || radii[2] <= 0 {
+            return oren_err(4, ctx + ": ellipsoid radii must be positive")
+        }
+        return radii
+    }
+    var rx = ellipsoid["radius_x"]
+    var ry = ellipsoid["radius_y"]
+    var rz = ellipsoid["radius_z"]
+    if _is_int(rx) == false || _is_int(ry) == false || _is_int(rz) == false {
+        return oren_err(4, ctx + ": ellipsoid needs radii or radius_x/y/z")
+    }
+    if rx <= 0 || ry <= 0 || rz <= 0 {
+        return oren_err(4, ctx + ": ellipsoid radii must be positive")
+    }
+    return [rx, ry, rz]
+}
+
 fn _sphere_segments(sphere, ctx) {
     return _segments(sphere, "sphere", 4, ctx)
 }
@@ -292,7 +319,7 @@ fn _spheres_triangle_count(spheres, ctx) {
     return total
 }
 
-fn _sphere_point_axis(center, radius, segments, rings, seg, ring, axis) {
+fn _spherical_point_axis(center, radius, segments, rings, seg, ring, axis) {
     var theta = math.pi() * f64(ring) / f64(rings)
     var phi = math.tau() * f64(seg) / f64(segments)
     var x = math.sin(theta) * math.cos(phi)
@@ -307,11 +334,11 @@ fn _sphere_point_axis(center, radius, segments, rings, seg, ring, axis) {
 }
 
 fn _store_sphere_point(out, off, center, radius, segments, rings, seg, ring, ctx) {
-    var x = _sphere_point_axis(center[0], radius, segments, rings, seg, ring, 0)
+    var x = _spherical_point_axis(center[0], radius, segments, rings, seg, ring, 0)
     if oren_is_err(x) { return x }
-    var y = _sphere_point_axis(center[1], radius, segments, rings, seg, ring, 1)
+    var y = _spherical_point_axis(center[1], radius, segments, rings, seg, ring, 1)
     if oren_is_err(y) { return y }
-    var z = _sphere_point_axis(center[2], radius, segments, rings, seg, ring, 2)
+    var z = _spherical_point_axis(center[2], radius, segments, rings, seg, ring, 2)
     if oren_is_err(z) { return z }
     return _store_xyz_values(out, off, x, y, z, ctx)
 }
@@ -356,6 +383,83 @@ fn pack_spheres_xyz(spheres, ctx) {
             ring = ring + 1
         }
         si = si + 1
+    }
+    return bytes.from_u8_buf(out)
+}
+
+fn _ellipsoids_triangle_count(ellipsoids, ctx) {
+    if ellipsoids == nil { return oren_err(4, ctx + ": missing ellipsoids_xyz") }
+    var ne = oren_list_len(ellipsoids)
+    if oren_is_err(ne) { return oren_err(4, ctx + ": ellipsoids_xyz must be list") }
+    var total = 0
+    var i = 0
+    while i < ne {
+        var ellipsoid = ellipsoids[i]
+        if ellipsoid == nil { return oren_err(4, ctx + ": ellipsoid must be object") }
+        var center = _sphere_center(ellipsoid, ctx)
+        if oren_is_err(center) { return center }
+        var radii = _ellipsoid_radii(ellipsoid, ctx)
+        if oren_is_err(radii) { return radii }
+        var segments = _sphere_segments(ellipsoid, ctx)
+        if oren_is_err(segments) { return segments }
+        var rings = _sphere_rings(ellipsoid, ctx)
+        if oren_is_err(rings) { return rings }
+        total = total + segments * rings * 2
+        i = i + 1
+    }
+    return total
+}
+
+fn _store_ellipsoid_point(out, off, center, radii, segments, rings, seg, ring, ctx) {
+    var x = _spherical_point_axis(center[0], radii[0], segments, rings, seg, ring, 0)
+    if oren_is_err(x) { return x }
+    var y = _spherical_point_axis(center[1], radii[1], segments, rings, seg, ring, 1)
+    if oren_is_err(y) { return y }
+    var z = _spherical_point_axis(center[2], radii[2], segments, rings, seg, ring, 2)
+    if oren_is_err(z) { return z }
+    return _store_xyz_values(out, off, x, y, z, ctx)
+}
+
+fn _store_ellipsoid_triangle(out, off, center, radii, segments, rings, a_seg, a_ring, b_seg, b_ring, c_seg, c_ring, ctx) {
+    var rc = _store_ellipsoid_point(out, off + 0, center, radii, segments, rings, a_seg, a_ring, ctx + ".a")
+    if oren_is_err(rc) { return rc }
+    rc = _store_ellipsoid_point(out, off + 12, center, radii, segments, rings, b_seg, b_ring, ctx + ".b")
+    if oren_is_err(rc) { return rc }
+    return _store_ellipsoid_point(out, off + 24, center, radii, segments, rings, c_seg, c_ring, ctx + ".c")
+}
+
+fn pack_ellipsoids_xyz(ellipsoids, ctx) {
+    var tri_count = _ellipsoids_triangle_count(ellipsoids, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ei = 0
+    var ne = oren_list_len(ellipsoids)
+    while ei < ne {
+        var ellipsoid = ellipsoids[ei]
+        var center = _sphere_center(ellipsoid, ctx)
+        var radii = _ellipsoid_radii(ellipsoid, ctx)
+        var segments = _sphere_segments(ellipsoid, ctx)
+        var rings = _sphere_rings(ellipsoid, ctx)
+        var ring = 0
+        while ring < rings {
+            var next_ring = ring + 1
+            var seg = 0
+            while seg < segments {
+                var next_seg = seg + 1
+                if next_seg == segments { next_seg = 0 }
+                var rc = _store_ellipsoid_triangle(out, off, center, radii, segments, rings, seg, ring, next_seg, next_ring, next_seg, ring, ctx + ".band0")
+                if oren_is_err(rc) { return rc }
+                off = off + 36
+                rc = _store_ellipsoid_triangle(out, off, center, radii, segments, rings, seg, ring, seg, next_ring, next_seg, next_ring, ctx + ".band1")
+                if oren_is_err(rc) { return rc }
+                off = off + 36
+                seg = seg + 1
+            }
+            ring = ring + 1
+        }
+        ei = ei + 1
     }
     return bytes.from_u8_buf(out)
 }

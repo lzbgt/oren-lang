@@ -286,10 +286,10 @@ def pack_cones_z(cones):
     return pack_triangles_xyz(triangles)
 
 
-def sphere_center(sphere):
+def sphere_center(sphere, label="spheres_xyz"):
     center = sphere.get("center", sphere.get("center_xyz"))
     if not isinstance(center, list) or len(center) != 3:
-        raise SystemExit("scene spheres_xyz center must be [x,y,z]")
+        raise SystemExit(f"scene {label} center must be [x,y,z]")
     return int(center[0]), int(center[1]), int(center[2])
 
 
@@ -301,6 +301,23 @@ def sphere_radius(sphere):
     if radius <= 0:
         raise SystemExit("scene spheres_xyz radius must be positive")
     return radius
+
+
+def ellipsoid_radii(ellipsoid):
+    radii = ellipsoid.get("radii", ellipsoid.get("radii_xyz"))
+    if radii is not None:
+        if not isinstance(radii, list) or len(radii) != 3:
+            raise SystemExit("scene ellipsoids_xyz radii must be [rx,ry,rz]")
+        rx, ry, rz = int(radii[0]), int(radii[1]), int(radii[2])
+    else:
+        if not all(k in ellipsoid for k in ("radius_x", "radius_y", "radius_z")):
+            raise SystemExit("scene ellipsoids_xyz entries must include radii or radius_x/y/z")
+        rx = int(ellipsoid["radius_x"])
+        ry = int(ellipsoid["radius_y"])
+        rz = int(ellipsoid["radius_z"])
+    if rx <= 0 or ry <= 0 or rz <= 0:
+        raise SystemExit("scene ellipsoids_xyz radii must be positive")
+    return rx, ry, rz
 
 
 def sphere_segments(sphere):
@@ -326,6 +343,15 @@ def sphere_point(cx, cy, cz, radius, segments, rings, seg, ring):
     return [x, y, z]
 
 
+def ellipsoid_point(cx, cy, cz, rx, ry, rz, segments, rings, seg, ring):
+    theta = math.pi * ring / rings
+    phi = math.tau * seg / segments
+    x = round_half_away(cx + rx * math.sin(theta) * math.cos(phi))
+    y = round_half_away(cy + ry * math.sin(theta) * math.sin(phi))
+    z = round_half_away(cz + rz * math.cos(theta))
+    return [x, y, z]
+
+
 def pack_spheres_xyz(spheres):
     triangles = []
     for sphere in spheres:
@@ -343,6 +369,28 @@ def pack_spheres_xyz(spheres):
                 b = sphere_point(cx, cy, cz, radius, segments, rings, next_seg, next_ring)
                 c = sphere_point(cx, cy, cz, radius, segments, rings, next_seg, ring)
                 d = sphere_point(cx, cy, cz, radius, segments, rings, seg, next_ring)
+                triangles.append([a, b, c])
+                triangles.append([a, d, b])
+    return pack_triangles_xyz(triangles)
+
+
+def pack_ellipsoids_xyz(ellipsoids):
+    triangles = []
+    for ellipsoid in ellipsoids:
+        if not isinstance(ellipsoid, dict):
+            raise SystemExit("scene ellipsoids_xyz entries must be objects")
+        cx, cy, cz = sphere_center(ellipsoid, "ellipsoids_xyz")
+        rx, ry, rz = ellipsoid_radii(ellipsoid)
+        segments = sphere_segments(ellipsoid)
+        rings = sphere_rings(ellipsoid)
+        for ring in range(rings):
+            next_ring = ring + 1
+            for seg in range(segments):
+                next_seg = 0 if seg + 1 == segments else seg + 1
+                a = ellipsoid_point(cx, cy, cz, rx, ry, rz, segments, rings, seg, ring)
+                b = ellipsoid_point(cx, cy, cz, rx, ry, rz, segments, rings, next_seg, next_ring)
+                c = ellipsoid_point(cx, cy, cz, rx, ry, rz, segments, rings, next_seg, ring)
+                d = ellipsoid_point(cx, cy, cz, rx, ry, rz, segments, rings, seg, next_ring)
                 triangles.append([a, b, c])
                 triangles.append([a, d, b])
     return pack_triangles_xyz(triangles)
@@ -657,6 +705,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_cones_z(mesh["cones_z"])
             elif mesh.get("spheres_xyz") is not None:
                 payload = pack_spheres_xyz(mesh["spheres_xyz"])
+            elif mesh.get("ellipsoids_xyz") is not None:
+                payload = pack_ellipsoids_xyz(mesh["ellipsoids_xyz"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""

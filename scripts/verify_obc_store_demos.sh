@@ -264,7 +264,7 @@ def render_demo_preview(name):
         for yy, row in enumerate(scene):
             for xx, fill in enumerate(row):
                 rect(pixels, w, h, grid_x + xx * cell, grid_y + yy * cell, cell - 3, cell - 3, fill)
-        draw_text(pixels, w, h, 300, 146, "PRISM + CYLINDER + SPHERE", "#e38b29", 2)
+        draw_text(pixels, w, h, 300, 146, "PRISM + CYLINDER + ELLIPSOID", "#e38b29", 2)
         draw_text(pixels, w, h, 300, 182, "MESH + MATERIAL + MODEL", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 218, "PACKAGE VFS: ASSETS/", "#f5efe0", 2)
         draw_text(pixels, w, h, 300, 254, "RASTER CHECK 4X4 OK", "#00d084", 2)

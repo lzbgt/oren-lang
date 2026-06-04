@@ -20,8 +20,9 @@ reviewable JSON source in this directory. The JSON can use named mesh/material
 references, model templates, instances, per-draw model/material/transform override
 objects, human-readable `position_xyz` or nested `transform` model transforms,
 human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
-`triangles_xyz` or `quads_xyz` direct meshes, per-triangle `triangles_xyz_rgba`
-colors, richer material fields (`base_color`,
+`triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
+cylinders/cones/spheres/ellipsoids, per-triangle `triangles_xyz_rgba` colors,
+richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform
 keyframes. The build helper validates face/quad indices/material scalar ranges and
 lowers those fields plus draw overrides to compact numeric `.os3d` records using

@@ -53,8 +53,8 @@
       "kind": "triangles",
       "id": 42,
       "name": "orb-mesh",
-      "spheres_xyz": [
-        {"center": [2, 2, 1], "radius": 1, "segments": 8, "rings": 4}
+      "ellipsoids_xyz": [
+        {"center": [2, 2, 1], "radii": [1, 1, 2], "segments": 8, "rings": 4}
       ],
       "base_color": "#cc44ffff",
       "roughness_milli": 500,
