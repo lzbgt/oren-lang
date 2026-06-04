@@ -441,18 +441,19 @@ Facts from the 2026-05-28 implementation pass:
   exact-size `u8_buf` OGF0 frame encoding instead of final list-to-byte packing,
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
   exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
-  and `std:bytes.to_string` now uses direct byte-slice conversion instead of list
-  materialization. `std:buffer`
-	  `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
-	  through `u8_buf` byte slices instead of unpacking to Oren lists first, and
-	  direct byte slice helpers reject out-of-bounds spans before native conversion.
-	  Codec and byte APIs now expose trait-backed method surfaces for the rolling
-	  stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
-	  `cbor.cint(7).bytes().cbor()`, `"hi".bytes().text()`,
-	  `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
-	  `bytes.from_string("abc").sha256_hex()` work through source and
-	  stdlib-OBC metadata paths without explicit local annotations.
-	  The module renamer now preserves builtin annotation names such as `bytes`
+  `std:bytes.to_string` now uses direct byte-slice conversion instead of list
+  materialization, and YAML trim/key splitting uses direct string slicing instead
+  of list-of-byte reconstruction. `std:buffer`
+  `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
+  through `u8_buf` byte slices instead of unpacking to Oren lists first, and
+  direct byte slice helpers reject out-of-bounds spans before native conversion.
+  Codec and byte APIs now expose trait-backed method surfaces for the rolling
+  stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
+  `cbor.cint(7).bytes().cbor()`, `"hi".bytes().text()`,
+  `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
+  `bytes.from_string("abc").sha256_hex()` work through source and
+  stdlib-OBC metadata paths without explicit local annotations.
+  The module renamer now preserves builtin annotation names such as `bytes`
 	  even when an import alias uses the same spelling, so trait impls for builtin
 	  types stay available to chained method lowering instead of becoming
 	  accidental module-local alias types.

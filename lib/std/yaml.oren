@@ -88,10 +88,7 @@ fn _trim(s) {
     var j = n
     while j > i && _is_ws(bs[j - 1]) { j = j - 1 }
     if i == 0 && j == n { return s }
-    var out = []
-    var k = i
-    while k < j { list.push(out, bs[k]); k = k + 1 }
-    return oren_string_from_bytes(out)
+    return oren_string_slice(s, i, j)
 }
 
 fn _split_lines(s) {
@@ -246,13 +243,6 @@ fn _line_indent(line) {
     // tabs are not supported in v1 (explicit).
     if i < list.len(bs) && bs[i] == 9 { return -1 }
     return i
-}
-
-fn _slice_bytes(bs, i, j) {
-    var out = []
-    var k = i
-    while k < j { list.push(out, bs[k]); k = k + 1 }
-    return out
 }
 
 fn _parse_quoted_string(s, line_no) {
@@ -415,8 +405,8 @@ fn _parse_block(lines, idx, indent) {
         }
         if kpos < 0 { return _err("expected ':' in mapping entry", line_no) }
 
-        var key_raw = oren_string_from_bytes(_slice_bytes(bs, 0, kpos))
-        var val_raw = oren_string_from_bytes(_slice_bytes(bs, kpos + 1, list.len(bs)))
+        var key_raw = oren_string_slice(restm, 0, kpos)
+        var val_raw = oren_string_slice(restm, kpos + 1, list.len(bs))
         key_raw = _trim(key_raw)
         val_raw = _trim(val_raw)
         if _streq(key_raw, "") { return _err("empty key", line_no) }

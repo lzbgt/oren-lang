@@ -539,18 +539,19 @@
 <p>  exact-size <code>u8_buf</code> OGF0 frame encoding instead of final list-to-byte packing,</p>
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/quad/color package assets through</p>
 <p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
-<p>  and <code>std:bytes.to_string</code> now uses direct byte-slice conversion instead of list</p>
-<p>  materialization. <code>std:buffer</code></p>
-<p>	  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
-<p>	  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
-<p>	  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>
-<p>	  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
-<p>	  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>
-<p>	  <code>cbor.cint(7).bytes().cbor()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
-<p>	  <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
-<p>	  <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> work through source and</p>
-<p>	  stdlib-OBC metadata paths without explicit local annotations.</p>
-<p>	  The module renamer now preserves builtin annotation names such as <code>bytes</code></p>
+<p>  <code>std:bytes.to_string</code> now uses direct byte-slice conversion instead of list</p>
+<p>  materialization, and YAML trim/key splitting uses direct string slicing instead</p>
+<p>  of list-of-byte reconstruction. <code>std:buffer</code></p>
+<p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
+<p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
+<p>  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>
+<p>  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
+<p>  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>
+<p>  <code>cbor.cint(7).bytes().cbor()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
+<p>  <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
+<p>  <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> work through source and</p>
+<p>  stdlib-OBC metadata paths without explicit local annotations.</p>
+<p>  The module renamer now preserves builtin annotation names such as <code>bytes</code></p>
 <p>	  even when an import alias uses the same spelling, so trait impls for builtin</p>
 <p>	  types stay available to chained method lowering instead of becoming</p>
 <p>	  accidental module-local alias types.</p>
