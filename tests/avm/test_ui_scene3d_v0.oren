@@ -333,11 +333,33 @@ fn main() {
     assert_eq(_px(ellipsoid_buf, 4, 1, 1, 1), 204)
     assert_eq(_px(ellipsoid_buf, 4, 1, 1, 2), 255)
 
+    var from_toruses = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 46,
+                "toruses_xyz": [
+                    {"center": [3, 3, 1], "major_radius": 2, "minor_radius": 1, "major_segments": 4, "minor_segments": 4}
+                ],
+                "color": "#22ffaa"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 46}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_toruses) == false)
+    assert_eq(from_toruses[0]["op"], "mesh3d")
+    assert_true(ui_cmds.validate(from_toruses, 7, 7, {"strict_bounds": true}) == 0)
+    var torus_buf = ui_raster.rasterize(from_toruses, 7, 7, {"strict_bounds": true})
+    assert_true(oren_is_err(torus_buf) == false)
+    assert_eq(_px(torus_buf, 7, 5, 3, 0), 34)
+    assert_eq(_px(torus_buf, 7, 5, 3, 1), 255)
+
     var from_rgba_coords = scene3d.commands_from_asset({
         "meshes": [
             {
                 "kind": "triangles_rgba",
-                "id": 47,
+                "id": 48,
                 "triangles_xyz_rgba": [
                     {
                         "vertices": [[1, 1, 0], [2, 1, 0], [1, 2, 0]],
@@ -346,7 +368,7 @@ fn main() {
                 ]
             }
         ],
-        "draw": [{"op": "draw_mesh3d", "id": 47}],
+        "draw": [{"op": "draw_mesh3d", "id": 48}],
         "destroy": true
     })
     assert_true(oren_is_err(from_rgba_coords) == false)
@@ -505,6 +527,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cones_z\":[{\"center\":[0,0],\"radius\":0,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"spheres_xyz\":[{\"center\":[0,0,0],\"radius\":1,\"segments\":4,\"rings\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"ellipsoids_xyz\":[{\"center\":[0,0,0],\"radii\":[1,0,1]}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"toruses_xyz\":[{\"center\":[0,0,0],\"major_radius\":1,\"minor_radius\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"position_xyz\":[1,2]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"transform\":{\"scale_milli\":0}}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instance_groups\":[{\"transform\":{\"scale_milli\":0},\"instances\":[]}]}")) == true)

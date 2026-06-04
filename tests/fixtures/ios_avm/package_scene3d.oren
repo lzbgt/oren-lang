@@ -15,12 +15,12 @@ fn px(buf, w, x, y, chan) {
 fn main() {
     var cmds = scene3d.commands_from_binary_file("assets/scene3d_card.os3d")
     if oren_is_err(cmds) { fail(oren_err_msg(cmds)) }
-    var valid = ui_cmds.validate(cmds, 4, 4, {"strict_bounds": true})
+    var valid = ui_cmds.validate(cmds, 7, 7, {"strict_bounds": true})
     if oren_is_err(valid) { fail(oren_err_msg(valid)) }
-    var buf = ui_raster.rasterize(cmds, 4, 4, {"strict_bounds": true})
+    var buf = ui_raster.rasterize(cmds, 7, 7, {"strict_bounds": true})
     if oren_is_err(buf) { fail(oren_err_msg(buf)) }
-    if px(buf, 4, 1, 1, 1) != 255 { fail("scene3d package pixel") }
-    if px(buf, 4, 2, 2, 0) != 255 { fail("scene3d package rgba triangle pixel") }
+    if px(buf, 7, 1, 1, 1) != 255 { fail("scene3d package pixel") }
+    if px(buf, 7, 2, 2, 0) != 255 { fail("scene3d package rgba triangle pixel") }
     print("scene3d:ok")
     oren_exit(9)
 }

@@ -396,6 +396,58 @@ def pack_ellipsoids_xyz(ellipsoids):
     return pack_triangles_xyz(triangles)
 
 
+def torus_radius(torus, primary, fallback, label):
+    radius = torus.get(primary, torus.get(fallback))
+    if radius is None:
+        raise SystemExit(f"scene toruses_xyz entries must include {primary}")
+    radius = int(radius)
+    if radius <= 0:
+        raise SystemExit(f"scene toruses_xyz {label} must be positive")
+    return radius
+
+
+def torus_segments(torus, primary, fallback, default_value, min_segments, max_segments, label):
+    segments = int(torus.get(primary, torus.get(fallback, default_value)))
+    if segments < min_segments or segments > max_segments:
+        raise SystemExit(f"scene toruses_xyz {label} must be {min_segments}..{max_segments}")
+    return segments
+
+
+def torus_point(cx, cy, cz, major_radius, minor_radius, segments, tube_segments, seg, tube):
+    theta = math.tau * seg / segments
+    phi = math.tau * tube / tube_segments
+    ring_radius = major_radius + minor_radius * math.cos(phi)
+    x = round_half_away(cx + ring_radius * math.cos(theta))
+    y = round_half_away(cy + ring_radius * math.sin(theta))
+    z = round_half_away(cz + minor_radius * math.sin(phi))
+    return [x, y, z]
+
+
+def pack_toruses_xyz(toruses):
+    triangles = []
+    for torus in toruses:
+        if not isinstance(torus, dict):
+            raise SystemExit("scene toruses_xyz entries must be objects")
+        cx, cy, cz = sphere_center(torus, "toruses_xyz")
+        major_radius = torus_radius(torus, "major_radius", "radius", "major_radius")
+        minor_radius = torus_radius(torus, "minor_radius", "tube_radius", "minor_radius")
+        if minor_radius >= major_radius:
+            raise SystemExit("scene toruses_xyz minor_radius must be smaller than major_radius")
+        segments = torus_segments(torus, "major_segments", "segments", 16, 4, 96, "major_segments")
+        tube_segments = torus_segments(torus, "minor_segments", "tube_segments", 8, 3, 48, "minor_segments")
+        for seg in range(segments):
+            next_seg = 0 if seg + 1 == segments else seg + 1
+            for tube in range(tube_segments):
+                next_tube = 0 if tube + 1 == tube_segments else tube + 1
+                a = torus_point(cx, cy, cz, major_radius, minor_radius, segments, tube_segments, seg, tube)
+                b = torus_point(cx, cy, cz, major_radius, minor_radius, segments, tube_segments, next_seg, next_tube)
+                c = torus_point(cx, cy, cz, major_radius, minor_radius, segments, tube_segments, next_seg, tube)
+                d = torus_point(cx, cy, cz, major_radius, minor_radius, segments, tube_segments, seg, next_tube)
+                triangles.append([a, b, c])
+                triangles.append([a, d, b])
+    return pack_triangles_xyz(triangles)
+
+
 def pack_triangles_xyz_rgba(triangles):
     out = bytearray()
     for tri in triangles:
@@ -707,6 +759,8 @@ def scene3d_bin_v0(scene_bytes):
                 payload = pack_spheres_xyz(mesh["spheres_xyz"])
             elif mesh.get("ellipsoids_xyz") is not None:
                 payload = pack_ellipsoids_xyz(mesh["ellipsoids_xyz"])
+            elif mesh.get("toruses_xyz") is not None:
+                payload = pack_toruses_xyz(mesh["toruses_xyz"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""

@@ -1246,7 +1246,7 @@ cat > "$SCENE_PACKAGE_DIR/package.json" <<JSON
   ],
   "time_mode": "deterministic",
   "budgets": {
-    "gas": 5000000,
+    "gas": 10000000,
     "heap_bytes": 33554432,
     "io_bytes": 1048576,
     "frame_commands": 1024
