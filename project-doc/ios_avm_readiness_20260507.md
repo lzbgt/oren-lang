@@ -151,6 +151,11 @@ allocator/lifecycle hardening.
   active `runOBCData:error:` per runtime, returns a structured busy error for
   concurrent run attempts, and keeps `requestCancelWithError:` callable from
   another host thread.
+- Done 2026-06-04: Promote the CompilerKit smoke to a shared app-scale fixture.
+  `tests/fixtures/ios_avm/compilerkit_app_scale.oren` is compiled/run by both
+  the nested AVM stdlib-OBC harness and the `OrenAVMCompilerKit` SDK verifier,
+  covering trait receiver methods, struct field chains, codec chains,
+  buffer/linalg APIs, Scene3D asset authoring, and time.
 - P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.
 
 ## Verification Artifacts

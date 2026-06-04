@@ -41,7 +41,10 @@ This file is the concise task view. Detailed implementation status lives in
      `make verify-libavm-ios` now proves host compile-to-OBC, iOS C smoke linkage,
      host embedder
      argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a
-     nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public
+     nested compiler-in-AVM stdlib-OBC compile/run smoke, a shared app-scale
+     CompilerKit fixture covering trait receiver methods, struct field chains,
+     codec method chains, buffer/linalg APIs, and Scene3D package authoring,
+     plus the public
      `OrenAVMCompilerKit` SDK helper that compiles source to OBC through AVM
      VirtualFS/argv.
    - Desktop SDK gate: `make verify-libavm-desktop` builds macOS arm64/x86_64
@@ -62,8 +65,13 @@ This file is the concise task view. Detailed implementation status lives in
      u8 buffer iteration, checked integer casts, crypto hash vectors, iterator
      ranges, and Scene3D package assets.
    - Remaining required work: Note-side Swift UX integration, stderr or richer
-     structured diagnostic capture if the Note UI needs it, app-scale
-     compiler-in-AVM programs, and CI coverage.
+     structured diagnostic capture if the Note UI needs it, larger multi-file
+     compiler-in-AVM app suites, and CI coverage.
+   - Newly exposed gap: the shared app-scale fixture intentionally uses
+     concrete trait receiver syntax rather than a generic function constrained by
+     `Trait` because the
+     embedded AVM-compiled child still needs a focused generic-constrained trait
+     method regression before that form is promoted into this gate.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
    - Stdlib OBC gate: `make verify-libavm-ios` now also runs

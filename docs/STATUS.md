@@ -512,10 +512,12 @@ Working evidence:
   `build/oren_compiler.obc` into a nested AVM universe and compiles a small program
   through VFS.
 - `tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren` additionally
-  passes `build/stdlib_bundle.obc` as a stdlib OBC resource and compiles/runs a
-  multi-module child program covering list/time, bytes and SHA-256 receiver
-  methods, JSON parse/text chaining, checked integer casts, iterator ranges, and
-  zero-copy buffer slice/matrix receiver chains.
+  passes `build/stdlib_bundle.obc` as a stdlib OBC resource and compiles/runs
+  the shared `tests/fixtures/ios_avm/compilerkit_app_scale.oren` program. The
+  child program covers trait-backed receiver methods, struct field chains,
+  Base64/SHA/JSON/YAML/CBOR method chains, checked integer casts, iterator
+  ranges, zero-copy buffer slice/matrix receiver chains, linalg fallible APIs,
+  Scene3D package authoring, and time.
 - `scripts/verify_compiler_in_avm_ios_chain.sh` builds both OBC resources with
   `./oren`, runs the stdlib-OBC nested compiler harness through `./avm`, and is
   called by `make verify-libavm-ios`.
@@ -539,8 +541,8 @@ Missing for production:
   prompts;
 - continued manifest promotion for non-curated AVM fixtures where runtime cost is
   justified;
-- broader app-scale compiler-in-AVM programs, richer diagnostics capture, and CI
-  coverage beyond the current curated smoke program.
+- broader multi-file compiler-in-AVM app suites, richer diagnostics capture, and
+  CI coverage beyond the current curated app-scale fixture.
 
 ## Scientific Stdlib Math
 
@@ -585,8 +587,8 @@ Working evidence:
    - Preserve allocator thread-local owner isolation, one-run-per-runtime SDK
      guardrails, explicit resource loading, and app-level failure policy as SDK
      wrappers grow.
-   - Keep expanding compiler/stdlib OBC smoke coverage toward app-scale programs
-     and CI-hosted lifecycle checks.
+   - Keep expanding compiler/stdlib OBC coverage beyond the shared app-scale
+     fixture toward multi-file app suites and CI-hosted lifecycle checks.
 
 2. **AVM fixture manifest coverage**
    - Keep expanding `tests/avm/release_manifest.json` beyond the curated release-gate

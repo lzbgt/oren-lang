@@ -89,7 +89,10 @@
 <p>     <code>make verify-libavm-ios</code> now proves host compile-to-OBC, iOS C smoke linkage,</p>
 <p>     host embedder</p>
 <p>     argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a</p>
-<p>     nested compiler-in-AVM stdlib-OBC compile/run smoke, plus the public</p>
+<p>     nested compiler-in-AVM stdlib-OBC compile/run smoke, a shared app-scale</p>
+<p>     CompilerKit fixture covering trait receiver methods, struct field chains,</p>
+<p>     codec method chains, buffer/linalg APIs, and Scene3D package authoring,</p>
+<p>     plus the public</p>
 <p>     <code>OrenAVMCompilerKit</code> SDK helper that compiles source to OBC through AVM</p>
 <p>     VirtualFS/argv.</p>
 <ul>
@@ -122,8 +125,15 @@
 <ul>
 <li>Remaining required work: Note-side Swift UX integration, stderr or richer</li>
 </ul>
-<p>     structured diagnostic capture if the Note UI needs it, app-scale</p>
-<p>     compiler-in-AVM programs, and CI coverage.</p>
+<p>     structured diagnostic capture if the Note UI needs it, larger multi-file</p>
+<p>     compiler-in-AVM app suites, and CI coverage.</p>
+<ul>
+<li>Newly exposed gap: the shared app-scale fixture intentionally uses</li>
+</ul>
+<p>     concrete trait receiver syntax rather than a generic function constrained by</p>
+<p>     <code>Trait</code> because the</p>
+<p>     embedded AVM-compiled child still needs a focused generic-constrained trait</p>
+<p>     method regression before that form is promoted into this gate.</p>
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>

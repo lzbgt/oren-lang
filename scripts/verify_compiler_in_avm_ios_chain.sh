@@ -71,40 +71,13 @@ int main(void) {
             fprintf(stderr, "CompilerKit heap default too small: %llu\n", (unsigned long long)kit.compilerHeapLimitBytes);
             return 15;
         }
-        NSString* source =
-            @"import list \"std:list\"\n"
-             "import time \"std:time\"\n"
-             "import bytes \"std:bytes\"\n"
-             "import json \"std:json\"\n"
-             "import ints \"std:ints\"\n"
-             "import iter \"std:iter\"\n"
-             "import sha256 \"std:crypto/sha256\"\n"
-             "import buffer \"std:buffer\"\n"
-             "fn main() {\n"
-             "    var xs = []\n"
-             "    list.push(xs, 7)\n"
-             "    if time.sleep_ms(1) != 0 { oren_exit(2) }\n"
-             "    if list.len(xs) != 1 || xs[0] != 7 { oren_exit(3) }\n"
-             "    var b = bytes.from_string(\"abc\")\n"
-             "    if b.text() != \"abc\" { oren_exit(4) }\n"
-             "    if b.sha256_hex() != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { oren_exit(5) }\n"
-             "    if sha256.hex(b) != b.sha256_hex() { oren_exit(6) }\n"
-             "    var parsed = json.parse(\"{\\\"x\\\":5}\")\n"
-             "    if oren_is_err(parsed) == true { oren_exit(8) }\n"
-             "    if oren_type_tag(parsed) != 7 { oren_exit(8) }\n"
-             "    if parsed.text() != \"{\\\"x\\\":5}\" { oren_exit(8) }\n"
-             "    if \"{\\\"y\\\":6}\".json().text() != \"{\\\"y\\\":6}\" { oren_exit(9) }\n"
-             "    if ints.checked_u8(255) != 255 { oren_exit(10) }\n"
-             "    if oren_is_err(ints.checked_u8(256)) != true { oren_exit(11) }\n"
-             "    var sum = 0\n"
-             "    for x in iter.range(4) { sum = sum + x }\n"
-             "    if sum != 6 { oren_exit(12) }\n"
-             "    var ub = buffer.u8_from_string(\"abcdef\")\n"
-             "    if ub.slice(1, 3).text() != \"bcd\" { oren_exit(13) }\n"
-             "    if ub.matrix(2, 3).row(1).text() != \"def\" { oren_exit(14) }\n"
-             "    oren_exit(7)\n"
-             "}\n"
-             "main()\n";
+        NSString* source = [NSString stringWithContentsOfFile:@"tests/fixtures/ios_avm/compilerkit_app_scale.oren"
+                                                     encoding:NSUTF8StringEncoding
+                                                        error:&error];
+        if (!source || source.length == 0) {
+            fprintf(stderr, "CompilerKit source fixture read failed: %s\n", error.localizedDescription.UTF8String);
+            return 16;
+        }
         OrenAVMCompileResult* compiled = [kit compileSource:source platform:@"arm64-macos" error:&error];
         if (!compiled || compiled.obcData.length == 0 || compiled.compilerRunResult.exitCode != 0) {
             fprintf(stderr, "CompilerKit compile failed: %s\n", error.localizedDescription.UTF8String);

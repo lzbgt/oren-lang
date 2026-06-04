@@ -1,0 +1,123 @@
+import base64 "std:encoding/base64"
+import buffer "std:buffer"
+import bytes "std:bytes"
+import cbor "std:cbor"
+import ints "std:ints"
+import iter "std:iter"
+import json "std:json"
+import linalg "std:linalg"
+import list "std:list"
+import scene3d "std:ui/scene3d"
+import sha1 "std:crypto/sha1"
+import sha256 "std:crypto/sha256"
+import time "std:time"
+import yaml "std:yaml"
+
+struct Point { x, y }
+struct Rect { tl, br }
+
+trait ScaleAdd {
+    fn scale_add(self, scale, bias);
+}
+
+impl ScaleAdd for i64 {
+    fn scale_add(self, scale, bias) { return self * scale + bias }
+}
+
+fn fail(code, msg) {
+    print("compilerkit app-scale FAIL " + oren_int_to_string(code))
+    print(msg)
+    oren_exit(code)
+}
+
+fn check(cond, code, msg) {
+    if !cond { fail(code, msg) }
+}
+
+fn area(r: Rect): i64 {
+    return (r.br.x - r.tl.x) * (r.br.y - r.tl.y)
+}
+
+fn check_language_surface() {
+    var r = Rect(Point(0, 0), Point(5, 4))
+    check(area(r) == 20, 10, "struct field chain")
+
+    var v: i64 = 5
+    check(v.scale_add(3, 2) == 17, 11, "trait receiver method")
+}
+
+fn check_codecs() {
+    var b: bytes = bytes.from_string("abc")
+    check(b.text() == "abc", 20, "bytes text")
+    check(b.sha256_hex() == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", 21, "sha256 method")
+    check(b.sha1_hex() == "a9993e364706816aba3e25717850c26c9cd0d89d", 22, "sha1 method")
+    check(sha256.hex(b) == b.sha256().hex(), 23, "sha256 digest chain")
+    check(sha1.hex(b) == b.sha1().hex(), 24, "sha1 digest chain")
+    check(b.base64() == "YWJj", 25, "base64 encode")
+    check("YWJj".base64_bytes().text() == "abc", 26, "base64 decode")
+
+    var j = json.parse("{\"name\":\"oren\",\"n\":3}")
+    check(!oren_is_err(j), 27, "json parse")
+    check(j.text() == "{\"n\":3,\"name\":\"oren\"}", 28, "json text canonical")
+
+    var y = yaml.parse("name: oren\nn: 3\n")
+    check(!oren_is_err(y), 29, "yaml parse")
+    check(y.text() == "n: 3\nname: oren\n", 30, "yaml text canonical")
+
+    var cb: bytes = cbor.cmap({"n": cbor.cint(3), "name": cbor.cstring("oren")}).bytes()
+    var cv = cb.cbor()
+    check(!oren_is_err(cv), 31, "cbor parse")
+    check(cv.m["n"].i == 3, 32, "cbor map int")
+    check(cv.m["name"].s == "oren", 33, "cbor map string")
+}
+
+fn check_numeric_buffers() {
+    check(ints.checked_u8(255) == 255, 40, "checked_u8 max")
+    check(oren_is_err(ints.checked_u8(256)), 41, "checked_u8 overflow")
+
+    var sum = 0
+    for x in iter.range3(1, 6, 2) { sum = sum + x }
+    check(sum == 9, 42, "iter range3")
+
+    var ub = buffer.u8_from_string("abcdef")
+    check(ub.slice(1, 3).text() == "bcd", 43, "buffer slice method")
+    check(ub.matrix(2, 3).row(1).text() == "def", 44, "buffer matrix row method")
+    check(ub.matrix(2, 3).col(1).text() == "be", 45, "buffer matrix col method")
+
+    check(linalg.reduce_sum_i64_list_int_slots([7, 8, 9]) == 24, 46, "linalg reduce list")
+    check(linalg.dot_i64_list_int_slots([7, 8, 9], [1, 2, 3]) == 50, 47, "linalg dot list")
+    check(oren_is_err(linalg.dot_i64_list_int_slots([1, 2], [1])), 48, "linalg fallible mismatch")
+}
+
+fn check_scene3d() {
+    var cmds = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 17,
+                "quads_xyz": [
+                    [[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0]]
+                ],
+                "color": "#22cc44"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 17}],
+        "destroy": true
+    })
+    check(!oren_is_err(cmds), 50, "scene3d commands")
+    check(list.len(cmds) == 3, 51, "scene3d command count")
+    check(cmds[0]["op"] == "mesh3d", 52, "scene3d mesh op")
+    check(cmds[1]["op"] == "draw_mesh3d", 53, "scene3d draw op")
+    check(cmds[2]["op"] == "destroy_mesh3d", 54, "scene3d destroy op")
+}
+
+fn main() {
+    check_language_surface()
+    check_codecs()
+    check_numeric_buffers()
+    check_scene3d()
+    check(time.sleep_ms(1) == 0, 60, "time sleep")
+    oren_exit(7)
+}
+
+main()
