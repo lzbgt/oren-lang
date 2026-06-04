@@ -79,6 +79,18 @@ def pack_faces(faces, vertex_count):
     return bytes(out)
 
 
+def pack_quads(quads, vertex_count):
+    faces = []
+    for quad in quads:
+        if not isinstance(quad, list) or len(quad) != 4:
+            raise SystemExit("scene quads entries must be [a,b,c,d]")
+        if any(int(idx) < 0 or int(idx) >= vertex_count for idx in quad):
+            raise SystemExit("scene quad index out of bounds")
+        faces.append([quad[0], quad[1], quad[2]])
+        faces.append([quad[0], quad[2], quad[3]])
+    return pack_faces(faces, vertex_count)
+
+
 def pack_triangles_xyz(triangles):
     out = bytearray()
     for tri in triangles:
@@ -86,6 +98,16 @@ def pack_triangles_xyz(triangles):
             raise SystemExit("scene triangles_xyz entries must contain 3 vertices")
         out += pack_vertices_xyz(tri)
     return bytes(out)
+
+
+def pack_quads_xyz(quads):
+    triangles = []
+    for quad in quads:
+        if not isinstance(quad, list) or len(quad) != 4:
+            raise SystemExit("scene quads_xyz entries must contain 4 vertices")
+        triangles.append([quad[0], quad[1], quad[2]])
+        triangles.append([quad[0], quad[2], quad[3]])
+    return pack_triangles_xyz(triangles)
 
 
 def pack_triangles_xyz_rgba(triangles):
@@ -375,14 +397,20 @@ def scene3d_bin_v0(scene_bytes):
             if len(payload) % 12 != 0:
                 raise SystemExit("scene indexed mesh vertex bytes must be multiple of 12")
             vertex_count = len(payload) // 12
-            indices = pack_faces(mesh["faces"], vertex_count) if mesh.get("faces") is not None else bytes(mesh["indices"])
+            if mesh.get("faces") is not None:
+                indices = pack_faces(mesh["faces"], vertex_count)
+            elif mesh.get("quads") is not None:
+                indices = pack_quads(mesh["quads"], vertex_count)
+            else:
+                indices = bytes(mesh["indices"])
         elif kind == "triangles":
             kind_id = 2
-            payload = (
-                pack_triangles_xyz(mesh["triangles_xyz"])
-                if mesh.get("triangles_xyz") is not None
-                else bytes(mesh["triangles"])
-            )
+            if mesh.get("triangles_xyz") is not None:
+                payload = pack_triangles_xyz(mesh["triangles_xyz"])
+            elif mesh.get("quads_xyz") is not None:
+                payload = pack_quads_xyz(mesh["quads_xyz"])
+            else:
+                payload = bytes(mesh["triangles"])
             indices = b""
         elif kind == "triangles_rgba":
             kind_id = 3

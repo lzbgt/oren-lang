@@ -372,12 +372,12 @@ Facts from the 2026-05-28 implementation pass:
   retained mesh/material/model scene command lists and can load JSON or
   byte-native `.os3d` scene assets from package-mounted VirtualFS paths,
   including scene-level camera depth windows. Reviewable JSON scene assets can
-	  now use named mesh/material/model references plus model templates,
-	  instances, grouped instances with parent transform composition, and
-	  per-draw model/material/transform override objects that lower to
-  generated retained models, human-readable `position_xyz` or nested `transform` records,
-  human-readable
-  `vertices_xyz` / `faces` coordinate arrays, and per-triangle
+  now use named mesh/material/model references plus model templates,
+  instances, grouped instances with parent transform composition, and per-draw
+  model/material/transform override objects that lower to generated retained
+  models, human-readable `position_xyz` or nested `transform` records,
+  human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
+  `triangles_xyz` or `quads_xyz` direct meshes, and per-triangle
   `triangles_xyz_rgba` colors. Material authoring accepts `color` or
   `base_color` plus optional `opacity_milli`, `roughness_milli`, and
   `metallic_milli`, lowering the v0 renderer-visible output to deterministic
@@ -411,9 +411,10 @@ Facts from the 2026-05-28 implementation pass:
 - AVM app-facing stdlib hot paths now prefer raw bytes: `std:ui/avm` has
   `text_bytes`, direct text/composition event payload string slicing, and
   exact-size `u8_buf` OGF0 frame encoding instead of final list-to-byte packing,
-  `std:ui/scene3d` lowers coordinate/face/color package assets through exact-size
-	  `u8_buf` builders, `std:net/avm/http` has request/response helpers, and `std:bytes.to_string`
-	  now uses direct byte-slice conversion instead of list materialization. `std:buffer`
+  `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
+  exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
+  and `std:bytes.to_string` now uses direct byte-slice conversion instead of list
+  materialization. `std:buffer`
 	  `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
 	  through `u8_buf` byte slices instead of unpacking to Oren lists first, and
 	  direct byte slice helpers reject out-of-bounds spans before native conversion.

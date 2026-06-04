@@ -324,13 +324,13 @@
 <p>  JSON assets can use <code>name</code> fields, <code>mesh</code>/<code>material</code> string references,</p>
 <p>  <code>model_templates</code>, <code>instances</code>, string draw entries, human-readable</p>
 <p>  <code>position_xyz</code> model transforms or nested <code>transform</code> objects,</p>
-<p>  human-readable <code>vertices_xyz</code> / <code>faces</code></p>
-<p>  arrays for indexed meshes, <code>triangles_xyz</code> arrays for direct triangle meshes,</p>
-<p>  <code>triangles_xyz_rgba</code> arrays for per-triangle colors, or transform keyframes</p>
+<p>  human-readable <code>vertices_xyz</code> / <code>faces</code> or <code>quads</code></p>
+<p>  arrays for indexed meshes, <code>triangles_xyz</code> or <code>quads_xyz</code> arrays for direct</p>
+<p>  meshes, <code>triangles_xyz_rgba</code> arrays for per-triangle colors, or transform keyframes</p>
 <p>  sampled by <code>commands_from_*_at(..., time_milli)</code>. Materials accept <code>color</code> or</p>
 <p>  <code>base_color</code> plus optional <code>opacity_milli</code>, <code>roughness_milli</code>, and</p>
 <p>  <code>metallic_milli</code>, with v0 lowering those fields into deterministic</p>
-<p>  <code>material3d</code> colors; face indices and material scalar ranges are validated</p>
+<p>  <code>material3d</code> colors; face/quad indices and material scalar ranges are validated</p>
 <p>  while these resolve to existing numeric</p>
 <p>  retained commands before encoding;</p>
 <ul>

@@ -462,12 +462,12 @@
 <p>  retained mesh/material/model scene command lists and can load JSON or</p>
 <p>  byte-native <code>.os3d</code> scene assets from package-mounted VirtualFS paths,</p>
 <p>  including scene-level camera depth windows. Reviewable JSON scene assets can</p>
-<p>	  now use named mesh/material/model references plus model templates,</p>
-<p>	  instances, grouped instances with parent transform composition, and</p>
-<p>	  per-draw model/material/transform override objects that lower to</p>
-<p>  generated retained models, human-readable <code>position_xyz</code> or nested <code>transform</code> records,</p>
-<p>  human-readable</p>
-<p>  <code>vertices_xyz</code> / <code>faces</code> coordinate arrays, and per-triangle</p>
+<p>  now use named mesh/material/model references plus model templates,</p>
+<p>  instances, grouped instances with parent transform composition, and per-draw</p>
+<p>  model/material/transform override objects that lower to generated retained</p>
+<p>  models, human-readable <code>position_xyz</code> or nested <code>transform</code> records,</p>
+<p>  human-readable <code>vertices_xyz</code> / <code>faces</code> or <code>quads</code> coordinate arrays,</p>
+<p>  <code>triangles_xyz</code> or <code>quads_xyz</code> direct meshes, and per-triangle</p>
 <p>  <code>triangles_xyz_rgba</code> colors. Material authoring accepts <code>color</code> or</p>
 <p>  <code>base_color</code> plus optional <code>opacity_milli</code>, <code>roughness_milli</code>, and</p>
 <p>  <code>metallic_milli</code>, lowering the v0 renderer-visible output to deterministic</p>
@@ -509,9 +509,10 @@
 </ul>
 <p>  <code>text_bytes</code>, direct text/composition event payload string slicing, and</p>
 <p>  exact-size <code>u8_buf</code> OGF0 frame encoding instead of final list-to-byte packing,</p>
-<p>  <code>std:ui/scene3d</code> lowers coordinate/face/color package assets through exact-size</p>
-<p>	  <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers, and <code>std:bytes.to_string</code></p>
-<p>	  now uses direct byte-slice conversion instead of list materialization. <code>std:buffer</code></p>
+<p>  <code>std:ui/scene3d</code> lowers coordinate/face/quad/color package assets through</p>
+<p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
+<p>  and <code>std:bytes.to_string</code> now uses direct byte-slice conversion instead of list</p>
+<p>  materialization. <code>std:buffer</code></p>
 <p>	  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
 <p>	  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
 <p>	  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>

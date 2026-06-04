@@ -157,6 +157,49 @@ fn main() {
     assert_true(oren_is_err(coord_buf) == false)
     assert_eq(_px(coord_buf, 4, 0, 0, 0), 255)
 
+    var from_quads = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 38,
+                "quads_xyz": [
+                    [[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0]]
+                ],
+                "color": "#ff00ff"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 38}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_quads) == false)
+    assert_eq(from_quads[0]["op"], "mesh3d")
+    assert_true(ui_cmds.validate(from_quads, 4, 4, {"strict_bounds": true}) == 0)
+    var quad_buf = ui_raster.rasterize(from_quads, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(quad_buf) == false)
+    assert_eq(_px(quad_buf, 4, 1, 1, 0), 255)
+    assert_eq(_px(quad_buf, 4, 1, 1, 2), 255)
+
+    var from_indexed_quads = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "indexed",
+                "id": 39,
+                "vertices_xyz": [[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0]],
+                "quads": [[0, 1, 2, 3]],
+                "color": "#00ffff"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 39}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_indexed_quads) == false)
+    assert_eq(from_indexed_quads[0]["op"], "mesh3d_indexed")
+    assert_true(ui_cmds.validate(from_indexed_quads, 4, 4, {"strict_bounds": true}) == 0)
+    var indexed_quad_buf = ui_raster.rasterize(from_indexed_quads, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(indexed_quad_buf) == false)
+    assert_eq(_px(indexed_quad_buf, 4, 1, 1, 1), 255)
+    assert_eq(_px(indexed_quad_buf, 4, 1, 1, 2), 255)
+
     var from_rgba_coords = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -321,6 +364,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"bad\"}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instances\":[{\"id\":1,\"template\":\"missing\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"indexed\",\"id\":1,\"vertices_xyz\":[[0,0,0]],\"faces\":[[0,1,2]],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"indexed\",\"id\":1,\"vertices_xyz\":[[0,0,0]],\"quads\":[[0,1,2,3]],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"quads_xyz\":[[[0,0,0],[1,0,0],[1,1,0]]],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"position_xyz\":[1,2]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"models\":[{\"id\":1,\"mesh_id\":2,\"transform\":{\"scale_milli\":0}}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instance_groups\":[{\"transform\":{\"scale_milli\":0},\"instances\":[]}]}")) == true)

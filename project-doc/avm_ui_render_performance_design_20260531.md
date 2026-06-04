@@ -248,13 +248,13 @@ High-volume 2D and 3D need retained resources:
   JSON assets can use `name` fields, `mesh`/`material` string references,
   `model_templates`, `instances`, string draw entries, human-readable
   `position_xyz` model transforms or nested `transform` objects,
-  human-readable `vertices_xyz` / `faces`
-  arrays for indexed meshes, `triangles_xyz` arrays for direct triangle meshes,
-  `triangles_xyz_rgba` arrays for per-triangle colors, or transform keyframes
+  human-readable `vertices_xyz` / `faces` or `quads`
+  arrays for indexed meshes, `triangles_xyz` or `quads_xyz` arrays for direct
+  meshes, `triangles_xyz_rgba` arrays for per-triangle colors, or transform keyframes
   sampled by `commands_from_*_at(..., time_milli)`. Materials accept `color` or
   `base_color` plus optional `opacity_milli`, `roughness_milli`, and
   `metallic_milli`, with v0 lowering those fields into deterministic
-  `material3d` colors; face indices and material scalar ranges are validated
+  `material3d` colors; face/quad indices and material scalar ranges are validated
   while these resolve to existing numeric
   retained commands before encoding;
 - `std:ui/scene3d.commands_from_binary(...)` and
