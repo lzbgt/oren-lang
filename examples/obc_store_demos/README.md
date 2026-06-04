@@ -23,7 +23,7 @@ human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays, builder-si
 glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with material×`COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix selection, Wavefront OBJ `obj_source` / `obj_text`,
 binary-or-ASCII STL `stl_source`,
 inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`,
-inline ASCII PLY `ply_text`, and PLY face/vertex colors lowered to `mesh3d_rgba`, `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
+inline ASCII PLY `ply_text`, PLY face/vertex colors lowered to `mesh3d_rgba`, and core 3MF `3mf_source` ZIP mesh/build lowering, `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
 cylinders/cones/spheres/ellipsoids/toruses/capsules, per-triangle `triangles_xyz_rgba` colors,
 richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform

@@ -212,7 +212,8 @@ This file is the concise task view. Detailed implementation status lives in
 	     glTF 2.0 JSON and GLB source lowering with URI/BIN buffers/material colors multiplied by `COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix hierarchy selection,
 	     Wavefront OBJ, binary-or-ASCII STL source lowering, inline ASCII STL
 	     text lowering, binary-or-ASCII PLY source lowering,
-	     inline ASCII PLY text lowering, PLY face/vertex colors to `mesh3d_rgba`, plus
+	     inline ASCII PLY text lowering, PLY face/vertex colors to `mesh3d_rgba`,
+	     core 3MF ZIP mesh/build lowering, plus
 	     `cylinders_z`/`cones_z`/`spheres_xyz`/`ellipsoids_xyz`/`toruses_xyz`/`capsules_z` authoring that lower to existing
 	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
 	     Curved solid packers are split into `std:ui/scene3d_shapes` so broader

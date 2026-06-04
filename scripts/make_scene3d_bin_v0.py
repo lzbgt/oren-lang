@@ -9,8 +9,10 @@ import sys
 
 try:
     from scene3d_gltf import gltf_mesh_data, has_gltf_mesh
+    from scene3d_3mf import has_threemf_mesh, threemf_mesh_data
 except ModuleNotFoundError:
     from scripts.scene3d_gltf import gltf_mesh_data, has_gltf_mesh
+    from scripts.scene3d_3mf import has_threemf_mesh, threemf_mesh_data
 
 
 def color_u32(s):
@@ -233,6 +235,31 @@ def pack_gltf_triangles_rgba(mesh, base_dir):
             "color": color_hex_from_rgba(color[0], color[1], color[2], color[3]),
         })
     return pack_triangles_xyz_rgba(triangles)
+
+
+def threemf_transform_vertex(v, mesh):
+    scale_milli = int(mesh.get("3mf_scale_milli", mesh.get("threemf_scale_milli", 1000)))
+    if scale_milli <= 0:
+        raise SystemExit("scene 3MF 3mf_scale_milli must be positive")
+    offset = mesh.get("3mf_offset_xyz", mesh.get("threemf_offset_xyz", [0, 0, 0]))
+    if not isinstance(offset, list) or len(offset) != 3:
+        raise SystemExit("scene 3MF 3mf_offset_xyz must be [x,y,z]")
+    return [
+        round_half_away(float(v[0]) * scale_milli / 1000.0 + int(offset[0])),
+        round_half_away(float(v[1]) * scale_milli / 1000.0 + int(offset[1])),
+        round_half_away(float(v[2]) * scale_milli / 1000.0 + int(offset[2])),
+    ]
+
+
+def pack_threemf_indexed(mesh, base_dir):
+    vertices, faces = threemf_mesh_data(mesh, base_dir)
+    return pack_vertices_xyz([threemf_transform_vertex(v, mesh) for v in vertices]), pack_faces(faces, len(vertices))
+
+
+def pack_threemf_triangles(mesh, base_dir):
+    vertices, faces = threemf_mesh_data(mesh, base_dir)
+    points = [threemf_transform_vertex(v, mesh) for v in vertices]
+    return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
 
 
 def has_ply_mesh(mesh):
@@ -1367,6 +1394,8 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
             kind_id = 1
             if has_gltf_mesh(mesh):
                 payload, indices = pack_gltf_indexed(mesh, base_dir)
+            elif has_threemf_mesh(mesh):
+                payload, indices = pack_threemf_indexed(mesh, base_dir)
             elif has_obj_mesh(mesh):
                 payload, indices = pack_obj_indexed(mesh, base_dir)
             elif has_ply_mesh(mesh):
@@ -1390,6 +1419,8 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
             kind_id = 2
             if has_gltf_mesh(mesh):
                 payload = pack_gltf_triangles(mesh, base_dir)
+            elif has_threemf_mesh(mesh):
+                payload = pack_threemf_triangles(mesh, base_dir)
             elif has_obj_mesh(mesh):
                 payload = pack_obj_triangles(mesh, base_dir)
             elif has_ply_mesh(mesh):

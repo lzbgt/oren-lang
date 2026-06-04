@@ -367,10 +367,64 @@ end_header
         raise SystemExit("scene vertex-color PLY RGBA lowering did not produce averaged payload")
 
 
+def verify_scene3d_3mf_lowering():
+    model_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>
+    <object id="2" type="model" name="tri">
+      <mesh>
+        <vertices>
+          <vertex x="0" y="0" z="0"/>
+          <vertex x="1" y="0" z="0"/>
+          <vertex x="0" y="1" z="0"/>
+        </vertices>
+        <triangles>
+          <triangle v1="0" v2="1" v3="2"/>
+        </triangles>
+      </mesh>
+    </object>
+    <object id="3" type="model" name="component-tri">
+      <components>
+        <component objectid="2" transform="1 0 0 0 1 0 0 0 1 3 4 5"/>
+      </components>
+    </object>
+  </resources>
+  <build>
+    <item objectid="3" transform="1 0 0 0 1 0 0 0 1 7 8 9"/>
+  </build>
+</model>
+"""
+    rels_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
+</Relationships>
+"""
+    source_path = out_root / "scene3d_3mf_smoke.3mf"
+    with zipfile.ZipFile(source_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("_rels/.rels", rels_xml)
+        zf.writestr("3D/3dmodel.model", model_xml)
+    for kind in ("triangles", "indexed"):
+        scene = {
+            "schema": "oren.ui.scene3d.v0",
+            "meshes": [{"kind": kind, "id": 1, "3mf_source": source_path.name, "color": "#ffffffff"}],
+            "models": [{"id": 2, "mesh_id": 1}],
+            "draw": [2],
+        }
+        data = scene3d_module.scene3d_bin_v0(json.dumps(scene), out_root)
+        if (
+            not data.startswith(b"OS3D01\x00\x00") or
+            struct.pack("<iii", 10, 12, 14) not in data or
+            struct.pack("<iii", 11, 12, 14) not in data or
+            struct.pack("<iii", 10, 13, 14) not in data
+        ):
+            raise SystemExit(f"scene 3MF {kind} lowering did not produce expected coordinates")
+
+
 verify_scene3d_obj_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()
+verify_scene3d_3mf_lowering()
 
 
 def write_deterministic_zip(zip_path, files):
