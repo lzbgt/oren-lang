@@ -376,9 +376,24 @@ fn _huff_decode_bytes(ptr0, off, slen) {
     _huff_init()
     if slen <= 0 { return {"ok": 1, "b": oren_u8_buf_new_uninit(0)} }
 
-    var out = [] // list<u8>
+    var cr = _huff_decode_count(ptr0, off, slen)
+    if cr["ok"] != 1 { return cr }
+    var out_len = cr["n"]
+    var out = oren_u8_buf_new_uninit(out_len)
+    if oren_is_err(out) { return {"ok": 0, "err": "hpack.huffman: alloc failed"} }
+    var dst = native_buf_data_ptr(out)
+    if dst == 0 && out_len > 0 { return {"ok": 0, "err": "hpack.huffman: bytes ptr nil"} }
+
+    var wr = _huff_decode_write(ptr0, off, slen, dst)
+    if wr["ok"] != 1 { return wr }
+    if wr["n"] != out_len { return {"ok": 0, "err": "hpack.huffman: decoded length mismatch"} }
+    return {"ok": 1, "b": out}
+}
+
+fn _huff_decode_count(ptr0, off, slen) {
     var node = 0
     var bits_since_leaf = 0
+    var out_len = 0
 
     var i = 0
     while i < slen {
@@ -402,7 +417,7 @@ fn _huff_decode_bytes(ptr0, off, slen) {
                 if sym == 256 {
                     return {"ok": 0, "err": "hpack.huffman: EOS encountered"}
                 }
-                oren_list_push(out, sym & 255)
+                out_len = out_len + 1
                 node = 0
                 bits_since_leaf = 0
             }
@@ -420,16 +435,52 @@ fn _huff_decode_bytes(ptr0, off, slen) {
         if _HUFF_EOS_PREFIX_NODE[bits_since_leaf] != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
     }
 
-    var b2 = oren_u8_buf_new_uninit(oren_list_len(out))
-    if oren_is_err(b2) { return {"ok": 0, "err": "hpack.huffman: alloc failed"} }
-    var dst = native_buf_data_ptr(b2)
-    if dst == 0 && oren_list_len(out) > 0 { return {"ok": 0, "err": "hpack.huffman: bytes ptr nil"} }
-    var j = 0
-    while j < oren_list_len(out) {
-        ptr_set_byte(dst + j, out[j] & 255)
-        j = j + 1
+    return {"ok": 1, "n": out_len}
+}
+
+fn _huff_decode_write(ptr0, off, slen, dst) {
+    var node = 0
+    var bits_since_leaf = 0
+    var out_i = 0
+
+    var i = 0
+    while i < slen {
+        var byte = ptr_get_byte(ptr0 + off + i) & 255
+        var bit = 7
+        while bit >= 0 {
+            var b = (byte >> bit) & 1
+            if b == 0 {
+                node = _HUFF_L[node]
+            } else {
+                node = _HUFF_R[node]
+            }
+            if node < 0 {
+                return {"ok": 0, "err": "hpack.huffman: invalid code"}
+            }
+
+            bits_since_leaf = bits_since_leaf + 1
+            var sym = _HUFF_SYM[node]
+            if sym >= 0 {
+                if sym == 256 {
+                    return {"ok": 0, "err": "hpack.huffman: EOS encountered"}
+                }
+                ptr_set_byte(dst + out_i, sym & 255)
+                out_i = out_i + 1
+                node = 0
+                bits_since_leaf = 0
+            }
+            bit = bit - 1
+        }
+        i = i + 1
     }
-    return {"ok": 1, "b": b2}
+
+    if node != 0 {
+        if bits_since_leaf > 7 { return {"ok": 0, "err": "hpack.huffman: invalid padding length"} }
+        if bits_since_leaf >= oren_list_len(_HUFF_EOS_PREFIX_NODE) { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
+        if _HUFF_EOS_PREFIX_NODE[bits_since_leaf] != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
+    }
+
+    return {"ok": 1, "n": out_i}
 }
 
 fn _static_get(idx) {
@@ -791,9 +842,14 @@ fn _huff_encode_bytes_from_string(s) {
     var n = oren_string_len(s)
     if n <= 0 { return oren_u8_buf_new(0) }
 
-    var out = [] // list<u8>
+    var out_len = _huff_encoded_len_from_string(s)
+    var out = oren_u8_buf_new_uninit(out_len)
+    if oren_is_err(out) { return out }
+    var dst = native_buf_data_ptr(out)
+    if dst == 0 && out_len > 0 { return oren_err(4, "hpack.huff_encode: bytes ptr nil") }
     var acc = 0
     var acc_bits = 0
+    var out_i = 0
 
     var i = 0
     while i < n {
@@ -806,7 +862,8 @@ fn _huff_encode_bytes_from_string(s) {
         while acc_bits >= 8 {
             var shift = acc_bits - 8
             var b = (acc >> shift) & 255
-            list.push(out, b)
+            ptr_set_byte(dst + out_i, b)
+            out_i = out_i + 1
             acc = acc & ((1 << shift) - 1)
             acc_bits = shift
         }
@@ -817,10 +874,24 @@ fn _huff_encode_bytes_from_string(s) {
         // Pad with 1 bits to next octet boundary (EOS prefix).
         var pad = 8 - acc_bits
         acc = (acc << pad) | ((1 << pad) - 1)
-        list.push(out, acc & 255)
+        ptr_set_byte(dst + out_i, acc & 255)
+        out_i = out_i + 1
     }
 
-    return oren_bytes_pack(out)
+    if out_i != out_len { return oren_err(4, "hpack.huff_encode: encoded length mismatch") }
+    return out
+}
+
+fn _huff_encoded_len_from_string(s) {
+    var n = oren_string_len(s)
+    var bits = 0
+    var i = 0
+    while i < n {
+        var sym = oren_string_byte_at_unchecked(s, i) & 255
+        bits = bits + _HUFF_BITS[sym]
+        i = i + 1
+    }
+    return (bits + 7) / 8
 }
 
 fn _encode_string_into(out, s, use_huffman) {

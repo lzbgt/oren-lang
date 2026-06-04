@@ -537,7 +537,9 @@
 <p>	  package opts into HTML/XML parsing.</p>
 <p>	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical</p>
 <p>	  <code>digest</code> / <code>hex</code> / receiver-method APIs, and process virtual padding via</p>
-<p>		  indexed byte access instead of unpacking the whole message to a list. JSON,</p>
+<p>		  indexed byte access instead of unpacking the whole message to a list. HPACK</p>
+<p>		  Huffman string encode/decode now writes exact-size <code>u8_buf</code> payloads instead</p>
+<p>		  of building intermediate Oren byte lists. JSON,</p>
 <p>		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,</p>
 <p>			  HTTP/2 parser records, UI color parsing, PPM encoding, public</p>
 <p>			  <code>std:bytes</code> helpers, public <code>std:buffer</code> facade plus importable</p>

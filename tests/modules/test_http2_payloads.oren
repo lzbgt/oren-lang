@@ -1,4 +1,5 @@
 import h2 "../../lib/std/net/http2.oren"
+import hpack "../../lib/std/net/hpack.oren"
 
 fn fail(code, msg) {
     print("module http2_payloads FAIL " + oren_int_to_string(code) + ": " + msg)
@@ -60,6 +61,19 @@ var bad_fh = h2.parse_frame_header(0)
 if bad_fh["ok"] != 0 { fail(38, "parse_frame_header nil must have ok=0") }
 var bad_wh = h2.write_frame_header(0, 0, h2.FRAME_SETTINGS, 0, 0)
 if oren_is_err(bad_wh) != true { fail(39, "write_frame_header nil must err") }
+
+var enc_tbl = hpack.table_new(4096)
+var hb = hpack.encode_header_block(enc_tbl, [
+    {"name": "x-demo", "value": "www.example.com", "index": "no"}
+], {"huffman": 1})
+if hb["ok"] != 1 { fail(40, "hpack huffman encode") }
+var dec_tbl = hpack.table_new(4096)
+var dh = hpack.decode_header_block(dec_tbl, hb["b"])
+if dh["ok"] != 1 { fail(41, "hpack huffman decode") }
+var headers = dh["headers"]
+assert_eq(oren_list_len(headers), 1, 42, "hpack header count")
+assert_eq(headers[0]["name"], "x-demo", 43, "hpack header name")
+assert_eq(headers[0]["value"], "www.example.com", 44, "hpack header value")
 
 print("module http2_payloads OK")
 exit(0)
