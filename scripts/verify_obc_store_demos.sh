@@ -103,6 +103,29 @@ def verify_scene3d_gltf_lowering():
     if not data.startswith(b"OS3D01\x00\x00") or b"jjj\xff" not in data:
         raise SystemExit("scene glTF vertex-color RGBA lowering did not produce averaged payload")
 
+    topo_payload = bytearray()
+    for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)):
+        topo_payload += struct.pack("<fff", *vertex)
+    topo_uri = "data:application/octet-stream;base64," + base64.b64encode(topo_payload).decode("ascii")
+    topo_gltf = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": topo_uri, "byteLength": len(topo_payload)}],
+        "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": len(topo_payload)}],
+        "accessors": [{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"}],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "mode": 5}]}],
+    }
+    scene["meshes"][0] = {"kind": "triangles", "id": 1, "gltf_json": topo_gltf, "color": "#ffffffff"}
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    strip_payload = b"".join(struct.pack("<iii", *v) for v in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)))
+    if strip_payload not in data:
+        raise SystemExit("scene glTF TRIANGLE_STRIP lowering did not produce expected triangles")
+
+    topo_gltf["meshes"][0]["primitives"][0]["mode"] = 6
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    fan_payload = b"".join(struct.pack("<iii", *v) for v in ((1, 0, 0), (0, 1, 0), (0, 0, 0), (0, 1, 0), (1, 1, 0), (0, 0, 0)))
+    if fan_payload not in data:
+        raise SystemExit("scene glTF TRIANGLE_FAN lowering did not produce expected triangles")
+
     glb_doc = dict(gltf)
     glb_doc["buffers"] = [{"byteLength": len(payload)}]
     json_chunk = json.dumps(glb_doc, separators=(",", ":")).encode("utf-8")

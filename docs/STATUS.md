@@ -389,7 +389,7 @@ Facts from the 2026-05-28 implementation pass:
   model/material/transform override objects that lower to generated retained
   models, human-readable `position_xyz` or nested `transform` records,
   human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays,
-  builder-side glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with URI or GLB BIN buffers, material base colors, `COLOR_0`, and explicit node or scene TRS/matrix hierarchy selection, Wavefront OBJ `obj_source` / `obj_text`, binary-or-ASCII STL `stl_source`, inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`, inline ASCII PLY `ply_text`, and PLY face/vertex colors lowered to `mesh3d_rgba`,
+  builder-side glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with URI or GLB BIN buffers, material base colors, `COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix hierarchy selection, Wavefront OBJ `obj_source` / `obj_text`, binary-or-ASCII STL `stl_source`, inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`, inline ASCII PLY `ply_text`, and PLY face/vertex colors lowered to `mesh3d_rgba`,
   `triangles_xyz` or `quads_xyz` direct meshes, compact `boxes_xyz`
   cuboid primitives, `prisms_xy` extruded polygon solids, bounded
   `cylinders_z`, `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle

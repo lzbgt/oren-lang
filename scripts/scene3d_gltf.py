@@ -194,6 +194,29 @@ def gltf_indices_for_primitive(doc, primitive, vertex_count, base_dir):
     return indices
 
 
+def gltf_primitive_faces(local_indices, mode):
+    if len(local_indices) < 3:
+        raise SystemExit("scene glTF triangle-based primitive needs at least 3 indices")
+    if mode == 4:
+        if len(local_indices) % 3 != 0:
+            raise SystemExit("scene glTF TRIANGLES index count must be a multiple of 3")
+        return [
+            [local_indices[i], local_indices[i + 1], local_indices[i + 2]]
+            for i in range(0, len(local_indices), 3)
+        ]
+    if mode == 5:
+        return [
+            [local_indices[i], local_indices[i + 1 + (i % 2)], local_indices[i + 2 - (i % 2)]]
+            for i in range(0, len(local_indices) - 2)
+        ]
+    if mode == 6:
+        return [
+            [local_indices[i + 1], local_indices[i + 2], local_indices[0]]
+            for i in range(0, len(local_indices) - 2)
+        ]
+    raise SystemExit("scene glTF only TRIANGLES, TRIANGLE_STRIP, and TRIANGLE_FAN primitives are supported")
+
+
 def round_half_away(v):
     return int(math.floor(v + 0.5)) if v >= 0 else int(math.ceil(v - 0.5))
 
@@ -388,8 +411,6 @@ def gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, ve
         raise SystemExit("scene glTF mesh index out of bounds")
     for primitive in meshes[mesh_index].get("primitives", []):
         mode = int(primitive.get("mode", 4))
-        if mode != 4:
-            raise SystemExit("scene glTF only TRIANGLES primitives are supported")
         attributes = primitive.get("attributes", {})
         if attributes.get("POSITION") is None:
             raise SystemExit("scene glTF primitive missing POSITION accessor")
@@ -403,11 +424,10 @@ def gltf_append_mesh(doc, mesh_index, node_matrix, base_dir, vertices, faces, ve
                 raise SystemExit("scene glTF COLOR_0 count must match POSITION count")
         vertex_colors.extend(colors if colors is not None else [None] * len(positions))
         local_indices = gltf_indices_for_primitive(doc, primitive, len(positions), base_dir)
-        if len(local_indices) % 3 != 0:
-            raise SystemExit("scene glTF TRIANGLES index count must be a multiple of 3")
+        local_faces = gltf_primitive_faces(local_indices, mode)
         material_color = gltf_material_color(doc, primitive)
-        for i in range(0, len(local_indices), 3):
-            face = [base_vertex + local_indices[i], base_vertex + local_indices[i + 1], base_vertex + local_indices[i + 2]]
+        for local_face in local_faces:
+            face = [base_vertex + idx for idx in local_face]
             faces.append(face)
             face_colors.append(material_color if colors is None else None)
 
