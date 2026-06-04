@@ -193,7 +193,10 @@ AVM and the host SDK enforce capabilities and runtime limits.
 
 Deployment note: the host is expected to be reachable by SSH with trusted certs
 and fronted by Traefik for domain routing. Deployment automation should still
-treat private signing keys/root CA material as external to this repo.
+treat private signing keys/root CA material as external to this repo. The default
+dynamic Traefik route is checked in at `deploy/obc-store-traefik.dynamic.yml`,
+and the deploy script can regenerate it with
+`scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`.
 
 API/service detail lives in `project-doc/obc_store_service_design_20260601.md`.
 
@@ -297,9 +300,9 @@ the staged SDK for signed package downloads, install policies, trusted key input
 trusted persisted package updates, visible update-status checks, and the external
 trust issue tool. The Note package manager exposes Check/Recheck status actions
 and a visible trusted Update action for installed OBC packages. The store also has
-authenticated operator lifecycle controls, update inventory pages/APIs, and
-append-only mutation audit logs. Remaining store work is deployment polish before
-a public store is release-ready.
+authenticated operator lifecycle controls, update inventory pages/APIs,
+append-only mutation audit logs, and checked Traefik route generation. Remaining
+store work is live deployment polish before a public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside
 this repo, recommended at `../oren-ca/` for local multi-repo bring-up. This repo

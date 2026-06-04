@@ -871,6 +871,9 @@ verify-obc-store-deploy-script:
 	@bash -n scripts/deploy_obc_store_service.sh
 	@./scripts/deploy_obc_store_service.sh --help >/dev/null
 	@./scripts/deploy_obc_store_service.sh --print-systemd-unit | grep -q 'ExecStart=/opt/oren/obc-store/obc-store-server -addr 127.0.0.1:8080 -data-dir /srv/oren/obc-store'
+	@OBC_STORE_LISTEN_ADDR=172.20.0.1:18080 ./scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config | cmp -s - deploy/obc-store-traefik.dynamic.yml
+	@OBC_STORE_LISTEN_ADDR=172.20.0.1:18080 ./scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config | grep -q 'Host(`store.hubstack.cn`)'
+	@OBC_STORE_LISTEN_ADDR=172.20.0.1:18080 ./scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config | grep -q 'url: "http://172.20.0.1:18080"'
 
 deploy-obc-store-service:
 	@./scripts/deploy_obc_store_service.sh

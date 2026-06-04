@@ -1,0 +1,14 @@
+http:
+  routers:
+    oren-obc-store:
+      rule: "Host(`store.hubstack.cn`)"
+      entryPoints:
+        - "websecure"
+      tls:
+        certResolver: "letsencrypt"
+      service: "oren-obc-store"
+  services:
+    oren-obc-store:
+      loadBalancer:
+        servers:
+          - url: "http://172.20.0.1:18080"

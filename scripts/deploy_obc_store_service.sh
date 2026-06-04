@@ -5,6 +5,7 @@ usage() {
   cat <<'USAGE'
 usage: scripts/deploy_obc_store_service.sh
        scripts/deploy_obc_store_service.sh --print-systemd-unit
+       scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config
 
 Deploys the OBC store Go service binary to a SSH host. This script does not
 create private keys and does not copy signing keys unless explicitly requested.
@@ -29,6 +30,12 @@ Optional:
   OBC_STORE_SYSTEMD_SUDO="sudo -n"
   OBC_STORE_REMOTE_HEALTHCHECK=1
   OBC_STORE_REMOTE_HEALTH_URL=http://127.0.0.1:8080/api/v0/health
+  OBC_STORE_TRAEFIK_HOST=store.hubstack.cn
+  OBC_STORE_TRAEFIK_ENTRYPOINT=websecure
+  OBC_STORE_TRAEFIK_CERT_RESOLVER=letsencrypt
+  OBC_STORE_TRAEFIK_ROUTER=oren-obc-store
+  OBC_STORE_TRAEFIK_SERVICE=oren-obc-store
+  OBC_STORE_TRAEFIK_BACKEND_URL=http://172.20.0.1:18080
 
 The cloud host Traefik layer owns DNS and HTTPS for store.hubstack.cn. Configure
 its route to the service listener chosen by the host operator after deployment.
@@ -60,6 +67,46 @@ ReadWritePaths=$remote_data_dir $remote_dir
 
 [Install]
 WantedBy=multi-user.target
+EOF
+}
+
+backend_url_for_listen_addr() {
+  local backend_host="${listen_addr%:*}"
+  local backend_port="${listen_addr##*:}"
+  if [[ -n "${OBC_STORE_TRAEFIK_BACKEND_URL:-}" ]]; then
+    printf '%s\n' "$OBC_STORE_TRAEFIK_BACKEND_URL"
+    return 0
+  fi
+  if [[ "$backend_host" == "0.0.0.0" || "$backend_host" == "::" || "$backend_host" == "[::]" ]]; then
+    printf 'http://<host-reachable-ip>:%s\n' "$backend_port"
+    return 0
+  fi
+  printf 'http://%s\n' "$listen_addr"
+}
+
+emit_traefik_dynamic_config() {
+  local host="${OBC_STORE_TRAEFIK_HOST:-store.hubstack.cn}"
+  local entrypoint="${OBC_STORE_TRAEFIK_ENTRYPOINT:-websecure}"
+  local resolver="${OBC_STORE_TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+  local router="${OBC_STORE_TRAEFIK_ROUTER:-oren-obc-store}"
+  local service="${OBC_STORE_TRAEFIK_SERVICE:-oren-obc-store}"
+  local backend_url
+  backend_url="$(backend_url_for_listen_addr)"
+  cat <<EOF
+http:
+  routers:
+    $router:
+      rule: "Host(\`$host\`)"
+      entryPoints:
+        - "$entrypoint"
+      tls:
+        certResolver: "$resolver"
+      service: "$service"
+  services:
+    $service:
+      loadBalancer:
+        servers:
+          - url: "$backend_url"
 EOF
 }
 
@@ -95,6 +142,10 @@ fi
 
 if [[ "${1:-}" == "--print-systemd-unit" ]]; then
   emit_systemd_unit
+  exit 0
+fi
+if [[ "${1:-}" == "--print-traefik-dynamic-config" ]]; then
+  emit_traefik_dynamic_config
   exit 0
 fi
 if [[ -n "${1:-}" ]]; then
@@ -214,12 +265,7 @@ Run command on host:
 EOF
 
 if [[ "$install_systemd" == "1" ]]; then
-  route_backend_host="${listen_addr%:*}"
-  route_backend_port="${listen_addr##*:}"
-  route_backend="http://$listen_addr"
-  if [[ "$route_backend_host" == "0.0.0.0" || "$route_backend_host" == "::" || "$route_backend_host" == "[::]" ]]; then
-    route_backend="http://<host-reachable-ip>:$route_backend_port"
-  fi
+  route_backend="$(backend_url_for_listen_addr)"
   cat <<EOF
 
 Systemd service installed:
@@ -227,5 +273,8 @@ Systemd service installed:
 
 Traefik should route store.hubstack.cn to this backend when Traefik can reach it:
   $route_backend
+
+Generate dynamic route YAML:
+  OBC_STORE_LISTEN_ADDR='$listen_addr' scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config
 EOF
 fi

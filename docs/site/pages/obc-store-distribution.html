@@ -227,7 +227,10 @@ packages/...</code></pre>
 <p>AVM and the host SDK enforce capabilities and runtime limits.</p>
 <p>Deployment note: the host is expected to be reachable by SSH with trusted certs</p>
 <p>and fronted by Traefik for domain routing. Deployment automation should still</p>
-<p>treat private signing keys/root CA material as external to this repo.</p>
+<p>treat private signing keys/root CA material as external to this repo. The default</p>
+<p>dynamic Traefik route is checked in at <code>deploy/obc-store-traefik.dynamic.yml</code>,</p>
+<p>and the deploy script can regenerate it with</p>
+<p><code>scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config</code>.</p>
 <p>API/service detail lives in <code>project-doc/obc_store_service_design_20260601.md</code>.</p>
 <h2 id="ios-app-flow">iOS App Flow</h2>
 <ol>
@@ -343,9 +346,9 @@ packages/...</code></pre>
 <p>trusted persisted package updates, visible update-status checks, and the external</p>
 <p>trust issue tool. The Note package manager exposes Check/Recheck status actions</p>
 <p>and a visible trusted Update action for installed OBC packages. The store also has</p>
-<p>authenticated operator lifecycle controls, update inventory pages/APIs, and</p>
-<p>append-only mutation audit logs. Remaining store work is deployment polish before</p>
-<p>a public store is release-ready.</p>
+<p>authenticated operator lifecycle controls, update inventory pages/APIs,</p>
+<p>append-only mutation audit logs, and checked Traefik route generation. Remaining</p>
+<p>store work is live deployment polish before a public store is release-ready.</p>
 <p>Key custody rule: private signing keys and any root CA material must live outside</p>
 <p>this repo, recommended at <code>../oren-ca/</code> for local multi-repo bring-up. This repo</p>
 <p>may document paths and commit public trust anchors or test public keys, but must</p>

@@ -154,7 +154,10 @@ Remaining service work:
   bind the service to `OBC_STORE_LISTEN_ADDR` for the Traefik backend, and run a
   remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`. Operators can inspect
   the generated unit without SSH via
-  `scripts/deploy_obc_store_service.sh --print-systemd-unit`;
+  `scripts/deploy_obc_store_service.sh --print-systemd-unit`, and can generate
+  the matching Traefik dynamic route with
+  `scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`. The
+  checked default route lives at `deploy/obc-store-traefik.dynamic.yml`;
 - live deployment now runs on the cloud host with `oren-obc-store.service`
   listening on the host bridge address `172.20.0.1:18080`, and Dockerized Traefik
   routes `https://store.hubstack.cn/` to that backend;
@@ -358,7 +361,9 @@ Before deployment:
    signed index output, and search filters.
 2. End-to-end fixture that publishes a package, fetches signed index, installs via
    `OrenAVMPackageStore`, and runs in AVM.
-3. Traefik route smoke for `https://store.hubstack.cn/api/v0/health`.
+3. Traefik route smoke for `https://store.hubstack.cn/api/v0/health`; the
+   generated dynamic route should match `deploy/obc-store-traefik.dynamic.yml`
+   for the default `172.20.0.1:18080` backend.
 4. Private key scan proving no private key material is committed.
 5. Backup/restore smoke for metadata DB and artifact storage.
 6. Rate limits and max upload/package sizes.

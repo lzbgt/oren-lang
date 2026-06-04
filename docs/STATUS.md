@@ -172,8 +172,9 @@ Facts from the 2026-05-28 implementation pass:
   `/api/v0/packages/{publisher}/{name}/update?current_version=...` to get
   semver-aware latest published release metadata and an `update_available` flag.
   `scripts/deploy_obc_store_service.sh` now supports an opt-in systemd service
-  install/restart path, configurable listen address for Traefik, and an optional
-  remote `/api/v0/health` probe. The live cloud host currently runs
+  install/restart path, configurable listen address for Traefik, generated
+  Traefik dynamic route YAML, and an optional remote `/api/v0/health` probe.
+  The live cloud host currently runs
   `oren-obc-store.service` on `172.20.0.1:18080` and Dockerized Traefik routes
   `https://store.hubstack.cn/` to that backend; `/healthz` and `/api/v0/health`
   are public smoke endpoints for browser/API reachability. The live store is
