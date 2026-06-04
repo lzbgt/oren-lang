@@ -1,0 +1,29 @@
+fn count(...rest) {
+    return oren_list_len(rest)
+}
+
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+
+fn fail(code) {
+    print("test_varargs_call_spread FAIL " + oren_int_to_string(code))
+    oren_exit(code)
+}
+
+fn main() {
+    var xs = [1, 2, 3]
+    if count(xs...) != 3 { fail(10) }
+    if sum1(1, 2, 3, 4) != 10 { fail(11) }
+    if sum1(1, xs...) != 7 { fail(12) }
+    print("test_varargs_call_spread OK")
+    oren_exit(0)
+}
+
+main()

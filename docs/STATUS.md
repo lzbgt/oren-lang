@@ -499,10 +499,12 @@ Facts from the 2026-05-28 implementation pass:
   APIs, bytes/endian helpers, u8 buffer iteration, checked and wrapping integer
   casts, call-stack discipline, explicit result/state hashing, attributes,
   bool/float ops, for/for-in lowering over lists/maps/strings/bytes, generic
-  call specialization, literal bases, container mutation/iteration, pack views,
-  deterministic math core/rounding, exp/log, and trig/atan vectors, float
-  diagnostic formatting, crypto hash vectors, iterator ranges, and Scene3D
-  package-asset authoring rather than leaving those as ad-hoc focused fixtures.
+  call specialization, varargs call/spread packing, literal bases, container
+  mutation/iteration, pack views, task/group surfaces, deterministic join
+  timeout, bounded trace diagnostics, deterministic math core/rounding, exp/log,
+  trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
+  ranges, and Scene3D package-asset authoring rather than leaving those as
+  ad-hoc focused fixtures.
 - A direct `AVM_IO_BYTES=128` run of `test_budget_io_fs` returns the expected
   `AVM_ERR_BUDGET`, proving that specific runtime behavior while exposing harness debt.
 

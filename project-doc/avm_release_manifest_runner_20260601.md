@@ -54,8 +54,8 @@ to the manifest with explicit metadata instead of relying on defaults.
 
 The current manifest covers the curated release-gate set, one non-gate VPROC
 fixture, the default-safe language/container fixtures, and default-safe
-byte/int/call-stack/hash fixtures that run with zero-exit virtual backend
-policy. The next completeness step is to add explicit release
-inclusion/exclusion and policy metadata for the remaining host-effect, budget,
-record/replay, snapshot, and multiverse fixtures, then gate the full wildcard
-path when the expected budgets/backends are declared.
+byte/int/call-stack/hash, varargs call/spread, task/group scheduler, deterministic
+join-timeout, and bounded trace diagnostic fixtures. The next completeness step
+is to add explicit release inclusion/exclusion and policy metadata for the
+remaining host-effect, budget, record/replay, snapshot, and multiverse fixtures,
+then gate the full wildcard path when the expected budgets/backends are declared.

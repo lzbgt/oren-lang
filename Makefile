@@ -267,12 +267,15 @@ endif
 		tests/avm/test_for_in_map_keys.oren \
 		tests/avm/test_for_in_string.oren \
 		tests/avm/test_generic_call_specialization.oren \
+		tests/avm/test_varargs_call_spread.oren \
 		tests/avm/test_int_literal_bases.oren \
 		tests/avm/test_int_casts.oren \
 		tests/avm/test_list_append_grow.oren \
 		tests/avm/test_map_iter_deterministic.oren \
 		tests/avm/test_result_hash_repeat.oren \
 		tests/avm/test_state_hash_repeat.oren \
+		tests/avm/test_trace_hash_repeat.oren \
+		tests/avm/test_trace_bytes_truncate.oren \
 		tests/avm/test_nested_containers.oren \
 		tests/avm/test_pack_view.oren \
 		tests/avm/test_struct_member_set.oren \
@@ -310,6 +313,9 @@ endif
 		tests/avm/test_yield_exchange_v0.oren \
 		tests/avm/test_generator_v0.oren \
 		tests/avm/test_coroutine_v0.oren \
+		tests/avm/test_task_v0.oren \
+		tests/avm/test_task_group_v0.oren \
+		tests/avm/test_spawn_join_timeout.oren \
 		tests/avm/test_ui_ppm_v0.oren \
 		tests/avm/test_ui_cmds_validate_v0.oren
 

@@ -126,7 +126,7 @@ fn new_bytecode_ctx() {
         "in_function": false,
         "functions": {},
         "declared_funcs": {},
-        // Named function varargs mapping (name -> fixed param count).
+        // Named function varargs mapping (name -> fixed param count encoded as count+1).
         // Presence means the function has a trailing `...rest` parameter.
         "func_varargs_fixed": {},
         // Type registry for constructor lowering:

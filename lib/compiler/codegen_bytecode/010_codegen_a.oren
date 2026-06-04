@@ -33,7 +33,7 @@ fn bytecode_compile_expr(ctx, expr) {
             // Only pack for direct named functions (not local/global vars).
             if ctx["locals"][nm] == nil && ctx["globals"][nm] == nil {
                 var vf = ctx["func_varargs_fixed"][nm]
-                if vf != nil { fixed = vf }
+                if oren_type_tag(vf) != 0 { fixed = vf - 1 }
             }
         }
         if fixed >= 0 && oren_list_len(args) < fixed {
@@ -1311,7 +1311,7 @@ fn bytecode_compile_expr(ctx, expr) {
         // a trailing `...rest`, pack extra args into a list as the last argument.
         var fixed = -1
         var vf = ctx["func_varargs_fixed"][name]
-        if vf != nil { fixed = vf }
+        if oren_type_tag(vf) != 0 { fixed = vf - 1 }
         if expr["spread"] != nil {
             if fixed >= 0 {
                 // Varargs+spread: build the `rest` list dynamically, then call with
