@@ -444,6 +444,58 @@ static NSURL* OrenAVMPackageUpdateURL(NSURL* storeBaseURL, NSString* publisher, 
     return components.URL;
 }
 
+static NSURL* OrenAVMPackageInstallMetadataURL(NSURL* packageRoot) {
+    return packageRoot.isFileURL ? [packageRoot URLByAppendingPathComponent:@".oren-install.json" isDirectory:NO] : nil;
+}
+
+static BOOL OrenAVMPackageWriteInstallMetadata(NSURL* packageRoot,
+                                               NSURL* indexURL,
+                                               NSDictionary* manifest,
+                                               NSError** error) {
+    NSURL* outURL = OrenAVMPackageInstallMetadataURL(packageRoot);
+    if (!outURL || !indexURL) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata path is invalid");
+    NSString* publisher = OrenAVMPackageString(manifest, @"publisher") ?: @"";
+    NSString* name = OrenAVMPackageString(manifest, @"name") ?: @"";
+    NSString* version = OrenAVMPackageString(manifest, @"version") ?: @"";
+    NSDictionary<NSString*, id>* metadata = @{
+        @"schema": @"oren.obc.package.install.v0",
+        @"package_id": [NSString stringWithFormat:@"%@/%@/%@", publisher, name, version],
+        @"publisher": publisher,
+        @"name": name,
+        @"version": version,
+        @"store_index_url": indexURL.absoluteString ?: @"",
+        @"installed_at_unix_ms": @((int64_t)([[NSDate date] timeIntervalSince1970] * 1000.0))
+    };
+    NSData* data = [NSJSONSerialization dataWithJSONObject:metadata options:NSJSONWritingPrettyPrinted error:error];
+    if (!data) return NO;
+    return [data writeToURL:outURL options:NSDataWritingAtomic error:error];
+}
+
+static NSURL* OrenAVMPackageReadInstallIndexURL(NSURL* packageRoot, NSError** error) {
+    NSURL* metaURL = OrenAVMPackageInstallMetadataURL(packageRoot);
+    if (!metaURL) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata path is invalid");
+        return nil;
+    }
+    NSData* data = [NSData dataWithContentsOfURL:metaURL options:0 error:error];
+    if (!data) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata must be a JSON object");
+        return nil;
+    }
+    NSDictionary* metadata = (NSDictionary*)json;
+    NSString* schema = OrenAVMPackageString(metadata, @"schema");
+    NSString* url = OrenAVMPackageString(metadata, @"store_index_url");
+    if (![schema isEqualToString:@"oren.obc.package.install.v0"] || url.length == 0) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata is invalid");
+        return nil;
+    }
+    NSURL* indexURL = [NSURL URLWithString:url];
+    if (!indexURL) OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package install metadata URL is invalid");
+    return indexURL;
+}
+
 @interface OrenAVMPackage ()
 - (instancetype)initWithDirectoryURL:(NSURL*)directoryURL
                             manifest:(NSDictionary<NSString*, id>*)manifest
@@ -634,6 +686,23 @@ static NSURL* OrenAVMPackageUpdateURL(NSURL* storeBaseURL, NSString* publisher, 
                                allowedHosts:allowedHosts
                              timeoutSeconds:timeoutSeconds
                                       error:error];
+}
+
+- (OrenAVMPackageUpdateStatus*)packageUpdateStatusForInstalledPackage:(OrenAVMPackage*)package
+                                                         allowedHosts:(NSSet<NSString*>*)allowedHosts
+                                                       timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                                error:(NSError**)error {
+    if (!package) {
+        OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package update check requires a package");
+        return nil;
+    }
+    NSURL* indexURL = OrenAVMPackageReadInstallIndexURL(package.directoryURL, error);
+    if (!indexURL) return nil;
+    return [self packageUpdateStatusForPackage:package
+                                  storeBaseURL:indexURL
+                                  allowedHosts:allowedHosts
+                                timeoutSeconds:timeoutSeconds
+                                         error:error];
 }
 
 - (OrenAVMPackage*)downloadPackageFromIndexURL:(NSURL*)indexURL
@@ -845,6 +914,7 @@ static NSURL* OrenAVMPackageUpdateURL(NSURL* storeBaseURL, NSString* publisher, 
     BOOL packageExists = [fm fileExistsAtPath:packageRoot.path];
     if (packageExists) {
         if (installPolicy == OrenAVMPackageInstallPolicyKeepExisting) {
+            if (!OrenAVMPackageWriteInstallMetadata(packageRoot, indexURL, manifest, error)) return nil;
             return [self loadPackageAtDirectoryURL:packageRoot error:error];
         }
         if (installPolicy == OrenAVMPackageInstallPolicyFailIfInstalled) {
@@ -929,6 +999,10 @@ static NSURL* OrenAVMPackageUpdateURL(NSURL* storeBaseURL, NSString* publisher, 
                 if (![assetData writeToURL:assetOutURL options:NSDataWritingAtomic error:error]) return nil;
             }
         }
+    }
+    if (!OrenAVMPackageWriteInstallMetadata(packageTmpRoot, indexURL, manifest, error)) {
+        (void)[fm removeItemAtURL:packageTmpRoot error:nil];
+        return nil;
     }
     OrenAVMPackage* staged = [self loadPackageAtDirectoryURL:packageTmpRoot error:error];
     if (!staged) {

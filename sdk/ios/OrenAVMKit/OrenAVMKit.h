@@ -396,6 +396,10 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                                                          allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
                                                        timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                                                 error:(NSError* _Nullable* _Nullable)error;
+- (nullable OrenAVMPackageUpdateStatus*)packageUpdateStatusForInstalledPackage:(OrenAVMPackage*)package
+                                                                  allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
+                                                                timeoutSeconds:(NSTimeInterval)timeoutSeconds
+                                                                         error:(NSError* _Nullable* _Nullable)error;
 
 + (NSString*)sha256HexForData:(NSData*)data;
 

@@ -132,7 +132,8 @@ Facts from the 2026-05-28 implementation pass:
   iOS verifier proves same-version keep/fail behavior plus a signed `0.2.0` update.
   `OrenAVMPackageUpdateStatus` lets host apps query the store update endpoint from
   either an installed package or an explicit update URL before choosing an install
-  policy.
+  policy, and remote installs persist their source index URL so later app launches
+  can check updates without a separate host-side mapping table.
 - OBC store trust/key tooling is available as `scripts/issue_obc_store_trust.sh`
   and `make issue-obc-store-trust`. It writes private P-256 keys outside the repo
   by default under `../oren-ca/private`, exports SDK-ready public key bytes and

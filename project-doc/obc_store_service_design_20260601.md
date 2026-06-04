@@ -115,7 +115,8 @@ Implemented in this repo:
   semver-aware natural ordering, so host apps do not need to duplicate update
   selection logic. The iOS SDK consumes this through
   `OrenAVMPackageUpdateStatus`, keeping update discovery separate from signed
-  package install policy.
+  package install policy, and records the source index URL during remote package
+  install so later update checks do not require a separate host mapping table.
 - Publisher endpoints can create publishers, packages, draft versions, upload
   release OBC/assets, publish releases, and yank releases.
 - Version uploads validate manifest `permission_defaults` shape before accepting a

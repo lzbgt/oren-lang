@@ -272,6 +272,9 @@
 <p>     latest published release metadata plus <code>update_available</code>, and the iOS SDK</p>
 <p>     exposes <code>OrenAVMPackageUpdateStatus</code> so host apps can query it from an</p>
 <p>     installed package or explicit update URL before applying an install policy.</p>
+<p>     Remote installs persist their source index URL inside SDK install metadata, so</p>
+<p>     update checks can survive app relaunch without duplicating source-store state</p>
+<p>     in each host app.</p>
 <p>     Remaining package-store work is richer update persistence and visible Note</p>
 <p>     install/update/remove UX.</p>
 <ul>

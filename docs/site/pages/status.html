@@ -188,7 +188,8 @@
 <p>  iOS verifier proves same-version keep/fail behavior plus a signed <code>0.2.0</code> update.</p>
 <p>  <code>OrenAVMPackageUpdateStatus</code> lets host apps query the store update endpoint from</p>
 <p>  either an installed package or an explicit update URL before choosing an install</p>
-<p>  policy.</p>
+<p>  policy, and remote installs persist their source index URL so later app launches</p>
+<p>  can check updates without a separate host-side mapping table.</p>
 <ul>
 <li>OBC store trust/key tooling is available as <code>scripts/issue_obc_store_trust.sh</code></li>
 </ul>

@@ -882,6 +882,18 @@ int main(void) {
                                                                                     error:&error];
             if (!currentStatus || currentStatus.updateAvailable ||
                 ![currentStatus.latestVersion isEqual:@"0.2.0"]) return 165;
+            OrenAVMPackage* reloadedServicePackage = [store loadInstalledPackageInDirectoryURL:[NSURL fileURLWithPath:servicePackageDownloadDir isDirectory:YES]
+                                                                                     packageID:@"oren-labs/sdk-package-service"
+                                                                                       version:@"0.1.0"
+                                                                                         error:&error];
+            OrenAVMPackageUpdateStatus* persistedStatus = reloadedServicePackage
+                ? [store packageUpdateStatusForInstalledPackage:reloadedServicePackage
+                                                   allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                 timeoutSeconds:5.0
+                                                          error:&error]
+                : nil;
+            if (!persistedStatus || !persistedStatus.updateAvailable ||
+                ![persistedStatus.latestVersion isEqual:@"0.2.0"]) return 166;
             OrenAVMRuntimeConfig* packageCfg = [store runtimeConfigForPackage:package error:&error];
             if (!packageCfg || (packageCfg.allowedDomains & OrenAVMDomainFS) == 0) return 118;
             OrenAVMRuntime* packageRuntime = [[OrenAVMRuntime alloc] initWithConfig:packageCfg];

@@ -204,6 +204,9 @@ This file is the concise task view. Detailed implementation status lives in
      latest published release metadata plus `update_available`, and the iOS SDK
      exposes `OrenAVMPackageUpdateStatus` so host apps can query it from an
      installed package or explicit update URL before applying an install policy.
+     Remote installs persist their source index URL inside SDK install metadata, so
+     update checks can survive app relaunch without duplicating source-store state
+     in each host app.
      Remaining package-store work is richer update persistence and visible Note
      install/update/remove UX.
    - 2026-06-01: `scripts/issue_obc_store_trust.sh` and

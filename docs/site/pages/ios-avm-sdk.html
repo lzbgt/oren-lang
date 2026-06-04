@@ -452,7 +452,10 @@
 <p>  either an installed package plus store base/index URL or an explicit update URL.</p>
 <p>  The SDK parses publisher/name/current/latest version fields, exposes</p>
 <p>  <code>updateAvailable</code>, and keeps update discovery separate from install so apps can</p>
-<p>  present user or policy decisions before applying an install policy.</p>
+<p>  present user or policy decisions before applying an install policy. Remote SDK</p>
+<p>  installs write <code>.oren-install.json</code> with the source <code>index.json</code> URL and package</p>
+<p>  identity, so later app launches can query update status for a loaded installed</p>
+<p>  package without rebuilding a host-side package-to-store mapping table.</p>
 <ul>
 <li>Signature/cert enforcement is host policy. The SDK provides strict signed</li>
 </ul>
