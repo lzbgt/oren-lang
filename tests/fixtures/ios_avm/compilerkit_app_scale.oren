@@ -94,6 +94,7 @@ fn check_numeric_buffers() {
     check(oren_is_err(linalg.dot_i64_list_int_slots([1, 2], [1])), 48, "linalg fallible mismatch")
     check(math.abs_f(math.sin(math.pi() / 2.0) - 1.0) < 1e-10, 49, "math trig")
     check(math.abs_f(math.atan2(1.0, 1.0) - math.pi() / 4.0) < 1e-12, 491, "math atan2")
+    check(math.abs_f(math.tan(math.pi() / 4.0) - 1.0) < 5e-10, 492, "math tan")
 }
 
 fn check_scene3d() {

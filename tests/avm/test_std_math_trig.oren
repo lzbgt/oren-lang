@@ -27,6 +27,10 @@ assert_close(math.cos(0.0), 1.0, 1e-15, 11, "cos(0)")
 assert_close(math.sin(PI / 2.0), 1.0, 1e-10, 12, "sin(pi/2)")
 assert_close(math.cos(PI), -1.0, 1e-10, 13, "cos(pi)")
 assert_close(math.sin(0.0 - PI / 2.0), -1.0, 1e-10, 14, "sin(-pi/2)")
+assert_close(math.tan(0.0), 0.0, 1e-15, 15, "tan(0)")
+assert_close(math.tan(PI / 4.0), 1.0, 5e-10, 16, "tan(pi/4)")
+assert_close(math.tan(0.0 - PI / 4.0), -1.0, 5e-10, 17, "tan(-pi/4)")
+assert_close(math.tan(PI / 6.0), 0.5773502691896257, 5e-10, 18, "tan(pi/6)")
 
 assert_close(math.atan(1.0), PI / 4.0, 1e-12, 20, "atan(1)")
 assert_close(math.atan(-1.0), 0.0 - PI / 4.0, 1e-12, 21, "atan(-1)")
@@ -51,6 +55,11 @@ var c2 = math.cos(xp)
 if oren_is_err(c2) { fail(34, "cos x+tau returned err") }
 assert_close(s1, s2, 1e-10, 35, "sin periodicity")
 assert_close(c1, c2, 1e-10, 36, "cos periodicity")
+var t1 = math.tan(x)
+if oren_is_err(t1) { fail(361, "tan returned err") }
+var t2 = math.tan(xp)
+if oren_is_err(t2) { fail(362, "tan x+tau returned err") }
+assert_close(t1, t2, 1e-10, 363, "tan periodicity")
 
 var sn = math.sin(0.0 - x)
 if oren_is_err(sn) { fail(37, "sin negative returned err") }
@@ -82,6 +91,8 @@ assert_close(hcn, hc1, 1e-8, 51, "huge cos even symmetry")
 assert_true(oren_is_err(math.sin(math.inf())), 60, "sin(inf) must err")
 assert_true(oren_is_err(math.cos(math.inf())), 61, "cos(inf) must err")
 assert_true(oren_is_err(math.atan(0.0 / 0.0)), 62, "atan(NaN) must err")
+assert_true(oren_is_err(math.tan(math.inf())), 63, "tan(inf) must err")
+assert_true(oren_is_err(math.tan(0.0 / 0.0)), 64, "tan(NaN) must err")
 
 print("avm std math trig OK")
 exit(0)

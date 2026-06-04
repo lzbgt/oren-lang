@@ -342,7 +342,10 @@
 <ul>
 <li>Expand only where current fixtures expose gaps.</li>
 <li>Keep bytecode/C/native behavior aligned before adding new user-visible surfaces.</li>
+<li>Verification should stay proportional to the touched surface: run focused</li>
 </ul>
+<p>     feature/performance fixtures first, then the affected release or SDK gate.</p>
+<p>     Avoid blanket platform sweeps unless ABI, packaging, or embedder code changed.</p>
 <ol>
 <li><strong>Scientific stdlib math breadth</strong></li>
 </ol>
@@ -351,7 +354,7 @@
 <li>Current retained surface includes <code>pow</code> / <code>power</code> for integer, negative,</li>
 </ul>
 <p>     fractional positive-base, infinity edge, and negative-base real-domain cases,</p>
-<p>     plus release-gated <code>sin</code>, <code>cos</code>, <code>atan</code>, and <code>atan2</code> bytecode coverage.</p>
+<p>     plus release-gated <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>atan</code>, and <code>atan2</code> bytecode coverage.</p>
 <ul>
 <li>Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.</li>
 </ul>

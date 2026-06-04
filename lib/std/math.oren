@@ -956,6 +956,18 @@ fn cos(x: f64) {
     return sr
 }
 
+fn tan(x: f64) {
+    if is_nan(x) { return oren_err(4, "tan: NaN") }
+    if is_inf(x) { return oren_err(4, "tan: inf") }
+    if x == 0.0 { return x } // preserve signed zero
+    var s = sin(x)
+    if oren_is_err(s) { return s }
+    var c = cos(x)
+    if oren_is_err(c) { return c }
+    if c == 0.0 { return oren_err(4, "tan: undefined") }
+    return s / c
+}
+
 // --- atan / atan2 (deterministic, no host libm) ---
 //
 // Implemented based on the classical fdlibm/openlibm range-reduction scheme

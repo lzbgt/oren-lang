@@ -259,12 +259,15 @@ This file is the concise task view. Detailed implementation status lives in
 3. **Cross-backend parity gates**
    - Expand only where current fixtures expose gaps.
    - Keep bytecode/C/native behavior aligned before adding new user-visible surfaces.
+   - Verification should stay proportional to the touched surface: run focused
+     feature/performance fixtures first, then the affected release or SDK gate.
+     Avoid blanket platform sweeps unless ABI, packaging, or embedder code changed.
 
 4. **Scientific stdlib math breadth**
    - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
    - Current retained surface includes `pow` / `power` for integer, negative,
      fractional positive-base, infinity edge, and negative-base real-domain cases,
-     plus release-gated `sin`, `cos`, `atan`, and `atan2` bytecode coverage.
+     plus release-gated `sin`, `cos`, `tan`, `atan`, and `atan2` bytecode coverage.
    - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
 5. **Native scheduler / green-task integration**
