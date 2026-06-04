@@ -358,13 +358,44 @@ def ply_record_from_binary(data, pos, props, endian):
     return scalars, lists, pos
 
 
-def ply_add_vertex(vertices, scalars):
+def ply_color_from_scalars(scalars):
+    r = scalars.get("red", scalars.get("r"))
+    g = scalars.get("green", scalars.get("g"))
+    b = scalars.get("blue", scalars.get("b"))
+    if r is None or g is None or b is None:
+        return None
+    a = scalars.get("alpha", scalars.get("a", 255))
+    color = (int(r), int(g), int(b), int(a))
+    for channel in color:
+        if channel < 0 or channel > 255:
+            raise SystemExit("scene PLY color channels must be 0..255")
+    return color
+
+
+def ply_color_hex(color):
+    return color_hex_from_rgba(color[0], color[1], color[2], color[3])
+
+
+def ply_average_color(colors):
+    if not colors or any(color is None for color in colors):
+        return None
+    n = len(colors)
+    return (
+        sum(color[0] for color in colors) // n,
+        sum(color[1] for color in colors) // n,
+        sum(color[2] for color in colors) // n,
+        sum(color[3] for color in colors) // n,
+    )
+
+
+def ply_add_vertex(vertices, vertex_colors, scalars):
     if "x" not in scalars or "y" not in scalars or "z" not in scalars:
         raise SystemExit("scene PLY vertex element must include x/y/z properties")
     vertices.append((float(scalars["x"]), float(scalars["y"]), float(scalars["z"])))
+    vertex_colors.append(ply_color_from_scalars(scalars))
 
 
-def ply_add_faces(faces, lists, vertex_count):
+def ply_add_faces(faces, face_colors, lists, vertex_count, scalars):
     indices = lists.get("vertex_indices", lists.get("vertex_index"))
     if indices is None and lists:
         indices = next(iter(lists.values()))
@@ -376,15 +407,19 @@ def ply_add_faces(faces, lists, vertex_count):
     for idx in face:
         if idx < 0 or idx >= vertex_count:
             raise SystemExit("scene PLY face index out of bounds")
+    face_color = ply_color_from_scalars(scalars)
     for i in range(1, len(face) - 1):
         faces.append([face[0], face[i], face[i + 1]])
+        face_colors.append(face_color)
 
 
 def ply_mesh_data(mesh, base_dir):
     data = ply_source_bytes(mesh, base_dir)
     fmt, elements, body_start = ply_parse_header(data)
     vertices = []
+    vertex_colors = []
     faces = []
+    face_colors = []
     if fmt == "ascii":
         try:
             body_lines = data[body_start:].decode("utf-8").splitlines()
@@ -404,9 +439,9 @@ def ply_mesh_data(mesh, base_dir):
                     line_idx += 1
                 scalars, lists = ply_record_from_ascii_tokens(element["properties"], raw.split(), line_idx)
                 if element["name"] == "vertex":
-                    ply_add_vertex(vertices, scalars)
+                    ply_add_vertex(vertices, vertex_colors, scalars)
                 elif element["name"] == "face":
-                    ply_add_faces(faces, lists, len(vertices))
+                    ply_add_faces(faces, face_colors, lists, len(vertices), scalars)
     else:
         endian = "<" if fmt == "binary_little_endian" else ">"
         pos = body_start
@@ -414,25 +449,42 @@ def ply_mesh_data(mesh, base_dir):
             for _ in range(element["count"]):
                 scalars, lists, pos = ply_record_from_binary(data, pos, element["properties"], endian)
                 if element["name"] == "vertex":
-                    ply_add_vertex(vertices, scalars)
+                    ply_add_vertex(vertices, vertex_colors, scalars)
                 elif element["name"] == "face":
-                    ply_add_faces(faces, lists, len(vertices))
+                    ply_add_faces(faces, face_colors, lists, len(vertices), scalars)
     if not vertices:
         raise SystemExit("scene PLY mesh has no vertices")
     if not faces:
         raise SystemExit("scene PLY mesh has no faces")
-    return vertices, faces
+    return vertices, faces, vertex_colors, face_colors
 
 
 def pack_ply_indexed(mesh, base_dir):
-    vertices, faces = ply_mesh_data(mesh, base_dir)
+    vertices, faces, _, _ = ply_mesh_data(mesh, base_dir)
     return pack_vertices_xyz([ply_transform_vertex(v, mesh) for v in vertices]), pack_faces(faces, len(vertices))
 
 
 def pack_ply_triangles(mesh, base_dir):
-    vertices, faces = ply_mesh_data(mesh, base_dir)
+    vertices, faces, _, _ = ply_mesh_data(mesh, base_dir)
     points = [ply_transform_vertex(v, mesh) for v in vertices]
     return pack_triangles_xyz([[points[a], points[b], points[c]] for a, b, c in faces])
+
+
+def pack_ply_triangles_rgba(mesh, base_dir):
+    vertices, faces, vertex_colors, face_colors = ply_mesh_data(mesh, base_dir)
+    points = [ply_transform_vertex(v, mesh) for v in vertices]
+    triangles = []
+    for i, face in enumerate(faces):
+        color = face_colors[i]
+        if color is None:
+            color = ply_average_color([vertex_colors[idx] for idx in face])
+        if color is None:
+            raise SystemExit("scene PLY triangles_rgba mesh requires face or vertex colors")
+        triangles.append({
+            "vertices": [points[face[0]], points[face[1]], points[face[2]]],
+            "color": ply_color_hex(color),
+        })
+    return pack_triangles_xyz_rgba(triangles)
 
 
 def has_stl_mesh(mesh):
@@ -1318,11 +1370,12 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
             indices = b""
         elif kind == "triangles_rgba":
             kind_id = 3
-            payload = (
-                pack_triangles_xyz_rgba(mesh["triangles_xyz_rgba"])
-                if mesh.get("triangles_xyz_rgba") is not None
-                else bytes(mesh["triangles"])
-            )
+            if has_ply_mesh(mesh):
+                payload = pack_ply_triangles_rgba(mesh, base_dir)
+            elif mesh.get("triangles_xyz_rgba") is not None:
+                payload = pack_triangles_xyz_rgba(mesh["triangles_xyz_rgba"])
+            else:
+                payload = bytes(mesh["triangles"])
             indices = b""
         else:
             raise SystemExit(f"unsupported scene mesh kind: {kind}")

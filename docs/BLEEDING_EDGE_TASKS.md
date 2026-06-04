@@ -211,7 +211,7 @@ This file is the concise task view. Detailed implementation status lives in
 	     `prisms_xy` extruded polygon authoring, and bounded
 	     Wavefront OBJ, binary-or-ASCII STL source lowering, inline ASCII STL
 	     text lowering, binary-or-ASCII PLY source lowering,
-	     inline ASCII PLY text lowering, plus
+	     inline ASCII PLY text lowering, PLY face/vertex colors to `mesh3d_rgba`, plus
 	     `cylinders_z`/`cones_z`/`spheres_xyz`/`ellipsoids_xyz`/`toruses_xyz`/`capsules_z` authoring that lower to existing
 	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
 	     Curved solid packers are split into `std:ui/scene3d_shapes` so broader

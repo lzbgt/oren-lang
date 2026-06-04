@@ -168,6 +168,56 @@ end_header
     if not data.startswith(b"OS3D01\x00\x00"):
         raise SystemExit("scene binary big-endian PLY lowering did not produce OS3D01")
 
+    face_color_ply = """ply
+format ascii 1.0
+element vertex 3
+property float x
+property float y
+property float z
+element face 1
+property list uchar int vertex_indices
+property uchar red
+property uchar green
+property uchar blue
+property uchar alpha
+end_header
+0 0 0
+1 0 0
+0 1 0
+3 0 1 2 255 0 0 255
+"""
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles_rgba", "id": 1, "ply_text": face_color_ply}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if not data.startswith(b"OS3D01\x00\x00") or b"\xff\x00\x00\xff" not in data:
+        raise SystemExit("scene face-color PLY RGBA lowering did not produce expected payload")
+
+    vertex_color_ply = """ply
+format ascii 1.0
+element vertex 3
+property float x
+property float y
+property float z
+property uchar red
+property uchar green
+property uchar blue
+element face 1
+property list uchar int vertex_indices
+end_header
+0 0 0 30 60 90
+1 0 0 60 90 120
+0 1 0 90 120 150
+3 0 1 2
+"""
+    scene["meshes"][0]["ply_text"] = vertex_color_ply
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if not data.startswith(b"OS3D01\x00\x00") or b"\x3c\x5a\x78\xff" not in data:
+        raise SystemExit("scene vertex-color PLY RGBA lowering did not produce averaged payload")
+
 
 verify_scene3d_obj_lowering()
 verify_scene3d_stl_lowering()

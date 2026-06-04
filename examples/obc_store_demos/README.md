@@ -22,7 +22,7 @@ objects, human-readable `position_xyz` or nested `transform` model transforms,
 human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays, builder-side
 Wavefront OBJ `obj_source` / `obj_text`, binary-or-ASCII STL `stl_source`,
 inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`,
-and inline ASCII PLY `ply_text` mesh lowering, `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
+inline ASCII PLY `ply_text`, and PLY face/vertex colors lowered to `mesh3d_rgba`, `triangles_xyz` or `quads_xyz` direct meshes, compact boxes/prisms and bounded
 cylinders/cones/spheres/ellipsoids/toruses/capsules, per-triangle `triangles_xyz_rgba` colors,
 richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform
