@@ -473,7 +473,9 @@ Facts from the 2026-05-28 implementation pass:
   WebSocket accept hashing now feeds SHA-1 from exact-size `u8_buf`
   input, PPM header emission reads ASCII header strings directly, and
   native `oren_write_file` writes strings directly through syscalls without a
-  transient byte list. Compiler source-policy scans, scan-cache line/number parsing, C-runtime
+  transient byte list. SHA-256 can now hash UTF-8 strings directly, and Windows
+  Schannel passphrase cache keys use that path instead of materializing a
+  byte list. Compiler source-policy scans, scan-cache line/number parsing, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
   bytecode string constants, OBX string/prefix encoding, AST binary v1 string
   writing, native Mach-O/ELF object string payloads, runtime-object debug-name

@@ -6,6 +6,7 @@
 // Canonical API:
 // - `digest(input_bytes)` / `input_bytes.sha256()` -> BYTES (len=32)
 // - `hex(input_bytes)` / `input_bytes.sha256_hex()` -> lowercase hex string
+// - `digest_string(s)` / `hex_string(s)` hash UTF-8 string bytes directly.
 
 import list "std:list"
 import bytesm "std:bytes"
@@ -76,6 +77,23 @@ fn _u32_be_at(input_bytes, orig_len, bit_len, pos) {
     var b1 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 1) & 255
     var b2 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 2) & 255
     var b3 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 3) & 255
+    return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
+}
+
+fn _padded_string_byte_at(s, orig_len, bit_len, pos) {
+    if pos < orig_len { return oren_string_byte_at_unchecked(s, pos) & 255 }
+    if pos == orig_len { return 128 }
+    var len_start = _padded_len(orig_len) - 8
+    if pos < len_start { return 0 }
+    var shift = (7 - (pos - len_start)) * 8
+    return (bit_len >> shift) & 255
+}
+
+fn _u32_be_string_at(s, orig_len, bit_len, pos) {
+    var b0 = _padded_string_byte_at(s, orig_len, bit_len, pos + 0) & 255
+    var b1 = _padded_string_byte_at(s, orig_len, bit_len, pos + 1) & 255
+    var b2 = _padded_string_byte_at(s, orig_len, bit_len, pos + 2) & 255
+    var b3 = _padded_string_byte_at(s, orig_len, bit_len, pos + 3) & 255
     return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 }
 
@@ -194,8 +212,115 @@ fn sha256_bytes(input_bytes) {
     return out
 }
 
+fn sha256_string(s) {
+    if s == nil { s = "" }
+    if oren_type_tag(s) != 4 { return oren_err(4, "sha256.digest_string: expected string") }
+
+    var orig_len = oren_string_len(s)
+    if oren_is_err(orig_len) { return orig_len }
+    var bit_len = orig_len * 8
+    var total_len = _padded_len(orig_len)
+
+    var h0 = 1779033703
+    var h1 = 3144134277
+    var h2 = 1013904242
+    var h3 = 2773480762
+    var h4 = 1359893119
+    var h5 = 2600822924
+    var h6 = 528734635
+    var h7 = 1541459225
+
+    var K = [
+        1116352408, 1899447441, 3049323471, 3921009573,
+        961987163, 1508970993, 2453635748, 2870763221,
+        3624381080, 310598401, 607225278, 1426881987,
+        1925078388, 2162078206, 2614888103, 3248222580,
+        3835390401, 4022224774, 264347078, 604807628,
+        770255983, 1249150122, 1555081692, 1996064986,
+        2554220882, 2821834349, 2952996808, 3210313671,
+        3336571891, 3584528711, 113926993, 338241895,
+        666307205, 773529912, 1294757372, 1396182291,
+        1695183700, 1986661051, 2177026350, 2456956037,
+        2730485921, 2820302411, 3259730800, 3345764771,
+        3516065817, 3600352804, 4094571909, 275423344,
+        430227734, 506948616, 659060556, 883997877,
+        958139571, 1322822218, 1537002063, 1747873779,
+        1955562222, 2024104815, 2227730452, 2361852424,
+        2428436474, 2756734187, 3204031479, 3329325298
+    ]
+
+    var off = 0
+    while off < total_len {
+        var w = []
+        var t = 0
+        while t < 16 {
+            list.push(w, _u32_be_string_at(s, orig_len, bit_len, off + t * 4))
+            t = t + 1
+        }
+        while t < 64 {
+            var v = _u32(_ssig1(w[t - 2]) + w[t - 7] + _ssig0(w[t - 15]) + w[t - 16])
+            list.push(w, v)
+            t = t + 1
+        }
+
+        var a = h0
+        var b = h1
+        var c = h2
+        var d = h3
+        var e = h4
+        var f = h5
+        var g = h6
+        var h = h7
+
+        t = 0
+        while t < 64 {
+            var t1 = _u32(h + _bsig1(e) + _ch(e, f, g) + K[t] + w[t])
+            var t2 = _u32(_bsig0(a) + _maj(a, b, c))
+            h = g
+            g = f
+            f = e
+            e = _u32(d + t1)
+            d = c
+            c = b
+            b = a
+            a = _u32(t1 + t2)
+            t = t + 1
+        }
+
+        h0 = _u32(h0 + a)
+        h1 = _u32(h1 + b)
+        h2 = _u32(h2 + c)
+        h3 = _u32(h3 + d)
+        h4 = _u32(h4 + e)
+        h5 = _u32(h5 + f)
+        h6 = _u32(h6 + g)
+        h7 = _u32(h7 + h)
+
+        off = off + 64
+    }
+
+    var out = oren_u8_buf_new_uninit(32)
+    if oren_is_err(out) { return out }
+    var out_off = 0
+    out_off = _store_u32_be(out, out_off, h0)
+    out_off = _store_u32_be(out, out_off, h1)
+    out_off = _store_u32_be(out, out_off, h2)
+    out_off = _store_u32_be(out, out_off, h3)
+    out_off = _store_u32_be(out, out_off, h4)
+    out_off = _store_u32_be(out, out_off, h5)
+    out_off = _store_u32_be(out, out_off, h6)
+    out_off = _store_u32_be(out, out_off, h7)
+    return out
+}
+
 fn sha256_hex(input_bytes) {
     var d = sha256_bytes(input_bytes)
+    if oren_is_err(d) { return d }
+    return oren_bytes_to_hex(d)
+}
+
+fn sha256_hex_string(s) {
+    var d = sha256_string(s)
     if oren_is_err(d) { return d }
     return oren_bytes_to_hex(d)
 }
@@ -203,6 +328,10 @@ fn sha256_hex(input_bytes) {
 fn digest(input_bytes): bytes { return sha256_bytes(input_bytes) }
 
 fn hex(input_bytes) { return sha256_hex(input_bytes) }
+
+fn digest_string(s): bytes { return sha256_string(s) }
+
+fn hex_string(s) { return sha256_hex_string(s) }
 
 impl Sha256Bytes for bytes {
     fn sha256(self): bytes { return digest(self) }

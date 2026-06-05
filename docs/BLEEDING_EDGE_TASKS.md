@@ -158,7 +158,9 @@ This file is the concise task view. Detailed implementation status lives in
      emission reads ASCII header strings directly, and native `std:net/http`
      caches typed response body bytes for `.bytes()` on content-length and
      chunked responses. Native `oren_write_file` writes strings directly
-     through syscalls without a transient byte list.
+     through syscalls without a transient byte list, and SHA-256 string hashing
+     now reads UTF-8 string bytes directly for Windows Schannel passphrase cache
+     keys and callers that already hold text.
      Compiler source-policy
      scans, scan-cache line/number parsing, C-runtime include scanning,
      compiler manifest JSON escaping, bytecode metadata payloads, OBX

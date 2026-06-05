@@ -43,10 +43,8 @@ fn _win_server_cache_key(pkcs12_bytes, passphrase) {
     if passphrase == nil { passphrase = "" }
     var h_pfx = sha256.sha256_hex(pkcs12_bytes)
     if h_pfx == 0 { return 0 }
-    var pass_bytes = oren_bytes_from_string(passphrase)
-    if oren_is_err(pass_bytes) { free(h_pfx); return 0 }
-    var h_pass = sha256.sha256_hex(pass_bytes)
-    if h_pass == 0 { free(h_pfx); return 0 }
+    var h_pass = sha256.sha256_hex_string(passphrase)
+    if h_pass == 0 || oren_is_err(h_pass) { free(h_pfx); return 0 }
     var key = h_pfx + ":" + h_pass
     free(h_pfx)
     free(h_pass)

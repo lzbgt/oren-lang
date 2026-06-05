@@ -226,7 +226,9 @@
 <p>     emission reads ASCII header strings directly, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
-<p>     through syscalls without a transient byte list.</p>
+<p>     through syscalls without a transient byte list, and SHA-256 string hashing</p>
+<p>     now reads UTF-8 string bytes directly for Windows Schannel passphrase cache</p>
+<p>     keys and callers that already hold text.</p>
 <p>     Compiler source-policy</p>
 <p>     scans, scan-cache line/number parsing, C-runtime include scanning,</p>
 <p>     compiler manifest JSON escaping, bytecode metadata payloads, OBX</p>
