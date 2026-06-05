@@ -949,7 +949,10 @@ verify-obc-store-demos: oren avm
 
 verify-obc-store-deploy-script:
 	@bash -n scripts/deploy_obc_store_service.sh
+	@bash -n scripts/verify_obc_store_live_route.sh
 	@./scripts/deploy_obc_store_service.sh --help >/dev/null
+	@./scripts/deploy_obc_store_service.sh --help | grep -q 'OBC_STORE_REMOTE_OPS_STATUSCHECK=1'
+	@./scripts/deploy_obc_store_service.sh --help | grep -q 'OBC_STORE_ADMIN_BEARER_TOKEN'
 	@./scripts/deploy_obc_store_service.sh --print-systemd-unit | grep -q 'ExecStart=/opt/oren/obc-store/obc-store-server -addr 127.0.0.1:8080 -data-dir /srv/oren/obc-store'
 	@OBC_STORE_LISTEN_ADDR=172.20.0.1:18080 ./scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config | cmp -s - deploy/obc-store-traefik.dynamic.yml
 	@OBC_STORE_LISTEN_ADDR=172.20.0.1:18080 ./scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config | grep -q 'Host(`store.hubstack.cn`)'

@@ -199,7 +199,11 @@ and the deploy script can regenerate it with
 `scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`.
 `make verify-obc-store-live-route` performs a public HTTPS smoke against the live
 route and demo index; strict release-readiness checks can be enabled with
-`OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1`.
+`OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1`. When
+`OBC_STORE_LIVE_ADMIN_PASSWORD` or `OBC_STORE_LIVE_ADMIN_BEARER_TOKEN` is
+provided, the same live-route smoke also validates authenticated operator status
+storage/readiness; `OBC_STORE_LIVE_REQUIRE_OPS_STATUS=1` makes missing
+credentials fail the gate.
 
 API/service detail lives in `project-doc/obc_store_service_design_20260601.md`.
 

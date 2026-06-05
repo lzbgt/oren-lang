@@ -30,6 +30,9 @@ Optional:
   OBC_STORE_SYSTEMD_SUDO="sudo -n"
   OBC_STORE_REMOTE_HEALTHCHECK=1
   OBC_STORE_REMOTE_HEALTH_URL=http://127.0.0.1:8080/api/v0/health
+  OBC_STORE_REMOTE_OPS_STATUSCHECK=1
+  OBC_STORE_REMOTE_OPS_STATUS_URL=http://127.0.0.1:8080/api/v0/ops/status
+  OBC_STORE_ADMIN_BEARER_TOKEN=<raw deploy bearer token for status check only>
   OBC_STORE_TRAEFIK_HOST=store.hubstack.cn
   OBC_STORE_TRAEFIK_ENTRYPOINT=websecure
   OBC_STORE_TRAEFIK_CERT_RESOLVER=letsencrypt
@@ -110,6 +113,47 @@ http:
 EOF
 }
 
+shell_quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+remote_ops_status_check() {
+  local url_q user_q pass_q token_q
+  url_q="$(shell_quote "$remote_ops_status_url")"
+  user_q="$(shell_quote "$OBC_STORE_ADMIN_USERNAME")"
+  pass_q="$(shell_quote "${OBC_STORE_ADMIN_PASSWORD:-}")"
+  token_q="$(shell_quote "${OBC_STORE_ADMIN_BEARER_TOKEN:-}")"
+  ssh $ssh_opts "$ssh_target" "OBC_STORE_STATUS_URL=$url_q OBC_STORE_STATUS_USER=$user_q OBC_STORE_STATUS_PASSWORD=$pass_q OBC_STORE_STATUS_TOKEN=$token_q python3 -" <<'PY'
+import base64
+import json
+import os
+import urllib.request
+
+url = os.environ["OBC_STORE_STATUS_URL"]
+token = os.environ.get("OBC_STORE_STATUS_TOKEN", "")
+user = os.environ.get("OBC_STORE_STATUS_USER", "")
+password = os.environ.get("OBC_STORE_STATUS_PASSWORD", "")
+req = urllib.request.Request(url)
+if token:
+    req.add_header("Authorization", "Bearer " + token)
+elif password:
+    body = f"{user}:{password}".encode("utf-8")
+    req.add_header("Authorization", "Basic " + base64.b64encode(body).decode("ascii"))
+else:
+    raise SystemExit("missing ops status credentials")
+with urllib.request.urlopen(req, timeout=8) as resp:
+    doc = json.loads(resp.read().decode("utf-8"))
+if doc.get("service") != "obc-store":
+    raise SystemExit(f"unexpected ops status service: {doc!r}")
+if doc.get("admin_auth_configured") is not True:
+    raise SystemExit(f"ops status reports admin auth is not configured: {doc!r}")
+if doc.get("data_dir_writable") is not True:
+    raise SystemExit(f"ops status reports data dir is not writable: {doc!r}")
+if int(doc.get("data_dir_file_count") or 0) < 0 or int(doc.get("data_dir_bytes") or 0) < 0:
+    raise SystemExit(f"ops status returned invalid storage counters: {doc!r}")
+PY
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
@@ -134,6 +178,8 @@ if [[ -z "$remote_health_port" || "$remote_health_port" == "$listen_addr" ]]; th
   remote_health_port="8080"
 fi
 remote_health_url="${OBC_STORE_REMOTE_HEALTH_URL:-http://127.0.0.1:$remote_health_port/api/v0/health}"
+remote_ops_statuscheck="${OBC_STORE_REMOTE_OPS_STATUSCHECK:-0}"
+remote_ops_status_url="${OBC_STORE_REMOTE_OPS_STATUS_URL:-http://127.0.0.1:$remote_health_port/api/v0/ops/status}"
 
 if [[ "$systemd_service" != *.service || "$systemd_service" == */* ]]; then
   echo "ERROR: OBC_STORE_SYSTEMD_SERVICE must be a bare *.service unit name" >&2
@@ -250,6 +296,14 @@ fi
 
 if [[ "$remote_healthcheck" == "1" ]]; then
   ssh $ssh_opts "$ssh_target" "for i in 1 2 3 4 5; do curl -fsS '$remote_health_url' >/dev/null && exit 0; sleep 1; done; curl -fsS '$remote_health_url' >/dev/null"
+fi
+
+if [[ "$remote_ops_statuscheck" == "1" ]]; then
+  if [[ -z "${OBC_STORE_ADMIN_BEARER_TOKEN:-}" && -z "${OBC_STORE_ADMIN_PASSWORD:-}" ]]; then
+    echo "ERROR: OBC_STORE_REMOTE_OPS_STATUSCHECK=1 requires OBC_STORE_ADMIN_PASSWORD or OBC_STORE_ADMIN_BEARER_TOKEN; a token hash cannot authenticate the status request" >&2
+    exit 2
+  fi
+  remote_ops_status_check
 fi
 
 cat <<EOF

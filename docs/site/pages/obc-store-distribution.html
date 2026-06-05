@@ -233,7 +233,11 @@ packages/...</code></pre>
 <p><code>scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config</code>.</p>
 <p><code>make verify-obc-store-live-route</code> performs a public HTTPS smoke against the live</p>
 <p>route and demo index; strict release-readiness checks can be enabled with</p>
-<p><code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code>.</p>
+<p><code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code>. When</p>
+<p><code>OBC_STORE_LIVE_ADMIN_PASSWORD</code> or <code>OBC_STORE_LIVE_ADMIN_BEARER_TOKEN</code> is</p>
+<p>provided, the same live-route smoke also validates authenticated operator status</p>
+<p>storage/readiness; <code>OBC_STORE_LIVE_REQUIRE_OPS_STATUS=1</code> makes missing</p>
+<p>credentials fail the gate.</p>
 <p>API/service detail lives in <code>project-doc/obc_store_service_design_20260601.md</code>.</p>
 <h2 id="ios-app-flow">iOS App Flow</h2>
 <ol>

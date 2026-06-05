@@ -183,7 +183,8 @@ Facts from the 2026-05-28 implementation pass:
   semver-aware latest published release metadata and an `update_available` flag.
   `scripts/deploy_obc_store_service.sh` now supports an opt-in systemd service
   install/restart path, configurable listen address for Traefik, generated
-  Traefik dynamic route YAML, and an optional remote `/api/v0/health` probe.
+  Traefik dynamic route YAML, an optional remote `/api/v0/health` probe, and an
+  optional authenticated remote `/api/v0/ops/status` storage/readiness probe.
   The live cloud host currently runs
   `oren-obc-store.service` on `172.20.0.1:18080` and Dockerized Traefik routes
   `https://store.hubstack.cn/` to that backend; `/healthz` and `/api/v0/health`
@@ -191,7 +192,8 @@ Facts from the 2026-05-28 implementation pass:
   verify-obc-store-live-route` checks the public HTTPS route, public index, and
   first-party demo package visibility, while
 	  `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` upgrades signed-index/trust/update
-	  endpoint warnings into deployment failures. `make
+	  endpoint warnings into deployment failures, and live-route credentials enable
+	  authenticated operator-status storage/readiness validation. `make
 	  verify-obc-store-backup-restore` publishes a fixture package, copies the
 	  file-backed store data directory, and proves a restored service preserves
 	  index metadata plus program, bundle, and asset bytes. The live store is

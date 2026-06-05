@@ -151,8 +151,11 @@ Remaining service work:
   `OBC_STORE_INDEX_SIGN_KEY_ID`, and pass `OBC_STORE_TRUST_BUNDLE` to the service.
   It can also
   install/restart `oren-obc-store.service` when `OBC_STORE_INSTALL_SYSTEMD=1`,
-  bind the service to `OBC_STORE_LISTEN_ADDR` for the Traefik backend, and run a
-  remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`. Operators can inspect
+  bind the service to `OBC_STORE_LISTEN_ADDR` for the Traefik backend, run a
+  remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`, and run an
+  authenticated remote `/api/v0/ops/status` probe when
+  `OBC_STORE_REMOTE_OPS_STATUSCHECK=1` using `OBC_STORE_ADMIN_PASSWORD` or
+  `OBC_STORE_ADMIN_BEARER_TOKEN`. Operators can inspect
   the generated unit without SSH via
   `scripts/deploy_obc_store_service.sh --print-systemd-unit`, and can generate
   the matching Traefik dynamic route with
@@ -366,7 +369,10 @@ Before deployment:
    for the default `172.20.0.1:18080` backend. `make
    verify-obc-store-live-route` checks the public HTTPS route and demo package
    index visibility; set `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` to make
-   signed-index/trust/update endpoint gaps fail the gate.
+   signed-index/trust/update endpoint gaps fail the gate, and provide
+   `OBC_STORE_LIVE_ADMIN_PASSWORD` or `OBC_STORE_LIVE_ADMIN_BEARER_TOKEN` to also
+   validate authenticated operator status storage/readiness through the public
+   route. `OBC_STORE_LIVE_REQUIRE_OPS_STATUS=1` makes missing credentials fail.
 4. Private key scan proving no private key material is committed.
 5. Backup/restore smoke for metadata DB and artifact storage:
    `make verify-obc-store-backup-restore` publishes a package into a temporary
