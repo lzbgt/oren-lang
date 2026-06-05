@@ -10,6 +10,7 @@
 // - `decode_strict(b64_string)` / `b64_string.base64_bytes_strict()` -> bytes
 
 import bytesm "std:bytes"
+import raw "std:buffer/raw"
 
 trait Base64Bytes {
     fn base64(self);
@@ -21,7 +22,7 @@ trait Base64Text {
 }
 
 fn _str_byte(s, i) {
-    return oren_string_char_code_at(s, i) & 255
+    return oren_string_byte_at_unchecked(s, i) & 255
 }
 
 fn _b64_table_ptr() {
@@ -43,9 +44,8 @@ fn b64_is_ws(c) {
 }
 
 fn _set_out(out, idx, v) {
-    var rc = oren_bytes_set_u8(out, idx, v)
-    if oren_is_err(rc) { return rc }
-    return nil
+    raw._store_u8_buf_unchecked_direct(out, idx, v & 255)
+    return out
 }
 
 fn encode_bytes(input_bytes) {
@@ -217,19 +217,19 @@ fn decode_bytes(s) {
 
         // First byte always present.
         if outi < out_len {
-            var rc0 = oren_bytes_set_u8(out, outi, (triple >> 16) & 255)
+            var rc0 = raw._store_u8_buf_unchecked_direct(out, outi, (triple >> 16) & 255)
             if oren_is_err(rc0) { return rc0 }
             outi = outi + 1
         }
         // Second byte present unless v2 is '='.
         if v2 >= 0 && outi < out_len {
-            var rc1 = oren_bytes_set_u8(out, outi, (triple >> 8) & 255)
+            var rc1 = raw._store_u8_buf_unchecked_direct(out, outi, (triple >> 8) & 255)
             if oren_is_err(rc1) { return rc1 }
             outi = outi + 1
         }
         // Third byte present unless v3 is '='.
         if v3 >= 0 && outi < out_len {
-            var rc2 = oren_bytes_set_u8(out, outi, triple & 255)
+            var rc2 = raw._store_u8_buf_unchecked_direct(out, outi, triple & 255)
             if oren_is_err(rc2) { return rc2 }
             outi = outi + 1
         }
