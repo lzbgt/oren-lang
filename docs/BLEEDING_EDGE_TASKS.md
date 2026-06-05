@@ -153,8 +153,9 @@ This file is the concise task view. Detailed implementation status lives in
      write string bytes directly into OGF0 payloads. SHA-1/SHA-256 digest outputs and native
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      plain literal decode now slices the header block directly, while Huffman
-     string encode/decode and full header-block encoding write
-     exact-size `u8_buf` payloads; HTTP/2 client continuation/header-block
+     string encode/decode, decoded-string boundaries, and full header-block
+     encoding use exact-size `u8_buf` payloads or byte-slice conversion; TLS
+     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client continuation/header-block
      buffering copies with native `oren_memcpy`, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes. `std:strings` prefix/suffix/search/equality

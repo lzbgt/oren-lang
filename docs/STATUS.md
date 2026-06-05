@@ -540,9 +540,10 @@ Facts from the 2026-05-28 implementation pass:
 		  write fixed-size digest `u8_buf` outputs directly instead of packing
 			  result byte lists. Native crypto RNG now fills its result `u8_buf`
 			  directly. HPACK plain literal decode now slices the header block directly,
-			  while Huffman string encode/decode and full header-block encoding write
-			  exact-size `u8_buf` payloads instead of building
-			  intermediate Oren byte lists, and HTTP/2 client continuation/header-block
+				  while Huffman string encode/decode, decoded-string boundaries, and full
+				  header-block encoding use exact-size `u8_buf` payloads or byte-slice
+				  conversion instead of building intermediate Oren byte lists; TLS ALPN
+				  decoded-byte strings also convert through byte slices. HTTP/2 client continuation/header-block
 			  buffers now copy through native `oren_memcpy`, and native WebSocket header
 			  slices/unmasked frame payloads plus DNS QNAME labels use the same native copy path.
 			  PEM relaxed decode passes body slices to

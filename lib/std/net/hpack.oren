@@ -654,7 +654,10 @@ fn _decode_string(block_bytes, ptr0, off, n) {
     if huffman {
         var hr = _huff_decode_bytes(ptr0, off, slen)
         if hr["ok"] != 1 { return hr }
-        var hs = oren_string_from_bytes(hr["b"])
+        var hb = hr["b"]
+        var hn = oren_buf_len(hb)
+        if oren_is_err(hn) { return {"ok": 0, "err": "hpack.decode_string: huffman bytes len failed"} }
+        var hs = oren_string_from_bytes_slice(hb, 0, hn)
         return {"ok": 1, "s": hs, "off": off + slen}
     }
     var s = oren_string_from_bytes_slice(block_bytes, off, slen)

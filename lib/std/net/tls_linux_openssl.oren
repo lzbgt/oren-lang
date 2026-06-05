@@ -827,7 +827,7 @@ fn negotiated_alpn(conn) {
     var dst = native_buf_data_ptr(b)
     if dst == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: buf ptr nil"} }
     oren_memcpy(dst, p, n)
-    var s = oren_string_from_bytes(b)
+    var s = oren_string_from_bytes_slice(b, 0, n)
     if s == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: string_from_bytes failed"} }
     return {"ok": 1, "v": s}
 }

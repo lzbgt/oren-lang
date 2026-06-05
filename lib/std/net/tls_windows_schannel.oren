@@ -1359,7 +1359,7 @@ fn negotiated_alpn(conn) {
     // ProtocolId starts immediately after the size byte.
     oren_memcpy(dst, ap + 9, n)
     free(ap)
-    var s = oren_string_from_bytes(b)
+    var s = oren_string_from_bytes_slice(b, 0, n)
     if s == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: string_from_bytes failed"} }
     return {"ok": 1, "v": s}
 }
