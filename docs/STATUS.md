@@ -494,8 +494,9 @@ Facts from the 2026-05-28 implementation pass:
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows
   Schannel passphrase cache keys use that path instead of materializing a
-  byte list, and SHA-1/SHA-256 digest buffers finalize through direct unchecked
-  u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
+  byte list, SHA-1/SHA-256 digest buffers finalize through direct unchecked
+  u8 stores after exact-size allocation, and native SHA-256 contiguous input
+  remainders copy with `oren_memcpy`. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
 	  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
 	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name

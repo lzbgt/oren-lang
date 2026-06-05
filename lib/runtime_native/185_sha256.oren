@@ -177,11 +177,7 @@ fn oren_sha256_range(bytes, start, length) {
         }
         // Copy remainder (<64) into `data` for padding+final block.
         var rem = length - off
-        var i = 0
-        while i < rem {
-            ptr_set_byte(data + i, ptr_get_byte(iadd(src_ptr, off + i)) & 255)
-            i = i + 1
-        }
+        if rem > 0 { oren_memcpy(data, iadd(src_ptr, off), rem) }
         // Pad: append 0x80, then zeros, then big-endian bit length.
         var bitlen = length * 8
         ptr_set_byte(data + rem, 128)
@@ -295,11 +291,7 @@ fn oren_sha256_string(s) {
         off = off + 64
     }
     var rem = n - off
-    var i = 0
-    while i < rem {
-        ptr_set_byte(data + i, ptr_get_byte(iadd(s, off + i)) & 255)
-        i = i + 1
-    }
+    if rem > 0 { oren_memcpy(data, iadd(s, off), rem) }
 
     // Pad: append 0x80, then zeros, then 64-bit bitlen in big-endian.
     var bitlen = n * 8

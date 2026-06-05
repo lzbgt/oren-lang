@@ -171,7 +171,8 @@ This file is the concise task view. Detailed implementation status lives in
      hashing now reads UTF-8 string bytes directly for WebSocket accept values,
      Windows Schannel passphrase cache keys, and callers that already hold text;
      SHA-1/SHA-256 digest buffers finalize through direct unchecked u8 stores
-     after exact-size allocation.
+     after exact-size allocation, and native SHA-256 contiguous input remainders
+     copy with `oren_memcpy`.
      Compiler source-policy
      scans, scan-cache line/number parsing and delimiter writes, C-runtime include scanning,
      compiler manifest JSON escaping, bytecode metadata payloads, OBX
