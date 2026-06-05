@@ -476,7 +476,8 @@ Facts from the 2026-05-28 implementation pass:
   exact-size `u8_buf` OGF0 frame encoding with direct string-byte writes for
   plain `text` commands instead of final list-to-byte packing,
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
-  exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
+  exact-size `u8_buf` builders and emits color hex digits through string slices,
+  `std:net/avm/http` has request/response helpers,
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
@@ -550,7 +551,7 @@ Facts from the 2026-05-28 implementation pass:
 		  Base64 directly, and strict decode concatenates body lines through raw
 		  exact-size `u8_buf` writes instead of a byte list. JSON,
 			  YAML, CBOR, Base64, regex, PEM/X509, `std:time` ISO-8601 UTC parsing,
-					  native string concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing, PPM encoding, public
+					  native string concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
 			  `std:bytes` helpers, public `std:buffer` facade plus importable
 			  `std:buffer` raw/view/core/numeric/u8-matrix helpers,
 		  public `std:buffer` root/view/matrix helpers

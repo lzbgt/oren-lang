@@ -576,7 +576,8 @@
 <p>  exact-size <code>u8_buf</code> OGF0 frame encoding with direct string-byte writes for</p>
 <p>  plain <code>text</code> commands instead of final list-to-byte packing,</p>
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/quad/color package assets through</p>
-<p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
+<p>  exact-size <code>u8_buf</code> builders and emits color hex digits through string slices,</p>
+<p>  <code>std:net/avm/http</code> has request/response helpers,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
@@ -650,7 +651,7 @@
 <p>		  Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>		  exact-size <code>u8_buf</code> writes instead of a byte list. JSON,</p>
 <p>			  YAML, CBOR, Base64, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing,</p>
-<p>					  native string concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing, PPM encoding, public</p>
+<p>					  native string concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>
 <p>			  <code>std:bytes</code> helpers, public <code>std:buffer</code> facade plus importable</p>
 <p>			  <code>std:buffer</code> raw/view/core/numeric/u8-matrix helpers,</p>
 <p>		  public <code>std:buffer</code> root/view/matrix helpers</p>

@@ -206,7 +206,7 @@ This file is the concise task view. Detailed implementation status lives in
 	     while syscall-style primitives use explicit `*_raw` names. The guard now covers
 	     NET plus app-facing codec/parser/RNG helpers such as JSON/YAML/CBOR, Base64,
 	     regex, PEM/X509, time parsing, crypto random bytes, HPACK/HTTP2 record
-	     helpers, and UI color/PPM helpers.
+	     helpers, and UI color/hex/PPM helpers.
      Native TCP/UDP/TLS/WebSocket and AVM virtual socket/TCP/UDP/WebSocket now
      follow the same session/object rule with examples like `conn.read_into(...)`,
      `socket.send_to(...)`, `conn.write_from(...)`, `conn.recv_text(...)`,
