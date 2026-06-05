@@ -286,7 +286,7 @@ fn push_u8_n(buf, v, n) {
 }
 
 fn push_ascii_z(buf, s) {
-    // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
+    // Avoid an intermediate byte carrier in hot emitter paths.
     // Import table construction calls this many times and must stay fast.
     if s == nil { bytes_push(buf, 0); return nil }
     var n = oren_string_len(s)

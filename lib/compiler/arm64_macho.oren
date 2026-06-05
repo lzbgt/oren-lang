@@ -1021,7 +1021,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var name_idx = bytes_len(strtab)
         
         bytes_push(strtab, 95) // '_'
-        // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
+        // Avoid an intermediate byte carrier in hot emitter paths.
         var k2 = 0
         var n2 = 0
         if bind_name != nil { n2 = oren_string_len(bind_name) }
@@ -1054,7 +1054,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             
             var name_idx_exp = bytes_len(strtab)
             bytes_push(strtab, 95) // '_'
-            // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
+            // Avoid an intermediate byte carrier in hot emitter paths.
             var k3 = 0
             var n3 = 0
             if f_name != nil { n3 = oren_string_len(f_name) }

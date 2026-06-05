@@ -4,7 +4,7 @@ fn main() {
     for k in m {
         // keys should be in deterministic order: a, b, c
         var kb = oren_bytes_from_string(k)
-        var c0 = oren_list_get(kb, 0)
+        var c0 = oren_bytes_get_u8(kb, 0)
         h = h * 131 + c0
     }
     var want = ((0 * 131 + 97) * 131 + 98) * 131 + 99

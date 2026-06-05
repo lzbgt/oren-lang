@@ -588,7 +588,8 @@
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
-<p>  and <code>from_hex</code> plus direct lowercase <code>to_hex</code> emission and <code>std:strings</code></p>
+<p>  and <code>from_hex</code> plus kernel <code>oren_bytes_from_string</code> byte-native output,</p>
+<p>  direct lowercase <code>to_hex</code> emission, and <code>std:strings</code></p>
 <p>  byte roundtrips now use byte-native u8 buffers,</p>
 <p>  <code>std:bytes</code> get/unpack/concat/copy sources read u8-buffer carriers directly,</p>
 <p>  <code>pack</code> returns exact-size u8 buffers for valid int lists, while u8/endian</p>

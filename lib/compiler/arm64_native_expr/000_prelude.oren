@@ -105,7 +105,7 @@ fn native_data_add_cstr0(ctx, s) {
 
     while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
-    // Avoid allocating an intermediate `list<int>` for each literal via `oren_bytes_from_string`.
+    // Avoid allocating an intermediate byte carrier for each literal via `oren_bytes_from_string`.
     // Tooling workloads (compiler self-host) can have thousands of distinct literals, and list
     // allocations here inflate GC pressure and runtime-object compile time.
     //

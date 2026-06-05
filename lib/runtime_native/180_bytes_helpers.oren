@@ -38,7 +38,7 @@ fn oren_bytes_len(bytes) {
     // Fast path: u8_buf can be copied directly (critical for stage2-native astbin throughput).
     if native_bytes_is_u8_buf(bytes) == true {
         var data = native_buf_data_ptr(bytes)
-        if data == 0 {
+        if data == 0 && len > 0 {
             free(out)
             return oren_err(4, "string_from_bytes_slice: buf payload is nil")
         }

@@ -477,10 +477,10 @@ fn infer_container_kind(expr, kind_env) {
             if nm == "oren_i64_buf_new" { return "buf" }
             if nm == "oren_f32_buf_new" { return "buf" }
             if nm == "oren_f64_buf_new" { return "buf" }
-            // Bytes helpers in native mode are list-backed today. We treat these as
-            // list constructors for the purpose of container method sugar lowering.
-            if nm == "oren_bytes_from_string" { return "list" }
-            if nm == "oren_bytes_from_string_ptr" { return "list" }
+            // Bytes helpers return typed byte buffers; expose them as generic buffers for
+            // container method sugar lowering.
+            if nm == "oren_bytes_from_string" { return "buf" }
+            if nm == "oren_bytes_from_string_ptr" { return "buf" }
             if nm == "oren_bytes_unpack" { return "list" }
             // Common string-returning helpers (best-effort) so map key-kind inference can
             // avoid unsafe pointer/int heuristics in x64 native.

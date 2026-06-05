@@ -1,4 +1,15 @@
 fn main() {
+    var from_s = oren_bytes_from_string("ok")
+    if oren_is_u8_buf(from_s) != true { oren_exit(101) }
+    if oren_bytes_len(from_s) != 2 { oren_exit(102) }
+    if oren_bytes_get_u8(from_s, 0) != 111 { oren_exit(103) }
+    if oren_bytes_get_u8(from_s, 1) != 107 { oren_exit(104) }
+    if oren_string_from_bytes(from_s) != "ok" { oren_exit(105) }
+    var empty_s = oren_bytes_from_string("")
+    if oren_is_u8_buf(empty_s) != true { oren_exit(106) }
+    if oren_bytes_len(empty_s) != 0 { oren_exit(107) }
+    if oren_string_from_bytes(empty_s) != "" { oren_exit(108) }
+
     // Construct bytes from hex (includes 0x00 and 0xff).
     var b = oren_bytes_from_hex("00ff1020")
     if oren_is_err(b) { oren_exit(1) }
@@ -31,4 +42,3 @@ fn main() {
 }
 
 main()
-

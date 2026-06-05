@@ -19,9 +19,9 @@ fn assert_eq(a, b, code) {
 }
 
 // Bytes from a string: iterates byte codepoints.
-var bytes_list = oren_bytes_from_string("ABC") // [65,66,67]
+var bytes_buf = oren_bytes_from_string("ABC") // [65,66,67]
 var sum_u8 = 0
-for b: u8 in bytes_list { sum_u8 = sum_u8 + b }
+for b: u8 in bytes_buf { sum_u8 = sum_u8 + b }
 assert_eq(sum_u8, 65 + 66 + 67, 10)
 
 // Same but via bytes buffer view (typed buffer).
@@ -36,4 +36,3 @@ assert_eq(sum2, 65 + 66 + 67, 21)
 
 print("module for_in_bytes_typed OK")
 exit(0)
-

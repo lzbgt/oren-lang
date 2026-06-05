@@ -334,7 +334,7 @@ fn oren_iter_next(container, idx, out_pair) {
     return out
 }
 
-// Return a freshly allocated byte buffer (list) from a string literal pointer.
+// Return a freshly allocated byte-native buffer from a string literal pointer.
 fn oren_string_eq(a, b) {
     // Fast path: avoid a separate length pass.
     // Semantics (rolling): treat nil as not-equal (even nil==nil is false here).
@@ -349,28 +349,25 @@ fn oren_string_eq(a, b) {
 }
 
 fn oren_bytes_from_string_ptr(s_ptr) {
-    // Build a list<int 0..255> from a NUL-terminated string pointer.
+    // Build a u8_buf from a NUL-terminated string pointer.
     //
     // PERF (native backend + compiler workloads):
-    // Avoid calling `oren_list_push` per byte; allocate an exact-sized list and fill its backing buffer.
-    if s_ptr == 0 || native_value_is_nil(s_ptr) { return oren_new_list(0) }
+    // Keep bytes in their canonical carrier instead of boxing each byte into a list slot.
+    if s_ptr == 0 || native_value_is_nil(s_ptr) { return oren_u8_buf_new_uninit(0) }
     var len = oren_string_len(s_ptr)
-    var lst = oren_new_list(len)
-    var buf = ptr_get(lst + 16)
-    var i = 0
-    while i < len {
-        // List elements are stored as 8-byte OrenValue slots.
-        // Use shifts + `iadd` to avoid slow generic `*` / `+` lowering in the native backend.
-        ptr_set(iadd(buf, i << 3), ptr_get_byte(iadd(s_ptr, i)) & 255)
-        i = iadd(i, 1)
+    if len < 0 { return oren_err(4, "bytes_from_string: invalid string") }
+    var out = oren_u8_buf_new_uninit(len)
+    if oren_is_err(out) { return out }
+    var data = native_buf_data_ptr(out)
+    if data == 0 && len > 0 {
+        return oren_err(8, "bytes_from_string: alloc failed")
     }
-    // `oren_new_list` returns count=0; set count now that the buffer is filled.
-    ptr_set(lst, len)
-    return lst
+    if len > 0 { oren_memcpy(data, s_ptr, len) }
+    return out
 }
 
 // Public wrapper (portable name used by stdlib/compiler):
-// Build a byte list from a string pointer.
+// Build byte-native u8 buffer from a string pointer.
 fn oren_bytes_from_string(s) {
     return oren_bytes_from_string_ptr(s)
 }
