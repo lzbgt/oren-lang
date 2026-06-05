@@ -224,8 +224,9 @@ This file is the concise task view. Detailed implementation status lives in
 	     format is now specified, emitted by demo tooling, accepted by the service,
 	     served by release download APIs, advertised in `index.json`, and preferred
 	     by the iOS SDK installer with expanded-artifact fallback. Operator status
-	     now exposes deployment gates plus aggregate release-ready/incomplete counts
-	     and missing bundle/source/signature/permission readiness counts, and
+		     now exposes deployment gates plus aggregate release-ready/incomplete counts,
+		     missing bundle/source/signature/permission readiness counts, and data-dir
+		     writable/storage byte totals by metadata/payload class, and
 	     authenticated operator release lifecycle inventory
 	     pages/APIs expose status/visibility/readiness filters, visibility,
 	     readiness, latest-published state,

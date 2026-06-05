@@ -101,7 +101,7 @@ func TestStoreDataDirBackupRestore(t *testing.T) {
 	if err := json.Unmarshal(statusResp.Body.Bytes(), &status); err != nil {
 		t.Fatalf("decode restored ops status: %v body=%s", err, statusResp.Body.String())
 	}
-	if status["published_release_count"] != float64(1) || status["bundle_release_count"] != float64(1) {
+	if status["published_release_count"] != float64(1) || status["bundle_release_count"] != float64(1) || status["data_dir_writable"] != true || status["data_dir_bytes"].(float64) <= 0 || status["payload_bytes"].(float64) <= 0 {
 		t.Fatalf("restored status=%v", status)
 	}
 }

@@ -174,11 +174,17 @@ const siteOpsStatusHTML = `<!doctype html>
 <tr><th>Bundles</th><td>{{.BundleReleaseCount}} release(s)</td></tr>
 <tr><th>Publisher signatures</th><td>{{.SignedReleaseCount}} release(s)</td></tr>
 <tr><th>Source metadata</th><td>{{.SourceReleaseCount}} release(s), {{.SourceAssetCount}} linked source asset(s)</td></tr>
-<tr><th>Permission defaults</th><td>{{.PermissionDefaultCount}} default grant record(s)</td></tr>
-<tr><th>Missing readiness</th><td>{{.MissingBundleCount}} bundle, {{.MissingSignatureCount}} signature, {{.MissingSourceCount}} source, {{.MissingPermissionCount}} permissions</td></tr>
-</table></section>
-	<section class="card"><h2>Deployment Gates</h2><table>
-	<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
+	<tr><th>Permission defaults</th><td>{{.PermissionDefaultCount}} default grant record(s)</td></tr>
+	<tr><th>Missing readiness</th><td>{{.MissingBundleCount}} bundle, {{.MissingSignatureCount}} signature, {{.MissingSourceCount}} source, {{.MissingPermissionCount}} permissions</td></tr>
+	</table></section>
+	<section class="card"><h2>Storage</h2><table>
+	<tr><th>Data dir writable</th><td>{{.DataDirWritable}}</td></tr>
+	<tr><th>Files</th><td>{{.DataDirFileCount}} file(s), {{.DataDirBytes}} byte(s)</td></tr>
+	<tr><th>Metadata</th><td>{{.MetadataBytes}} byte(s), audit log {{.AuditLogBytes}} byte(s)</td></tr>
+	<tr><th>Payloads</th><td>{{.PayloadBytes}} byte(s): {{.ProgramBytes}} program, {{.BundleBytes}} bundle, {{.AssetBytes}} asset, {{.ScreenshotBytes}} screenshot</td></tr>
+	</table></section>
+		<section class="card"><h2>Deployment Gates</h2><table>
+		<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
 	<tr><th>Index signing key</th><td>{{if .IndexSigningKeyID}}{{.IndexSigningKeyID}}{{else}}not configured{{end}}</td></tr>
 	<tr><th>Active key trusted</th><td>{{.IndexSigningKeyTrusted}}</td></tr>
 	<tr><th>Trust bundle</th><td>{{.TrustBundleAvailable}} ({{.TrustBundleStoreKeys}} store key(s){{if .TrustBundleStoreKeyIDs}}: {{range $i, $id := .TrustBundleStoreKeyIDs}}{{if $i}}, {{end}}{{$id}}{{end}}{{end}})</td></tr>

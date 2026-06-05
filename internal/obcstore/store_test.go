@@ -204,8 +204,14 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if opsStatus["audit_event_count"].(float64) < 4 {
 		t.Fatalf("ops status missing audit count=%v", opsStatus)
 	}
+	if opsStatus["data_dir_writable"] != true || opsStatus["data_dir_file_count"].(float64) <= 0 || opsStatus["data_dir_bytes"].(float64) <= 0 {
+		t.Fatalf("ops status missing storage state=%v", opsStatus)
+	}
+	if opsStatus["metadata_bytes"].(float64) <= 0 || opsStatus["payload_bytes"].(float64) <= 0 || opsStatus["program_bytes"] != float64(4) || opsStatus["bundle_bytes"].(float64) <= 0 || opsStatus["asset_bytes"].(float64) <= 0 || opsStatus["screenshot_bytes"].(float64) <= 0 || opsStatus["audit_log_bytes"].(float64) <= 0 {
+		t.Fatalf("bad ops storage bytes=%v", opsStatus)
+	}
 	opsStatusPage := request(t, ts, http.MethodGet, "/ops/status", nil, true)
-	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Complete releases") || !strings.Contains(opsStatusPage.Body.String(), "Missing readiness") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
+	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Complete releases") || !strings.Contains(opsStatusPage.Body.String(), "Missing readiness") || !strings.Contains(opsStatusPage.Body.String(), "Storage") || !strings.Contains(opsStatusPage.Body.String(), "Data dir writable") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
 		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
 	}
 	if got := request(t, ts, http.MethodGet, "/api/v0/ops/releases", nil, false); got.Code != http.StatusUnauthorized {

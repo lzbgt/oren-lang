@@ -168,6 +168,16 @@ type OperatorStatus struct {
 	TrustBundleStoreKeyIDs []string `json:"trust_bundle_store_key_ids,omitempty"`
 	AuditEventCount        int      `json:"audit_event_count"`
 	AdminAuthConfigured    bool     `json:"admin_auth_configured"`
+	DataDirWritable        bool     `json:"data_dir_writable"`
+	DataDirFileCount       int      `json:"data_dir_file_count"`
+	DataDirBytes           int64    `json:"data_dir_bytes"`
+	MetadataBytes          int64    `json:"metadata_bytes"`
+	PayloadBytes           int64    `json:"payload_bytes"`
+	ProgramBytes           int64    `json:"program_bytes"`
+	BundleBytes            int64    `json:"bundle_bytes"`
+	AssetBytes             int64    `json:"asset_bytes"`
+	ScreenshotBytes        int64    `json:"screenshot_bytes"`
+	AuditLogBytes          int64    `json:"audit_log_bytes"`
 }
 
 type ReleaseMeta struct {
@@ -1504,6 +1514,9 @@ func (s *Service) operatorStatus() (OperatorStatus, error) {
 		return status, err
 	}
 	status.AuditEventCount = auditCount
+	if err := s.addOperatorStorageStatus(&status); err != nil {
+		return status, err
+	}
 	if status.IndexSigningKeyID != "" {
 		for _, id := range trustKeyIDs {
 			if id == status.IndexSigningKeyID {
@@ -1611,6 +1624,85 @@ func (s *Service) operatorStatus() (OperatorStatus, error) {
 		return status, err
 	}
 	return status, nil
+}
+
+func (s *Service) addOperatorStorageStatus(status *OperatorStatus) error {
+	status.DataDirWritable = dataDirWritable(s.dataDir)
+	err := filepath.WalkDir(s.dataDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return nil
+		}
+		size := info.Size()
+		status.DataDirFileCount++
+		status.DataDirBytes += size
+		rel, relErr := filepath.Rel(s.dataDir, path)
+		if relErr != nil {
+			return nil
+		}
+		switch operatorStorageKind(filepath.ToSlash(rel)) {
+		case "audit":
+			status.AuditLogBytes += size
+			status.MetadataBytes += size
+		case "metadata":
+			status.MetadataBytes += size
+		case "program":
+			status.ProgramBytes += size
+			status.PayloadBytes += size
+		case "bundle":
+			status.BundleBytes += size
+			status.PayloadBytes += size
+		case "asset":
+			status.AssetBytes += size
+			status.PayloadBytes += size
+		case "screenshot":
+			status.ScreenshotBytes += size
+			status.PayloadBytes += size
+		default:
+			status.PayloadBytes += size
+		}
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+func dataDirWritable(dir string) bool {
+	file, err := os.CreateTemp(dir, ".obc-store-write-probe-*")
+	if err != nil {
+		return false
+	}
+	name := file.Name()
+	if err := file.Close(); err != nil {
+		_ = os.Remove(name)
+		return false
+	}
+	return os.Remove(name) == nil
+}
+
+func operatorStorageKind(rel string) string {
+	base := filepath.Base(rel)
+	switch {
+	case rel == "audit/audit.log.jsonl":
+		return "audit"
+	case strings.HasSuffix(base, ".json") || strings.HasSuffix(base, ".sig"):
+		return "metadata"
+	case base == "program.obc":
+		return "program"
+	case base == "bundle.obc.zip":
+		return "bundle"
+	case strings.Contains(rel, "/screenshots/"):
+		return "screenshot"
+	case strings.Contains(rel, "/assets/"):
+		return "asset"
+	default:
+		return "payload"
+	}
 }
 
 func (s *Service) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
