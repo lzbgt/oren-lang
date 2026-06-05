@@ -493,10 +493,7 @@ fn native_sockaddr_in_read_ip_port(addr, addrlen, out_ip4_ptr, out_port_ptr) {
     if out_port_ptr == 0 { return 0 }
     // sockaddr_in: [1]=AF_INET, [2..3]=port be, [4..7]=ip bytes
     if ptr_get_byte(addr + 1) != OREN_AF_INET { return 0 }
-    ptr_set_byte(out_ip4_ptr + 0, ptr_get_byte(addr + 4))
-    ptr_set_byte(out_ip4_ptr + 1, ptr_get_byte(addr + 5))
-    ptr_set_byte(out_ip4_ptr + 2, ptr_get_byte(addr + 6))
-    ptr_set_byte(out_ip4_ptr + 3, ptr_get_byte(addr + 7))
+    oren_memcpy(out_ip4_ptr, addr + 4, 4)
     var hi = ptr_get_byte(addr + 2)
     var lo = ptr_get_byte(addr + 3)
     var port = (hi << 8) | lo
@@ -596,10 +593,7 @@ fn native_capsule_net_tcp_map_apply(addr, addrlen, map_csv) {
                             // Rewrite sockaddr to host endpoint.
                             ptr_set_byte(addr + 2, (host_port >> 8) & 255)
                             ptr_set_byte(addr + 3, host_port & 255)
-                            ptr_set_byte(addr + 4, ptr_get_byte(host_ip4 + 0))
-                            ptr_set_byte(addr + 5, ptr_get_byte(host_ip4 + 1))
-                            ptr_set_byte(addr + 6, ptr_get_byte(host_ip4 + 2))
-                            ptr_set_byte(addr + 7, ptr_get_byte(host_ip4 + 3))
+                            oren_memcpy(addr + 4, host_ip4, 4)
                             free(req_ip4)
                             free(req_port_ptr)
                             free(virt_ip4)

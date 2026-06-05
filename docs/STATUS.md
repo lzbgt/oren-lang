@@ -57,6 +57,9 @@ Facts from the 2026-05-28 implementation pass:
   seeds through the helper's explicit bounded cross-compiler compatibility probe.
   This keeps the default compile-only platform gate from looking hung on slow
   stage2 cross-target cold builds while still checking stage2 x64 fixture output.
+  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
+  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
+  spending minutes in repeated stage2 cold seed probes.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:
@@ -488,7 +491,8 @@ Facts from the 2026-05-28 implementation pass:
   source-string byte reads instead of repeated input byte-list materialization.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,
   and native WebSocket header slices plus unmasked frame payloads copy with
-  `oren_memcpy`; DNS QNAME labels copy through `oren_memcpy` after validation;
+  `oren_memcpy`; DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites
+  copy through `oren_memcpy` after validation;
   Base64 decode/encode writes exact-size output buffers directly, PPM header/body
   output and software raster clear/pixel writes now use raw exact-size buffer stores, and
   native `oren_write_file` writes strings directly through syscalls without a

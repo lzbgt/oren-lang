@@ -97,6 +97,9 @@
 <p>  seeds through the helper&#x27;s explicit bounded cross-compiler compatibility probe.</p>
 <p>  This keeps the default compile-only platform gate from looking hung on slow</p>
 <p>  stage2 cross-target cold builds while still checking stage2 x64 fixture output.</p>
+<p>  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
+<p>  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
+<p>  spending minutes in repeated stage2 cold seed probes.</p>
 <ul>
 <li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
 </ul>
@@ -588,7 +591,8 @@
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>
 <p>  and native WebSocket header slices plus unmasked frame payloads copy with</p>
-<p>  <code>oren_memcpy</code>; DNS QNAME labels copy through <code>oren_memcpy</code> after validation;</p>
+<p>  <code>oren_memcpy</code>; DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites</p>
+<p>  copy through <code>oren_memcpy</code> after validation;</p>
 <p>  Base64 decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>  output and software raster clear/pixel writes now use raw exact-size buffer stores, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>

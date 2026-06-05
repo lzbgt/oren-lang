@@ -477,16 +477,16 @@ stage2: oren_stage2 astbin-seed rtobj-seed
 # Capsule seeds are also hash-keyed, so let the seed script no-op/copy on cache hits instead of
 # force-refreshing `examples/hello` on every `make test`.
 # Cross-compiler cold rtobj fills are intentionally refused by default because rolling native
-# runtime-object compatibility is not keyed by compiler binary. The stage1 build-compiler argument
-# below is therefore only a best-effort compatibility fallback for already-present matching cache
-# entries; current host core/full seeds are generated with the requested stage2 compiler.
+# runtime-object compatibility is keyed by backend/runtime signatures rather than compiler binary.
+# Use the fast stage1 compiler for bounded host cold-fill probes, while `build_rtobj_seed.sh`
+# still selects/copies only entries matching the requested stage2 runtime hash.
 rtobj-seed: oren_stage2 astbin-seed
 			@if [ -n "$(HOST_PLATFORM)" ]; then \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --runtime-profile full --no-debug || true; \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --runtime-profile full --debug || true; \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true; \
+				OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 ./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --no-debug || true; \
+				OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 ./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --runtime-profile full --no-debug || true; \
+				OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 ./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --debug || true; \
+				OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 ./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --runtime-profile full --debug || true; \
+				OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 ./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true; \
 			else \
 				echo "NOTE: host platform unknown; skipping rtobj seed"; \
 		fi

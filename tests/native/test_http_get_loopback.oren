@@ -203,7 +203,10 @@ fn server(listen_fd, mode) {
     // make the loopback server behave like a well-formed peer.
     var req_scratch = malloc(512)
     if req_scratch != 0 {
-        oren_tcp_read_into(fd, req_scratch, 512, 2000)
+        // This is only a best-effort drain. Do not spend the client's whole
+        // response timeout here; under worker scheduling that can make the
+        // server and client hit the same 2s deadline.
+        oren_tcp_read_into(fd, req_scratch, 512, 100)
         free(req_scratch)
     }
 

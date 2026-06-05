@@ -118,6 +118,10 @@
 <p>     Linux/Windows x64 runtime-object seeds through an explicit bounded</p>
 <p>     cross-compiler compatibility probe, avoiding slow stage2 cold-build</p>
 <p>     prewarm hangs while preserving stage2 output checks.</p>
+<p>     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
+<p>     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
+<p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
+<p>     seed probes.</p>
 <ul>
 <li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
 </ul>
@@ -229,7 +233,8 @@
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
 <p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, and native</p>
 <p>     WebSocket header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
-<p>     DNS QNAME labels also copy through <code>oren_memcpy</code> after validation;</p>
+<p>     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy</p>
+<p>     through <code>oren_memcpy</code> after validation;</p>
 <p>     Base64</p>
 <p>     decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>     output and software raster clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>

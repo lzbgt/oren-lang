@@ -62,6 +62,10 @@ This file is the concise task view. Detailed implementation status lives in
      Linux/Windows x64 runtime-object seeds through an explicit bounded
      cross-compiler compatibility probe, avoiding slow stage2 cold-build
      prewarm hangs while preserving stage2 output checks.
+     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
+     when a compatible stage2 runtime-hash seed is missing, so local NET/native
+     matrix prewarm does not burn the verifier budget on repeated stage2 cold
+     seed probes.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.
@@ -161,7 +165,8 @@ This file is the concise task view. Detailed implementation status lives in
      longer allocate input byte lists for syntax tokens. WebSocket accept
      hashing now feeds SHA-1 directly from UTF-8 string bytes, and native
      WebSocket header slices plus unmasked frame payloads copy with `oren_memcpy`;
-     DNS QNAME labels also copy through `oren_memcpy` after validation;
+     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy
+     through `oren_memcpy` after validation;
      Base64
      decode/encode writes exact-size output buffers directly, PPM header/body
      output and software raster clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
