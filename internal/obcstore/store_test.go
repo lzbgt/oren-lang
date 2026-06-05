@@ -298,8 +298,26 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if !containsAuditEvent(auditEvents, "publisher.create", "publishers/oren-labs") || !containsAuditEvent(auditEvents, "release.create", "packages/oren-labs/plot-demo/versions/0.1.0") || !containsAuditEvent(auditEvents, "ops.release.yanked", "packages/oren-labs/plot-demo/versions/0.1.0") || !containsAuditEvent(auditEvents, "ops.package.visibility", "packages/oren-labs/plot-demo") {
 		t.Fatalf("missing audit events=%v", auditEvents)
 	}
+	if audit["total_event_count"].(float64) < 6 || audit["filtered_event_count"].(float64) < 6 {
+		t.Fatalf("audit counts should include unfiltered event totals: %v", audit)
+	}
+	filteredAudit := getAdminJSON[map[string]any](t, ts, "/api/v0/ops/audit?action=ops.release.yanked&actor_kind=admin&actor_id=admin&target=plot-demo&limit=5")
+	if filteredAudit["total_event_count"].(float64) < 6 || filteredAudit["filtered_event_count"] != float64(1) {
+		t.Fatalf("bad filtered audit counts=%v", filteredAudit)
+	}
+	filteredAuditEvents := filteredAudit["events"].([]any)
+	if len(filteredAuditEvents) != 1 || filteredAuditEvents[0].(map[string]any)["action"] != "ops.release.yanked" {
+		t.Fatalf("bad filtered audit events=%v", filteredAuditEvents)
+	}
+	auditFilters := filteredAudit["filters"].(map[string]any)
+	if auditFilters["action"] != "ops.release.yanked" || auditFilters["actor_kind"] != "admin" || auditFilters["actor_id"] != "admin" || auditFilters["target_contains"] != "plot-demo" || auditFilters["limit"] != float64(5) {
+		t.Fatalf("bad filtered audit metadata=%v", auditFilters)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/audit?actor_kind=robot", nil, true); got.Code != http.StatusBadRequest {
+		t.Fatalf("invalid audit filter status=%d body=%s", got.Code, got.Body.String())
+	}
 	auditPage := request(t, ts, http.MethodGet, "/ops/audit", nil, true)
-	if auditPage.Code != http.StatusOK || !strings.Contains(auditPage.Body.String(), "Audit Log") || !strings.Contains(auditPage.Body.String(), "ops.package.visibility") {
+	if auditPage.Code != http.StatusOK || !strings.Contains(auditPage.Body.String(), "Audit Log") || !strings.Contains(auditPage.Body.String(), "Filters") || !strings.Contains(auditPage.Body.String(), "Showing ") || !strings.Contains(auditPage.Body.String(), "ops.package.visibility") {
 		t.Fatalf("ops audit page status=%d body=%s", auditPage.Code, auditPage.Body.String())
 	}
 

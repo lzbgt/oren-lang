@@ -230,9 +230,9 @@ This file is the concise task view. Detailed implementation status lives in
 	     pages/APIs expose status/visibility/readiness filters, visibility,
 	     readiness, latest-published state,
 	     publish/yank/visibility action URLs, no-JS browser forms for those
-	     release/package mutations, authenticated update inventory page/API for
-	     latest/superseded package versions, authenticated append-only audit
-	     page/API for successful store mutations, checked Traefik dynamic route
+		     release/package mutations, authenticated update inventory page/API for
+		     latest/superseded package versions, authenticated filterable append-only
+		     audit page/API by action/actor/target with total/filtered counts, checked Traefik dynamic route
 	     generation for the cloud-host backend, a public live-route smoke target
 	     with strict release-readiness mode, and a local data-dir backup/restore
 	     smoke for metadata plus artifacts; live deployment polish remains.

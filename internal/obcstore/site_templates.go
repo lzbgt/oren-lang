@@ -228,6 +228,16 @@ const siteOpsAuditHTML = `<!doctype html>
 <body><header><h1 class="brand">Audit Log</h1><p>Authenticated append-only store mutation history. Token events record configuration state only, never token material.</p></header>
 <main>
 <p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/ops/releases">release lifecycle</a> · <a href="/ops/updates">update inventory</a> · <a href="/api/v0/ops/audit">JSON</a></p>
+<form class="card" action="/ops/audit" method="get">
+  <h2>Filters</h2>
+  <input name="action" placeholder="action, e.g. release.publish" value="{{.Filters.Action}}">
+  <input name="actor_kind" placeholder="actor_kind: admin|publisher|unknown" value="{{.Filters.ActorKind}}">
+  <input name="actor_id" placeholder="actor id" value="{{.Filters.ActorID}}">
+  <input name="target" placeholder="target contains" value="{{.Filters.TargetContains}}">
+  <input name="limit" placeholder="limit" value="{{.Filters.Limit}}">
+  <button type="submit">Apply filters</button>
+  <p class="muted">Showing {{len .Events}} event(s), {{.FilteredEventCount}} matching of {{.TotalEventCount}} total.</p>
+</form>
 <section class="card">
 {{if .Events}}<table><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
 {{range .Events}}<tr>

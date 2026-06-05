@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,10 +30,21 @@ type AuditEvent struct {
 }
 
 type OperatorAuditLog struct {
-	Schema    string       `json:"schema"`
-	Service   string       `json:"service"`
-	Generated string       `json:"generated_at"`
-	Events    []AuditEvent `json:"events"`
+	Schema             string               `json:"schema"`
+	Service            string               `json:"service"`
+	Filters            OperatorAuditFilters `json:"filters"`
+	TotalEventCount    int                  `json:"total_event_count"`
+	FilteredEventCount int                  `json:"filtered_event_count"`
+	Generated          string               `json:"generated_at"`
+	Events             []AuditEvent         `json:"events"`
+}
+
+type OperatorAuditFilters struct {
+	Limit          int    `json:"limit"`
+	Action         string `json:"action,omitempty"`
+	ActorKind      string `json:"actor_kind,omitempty"`
+	ActorID        string `json:"actor_id,omitempty"`
+	TargetContains string `json:"target_contains,omitempty"`
 }
 
 func (s *Service) handleSiteOpsAudit(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +59,12 @@ func (s *Service) handleSiteOpsAudit(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	log, err := s.operatorAuditLog(limitFromQuery(r, 100))
+	filters, err := operatorAuditFiltersFromQuery(r.URL.Query(), 100)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	log, err := s.operatorAuditLog(filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -63,7 +80,12 @@ func (s *Service) handleOpsAudit(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	log, err := s.operatorAuditLog(limitFromQuery(r, 100))
+	filters, err := operatorAuditFiltersFromQuery(r.URL.Query(), 100)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	log, err := s.operatorAuditLog(filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -71,33 +93,36 @@ func (s *Service) handleOpsAudit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, log)
 }
 
-func (s *Service) operatorAuditLog(limit int) (OperatorAuditLog, error) {
-	events, err := s.auditEvents(limit)
+func (s *Service) operatorAuditLog(filters OperatorAuditFilters) (OperatorAuditLog, error) {
+	events, total, matched, err := s.auditEvents(filters)
 	if err != nil {
 		return OperatorAuditLog{}, err
 	}
 	return OperatorAuditLog{
-		Schema:    auditSchema,
-		Service:   "obc-store",
-		Generated: s.now().UTC().Format(time.RFC3339),
-		Events:    nonNilAuditEvents(events),
+		Schema:             auditSchema,
+		Service:            "obc-store",
+		Filters:            filters,
+		TotalEventCount:    total,
+		FilteredEventCount: matched,
+		Generated:          s.now().UTC().Format(time.RFC3339),
+		Events:             nonNilAuditEvents(events),
 	}, nil
 }
 
-func (s *Service) auditEvents(limit int) ([]AuditEvent, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
+func (s *Service) auditEvents(filters OperatorAuditFilters) ([]AuditEvent, int, int, error) {
+	limit := filters.Limit
 	file, err := os.Open(s.auditLogPath())
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, 0, 0, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	defer file.Close()
 
 	var ring []AuditEvent
+	total := 0
+	matched := 0
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
 	for scanner.Scan() {
@@ -109,6 +134,11 @@ func (s *Service) auditEvents(limit int) ([]AuditEvent, error) {
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			continue
 		}
+		total++
+		if !auditEventMatches(ev, filters) {
+			continue
+		}
+		matched++
 		ring = append(ring, ev)
 		if len(ring) > limit {
 			copy(ring, ring[1:])
@@ -116,12 +146,63 @@ func (s *Service) auditEvents(limit int) ([]AuditEvent, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	for i, j := 0, len(ring)-1; i < j; i, j = i+1, j-1 {
 		ring[i], ring[j] = ring[j], ring[i]
 	}
-	return ring, nil
+	return ring, total, matched, nil
+}
+
+func operatorAuditFiltersFromQuery(q url.Values, fallbackLimit int) (OperatorAuditFilters, error) {
+	filters := OperatorAuditFilters{
+		Limit:          limitFromQueryValues(q, fallbackLimit),
+		Action:         strings.TrimSpace(q.Get("action")),
+		ActorKind:      strings.ToLower(strings.TrimSpace(q.Get("actor_kind"))),
+		ActorID:        strings.TrimSpace(q.Get("actor_id")),
+		TargetContains: strings.TrimSpace(q.Get("target")),
+	}
+	if filters.Action != "" && !safeAuditFilterValue(filters.Action, 128) {
+		return OperatorAuditFilters{}, errors.New("invalid action filter")
+	}
+	if filters.ActorKind != "" && !oneOf(filters.ActorKind, "admin", "publisher", "unknown") {
+		return OperatorAuditFilters{}, errors.New("invalid actor_kind filter")
+	}
+	if filters.ActorID != "" && !safeAuditFilterValue(filters.ActorID, 128) {
+		return OperatorAuditFilters{}, errors.New("invalid actor_id filter")
+	}
+	if filters.TargetContains != "" && !safeAuditFilterValue(filters.TargetContains, 256) {
+		return OperatorAuditFilters{}, errors.New("invalid target filter")
+	}
+	return filters, nil
+}
+
+func safeAuditFilterValue(v string, maxLen int) bool {
+	if len(v) > maxLen {
+		return false
+	}
+	for _, ch := range v {
+		if ch < 32 || ch == 127 {
+			return false
+		}
+	}
+	return true
+}
+
+func auditEventMatches(ev AuditEvent, filters OperatorAuditFilters) bool {
+	if filters.Action != "" && ev.Action != filters.Action {
+		return false
+	}
+	if filters.ActorKind != "" && ev.Actor.Kind != filters.ActorKind {
+		return false
+	}
+	if filters.ActorID != "" && ev.Actor.ID != filters.ActorID {
+		return false
+	}
+	if filters.TargetContains != "" && !strings.Contains(ev.Target, filters.TargetContains) {
+		return false
+	}
+	return true
 }
 
 func (s *Service) auditEventCount() (int, error) {
@@ -197,7 +278,11 @@ func (s *Service) auditLogPath() string {
 }
 
 func limitFromQuery(r *http.Request, fallback int) int {
-	raw := strings.TrimSpace(r.URL.Query().Get("limit"))
+	return limitFromQueryValues(r.URL.Query(), fallback)
+}
+
+func limitFromQueryValues(q url.Values, fallback int) int {
+	raw := strings.TrimSpace(q.Get("limit"))
 	if raw == "" {
 		return fallback
 	}
