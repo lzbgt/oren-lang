@@ -145,6 +145,8 @@ Remaining service work:
 - metadata DB or transactional storage backend if filesystem storage is not enough;
 - host deployment can use `scripts/deploy_obc_store_service.sh` or
   `make deploy-obc-store-service` with `OBC_STORE_SSH_TARGET` set; the script
+  also falls back to `OBC_STORE_ADMIN_HOST` from the external admin env and supports
+  explicit `OBC_STORE_SSH_PASSWORD` password auth through `sshpass -e`. It
   cross-builds the Go binary, uploads external admin env values, and copies the
   index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`. It can copy
   the public trust bundle with `OBC_STORE_COPY_TRUST_BUNDLE=1`, set
@@ -168,6 +170,9 @@ Remaining service work:
   routes `https://store.hubstack.cn/` to that backend;
   the public portal is populated with first-party `oren-labs` demo releases from
   `examples/obc_store_demos/`;
+  the current local deploy attempt reaches the configured admin host but SSH
+  rejects both public-key batch mode and the available password, so replacing the
+  stale live binary requires corrected host credentials;
   the cloud host Traefik layer owns automatic DNS and HTTPS certificate handling,
   so this repo should not manage TLS cert material;
 

@@ -196,7 +196,11 @@ and fronted by Traefik for domain routing. Deployment automation should still
 treat private signing keys/root CA material as external to this repo. The default
 dynamic Traefik route is checked in at `deploy/obc-store-traefik.dynamic.yml`,
 and the deploy script can regenerate it with
-`scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`.
+`scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`. The deploy
+script can use `OBC_STORE_ADMIN_HOST` from the external admin env as its SSH
+target and can run password SSH through `OBC_STORE_SSH_PASSWORD` plus `sshpass -e`;
+the current live replacement attempt is blocked because the configured host
+rejects both public-key batch mode and the available password.
 `make verify-obc-store-live-route` performs a public HTTPS smoke against the live
 route and demo index; strict release-readiness checks can be enabled with
 `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1`, which also treats missing health build

@@ -181,7 +181,9 @@ Facts from the 2026-05-28 implementation pass:
   can call
   `/api/v0/packages/{publisher}/{name}/update?current_version=...` to get
   semver-aware latest published release metadata and an `update_available` flag.
-  `scripts/deploy_obc_store_service.sh` now supports an opt-in systemd service
+  `scripts/deploy_obc_store_service.sh` now supports `OBC_STORE_ADMIN_HOST`
+  fallback from the external admin env, optional `sshpass -e` password auth via
+  `OBC_STORE_SSH_PASSWORD`, an opt-in systemd service
   install/restart path, configurable listen address for Traefik, generated
   Traefik dynamic route YAML, build commit/time stamping for deployed binaries,
   an optional remote `/api/v0/health` probe, and an
@@ -194,7 +196,10 @@ Facts from the 2026-05-28 implementation pass:
   first-party demo package visibility, while
 	  `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` upgrades missing build metadata
 	  plus signed-index/trust/update endpoint warnings into deployment failures, and live-route credentials enable
-	  authenticated operator-status storage/readiness validation. `make
+	  authenticated operator-status storage/readiness validation. The current local
+	  deploy attempt reaches the configured `OBC_STORE_ADMIN_HOST` but SSH rejects
+	  both public-key batch mode and the available password, so live replacement
+	  requires corrected host credentials before strict readiness can pass. `make
 	  verify-obc-store-backup-restore` publishes a fixture package, copies the
 	  file-backed store data directory, and proves a restored service preserves
 	  index metadata plus program, bundle, and asset bytes. The live store is

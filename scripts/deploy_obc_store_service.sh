@@ -12,6 +12,7 @@ create private keys and does not copy signing keys unless explicitly requested.
 
 Required:
   OBC_STORE_SSH_TARGET=user@store.hubstack.cn
+    or OBC_STORE_ADMIN_HOST in OBC_STORE_ADMIN_ENV
 
 Optional:
   OBC_STORE_REMOTE_DIR=/opt/oren/obc-store
@@ -25,6 +26,7 @@ Optional:
   OBC_STORE_TRUST_BUNDLE=../oren-ca/trust/obc_store_trust.json
   OBC_STORE_COPY_TRUST_BUNDLE=1
   OBC_STORE_SSH_OPTS="-o BatchMode=yes"
+  OBC_STORE_SSH_PASSWORD=<optional SSH password, passed to sshpass -e>
   OBC_STORE_INSTALL_SYSTEMD=1
   OBC_STORE_SYSTEMD_SERVICE=oren-obc-store.service
   OBC_STORE_SYSTEMD_SUDO="sudo -n"
@@ -119,13 +121,31 @@ shell_quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
+remote_ssh() {
+  if [[ -n "$ssh_password" ]]; then
+    SSHPASS="$ssh_password" sshpass -e ssh $ssh_opts "$ssh_target" "$@"
+  else
+    ssh $ssh_opts "$ssh_target" "$@"
+  fi
+}
+
+remote_scp() {
+  local src="$1"
+  local dst="$2"
+  if [[ -n "$ssh_password" ]]; then
+    SSHPASS="$ssh_password" sshpass -e scp $ssh_opts "$src" "$ssh_target:$dst"
+  else
+    scp $ssh_opts "$src" "$ssh_target:$dst"
+  fi
+}
+
 remote_ops_status_check() {
   local url_q user_q pass_q token_q
   url_q="$(shell_quote "$remote_ops_status_url")"
   user_q="$(shell_quote "$OBC_STORE_ADMIN_USERNAME")"
   pass_q="$(shell_quote "${OBC_STORE_ADMIN_PASSWORD:-}")"
   token_q="$(shell_quote "${OBC_STORE_ADMIN_BEARER_TOKEN:-}")"
-  ssh $ssh_opts "$ssh_target" "OBC_STORE_STATUS_URL=$url_q OBC_STORE_STATUS_USER=$user_q OBC_STORE_STATUS_PASSWORD=$pass_q OBC_STORE_STATUS_TOKEN=$token_q python3 -" <<'PY'
+  remote_ssh "OBC_STORE_STATUS_URL=$url_q OBC_STORE_STATUS_USER=$user_q OBC_STORE_STATUS_PASSWORD=$pass_q OBC_STORE_STATUS_TOKEN=$token_q python3 -" <<'PY'
 import base64
 import json
 import os
@@ -168,6 +188,7 @@ remote_data_dir="${OBC_STORE_REMOTE_DATA_DIR:-/srv/oren/obc-store}"
 listen_addr="${OBC_STORE_LISTEN_ADDR:-127.0.0.1:8080}"
 admin_env="${OBC_STORE_ADMIN_ENV:-../oren-ca/obc-store-admin.env}"
 ssh_opts="${OBC_STORE_SSH_OPTS:-}"
+ssh_password="${OBC_STORE_SSH_PASSWORD:-}"
 copy_index_key="${OBC_STORE_COPY_INDEX_SIGNING_KEY:-0}"
 index_key="${OBC_STORE_INDEX_SIGN_KEY_PEM:-}"
 index_key_id="${OBC_STORE_INDEX_SIGN_KEY_ID:-}"
@@ -204,13 +225,6 @@ if [[ -n "${1:-}" ]]; then
   exit 2
 fi
 
-ssh_target="${OBC_STORE_SSH_TARGET:-}"
-if [[ -z "$ssh_target" ]]; then
-  usage >&2
-  echo "ERROR: OBC_STORE_SSH_TARGET is required" >&2
-  exit 2
-fi
-
 if [[ ! -f "$admin_env" ]]; then
   echo "ERROR: missing admin env: $admin_env" >&2
   exit 2
@@ -219,12 +233,22 @@ fi
 # shellcheck disable=SC1090
 source "$admin_env"
 : "${OBC_STORE_ADMIN_USERNAME:=admin}"
+ssh_target="${OBC_STORE_SSH_TARGET:-${OBC_STORE_ADMIN_HOST:-}}"
+if [[ -z "$ssh_target" ]]; then
+  usage >&2
+  echo "ERROR: OBC_STORE_SSH_TARGET is required when OBC_STORE_ADMIN_ENV does not set OBC_STORE_ADMIN_HOST" >&2
+  exit 2
+fi
+if [[ -n "$ssh_password" ]] && ! command -v sshpass >/dev/null 2>&1; then
+  echo "ERROR: OBC_STORE_SSH_PASSWORD requires sshpass in PATH" >&2
+  exit 2
+fi
 if [[ -z "${OBC_STORE_ADMIN_PASSWORD:-}" && -z "${OBC_STORE_ADMIN_TOKEN_SHA256_HEX:-}" ]]; then
   echo "ERROR: admin env must set OBC_STORE_ADMIN_PASSWORD or OBC_STORE_ADMIN_TOKEN_SHA256_HEX" >&2
   exit 2
 fi
 
-remote_arch="$(ssh $ssh_opts "$ssh_target" 'uname -m')"
+remote_arch="$(remote_ssh 'uname -m')"
 case "$remote_arch" in
   x86_64|amd64) goarch=amd64 ;;
   arm64|aarch64) goarch=arm64 ;;
@@ -243,9 +267,9 @@ GOOS=linux GOARCH="$goarch" go build \
   -ldflags "-X oren/internal/obcstore.BuildCommit=$build_commit -X oren/internal/obcstore.BuildTime=$build_time" \
   -o "$bin" ./cmd/obc-store-server
 
-ssh $ssh_opts "$ssh_target" "mkdir -p '$remote_dir' '$remote_data_dir'"
-scp $ssh_opts "$bin" "$ssh_target:$remote_dir/obc-store-server.new"
-ssh $ssh_opts "$ssh_target" "chmod 755 '$remote_dir/obc-store-server.new' && mv '$remote_dir/obc-store-server.new' '$remote_dir/obc-store-server'"
+remote_ssh "mkdir -p '$remote_dir' '$remote_data_dir'"
+remote_scp "$bin" "$remote_dir/obc-store-server.new"
+remote_ssh "chmod 755 '$remote_dir/obc-store-server.new' && mv '$remote_dir/obc-store-server.new' '$remote_dir/obc-store-server'"
 
 remote_index_key=""
 if [[ "$copy_index_key" == "1" ]]; then
@@ -253,9 +277,9 @@ if [[ "$copy_index_key" == "1" ]]; then
     echo "ERROR: OBC_STORE_COPY_INDEX_SIGNING_KEY=1 requires OBC_STORE_INDEX_SIGN_KEY_PEM" >&2
     exit 2
   fi
-  ssh $ssh_opts "$ssh_target" "mkdir -p '$remote_dir/private' && chmod 700 '$remote_dir/private'"
-  scp $ssh_opts "$index_key" "$ssh_target:$remote_dir/private/index-signing-key.pem"
-  ssh $ssh_opts "$ssh_target" "chmod 600 '$remote_dir/private/index-signing-key.pem'"
+  remote_ssh "mkdir -p '$remote_dir/private' && chmod 700 '$remote_dir/private'"
+  remote_scp "$index_key" "$remote_dir/private/index-signing-key.pem"
+  remote_ssh "chmod 600 '$remote_dir/private/index-signing-key.pem'"
   remote_index_key="$remote_dir/private/index-signing-key.pem"
 fi
 
@@ -265,9 +289,9 @@ if [[ "$copy_trust_bundle" == "1" ]]; then
     echo "ERROR: OBC_STORE_COPY_TRUST_BUNDLE=1 requires OBC_STORE_TRUST_BUNDLE" >&2
     exit 2
   fi
-  ssh $ssh_opts "$ssh_target" "mkdir -p '$remote_dir/trust' && chmod 755 '$remote_dir/trust'"
-  scp $ssh_opts "$trust_bundle" "$ssh_target:$remote_dir/trust/obc_store_trust.json.new"
-  ssh $ssh_opts "$ssh_target" "chmod 644 '$remote_dir/trust/obc_store_trust.json.new' && mv '$remote_dir/trust/obc_store_trust.json.new' '$remote_dir/trust/obc_store_trust.json'"
+  remote_ssh "mkdir -p '$remote_dir/trust' && chmod 755 '$remote_dir/trust'"
+  remote_scp "$trust_bundle" "$remote_dir/trust/obc_store_trust.json.new"
+  remote_ssh "chmod 644 '$remote_dir/trust/obc_store_trust.json.new' && mv '$remote_dir/trust/obc_store_trust.json.new' '$remote_dir/trust/obc_store_trust.json'"
   remote_trust_bundle="$remote_dir/trust/obc_store_trust.json"
 elif [[ -n "$trust_bundle" ]]; then
   remote_trust_bundle="$trust_bundle"
@@ -292,18 +316,18 @@ env_tmp="$tmp_dir/obc-store.env"
     printf 'OBC_STORE_TRUST_BUNDLE=%q\n' "$remote_trust_bundle"
   fi
 } > "$env_tmp"
-scp $ssh_opts "$env_tmp" "$ssh_target:$remote_dir/obc-store.env.new"
-ssh $ssh_opts "$ssh_target" "chmod 600 '$remote_dir/obc-store.env.new' && mv '$remote_dir/obc-store.env.new' '$remote_dir/obc-store.env'"
+remote_scp "$env_tmp" "$remote_dir/obc-store.env.new"
+remote_ssh "chmod 600 '$remote_dir/obc-store.env.new' && mv '$remote_dir/obc-store.env.new' '$remote_dir/obc-store.env'"
 
 if [[ "$install_systemd" == "1" ]]; then
   unit_tmp="$tmp_dir/$systemd_service"
   emit_systemd_unit > "$unit_tmp"
-  scp $ssh_opts "$unit_tmp" "$ssh_target:$remote_dir/$systemd_service.new"
-  ssh $ssh_opts "$ssh_target" "$systemd_sudo install -m 0644 '$remote_dir/$systemd_service.new' '/etc/systemd/system/$systemd_service' && rm -f '$remote_dir/$systemd_service.new' && $systemd_sudo systemctl daemon-reload && $systemd_sudo systemctl enable --now '$systemd_service' && $systemd_sudo systemctl restart '$systemd_service'"
+  remote_scp "$unit_tmp" "$remote_dir/$systemd_service.new"
+  remote_ssh "$systemd_sudo install -m 0644 '$remote_dir/$systemd_service.new' '/etc/systemd/system/$systemd_service' && rm -f '$remote_dir/$systemd_service.new' && $systemd_sudo systemctl daemon-reload && $systemd_sudo systemctl enable --now '$systemd_service' && $systemd_sudo systemctl restart '$systemd_service'"
 fi
 
 if [[ "$remote_healthcheck" == "1" ]]; then
-  ssh $ssh_opts "$ssh_target" "for i in 1 2 3 4 5; do curl -fsS '$remote_health_url' >/dev/null && exit 0; sleep 1; done; curl -fsS '$remote_health_url' >/dev/null"
+  remote_ssh "for i in 1 2 3 4 5; do curl -fsS '$remote_health_url' >/dev/null && exit 0; sleep 1; done; curl -fsS '$remote_health_url' >/dev/null"
 fi
 
 if [[ "$remote_ops_statuscheck" == "1" ]]; then
