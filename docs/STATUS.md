@@ -460,9 +460,10 @@ Facts from the 2026-05-28 implementation pass:
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
   split, key sort, bare-identifier, prefix, and suffix helpers avoid
-  list-of-byte reconstruction, and XML/HTML parser
-  literal matching plus class-selector scans avoid repeated byte-list
-  materialization. `std:buffer`
+  list-of-byte reconstruction, and XML/HTML parser literal matching,
+  class-selector scans, DOM parsing, and streaming readers use direct
+  source-string byte reads instead of repeated input byte-list materialization.
+  `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
   direct byte slice helpers reject out-of-bounds spans before native conversion.

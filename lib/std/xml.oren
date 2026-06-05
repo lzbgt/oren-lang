@@ -15,6 +15,7 @@ struct XmlNode {
 }
 
 struct XmlReader {
+    // Compatibility field name: stores the source string, not a materialized byte list.
     bytes,
     pos
 }
@@ -41,7 +42,11 @@ fn document(children): XmlNode { return {"kind": "document", "children": childre
 fn element(tag, attrs, children): XmlNode { return {"kind": "element", "tag": tag, "attrs": attrs, "children": children} }
 fn text_node(s): XmlNode { return {"kind": "text", "text": s} }
 
-fn _len(bs) { return list.len(bs) }
+fn _len(s) { return oren_string_len(s) }
+
+fn _byte_at(s, pos) {
+    return oren_string_byte_at_unchecked(s, pos) & 255
+}
 
 fn _streq(a, b) {
     if a == nil || b == nil { return false }
@@ -58,88 +63,88 @@ fn _is_name_char(b) {
     return false
 }
 
-fn _slice(bs, start, end) {
+fn _slice(s, start, end) {
     if end <= start { return "" }
-    return oren_string_from_bytes_slice(bs, start, end - start)
+    return oren_string_slice(s, start, end)
 }
 
-fn _starts(bs, pos, lit) {
+fn _starts(s, pos, lit) {
     var n = oren_string_len(lit)
-    if pos + n > _len(bs) { return false }
+    if pos + n > _len(s) { return false }
     var i = 0
     while i < n {
-        if bs[pos + i] != (oren_string_byte_at_unchecked(lit, i) & 255) { return false }
+        if _byte_at(s, pos + i) != (oren_string_byte_at_unchecked(lit, i) & 255) { return false }
         i = i + 1
     }
     return true
 }
 
-fn _skip_ws(bs, pos) {
-    while pos < _len(bs) && _is_space(bs[pos]) { pos = pos + 1 }
+fn _skip_ws(s, pos) {
+    while pos < _len(s) && _is_space(_byte_at(s, pos)) { pos = pos + 1 }
     return pos
 }
 
-fn _skip_until(bs, pos, lit) {
+fn _skip_until(s, pos, lit) {
     var n = oren_string_len(lit)
-    while pos < _len(bs) {
-        if _starts(bs, pos, lit) { return pos + n }
+    while pos < _len(s) {
+        if _starts(s, pos, lit) { return pos + n }
         pos = pos + 1
     }
     return pos
 }
 
-fn _read_name(bs, pos) {
+fn _read_name(s, pos) {
     var start = pos
-    while pos < _len(bs) && _is_name_char(bs[pos]) { pos = pos + 1 }
-    return {"s": _slice(bs, start, pos), "pos": pos}
+    while pos < _len(s) && _is_name_char(_byte_at(s, pos)) { pos = pos + 1 }
+    return {"s": _slice(s, start, pos), "pos": pos}
 }
 
-fn _read_attr_value(bs, pos) {
-    pos = _skip_ws(bs, pos)
-    if pos >= _len(bs) { return {"s": "", "pos": pos} }
-    var quote = bs[pos]
+fn _read_attr_value(s, pos) {
+    pos = _skip_ws(s, pos)
+    if pos >= _len(s) { return {"s": "", "pos": pos} }
+    var quote = _byte_at(s, pos)
     if quote == 34 || quote == 39 {
         pos = pos + 1
         var start = pos
-        while pos < _len(bs) && bs[pos] != quote { pos = pos + 1 }
-        var s = _slice(bs, start, pos)
-        if pos < _len(bs) { pos = pos + 1 }
-        return {"s": s, "pos": pos}
+        while pos < _len(s) && _byte_at(s, pos) != quote { pos = pos + 1 }
+        var out = _slice(s, start, pos)
+        if pos < _len(s) { pos = pos + 1 }
+        return {"s": out, "pos": pos}
     }
     var start2 = pos
-    while pos < _len(bs) && !_is_space(bs[pos]) && bs[pos] != 62 && bs[pos] != 47 { pos = pos + 1 }
-    return {"s": _slice(bs, start2, pos), "pos": pos}
+    while pos < _len(s) && !_is_space(_byte_at(s, pos)) && _byte_at(s, pos) != 62 && _byte_at(s, pos) != 47 { pos = pos + 1 }
+    return {"s": _slice(s, start2, pos), "pos": pos}
 }
 
-fn _parse_open(bs, pos) {
+fn _parse_open(s, pos) {
     // pos is after '<'.
-    var nr = _read_name(bs, pos)
+    var nr = _read_name(s, pos)
     var tag = nr["s"]
     pos = nr["pos"]
     var attrs = {}
     var self_close = false
-    while pos < _len(bs) {
-        pos = _skip_ws(bs, pos)
-        if pos >= _len(bs) { break }
-        if bs[pos] == 47 {
+    while pos < _len(s) {
+        pos = _skip_ws(s, pos)
+        if pos >= _len(s) { break }
+        if _byte_at(s, pos) == 47 {
             pos = pos + 1
-            pos = _skip_ws(bs, pos)
-            if pos < _len(bs) && bs[pos] == 62 { pos = pos + 1 }
+            pos = _skip_ws(s, pos)
+            if pos < _len(s) && _byte_at(s, pos) == 62 { pos = pos + 1 }
             self_close = true
             break
         }
-        if bs[pos] == 62 {
+        if _byte_at(s, pos) == 62 {
             pos = pos + 1
             break
         }
-        var ar = _read_name(bs, pos)
+        var ar = _read_name(s, pos)
         var an = ar["s"]
         pos = ar["pos"]
         var av = "true"
-        pos = _skip_ws(bs, pos)
-        if pos < _len(bs) && bs[pos] == 61 {
+        pos = _skip_ws(s, pos)
+        if pos < _len(s) && _byte_at(s, pos) == 61 {
             pos = pos + 1
-            var vr = _read_attr_value(bs, pos)
+            var vr = _read_attr_value(s, pos)
             av = vr["s"]
             pos = vr["pos"]
         }
@@ -148,24 +153,24 @@ fn _parse_open(bs, pos) {
     return {"tag": tag, "attrs": attrs, "pos": pos, "self_close": self_close}
 }
 
-fn _parse_nodes(bs, pos, closing) {
+fn _parse_nodes(s, pos, closing) {
     var out = []
-    while pos < _len(bs) {
-        if _starts(bs, pos, "<!--") {
-            pos = _skip_until(bs, pos + 4, "-->")
+    while pos < _len(s) {
+        if _starts(s, pos, "<!--") {
+            pos = _skip_until(s, pos + 4, "-->")
             continue
         }
-        if _starts(bs, pos, "</") {
-            var cr = _read_name(bs, pos + 2)
-            pos = _skip_until(bs, cr["pos"], ">")
+        if _starts(s, pos, "</") {
+            var cr = _read_name(s, pos + 2)
+            pos = _skip_until(s, cr["pos"], ">")
             return {"children": out, "pos": pos, "closed": _streq(cr["s"], closing)}
         }
-        if _starts(bs, pos, "<!") || _starts(bs, pos, "<?") {
-            pos = _skip_until(bs, pos + 2, ">")
+        if _starts(s, pos, "<!") || _starts(s, pos, "<?") {
+            pos = _skip_until(s, pos + 2, ">")
             continue
         }
-        if bs[pos] == 60 {
-            var op = _parse_open(bs, pos + 1)
+        if _byte_at(s, pos) == 60 {
+            var op = _parse_open(s, pos + 1)
             if op["tag"] == "" {
                 pos = op["pos"]
                 continue
@@ -173,7 +178,7 @@ fn _parse_nodes(bs, pos, closing) {
             var children = []
             pos = op["pos"]
             if op["self_close"] != true {
-                var inner = _parse_nodes(bs, pos, op["tag"])
+                var inner = _parse_nodes(s, pos, op["tag"])
                 children = inner["children"]
                 pos = inner["pos"]
             }
@@ -181,21 +186,20 @@ fn _parse_nodes(bs, pos, closing) {
             continue
         }
         var start = pos
-        while pos < _len(bs) && bs[pos] != 60 { pos = pos + 1 }
-        var txt = _slice(bs, start, pos)
+        while pos < _len(s) && _byte_at(s, pos) != 60 { pos = pos + 1 }
+        var txt = _slice(s, start, pos)
         if txt != "" { list.push(out, text_node(txt)) }
     }
     return {"children": out, "pos": pos, "closed": closing == nil || closing == ""}
 }
 
 fn parse(s): XmlNode {
-    var bs = oren_bytes_from_string(s)
-    var r = _parse_nodes(bs, 0, "")
+    var r = _parse_nodes(s, 0, "")
     return document(r["children"])
 }
 
 fn reader(s): XmlReader {
-    return {"bytes": oren_bytes_from_string(s), "pos": 0}
+    return {"bytes": s, "pos": 0}
 }
 
 fn _event(kind, tag, attrs, text, self_close) {
@@ -204,36 +208,36 @@ fn _event(kind, tag, attrs, text, self_close) {
 
 fn read_next(r) {
     if r == nil { return nil }
-    var bs = r["bytes"]
-    if bs == nil { return nil }
+    var s = r["bytes"]
+    if s == nil { return nil }
     var pos = r["pos"]
     if oren_type_tag(pos) == 0 { pos = 0 }
-    while pos < _len(bs) {
-        if _starts(bs, pos, "<!--") {
-            pos = _skip_until(bs, pos + 4, "-->")
+    while pos < _len(s) {
+        if _starts(s, pos, "<!--") {
+            pos = _skip_until(s, pos + 4, "-->")
             r["pos"] = pos
             continue
         }
-        if _starts(bs, pos, "<!") || _starts(bs, pos, "<?") {
-            pos = _skip_until(bs, pos + 2, ">")
+        if _starts(s, pos, "<!") || _starts(s, pos, "<?") {
+            pos = _skip_until(s, pos + 2, ">")
             r["pos"] = pos
             continue
         }
-        if _starts(bs, pos, "</") {
-            var cr = _read_name(bs, pos + 2)
-            pos = _skip_until(bs, cr["pos"], ">")
+        if _starts(s, pos, "</") {
+            var cr = _read_name(s, pos + 2)
+            pos = _skip_until(s, cr["pos"], ">")
             r["pos"] = pos
             return _event("end", cr["s"], {}, "", false)
         }
-        if bs[pos] == 60 {
-            var op = _parse_open(bs, pos + 1)
+        if _byte_at(s, pos) == 60 {
+            var op = _parse_open(s, pos + 1)
             r["pos"] = op["pos"]
             return _event("start", op["tag"], op["attrs"], "", op["self_close"])
         }
         var start = pos
-        while pos < _len(bs) && bs[pos] != 60 { pos = pos + 1 }
+        while pos < _len(s) && _byte_at(s, pos) != 60 { pos = pos + 1 }
         r["pos"] = pos
-        var txt = _slice(bs, start, pos)
+        var txt = _slice(s, start, pos)
         if txt == "" { continue }
         return _event("text", "", {}, txt, false)
     }

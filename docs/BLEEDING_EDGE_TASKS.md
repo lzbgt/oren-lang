@@ -147,8 +147,8 @@ This file is the concise task view. Detailed implementation status lives in
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers
      also avoid list-of-byte reconstruction, while XML/HTML parser literal
-     matching and class-selector scans no longer allocate repeated byte lists
-     for syntax tokens.
+     matching, class-selector scans, DOM parsing, and streaming readers no
+     longer allocate input byte lists for syntax tokens.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
 	     `buf.matrix(2, 3).row(1).text()` without explicit local annotations

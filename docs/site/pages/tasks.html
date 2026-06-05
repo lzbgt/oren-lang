@@ -213,8 +213,8 @@
 <p>     byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,</p>
 <p>     line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers</p>
 <p>     also avoid list-of-byte reconstruction, while XML/HTML parser literal</p>
-<p>     matching and class-selector scans no longer allocate repeated byte lists</p>
-<p>     for syntax tokens.</p>
+<p>     matching, class-selector scans, DOM parsing, and streaming readers no</p>
+<p>     longer allocate input byte lists for syntax tokens.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
 <p>	     <code>buf.matrix(2, 3).row(1).text()</code> without explicit local annotations</p>
