@@ -127,6 +127,9 @@ fn set_u8(bytes, idx, v) {
     if _is_int(v) == false { return oren_err(4, "bytes.set_u8: value not int") }
     if idx < 0 || idx >= n { return oren_err(4, "bytes.set_u8: index out of bounds") }
     if v < 0 || v > 255 { return oren_err(4, "bytes.set_u8: byte out of range") }
+    if oren_is_u8_buf(bytes) == true {
+        return raw._store_u8_buf_unchecked_direct(bytes, idx, v)
+    }
     return oren_bytes_set_u8(bytes, idx, v)
 }
 

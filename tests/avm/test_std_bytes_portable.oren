@@ -59,10 +59,17 @@ fn test_bytes_conversions() {
     assert_true(!oren_is_err(dst))
     assert_true(!oren_is_err(bytesm.copy_into(dst, 1, bytesm.from_string("XY"), 0, 2)))
     assert_eq(bytesm.to_string(dst), "hXYlo")
+    assert_true(!oren_is_err(bytesm.set_u8(dst, 0, 72)))
+    assert_eq(bytesm.to_string(dst), "HXYlo")
+    assert_true(oren_is_err(bytesm.set_u8(dst, 0, 300)))
     assert_true(oren_is_err(bytesm.copy_into(dst, 4, bytesm.from_string("XY"), 0, 2)))
     assert_true(oren_is_err(bytesm.get_u8(dst, "x")))
     assert_true(oren_is_err(bytesm.set_u8(dst, "x", 1)))
     assert_true(oren_is_err(bytesm.copy_into(dst, "x", bytesm.from_string("XY"), 0, 1)))
+
+    var list_dst = [97, 98]
+    assert_true(!oren_is_err(bytesm.set_u8(list_dst, 1, 67)))
+    assert_eq(bytesm.to_string(list_dst), "aC")
 
     var ub_dst = bufferm.u8_from_string("hello")
     var ub_src = bufferm.u8_from_string("ABCD")

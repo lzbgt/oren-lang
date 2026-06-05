@@ -1028,10 +1028,18 @@ fn smoke_bytes_tail_and_bridge() {
     if r.is_err(copy) || copy != dst { return 86 }
     var dsts = bytes.to_string(dst)
     if r.is_err(dsts) || dsts != "hXYlo" { return 87 }
+    var set_u8_direct = bytes.set_u8(dst, 0, 72)
+    if r.is_err(set_u8_direct) || set_u8_direct != dst { return 1140 }
+    if bytes.to_string(dst) != "HXYlo" { return 1141 }
+    var bad_set_u8_direct = bytes.set_u8(dst, 0, 300)
+    if r.is_err(bad_set_u8_direct) != true { return 1142 }
     var bad_copy = bytes.copy_into(dst, 4, bytes.from_string("XY"), 0, 2)
     if r.is_err(bad_copy) != true { return 88 }
     var bad_copy_ty = bytes.copy_into(dst, "x", bytes.from_string("XY"), 0, 1)
     if r.is_err(bad_copy_ty) != true { return 908 }
+    var list_dst = [97, 98]
+    var list_set = bytes.set_u8(list_dst, 1, 67)
+    if r.is_err(list_set) || bytes.to_string(list_dst) != "aC" { return 1143 }
     var ub3 = buffer.u8_new(2)
     if r.is_err(ub3) { return 89 }
     if r.is_err(oren_buf_store_u8(ub3, 0, 65)) { return 90 }
