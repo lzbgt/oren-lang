@@ -289,11 +289,7 @@ fn _buf_slice_to_string(buf, start, end) {
     // (string concatenation is kind-gated; untracked strings behave like integers).
     var out = malloc_k(n + 1, 1)
     if out == 0 { return 0 }
-    var i = 0
-    while i < n {
-        ptr_set_byte(out + i, ptr_get_byte(buf + start + i))
-        i = i + 1
-    }
+    if n > 0 { oren_memcpy(out, buf + start, n) }
     ptr_set_byte(out + n, 0)
     return out
 }
@@ -849,14 +845,16 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
         payload_off = payload_off + 4
     }
 
-    var i = 0
-    while i < payload_len {
-        var b = ptr_get_byte(payload_ptr + i) & 255
-        if masked == 1 {
+    if masked == 0 {
+        if payload_len > 0 { oren_memcpy(buf + payload_off, payload_ptr, payload_len) }
+    } else {
+        var i = 0
+        while i < payload_len {
+            var b = ptr_get_byte(payload_ptr + i) & 255
             b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i)
+            ptr_set_byte(buf + payload_off + i, b)
+            i = i + 1
         }
-        ptr_set_byte(buf + payload_off + i, b)
-        i = i + 1
     }
 
     // Rolling correctness guard (Win64 bring-up):

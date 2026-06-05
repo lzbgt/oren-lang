@@ -227,7 +227,9 @@
 <p>     also avoid list-of-byte reconstruction, while XML/HTML parser literal</p>
 <p>     matching, class-selector scans, DOM parsing, and streaming readers no</p>
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
-<p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, Base64</p>
+<p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, and native</p>
+<p>     WebSocket header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
+<p>     Base64</p>
 <p>     decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>     output and software raster clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
