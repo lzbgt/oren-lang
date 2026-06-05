@@ -224,8 +224,8 @@
 <p>     matching, class-selector scans, DOM parsing, and streaming readers no</p>
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
 <p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, Base64</p>
-<p>     decode/encode writes exact-size output buffers directly, PPM header</p>
-<p>     emission reads ASCII header strings directly, and native <code>std:net/http</code></p>
+<p>     decode/encode writes exact-size output buffers directly, PPM header/body</p>
+<p>     output and software raster clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
 <p>     through syscalls without a transient byte list, and SHA-1/SHA-256 string</p>

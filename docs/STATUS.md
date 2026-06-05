@@ -472,8 +472,8 @@ Facts from the 2026-05-28 implementation pass:
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,
-  Base64 decode/encode writes exact-size output buffers directly, PPM header
-  emission reads ASCII header strings directly, and
+  Base64 decode/encode writes exact-size output buffers directly, PPM header/body
+  output and software raster clear/pixel writes now use raw exact-size buffer stores, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows
   Schannel passphrase cache keys use that path instead of materializing a

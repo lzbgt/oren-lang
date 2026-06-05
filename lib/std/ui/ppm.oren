@@ -11,10 +11,10 @@
 // - Body: binary RGB bytes (alpha ignored; premultiply is not performed)
 
 fn _push_ascii_u8(out, b) {
-    // out is {"buf": u8_buf, "pos": int}
-    var buf = out["buf"]
+    // out is {"buf": u8_buf, "ptr": data_ptr, "pos": int}
+    var ptr = out["ptr"]
     var pos = out["pos"]
-    oren_buf_store_u8(buf, pos, b)
+    ptr_set_byte(iadd(ptr, pos), b & 255)
     out["pos"] = pos + 1
 }
 
@@ -48,7 +48,9 @@ fn encode_rgba(rgba, w, h) {
     var out_len = header_len + (w * h * 3)
     var buf = oren_u8_buf_new_uninit(out_len)
     if oren_is_err(buf) { return buf }
-    var cur = {"buf": buf, "pos": 0}
+    var outp = oren_buf_data_ptr_unchecked(buf)
+    if outp == 0 { return oren_err(4, "ppm.encode_rgba: output data ptr is nil") }
+    var cur = {"buf": buf, "ptr": outp, "pos": 0}
 
     // Emit header (ASCII).
     _push_ascii_str(cur, "P6\n")
@@ -65,9 +67,9 @@ fn encode_rgba(rgba, w, h) {
         var g = oren_bytes_get_u8(rgba, i * 4 + 1)
         var b = oren_bytes_get_u8(rgba, i * 4 + 2)
         if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return oren_err(4, "ppm.encode_rgba: invalid rgba") }
-        oren_buf_store_u8(buf, pos + 0, r)
-        oren_buf_store_u8(buf, pos + 1, g)
-        oren_buf_store_u8(buf, pos + 2, b)
+        ptr_set_byte(iadd(outp, pos + 0), r & 255)
+        ptr_set_byte(iadd(outp, pos + 1), g & 255)
+        ptr_set_byte(iadd(outp, pos + 2), b & 255)
         pos = pos + 3
         i = i + 1
     }

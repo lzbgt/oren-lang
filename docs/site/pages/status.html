@@ -572,8 +572,8 @@
 <p>  class-selector scans, DOM parsing, and streaming readers use direct</p>
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>
-<p>  Base64 decode/encode writes exact-size output buffers directly, PPM header</p>
-<p>  emission reads ASCII header strings directly, and</p>
+<p>  Base64 decode/encode writes exact-size output buffers directly, PPM header/body</p>
+<p>  output and software raster clear/pixel writes now use raw exact-size buffer stores, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
 <p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows</p>
 <p>  Schannel passphrase cache keys use that path instead of materializing a</p>
