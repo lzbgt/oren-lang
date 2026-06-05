@@ -133,36 +133,23 @@ fn _emit_uint(out, major, n) {
     return nil
 }
 
-fn _string_bytes(s) { return oren_bytes_from_string(s) }
-
-fn _bytes_cmp(a, b) {
-    // Compare two byte lists lexicographically.
-    var al = list.len(a)
-    var bl = list.len(b)
-    var i = 0
-    var n = al
-    if bl < n { n = bl }
-    while i < n {
-        var av = a[i]
-        var bv = b[i]
-        if av < bv { return -1 }
-        if av > bv { return 1 }
-        i = i + 1
-    }
-    if al < bl { return -1 }
-    if al > bl { return 1 }
-    return 0
-}
-
 fn _key_lt(a, b) {
     // Canonical map key ordering (RFC 8949 §4.2.1): length, then bytewise.
-    var ab = _string_bytes(a)
-    var bb = _string_bytes(b)
-    var al = list.len(ab)
-    var bl = list.len(bb)
+    if a == nil { a = "" }
+    if b == nil { b = "" }
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     if al < bl { return true }
     if al > bl { return false }
-    return _bytes_cmp(ab, bb) < 0
+    var i = 0
+    while i < al {
+        var av = _byte_at(a, i)
+        var bv = _byte_at(b, i)
+        if av < bv { return true }
+        if av > bv { return false }
+        i = i + 1
+    }
+    return false
 }
 
 fn _sort_keys_canonical(keys) {
@@ -210,9 +197,14 @@ fn _encode_value(out, v) {
     }
     if _streq(t, "string") {
         var s = v["s"]
-        var sb = _string_bytes(s)
-        _emit_uint(out, 3, list.len(sb)) // major 3 text string (utf-8 bytes)
-        for b2 in sb { _push_u8(out, b2) }
+        if s == nil { s = "" }
+        var sn = oren_string_len(s)
+        _emit_uint(out, 3, sn) // major 3 text string (utf-8 bytes)
+        var si = 0
+        while si < sn {
+            _push_u8(out, _byte_at(s, si))
+            si = si + 1
+        }
         return nil
     }
     if _streq(t, "array") {
