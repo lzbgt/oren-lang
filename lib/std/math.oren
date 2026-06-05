@@ -1596,3 +1596,9 @@ fn hypot(x: f64, y: f64) {
     var r = ay / ax
     return ax * _sqrt_nonnegative_f64(1.0 + r * r)
 }
+
+fn hypot3(x: f64, y: f64, z: f64) {
+    var xy = hypot(x, y)
+    if oren_is_err(xy) { return xy }
+    return hypot(xy, z)
+}

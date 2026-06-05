@@ -702,7 +702,7 @@ Working evidence:
   `modf`, public ties-to-even
   rounding aliases, degree/radian conversion, `ilogb` / `logb`, `fdim`,
   `nextafter` / `nexttoward` / `nextup` / `nextdown`, `sqrt`,
-  `cbrt`, `powi`, `pow`, `power`, `pow2i`,
+  `cbrt`, `hypot`, `hypot3`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `scalbn`, `scalbln`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,
   `tan`, `atan`, `atan2`, `asin`, `acos`, `erf`, and `erfc`.
@@ -718,7 +718,7 @@ Working evidence:
   helpers, NaN-aware `fabs`/`fmin`/`fmax`, public ties-to-even rounding aliases, degree/radian conversion,
   normal/subnormal/`fpclassify` classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,
-  pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`,
+  pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`/`hypot3`,
   exp/log/log2/log10, cancellation-aware `expm1`/`log1p`, hyperbolic
   `sinh`/`cosh`/`tanh`, and inverse hyperbolic `asinh`/`acosh`/`atanh`,
   approximate real-valued error functions `erf`/`erfc`, finite sin/cos/tan reduction, quadrant `atan2`,
