@@ -290,20 +290,55 @@ fn native_bytes_set_span(bytes, idx, width, b0, b1, b2, b3, b4, b5, b6, b7) {
     return oren_err(4, "bytes_set_span expects list<int 0..255> or u8_buf")
 }
 
+fn native_bytes_get_span_u64(bytes, idx, width, little) {
+    if bytes == 0 { return oren_err(4, "bytes_get_span: bytes is nil") }
+    if idx < 0 { return oren_err(4, "bytes_get_span: index out of bounds") }
+    if native_bytes_is_list(bytes) == true {
+        var count = ptr_get(bytes)
+        if idx + width > count { return oren_err(4, "bytes_get_span: index out of bounds") }
+        var buf = ptr_get(bytes + 16)
+        if buf == 0 { return oren_err(4, "bytes_get_span: list buffer is nil") }
+        var acc = 0
+        var i = 0
+        while i < width {
+            var b = ptr_get(buf + (idx + i) * 8)
+            if b < 0 || b > 255 { return oren_err(4, "bytes_get_span: byte out of range") }
+            if little == true {
+                acc = acc | (b << (i * 8))
+            } else {
+                acc = (acc << 8) | b
+            }
+            i = i + 1
+        }
+        return acc
+    }
+    if native_bytes_is_u8_buf(bytes) == true {
+        var count2 = ptr_get(bytes + 0)
+        if idx + width > count2 { return oren_err(4, "bytes_get_span: index out of bounds") }
+        var data = native_buf_data_ptr(bytes)
+        if data == 0 { return oren_err(4, "bytes_get_span: buf payload is nil") }
+        var acc2 = 0
+        var j = 0
+        while j < width {
+            var b2 = ptr_get_byte(data + idx + j) & 255
+            if little == true {
+                acc2 = acc2 | (b2 << (j * 8))
+            } else {
+                acc2 = (acc2 << 8) | b2
+            }
+            j = j + 1
+        }
+        return acc2
+    }
+    return oren_err(4, "bytes_get_span expects list<int 0..255> or u8_buf")
+}
+
 fn oren_bytes_get_u16_be(bytes, idx) {
-    var b0 = oren_bytes_get_u8(bytes, idx)
-    if b0 < 0 || b0 > 255 { return b0 }
-    var b1 = oren_bytes_get_u8(bytes, idx + 1)
-    if b1 < 0 || b1 > 255 { return b1 }
-    return (b0 << 8) | b1
+    return native_bytes_get_span_u64(bytes, idx, 2, false)
 }
 
 fn oren_bytes_get_u16_le(bytes, idx) {
-    var b0 = oren_bytes_get_u8(bytes, idx)
-    if b0 < 0 || b0 > 255 { return b0 }
-    var b1 = oren_bytes_get_u8(bytes, idx + 1)
-    if b1 < 0 || b1 > 255 { return b1 }
-    return (b1 << 8) | b0
+    return native_bytes_get_span_u64(bytes, idx, 2, true)
 }
 
 fn oren_bytes_get_i16_be(bytes, idx) {
@@ -364,27 +399,11 @@ fn oren_bytes_put_u16_le(bytes, idx, v) {
 }
 
 fn oren_bytes_get_u32_be(bytes, idx) {
-    var b0 = oren_bytes_get_u8(bytes, idx)
-    if b0 < 0 || b0 > 255 { return b0 }
-    var b1 = oren_bytes_get_u8(bytes, idx + 1)
-    if b1 < 0 || b1 > 255 { return b1 }
-    var b2 = oren_bytes_get_u8(bytes, idx + 2)
-    if b2 < 0 || b2 > 255 { return b2 }
-    var b3 = oren_bytes_get_u8(bytes, idx + 3)
-    if b3 < 0 || b3 > 255 { return b3 }
-    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+    return native_bytes_get_span_u64(bytes, idx, 4, false)
 }
 
 fn oren_bytes_get_u32_le(bytes, idx) {
-    var b0 = oren_bytes_get_u8(bytes, idx)
-    if b0 < 0 || b0 > 255 { return b0 }
-    var b1 = oren_bytes_get_u8(bytes, idx + 1)
-    if b1 < 0 || b1 > 255 { return b1 }
-    var b2 = oren_bytes_get_u8(bytes, idx + 2)
-    if b2 < 0 || b2 > 255 { return b2 }
-    var b3 = oren_bytes_get_u8(bytes, idx + 3)
-    if b3 < 0 || b3 > 255 { return b3 }
-    return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+    return native_bytes_get_span_u64(bytes, idx, 4, true)
 }
 
 fn oren_bytes_get_i32_be(bytes, idx) {
@@ -430,43 +449,11 @@ fn oren_bytes_set_i32_le(bytes, idx, v) {
 }
 
 fn oren_bytes_get_u64_be(bytes, idx) {
-    var b0 = oren_bytes_get_u8(bytes, idx)
-    if b0 < 0 || b0 > 255 { return b0 }
-    var b1 = oren_bytes_get_u8(bytes, idx + 1)
-    if b1 < 0 || b1 > 255 { return b1 }
-    var b2 = oren_bytes_get_u8(bytes, idx + 2)
-    if b2 < 0 || b2 > 255 { return b2 }
-    var b3 = oren_bytes_get_u8(bytes, idx + 3)
-    if b3 < 0 || b3 > 255 { return b3 }
-    var b4 = oren_bytes_get_u8(bytes, idx + 4)
-    if b4 < 0 || b4 > 255 { return b4 }
-    var b5 = oren_bytes_get_u8(bytes, idx + 5)
-    if b5 < 0 || b5 > 255 { return b5 }
-    var b6 = oren_bytes_get_u8(bytes, idx + 6)
-    if b6 < 0 || b6 > 255 { return b6 }
-    var b7 = oren_bytes_get_u8(bytes, idx + 7)
-    if b7 < 0 || b7 > 255 { return b7 }
-    return (b0 << 56) | (b1 << 48) | (b2 << 40) | (b3 << 32) | (b4 << 24) | (b5 << 16) | (b6 << 8) | b7
+    return native_bytes_get_span_u64(bytes, idx, 8, false)
 }
 
 fn oren_bytes_get_u64_le(bytes, idx) {
-    var b0 = oren_bytes_get_u8(bytes, idx)
-    if b0 < 0 || b0 > 255 { return b0 }
-    var b1 = oren_bytes_get_u8(bytes, idx + 1)
-    if b1 < 0 || b1 > 255 { return b1 }
-    var b2 = oren_bytes_get_u8(bytes, idx + 2)
-    if b2 < 0 || b2 > 255 { return b2 }
-    var b3 = oren_bytes_get_u8(bytes, idx + 3)
-    if b3 < 0 || b3 > 255 { return b3 }
-    var b4 = oren_bytes_get_u8(bytes, idx + 4)
-    if b4 < 0 || b4 > 255 { return b4 }
-    var b5 = oren_bytes_get_u8(bytes, idx + 5)
-    if b5 < 0 || b5 > 255 { return b5 }
-    var b6 = oren_bytes_get_u8(bytes, idx + 6)
-    if b6 < 0 || b6 > 255 { return b6 }
-    var b7 = oren_bytes_get_u8(bytes, idx + 7)
-    if b7 < 0 || b7 > 255 { return b7 }
-    return (b7 << 56) | (b6 << 48) | (b5 << 40) | (b4 << 32) | (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+    return native_bytes_get_span_u64(bytes, idx, 8, true)
 }
 
 fn oren_bytes_get_i64_be(bytes, idx) {
