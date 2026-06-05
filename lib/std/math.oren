@@ -385,6 +385,23 @@ fn remainder(x: f64, y: f64) {
     return r
 }
 
+fn remquo(x: f64, y: f64) {
+    // Returns [remainder, quotient] using the same nearest-even quotient as `remainder`.
+    if is_nan(x) || is_nan(y) { return oren_err(4, "remquo: NaN") }
+    if y == 0.0 { return oren_err(4, "remquo: zero divisor") }
+    if is_inf(x) { return oren_err(4, "remquo: inf dividend") }
+    if is_inf(y) { return [x, 0] }
+    if x == 0.0 { return [x, 0] }
+
+    var n: f64 = _round_ties_even(x / y)
+    if oren_is_err(n) { return n }
+    var qi = trunc_i64_from_f(n)
+    if oren_is_err(qi) { return oren_err(4, "remquo: quotient out of range") }
+    var r: f64 = x - n * y
+    if r == 0.0 { r = copysign(0.0, x) }
+    return [r, qi]
+}
+
 fn fdim(x: f64, y: f64) {
     // Positive difference, matching C/C++ `fdim` for real finite values.
     if is_nan(x) || is_nan(y) { return oren_err(4, "fdim: NaN") }
