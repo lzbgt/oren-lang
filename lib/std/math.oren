@@ -138,6 +138,14 @@ fn isnormal(x: f64): bool {
     return is_normal(x)
 }
 
+fn fpclassify(x: f64): string {
+    if is_nan(x) { return "nan" }
+    if is_inf(x) { return "infinite" }
+    if x == 0.0 { return "zero" }
+    if is_subnormal(x) { return "subnormal" }
+    return "normal"
+}
+
 fn isunordered(a: f64, b: f64): bool {
     return is_nan(a) || is_nan(b)
 }

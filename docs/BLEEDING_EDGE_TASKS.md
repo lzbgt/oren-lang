@@ -350,7 +350,7 @@ This file is the concise task view. Detailed implementation status lives in
      `remainder`, `modf`, public ties-to-even rounding aliases, `ilogb`/`logb`,
      `fdim`, `nextafter`/`nexttoward`, `pow` / `power` for integer, negative, fractional
      positive-base, infinity edge, and negative-base real-domain cases,
-     `cbrt` with normal/subnormal classification and sign/non-finite coverage, cancellation-aware
+     `cbrt` with normal/subnormal/`fpclassify` classification and sign/non-finite coverage, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
      inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated
      `sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, `acos`, and approximate

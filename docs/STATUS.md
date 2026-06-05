@@ -695,7 +695,7 @@ Working evidence:
   same source-level semantics.
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
   bit helpers, C/C++ classification and ordered-comparison aliases (`isnan`,
-  `isinf`, `isfinite`, `isnormal`, `isunordered`, `isgreater`,
+  `isinf`, `isfinite`, `isnormal`, `fpclassify`, `isunordered`, `isgreater`,
   `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
   NaN-aware `fabs` / `fmin` / `fmax`,
   normal/subnormal classification, rounding, `fmod`, nearest-even `remainder`,
@@ -716,7 +716,7 @@ Working evidence:
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/sign
   helpers, NaN-aware `fabs`/`fmin`/`fmax`, public ties-to-even rounding aliases, degree/radian conversion,
-  normal/subnormal classification,
+  normal/subnormal/`fpclassify` classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,
   pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`,
   exp/log/log2/log10, cancellation-aware `expm1`/`log1p`, hyperbolic

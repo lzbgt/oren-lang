@@ -64,6 +64,11 @@ assert_true(math.isnormal(1.0), 56)
 assert_true(math.isunordered(math.nan(), 1.0), 57)
 assert_true(math.isunordered(1.0, math.nan()), 58)
 assert_true(!math.isunordered(1.0, 2.0), 59)
+assert_eq(math.fpclassify(math.nan()), "nan", 98)
+assert_eq(math.fpclassify(math.inf()), "infinite", 99)
+assert_eq(math.fpclassify(0.0), "zero", 100)
+assert_eq(math.fpclassify(math.pow2i(0 - 1074)), "subnormal", 101)
+assert_eq(math.fpclassify(1.0), "normal", 102)
 
 // real-valued power
 assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 60)

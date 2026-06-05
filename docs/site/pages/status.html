@@ -818,7 +818,7 @@
 <li>Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and</li>
 </ul>
 <p>  bit helpers, C/C++ classification and ordered-comparison aliases (<code>isnan</code>,</p>
-<p>  <code>isinf</code>, <code>isfinite</code>, <code>isnormal</code>, <code>isunordered</code>, <code>isgreater</code>,</p>
+<p>  <code>isinf</code>, <code>isfinite</code>, <code>isnormal</code>, <code>fpclassify</code>, <code>isunordered</code>, <code>isgreater</code>,</p>
 <p>  <code>isgreaterequal</code>, <code>isless</code>, <code>islessequal</code>, <code>islessgreater</code>) plus <code>nan</code>,</p>
 <p>  NaN-aware <code>fabs</code> / <code>fmin</code> / <code>fmax</code>,</p>
 <p>  normal/subnormal classification, rounding, <code>fmod</code>, nearest-even <code>remainder</code>,</p>
@@ -843,7 +843,7 @@
 <p>  <code>tests/avm/test_std_math_trig.oren</code> are now in the curated <code>make test-avm</code></p>
 <p>  set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/sign</p>
 <p>  helpers, NaN-aware <code>fabs</code>/<code>fmin</code>/<code>fmax</code>, public ties-to-even rounding aliases, degree/radian conversion,</p>
-<p>  normal/subnormal classification,</p>
+<p>  normal/subnormal/<code>fpclassify</code> classification,</p>
 <p>  <code>ilogb</code>/<code>logb</code>, <code>fdim</code>, <code>nextafter</code>/<code>nexttoward</code>,</p>
 <p>  pow, <code>modf</code>, <code>frexp</code>/<code>ldexp</code>/<code>scalbn</code> decomposition and scaling, <code>cbrt</code>, <code>hypot</code>,</p>
 <p>  exp/log/log2/log10, cancellation-aware <code>expm1</code>/<code>log1p</code>, hyperbolic</p>
