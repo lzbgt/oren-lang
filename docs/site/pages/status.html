@@ -588,7 +588,7 @@
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
-<p>  and <code>std:strings</code> byte roundtrips now use byte-native u8 buffers,</p>
+<p>  and <code>from_hex</code> plus <code>std:strings</code> byte roundtrips now use byte-native u8 buffers,</p>
 <p>  <code>std:bytes</code> u8/endian writes and <code>copy_into</code> keep list-backed compatibility</p>
 <p>  while mutating u8-buffer destinations and u8 slice/strided/matrix views</p>
 <p>  through raw pointer stores after public validation, contiguous u8</p>

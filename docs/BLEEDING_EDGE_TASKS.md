@@ -197,7 +197,7 @@ This file is the concise task view. Detailed implementation status lives in
      UNIX-socket path copies through `oren_memcpy`, shared compiler byte-builder
      append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
-     string copy helpers, `std:bytes.from_string`, `std:strings` byte roundtrips,
+     string copy helpers, `std:bytes.from_string`/`from_hex`, `std:strings` byte roundtrips,
      `std:bytes` u8/endian writes, concat/copy u8-buffer spans, overlap-safe
      u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
      carrier reads, contiguous slice/dense-matrix byte/text exports, and

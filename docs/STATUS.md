@@ -486,7 +486,7 @@ Facts from the 2026-05-28 implementation pass:
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
-  and `std:strings` byte roundtrips now use byte-native u8 buffers,
+  and `from_hex` plus `std:strings` byte roundtrips now use byte-native u8 buffers,
   `std:bytes` u8/endian writes and `copy_into` keep list-backed compatibility
   while mutating u8-buffer destinations and u8 slice/strided/matrix views
   through raw pointer stores after public validation, contiguous u8
