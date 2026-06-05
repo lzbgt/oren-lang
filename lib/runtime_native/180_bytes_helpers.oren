@@ -147,22 +147,36 @@ fn bytes_hex_char(n) {
     return 87 + n // 'a'..'f'
 }
 
-	fn oren_bytes_to_hex(bytes) {
-	    var n = oren_bytes_len(bytes)
-	    if oren_is_err(n) { return n }
-	    var out = malloc_k(n * 2 + 1, 1)
-	    if out == 0 { return oren_err(8, "bytes_to_hex: alloc failed") }
-    var i = 0
-    while i < n {
-        var b = oren_bytes_get_u8(bytes, i)
-        if oren_is_err(b) { return b }
-        ptr_set_byte(out + i * 2 + 0, bytes_hex_char((b >> 4) & 15))
-        ptr_set_byte(out + i * 2 + 1, bytes_hex_char(b & 15))
-        i = i + 1
+		fn oren_bytes_to_hex(bytes) {
+		    var n = oren_bytes_len(bytes)
+		    if oren_is_err(n) { return n }
+		    var out = malloc_k(n * 2 + 1, 1)
+		    if out == 0 { return oren_err(8, "bytes_to_hex: alloc failed") }
+	    if native_bytes_is_u8_buf(bytes) == true {
+	        var data = native_buf_data_ptr(bytes)
+	        if data == 0 && n > 0 { return oren_err(4, "bytes_to_hex: buf payload is nil") }
+	        var i = 0
+	        while i < n {
+	            var b = ptr_get_byte(data + i) & 255
+	            ptr_set_byte(out + i * 2 + 0, bytes_hex_char((b >> 4) & 15))
+	            ptr_set_byte(out + i * 2 + 1, bytes_hex_char(b & 15))
+	            i = i + 1
+	        }
+	    } else {
+	        var list_buf = ptr_get(bytes + 16)
+	        if list_buf == 0 && n > 0 { return oren_err(4, "bytes_to_hex: list buffer is nil") }
+	        var j = 0
+	        while j < n {
+	            var b2 = ptr_get(list_buf + j * 8)
+	            if b2 < 0 || b2 > 255 { return oren_err(4, "bytes_to_hex: byte out of range") }
+	            ptr_set_byte(out + j * 2 + 0, bytes_hex_char((b2 >> 4) & 15))
+	            ptr_set_byte(out + j * 2 + 1, bytes_hex_char(b2 & 15))
+	            j = j + 1
+	        }
 	    }
-	    ptr_set_byte(out + n * 2, 0)
-	    return out
-	}
+		    ptr_set_byte(out + n * 2, 0)
+		    return out
+		}
 
 fn oren_bytes_unpack(bytes) {
     var n = oren_bytes_len(bytes)
