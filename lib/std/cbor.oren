@@ -90,6 +90,7 @@ fn _bytes_len(bs) {
 }
 
 fn _bytes_get(bs, i) {
+    if oren_is_u8_buf(bs) == true { return ptr_get_byte(oren_buf_data_ptr_unchecked(bs) + i) & 255 }
     return oren_bytes_get_u8(bs, i) & 255
 }
 

@@ -55,6 +55,13 @@ fn test_ppm_2x1() {
         assert_eq(oren_bytes_get_u8(out, 11 + j), body[j])
         j = j + 1
     }
+
+    var out2 = ppm.encode_rgba([0, 0, 255, 255], 1, 1)
+    assert_true(oren_is_err(out2) == false)
+    assert_eq(oren_bytes_len(out2), 14)
+    assert_eq(oren_bytes_get_u8(out2, 11), 0)
+    assert_eq(oren_bytes_get_u8(out2, 12), 0)
+    assert_eq(oren_bytes_get_u8(out2, 13), 255)
 }
 
 fn test_ppm_encode_err() {

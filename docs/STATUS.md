@@ -500,7 +500,7 @@ Facts from the 2026-05-28 implementation pass:
   conversion,
   JSON full decode, scalar parse, tag equality, and escape paths
   use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
-  key ordering/text encoding plus u8-backed decode byte carriers, full regex
+  key ordering/text encoding plus direct u8-buffer decode byte reads, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
@@ -513,7 +513,7 @@ Facts from the 2026-05-28 implementation pass:
   `oren_memcpy`; DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites
   copy through `oren_memcpy` after validation;
   Base64 decode/encode writes exact-size output buffers directly, PPM header/body
-  output and software raster clear/pixel writes now use raw exact-size buffer stores, and
+  output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows
   Schannel passphrase cache keys use that path instead of materializing a
