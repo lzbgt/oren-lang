@@ -554,9 +554,11 @@
 <p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
 <p>  <code>std:bytes.to_string</code> now uses direct byte-slice conversion instead of list</p>
 <p>  materialization, JSON/YAML scalar parse and escape paths write exact-size</p>
-<p>  <code>u8_buf</code> output, public <code>std:strings</code> prefix/suffix/search/equality/trim</p>
-<p>  helpers use direct string byte reads and slices, YAML comment stripping plus</p>
-<p>  line/trim/key splitting avoid list-of-byte reconstruction, and XML/HTML parser</p>
+<p>  <code>u8_buf</code> output, JSON/CBOR/regex tag equality and public <code>std:strings</code></p>
+<p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>
+<p>  slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key</p>
+<p>  split, key sort, bare-identifier, prefix, and suffix helpers avoid</p>
+<p>  list-of-byte reconstruction, and XML/HTML parser</p>
 <p>  literal matching plus class-selector scans avoid repeated byte-list</p>
 <p>  materialization. <code>std:buffer</code></p>
 <p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>

@@ -43,16 +43,18 @@ fn _is_ws(b) {
     return b == 32 || b == 9 || b == 10 || b == 13
 }
 
+fn _byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
 fn _streq(a, b) {
     if a == nil || b == nil { return false }
-    var ab = oren_bytes_from_string(a)
-    var bb = oren_bytes_from_string(b)
-    var al = list.len(ab)
-    var bl = list.len(bb)
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     if al != bl { return false }
     var i = 0
     while i < al {
-        if ab[i] != bb[i] { return false }
+        if _byte_at(a, i) != _byte_at(b, i) { return false }
         i = i + 1
     }
     return true
@@ -348,14 +350,13 @@ fn parse(s): JsonValue {
 }
 
 fn _escape_string(s) {
-    var bs = oren_bytes_from_string(s)
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     var out = raw.u8_new_uninit(n * 2)
     if oren_is_err(out) { return out }
     var out_pos = 0
     var i = 0
     while i < n {
-        var b = bs[i]
+        var b = _byte_at(s, i)
         if b == 34 { // "
             out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 34)
         } else {

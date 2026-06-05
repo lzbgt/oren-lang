@@ -56,16 +56,18 @@ trait CborValueCodec {
     fn bytes(self): bytes;
 }
 
+fn _byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
 fn _streq(a, b) {
     if a == nil || b == nil { return false }
-    var ab = oren_bytes_from_string(a)
-    var bb = oren_bytes_from_string(b)
-    var al = list.len(ab)
-    var bl = list.len(bb)
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     if al != bl { return false }
     var i = 0
     while i < al {
-        if ab[i] != bb[i] { return false }
+        if _byte_at(a, i) != _byte_at(b, i) { return false }
         i = i + 1
     }
     return true

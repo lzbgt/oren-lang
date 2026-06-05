@@ -65,16 +65,18 @@ fn _ok(v) { return {"ok": 1, "v": v} }
 fn _is_ws(b) { return b == 32 || b == 9 || b == 13 }
 fn _is_digit(b) { return b >= 48 && b <= 57 }
 
+fn _byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
 fn _streq(a, b) {
     if a == nil || b == nil { return false }
-    var ab = oren_bytes_from_string(a)
-    var bb = oren_bytes_from_string(b)
-    var al = list.len(ab)
-    var bl = list.len(bb)
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     if al != bl { return false }
     var i = 0
     while i < al {
-        if ab[i] != bb[i] { return false }
+        if _byte_at(a, i) != _byte_at(b, i) { return false }
         i = i + 1
     }
     return true
@@ -82,24 +84,22 @@ fn _streq(a, b) {
 
 fn _trim(s) {
     if s == nil { return nil }
-    var bs = oren_bytes_from_string(s)
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     var i = 0
-    while i < n && _is_ws(bs[i]) { i = i + 1 }
+    while i < n && _is_ws(_byte_at(s, i)) { i = i + 1 }
     var j = n
-    while j > i && _is_ws(bs[j - 1]) { j = j - 1 }
+    while j > i && _is_ws(_byte_at(s, j - 1)) { j = j - 1 }
     if i == 0 && j == n { return s }
     return oren_string_slice(s, i, j)
 }
 
 fn _split_lines(s) {
-    var bs = oren_bytes_from_string(s)
     var out = []
     var start = 0
     var i = 0
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     while i < n {
-        var b = bs[i]
+        var b = _byte_at(s, i)
         if b == 10 { // \n
             list.push(out, oren_string_slice(s, start, i))
             i = i + 1
@@ -108,7 +108,7 @@ fn _split_lines(s) {
         }
         if b == 13 { // \r
             list.push(out, oren_string_slice(s, start, i))
-            if i + 1 < n && bs[i + 1] == 10 { i = i + 2 } else { i = i + 1 }
+            if i + 1 < n && _byte_at(s, i + 1) == 10 { i = i + 2 } else { i = i + 1 }
             start = i
             continue
         }
@@ -132,8 +132,7 @@ fn _strip_comments_text(s) {
     //
     // Not a full YAML tokenizer; designed to be deterministic and safe for common inputs.
     if s == nil { return nil }
-    var bs = oren_bytes_from_string(s)
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     var out = raw.u8_new_uninit(n)
     if oren_is_err(out) { return out }
     var o = 0
@@ -144,7 +143,7 @@ fn _strip_comments_text(s) {
 
     var i = 0
     while i < n {
-        var b = bs[i]
+        var b = _byte_at(s, i)
 
         if in_line_comment {
             // Consume until newline, but keep newline bytes.
@@ -157,7 +156,7 @@ fn _strip_comments_text(s) {
                     raw._store_u8_buf_unchecked_direct(out, o, 13)
                     o = o + 1
                     // keep optional \n if present
-                    if i + 1 < n && bs[i + 1] == 10 {
+                    if i + 1 < n && _byte_at(s, i + 1) == 10 {
                         raw._store_u8_buf_unchecked_direct(out, o, 10)
                         o = o + 1
                         i = i + 1
@@ -171,7 +170,7 @@ fn _strip_comments_text(s) {
 
         if in_block_comment {
             // Preserve newlines; otherwise drop bytes until closing '*/'.
-            if b == 42 && i + 1 < n && bs[i + 1] == 47 {
+            if b == 42 && i + 1 < n && _byte_at(s, i + 1) == 47 {
                 in_block_comment = false
                 i = i + 2
                 continue
@@ -194,7 +193,7 @@ fn _strip_comments_text(s) {
                 raw._store_u8_buf_unchecked_direct(out, o, b)
                 o = o + 1
                 if i + 1 < n {
-                    raw._store_u8_buf_unchecked_direct(out, o, bs[i + 1])
+                    raw._store_u8_buf_unchecked_direct(out, o, _byte_at(s, i + 1))
                     o = o + 1
                     i = i + 2
                     continue
@@ -211,7 +210,7 @@ fn _strip_comments_text(s) {
         // only treat as comment if at start or preceded by whitespace.
         var ws_ok = false
         if i == 0 { ws_ok = true } else {
-            var pb = bs[i - 1]
+            var pb = _byte_at(s, i - 1)
             // Treat newline as whitespace for comment-start purposes so full-line comments work.
             if _is_ws(pb) || pb == 10 { ws_ok = true }
         }
@@ -231,7 +230,7 @@ fn _strip_comments_text(s) {
                 continue
             }
             if b == 47 && i + 1 < n {
-                var nb = bs[i + 1]
+                var nb = _byte_at(s, i + 1)
                 if nb == 47 { // '//'
                     in_line_comment = true
                     i = i + 2
@@ -255,25 +254,24 @@ fn _strip_comments_text(s) {
 }
 
 fn _line_indent(line) {
-    var bs = oren_bytes_from_string(line)
+    var n = oren_string_len(line)
     var i = 0
-    while i < list.len(bs) && bs[i] == 32 { i = i + 1 }
+    while i < n && _byte_at(line, i) == 32 { i = i + 1 }
     // tabs are not supported in v1 (explicit).
-    if i < list.len(bs) && bs[i] == 9 { return -1 }
+    if i < n && _byte_at(line, i) == 9 { return -1 }
     return i
 }
 
 fn _parse_quoted_string(s, line_no) {
-    var bs = oren_bytes_from_string(s)
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     if n < 2 { return _err("invalid quoted string", line_no) }
-    if bs[0] != 34 { return _err("expected '\"'", line_no) }
+    if _byte_at(s, 0) != 34 { return _err("expected '\"'", line_no) }
     var out = raw.u8_new_uninit(n)
     if oren_is_err(out) { return _err("string buffer allocation failed", line_no) }
     var out_pos = 0
     var i = 1
     while i < n {
-        var b = bs[i]
+        var b = _byte_at(s, i)
         if b == 34 {
             if i != n - 1 { return _err("trailing content after quoted string", line_no) }
             var ss = oren_string_from_bytes_slice(out, 0, out_pos)
@@ -282,7 +280,7 @@ fn _parse_quoted_string(s, line_no) {
         if b == 92 { // backslash
             i = i + 1
             if i >= n { return _err("unterminated escape", line_no) }
-            var e = bs[i]
+            var e = _byte_at(s, i)
             if e == 34 { out_pos = _buf_put_u8(out, out_pos, 34) }
             else {
                 if e == 92 { out_pos = _buf_put_u8(out, out_pos, 92) }
@@ -313,24 +311,24 @@ fn _parse_scalar(tok, line_no) {
     if _streq(tok, "true") { return _ok(ybool(1)) }
     if _streq(tok, "false") { return _ok(ybool(0)) }
     // quoted string
-    var bs = oren_bytes_from_string(tok)
-    if list.len(bs) >= 2 && bs[0] == 34 {
+    var n = oren_string_len(tok)
+    if n >= 2 && _byte_at(tok, 0) == 34 {
         return _parse_quoted_string(tok, line_no)
     }
     // int (base10)
     var i = 0
     var neg = false
-    if bs[0] == 45 { neg = true; i = 1 }
+    if _byte_at(tok, 0) == 45 { neg = true; i = 1 }
     var any = false
     var v = 0
-    while i < list.len(bs) {
-        var b = bs[i]
+    while i < n {
+        var b = _byte_at(tok, i)
         if !_is_digit(b) { any = false; break }
         any = true
         v = v * 10 + (b - 48)
         i = i + 1
     }
-    if any == true && i == list.len(bs) {
+    if any == true && i == n {
         if neg { v = -v }
         return _ok(yint(v))
     }
@@ -417,25 +415,24 @@ fn _parse_block(lines, idx, indent) {
         var restm = _trim(oren_string_slice(rawm, indent, oren_string_len(rawm)))
 
         // split at first ':'
-        var bs = oren_bytes_from_string(restm)
+        var n = oren_string_len(restm)
         var kpos = -1
         var j = 0
-        while j < list.len(bs) {
-            if bs[j] == 58 { kpos = j; break }
+        while j < n {
+            if _byte_at(restm, j) == 58 { kpos = j; break }
             j = j + 1
         }
         if kpos < 0 { return _err("expected ':' in mapping entry", line_no) }
 
         var key_raw = oren_string_slice(restm, 0, kpos)
-        var val_raw = oren_string_slice(restm, kpos + 1, list.len(bs))
+        var val_raw = oren_string_slice(restm, kpos + 1, n)
         key_raw = _trim(key_raw)
         val_raw = _trim(val_raw)
         if _streq(key_raw, "") { return _err("empty key", line_no) }
 
         // key may be quoted
         var key = key_raw
-        var kb = oren_bytes_from_string(key_raw)
-        if list.len(kb) >= 2 && kb[0] == 34 {
+        if oren_string_len(key_raw) >= 2 && _byte_at(key_raw, 0) == 34 {
             var rk = _parse_quoted_string(key_raw, line_no)
             if rk["ok"] != 1 { return rk }
             key = rk["v"]["s"]
@@ -515,15 +512,15 @@ fn parse(s): YamlValue {
     return oren_err(4, msg)
 }
 
-fn _bytes_cmp(a, b) {
-    var al = list.len(a)
-    var bl = list.len(b)
+fn _string_cmp(a, b) {
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     var i = 0
     var n = al
     if bl < n { n = bl }
     while i < n {
-        var av = a[i]
-        var bv = b[i]
+        var av = _byte_at(a, i)
+        var bv = _byte_at(b, i)
         if av < bv { return -1 }
         if av > bv { return 1 }
         i = i + 1
@@ -534,9 +531,7 @@ fn _bytes_cmp(a, b) {
 }
 
 fn _key_lt(a, b) {
-    var ab = oren_bytes_from_string(a)
-    var bb = oren_bytes_from_string(b)
-    return _bytes_cmp(ab, bb) < 0
+    return _string_cmp(a, b) < 0
 }
 
 fn _sort_keys(keys) {
@@ -558,10 +553,10 @@ fn _safe_bare_ident(s) {
     if s == nil || _streq(s, "") { return false }
     // Disallow reserved scalars (avoid ambiguity on decode).
     if _streq(s, "null") || _streq(s, "~") || _streq(s, "true") || _streq(s, "false") { return false }
-    var bs = oren_bytes_from_string(s)
+    var n = oren_string_len(s)
     var i = 0
-    while i < list.len(bs) {
-        var b = bs[i]
+    while i < n {
+        var b = _byte_at(s, i)
         var ok = false
         if b >= 65 && b <= 90 { ok = true }
         if b >= 97 && b <= 122 { ok = true }
@@ -571,19 +566,18 @@ fn _safe_bare_ident(s) {
         i = i + 1
     }
     // Avoid leading '-' which could be parsed as a sequence item.
-    if _streq(oren_string_slice(s, 0, 1), "-") { return false }
+    if _byte_at(s, 0) == 45 { return false }
     return true
 }
 
 fn _escape_string(s) {
-    var bs = oren_bytes_from_string(s)
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     var out = raw.u8_new_uninit(n * 2)
     if oren_is_err(out) { return out }
     var out_pos = 0
     var i = 0
     while i < n {
-        var b = bs[i]
+        var b = _byte_at(s, i)
         if b == 34 { // "
             out_pos = _buf_put_u8(out, out_pos, 92); out_pos = _buf_put_u8(out, out_pos, 34)
         } else {
@@ -688,12 +682,12 @@ fn _encode_block(v, indent) {
 
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }
-    var sb = oren_bytes_from_string(s)
-    var pb = oren_bytes_from_string(prefix)
-    if list.len(sb) < list.len(pb) { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
     var i = 0
-    while i < list.len(pb) {
-        if sb[i] != pb[i] { return false }
+    while i < pl {
+        if _byte_at(s, i) != _byte_at(prefix, i) { return false }
         i = i + 1
     }
     return true
@@ -701,14 +695,12 @@ fn starts_with(s, prefix) {
 
 fn ends_with(s, suffix) {
     if s == nil || suffix == nil { return false }
-    var sb = oren_bytes_from_string(s)
-    var pb = oren_bytes_from_string(suffix)
-    var sl = list.len(sb)
-    var pl = list.len(pb)
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(suffix)
     if sl < pl { return false }
     var i = 0
     while i < pl {
-        if sb[(sl - pl) + i] != pb[i] { return false }
+        if _byte_at(s, (sl - pl) + i) != _byte_at(suffix, i) { return false }
         i = i + 1
     }
     return true
