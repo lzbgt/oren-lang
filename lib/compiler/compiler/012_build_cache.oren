@@ -699,7 +699,9 @@ fn _scan_cache_bytes_ensure(b, want) {
 fn _scan_cache_bytes_push_byte(b, v) {
     var used = b["len"]
     _scan_cache_bytes_ensure(b, used + 1)
-    oren_buf_store_u8(b["buf"], used, v)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "scan_cache_save: buf data ptr is nil") }
+    ptr_set_byte(iadd(dstp, used), v & 255)
     b["len"] = used + 1
     return nil
 }

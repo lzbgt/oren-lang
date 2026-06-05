@@ -166,13 +166,13 @@ This file is the concise task view. Detailed implementation status lives in
      SHA-1/SHA-256 digest buffers finalize through direct unchecked u8 stores
      after exact-size allocation.
      Compiler source-policy
-     scans, scan-cache line/number parsing, C-runtime include scanning,
+     scans, scan-cache line/number parsing and delimiter writes, C-runtime include scanning,
      compiler manifest JSON escaping, bytecode metadata payloads, OBX
      string/prefix encoding, AST binary v1 string writing, bytecode string
      constants, native Mach-O/ELF object string payloads, runtime-object
      debug-name blobs, x64 native debug-table names, ARM64 native panic-message
      payloads, shared compiler byte-builder append/list/string/set stores, C
-     identifier escaping, and raw u8/view/u8-matrix string copy
+     identifier escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy
      helpers now use direct source-string byte reads or exact-size buffers too.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and

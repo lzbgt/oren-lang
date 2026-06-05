@@ -478,13 +478,13 @@ Facts from the 2026-05-28 implementation pass:
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows
   Schannel passphrase cache keys use that path instead of materializing a
   byte list, and SHA-1/SHA-256 digest buffers finalize through direct unchecked
-  u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing, C-runtime
+  u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
   bytecode string constants, OBX string/prefix encoding, AST binary v1 string
   writing, native Mach-O/ELF object string payloads, runtime-object debug-name
   blobs, x64 native debug-table names, ARM64 native panic-message payloads,
   shared compiler byte-builder append/list/string/set stores, C identifier
-  escaping, and raw u8/view/u8-matrix string copy helpers now do the same.
+  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy helpers now do the same.
   `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and

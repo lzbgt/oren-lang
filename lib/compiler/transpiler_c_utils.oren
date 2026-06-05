@@ -100,6 +100,8 @@ fn c_ident(name) {
     if first >= 48 && first <= 57 { out_len = out_len + 1 }
     var out = oren_u8_buf_new(out_len)
     if oren_is_err(out) { oren_fail(1, "c_ident: u8_buf alloc failed") }
+    var outp = oren_buf_data_ptr_unchecked(out)
+    if outp == 0 { oren_fail(1, "c_ident: u8_buf data ptr is nil") }
     var i = 0
     var j = 0
     while i < name_len {
@@ -114,10 +116,10 @@ fn c_ident(name) {
 
         // Leading digit is not allowed in C identifiers.
         if i == 0 && b >= 48 && b <= 57 {
-            oren_buf_store_u8(out, j, 95)
+            ptr_set_byte(iadd(outp, j), 95)
             j = j + 1
         }
-        oren_buf_store_u8(out, j, b)
+        ptr_set_byte(iadd(outp, j), b & 255)
         j = j + 1
         i = i + 1
     }
