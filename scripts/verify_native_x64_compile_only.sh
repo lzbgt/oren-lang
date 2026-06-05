@@ -261,11 +261,13 @@ ensure_runtime_obj_seed() {
 
   if [[ "$TRACE" -eq 1 ]]; then
     echo "== seed: runtime obj (platform=$platform profile=$runtime_profile) ==" >&2
-    ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --build-compiler ./oren --no-debug 2>&1 | tee "$seed_log"
+    OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 \
+      ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --build-compiler ./oren --no-debug 2>&1 | tee "$seed_log"
     return "${PIPESTATUS[0]}"
   fi
 
-  ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --build-compiler ./oren --no-debug >"$seed_log" 2>&1
+  OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 \
+    ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --build-compiler ./oren --no-debug >"$seed_log" 2>&1
 }
 
 build_one() {

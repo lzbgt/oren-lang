@@ -53,6 +53,10 @@ Facts from the 2026-05-28 implementation pass:
   and a module map, checks amd64 COFF objects and embedder symbols, then compiles
   a Windows x64 PE host embedder smoke. It executes that smoke only when Wine is
   available or `VERIFY_LIBAVM_WINDOWS_X64_REQUIRE_RUN=1` is set.
+- `make verify-native-x64-compile` prewarms Linux/Windows x64 runtime-object
+  seeds through the helper's explicit bounded cross-compiler compatibility probe.
+  This keeps the default compile-only platform gate from looking hung on slow
+  stage2 cross-target cold builds while still checking stage2 x64 fixture output.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:

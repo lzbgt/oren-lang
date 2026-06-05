@@ -58,6 +58,10 @@ This file is the concise task view. Detailed implementation status lives in
      embedder static library with Zig, exports headers/module-map metadata, checks
      amd64 COFF output and embedder symbols, and compiles a Windows x64 host
      embedder smoke. Runtime execution is Wine-gated when available.
+   - Native x64 compile gate: `make verify-native-x64-compile` now prewarms
+     Linux/Windows x64 runtime-object seeds through an explicit bounded
+     cross-compiler compatibility probe, avoiding slow stage2 cold-build
+     prewarm hangs while preserving stage2 output checks.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.

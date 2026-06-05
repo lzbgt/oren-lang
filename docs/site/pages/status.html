@@ -92,6 +92,12 @@
 <p>  a Windows x64 PE host embedder smoke. It executes that smoke only when Wine is</p>
 <p>  available or <code>VERIFY_LIBAVM_WINDOWS_X64_REQUIRE_RUN=1</code> is set.</p>
 <ul>
+<li><code>make verify-native-x64-compile</code> prewarms Linux/Windows x64 runtime-object</li>
+</ul>
+<p>  seeds through the helper&#x27;s explicit bounded cross-compiler compatibility probe.</p>
+<p>  This keeps the default compile-only platform gate from looking hung on slow</p>
+<p>  stage2 cross-target cold builds while still checking stage2 x64 fixture output.</p>
+<ul>
 <li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
 </ul>
 <p>  deterministic config, budgets, virtual FS/PROC/NET defaults, structured result</p>

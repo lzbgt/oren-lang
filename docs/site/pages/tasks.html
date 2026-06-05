@@ -113,6 +113,12 @@
 <p>     amd64 COFF output and embedder symbols, and compiles a Windows x64 host</p>
 <p>     embedder smoke. Runtime execution is Wine-gated when available.</p>
 <ul>
+<li>Native x64 compile gate: <code>make verify-native-x64-compile</code> now prewarms</li>
+</ul>
+<p>     Linux/Windows x64 runtime-object seeds through an explicit bounded</p>
+<p>     cross-compiler compatibility probe, avoiding slow stage2 cold-build</p>
+<p>     prewarm hangs while preserving stage2 output checks.</p>
+<ul>
 <li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
 </ul>
 <p>     by default, but expand through a manifest/size gate so bundle build time remains</p>
