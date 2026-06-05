@@ -15,7 +15,7 @@ fn assert_eq(a, b, code) {
     fail(code)
 }
 
-fn assert_close(a, b, eps, code) {
+fn assert_close(a: f64, b: f64, eps: f64, code) {
     var d = a - b
     if d < 0.0 { d = 0.0 - d }
     if d <= eps { return 0 }
@@ -51,6 +51,14 @@ assert_eq(math.fmax(1.0, 2.0), 2.0, 46)
 var nanv = 0.0 / 0.0
 assert_true(math.is_nan(nanv), 50)
 assert_true(math.is_nan(0.0) != true, 51)
+assert_true(math.is_nan(math.nan()), 52)
+assert_true(math.isnan(nanv), 53)
+assert_true(math.isinf(math.inf()), 54)
+assert_true(math.isfinite(3.0), 55)
+assert_true(math.isnormal(1.0), 56)
+assert_true(math.isunordered(math.nan(), 1.0), 57)
+assert_true(math.isunordered(1.0, math.nan()), 58)
+assert_true(!math.isunordered(1.0, 2.0), 59)
 
 // real-valued power
 assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 60)

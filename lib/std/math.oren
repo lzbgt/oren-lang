@@ -69,12 +69,21 @@ fn is_nan(x: f64) {
     return x != x
 }
 
+fn isnan(x: f64): bool {
+    return is_nan(x)
+}
+
 fn _f64_bits(x: f64) {
     return oren_f64_to_u64_bits(f64(x))
 }
 
 fn _f64_from_bits(u) {
     return oren_u64_bits_to_f64(u64(u))
+}
+
+fn nan(): f64 {
+    // Match the existing backend-neutral NaN predicate fixture construction.
+    return 0.0 / 0.0
 }
 
 fn is_inf(x: f64) {
@@ -85,11 +94,19 @@ fn is_inf(x: f64) {
     return ((b >> 52) & 2047) == 2047 && (b & 4503599627370495) == 0
 }
 
+fn isinf(x: f64): bool {
+    return is_inf(x)
+}
+
 fn is_finite(x: f64) {
     if is_nan(x) { return false }
     var b = _f64_bits(x)
     if oren_is_err(b) { return false }
     return ((b >> 52) & 2047) != 2047
+}
+
+fn isfinite(x: f64): bool {
+    return is_finite(x)
 }
 
 fn is_subnormal(x: f64) {
@@ -107,6 +124,14 @@ fn is_normal(x: f64) {
     if oren_is_err(b) { return false }
     var exp = (b >> 52) & 2047
     return exp != 0 && exp != 2047
+}
+
+fn isnormal(x: f64): bool {
+    return is_normal(x)
+}
+
+fn isunordered(a: f64, b: f64): bool {
+    return is_nan(a) || is_nan(b)
 }
 
 fn signbit(x: f64) {
