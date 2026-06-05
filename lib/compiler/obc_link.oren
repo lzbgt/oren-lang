@@ -47,6 +47,8 @@ fn _bytes_len(bs) {
 
 fn _u8_at(bs, pos) { return oren_bytes_get_u8(bs, pos) & 255 }
 
+fn _string_u8_at(s, pos) { return oren_string_byte_at_unchecked(s, pos) & 255 }
+
 fn _u16_le_at(bs, pos) {
     var b0 = _u8_at(bs, pos + 0)
     var b1 = _u8_at(bs, pos + 1)
@@ -96,10 +98,11 @@ fn _push_u64_le(out, v) {
 }
 
 fn _push_ascii(out, s) {
-    var bs = oren_bytes_from_string(s)
+    if s == nil { return nil }
     var i = 0
-    while i < oren_list_len(bs) {
-        oren_list_push(out, bs[i] & 255)
+    var n = oren_string_len(s)
+    while i < n {
+        oren_list_push(out, _string_u8_at(s, i))
         i = i + 1
     }
     return nil
@@ -107,12 +110,11 @@ fn _push_ascii(out, s) {
 
 fn _bytes_starts_with(bs, prefix_str) {
     if bs == nil { return false }
-    var p = oren_bytes_from_string(prefix_str)
-    var pn = _bytes_len(p)
+    var pn = oren_string_len(prefix_str)
     if _bytes_len(bs) < pn { return false }
     var i = 0
     while i < pn {
-        if _u8_at(bs, i) != (oren_bytes_get_u8(p, i) & 255) { return false }
+        if _u8_at(bs, i) != _string_u8_at(prefix_str, i) { return false }
         i = i + 1
     }
     return true
@@ -120,7 +122,7 @@ fn _bytes_starts_with(bs, prefix_str) {
 
 fn _metadata_json_from_bytes(bs) {
     if !_bytes_starts_with(bs, "OREN_META\n1\n") { return nil }
-    var prefix_len = _bytes_len(oren_bytes_from_string("OREN_META\n1\n"))
+    var prefix_len = oren_string_len("OREN_META\n1\n")
     return oren_string_from_bytes_slice(bs, prefix_len, _bytes_len(bs) - prefix_len)
 }
 
@@ -132,11 +134,11 @@ fn _decode_string_u16(bs, pos) {
 
 fn _encode_string_u16(out, s) {
     if s == nil { s = "" }
-    var b = oren_bytes_from_string(s)
-    _push_u16_le(out, oren_list_len(b))
+    var n = oren_string_len(s)
+    _push_u16_le(out, n)
     var i = 0
-    while i < oren_list_len(b) {
-        oren_list_push(out, b[i] & 255)
+    while i < n {
+        oren_list_push(out, _string_u8_at(s, i))
         i = i + 1
     }
     return nil
@@ -148,13 +150,7 @@ fn obx_encode(module_name, exports, relocs, surface) {
     if relocs == nil { relocs = [] }
 
     var out = []
-    // "OREN_OBX\n1\n"
-    var hdr = oren_bytes_from_string("OREN_OBX\n1\n")
-    var i = 0
-    while i < oren_list_len(hdr) {
-        oren_list_push(out, hdr[i] & 255)
-        i = i + 1
-    }
+    _push_ascii(out, "OREN_OBX\n1\n")
 
     _encode_string_u16(out, module_name)
 
@@ -231,7 +227,7 @@ fn obx_encode(module_name, exports, relocs, surface) {
 
 fn obx_decode(obx_bytes) {
     if !_bytes_starts_with(obx_bytes, "OREN_OBX\n1\n") { return nil }
-    var pos = _bytes_len(oren_bytes_from_string("OREN_OBX\n1\n"))
+    var pos = oren_string_len("OREN_OBX\n1\n")
 
     var m = _decode_string_u16(obx_bytes, pos)
     var module_name = m["value"]
@@ -358,12 +354,13 @@ fn _emit_constant(out, c) {
     }
     if c["type"] == "String" {
         oren_list_push(out, 4)
-        var s_bytes = oren_bytes_from_string(c["value"])
-        var len = oren_list_len(s_bytes)
+        var s = c["value"]
+        if s == nil { s = "" }
+        var len = oren_string_len(s)
         _push_u16_le(out, len)
         var i = 0
         while i < len {
-            oren_list_push(out, s_bytes[i] & 255)
+            oren_list_push(out, _string_u8_at(s, i))
             i = i + 1
         }
         return nil

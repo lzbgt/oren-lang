@@ -26,6 +26,17 @@ fn _build_obx_api_surface(linked) {
     return surface
 }
 
+fn _build_push_string_bytes(out, s) {
+    if s == nil { return nil }
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        oren_list_push(out, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    return nil
+}
+
 fn compiler_main() {
     // Modern CLI parsing (click-style):
     // - supports `--opt=value` and interspersed options/args
@@ -777,19 +788,9 @@ fn compiler_main() {
 	        if trace_phase_path != nil {
 	            _build_phase_log_append(trace_phase_path, "build.bytecode.meta.done", "bytes=" + oren_int_to_string(oren_string_len(meta_json)), t_sum0)
 	        }
-	        var hdr = oren_bytes_from_string("OREN_META\n1\n")
-	        var payload = oren_bytes_from_string(meta_json)
         var meta_bytes = []
-        var hi = 0
-        while hi < oren_list_len(hdr) {
-            oren_list_push(meta_bytes, hdr[hi])
-            hi = hi + 1
-        }
-        var pi = 0
-        while pi < oren_list_len(payload) {
-            oren_list_push(meta_bytes, payload[pi])
-            pi = pi + 1
-        }
+        _build_push_string_bytes(meta_bytes, "OREN_META\n1\n")
+        _build_push_string_bytes(meta_bytes, meta_json)
         ctx["meta_bytes"] = meta_bytes
 
         // Optional OBX (exports/relocs) for `.obc` module linking.

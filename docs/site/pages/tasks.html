@@ -215,8 +215,10 @@
 <p>     also avoid list-of-byte reconstruction, while XML/HTML parser literal</p>
 <p>     matching, class-selector scans, DOM parsing, and streaming readers no</p>
 <p>     longer allocate input byte lists for syntax tokens. Compiler source-policy</p>
-<p>     scans, scan-cache line/number parsing, C-runtime include scanning, and</p>
-<p>     compiler manifest JSON escaping now use direct source-string byte reads too.</p>
+<p>     scans, scan-cache line/number parsing, C-runtime include scanning,</p>
+<p>     compiler manifest JSON escaping, bytecode metadata payloads, OBX</p>
+<p>     string/prefix encoding, and AST binary v1 string writing now use direct</p>
+<p>     source-string byte reads too.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
 <p>	     <code>buf.matrix(2, 3).row(1).text()</code> without explicit local annotations</p>

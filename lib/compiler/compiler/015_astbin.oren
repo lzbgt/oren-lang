@@ -210,19 +210,12 @@ fn _astbin_write_varint_signed(buf, off, x) {
 
 fn _astbin_write_string(buf, off, s) {
     // Encode string as uvarint(len) + raw bytes.
-    //
-    // Keep this backend-portable:
-    // - avoid raw pointer byte loads (ptr_get_byte) and malloc/free
-    // - use `oren_bytes_from_string` and list iteration
-    var bs = oren_bytes_from_string(s)
-    var n = oren_list_len(bs)
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
     off = _astbin_write_uvarint(buf, off, n)
     var i = 0
     while i < n {
-        var b = bs[i]
-        if b == nil { b = 0 }
-        if b < 0 { b = 0 }
-        if b > 255 { b = _imod(b, 256) }
+        var b = oren_string_byte_at_unchecked(s, i) & 255
         off = _astbin_write_u8(buf, off, b)
         i = i + 1
     }
