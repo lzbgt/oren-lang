@@ -176,6 +176,33 @@ fn _u8_mat_copy_from_u8_buf(m, src, ctx) {
     return m[0]
 }
 
+fn _u8_mat_copy_from_string_range(m, text, off, n, ctx) {
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if oren_type_tag(text) != 4 { return oren_err(4, ctx + ": text must be string") }
+    if mshared._is_int(off) == false { return oren_err(4, ctx + ": off must be int") }
+    if mshared._is_int(n) == false { return oren_err(4, ctx + ": len must be int") }
+    if off < 0 || n < 0 { return oren_err(4, ctx + ": negative off/len") }
+    var total = m[2] * m[3]
+    if n != total { return _err_invalid(ctx + ": byte count mismatch") }
+    var text_len = oren_string_len(text)
+    if oren_is_err(text_len) { return text_len }
+    if off + n > text_len { return oren_err(4, ctx + ": slice out of bounds") }
+    var r = 0
+    while r < m[2] {
+        var row = proj.mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < m[3] {
+            var idx = off + r * m[3] + c
+            var rc = view.slice_store_u8(row, c, oren_string_byte_at_unchecked(text, idx) & 255)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
 fn u8_mat_copy_from_bytes(m, bytes) {
     var src = bytesm.to_u8_buf(bytes)
     if oren_is_err(src) { return src }
@@ -193,15 +220,14 @@ fn u8_mat_copy_from_u8_buf(m, src) {
 }
 
 fn u8_mat_copy_from_string(m, text) {
-    var src = raw.u8_from_string(text)
-    if oren_is_err(src) { return src }
-    return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_string")
+    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.u8_mat_copy_from_string: text must be string") }
+    var n = oren_string_len(text)
+    if oren_is_err(n) { return n }
+    return _u8_mat_copy_from_string_range(m, text, 0, n, "buffer.u8_mat_copy_from_string")
 }
 
 fn u8_mat_copy_from_string_slice(m, text, off, n) {
-    var src = raw.u8_from_string_slice(text, off, n)
-    if oren_is_err(src) { return src }
-    return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_string_slice")
+    return _u8_mat_copy_from_string_range(m, text, off, n, "buffer.u8_mat_copy_from_string_slice")
 }
 
 fn u8_mat_copy_from_flat(m, xs) {
@@ -239,4 +265,3 @@ fn u8_mat_copy_from_strings(m, rows) {
     }
     return m[0]
 }
-

@@ -11,7 +11,6 @@ fn _err_invalid(msg) { return common._err_invalid(msg) }
 fn _is_int(v) { return common._is_int(v) }
 fn _check_int(v, ctx, label) { return common._check_int(v, ctx, label) }
 fn _check_nonneg_int(v, ctx, label) { return common._check_nonneg_int(v, ctx, label) }
-fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, off, n, ctx) }
 fn _check_positive_int(v, ctx, label) { return common._check_positive_int(v, ctx, label) }
 fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
 fn _slice_is_list(s) { return common._slice_is_list(s) }
@@ -137,16 +136,34 @@ fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
     return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
 }
 
+fn _u8_view_copy_from_string_range(store_fn, view, n, s, off, count, ctx) {
+    if oren_type_tag(s) != 4 { return oren_err(4, ctx + ": s must be string") }
+    var ok_off = _check_nonneg_int(off, ctx, "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_count = _check_nonneg_int(count, ctx, "len")
+    if oren_is_err(ok_count) { return ok_count }
+    if count != n { return _err_invalid(ctx + ": length mismatch") }
+    var total = oren_string_len(s)
+    if oren_is_err(total) { return total }
+    if off + count > total { return oren_err(4, ctx + ": slice out of bounds") }
+    var i = 0
+    while i < n {
+        var rc = store_fn(view, i, oren_string_byte_at_unchecked(s, off + i) & 255)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return view[0]
+}
+
 fn _u8_view_copy_from_string(store_fn, view, n, s, ctx) {
-    var bs = bytesm.from_string(s)
-    if oren_is_err(bs) { return bs }
-    return _u8_view_copy_from_bytes(store_fn, view, n, bs, ctx)
+    if oren_type_tag(s) != 4 { return oren_err(4, ctx + ": s must be string") }
+    var count = oren_string_len(s)
+    if oren_is_err(count) { return count }
+    return _u8_view_copy_from_string_range(store_fn, view, n, s, 0, count, ctx)
 }
 
 fn _u8_view_copy_from_string_slice(store_fn, view, n, s, off, count, ctx) {
-    var sub = _string_slice_or_err(s, off, count, ctx)
-    if oren_is_err(sub) { return sub }
-    return _u8_view_copy_from_string(store_fn, view, n, sub, ctx)
+    return _u8_view_copy_from_string_range(store_fn, view, n, s, off, count, ctx)
 }
 
 fn _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx) {

@@ -9,7 +9,6 @@ import common "std:buffer/common"
 
 fn _err_invalid(msg) { return common._err_invalid(msg) }
 fn _is_int(v) { return common._is_int(v) }
-fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, off, n, ctx) }
 
 fn u8_new(n) { return oren_u8_buf_new(n) }
 // Internal fast-path for fresh buffers that will be fully initialized before return.
@@ -382,17 +381,35 @@ fn u8_copy_from_bytes_slice(out: []u8, bytes, off, n) {
     return u8_copy_from_u8_buf(out, src)
 }
 
+fn _u8_copy_from_string_range(out: []u8, s, off, n, ctx) {
+    if oren_type_tag(s) != 4 { return oren_err(4, ctx + ": s must be string") }
+    if _is_int(off) == false { return oren_err(4, ctx + ": off must be int") }
+    if _is_int(n) == false { return oren_err(4, ctx + ": len must be int") }
+    if off < 0 || n < 0 { return oren_err(4, ctx + ": negative off/len") }
+    var no = _len_or_err(out, ctx)
+    if oren_is_err(no) { return no }
+    if no != n { return _err_invalid(ctx + ": length mismatch") }
+    var total = oren_string_len(s)
+    if oren_is_err(total) { return total }
+    if off + n > total { return oren_err(4, ctx + ": slice out of bounds") }
+    var i = 0
+    while i < n {
+        var rc = _store_u8_direct(out, i, oren_string_byte_at_unchecked(s, off + i) & 255)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
+}
+
 fn u8_copy_from_string(out: []u8, s) {
     if oren_type_tag(s) != 4 { return oren_err(4, "buffer.u8_copy_from_string: s must be string") }
-    var bs = bytesm.from_string(s)
-    if oren_is_err(bs) { return bs }
-    return u8_copy_from_bytes(out, bs)
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return n }
+    return _u8_copy_from_string_range(out, s, 0, n, "buffer.u8_copy_from_string")
 }
 
 fn u8_copy_from_string_slice(out: []u8, s, off, n) {
-    var sub = _string_slice_or_err(s, off, n, "buffer.u8_copy_from_string_slice")
-    if oren_is_err(sub) { return sub }
-    return u8_copy_from_string(out, sub)
+    return _u8_copy_from_string_range(out, s, off, n, "buffer.u8_copy_from_string_slice")
 }
 
 fn i32_copy_from_i32_buf(out: []i32, src) {
