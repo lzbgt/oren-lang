@@ -558,11 +558,13 @@
 <p>  pattern/text matching, and public <code>std:strings</code></p>
 <p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>
 <p>  slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key</p>
-<p>  split, key sort, bare-identifier, prefix, and suffix helpers avoid</p>
-<p>  list-of-byte reconstruction, and XML/HTML parser literal matching,</p>
-<p>  class-selector scans, DOM parsing, and streaming readers use direct</p>
-<p>  source-string byte reads instead of repeated input byte-list materialization.</p>
-<p>  Compiler source-policy scans, scan-cache line/number parsing, C-runtime</p>
+<p>	  split, key sort, bare-identifier, prefix, and suffix helpers avoid</p>
+<p>	  list-of-byte reconstruction, and XML/HTML parser literal matching,</p>
+<p>	  class-selector scans, DOM parsing, and streaming readers use direct</p>
+<p>	  source-string byte reads instead of repeated input byte-list materialization.</p>
+<p>	  WebSocket accept hashing now feeds SHA-1 from exact-size <code>u8_buf</code></p>
+<p>	  input, and PPM header emission reads ASCII header strings directly.</p>
+<p>	  Compiler source-policy scans, scan-cache line/number parsing, C-runtime</p>
 <p>  include scanning, compiler manifest JSON escaping, bytecode metadata payloads,</p>
 <p>  bytecode string constants, OBX string/prefix encoding, AST binary v1 string</p>
 <p>  writing, native Mach-O/ELF object string payloads, runtime-object debug-name</p>

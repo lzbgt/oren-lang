@@ -22,10 +22,7 @@ fn _push_ascii_str(out, s) {
     var n = oren_string_len(s)
     var i = 0
     while i < n {
-        var ch = oren_string_slice(s, i, i + 1)
-        // PERF not critical for debug; use bytes_from_string to get ASCII.
-        var bs = oren_bytes_from_string(ch)
-        var b = oren_bytes_get_u8(bs, 0)
+        var b = oren_string_byte_at_unchecked(s, i) & 255
         _push_ascii_u8(out, b)
         i = i + 1
     }

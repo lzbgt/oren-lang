@@ -460,11 +460,13 @@ Facts from the 2026-05-28 implementation pass:
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
-  split, key sort, bare-identifier, prefix, and suffix helpers avoid
-  list-of-byte reconstruction, and XML/HTML parser literal matching,
-  class-selector scans, DOM parsing, and streaming readers use direct
-  source-string byte reads instead of repeated input byte-list materialization.
-  Compiler source-policy scans, scan-cache line/number parsing, C-runtime
+	  split, key sort, bare-identifier, prefix, and suffix helpers avoid
+	  list-of-byte reconstruction, and XML/HTML parser literal matching,
+	  class-selector scans, DOM parsing, and streaming readers use direct
+	  source-string byte reads instead of repeated input byte-list materialization.
+	  WebSocket accept hashing now feeds SHA-1 from exact-size `u8_buf`
+	  input, and PPM header emission reads ASCII header strings directly.
+	  Compiler source-policy scans, scan-cache line/number parsing, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
   bytecode string constants, OBX string/prefix encoding, AST binary v1 string
   writing, native Mach-O/ELF object string payloads, runtime-object debug-name

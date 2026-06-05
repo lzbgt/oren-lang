@@ -149,7 +149,9 @@ This file is the concise task view. Detailed implementation status lives in
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers
      also avoid list-of-byte reconstruction, while XML/HTML parser literal
      matching, class-selector scans, DOM parsing, and streaming readers no
-     longer allocate input byte lists for syntax tokens. Compiler source-policy
+     longer allocate input byte lists for syntax tokens. WebSocket accept
+     hashing now feeds SHA-1 from exact-size `u8_buf` input, and PPM header
+     emission reads ASCII header strings directly. Compiler source-policy
      scans, scan-cache line/number parsing, C-runtime include scanning,
      compiler manifest JSON escaping, bytecode metadata payloads, OBX
      string/prefix encoding, AST binary v1 string writing, bytecode string
