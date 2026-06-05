@@ -268,6 +268,100 @@ func TestServerDefinitionFindsLocalSymbol(t *testing.T) {
 	}
 }
 
+func TestServerDefinitionFindsOpenDocumentSymbol(t *testing.T) {
+	var in bytes.Buffer
+	mainText := strings.Join([]string{
+		"import helper \"helper.oren\"",
+		"fn main() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	helperText := strings.Join([]string{
+		"var helper_value = 7",
+		"fn helper_fn() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///main.oren", "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///helper.oren", "text": helperText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      13,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///main.oren"},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	defs := messageByID(t, msgs, 13)["result"].([]any)
+	assertDefinition(t, defs, "file:///helper.oren", 0, 4, 16)
+}
+
+func TestServerDefinitionPrefersLocalOpenDocumentSymbol(t *testing.T) {
+	var in bytes.Buffer
+	mainText := strings.Join([]string{
+		"var helper_value = 1",
+		"fn main() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	helperText := "var helper_value = 7\n"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///main.oren", "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///helper.oren", "text": helperText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      14,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///main.oren"},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	defs := messageByID(t, msgs, 14)["result"].([]any)
+	assertDefinition(t, defs, "file:///main.oren", 0, 4, 16)
+}
+
 func writeTestMessage(t *testing.T, w *bytes.Buffer, v any) {
 	t.Helper()
 	msg, err := EncodeMessage(v)

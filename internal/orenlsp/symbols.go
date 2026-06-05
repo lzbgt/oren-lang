@@ -87,11 +87,7 @@ func documentSymbols(text string) []documentSymbol {
 	return out
 }
 
-func definitionLocations(text, uri string, pos position) []location {
-	name := wordAtPosition(text, pos)
-	if name == "" {
-		return []location{}
-	}
+func symbolDefinitionLocations(text, uri, name string) []location {
 	for _, sym := range collectSymbols(text) {
 		if sym.Name == name {
 			return []location{{URI: uri, Range: sym.Range}}

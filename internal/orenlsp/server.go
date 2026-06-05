@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -109,7 +110,7 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		uri := p.TextDocument.URI
-		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: definitionLocations(s.docs[uri], uri, p.Position)})
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.definitionLocations(uri, p.Position)})
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -123,6 +124,30 @@ func (s *Server) handle(body []byte) error {
 			},
 		})
 	}
+}
+
+func (s *Server) definitionLocations(uri string, pos position) []location {
+	text := s.docs[uri]
+	name := wordAtPosition(text, pos)
+	if name == "" {
+		return []location{}
+	}
+	if locs := symbolDefinitionLocations(text, uri, name); len(locs) > 0 {
+		return locs
+	}
+	uris := make([]string, 0, len(s.docs))
+	for candidateURI := range s.docs {
+		if candidateURI != uri {
+			uris = append(uris, candidateURI)
+		}
+	}
+	sort.Strings(uris)
+	for _, candidateURI := range uris {
+		if locs := symbolDefinitionLocations(s.docs[candidateURI], candidateURI, name); len(locs) > 0 {
+			return locs
+		}
+	}
+	return []location{}
 }
 
 func initializeResult() map[string]any {
