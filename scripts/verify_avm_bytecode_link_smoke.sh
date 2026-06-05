@@ -43,11 +43,13 @@ undef_src="$tmpdir/lib_undef.oren"
 lib_obc="$tmpdir/lib.obc"
 app_obc="$tmpdir/app.obc"
 undef_obc="$tmpdir/lib_undef.obc"
+bad_obc="$tmpdir/truncated_string_const.obc"
 lib_log="build/logs/avm_obc_link_smoke_lib.log"
 app_log="build/logs/avm_obc_link_smoke_app.log"
 run_log="build/logs/avm_obc_link_smoke_run.log"
 undef_log="build/logs/avm_obc_link_smoke_undef.log"
-rm -f "$lib_log" "$app_log" "$run_log" "$undef_log" 2>/dev/null || true
+bad_log="build/logs/avm_obc_link_smoke_bad.log"
+rm -f "$lib_log" "$app_log" "$run_log" "$undef_log" "$bad_log" 2>/dev/null || true
 
 cat >"$lib_src" <<'OREN'
 fn lib_answer() {
@@ -99,6 +101,24 @@ grep -F "ok: avm obc link smoke" "$run_log" >/dev/null || {
 echo "== build: OBX library with unresolved external relo ==" >&2
 "$COMPILER" build "$undef_src" --backend bytecode --obc-lib -o "$undef_obc" >"$undef_log" 2>&1
 test -f "$undef_obc" || { echo "FAIL: --obc-lib did not preserve unresolved relocs" >&2; tail -n 120 "$undef_log" >&2 || true; exit 6; }
+
+echo "== reject: truncated linked OBC string constant ==" >&2
+# Magic CD 0E, one constant, STRING tag, declared length 4, only one payload byte.
+printf '\315\016\001\000\004\004\000a' >"$bad_obc"
+set +e
+"$COMPILER" build "$app_src" --backend bytecode --link-obc "$bad_obc" -o "$tmpdir/bad_app.obc" >"$bad_log" 2>&1
+bad_rc=$?
+set -e
+if [[ "$bad_rc" -eq 0 ]]; then
+  echo "FAIL: truncated linked OBC was accepted" >&2
+  tail -n 120 "$bad_log" >&2 || true
+  exit 8
+fi
+grep -F "truncated string constant" "$bad_log" >/dev/null || {
+  echo "FAIL: missing truncated OBC diagnostic" >&2
+  tail -n 120 "$bad_log" >&2 || true
+  exit 9
+}
 
 if [[ "${OREN_VERIFY_FULL_STDLIB_OBC:-0}" == "1" ]]; then
   echo "== build: full stdlib bundle opt-in ==" >&2

@@ -45,6 +45,11 @@ fn _bytes_len(bs) {
     return oren_list_len(bs)
 }
 
+fn _span_ok(bs, pos, n) {
+    if pos < 0 || n < 0 { return false }
+    return pos + n <= _bytes_len(bs)
+}
+
 fn _u8_at(bs, pos) {
     if pos < 0 || pos >= _bytes_len(bs) { return oren_bytes_get_u8(bs, pos) & 255 }
     if oren_is_u8_buf(bs) == true { return ptr_get_byte(oren_buf_data_ptr_unchecked(bs) + pos) & 255 }
@@ -442,30 +447,37 @@ fn obc_parse_bytes(bs) {
             oren_list_push(consts, {"type": "Nil"})
         } else {
             if tag == 1 {
+                if !_span_ok(bs, pos, 8) { return {"error": "truncated integer constant"} }
                 var v = _u64_le_at(bs, pos)
                 pos = pos + 8
                 oren_list_push(consts, {"type": "Integer", "value": v})
             } else {
                 if tag == 2 {
+                    if !_span_ok(bs, pos, 1) { return {"error": "truncated bool constant"} }
                     var b = _u8_at(bs, pos)
                     pos = pos + 1
                     oren_list_push(consts, {"type": "Bool", "value": b})
                 } else {
                     if tag == 3 {
+                        if !_span_ok(bs, pos, 8) { return {"error": "truncated float constant"} }
                         var bits = _u64_le_at(bs, pos)
                         pos = pos + 8
                         oren_list_push(consts, {"type": "Float", "value": bits})
                     } else {
                         if tag == 4 {
+                            if !_span_ok(bs, pos, 2) { return {"error": "truncated string length"} }
                             var sl = _u16_le_at(bs, pos)
                             pos = pos + 2
+                            if !_span_ok(bs, pos, sl) { return {"error": "truncated string constant"} }
                             var sval = oren_string_from_bytes_slice(bs, pos, sl)
                             pos = pos + sl
                             oren_list_push(consts, {"type": "String", "value": sval})
                         } else {
                             if tag == 8 {
+                                if !_span_ok(bs, pos, 4) { return {"error": "truncated bytes length"} }
                                 var bl = _u32_le_at(bs, pos)
                                 pos = pos + 4
+                                if !_span_ok(bs, pos, bl) { return {"error": "truncated bytes constant"} }
                                 var bb = []
                                 var j2 = 0
                                 while j2 < bl {
