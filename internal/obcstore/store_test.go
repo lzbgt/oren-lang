@@ -564,6 +564,9 @@ func TestStorePackageUpdateCheck(t *testing.T) {
 	if len(updateItems) != 1 {
 		t.Fatalf("ops update packages=%v", updateItems)
 	}
+	if opsUpdates["total_package_count"] != float64(1) || opsUpdates["filtered_package_count"] != float64(1) {
+		t.Fatalf("bad ops update counts=%v", opsUpdates)
+	}
 	updateItem := updateItems[0].(map[string]any)
 	if updateItem["latest_version"] != "0.10.0" || !strings.Contains(updateItem["update_url_template"].(string), "current_version=<installed-version>") {
 		t.Fatalf("bad ops update item=%v", updateItem)
@@ -572,8 +575,23 @@ func TestStorePackageUpdateCheck(t *testing.T) {
 	if !containsAnyString(superseded, "0.2.0") || !containsAnyString(superseded, "0.10.0-beta.1") {
 		t.Fatalf("bad superseded versions=%v", superseded)
 	}
+	filteredUpdates := getAdminJSON[map[string]any](t, ts, "/api/v0/ops/updates?publisher=oren-labs&package=update-demo&visibility=public&superseded=any")
+	if filteredUpdates["total_package_count"] != float64(1) || filteredUpdates["filtered_package_count"] != float64(1) {
+		t.Fatalf("bad filtered update counts=%v", filteredUpdates)
+	}
+	updateFilters := filteredUpdates["filters"].(map[string]any)
+	if updateFilters["publisher"] != "oren-labs" || updateFilters["package"] != "update-demo" || updateFilters["visibility"] != "public" || updateFilters["superseded"] != "any" {
+		t.Fatalf("bad filtered update metadata=%v", updateFilters)
+	}
+	noSupersededUpdates := getAdminJSON[map[string]any](t, ts, "/api/v0/ops/updates?superseded=none")
+	if noSupersededUpdates["filtered_package_count"] != float64(0) || len(noSupersededUpdates["packages"].([]any)) != 0 {
+		t.Fatalf("bad no-superseded updates=%v", noSupersededUpdates)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/updates?superseded=maybe", nil, true); got.Code != http.StatusBadRequest {
+		t.Fatalf("invalid ops update filter status=%d body=%s", got.Code, got.Body.String())
+	}
 	opsUpdatesPage := request(t, ts, http.MethodGet, "/ops/updates", nil, true)
-	if opsUpdatesPage.Code != http.StatusOK || !strings.Contains(opsUpdatesPage.Body.String(), "Update Inventory") || !strings.Contains(opsUpdatesPage.Body.String(), "0.10.0") || !strings.Contains(opsUpdatesPage.Body.String(), "current_version=&lt;installed-version&gt;") {
+	if opsUpdatesPage.Code != http.StatusOK || !strings.Contains(opsUpdatesPage.Body.String(), "Update Inventory") || !strings.Contains(opsUpdatesPage.Body.String(), "Filters") || !strings.Contains(opsUpdatesPage.Body.String(), "Showing 1 of 1 package") || !strings.Contains(opsUpdatesPage.Body.String(), "0.10.0") || !strings.Contains(opsUpdatesPage.Body.String(), "current_version=&lt;installed-version&gt;") {
 		t.Fatalf("ops updates page status=%d body=%s", opsUpdatesPage.Code, opsUpdatesPage.Body.String())
 	}
 }

@@ -256,6 +256,15 @@ const siteOpsUpdatesHTML = `<!doctype html>
 <body><header><h1 class="brand">Update Inventory</h1><p>Authenticated summary of latest published package versions and superseded update candidates.</p></header>
 <main>
 <p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/ops/releases">release lifecycle</a> · <a href="/ops/audit">audit log</a> · <a href="/api/v0/ops/updates">JSON</a></p>
+<form class="card" action="/ops/updates" method="get">
+  <h2>Filters</h2>
+  <input name="publisher" placeholder="publisher" value="{{.Filters.Publisher}}">
+  <input name="package" placeholder="package" value="{{.Filters.Package}}">
+  <input name="visibility" placeholder="visibility: all|public|private" value="{{.Filters.Visibility}}">
+  <input name="superseded" placeholder="superseded: all|any|none" value="{{.Filters.Superseded}}">
+  <button type="submit">Apply filters</button>
+  <p class="muted">Showing {{.FilteredPackageCount}} of {{.TotalPackageCount}} package(s).</p>
+</form>
 <section class="card">
 {{if .Packages}}<table><tr><th>Package</th><th>Visibility</th><th>Latest</th><th>Published versions</th><th>Superseded</th><th>Update check</th></tr>
 {{range .Packages}}<tr>

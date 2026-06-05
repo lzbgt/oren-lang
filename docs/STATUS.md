@@ -162,8 +162,9 @@ Facts from the 2026-05-28 implementation pass:
 	  visibility, readiness, latest-published state, publish/yank/visibility action URLs,
 	  and authenticated no-JS browser
   forms for publishing, yanking, and package visibility changes, authenticated
-	  operator update inventory page/API for latest/superseded package versions,
-	  authenticated filterable operator audit page/API by action/actor/target with
+		  filterable operator update inventory page/API for latest/superseded package
+		  versions by publisher/package/visibility/superseded state with total/filtered
+		  counts, authenticated filterable operator audit page/API by action/actor/target with
 	  append-only mutation JSONL, total/filtered counts, and deployment
   gates including active index key id, whether that key is trusted by the served
   bundle, and trust-bundle store-key count, asset serving, deterministic `.obc.zip`

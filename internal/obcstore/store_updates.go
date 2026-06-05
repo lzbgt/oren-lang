@@ -1,7 +1,9 @@
 package obcstore
 
 import (
+	"errors"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -29,10 +31,20 @@ type OperatorUpdateItem struct {
 }
 
 type OperatorUpdateInventory struct {
-	Schema    string               `json:"schema"`
-	Service   string               `json:"service"`
-	Generated string               `json:"generated_at"`
-	Packages  []OperatorUpdateItem `json:"packages"`
+	Schema               string                `json:"schema"`
+	Service              string                `json:"service"`
+	Filters              OperatorUpdateFilters `json:"filters"`
+	TotalPackageCount    int                   `json:"total_package_count"`
+	FilteredPackageCount int                   `json:"filtered_package_count"`
+	Generated            string                `json:"generated_at"`
+	Packages             []OperatorUpdateItem  `json:"packages"`
+}
+
+type OperatorUpdateFilters struct {
+	Publisher  string `json:"publisher,omitempty"`
+	Package    string `json:"package,omitempty"`
+	Visibility string `json:"visibility"`
+	Superseded string `json:"superseded"`
 }
 
 func (s *Service) handleSiteOpsUpdates(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +59,12 @@ func (s *Service) handleSiteOpsUpdates(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	inventory, err := s.operatorUpdateInventory()
+	filters, err := operatorUpdateFiltersFromQuery(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	inventory, err := s.operatorUpdateInventory(filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -63,7 +80,12 @@ func (s *Service) handleOpsUpdates(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	inventory, err := s.operatorUpdateInventory()
+	filters, err := operatorUpdateFiltersFromQuery(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	inventory, err := s.operatorUpdateInventory(filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -71,17 +93,70 @@ func (s *Service) handleOpsUpdates(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, inventory)
 }
 
-func (s *Service) operatorUpdateInventory() (OperatorUpdateInventory, error) {
+func (s *Service) operatorUpdateInventory(filters OperatorUpdateFilters) (OperatorUpdateInventory, error) {
 	items, err := s.operatorUpdateItems()
 	if err != nil {
 		return OperatorUpdateInventory{}, err
 	}
+	total := len(items)
+	items = filterOperatorUpdateItems(items, filters)
 	return OperatorUpdateInventory{
-		Schema:    "oren.obc.store.ops.updates.v0",
-		Service:   "obc-store",
-		Generated: s.now().UTC().Format(time.RFC3339),
-		Packages:  nonNilOperatorUpdateItems(items),
+		Schema:               "oren.obc.store.ops.updates.v0",
+		Service:              "obc-store",
+		Filters:              filters,
+		TotalPackageCount:    total,
+		FilteredPackageCount: len(items),
+		Generated:            s.now().UTC().Format(time.RFC3339),
+		Packages:             nonNilOperatorUpdateItems(items),
 	}, nil
+}
+
+func operatorUpdateFiltersFromQuery(q url.Values) (OperatorUpdateFilters, error) {
+	filters := OperatorUpdateFilters{
+		Publisher:  strings.TrimSpace(q.Get("publisher")),
+		Package:    strings.TrimSpace(q.Get("package")),
+		Visibility: normalizeOpsFilter(q.Get("visibility"), "all"),
+		Superseded: normalizeOpsFilter(q.Get("superseded"), "all"),
+	}
+	if filters.Publisher != "" && !safeID(filters.Publisher) {
+		return OperatorUpdateFilters{}, errors.New("invalid publisher filter")
+	}
+	if filters.Package != "" && !safeID(filters.Package) {
+		return OperatorUpdateFilters{}, errors.New("invalid package filter")
+	}
+	if !oneOf(filters.Visibility, "all", "public", "private") {
+		return OperatorUpdateFilters{}, errors.New("invalid visibility filter")
+	}
+	if !oneOf(filters.Superseded, "all", "any", "none") {
+		return OperatorUpdateFilters{}, errors.New("invalid superseded filter")
+	}
+	return filters, nil
+}
+
+func filterOperatorUpdateItems(items []OperatorUpdateItem, filters OperatorUpdateFilters) []OperatorUpdateItem {
+	if filters.Publisher == "" && filters.Package == "" && filters.Visibility == "all" && filters.Superseded == "all" {
+		return items
+	}
+	out := make([]OperatorUpdateItem, 0)
+	for _, item := range items {
+		if filters.Publisher != "" && item.Publisher != filters.Publisher {
+			continue
+		}
+		if filters.Package != "" && item.Name != filters.Package {
+			continue
+		}
+		if filters.Visibility != "all" && item.Visibility != filters.Visibility {
+			continue
+		}
+		if filters.Superseded == "any" && len(item.SupersededVersions) == 0 {
+			continue
+		}
+		if filters.Superseded == "none" && len(item.SupersededVersions) != 0 {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func (s *Service) operatorUpdateItems() ([]OperatorUpdateItem, error) {
