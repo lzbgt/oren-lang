@@ -204,15 +204,64 @@ fn _u8_mat_copy_from_string_range(m, text, off, n, ctx) {
 }
 
 fn u8_mat_copy_from_bytes(m, bytes) {
-    var src = bytesm.to_u8_buf(bytes)
-    if oren_is_err(src) { return src }
-    return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_bytes")
+    var ctx = "buffer.u8_mat_copy_from_bytes"
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var total = m[2] * m[3]
+    var nb = bytesm.len(bytes)
+    if oren_is_err(nb) { return nb }
+    if nb != total { return _err_invalid(ctx + ": byte count mismatch") }
+    if oren_is_u8_buf(m[0]) == true && m[4] == m[3] {
+        var rc0 = bytesm.copy_into(m[0], m[1], bytes, 0, total)
+        if oren_is_err(rc0) { return rc0 }
+        return m[0]
+    }
+    var r = 0
+    while r < m[2] {
+        var row = proj.mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < m[3] {
+            var v = bytesm.get_u8(bytes, r * m[3] + c)
+            if oren_is_err(v) { return v }
+            var rc = view.slice_store_u8(row, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
 }
 
 fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
-    var src = bytesm.to_u8_buf_slice(bytes, off, n)
-    if oren_is_err(src) { return src }
-    return _u8_mat_copy_from_u8_buf(m, src, "buffer.u8_mat_copy_from_bytes_slice")
+    var ctx = "buffer.u8_mat_copy_from_bytes_slice"
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if mshared._is_int(off) == false { return oren_err(4, ctx + ": off must be int") }
+    if mshared._is_int(n) == false { return oren_err(4, ctx + ": len must be int") }
+    var total = m[2] * m[3]
+    var nb = bytesm.len(bytes)
+    if oren_is_err(nb) { return nb }
+    if off < 0 || n < 0 || off + n > nb { return oren_err(4, ctx + ": slice out of bounds") }
+    if n != total { return _err_invalid(ctx + ": byte count mismatch") }
+    if oren_is_u8_buf(m[0]) == true && m[4] == m[3] {
+        var rc0 = bytesm.copy_into(m[0], m[1], bytes, off, n)
+        if oren_is_err(rc0) { return rc0 }
+        return m[0]
+    }
+    var r = 0
+    while r < m[2] {
+        var row = proj.mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < m[3] {
+            var v = bytesm.get_u8(bytes, off + r * m[3] + c)
+            if oren_is_err(v) { return v }
+            var rc = view.slice_store_u8(row, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
 }
 
 fn u8_mat_copy_from_u8_buf(m, src) {

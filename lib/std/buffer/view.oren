@@ -125,15 +125,34 @@ fn _validate_int_or_err(v, ctx) {
 }
 
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
-    var src = bytesm.to_u8_buf(bytes)
-    if oren_is_err(src) { return src }
-    return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
+    var nb = bytesm.len(bytes)
+    if oren_is_err(nb) { return nb }
+    if nb != n { return _err_invalid(ctx + ": length mismatch") }
+    var i = 0
+    while i < n {
+        var v = bytesm.get_u8(bytes, i)
+        if oren_is_err(v) { return v }
+        var rc = store_fn(view, i, v)
+        if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
+        i = i + 1
+    }
+    return view[0]
 }
 
 fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
-    var src = bytesm.to_u8_buf_slice(bytes, off, count)
-    if oren_is_err(src) { return src }
-    return _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx)
+    var nb = bytesm.len(bytes)
+    if oren_is_err(nb) { return nb }
+    if off < 0 || count < 0 || off + count > nb { return oren_err(4, ctx + ": slice out of bounds") }
+    if count != n { return _err_invalid(ctx + ": length mismatch") }
+    var i = 0
+    while i < n {
+        var v = bytesm.get_u8(bytes, off + i)
+        if oren_is_err(v) { return v }
+        var rc = store_fn(view, i, v)
+        if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
+        i = i + 1
+    }
+    return view[0]
 }
 
 fn _u8_view_copy_from_string_range(store_fn, view, n, s, off, count, ctx) {
@@ -377,6 +396,20 @@ fn _checked_u8_view_copy_from_string_slice(storef, is_viewf, kind_label, s, text
     return _u8_view_copy_from_string_slice(storef, s, s[2], text, off, count, ctx)
 }
 
+fn _slice_copy_from_bytes_direct(s, bytes, off, n, ctx) {
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    var nb = bytesm.len(bytes)
+    if oren_is_err(nb) { return nb }
+    if off < 0 || n < 0 || off + n > nb { return oren_err(4, ctx + ": slice out of bounds") }
+    if oren_is_u8_buf(s[0]) == true {
+        if n != s[2] { return _err_invalid(ctx + ": length mismatch") }
+        var rc = bytesm.copy_into(s[0], s[1], bytes, off, n)
+        if oren_is_err(rc) { return rc }
+        return s[0]
+    }
+    return _u8_view_copy_from_bytes_slice(slice_store_u8, s, s[2], bytes, off, n, ctx)
+}
+
 fn _strided_load_i32_unchecked(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
 fn strided_load_i32(s, idx) { return _checked_view_load(_strided_load_i32_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_i32") }
 fn _strided_store_i32_unchecked(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
@@ -449,8 +482,20 @@ fn slice_to_bytes(s) { return _checked_u8_view_to_bytes(slice_load_u8, _slice_is
 fn slice_unpack_u8(s) { return _checked_u8_view_unpack(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_unpack_u8") }
 fn slice_to_u8_buf(s) { return _checked_u8_view_to_u8_buf(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_to_u8_buf") }
 fn slice_to_string(s) { return _checked_u8_view_to_string(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_to_string") }
-fn slice_copy_from_bytes(s, bytes) { return _checked_u8_view_copy_from_bytes(slice_store_u8, _slice_is_list, "slice", s, bytes, "buffer.slice_copy_from_bytes") }
-fn slice_copy_from_bytes_slice(s, bytes, off, n) { return _checked_u8_view_copy_from_bytes_slice(slice_store_u8, _slice_is_list, "slice", s, bytes, off, n, "buffer.slice_copy_from_bytes_slice") }
+fn slice_copy_from_bytes(s, bytes) {
+    var ctx = "buffer.slice_copy_from_bytes"
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    var n = bytesm.len(bytes)
+    if oren_is_err(n) { return n }
+    return _slice_copy_from_bytes_direct(s, bytes, 0, n, ctx)
+}
+fn slice_copy_from_bytes_slice(s, bytes, off, n) {
+    var ctx = "buffer.slice_copy_from_bytes_slice"
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    if !_is_int(off) { return oren_err(4, ctx + ": off must be int") }
+    if !_is_int(n) { return oren_err(4, ctx + ": n must be int") }
+    return _slice_copy_from_bytes_direct(s, bytes, off, n, ctx)
+}
 fn slice_copy_from_u8_buf(s, src) { return _checked_u8_view_copy_from_u8_buf(slice_store_u8, _slice_is_list, "slice", s, src, "buffer.slice_copy_from_u8_buf") }
 fn slice_copy_from_string(s, text) { return _checked_u8_view_copy_from_string(slice_store_u8, _slice_is_list, "slice", s, text, "buffer.slice_copy_from_string") }
 fn slice_copy_from_string_slice(s, text, off, n) { return _checked_u8_view_copy_from_string_slice(slice_store_u8, _slice_is_list, "slice", s, text, off, n, "buffer.slice_copy_from_string_slice") }

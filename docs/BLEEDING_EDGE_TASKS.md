@@ -198,15 +198,16 @@ This file is the concise task view. Detailed implementation status lives in
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`, `std:strings` byte roundtrips,
      `std:bytes` u8/endian writes, concat/copy u8-buffer spans, overlap-safe
-     u8 `copy_into`, and `copy_into` u8-buffer destinations, native byte-order writes,
+     u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
+     carrier reads, and `copy_into` u8-buffer destinations, native byte-order writes,
      and `std:time` ISO-8601 UTC parsing now use direct source-string byte reads
      or exact-size/raw-pointer buffers too.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
-	     `buf.matrix(2, 3).row(1).text()` without explicit local annotations
-	     instead of routing through root-level projection helpers.
-	     `make verify-stdlib-api-shape` now blocks known bad root-helper regressions:
-	     public fallible APIs should use the normal verb and return `value | oren_err`,
+     `buf.matrix(2, 3).row(1).text()` without explicit local annotations
+     instead of routing through root-level projection helpers.
+     `make verify-stdlib-api-shape` now blocks known bad root-helper regressions:
+     public fallible APIs should use the normal verb and return `value | oren_err`,
 	     while syscall-style primitives use explicit `*_raw` names. The guard now covers
 	     NET plus app-facing codec/parser/RNG helpers such as JSON/YAML/CBOR, Base64,
 	     regex, PEM/X509, time parsing, crypto random bytes, HPACK/HTTP2 record
