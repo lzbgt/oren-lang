@@ -239,7 +239,8 @@
 <p>     string/prefix encoding, AST binary v1 string writing, bytecode string</p>
 <p>     constants, native Mach-O/ELF object string payloads, runtime-object</p>
 <p>     debug-name blobs, x64 native debug-table names, ARM64 native panic-message</p>
-<p>     payloads, C identifier escaping, and raw u8/view/u8-matrix string copy</p>
+<p>     payloads, shared compiler byte-builder append/list/string/set stores, C</p>
+<p>     identifier escaping, and raw u8/view/u8-matrix string copy</p>
 <p>     helpers now use direct source-string byte reads or exact-size buffers too.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>

@@ -171,7 +171,8 @@ This file is the concise task view. Detailed implementation status lives in
      string/prefix encoding, AST binary v1 string writing, bytecode string
      constants, native Mach-O/ELF object string payloads, runtime-object
      debug-name blobs, x64 native debug-table names, ARM64 native panic-message
-     payloads, C identifier escaping, and raw u8/view/u8-matrix string copy
+     payloads, shared compiler byte-builder append/list/string/set stores, C
+     identifier escaping, and raw u8/view/u8-matrix string copy
      helpers now use direct source-string byte reads or exact-size buffers too.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
