@@ -178,7 +178,7 @@ fn _u8_mat_copy_from_u8_buf(m, src, ctx) {
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = oren_buf_load_u8(src, r * m[3] + c)
+            var v = raw._load_u8_direct(src, r * m[3] + c)
             if oren_is_err(v) { return v }
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }

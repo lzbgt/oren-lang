@@ -191,7 +191,7 @@ fn _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx) {
     if ns != n { return _err_invalid(ctx + ": length mismatch") }
     var i = 0
     while i < n {
-        var v = oren_buf_load_u8(src, i)
+        var v = raw._load_u8_direct(src, i)
         if oren_is_err(v) { return v }
         var rc = store_fn(view, i, v)
         if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
@@ -282,7 +282,7 @@ fn _slice_pos(s, idx) { return s[1] + idx }
 fn _strided_pos(s, idx) { return s[1] + idx * s[3] }
 fn _buf_load_i32(buf, idx) { return oren_buf_load_i32(buf, idx) }
 fn _buf_store_i32(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
-fn _buf_load_u8(buf, idx) { return oren_buf_load_u8(buf, idx) }
+fn _buf_load_u8(buf, idx) { return raw._load_u8_direct(buf, idx) }
 fn _buf_store_u8(buf, idx, v) {
     if oren_is_u8_buf(buf) == true { return raw._store_u8_buf_unchecked_direct(buf, idx, v) }
     return oren_buf_store_u8(buf, idx, v)

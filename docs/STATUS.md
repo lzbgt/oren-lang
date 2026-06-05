@@ -488,8 +488,8 @@ Facts from the 2026-05-28 implementation pass:
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
   and `from_hex` plus `std:strings` byte roundtrips now use byte-native u8 buffers,
   `std:bytes` u8/endian writes and `copy_into` keep list-backed compatibility
-  while raw u8-buffer loads/stores plus u8 slice/strided/matrix views use
-  raw pointer access after public validation, contiguous u8
+  while raw u8-buffer loads/stores plus u8 slice/strided/matrix view
+  loads/stores use raw pointer access after public validation, contiguous u8
   concat/copy spans use raw pointer byte copies, and overlapping in-place u8
   `copy_into` copies backward when needed, `std:buffer` view/matrix
   `copy_from_bytes` helpers read byte carriers directly and route contiguous

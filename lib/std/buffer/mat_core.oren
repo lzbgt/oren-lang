@@ -78,7 +78,7 @@ fn _mat_load_u8_unchecked(m, r, c) {
     var cols = m[3]
     if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_u8: index out of bounds") }
     var idx = m[1] + r * m[4] + c
-    return oren_buf_load_u8(m[0], idx)
+    return raw._load_u8_direct(m[0], idx)
 }
 
 fn mat_load_u8(m, r, c) {
