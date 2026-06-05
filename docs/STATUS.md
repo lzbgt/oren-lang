@@ -454,7 +454,9 @@ Facts from the 2026-05-28 implementation pass:
   exact-size `u8_buf` OGF0 frame encoding instead of final list-to-byte packing,
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
   exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
-  `std:bytes.to_string` now uses direct byte-slice conversion instead of list
+  native `std:net/http` caches typed response body bytes for `.bytes()` on
+  content-length and chunked responses, `std:bytes.to_string` now uses direct
+  byte-slice conversion instead of list
   materialization, JSON full decode, scalar parse, tag equality, and escape paths
   use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical key ordering/text encoding, full regex
   pattern/text matching, and public `std:strings`

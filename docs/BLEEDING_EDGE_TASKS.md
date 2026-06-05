@@ -150,9 +150,11 @@ This file is the concise task view. Detailed implementation status lives in
      also avoid list-of-byte reconstruction, while XML/HTML parser literal
      matching, class-selector scans, DOM parsing, and streaming readers no
      longer allocate input byte lists for syntax tokens. WebSocket accept
-     hashing now feeds SHA-1 from exact-size `u8_buf` input, and PPM header
-     emission reads ASCII header strings directly. Native `oren_write_file`
-     writes strings directly through syscalls without a transient byte list.
+     hashing now feeds SHA-1 from exact-size `u8_buf` input, PPM header
+     emission reads ASCII header strings directly, and native `std:net/http`
+     caches typed response body bytes for `.bytes()` on content-length and
+     chunked responses. Native `oren_write_file` writes strings directly
+     through syscalls without a transient byte list.
      Compiler source-policy
      scans, scan-cache line/number parsing, C-runtime include scanning,
      compiler manifest JSON escaping, bytecode metadata payloads, OBX

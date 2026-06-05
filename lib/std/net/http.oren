@@ -24,7 +24,8 @@ struct Response {
     url,
     status,
     headers,
-    body
+    body,
+    body_bytes
 }
 
 trait BodyReader {
@@ -73,6 +74,23 @@ fn _string_from_buf_range(buf, start, end) {
     if n > 0 { oren_memcpy(out, buf + start, n) }
     ptr_set_byte(out + n, 0)
     return out
+}
+
+fn _u8_buf_from_ptr_range(buf, start, len) {
+    if buf == 0 { return oren_err(4, "http: source buffer is nil") }
+    if start < 0 || len < 0 { return oren_err(4, "http: negative byte range") }
+    var out = oren_u8_buf_new_uninit(len)
+    if oren_is_err(out) { return out }
+    if len == 0 { return out }
+    var dst = native_buf_data_ptr(out)
+    if dst == 0 { return oren_err(8, "http: u8 buffer allocation failed") }
+    oren_memcpy(dst, buf + start, len)
+    return out
+}
+
+fn _u8_buf_from_string(s) {
+    if s == nil || s == 0 { return oren_u8_buf_new_uninit(0) }
+    return _u8_buf_from_ptr_range(s, 0, oren_string_len(s))
 }
 
 fn _status_code_from_status_line(buf, line_end) {
@@ -283,21 +301,22 @@ fn _hex_val(b) {
     return -1
 }
 
-fn _decode_chunked_into_string(body_ptr, body_len) {
-    // Decode Transfer-Encoding: chunked body bytes into a single NUL-terminated string.
-    // Returns out string pointer, or 0 on failure.
-    if body_ptr == 0 { return 0 }
+fn _decode_chunked_body(body_ptr, body_len) {
+    // Decode Transfer-Encoding: chunked body bytes into both text and typed bytes.
+    // `body` remains a NUL-terminated string for existing `.text()` callers; `body_bytes`
+    // uses the explicit decoded byte count so binary/NUL payloads are not truncated.
+    if body_ptr == 0 { return {"ok": 0} }
     if body_len <= 0 {
         var out0 = malloc(1)
-        if out0 == 0 { return 0 }
+        if out0 == 0 { return {"ok": 0} }
         ptr_set_byte(out0 + 0, 0)
-        return out0
+        return {"ok": 1, "body": out0, "body_bytes": oren_u8_buf_new_uninit(0)}
     }
 
     // Worst-case output size <= input size (chunk framing adds overhead),
     // so allocate body_len+1 and shrink-by-copy if needed.
     var out = malloc(body_len + 1)
-    if out == 0 { return 0 }
+    if out == 0 { return {"ok": 0} }
     var out_used = 0
 
     var i = 0
@@ -318,12 +337,12 @@ fn _decode_chunked_into_string(body_ptr, body_len) {
                 break
             }
             var hv = _hex_val(b)
-            if hv < 0 { free(out); return 0 }
+            if hv < 0 { free(out); return {"ok": 0} }
             size = size * 16 + hv
             seen_digit = 1
             i = i + 1
         }
-        if seen_digit == 0 { free(out); return 0 }
+        if seen_digit == 0 { free(out); return {"ok": 0} }
 
         // Consume CRLF
         if i < body_len && (ptr_get_byte(body_ptr + i) & 255) == 13 { i = i + 1 }
@@ -332,10 +351,15 @@ fn _decode_chunked_into_string(body_ptr, body_len) {
         if size == 0 {
             // Done. Ignore optional trailers.
             ptr_set_byte(out + out_used, 0)
-            return out
+            var out_bytes = _u8_buf_from_ptr_range(out, 0, out_used)
+            if oren_is_err(out_bytes) {
+                free(out)
+                return {"ok": 0}
+            }
+            return {"ok": 1, "body": out, "body_bytes": out_bytes}
         }
 
-        if i + size > body_len { free(out); return 0 }
+        if i + size > body_len { free(out); return {"ok": 0} }
         oren_memcpy(out + out_used, body_ptr + i, size)
         out_used = out_used + size
         i = i + size
@@ -347,7 +371,7 @@ fn _decode_chunked_into_string(body_ptr, body_len) {
 
     // Unterminated stream.
     free(out)
-    return 0
+    return {"ok": 0}
 }
 
 fn headers_get(headers, name) {
@@ -670,13 +694,13 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     }
 
     if is_chunked == 1 {
-        var outc = _decode_chunked_into_string(buf + body_off, body_len0)
+        var outc = _decode_chunked_body(buf + body_off, body_len0)
         free(buf)
-        if outc == 0 {
+        if outc["ok"] != 1 {
             response_free({"headers": headers, "body": nil})
             return {"ok": 0, "err": "http.request: chunked decode failed"}
         }
-        return {"ok": 1, "status": status_code, "headers": headers, "body": outc}
+        return {"ok": 1, "status": status_code, "headers": headers, "body": outc["body"], "body_bytes": outc["body_bytes"]}
     }
 
     var out = malloc(body_len + 1)
@@ -687,8 +711,15 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     }
     if body_len > 0 { oren_memcpy(out, buf + body_off, body_len) }
     ptr_set_byte(out + body_len, 0)
+    var body_bytes = _u8_buf_from_ptr_range(buf, body_off, body_len)
+    if oren_is_err(body_bytes) {
+        free(out)
+        free(buf)
+        response_free({"headers": headers, "body": nil})
+        return {"ok": 0, "err": "http.request: body bytes allocation failed"}
+    }
     free(buf)
-    return {"ok": 1, "status": status_code, "headers": headers, "body": out}
+    return {"ok": 1, "status": status_code, "headers": headers, "body": out, "body_bytes": body_bytes}
 }
 
 fn request_resolver_opts(method, url, timeout_ms, resolver, opts): Response {
@@ -696,7 +727,7 @@ fn request_resolver_opts(method, url, timeout_ms, resolver, opts): Response {
     if method != "GET" { return oren_err(4, "http.request: only GET is supported by std:net/http v0") }
     var r = _fetch_response_resolver_opts(url, timeout_ms, resolver, opts)
     if r["ok"] != 1 { return _err_from_record(r, "http.request failed") }
-    return Response("GET", url, r["status"], r["headers"], r["body"])
+    return Response("GET", url, r["status"], r["headers"], r["body"], r["body_bytes"])
 }
 
 fn request(method, url, ...args): Response {
@@ -747,7 +778,8 @@ fn text(resp: Response) {
 fn bytes(resp: Response) {
     var body = text(resp)
     if oren_is_err(body) { return body }
-    return oren_bytes_from_string(body)
+    if resp.body_bytes != nil { return resp.body_bytes }
+    return _u8_buf_from_string(body)
 }
 
 fn json(resp: Response) {

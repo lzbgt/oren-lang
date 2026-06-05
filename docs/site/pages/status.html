@@ -552,7 +552,9 @@
 <p>  exact-size <code>u8_buf</code> OGF0 frame encoding instead of final list-to-byte packing,</p>
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/quad/color package assets through</p>
 <p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
-<p>  <code>std:bytes.to_string</code> now uses direct byte-slice conversion instead of list</p>
+<p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
+<p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
+<p>  byte-slice conversion instead of list</p>
 <p>  materialization, JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>  use direct source-string byte reads or exact-size <code>u8_buf</code> output, CBOR canonical key ordering/text encoding, full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>

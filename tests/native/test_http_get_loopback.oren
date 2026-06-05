@@ -30,6 +30,27 @@ fn _ensure_workers_for_spawned_servers(test_name) {
     return 0
 }
 
+fn assert_hello_bytes(resp: http.Response, code) {
+    var bs = resp.bytes()
+    if oren_is_err(bs) {
+        print("http_get_loopback: FAIL response bytes error: " + oren_err_msg(bs))
+        return code
+    }
+    if oren_is_u8_buf(bs) != true {
+        print("http_get_loopback: FAIL response bytes not u8_buf")
+        return code + 1
+    }
+    if oren_bytes_len(bs) != 5 {
+        print("http_get_loopback: FAIL response bytes len")
+        return code + 2
+    }
+    if oren_bytes_get_u8(bs, 0) != 72 || oren_bytes_get_u8(bs, 1) != 69 || oren_bytes_get_u8(bs, 2) != 76 || oren_bytes_get_u8(bs, 3) != 76 || oren_bytes_get_u8(bs, 4) != 79 {
+        print("http_get_loopback: FAIL response bytes payload")
+        return code + 3
+    }
+    return 0
+}
+
 fn _skip_qname(buf, n, off) {
     // Skip a DNS QNAME (no compression expected in queries).
     var i = off
@@ -275,6 +296,12 @@ fn run_case(mode) {
         http.response_free(rr)
         oren_join_timeout(h0b, 5000)
         return 44
+    }
+    var bsrc = assert_hello_bytes(rr, 49)
+    if bsrc != 0 {
+        http.response_free(rr)
+        oren_join_timeout(h0b, 5000)
+        return bsrc
     }
     if mode == 0 {
         var hv0 = http.headers_get(rr.headers, "content-length")
