@@ -48,6 +48,8 @@ design evidence lives under `project-doc/`.
 - Fixed-arity direct calls now materialize omitted trailing arguments as real
   `nil` across C, native, and AVM backends; `tests/modules/test_omitted_args_nil.oren`
   is part of the native quick integration gate.
+- Public `bytes.unpack` routes u8-buffer carriers through kernel byte intrinsics,
+  and AVM returns optimized integer lists for unpacked byte buffers.
 - `std:bytes`, `std:buffer`, `std:strings`, `std:list`, `std:linalg`,
   `std:iter`, `std:crypto`, `std:ui`, and checked
   `std:ints` / `std:casts` helpers now expose canonical

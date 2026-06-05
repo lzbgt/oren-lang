@@ -295,6 +295,7 @@ fn pack(xs): bytes {
 }
 
 fn unpack(bytes) {
+    if oren_is_u8_buf(bytes) == true { return oren_bytes_unpack(bytes) }
     return _bytes_to_int_list(bytes, "bytes.unpack")
 }
 

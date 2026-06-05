@@ -93,6 +93,10 @@
 <p>  <code>nil</code> across C, native, and AVM backends; <code>tests/modules/test_omitted_args_nil.oren</code></p>
 <p>  is part of the native quick integration gate.</p>
 <ul>
+<li>Public <code>bytes.unpack</code> routes u8-buffer carriers through kernel byte intrinsics,</li>
+</ul>
+<p>  and AVM returns optimized integer lists for unpacked byte buffers.</p>
+<ul>
 <li><code>std:bytes</code>, <code>std:buffer</code>, <code>std:strings</code>, <code>std:list</code>, <code>std:linalg</code>,</li>
 </ul>
 <p>  <code>std:iter</code>, <code>std:crypto</code>, <code>std:ui</code>, and checked</p>

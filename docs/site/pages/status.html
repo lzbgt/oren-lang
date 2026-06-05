@@ -592,8 +592,9 @@
 <p>  direct lowercase <code>to_hex</code> emission, and <code>std:strings</code></p>
 <p>  byte roundtrips now use byte-native u8 buffers,</p>
 <p>  <code>std:bytes</code> get/unpack/concat/copy sources read u8-buffer carriers directly,</p>
-<p>  <code>pack</code> returns exact-size u8 buffers for valid int lists, while u8/endian</p>
-<p>  writes and <code>copy_into</code> keep list-backed compatibility</p>
+<p>  public <code>bytes.unpack</code> routes u8 buffers through kernel byte intrinsics with</p>
+<p>  AVM optimized integer-list output, <code>pack</code> returns exact-size u8 buffers for</p>
+<p>  valid int lists, while u8/endian writes and <code>copy_into</code> keep list-backed compatibility</p>
 <p>  while raw u8-buffer loads/stores plus u8 slice/strided/matrix view</p>
 <p>  loads/stores use raw pointer access after public validation, contiguous u8</p>
 <p>  concat/copy spans use raw pointer byte copies, and overlapping in-place u8</p>

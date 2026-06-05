@@ -704,21 +704,17 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_BYTES) {
                 AvmBytes* b = args[0].as.b;
                 if (!b || b->len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid bytes"); break; }
-                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
-                if (!list) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                AvmValue out = avm_list_int_new(b->len);
+                if (out.type != AVM_VAL_LIST_INT || !out.as.li) { res = out; if (avm_is_err_val(res)) avm_abort(vm, res); break; }
+                AvmListInt* list = out.as.li;
                 list->count = b->len;
-                list->capacity = b->len;
-                list->all_int = 1;
-                list->items = NULL;
                 if (b->len > 0) {
-                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)b->len, AVM_ALLOC_KIND_LIST);
-                    if (!list->items) { avm_heap_free(list); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    if (!b->data || !list->items) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid bytes payload"); break; }
                     for (int i = 0; i < b->len; i++) {
-                        list->items[i] = avm_int((int64_t)b->data[i]);
+                        list->items[i] = (int64_t)b->data[i];
                     }
                 }
-                res.type = AVM_VAL_LIST;
-                res.as.l = list;
+                res = out;
             } else {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_unpack expects (bytes)");
             }

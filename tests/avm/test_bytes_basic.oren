@@ -30,8 +30,13 @@ fn main() {
     // Pack/unpack roundtrip.
     var xs = oren_bytes_unpack(b)
     if oren_is_err(xs) { oren_exit(1) }
+    if oren_type_tag(xs) != 6 { oren_exit(109) }
     if oren_list_len(xs) != 4 { oren_exit(1) }
     if xs[2] != 171 { oren_exit(1) }
+    var empty_xs = oren_bytes_unpack(empty_s)
+    if oren_is_err(empty_xs) { oren_exit(110) }
+    if oren_type_tag(empty_xs) != 6 { oren_exit(111) }
+    if oren_list_len(empty_xs) != 0 { oren_exit(112) }
 
     var b2 = oren_bytes_pack(xs)
     if oren_is_err(b2) { oren_exit(1) }
