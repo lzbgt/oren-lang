@@ -77,6 +77,7 @@ HTTP2_HEADERS_LOOPBACK_SRC="tests/native/test_http2_headers_loopback.oren"
 LINUX_DOCKER_REF="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 LINUX_DOCKER_ID=""
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+STAGE2_BUILD_TIMEOUT_SECS="${OREN_NATIVE_STAGE2_BUILD_TIMEOUT_SECS:-120}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
 SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
 WS_ECHO_N="${OREN_WS_ECHO_N:-}"
@@ -122,7 +123,8 @@ Examples:
 
 Env overrides:
   OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c; container name, full ID, or unambiguous ID prefix)
-  OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
+  OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each stage1 `oren build ...` step (rolling hang guard)
+  OREN_NATIVE_STAGE2_BUILD_TIMEOUT_SECS (default: 120) timeout floor for stage2 `oren build ...` steps
   OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS (default: 15) timeout override for x64-windows cross builds (toolchain-heavy)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
@@ -395,6 +397,9 @@ build_native_bin_src() {
   fi
 
   local timeout_secs="$BUILD_TIMEOUT_SECS"
+  if [[ "$(basename "$compiler")" == "oren_stage2" ]]; then
+    timeout_secs="$STAGE2_BUILD_TIMEOUT_SECS"
+  fi
   if [[ "$platform" == "x64-windows" ]]; then
     local t_override="${OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS:-}"
     if [[ -n "$t_override" ]]; then

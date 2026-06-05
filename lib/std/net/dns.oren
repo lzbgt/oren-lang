@@ -394,11 +394,7 @@ fn _write_qname(buf, cap, off, name) {
             if out + 1 + label_len + 1 > cap { return {"ok": 0, "err": "dns.qname: buffer too small"} }
             ptr_set_byte(buf + out, label_len)
             out = out + 1
-            var j = 0
-            while j < label_len {
-                ptr_set_byte(buf + out + j, ptr_get_byte(iadd(name, label_start + j)))
-                j = j + 1
-            }
+            if label_len > 0 { oren_memcpy(buf + out, iadd(name, label_start), label_len) }
             out = out + label_len
             label_start = i + 1
         } else {

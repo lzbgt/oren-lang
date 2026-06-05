@@ -229,6 +229,7 @@
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
 <p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, and native</p>
 <p>     WebSocket header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
+<p>     DNS QNAME labels also copy through <code>oren_memcpy</code> after validation;</p>
 <p>     Base64</p>
 <p>     decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>     output and software raster clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>

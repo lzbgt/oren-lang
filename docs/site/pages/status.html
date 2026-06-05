@@ -588,7 +588,8 @@
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>
 <p>  and native WebSocket header slices plus unmasked frame payloads copy with</p>
-<p>  <code>oren_memcpy</code>; Base64 decode/encode writes exact-size output buffers directly, PPM header/body</p>
+<p>  <code>oren_memcpy</code>; DNS QNAME labels copy through <code>oren_memcpy</code> after validation;</p>
+<p>  Base64 decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>  output and software raster clear/pixel writes now use raw exact-size buffer stores, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
 <p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows</p>
@@ -632,7 +633,8 @@
 <p>			  exact-size <code>u8_buf</code> payloads instead of building</p>
 <p>			  intermediate Oren byte lists, and HTTP/2 client continuation/header-block</p>
 <p>			  buffers now copy through native <code>oren_memcpy</code>, and native WebSocket header</p>
-<p>			  slices/unmasked frame payloads use the same native copy path. PEM relaxed decode passes body slices to</p>
+<p>			  slices/unmasked frame payloads plus DNS QNAME labels use the same native copy path.</p>
+<p>			  PEM relaxed decode passes body slices to</p>
 <p>		  Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>		  exact-size <code>u8_buf</code> writes instead of a byte list. JSON,</p>
 <p>			  YAML, CBOR, Base64, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing,</p>
