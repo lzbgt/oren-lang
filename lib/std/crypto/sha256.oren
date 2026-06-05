@@ -317,13 +317,13 @@ fn sha256_string(s) {
 fn sha256_hex(input_bytes) {
     var d = sha256_bytes(input_bytes)
     if oren_is_err(d) { return d }
-    return oren_bytes_to_hex(d)
+    return bytesm.to_hex(d)
 }
 
 fn sha256_hex_string(s) {
     var d = sha256_string(s)
     if oren_is_err(d) { return d }
-    return oren_bytes_to_hex(d)
+    return bytesm.to_hex(d)
 }
 
 fn digest(input_bytes): bytes { return sha256_bytes(input_bytes) }

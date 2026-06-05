@@ -267,13 +267,13 @@ fn sha1_string(s) {
 fn sha1_hex(input_bytes) {
     var d = sha1_bytes(input_bytes)
     if oren_is_err(d) { return d }
-    return oren_bytes_to_hex(d)
+    return bytesm.to_hex(d)
 }
 
 fn sha1_hex_string(s) {
     var d = sha1_string(s)
     if oren_is_err(d) { return d }
-    return oren_bytes_to_hex(d)
+    return bytesm.to_hex(d)
 }
 
 fn digest(input_bytes): bytes { return sha1_bytes(input_bytes) }

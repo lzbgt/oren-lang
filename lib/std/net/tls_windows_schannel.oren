@@ -4,6 +4,7 @@
 // This file is factored out of std:net/tls to keep provider code isolated.
 
 import tcp "std:net/tcp"
+import bytesm "std:bytes"
 import sha256 "std:crypto/sha256"
 import sspi "std:ffi/secur32"
 import c32 "std:ffi/crypt32"
@@ -1294,7 +1295,7 @@ fn peer_cert_sha256_hex(conn) {
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: CERT_SHA256_HASH_PROP_ID failed"}
     }
 
-    var hex = oren_bytes_to_hex(b)
+    var hex = bytesm.to_hex(b)
     return {"ok": 1, "v": hex}
 }
 

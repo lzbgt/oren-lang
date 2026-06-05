@@ -618,11 +618,12 @@
 <p>  Base64 decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>  output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
-<p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows</p>
-<p>  Schannel passphrase cache keys use that path instead of materializing a</p>
-<p>  byte list, SHA-1/SHA-256 digest buffers finalize through direct unchecked</p>
-<p>  u8 stores after exact-size allocation, and native SHA-256 contiguous input</p>
-<p>  remainders copy with <code>oren_memcpy</code>. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime</p>
+<p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, SHA hex helpers and</p>
+<p>  Windows Schannel certificate-hash formatting use direct std bytes hex</p>
+<p>  emission, and Windows Schannel passphrase cache keys use the direct string</p>
+<p>  hash path instead of materializing a byte list, SHA-1/SHA-256 digest buffers</p>
+<p>  finalize through direct unchecked u8 stores after exact-size allocation, and</p>
+<p>  native SHA-256 contiguous input remainders copy with <code>oren_memcpy</code>. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime</p>
 <p>  include scanning, compiler manifest JSON escaping, bytecode metadata payloads,</p>
 <p>	  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw</p>
 <p>	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name</p>
