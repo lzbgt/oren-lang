@@ -25,8 +25,11 @@ fn assert_eq(a, b) {
 fn test_bytes_conversions() {
     var bs = bytesm.from_string("ok")
     assert_true(!oren_is_err(bs))
+    assert_true(oren_is_u8_buf(bs) == true)
     assert_eq(bytesm.to_string(bs), "ok")
-    assert_eq("ok".bytes().text(), "ok")
+    var method_bs = "ok".bytes()
+    assert_true(oren_is_u8_buf(method_bs) == true)
+    assert_eq(method_bs.text(), "ok")
 
     var packed = bytesm.pack([1, 2, 3])
     assert_true(!oren_is_err(packed))
