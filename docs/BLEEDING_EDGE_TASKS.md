@@ -143,7 +143,7 @@ This file is the concise task view. Detailed implementation status lives in
      Huffman string encode/decode and full header-block encoding now write
      exact-size `u8_buf` payloads, and PEM/Base64 body handling avoids
      materializing Oren byte lists. `std:strings` prefix/suffix/search/equality
-     and trim helpers plus JSON tag equality, CBOR canonical key ordering/text encoding, and full regex
+     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text encoding, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers

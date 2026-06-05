@@ -455,8 +455,8 @@ Facts from the 2026-05-28 implementation pass:
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
   exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
   `std:bytes.to_string` now uses direct byte-slice conversion instead of list
-  materialization, JSON/YAML scalar parse and escape paths write exact-size
-  `u8_buf` output, JSON tag equality, CBOR canonical key ordering/text encoding, full regex
+  materialization, JSON full decode, scalar parse, tag equality, and escape paths
+  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical key ordering/text encoding, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
