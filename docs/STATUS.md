@@ -488,7 +488,9 @@ Facts from the 2026-05-28 implementation pass:
   and `std:strings` byte roundtrips now use byte-native u8 buffers,
   `std:bytes` u8/endian writes and `copy_into` keep list-backed compatibility
   while mutating u8-buffer destinations and u8 slice/strided/matrix views
-  through raw pointer stores after public validation,
+  through raw pointer stores after public validation, contiguous u8
+  concat/copy spans use raw pointer byte copies, and overlapping in-place u8
+  `copy_into` copies backward when needed,
   JSON full decode, scalar parse, tag equality, and escape paths
   use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
   key ordering/text encoding plus u8-backed decode byte carriers, full regex

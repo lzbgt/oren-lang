@@ -197,7 +197,8 @@ This file is the concise task view. Detailed implementation status lives in
      append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`, `std:strings` byte roundtrips,
-     `std:bytes` u8/endian writes and `copy_into` u8-buffer destinations, native byte-order writes,
+     `std:bytes` u8/endian writes, concat/copy u8-buffer spans, overlap-safe
+     u8 `copy_into`, and `copy_into` u8-buffer destinations, native byte-order writes,
      and `std:time` ISO-8601 UTC parsing now use direct source-string byte reads
      or exact-size/raw-pointer buffers too.
      Buffer views now expose wrapper objects over zero-copy slices,

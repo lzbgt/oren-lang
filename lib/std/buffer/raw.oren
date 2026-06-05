@@ -55,8 +55,20 @@ fn _validate_int_or_err(v, ctx) {
     return v
 }
 
+fn _copy_u8_ptr_forward(dstp, srcp, n) {
+    var i = 0
+    while i < n {
+        ptr_set_byte(dstp + i, ptr_get_byte(srcp + i) & 255)
+        i = i + 1
+    }
+    return n
+}
+
 fn _load_u8_direct(buf, idx) { return oren_buf_load_u8(buf, idx) }
-fn _store_u8_direct(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
+fn _store_u8_direct(buf, idx, v) {
+    if oren_is_u8_buf(buf) == true { return _store_u8_unchecked_direct(buf, idx, v) }
+    return oren_buf_store_u8(buf, idx, v)
+}
 fn _store_u8_unchecked_direct(buf, idx, v) {
     var data = oren_buf_data_ptr_unchecked(buf)
     ptr_set_byte(data + idx, v)
@@ -366,19 +378,34 @@ fn u8_from_bytes_slice(bytes, off, n) {
 fn u8_to_bytes(buf: []u8) { return bytesm.from_u8_buf(buf) }
 
 fn u8_copy_from_u8_buf(out: []u8, src) {
-    return _copy_from_typed_buf_with(out, src, "buffer.u8_copy_from_u8_buf", "u8_buf", _load_u8_direct, _store_u8_direct)
+    var ctx = "buffer.u8_copy_from_u8_buf"
+    var no = _len_or_err(out, ctx)
+    if oren_is_err(no) { return no }
+    var ns = _len_or_err(src, ctx)
+    if oren_is_err(ns) { return ns }
+    if oren_is_u8_buf(out) != true || oren_is_u8_buf(src) != true { return _err_invalid(ctx + ": expects u8_buf") }
+    if no != ns { return _err_invalid(ctx + ": length mismatch") }
+    if no > 0 { _copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(out), oren_buf_data_ptr_unchecked(src), no) }
+    return out
 }
 
 fn u8_copy_from_bytes(out: []u8, bytes) {
-    var src = bytesm.to_u8_buf(bytes)
-    if oren_is_err(src) { return src }
-    return u8_copy_from_u8_buf(out, src)
+    var ctx = "buffer.u8_copy_from_bytes"
+    var no = _len_or_err(out, ctx)
+    if oren_is_err(no) { return no }
+    var nb = bytesm.len(bytes)
+    if oren_is_err(nb) { return nb }
+    if no != nb { return _err_invalid(ctx + ": length mismatch") }
+    return bytesm.copy_into(out, 0, bytes, 0, no)
 }
 
 fn u8_copy_from_bytes_slice(out: []u8, bytes, off, n) {
-    var src = bytesm.to_u8_buf_slice(bytes, off, n)
-    if oren_is_err(src) { return src }
-    return u8_copy_from_u8_buf(out, src)
+    var ctx = "buffer.u8_copy_from_bytes_slice"
+    var no = _len_or_err(out, ctx)
+    if oren_is_err(no) { return no }
+    if _is_int(n) == false { return oren_err(4, ctx + ": len must be int") }
+    if no != n { return _err_invalid(ctx + ": length mismatch") }
+    return bytesm.copy_into(out, 0, bytes, off, n)
 }
 
 fn _u8_copy_from_string_range(out: []u8, s, off, n, ctx) {

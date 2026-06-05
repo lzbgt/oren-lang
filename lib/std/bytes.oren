@@ -149,6 +149,15 @@ fn _store_u64_le(bytes, idx, v) {
     return oren_bytes_set_u64_le(bytes, idx, v)
 }
 
+fn _copy_u8_ptr_forward(dstp, srcp, n) {
+    var i = 0
+    while i < n {
+        ptr_set_byte(dstp + i, ptr_get_byte(srcp + i) & 255)
+        i = i + 1
+    }
+    return n
+}
+
 fn _bytes_to_int_list(bytes, ctx) {
     if oren_type_tag(bytes) == 6 {
         var n2 = oren_list_len(bytes)
@@ -246,19 +255,28 @@ fn concat(a, b): bytes {
     if oren_is_err(nb) { return nb }
     var out = raw.u8_new_uninit(na + nb)
     if oren_is_err(out) { return out }
+    var outp = oren_buf_data_ptr_unchecked(out)
     var i = 0
-    while i < na {
-        var av = oren_bytes_get_u8(a, i)
-        if oren_is_err(av) { return av }
-        raw._store_u8_buf_unchecked_direct(out, i, av)
-        i = i + 1
+    if na > 0 && oren_is_u8_buf(a) == true {
+        _copy_u8_ptr_forward(outp, oren_buf_data_ptr_unchecked(a), na)
+    } else {
+        while i < na {
+            var av = oren_bytes_get_u8(a, i)
+            if oren_is_err(av) { return av }
+            raw._store_u8_buf_unchecked_direct(out, i, av)
+            i = i + 1
+        }
     }
     var j = 0
-    while j < nb {
-        var bv = oren_bytes_get_u8(b, j)
-        if oren_is_err(bv) { return bv }
-        raw._store_u8_buf_unchecked_direct(out, na + j, bv)
-        j = j + 1
+    if nb > 0 && oren_is_u8_buf(b) == true {
+        _copy_u8_ptr_forward(outp + na, oren_buf_data_ptr_unchecked(b), nb)
+    } else {
+        while j < nb {
+            var bv = oren_bytes_get_u8(b, j)
+            if oren_is_err(bv) { return bv }
+            raw._store_u8_buf_unchecked_direct(out, na + j, bv)
+            j = j + 1
+        }
     }
     return out
 }
@@ -281,15 +299,23 @@ fn copy_into(dst, dst_off, src, src_off, n) {
         var src_is_u8 = (oren_is_u8_buf(src) == true)
         var srcp = nil
         if src_is_u8 { srcp = oren_buf_data_ptr_unchecked(src) }
+        if src_is_u8 && n > 0 {
+            if dst == src && dst_off > src_off && dst_off < src_off + n {
+                var k = n - 1
+                while k >= 0 {
+                    ptr_set_byte(dstp + dst_off + k, ptr_get_byte(srcp + src_off + k) & 255)
+                    k = k - 1
+                }
+            } else {
+                _copy_u8_ptr_forward(dstp + dst_off, srcp + src_off, n)
+            }
+            return dst
+        }
         var i = 0
         while i < n {
             var b = 0
-            if src_is_u8 {
-                b = ptr_get_byte(srcp + src_off + i) & 255
-            } else {
-                b = oren_bytes_get_u8(src, src_off + i)
-                if oren_is_err(b) { return b }
-            }
+            b = oren_bytes_get_u8(src, src_off + i)
+            if oren_is_err(b) { return b }
             ptr_set_byte(dstp + dst_off + i, b & 255)
             i = i + 1
         }
