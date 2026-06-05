@@ -255,7 +255,20 @@ fn from_string(s): bytes {
 fn to_hex(bytes) {
     var n = _len_or_err(bytes, "bytes.to_hex")
     if oren_is_err(n) { return n }
-    return oren_bytes_to_hex(bytes)
+    if n == 0 { return "" }
+    var out = raw.u8_new_uninit(n * 2)
+    if oren_is_err(out) { return out }
+    var outp = oren_buf_data_ptr_unchecked(out)
+    var digits = "0123456789abcdef"
+    var i = 0
+    while i < n {
+        var b = _load_u8(bytes, i)
+        if oren_is_err(b) { return b }
+        ptr_set_byte(outp + i * 2, oren_string_byte_at_unchecked(digits, (b >> 4) & 15))
+        ptr_set_byte(outp + i * 2 + 1, oren_string_byte_at_unchecked(digits, b & 15))
+        i = i + 1
+    }
+    return oren_string_from_bytes_slice(out, 0, n * 2)
 }
 
 fn to_string(bytes) {

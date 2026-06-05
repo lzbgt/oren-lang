@@ -98,9 +98,12 @@ fn test_bytes_from_hex() {
     assert_eq(bytesm.get_u8(hx, 2), 161)
     assert_eq(bytesm.get_u8(hx, 3), 11)
     assert_eq(bytesm.to_hex(hx), "00ffa10b")
+    assert_eq(bytesm.to_hex([0, 15, 255]), "000fff")
+    assert_eq(bytesm.to_hex(bytesm.pack([])), "")
     assert_true(oren_is_err(bytesm.from_hex("abc")))
     assert_true(oren_is_err(bytesm.from_hex("00x0")))
     assert_true(oren_is_err(bytesm.from_hex(123)))
+    assert_true(oren_is_err(bytesm.to_hex(123)))
 }
 
 fn test_bytes_u8_buf_to_string() {
