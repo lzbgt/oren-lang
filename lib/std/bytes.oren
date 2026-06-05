@@ -203,13 +203,32 @@ fn copy_into(dst, dst_off, src, src_off, n) {
     if oren_is_err(ns) { return ns }
     if dst_off + n > nd { return oren_err(4, "bytes.copy_into: dst range out of bounds") }
     if src_off + n > ns { return oren_err(4, "bytes.copy_into: src range out of bounds") }
-    var i = 0
-    while i < n {
-        var b = oren_bytes_get_u8(src, src_off + i)
-        if oren_is_err(b) { return b }
-        var rc = oren_bytes_set_u8(dst, dst_off + i, b)
+    if oren_is_u8_buf(dst) == true {
+        var dstp = oren_buf_data_ptr_unchecked(dst)
+        var src_is_u8 = (oren_is_u8_buf(src) == true)
+        var srcp = nil
+        if src_is_u8 { srcp = oren_buf_data_ptr_unchecked(src) }
+        var i = 0
+        while i < n {
+            var b = 0
+            if src_is_u8 {
+                b = ptr_get_byte(srcp + src_off + i) & 255
+            } else {
+                b = oren_bytes_get_u8(src, src_off + i)
+                if oren_is_err(b) { return b }
+            }
+            ptr_set_byte(dstp + dst_off + i, b & 255)
+            i = i + 1
+        }
+        return dst
+    }
+    var j = 0
+    while j < n {
+        var bj = oren_bytes_get_u8(src, src_off + j)
+        if oren_is_err(bj) { return bj }
+        var rc = oren_bytes_set_u8(dst, dst_off + j, bj)
         if oren_is_err(rc) { return rc }
-        i = i + 1
+        j = j + 1
     }
     return dst
 }

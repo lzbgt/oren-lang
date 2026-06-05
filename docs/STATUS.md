@@ -461,8 +461,10 @@ Facts from the 2026-05-28 implementation pass:
   exact-size `u8_buf` builders, `std:net/avm/http` has request/response helpers,
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
-  byte-slice conversion instead of list
-  materialization, JSON full decode, scalar parse, tag equality, and escape paths
+  byte-slice conversion instead of list materialization, `std:bytes.copy_into`
+  keeps list-backed compatibility while copying into u8-buffer destinations
+  through raw pointer stores after public span validation, JSON full decode,
+  scalar parse, tag equality, and escape paths
   use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical key ordering/text encoding, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
@@ -481,11 +483,11 @@ Facts from the 2026-05-28 implementation pass:
   u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
   bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
-  writes,
-  writing, native Mach-O/ELF object string payloads, runtime-object debug-name
+  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
   blobs, x64 native debug-table names, ARM64 native panic-message payloads,
   shared compiler byte-builder append/list/string/set stores, C identifier
-  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy helpers now do the same.
+  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy
+  helpers now do the same.
   `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and

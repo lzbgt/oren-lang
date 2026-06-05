@@ -561,8 +561,10 @@
 <p>  exact-size <code>u8_buf</code> builders, <code>std:net/avm/http</code> has request/response helpers,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
-<p>  byte-slice conversion instead of list</p>
-<p>  materialization, JSON full decode, scalar parse, tag equality, and escape paths</p>
+<p>  byte-slice conversion instead of list materialization, <code>std:bytes.copy_into</code></p>
+<p>  keeps list-backed compatibility while copying into u8-buffer destinations</p>
+<p>  through raw pointer stores after public span validation, JSON full decode,</p>
+<p>  scalar parse, tag equality, and escape paths</p>
 <p>  use direct source-string byte reads or exact-size <code>u8_buf</code> output, CBOR canonical key ordering/text encoding, full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>
 <p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>
@@ -581,11 +583,11 @@
 <p>  u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime</p>
 <p>  include scanning, compiler manifest JSON escaping, bytecode metadata payloads,</p>
 <p>  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw</p>
-<p>  writes,</p>
-<p>  writing, native Mach-O/ELF object string payloads, runtime-object debug-name</p>
+<p>  writes, native Mach-O/ELF object string payloads, runtime-object debug-name</p>
 <p>  blobs, x64 native debug-table names, ARM64 native panic-message payloads,</p>
 <p>  shared compiler byte-builder append/list/string/set stores, C identifier</p>
-<p>  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy helpers now do the same.</p>
+<p>  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy</p>
+<p>  helpers now do the same.</p>
 <p>  <code>std:buffer</code></p>
 <p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
 <p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
