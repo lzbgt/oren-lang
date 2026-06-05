@@ -64,7 +64,10 @@ fn _copy_u8_ptr_forward(dstp, srcp, n) {
     return n
 }
 
-fn _load_u8_direct(buf, idx) { return oren_buf_load_u8(buf, idx) }
+fn _load_u8_direct(buf, idx) {
+    if oren_is_u8_buf(buf) == true { return ptr_get_byte(oren_buf_data_ptr_unchecked(buf) + idx) & 255 }
+    return oren_buf_load_u8(buf, idx)
+}
 fn _store_u8_direct(buf, idx, v) {
     if oren_is_u8_buf(buf) == true { return _store_u8_unchecked_direct(buf, idx, v) }
     return oren_buf_store_u8(buf, idx, v)
