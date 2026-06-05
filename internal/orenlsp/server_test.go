@@ -42,6 +42,12 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	if caps["definitionProvider"] != true {
 		t.Fatalf("missing definitionProvider capability: %#v", caps)
 	}
+	if caps["hoverProvider"] != true {
+		t.Fatalf("missing hoverProvider capability: %#v", caps)
+	}
+	if caps["referencesProvider"] != true {
+		t.Fatalf("missing referencesProvider capability: %#v", caps)
+	}
 }
 
 func TestServerPublishesDiagnosticsOnDidOpenAndDidChange(t *testing.T) {
@@ -425,6 +431,116 @@ func TestResolveImportPathStdSpec(t *testing.T) {
 	}
 }
 
+func TestServerHoverAndReferencesUseWorkspaceSymbols(t *testing.T) {
+	tmp := t.TempDir()
+	helperPath := filepath.Join(tmp, "modules", "helper.oren")
+	if err := os.MkdirAll(filepath.Dir(helperPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	helperText := strings.Join([]string{
+		"var helper_value = 7",
+		"fn helper_fn() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(helperPath, []byte(helperText), 0o644); err != nil {
+		t.Fatalf("WriteFile helper: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainText := strings.Join([]string{
+		"import helper \"modules/helper.oren\"",
+		"fn main() {",
+		"  return helper_value + helper_value",
+		"}",
+		"",
+	}, "\n")
+	peerText := strings.Join([]string{
+		"fn peer() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	mainURI := fileURIFromPath(mainPath)
+	peerURI := fileURIFromPath(filepath.Join(tmp, "peer.oren"))
+	helperURI := fileURIFromPath(helperPath)
+
+	var in bytes.Buffer
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": peerURI, "text": peerText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      16,
+		"method":  "textDocument/hover",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      17,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      18,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+			"context":      map[string]any{"includeDeclaration": false},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	hover := messageByID(t, msgs, 16)["result"].(map[string]any)
+	contents := hover["contents"].(map[string]any)
+	value := contents["value"].(string)
+	if !strings.Contains(value, "variable helper_value") || !strings.Contains(value, helperURI) {
+		t.Fatalf("hover value=%q missing symbol or URI", value)
+	}
+
+	withDecl := messageByID(t, msgs, 17)["result"].([]any)
+	assertLocations(t, withDecl, []location{
+		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 21}}},
+		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 2, Character: 24}, End: position{Line: 2, Character: 36}}},
+		{URI: peerURI, Range: diagnosticRange{Start: position{Line: 1, Character: 9}, End: position{Line: 1, Character: 21}}},
+		{URI: helperURI, Range: diagnosticRange{Start: position{Line: 0, Character: 4}, End: position{Line: 0, Character: 16}}},
+		{URI: helperURI, Range: diagnosticRange{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 21}}},
+	})
+
+	withoutDecl := messageByID(t, msgs, 18)["result"].([]any)
+	assertLocations(t, withoutDecl, []location{
+		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 21}}},
+		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 2, Character: 24}, End: position{Line: 2, Character: 36}}},
+		{URI: peerURI, Range: diagnosticRange{Start: position{Line: 1, Character: 9}, End: position{Line: 1, Character: 21}}},
+		{URI: helperURI, Range: diagnosticRange{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 21}}},
+	})
+}
+
 func writeTestMessage(t *testing.T, w *bytes.Buffer, v any) {
 	t.Helper()
 	msg, err := EncodeMessage(v)
@@ -512,6 +628,28 @@ func assertDefinition(t *testing.T, defs []any, uri string, line, startChar, end
 	end := rng["end"].(map[string]any)
 	if start["line"] != line || start["character"] != startChar || end["line"] != line || end["character"] != endChar {
 		t.Fatalf("definition range=%#v want line=%v chars=%v..%v", rng, line, startChar, endChar)
+	}
+}
+
+func assertLocations(t *testing.T, got []any, want []location) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("locations=%#v want %#v", got, want)
+	}
+	for i, value := range got {
+		loc := value.(map[string]any)
+		if loc["uri"] != want[i].URI {
+			t.Fatalf("location[%d] uri=%#v want %q; locations=%#v", i, loc["uri"], want[i].URI, got)
+		}
+		rng := loc["range"].(map[string]any)
+		start := rng["start"].(map[string]any)
+		end := rng["end"].(map[string]any)
+		if int(start["line"].(float64)) != want[i].Range.Start.Line ||
+			int(start["character"].(float64)) != want[i].Range.Start.Character ||
+			int(end["line"].(float64)) != want[i].Range.End.Line ||
+			int(end["character"].(float64)) != want[i].Range.End.Character {
+			t.Fatalf("location[%d] range=%#v want %#v", i, rng, want[i].Range)
+		}
 	}
 }
 

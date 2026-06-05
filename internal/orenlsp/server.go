@@ -110,6 +110,18 @@ func (s *Server) handle(body []byte) error {
 		}
 		uri := p.TextDocument.URI
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.definitionLocations(uri, p.Position)})
+	case "textDocument/hover":
+		var p textDocumentParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.hover(p.TextDocument.URI, p.Position)})
+	case "textDocument/references":
+		var p referenceParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.references(p.TextDocument.URI, p.Position, p.Context.IncludeDeclaration)})
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -155,6 +167,8 @@ func initializeResult() map[string]any {
 			},
 			"documentSymbolProvider": true,
 			"definitionProvider":     true,
+			"hoverProvider":          true,
+			"referencesProvider":     true,
 		},
 		"serverInfo": map[string]any{
 			"name":    "oren-lsp",
@@ -190,6 +204,16 @@ type textDocumentParams struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
 	Position position `json:"position"`
+}
+
+type referenceParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position position `json:"position"`
+	Context  struct {
+		IncludeDeclaration bool `json:"includeDeclaration"`
+	} `json:"context"`
 }
 
 func (s *Server) publishDiagnostics(uri, text string) error {

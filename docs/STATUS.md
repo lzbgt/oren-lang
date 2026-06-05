@@ -782,11 +782,12 @@ Working evidence:
 - Oren language tooling: initial `oren-lsp` stdio JSON-RPC server now covers
   initialization, full-document sync, deterministic bracket/string diagnostics,
   parser-backed diagnostics, close cleanup, keyword/local-symbol completion,
-  lexer-backed document symbols, and same-file, opened-document cross-file, plus
-  import-resolved unopened-module definition navigation for relative and `std:`
-  modules. The VS Code package now contributes `.oren` syntax highlighting,
-  language configuration, `vscode-languageclient` activation, and a smoke
-  verifier; hover/references and deeper semantic workspace indexing remain.
+  lexer-backed document symbols, same-file/opened-document/import-resolved
+  definition navigation for relative and `std:` modules, and lexer-backed hover
+  plus references over the same current/open/imported workspace graph. The VS
+  Code package now contributes `.oren` syntax highlighting, language
+  configuration, `vscode-languageclient` activation, and a smoke verifier; deeper
+  semantic workspace indexing remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

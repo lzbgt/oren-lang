@@ -54,6 +54,11 @@ type location struct {
 	Range diagnosticRange `json:"range"`
 }
 
+type resolvedSymbol struct {
+	URI    string
+	Symbol sourceSymbol
+}
+
 func completionItems(text string) []completionItem {
 	items := make([]completionItem, 0, len(orenKeywords)+8)
 	seen := map[string]bool{}
@@ -93,12 +98,38 @@ func documentSymbols(text string) []documentSymbol {
 }
 
 func symbolDefinitionLocations(text, uri, name string) []location {
-	for _, sym := range collectSymbols(text) {
-		if sym.Name == name {
-			return []location{{URI: uri, Range: sym.Range}}
-		}
+	if match, ok := symbolDefinition(text, uri, name); ok {
+		return []location{{URI: match.URI, Range: match.Symbol.Range}}
 	}
 	return []location{}
+}
+
+func symbolDefinition(text, uri, name string) (resolvedSymbol, bool) {
+	for _, sym := range collectSymbols(text) {
+		if sym.Name == name {
+			return resolvedSymbol{URI: uri, Symbol: sym}, true
+		}
+	}
+	return resolvedSymbol{}, false
+}
+
+func identifierLocations(text, uri, name string) []location {
+	if name == "" {
+		return []location{}
+	}
+	l := lexer.New(text)
+	var out []location
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF {
+			break
+		}
+		if tok.Type != token.IDENT || tok.Literal != name {
+			continue
+		}
+		out = append(out, location{URI: uri, Range: tokenRange(tok)})
+	}
+	return out
 }
 
 func wordAtPosition(text string, pos position) string {
@@ -209,14 +240,19 @@ func collectImports(text string) []importSpec {
 }
 
 func newSourceSymbol(tok token.Token, kind, detail string) sourceSymbol {
-	start := position{Line: tok.Line - 1, Character: tok.Column - 1}
-	end := position{Line: start.Line, Character: start.Character + len(tok.Literal)}
+	rng := tokenRange(tok)
 	return sourceSymbol{
 		Name:   tok.Literal,
 		Kind:   kind,
 		Detail: detail,
-		Range:  diagnosticRange{Start: start, End: end},
+		Range:  rng,
 	}
+}
+
+func tokenRange(tok token.Token) diagnosticRange {
+	start := position{Line: tok.Line - 1, Character: tok.Column - 1}
+	end := position{Line: start.Line, Character: start.Character + len(tok.Literal)}
+	return diagnosticRange{Start: start, End: end}
 }
 
 func completionKind(kind string) int {

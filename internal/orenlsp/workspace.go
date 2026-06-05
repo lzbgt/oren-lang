@@ -8,16 +8,14 @@ import (
 	"strings"
 )
 
+type documentSnapshot struct {
+	URI  string
+	Text string
+}
+
 func (s *Server) openDocumentDefinitionLocations(uri, name string) []location {
-	uris := make([]string, 0, len(s.docs))
-	for candidateURI := range s.docs {
-		if candidateURI != uri {
-			uris = append(uris, candidateURI)
-		}
-	}
-	sort.Strings(uris)
-	for _, candidateURI := range uris {
-		if locs := symbolDefinitionLocations(s.docs[candidateURI], candidateURI, name); len(locs) > 0 {
+	for _, doc := range s.openDocumentSnapshots(uri) {
+		if locs := symbolDefinitionLocations(doc.Text, doc.URI, name); len(locs) > 0 {
 			return locs
 		}
 	}
@@ -25,22 +23,52 @@ func (s *Server) openDocumentDefinitionLocations(uri, name string) []location {
 }
 
 func (s *Server) importedDefinitionLocations(uri, text, name string) []location {
+	for _, doc := range s.importedDocumentSnapshots(uri, text) {
+		if locs := symbolDefinitionLocations(doc.Text, doc.URI, name); len(locs) > 0 {
+			return locs
+		}
+	}
+	return []location{}
+}
+
+func (s *Server) openDocumentSnapshots(excludeURI string) []documentSnapshot {
+	uris := make([]string, 0, len(s.docs))
+	for candidateURI := range s.docs {
+		if candidateURI != excludeURI {
+			uris = append(uris, candidateURI)
+		}
+	}
+	sort.Strings(uris)
+	out := make([]documentSnapshot, 0, len(uris))
+	for _, candidateURI := range uris {
+		out = append(out, documentSnapshot{URI: candidateURI, Text: s.docs[candidateURI]})
+	}
+	return out
+}
+
+func (s *Server) importedDocumentSnapshots(uri, text string) []documentSnapshot {
 	imports := collectImports(text)
 	if len(imports) == 0 {
-		return []location{}
+		return nil
 	}
 	currentPath, ok := filePathFromURI(uri)
 	if !ok {
-		return []location{}
+		return nil
 	}
 	currentDir := filepath.Dir(currentPath)
 	repoRoot := findRepoRoot(currentDir)
+	seen := map[string]bool{}
+	var out []documentSnapshot
 	for _, imp := range imports {
 		path, ok := resolveImportPath(imp.Spec, currentDir, repoRoot)
 		if !ok {
 			continue
 		}
 		candidateURI := fileURIFromPath(path)
+		if seen[candidateURI] {
+			continue
+		}
+		seen[candidateURI] = true
 		candidateText, ok := s.docs[candidateURI]
 		if !ok {
 			raw, err := os.ReadFile(path)
@@ -49,11 +77,9 @@ func (s *Server) importedDefinitionLocations(uri, text, name string) []location 
 			}
 			candidateText = string(raw)
 		}
-		if locs := symbolDefinitionLocations(candidateText, candidateURI, name); len(locs) > 0 {
-			return locs
-		}
+		out = append(out, documentSnapshot{URI: candidateURI, Text: candidateText})
 	}
-	return []location{}
+	return out
 }
 
 func resolveImportPath(spec, currentDir, repoRoot string) (string, bool) {
