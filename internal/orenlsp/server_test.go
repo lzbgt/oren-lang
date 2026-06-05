@@ -632,6 +632,98 @@ func TestServerHoverAndReferencesUseWorkspaceSymbols(t *testing.T) {
 	})
 }
 
+func TestServerNavigationUsesScopedParameters(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"fn outer(x) {",
+		"  fn inner(x) {",
+		"    return x",
+		"  }",
+		"  return x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///scoped-params.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      19,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 2, "character": 11},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      20,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 4, "character": 9},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      21,
+		"method":  "textDocument/hover",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 2, "character": 11},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      22,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 9},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      23,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 1, "character": 11},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertDefinition(t, messageByID(t, msgs, 19)["result"].([]any), uri, 1, 11, 12)
+	assertDefinition(t, messageByID(t, msgs, 20)["result"].([]any), uri, 0, 9, 10)
+
+	hover := messageByID(t, msgs, 21)["result"].(map[string]any)
+	value := hover["contents"].(map[string]any)["value"].(string)
+	if !strings.Contains(value, "parameter x") || !strings.Contains(value, uri) {
+		t.Fatalf("hover value=%q missing parameter detail", value)
+	}
+
+	assertLocations(t, messageByID(t, msgs, 22)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 9}, End: position{Line: 0, Character: 10}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 4, Character: 9}, End: position{Line: 4, Character: 10}}},
+	})
+	assertLocations(t, messageByID(t, msgs, 23)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 1, Character: 11}, End: position{Line: 1, Character: 12}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 2, Character: 11}, End: position{Line: 2, Character: 12}}},
+	})
+}
+
 func TestServerSemanticTokensFullClassifiesSymbols(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

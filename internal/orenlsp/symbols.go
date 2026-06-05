@@ -133,17 +133,22 @@ func identifierLocations(text, uri, name string) []location {
 }
 
 func wordAtPosition(text string, pos position) string {
+	word, _ := wordRangeAtPosition(text, pos)
+	return word
+}
+
+func wordRangeAtPosition(text string, pos position) (string, diagnosticRange) {
 	lines := strings.Split(text, "\n")
 	if pos.Line < 0 || pos.Line >= len(lines) {
-		return ""
+		return "", diagnosticRange{}
 	}
 	line := []rune(lines[pos.Line])
 	if len(line) == 0 {
-		return ""
+		return "", diagnosticRange{}
 	}
 	col := pos.Character
 	if col < 0 {
-		return ""
+		return "", diagnosticRange{}
 	}
 	if col >= len(line) {
 		col = len(line) - 1
@@ -152,7 +157,7 @@ func wordAtPosition(text string, pos position) string {
 		col--
 	}
 	if !isIdentRune(line[col]) {
-		return ""
+		return "", diagnosticRange{}
 	}
 	start := col
 	for start > 0 && isIdentRune(line[start-1]) {
@@ -164,9 +169,13 @@ func wordAtPosition(text string, pos position) string {
 	}
 	word := string(line[start:end])
 	if !isIdentStart(rune(word[0])) {
-		return ""
+		return "", diagnosticRange{}
 	}
-	return word
+	rng := diagnosticRange{
+		Start: position{Line: pos.Line, Character: start},
+		End:   position{Line: pos.Line, Character: end},
+	}
+	return word, rng
 }
 
 func isIdentRune(r rune) bool {

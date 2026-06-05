@@ -785,12 +785,13 @@ Working evidence:
   lexer-backed document symbols, same-file/opened-document/import-resolved
   definition navigation for relative and `std:` modules, lexer-backed hover plus
   references over the same current/open/imported workspace graph, and bounded
-  transitive import traversal with cycle guards, plus full-document semantic-token
-  classification for declarations/references/literals/operators and
-  parser-derived parameter/property classes. The VS Code package now contributes
-  `.oren` syntax highlighting, language configuration, `vscode-languageclient`
-  activation, and a smoke verifier; deeper scope/type-aware indexing beyond
-  parser symbol classes remains.
+  transitive import traversal with cycle guards, scoped function-parameter
+  definition/hover/reference navigation with nested shadowing, plus full-document
+  semantic-token classification for declarations/references/literals/operators
+  and parser-derived parameter/property classes. The VS Code package now
+  contributes `.oren` syntax highlighting, language configuration,
+  `vscode-languageclient` activation, and a smoke verifier; richer type/member
+  inference beyond parser symbol classes remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

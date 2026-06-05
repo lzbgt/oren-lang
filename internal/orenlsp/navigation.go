@@ -18,10 +18,17 @@ func (s *Server) hover(uri string, pos position) any {
 	if name == "" {
 		return nil
 	}
+	if match, ok := scopedParameterSymbolAt(text, uri, pos); ok {
+		return hoverForResolvedSymbol(match)
+	}
 	match, ok := s.resolveSymbol(uri, text, name)
 	if !ok {
 		return nil
 	}
+	return hoverForResolvedSymbol(match)
+}
+
+func hoverForResolvedSymbol(match resolvedSymbol) hoverResult {
 	value := fmt.Sprintf("%s %s", match.Symbol.Kind, match.Symbol.Name)
 	if match.Symbol.Detail != "" && match.Symbol.Detail != match.Symbol.Kind {
 		value += "\n" + match.Symbol.Detail
@@ -38,6 +45,9 @@ func (s *Server) references(uri string, pos position, includeDeclaration bool) [
 	name := wordAtPosition(text, pos)
 	if name == "" {
 		return []location{}
+	}
+	if refs, ok := scopedParameterReferencesAt(text, uri, pos, includeDeclaration); ok {
+		return refs
 	}
 	docs := append([]documentSnapshot{{URI: uri, Text: text}}, s.openDocumentSnapshots(uri)...)
 	docs = appendUniqueDocuments(docs, s.importedDocumentSnapshots(uri, text))
