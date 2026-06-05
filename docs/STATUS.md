@@ -357,10 +357,14 @@ Facts from the 2026-05-28 implementation pass:
 	  events with logical size, native drawable size, device scale, target refresh,
 	  and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
 		  consuming an input event. `OrenAVMRuntime.graphicsFrameHandler` bridges the
-		  C frame callback to iOS hosts, both SDK renderers expose `hasValidFrameData`,
-		  and `reloadFrameWithError:` is no-op success when the runtime mailbox is empty,
-		  so event-driven render loops can keep the last valid `OGF0` frame instead of
-		  surfacing stale no-frame reloads as renderer failures. `OrenAVMMetalView` is now the first Metal/`MTKView`
+		  C frame callback to iOS hosts, `addGraphicsFrameHandler:` provides multicast
+		  frame wakeups so renderers and host diagnostics do not steal callbacks from
+		  each other, the native GFX mailbox is mutex-protected for worker-thread
+		  publication plus main-thread rendering, both SDK renderers expose
+		  `hasValidFrameData`, and `reloadFrameWithError:` is no-op success when the
+		  runtime mailbox is empty, so event-driven render loops can keep the last
+		  valid `OGF0` frame instead of surfacing stale no-frame reloads as renderer
+		  failures. `OrenAVMMetalView` is now the first Metal/`MTKView`
   adapter: it owns the Metal draw loop, publishes host screen state, forwards touch
   events into the `OGE0` mailbox, and renders current `OGF0` fill-rect/
   clip-stack/translation-stack/opacity-stack/camera-depth-window/stroke-line/stroke-rect/round-rect/circle/
@@ -370,9 +374,12 @@ Facts from the 2026-05-28 implementation pass:
   drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
   SDK-side LRU texture cache for repeated labels, and host apps can clear that cache
   on memory pressure. The UI input stream now also carries validated `frame_tick`
-  records so OBC game loops can receive host display timing through the same virtual
-  event path instead of polling raw platform clocks. Frame ticks are coalesced so
-  stale timing records cannot fill the input FIFO and starve real input. The Metal
+	  records so OBC game loops can receive host display timing through the same virtual
+	  event path instead of polling raw platform clocks. Frame ticks are coalesced so
+	  stale timing records cannot fill the input FIFO and starve real input, and SDK
+	  renderer frame-wakeup callbacks coalesce pending main-queue reloads so a fast
+	  publisher consumes the latest retained frame without building an unbounded UI
+	  task backlog. The Metal
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
 	  target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, while Metal packs rendered labels into bounded atlas textures and coalesces adjacent same-atlas/scissor/opacity runs to reduce text draw calls. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact

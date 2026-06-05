@@ -7,6 +7,7 @@
 
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
+#import <dispatch/dispatch.h>
 #include <math.h>
 #include <string.h>
 
@@ -77,7 +78,7 @@ static uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
     return (uint32_t)p[0] |
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
-	           ((uint32_t)p[3] << 24);
+           ((uint32_t)p[3] << 24);
 }
 
 static BOOL OrenAVMMetalFrameDataIsValid(NSData* frame) {
@@ -544,6 +545,8 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 @property(nonatomic, readwrite) uint32_t lastFrameImageRunCount;
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
+@property(nonatomic, strong) id orenGraphicsFrameObserverToken;
+@property(nonatomic) BOOL orenFrameReloadScheduled;
 @end
 
 @implementation OrenAVMMetalView
@@ -551,8 +554,8 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime {
     self = [super initWithFrame:CGRectZero device:MTLCreateSystemDefaultDevice()];
     if (!self) return nil;
-    _runtime = runtime;
     [self orenConfigureMetalView];
+    self.runtime = runtime;
     return self;
 }
 
@@ -569,6 +572,46 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (!self.device) self.device = MTLCreateSystemDefaultDevice();
     [self orenConfigureMetalView];
     return self;
+}
+
+- (void)orenAttachGraphicsFrameObserver {
+    if (!self.runtime || self.orenGraphicsFrameObserverToken) return;
+    __weak typeof(self) weakSelf = self;
+    self.orenGraphicsFrameObserverToken = [self.runtime addGraphicsFrameHandler:^(uint32_t sequence, NSUInteger byteLength) {
+        (void)sequence;
+        (void)byteLength;
+        __strong typeof(weakSelf) schedulingSelf = weakSelf;
+        if (!schedulingSelf) return;
+        @synchronized (schedulingSelf) {
+            if (schedulingSelf.orenFrameReloadScheduled) return;
+            schedulingSelf.orenFrameReloadScheduled = YES;
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            @synchronized (strongSelf) {
+                strongSelf.orenFrameReloadScheduled = NO;
+            }
+            (void)[strongSelf reloadFrameWithError:nil];
+            [strongSelf setNeedsDisplay];
+        });
+    }];
+}
+
+- (void)setRuntime:(OrenAVMRuntime*)runtime {
+    if (_runtime == runtime) return;
+    if (_runtime && self.orenGraphicsFrameObserverToken) {
+        [_runtime removeGraphicsFrameHandler:self.orenGraphicsFrameObserverToken];
+        self.orenGraphicsFrameObserverToken = nil;
+    }
+    _runtime = runtime;
+    [self orenAttachGraphicsFrameObserver];
+}
+
+- (void)dealloc {
+    if (_runtime && self.orenGraphicsFrameObserverToken) {
+        [_runtime removeGraphicsFrameHandler:self.orenGraphicsFrameObserverToken];
+    }
 }
 
 - (void)orenConfigureMetalView {

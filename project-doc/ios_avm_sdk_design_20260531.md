@@ -88,6 +88,12 @@ Retained SDK slices on 2026-05-31:
   frame exists, and only copy frame bytes when they are about to decode/render
   them. No-copy info APIs are for diagnostics and constrained fallback hosts such
   as MCU-style embeddings, not the default iOS/macOS/desktop transport.
+- SDK frame wakeups are multicast. Hosts can keep `graphicsFrameHandler` for a
+  single legacy callback or use `addGraphicsFrameHandler:` for additive
+  subscriptions, so diagnostics, app coordinators, and renderer views do not
+  steal callbacks from each other. The GFX frame mailbox is mutex-protected for
+  worker-thread publication plus main-thread rendering, and SDK views coalesce
+  pending main-queue reloads to latest-frame/drop-stale behavior.
 - The low-level GUI transport is binary by design. JSON/QML-like documents may be
   used later as a high-level declarative UI/layout authoring format, but they must
   compile to the binary frame/event mailbox protocol before crossing the AVM-host

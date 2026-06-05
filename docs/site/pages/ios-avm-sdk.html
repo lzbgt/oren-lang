@@ -141,6 +141,14 @@
 <p>  them. No-copy info APIs are for diagnostics and constrained fallback hosts such</p>
 <p>  as MCU-style embeddings, not the default iOS/macOS/desktop transport.</p>
 <ul>
+<li>SDK frame wakeups are multicast. Hosts can keep <code>graphicsFrameHandler</code> for a</li>
+</ul>
+<p>  single legacy callback or use <code>addGraphicsFrameHandler:</code> for additive</p>
+<p>  subscriptions, so diagnostics, app coordinators, and renderer views do not</p>
+<p>  steal callbacks from each other. The GFX frame mailbox is mutex-protected for</p>
+<p>  worker-thread publication plus main-thread rendering, and SDK views coalesce</p>
+<p>  pending main-queue reloads to latest-frame/drop-stale behavior.</p>
+<ul>
 <li>The low-level GUI transport is binary by design. JSON/QML-like documents may be</li>
 </ul>
 <p>  used later as a high-level declarative UI/layout authoring format, but they must</p>

@@ -686,8 +686,10 @@ int avm_embed_set_gfx_frame_callback(AvmEmbedHandle* handle, AvmGfxFrameFn frame
     if (!avm_embed_valid_handle(handle)) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame callback argument");
     }
+    avm_mutex_lock(&handle->vm->gfx_frame_mutex);
     handle->vm->gfx_frame_fn = frame_fn;
     handle->vm->gfx_frame_user_data = user_data;
+    avm_mutex_unlock(&handle->vm->gfx_frame_mutex);
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }
@@ -698,10 +700,12 @@ int avm_embed_gfx_frame_info(AvmEmbedHandle* handle, size_t* out_len, uint32_t* 
     if (!avm_embed_valid_handle(handle) || !out_len || !out_sequence) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame info argument");
     }
+    avm_mutex_lock(&handle->vm->gfx_frame_mutex);
     if (handle->vm->gfx_frame_data && handle->vm->gfx_frame_len > 0) {
         *out_len = handle->vm->gfx_frame_len;
         *out_sequence = handle->vm->gfx_frame_sequence;
     }
+    avm_mutex_unlock(&handle->vm->gfx_frame_mutex);
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }
@@ -712,13 +716,19 @@ int avm_embed_gfx_frame_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* 
     if (!avm_embed_valid_handle(handle) || !out_data || !out_len) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame get argument");
     }
+    avm_mutex_lock(&handle->vm->gfx_frame_mutex);
     size_t len = handle->vm->gfx_frame_len;
     if (len == 0 || !handle->vm->gfx_frame_data) {
+        avm_mutex_unlock(&handle->vm->gfx_frame_mutex);
         return avm_embed_fail(result, AVM_EMBED_ERR_VM, AVM_ERR_NOT_FOUND, "GFX frame mailbox is empty");
     }
     uint8_t* copy = (uint8_t*)malloc(len);
-    if (!copy) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM GFX frame bytes");
+    if (!copy) {
+        avm_mutex_unlock(&handle->vm->gfx_frame_mutex);
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM GFX frame bytes");
+    }
     memcpy(copy, handle->vm->gfx_frame_data, len);
+    avm_mutex_unlock(&handle->vm->gfx_frame_mutex);
     *out_data = copy;
     *out_len = len;
     avm_embed_fill_from_vm(handle->vm, result);
@@ -729,12 +739,14 @@ int avm_embed_gfx_frame_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
     if (!avm_embed_valid_handle(handle)) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX frame clear argument");
     }
+    avm_mutex_lock(&handle->vm->gfx_frame_mutex);
     if (handle->vm->gfx_frame_data) {
         free(handle->vm->gfx_frame_data);
         handle->vm->gfx_frame_data = NULL;
     }
     handle->vm->gfx_frame_len = 0;
     handle->vm->gfx_frame_sequence = 0;
+    avm_mutex_unlock(&handle->vm->gfx_frame_mutex);
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : AVM_EMBED_OK;
 }

@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 
 #include "sha256.h"
 
@@ -73,6 +78,44 @@ typedef int (*AvmNetSessionAcceptFn)(void* user_data, uint32_t listener_session_
 typedef int (*AvmNetSessionCloseFn)(void* user_data, uint32_t session_id);
 typedef int (*AvmNetResolveFn)(void* user_data, const char* host, uint32_t timeout_ms, char*** out_ips, size_t* out_count);
 typedef void (*AvmGfxFrameFn)(void* user_data, uint32_t sequence, size_t len);
+
+#if defined(_WIN32)
+typedef CRITICAL_SECTION AvmMutex;
+#else
+typedef pthread_mutex_t AvmMutex;
+#endif
+
+static inline void avm_mutex_init(AvmMutex* mu) {
+#if defined(_WIN32)
+    InitializeCriticalSection(mu);
+#else
+    (void)pthread_mutex_init(mu, NULL);
+#endif
+}
+
+static inline void avm_mutex_destroy(AvmMutex* mu) {
+#if defined(_WIN32)
+    DeleteCriticalSection(mu);
+#else
+    (void)pthread_mutex_destroy(mu);
+#endif
+}
+
+static inline void avm_mutex_lock(AvmMutex* mu) {
+#if defined(_WIN32)
+    EnterCriticalSection(mu);
+#else
+    (void)pthread_mutex_lock(mu);
+#endif
+}
+
+static inline void avm_mutex_unlock(AvmMutex* mu) {
+#if defined(_WIN32)
+    LeaveCriticalSection(mu);
+#else
+    (void)pthread_mutex_unlock(mu);
+#endif
+}
 
 typedef struct AvmFunc {
     // Code address inside AvmProgram->code (rolling: currently u16 addresses in opcodes).
@@ -244,6 +287,7 @@ typedef struct {
     uint32_t gfx_frame_sequence;
     AvmGfxFrameFn gfx_frame_fn;
     void* gfx_frame_user_data;
+    AvmMutex gfx_frame_mutex;
     // GFX input mailbox (rolling): FIFO binary event payloads from host adapters.
     void* gfx_input_queue;
     // GFX screen/media state populated by host adapters; bytecode reads it through

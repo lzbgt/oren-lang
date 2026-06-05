@@ -3,6 +3,7 @@
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+#import <dispatch/dispatch.h>
 #include <math.h>
 #include <string.h>
 
@@ -118,6 +119,8 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
+@property(nonatomic, strong) id orenGraphicsFrameObserverToken;
+@property(nonatomic) BOOL orenFrameReloadScheduled;
 @end
 
 @implementation OrenAVMGraphicsView
@@ -136,6 +139,45 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
     if (self.retainedImageCountLimit == 0) self.retainedImageCountLimit = OrenAVMDefaultRetainedImageCountLimit;
+}
+
+- (void)orenAttachGraphicsFrameObserver {
+    if (!self.runtime || self.orenGraphicsFrameObserverToken) return;
+    __weak typeof(self) weakSelf = self;
+    self.orenGraphicsFrameObserverToken = [self.runtime addGraphicsFrameHandler:^(uint32_t sequence, NSUInteger byteLength) {
+        (void)sequence;
+        (void)byteLength;
+        __strong typeof(weakSelf) schedulingSelf = weakSelf;
+        if (!schedulingSelf) return;
+        @synchronized (schedulingSelf) {
+            if (schedulingSelf.orenFrameReloadScheduled) return;
+            schedulingSelf.orenFrameReloadScheduled = YES;
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            @synchronized (strongSelf) {
+                strongSelf.orenFrameReloadScheduled = NO;
+            }
+            (void)[strongSelf reloadFrameWithError:nil];
+        });
+    }];
+}
+
+- (void)setRuntime:(OrenAVMRuntime*)runtime {
+    if (_runtime == runtime) return;
+    if (_runtime && self.orenGraphicsFrameObserverToken) {
+        [_runtime removeGraphicsFrameHandler:self.orenGraphicsFrameObserverToken];
+        self.orenGraphicsFrameObserverToken = nil;
+    }
+    _runtime = runtime;
+    [self orenAttachGraphicsFrameObserver];
+}
+
+- (void)dealloc {
+    if (_runtime && self.orenGraphicsFrameObserverToken) {
+        [_runtime removeGraphicsFrameHandler:self.orenGraphicsFrameObserverToken];
+    }
 }
 
 - (NSUInteger)retainedImageCount {
@@ -180,8 +222,8 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 - (instancetype)initWithRuntime:(OrenAVMRuntime*)runtime {
     self = [super initWithFrame:CGRectZero];
     if (!self) return nil;
-    _runtime = runtime;
     [self orenConfigureGraphicsView];
+    self.runtime = runtime;
     return self;
 }
 

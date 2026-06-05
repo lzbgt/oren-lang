@@ -123,6 +123,8 @@ typedef void (^OrenAVMGraphicsFrameHandler)(uint32_t sequence, NSUInteger byteLe
 // is intentionally callable from another host thread while a run is active.
 // graphicsFrameHandler is invoked when AVM publishes a validated OGF0 frame.
 // Keep it lightweight and schedule rendering work onto the host UI/render thread.
+// Use addGraphicsFrameHandler: for additive subscriptions; renderers and host
+// diagnostics should not compete for this legacy single-slot callback.
 @property(nonatomic, copy, nullable) OrenAVMGraphicsFrameHandler graphicsFrameHandler;
 
 - (instancetype)initWithConfig:(OrenAVMRuntimeConfig*)config NS_DESIGNATED_INITIALIZER;
@@ -163,6 +165,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (BOOL)hasGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getGraphicsFrameDataWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)clearGraphicsFrameWithError:(NSError* _Nullable* _Nullable)error;
+- (nullable id)addGraphicsFrameHandler:(OrenAVMGraphicsFrameHandler)handler;
+- (void)removeGraphicsFrameHandler:(id)token;
 - (BOOL)hasPermissionRequestWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSNumber*)permissionRequestSequenceWithError:(NSError* _Nullable* _Nullable)error;
 - (nullable NSData*)getPermissionRequestDataWithError:(NSError* _Nullable* _Nullable)error;

@@ -622,6 +622,13 @@ int main(void) {
         __block NSUInteger graphicsFrameHandlerFirstLength = 0;
         __block uint32_t graphicsFrameHandlerSequence = 0;
         __block NSUInteger graphicsFrameHandlerLength = 0;
+        __block NSUInteger graphicsFrameObserverCount = 0;
+        id observerToken = [runtime addGraphicsFrameHandler:^(uint32_t sequence, NSUInteger byteLength) {
+            (void)sequence;
+            (void)byteLength;
+            graphicsFrameObserverCount += 1;
+        }];
+        if (!observerToken) return 190;
         runtime.graphicsFrameHandler = ^(uint32_t sequence, NSUInteger byteLength) {
             if (graphicsFrameHandlerCount == 0) {
                 graphicsFrameHandlerFirstSequence = sequence;
@@ -686,6 +693,11 @@ int main(void) {
         if (![runtime putVirtualEventWithKind:@"fs" action:@"write" detail:@"host/out.txt" flags:7 error:&error]) return 151;
         if (![runtime putVirtualEventWithKind:@"package" action:@"installed" detail:@"oren-labs/sdk-package-smoke/0.1.0" flags:0 error:&error]) return 152;
 
+#if TARGET_OS_IPHONE
+        OrenAVMGraphicsView* eventDrivenGraphicsView = [[OrenAVMGraphicsView alloc] initWithRuntime:runtime];
+        OrenAVMMetalView* eventDrivenMetalView = [[OrenAVMMetalView alloc] initWithRuntime:runtime];
+        if (!eventDrivenGraphicsView || !eventDrivenMetalView) return 191;
+#endif
         NSData* obc = [NSData dataWithBytes:kEmbedChainObc length:kEmbedChainObcLen];
         uint64_t wall0 = host_now_ns();
         OrenAVMRunResult* result = [runtime runOBCData:obc error:&error];
@@ -702,8 +714,13 @@ int main(void) {
         if (expectedExit != 9) return 0;
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
         if (graphicsFrameHandlerCount != 2) return 183;
+        if (graphicsFrameObserverCount != 2) return 192;
         if (graphicsFrameHandlerFirstSequence != 7u || graphicsFrameHandlerFirstLength != 1102u) return 184;
         if (graphicsFrameHandlerSequence != 8u || graphicsFrameHandlerLength != 1102u) return 184;
+#if TARGET_OS_IPHONE
+        [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        if (!eventDrivenGraphicsView.hasValidFrameData || !eventDrivenMetalView.hasValidFrameData) return 193;
+#endif
         if ([runtime capturedOutputLengthWithError:&error] != 14) return 180;
         if (![runtime hasPermissionRequestWithError:&error]) return 181;
         NSNumber* permissionSequence = [runtime permissionRequestSequenceWithError:&error];

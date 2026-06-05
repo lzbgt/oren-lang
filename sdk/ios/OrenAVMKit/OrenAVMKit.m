@@ -89,19 +89,25 @@ static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSockets;
     NSMutableDictionary<NSNumber*, NSString*>* _networkSessionKinds;
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSessionByteCounts;
-	uint32_t _nextNetworkSessionId;
-	BOOL _runInProgress;
-	OrenAVMGraphicsFrameHandler _graphicsFrameHandler;
+    uint32_t _nextNetworkSessionId;
+    BOOL _runInProgress;
+    OrenAVMGraphicsFrameHandler _graphicsFrameHandler;
+    NSMutableDictionary<NSUUID*, id>* _graphicsFrameObservers;
 }
 
 static void OrenAVMRuntimeGraphicsFramePublished(void* userData, uint32_t sequence, size_t len) {
-	if (!userData) return;
-	OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
-	OrenAVMGraphicsFrameHandler handler = nil;
-	@synchronized (runtime) {
-		handler = [runtime->_graphicsFrameHandler copy];
-	}
-	if (handler) handler(sequence, (NSUInteger)len);
+    if (!userData) return;
+    OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
+    OrenAVMGraphicsFrameHandler handler = nil;
+    NSArray* observers = nil;
+    @synchronized (runtime) {
+        handler = [runtime->_graphicsFrameHandler copy];
+        observers = [runtime->_graphicsFrameObservers.allValues copy];
+    }
+    if (handler) handler(sequence, (NSUInteger)len);
+    for (OrenAVMGraphicsFrameHandler observer in observers) {
+        observer(sequence, (NSUInteger)len);
+    }
 }
 
 static uint32_t OrenAVMRuntimeRegisterNetworkSession(OrenAVMRuntime* runtime, int fd, NSString* kind) {
@@ -762,6 +768,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     _networkSockets = [NSMutableDictionary dictionary];
     _networkSessionKinds = [NSMutableDictionary dictionary];
     _networkSessionByteCounts = [NSMutableDictionary dictionary];
+    _graphicsFrameObservers = [NSMutableDictionary dictionary];
     _nextNetworkSessionId = 0;
     if (effective.liveNetworkEnabled) {
         _liveNetworkAllowedHosts = [effective.liveNetworkAllowedHosts copy];
@@ -786,36 +793,62 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
 }
 
 - (void)dealloc {
-	if (_handle) avm_embed_set_gfx_frame_callback(_handle, NULL, NULL, NULL);
-	@synchronized (self) {
-		for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
-		[_networkSockets removeAllObjects];
+    if (_handle) avm_embed_set_gfx_frame_callback(_handle, NULL, NULL, NULL);
+    @synchronized (self) {
+        for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
+        [_networkSockets removeAllObjects];
         [_networkSessionKinds removeAllObjects];
         [_networkSessionByteCounts removeAllObjects];
     }
     [_networkSession invalidateAndCancel];
-	if (_handle) avm_embed_close(_handle);
+    if (_handle) avm_embed_close(_handle);
 }
 
 - (AvmEmbedHandle*)handle {
-	return _handle;
+    return _handle;
 }
 
 - (void)setGraphicsFrameHandler:(OrenAVMGraphicsFrameHandler)graphicsFrameHandler {
-	@synchronized (self) {
-		_graphicsFrameHandler = [graphicsFrameHandler copy];
-	}
-	AvmEmbedResult result;
-	(void)avm_embed_set_gfx_frame_callback(_handle,
-	                                       graphicsFrameHandler ? OrenAVMRuntimeGraphicsFramePublished : NULL,
-	                                       graphicsFrameHandler ? (__bridge void*)self : NULL,
-	                                       &result);
+    @synchronized (self) {
+        _graphicsFrameHandler = [graphicsFrameHandler copy];
+    }
+    [self orenRefreshGraphicsFrameCallback];
+}
+
+- (void)orenRefreshGraphicsFrameCallback {
+    BOOL enabled = NO;
+    @synchronized (self) {
+        enabled = _graphicsFrameHandler != nil || _graphicsFrameObservers.count > 0;
+    }
+    AvmEmbedResult result;
+    (void)avm_embed_set_gfx_frame_callback(_handle,
+                                           enabled ? OrenAVMRuntimeGraphicsFramePublished : NULL,
+                                           enabled ? (__bridge void*)self : NULL,
+                                           &result);
 }
 
 - (OrenAVMGraphicsFrameHandler)graphicsFrameHandler {
-	@synchronized (self) {
-		return [_graphicsFrameHandler copy];
-	}
+    @synchronized (self) {
+        return [_graphicsFrameHandler copy];
+    }
+}
+
+- (id)addGraphicsFrameHandler:(OrenAVMGraphicsFrameHandler)handler {
+    if (!handler) return nil;
+    NSUUID* token = [NSUUID UUID];
+    @synchronized (self) {
+        _graphicsFrameObservers[token] = [handler copy];
+    }
+    [self orenRefreshGraphicsFrameCallback];
+    return token;
+}
+
+- (void)removeGraphicsFrameHandler:(id)token {
+    if (!token) return;
+    @synchronized (self) {
+        [_graphicsFrameObservers removeObjectForKey:token];
+    }
+    [self orenRefreshGraphicsFrameCallback];
 }
 
 - (BOOL)beginExclusiveRunWithError:(NSError**)error {

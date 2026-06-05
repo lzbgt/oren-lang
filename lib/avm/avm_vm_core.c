@@ -146,6 +146,7 @@ AvmVM* avm_new() {
     vm->gfx_frame_sequence = 0;
     vm->gfx_frame_fn = NULL;
     vm->gfx_frame_user_data = NULL;
+    avm_mutex_init(&vm->gfx_frame_mutex);
     vm->gfx_input_queue = NULL;
     vm->gfx_screen_available = 0;
     vm->gfx_screen_id = 0;
@@ -268,7 +269,13 @@ void avm_free(AvmVM* vm) {
     if (vm->stack_base) free(vm->stack_base);
     if (vm->break_pcs) free(vm->break_pcs);
     if (vm->stdout_capture) free(vm->stdout_capture);
+    avm_mutex_lock(&vm->gfx_frame_mutex);
     if (vm->gfx_frame_data) free(vm->gfx_frame_data);
+    vm->gfx_frame_data = NULL;
+    vm->gfx_frame_len = 0;
+    vm->gfx_frame_sequence = 0;
+    avm_mutex_unlock(&vm->gfx_frame_mutex);
+    avm_mutex_destroy(&vm->gfx_frame_mutex);
     if (vm->permission_request_data) free(vm->permission_request_data);
     if (vm->host_event_queue) {
         AvmHostEventQueue* q = (AvmHostEventQueue*)vm->host_event_queue;
