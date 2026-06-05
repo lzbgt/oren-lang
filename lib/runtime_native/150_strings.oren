@@ -81,11 +81,7 @@ fn oren_intern_cstr(cstr_ptr) {
     var out = malloc_k(iadd(n, 1), 1)
     if out == 0 { oren_panic("intern_cstr: malloc failed") }
 
-    var i = 0
-    while i < n {
-        ptr_set_byte(iadd(out, i), ptr_get_byte(iadd(cstr_ptr, i)))
-        i = iadd(i, 1)
-    }
+    if n > 0 { oren_memcpy(out, cstr_ptr, n) }
     ptr_set_byte(iadd(out, n), 0)
 
     // Cache and return.
@@ -370,11 +366,7 @@ fn oren_string_slice(s, start, end) {
     var out = malloc_k(iadd(n, 1), 1)
     if out == 0 { return 0 }
     var src = iadd(s, i)
-    var k = 0
-    while k < n {
-        ptr_set_byte(iadd(out, k), ptr_get_byte(iadd(src, k)))
-        k = iadd(k, 1)
-    }
+    oren_memcpy(out, src, n)
     ptr_set_byte(iadd(out, n), 0)
     return out
 }
@@ -403,11 +395,7 @@ fn oren_string_slice_unchecked(s, start, end) {
     var out = malloc_k(iadd(n, 1), 1)
     if out == 0 { return 0 }
     var src = iadd(s, i)
-    var k = 0
-    while k < n {
-        ptr_set_byte(iadd(out, k), ptr_get_byte(iadd(src, k)))
-        k = iadd(k, 1)
-    }
+    oren_memcpy(out, src, n)
     ptr_set_byte(iadd(out, n), 0)
     return out
 }

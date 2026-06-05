@@ -175,7 +175,8 @@ This file is the concise task view. Detailed implementation status lives in
      string/prefix encoding, AST binary v1 full-value raw writes, bytecode string
      constants, native Mach-O/ELF object string payloads, runtime-object
      debug-name blobs, x64 native debug-table names, ARM64 native panic-message
-     payloads, shared compiler byte-builder append/list/string/set stores, C
+     payloads, native runtime string concat/intern/slice copies through
+     `oren_memcpy`, shared compiler byte-builder append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`, `std:strings` byte roundtrips,
      `std:bytes.copy_into` u8-buffer destinations, native byte-order writes,

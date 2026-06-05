@@ -421,17 +421,8 @@ fn string_concat(a, b) {
     var buf = malloc(la + lb + 1)
     if buf == 0 { exit(301) }
     
-    var i = 0
-    while i < la {
-        ptr_set_byte(buf + i, ptr_get_byte(a + i))
-        i = i + 1
-    }
-    
-    var j = 0
-    while j < lb {
-        ptr_set_byte(buf + la + j, ptr_get_byte(b + j))
-        j = j + 1
-    }
+    if la > 0 { oren_memcpy(buf, a, la) }
+    if lb > 0 { oren_memcpy(buf + la, b, lb) }
     ptr_set_byte(buf + la + lb, 0)
     oren_track_alloc(buf, la + lb + 1, 1)
     return buf
