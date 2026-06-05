@@ -65,7 +65,10 @@ This file is the concise task view. Detailed implementation status lives in
      Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
      when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
-     seed probes.
+     seed probes. The ARM64 Linux Docker NET leg still keeps the 10s stage1 hang
+     guard, but uses a 900s stage2 cross-build floor because active self-hosted
+     Linux NET/HTTP2 fixture compiles exceeded both the generic 120s stage2
+     floor and a 300s trial on the primary dev host.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.

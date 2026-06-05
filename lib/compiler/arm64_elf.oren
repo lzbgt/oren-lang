@@ -6,6 +6,25 @@ fn _elf_decode_rtobj_int_enc(enc) {
     return enc - 1
 }
 
+fn _elf_read_u64_le_u8(ub, off) {
+    if ub == nil { return nil }
+    if oren_is_u8_buf(ub) != true { return nil }
+    if off < 0 { return nil }
+    var n = oren_buf_len(ub)
+    if off + 7 >= n { return nil }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return nil }
+    var b0 = ptr_get_byte(iadd(p, off + 0)) & 255
+    var b1 = ptr_get_byte(iadd(p, off + 1)) & 255
+    var b2 = ptr_get_byte(iadd(p, off + 2)) & 255
+    var b3 = ptr_get_byte(iadd(p, off + 3)) & 255
+    var b4 = ptr_get_byte(iadd(p, off + 4)) & 255
+    var b5 = ptr_get_byte(iadd(p, off + 5)) & 255
+    var b6 = ptr_get_byte(iadd(p, off + 6)) & 255
+    var b7 = ptr_get_byte(iadd(p, off + 7)) & 255
+    return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216 + b4 * 4294967296 + b5 * 1099511627776 + b6 * 281474976710656 + b7 * 72057594037927936
+}
+
 fn elf_diag_escape(msg) {
     if msg == nil { return "" }
     var out = ""
@@ -977,6 +996,9 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var data = ctx["data"]
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
+    var rtobj_fixups_compact = ctx["runtime_fixups_compact"]
+    var rtobj_fixups_compact_u8 = ctx["runtime_fixups_compact_u8"]
+    var rtobj_fixups = ctx["runtime_fixups_enc"]
     
     // Generate stubs for unresolved imports.
     //
@@ -1151,6 +1173,195 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         data = ctx["data"]
     }
 
+    var rtobj_fix_base = ctx["rtobj_fixups_base_code"]
+    if rtobj_fix_base == nil { rtobj_fix_base = 0 }
+    var text_vmaddr_base = base + hdr_size
+    var rtobj_i = 0
+    if rtobj_fixups_compact != nil {
+        var bl_poss = rtobj_fixups_compact["bl_pos_enc"]
+        var bl_names = rtobj_fixups_compact["bl_name"]
+        var bl_poss_u8 = nil
+        var bl_target_u8 = nil
+        if rtobj_fixups_compact_u8 != nil {
+            bl_poss_u8 = rtobj_fixups_compact_u8["bl_pos_u8"]
+            bl_target_u8 = rtobj_fixups_compact_u8["bl_target_u8"]
+        }
+        var bl_n = 0
+        if bl_poss != nil { bl_n = oren_list_len(bl_poss) }
+        rtobj_i = 0
+        while bl_poss != nil && rtobj_i < bl_n {
+            var pos_bl = 0
+            if bl_poss_u8 != nil { pos_bl = rtobj_fix_base + _elf_read_u64_le_u8(bl_poss_u8, rtobj_i * 8) }
+            else { pos_bl = rtobj_fix_base + _elf_decode_rtobj_int_enc(bl_poss[rtobj_i]) }
+            var target_bl = nil
+            var name_bl = nil
+            if bl_target_u8 != nil {
+                var target_bl_enc = _elf_read_u64_le_u8(bl_target_u8, rtobj_i * 8)
+                if target_bl_enc > 0 {
+                    target_bl = ctx["rtobj_functions_base_code"] + (target_bl_enc - 1)
+                }
+            }
+            if target_bl == nil {
+                name_bl = bl_names[rtobj_i]
+                target_bl = core.arm64_lookup_function(ctx, name_bl)
+            }
+            if target_bl == nil {
+                var e_bl = "native backend: undefined function " + name_bl
+                print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e_bl))
+                print(e_bl)
+                oren_exit(1)
+            }
+            var offset_bl = (target_bl - pos_bl) / 4
+            set_u32_le(code, pos_bl, insn_bl(offset_bl))
+            rtobj_i = rtobj_i + 1
+        }
+
+        var adr_data_poss = rtobj_fixups_compact["adr_data_pos_enc"]
+        var adr_data_offs = rtobj_fixups_compact["adr_data_data_off_enc"]
+        var adr_data_regs = rtobj_fixups_compact["adr_data_reg_enc"]
+        var adr_data_poss_u8 = nil
+        var adr_data_offs_u8 = nil
+        var adr_data_regs_u8 = nil
+        if rtobj_fixups_compact_u8 != nil {
+            adr_data_poss_u8 = rtobj_fixups_compact_u8["adr_data_pos_u8"]
+            adr_data_offs_u8 = rtobj_fixups_compact_u8["adr_data_data_off_u8"]
+            adr_data_regs_u8 = rtobj_fixups_compact_u8["adr_data_reg_u8"]
+        }
+        var adr_data_n = 0
+        if adr_data_poss != nil { adr_data_n = oren_list_len(adr_data_poss) }
+        rtobj_i = 0
+        while adr_data_poss != nil && rtobj_i < adr_data_n {
+            var pos_ad = 0
+            if adr_data_poss_u8 != nil { pos_ad = rtobj_fix_base + _elf_read_u64_le_u8(adr_data_poss_u8, rtobj_i * 8) }
+            else { pos_ad = rtobj_fix_base + _elf_decode_rtobj_int_enc(adr_data_poss[rtobj_i]) }
+            var data_off_ad = 0
+            if adr_data_offs_u8 != nil { data_off_ad = _elf_read_u64_le_u8(adr_data_offs_u8, rtobj_i * 8) }
+            else { data_off_ad = _elf_decode_rtobj_int_enc(adr_data_offs[rtobj_i]) }
+            var target_addr_ad = base + data_file_off + data_off_ad
+            var pc_ad = text_vmaddr_base + pos_ad
+            var pc_page_ad = pc_ad - int_mod(pc_ad, 4096)
+            var target_page_ad = target_addr_ad - int_mod(target_addr_ad, 4096)
+            var delta_pages_ad = (target_page_ad - pc_page_ad) / 4096
+            var page_off_ad = int_mod(target_addr_ad, 4096)
+            var reg_ad = 0
+            if adr_data_regs_u8 != nil { reg_ad = _elf_read_u64_le_u8(adr_data_regs_u8, rtobj_i * 8) }
+            else {
+                var reg_ad_dec = _elf_decode_rtobj_int_enc(adr_data_regs[rtobj_i])
+                if reg_ad_dec != nil { reg_ad = reg_ad_dec }
+            }
+            set_u32_le(code, pos_ad, insn_adrp(reg_ad, delta_pages_ad))
+            set_u32_le(code, pos_ad + 4, insn_add_imm(reg_ad, reg_ad, page_off_ad))
+            rtobj_i = rtobj_i + 1
+        }
+
+        var adr_code_poss = rtobj_fixups_compact["adr_code_pos_enc"]
+        var adr_code_names = rtobj_fixups_compact["adr_code_name"]
+        var adr_code_regs = rtobj_fixups_compact["adr_code_reg_enc"]
+        var adr_code_poss_u8 = nil
+        var adr_code_target_u8 = nil
+        var adr_code_regs_u8 = nil
+        if rtobj_fixups_compact_u8 != nil {
+            adr_code_poss_u8 = rtobj_fixups_compact_u8["adr_code_pos_u8"]
+            adr_code_target_u8 = rtobj_fixups_compact_u8["adr_code_target_u8"]
+            adr_code_regs_u8 = rtobj_fixups_compact_u8["adr_code_reg_u8"]
+        }
+        var adr_code_n = 0
+        if adr_code_poss != nil { adr_code_n = oren_list_len(adr_code_poss) }
+        rtobj_i = 0
+        while adr_code_poss != nil && rtobj_i < adr_code_n {
+            var pos_ac = 0
+            if adr_code_poss_u8 != nil { pos_ac = rtobj_fix_base + _elf_read_u64_le_u8(adr_code_poss_u8, rtobj_i * 8) }
+            else { pos_ac = rtobj_fix_base + _elf_decode_rtobj_int_enc(adr_code_poss[rtobj_i]) }
+            var target_ac = nil
+            var name_ac = nil
+            if adr_code_target_u8 != nil {
+                var target_ac_enc = _elf_read_u64_le_u8(adr_code_target_u8, rtobj_i * 8)
+                if target_ac_enc > 0 {
+                    target_ac = ctx["rtobj_functions_base_code"] + (target_ac_enc - 1)
+                }
+            }
+            if target_ac == nil {
+                name_ac = adr_code_names[rtobj_i]
+                target_ac = core.arm64_lookup_function(ctx, name_ac)
+            }
+            if target_ac == nil {
+                var e_ac = "native backend: undefined function " + name_ac
+                print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e_ac))
+                print(e_ac)
+                oren_exit(1)
+            }
+            var reg_ac = 0
+            if adr_code_regs_u8 != nil { reg_ac = _elf_read_u64_le_u8(adr_code_regs_u8, rtobj_i * 8) }
+            else {
+                var reg_ac_dec = _elf_decode_rtobj_int_enc(adr_code_regs[rtobj_i])
+                if reg_ac_dec != nil { reg_ac = reg_ac_dec }
+            }
+            var target_addr_ac = text_vmaddr_base + target_ac
+            var pc_ac = text_vmaddr_base + pos_ac
+            var pc_page_ac = pc_ac - int_mod(pc_ac, 4096)
+            var target_page_ac = target_addr_ac - int_mod(target_addr_ac, 4096)
+            var delta_pages_ac = (target_page_ac - pc_page_ac) / 4096
+            var page_off_ac = int_mod(target_addr_ac, 4096)
+            set_u32_le(code, pos_ac, insn_adrp(reg_ac, delta_pages_ac))
+            set_u32_le(code, pos_ac + 4, insn_add_imm(reg_ac, reg_ac, page_off_ac))
+            rtobj_i = rtobj_i + 1
+        }
+    } else if rtobj_fixups != nil {
+        while rtobj_i < oren_list_len(rtobj_fixups) {
+            var fix_rt = rtobj_fixups[rtobj_i]
+            var pos_rt = rtobj_fix_base + _elf_decode_rtobj_int_enc(fix_rt["pos"])
+
+            if fix_rt["type"] == "bl" {
+                var name_rt = fix_rt["name"]
+                var target_rt = core.arm64_lookup_function(ctx, name_rt)
+                if target_rt == nil {
+                    var e_rt = "native backend: undefined function " + name_rt
+                    print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e_rt))
+                    print(e_rt)
+                    oren_exit(1)
+                }
+                var offset_rt = (target_rt - pos_rt) / 4
+                set_u32_le(code, pos_rt, insn_bl(offset_rt))
+            }
+
+            if fix_rt["type"] == "adr_data" {
+                var data_off_rt = _elf_decode_rtobj_int_enc(fix_rt["data_off"])
+                var target_addr_rt = base + data_file_off + data_off_rt
+                var pc_rt = text_vmaddr_base + pos_rt
+                var pc_page_rt = pc_rt - int_mod(pc_rt, 4096)
+                var target_page_rt = target_addr_rt - int_mod(target_addr_rt, 4096)
+                var delta_pages_rt = (target_page_rt - pc_page_rt) / 4096
+                var page_off_rt = int_mod(target_addr_rt, 4096)
+                var reg_rt = _elf_decode_rtobj_int_enc(fix_rt["reg"])
+                if reg_rt == nil { reg_rt = 0 }
+                set_u32_le(code, pos_rt, insn_adrp(reg_rt, delta_pages_rt))
+                set_u32_le(code, pos_rt + 4, insn_add_imm(reg_rt, reg_rt, page_off_rt))
+            }
+
+            if fix_rt["type"] == "adr_code" {
+                var name_rt2 = fix_rt["name"]
+                var target_rt2 = core.arm64_lookup_function(ctx, name_rt2)
+                if target_rt2 == nil {
+                    var e_rt2 = "native backend: undefined function " + name_rt2
+                    print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e_rt2))
+                    print(e_rt2)
+                    oren_exit(1)
+                }
+                var reg_rt2 = _elf_decode_rtobj_int_enc(fix_rt["reg"])
+                if reg_rt2 == nil { reg_rt2 = 0 }
+                var target_addr_rt2 = text_vmaddr_base + target_rt2
+                var pc_rt2 = text_vmaddr_base + pos_rt
+                var pc_page_rt2 = pc_rt2 - int_mod(pc_rt2, 4096)
+                var target_page_rt2 = target_addr_rt2 - int_mod(target_addr_rt2, 4096)
+                var delta_pages_rt2 = (target_page_rt2 - pc_page_rt2) / 4096
+                var page_off_rt2 = int_mod(target_addr_rt2, 4096)
+                set_u32_le(code, pos_rt, insn_adrp(reg_rt2, delta_pages_rt2))
+                set_u32_le(code, pos_rt + 4, insn_add_imm(reg_rt2, reg_rt2, page_off_rt2))
+            }
+            rtobj_i = rtobj_i + 1
+        }
+    }
+
     var i = 0
     while i < oren_list_len(fixups) {
         var fix = fixups[i]
@@ -1158,7 +1369,7 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         
         if fix["type"] == "bl" {
             var name2 = fix["name"]
-            var target = functions[name2]
+            var target = core.arm64_lookup_function(ctx, name2)
             if target == nil {
                 var e = "native backend: undefined function " + name2
                 print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e))
@@ -1185,7 +1396,7 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
 
         if fix["type"] == "adr_code" {
             var name3 = fix["name"]
-            var target2 = functions[name3]
+            var target2 = core.arm64_lookup_function(ctx, name3)
             if target2 == nil {
                 var e = "native backend: undefined function " + name3
                 print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e))

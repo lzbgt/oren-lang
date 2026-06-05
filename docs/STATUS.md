@@ -59,7 +59,11 @@ Facts from the 2026-05-28 implementation pass:
   stage2 cross-target cold builds while still checking stage2 x64 fixture output.
   Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
   missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
-  spending minutes in repeated stage2 cold seed probes.
+  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
+  leg of the native NET matrix keeps the 10s stage1 hang guard but uses a 900s
+  stage2 cross-build floor because active cross-target self-hosted NET/HTTP2
+  fixture compiles exceeded both the generic 120s stage2 floor and a 300s trial
+  on the primary dev host.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:
