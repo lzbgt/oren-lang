@@ -64,11 +64,11 @@ fn _slice(bs, start, end) {
 }
 
 fn _starts(bs, pos, lit) {
-    var lb = oren_bytes_from_string(lit)
-    if pos + list.len(lb) > _len(bs) { return false }
+    var n = oren_string_len(lit)
+    if pos + n > _len(bs) { return false }
     var i = 0
-    while i < list.len(lb) {
-        if bs[pos + i] != lb[i] { return false }
+    while i < n {
+        if bs[pos + i] != (oren_string_byte_at_unchecked(lit, i) & 255) { return false }
         i = i + 1
     }
     return true
@@ -80,8 +80,9 @@ fn _skip_ws(bs, pos) {
 }
 
 fn _skip_until(bs, pos, lit) {
+    var n = oren_string_len(lit)
     while pos < _len(bs) {
-        if _starts(bs, pos, lit) { return pos + list.len(oren_bytes_from_string(lit)) }
+        if _starts(bs, pos, lit) { return pos + n }
         pos = pos + 1
     }
     return pos
@@ -242,12 +243,12 @@ fn read_next(r) {
 
 fn _class_has(classes, want) {
     if classes == nil || want == nil { return false }
-    var bs = oren_bytes_from_string(classes)
+    var n = oren_string_len(classes)
     var start = 0
     var i = 0
-    while i <= list.len(bs) {
-        if i == list.len(bs) || _is_space(bs[i]) {
-            if i > start && _slice(bs, start, i) == want { return true }
+    while i <= n {
+        if i == n || _is_space(oren_string_byte_at_unchecked(classes, i) & 255) {
+            if i > start && oren_string_slice(classes, start, i) == want { return true }
             start = i + 1
         }
         i = i + 1

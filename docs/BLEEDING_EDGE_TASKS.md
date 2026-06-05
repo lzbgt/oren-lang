@@ -142,7 +142,10 @@ This file is the concise task view. Detailed implementation status lives in
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      Huffman string encode/decode and full header-block encoding now write
      exact-size `u8_buf` payloads, and PEM/Base64 body handling avoids
-     materializing Oren byte lists.
+     materializing Oren byte lists. `std:strings` prefix/suffix/search/equality
+     and trim helpers now use direct string byte reads/slices, while XML/HTML
+     parser literal matching and class-selector scans no longer allocate
+     repeated byte lists for syntax tokens.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
 	     `buf.matrix(2, 3).row(1).text()` without explicit local annotations

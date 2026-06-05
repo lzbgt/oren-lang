@@ -208,7 +208,10 @@
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     Huffman string encode/decode and full header-block encoding now write</p>
 <p>     exact-size <code>u8_buf</code> payloads, and PEM/Base64 body handling avoids</p>
-<p>     materializing Oren byte lists.</p>
+<p>     materializing Oren byte lists. <code>std:strings</code> prefix/suffix/search/equality</p>
+<p>     and trim helpers now use direct string byte reads/slices, while XML/HTML</p>
+<p>     parser literal matching and class-selector scans no longer allocate</p>
+<p>     repeated byte lists for syntax tokens.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
 <p>	     <code>buf.matrix(2, 3).row(1).text()</code> without explicit local annotations</p>

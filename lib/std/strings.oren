@@ -1,5 +1,3 @@
-import list "std:list"
-
 // Basic wrappers around string intrinsics to avoid direct `oren_*` usage in user code.
 // Public verbs are checked and return `value | oren_err`; raw intrinsic access stays private.
 fn _len_raw(s) { return oren_string_len(s) }
@@ -7,6 +5,8 @@ fn _len_raw(s) { return oren_string_len(s) }
 fn _char_at_raw(s, i) { return oren_string_char_at(s, i) }
 
 fn _slice_raw(s, start, end) { return oren_string_slice(s, start, end) }
+
+fn _byte_at_raw(s, i) { return oren_string_byte_at_unchecked(s, i) & 255 }
 
 fn to_bytes(s) { return oren_bytes_from_string(s) }
 
@@ -107,14 +107,12 @@ fn trim(s) {
 
 fn _starts_with_raw(s, prefix) {
     if s == nil || prefix == nil { return false }
-    var sb = oren_bytes_from_string(s)
-    var pb = oren_bytes_from_string(prefix)
-    var sl = list.len(sb)
-    var pl = list.len(pb)
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
     if sl < pl { return false }
     var i = 0
     while i < pl {
-        if sb[i] != pb[i] { return false }
+        if _byte_at_raw(s, i) != _byte_at_raw(prefix, i) { return false }
         i = i + 1
     }
     return true
@@ -122,14 +120,12 @@ fn _starts_with_raw(s, prefix) {
 
 fn _ends_with_raw(s, suffix) {
     if s == nil || suffix == nil { return false }
-    var sb = oren_bytes_from_string(s)
-    var pb = oren_bytes_from_string(suffix)
-    var sl = list.len(sb)
-    var pl = list.len(pb)
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(suffix)
     if sl < pl { return false }
     var i = 0
     while i < pl {
-        if sb[(sl - pl) + i] != pb[i] { return false }
+        if _byte_at_raw(s, (sl - pl) + i) != _byte_at_raw(suffix, i) { return false }
         i = i + 1
     }
     return true
@@ -142,10 +138,8 @@ fn _contains_raw(s, sub) {
 
 fn _index_of_raw(s, sub) {
     if s == nil || sub == nil { return -1 }
-    var sb = oren_bytes_from_string(s)
-    var pb = oren_bytes_from_string(sub)
-    var sl = list.len(sb)
-    var pl = list.len(pb)
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(sub)
     if pl == 0 { return 0 }
     if sl < pl { return -1 }
     var i = 0
@@ -153,7 +147,7 @@ fn _index_of_raw(s, sub) {
         var j = 0
         var ok = 1
         while j < pl {
-            if sb[i + j] != pb[j] { ok = 0; break }
+            if _byte_at_raw(s, i + j) != _byte_at_raw(sub, j) { ok = 0; break }
             j = j + 1
         }
         if ok == 1 { return i }
@@ -164,14 +158,12 @@ fn _index_of_raw(s, sub) {
 
 fn _streq_raw(a, b) {
     if a == nil || b == nil { return false }
-    var ab = oren_bytes_from_string(a)
-    var bb = oren_bytes_from_string(b)
-    var al = list.len(ab)
-    var bl = list.len(bb)
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     if al != bl { return false }
     var i = 0
     while i < al {
-        if ab[i] != bb[i] { return false }
+        if _byte_at_raw(a, i) != _byte_at_raw(b, i) { return false }
         i = i + 1
     }
     return true
@@ -179,28 +171,19 @@ fn _streq_raw(a, b) {
 
 fn _trim_raw(s) {
     if s == nil { return nil }
-    // Cross-backend: avoid relying on `oren_string_char_at` representation differences.
-    // Normalize by trimming based on byte codes from `oren_bytes_from_string`.
-    var bs = oren_bytes_from_string(s)
-    var n = list.len(bs)
+    var n = oren_string_len(s)
     var i = 0
     while i < n {
-        var b = bs[i]
+        var b = _byte_at_raw(s, i)
         if !(b == 32 || b == 9 || b == 10 || b == 13) { break }
         i = i + 1
     }
     var j = n
     while j > i {
-        var b2 = bs[j - 1]
+        var b2 = _byte_at_raw(s, j - 1)
         if !(b2 == 32 || b2 == 9 || b2 == 10 || b2 == 13) { break }
         j = j - 1
     }
     if i == 0 && j == n { return s }
-    var out_bytes = []
-    var k = i
-    while k < j {
-        list.push(out_bytes, bs[k])
-        k = k + 1
-    }
-    return oren_string_from_bytes(out_bytes)
+    return _slice_raw(s, i, j)
 }
