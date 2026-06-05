@@ -122,6 +122,12 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.references(p.TextDocument.URI, p.Position, p.Context.IncludeDeclaration)})
+	case "textDocument/semanticTokens/full":
+		var p textDocumentOnlyParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: semanticTokens(s.docs[p.TextDocument.URI])})
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -169,6 +175,14 @@ func initializeResult() map[string]any {
 			"definitionProvider":     true,
 			"hoverProvider":          true,
 			"referencesProvider":     true,
+			"semanticTokensProvider": map[string]any{
+				"legend": map[string]any{
+					"tokenTypes":     semanticTokenTypes,
+					"tokenModifiers": semanticTokenModifiers,
+				},
+				"full":  true,
+				"range": false,
+			},
 		},
 		"serverInfo": map[string]any{
 			"name":    "oren-lsp",
@@ -204,6 +218,12 @@ type textDocumentParams struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
 	Position position `json:"position"`
+}
+
+type textDocumentOnlyParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
 }
 
 type referenceParams struct {

@@ -48,6 +48,13 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	if caps["referencesProvider"] != true {
 		t.Fatalf("missing referencesProvider capability: %#v", caps)
 	}
+	semanticProvider, ok := caps["semanticTokensProvider"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing semanticTokensProvider capability: %#v", caps)
+	}
+	legend := semanticProvider["legend"].(map[string]any)
+	assertStringList(t, legend["tokenTypes"].([]any), semanticTokenTypes)
+	assertStringList(t, legend["tokenModifiers"].([]any), semanticTokenModifiers)
 }
 
 func TestServerPublishesDiagnosticsOnDidOpenAndDidChange(t *testing.T) {
@@ -625,6 +632,65 @@ func TestServerHoverAndReferencesUseWorkspaceSymbols(t *testing.T) {
 	})
 }
 
+func TestServerSemanticTokensFullClassifiesSymbols(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"import math \"std:math\"",
+		"var answer = 42",
+		"fn compute() {",
+		"  return answer + 1",
+		"}",
+		"",
+	}, "\n")
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///semantic.oren", "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      19,
+		"method":  "textDocument/semanticTokens/full",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///semantic.oren"},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	result := messageByID(t, msgs, 19)["result"].(map[string]any)
+	got := expandSemanticTokenData(result["data"].([]any))
+	want := []semanticTokenInfo{
+		{Line: 0, Character: 0, Length: 6, Type: semanticTypeIndex("keyword")},
+		{Line: 0, Character: 7, Length: 4, Type: semanticTypeIndex("namespace"), Modifiers: semanticModifierDeclaration},
+		{Line: 0, Character: 12, Length: 10, Type: semanticTypeIndex("string")},
+		{Line: 1, Character: 0, Length: 3, Type: semanticTypeIndex("keyword")},
+		{Line: 1, Character: 4, Length: 6, Type: semanticTypeIndex("variable"), Modifiers: semanticModifierDeclaration},
+		{Line: 1, Character: 11, Length: 1, Type: semanticTypeIndex("operator")},
+		{Line: 1, Character: 13, Length: 2, Type: semanticTypeIndex("number")},
+		{Line: 2, Character: 0, Length: 2, Type: semanticTypeIndex("keyword")},
+		{Line: 2, Character: 3, Length: 7, Type: semanticTypeIndex("function"), Modifiers: semanticModifierDeclaration},
+		{Line: 3, Character: 2, Length: 6, Type: semanticTypeIndex("keyword")},
+		{Line: 3, Character: 9, Length: 6, Type: semanticTypeIndex("variable")},
+		{Line: 3, Character: 16, Length: 1, Type: semanticTypeIndex("operator")},
+		{Line: 3, Character: 18, Length: 1, Type: semanticTypeIndex("number")},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("semantic tokens=%#v want %#v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Fatalf("semantic token[%d]=%#v want %#v; all=%#v", i, got[i], want[i], got)
+		}
+	}
+}
+
 func writeTestMessage(t *testing.T, w *bytes.Buffer, v any) {
 	t.Helper()
 	msg, err := EncodeMessage(v)
@@ -696,6 +762,47 @@ func hasCompletion(items []any, label string, kind float64) bool {
 		}
 	}
 	return false
+}
+
+func assertStringList(t *testing.T, got []any, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("list=%#v want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("list[%d]=%#v want %q; list=%#v", i, got[i], want[i], got)
+		}
+	}
+}
+
+func expandSemanticTokenData(raw []any) []semanticTokenInfo {
+	var out []semanticTokenInfo
+	line := 0
+	character := 0
+	for i := 0; i+4 < len(raw); i += 5 {
+		lineDelta := int(raw[i].(float64))
+		charDelta := int(raw[i+1].(float64))
+		if len(out) == 0 {
+			line = lineDelta
+			character = charDelta
+		} else {
+			line += lineDelta
+			if lineDelta == 0 {
+				character += charDelta
+			} else {
+				character = charDelta
+			}
+		}
+		out = append(out, semanticTokenInfo{
+			Line:      line,
+			Character: character,
+			Length:    int(raw[i+2].(float64)),
+			Type:      int(raw[i+3].(float64)),
+			Modifiers: int(raw[i+4].(float64)),
+		})
+	}
+	return out
 }
 
 func assertDefinition(t *testing.T, defs []any, uri string, line, startChar, endChar float64) {
