@@ -254,6 +254,42 @@ fn oren_bytes_set_u8(bytes, idx, v) {
     return oren_err(4, "bytes_set_u8 expects list<int 0..255> or u8_buf")
 }
 
+fn native_bytes_set_span(bytes, idx, width, b0, b1, b2, b3, b4, b5, b6, b7) {
+    if bytes == 0 { return oren_err(4, "bytes_set_span: bytes is nil") }
+    if idx < 0 { return oren_err(4, "bytes_set_span: index out of bounds") }
+    if native_bytes_is_list(bytes) == true {
+        var count = ptr_get(bytes)
+        if idx + width > count { return oren_err(4, "bytes_set_span: index out of bounds") }
+        var buf = ptr_get(bytes + 16)
+        if buf == 0 { return oren_err(4, "bytes_set_span: list buffer is nil") }
+        if width > 0 { ptr_set(buf + (idx + 0) * 8, b0 & 255) }
+        if width > 1 { ptr_set(buf + (idx + 1) * 8, b1 & 255) }
+        if width > 2 { ptr_set(buf + (idx + 2) * 8, b2 & 255) }
+        if width > 3 { ptr_set(buf + (idx + 3) * 8, b3 & 255) }
+        if width > 4 { ptr_set(buf + (idx + 4) * 8, b4 & 255) }
+        if width > 5 { ptr_set(buf + (idx + 5) * 8, b5 & 255) }
+        if width > 6 { ptr_set(buf + (idx + 6) * 8, b6 & 255) }
+        if width > 7 { ptr_set(buf + (idx + 7) * 8, b7 & 255) }
+        return 0
+    }
+    if native_bytes_is_u8_buf(bytes) == true {
+        var count2 = ptr_get(bytes + 0)
+        if idx + width > count2 { return oren_err(4, "bytes_set_span: index out of bounds") }
+        var data = native_buf_data_ptr(bytes)
+        if data == 0 { return oren_err(4, "bytes_set_span: buf payload is nil") }
+        if width > 0 { ptr_set_byte(data + idx + 0, b0 & 255) }
+        if width > 1 { ptr_set_byte(data + idx + 1, b1 & 255) }
+        if width > 2 { ptr_set_byte(data + idx + 2, b2 & 255) }
+        if width > 3 { ptr_set_byte(data + idx + 3, b3 & 255) }
+        if width > 4 { ptr_set_byte(data + idx + 4, b4 & 255) }
+        if width > 5 { ptr_set_byte(data + idx + 5, b5 & 255) }
+        if width > 6 { ptr_set_byte(data + idx + 6, b6 & 255) }
+        if width > 7 { ptr_set_byte(data + idx + 7, b7 & 255) }
+        return 0
+    }
+    return oren_err(4, "bytes_set_span expects list<int 0..255> or u8_buf")
+}
+
 fn oren_bytes_get_u16_be(bytes, idx) {
     var b0 = oren_bytes_get_u8(bytes, idx)
     if b0 < 0 || b0 > 255 { return b0 }
@@ -287,53 +323,43 @@ fn oren_bytes_get_i16_le(bytes, idx) {
 
 fn oren_bytes_set_u16_be(bytes, idx, v) {
     var u = v & 65535
-    var r0 = oren_bytes_set_u8(bytes, idx, (u >> 8) & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, u & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
+    var rc = native_bytes_set_span(bytes, idx, 2, (u >> 8) & 255, u & 255, 0, 0, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     return u
 }
 
 fn oren_bytes_set_u16_le(bytes, idx, v) {
     var u = v & 65535
-    var r0 = oren_bytes_set_u8(bytes, idx, u & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
+    var rc = native_bytes_set_span(bytes, idx, 2, u & 255, (u >> 8) & 255, 0, 0, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     return u
 }
 
 fn oren_bytes_set_i16_be(bytes, idx, v) {
     var u = v & 65535
-    var r0 = oren_bytes_set_u8(bytes, idx, (u >> 8) & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, u & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
+    var rc = native_bytes_set_span(bytes, idx, 2, (u >> 8) & 255, u & 255, 0, 0, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     if u >= 32768 { return u - 65536 }
     return u
 }
 
 fn oren_bytes_set_i16_le(bytes, idx, v) {
     var u = v & 65535
-    var r0 = oren_bytes_set_u8(bytes, idx, u & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
+    var rc = native_bytes_set_span(bytes, idx, 2, u & 255, (u >> 8) & 255, 0, 0, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     if u >= 32768 { return u - 65536 }
     return u
 }
 
 fn oren_bytes_put_u16_be(bytes, idx, v) {
     if v < 0 || v > 65535 { oren_panic("u16 out of range") }
-    oren_bytes_set_u8(bytes, idx, (v >> 8) & 255)
-    oren_bytes_set_u8(bytes, idx + 1, v & 255)
+    native_bytes_set_span(bytes, idx, 2, (v >> 8) & 255, v & 255, 0, 0, 0, 0, 0, 0)
     return bytes
 }
 
 fn oren_bytes_put_u16_le(bytes, idx, v) {
     if v < 0 || v > 65535 { oren_panic("u16 out of range") }
-    oren_bytes_set_u8(bytes, idx, v & 255)
-    oren_bytes_set_u8(bytes, idx + 1, (v >> 8) & 255)
+    native_bytes_set_span(bytes, idx, 2, v & 255, (v >> 8) & 255, 0, 0, 0, 0, 0, 0)
     return bytes
 }
 
@@ -375,54 +401,30 @@ fn oren_bytes_get_i32_le(bytes, idx) {
 
 fn oren_bytes_set_u32_be(bytes, idx, v) {
     var u = v & 4294967295
-    var r0 = oren_bytes_set_u8(bytes, idx, (u >> 24) & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (u >> 16) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
-    var r2 = oren_bytes_set_u8(bytes, idx + 2, (u >> 8) & 255)
-    if r2 < 0 || r2 > 255 { return r2 }
-    var r3 = oren_bytes_set_u8(bytes, idx + 3, u & 255)
-    if r3 < 0 || r3 > 255 { return r3 }
+    var rc = native_bytes_set_span(bytes, idx, 4, (u >> 24) & 255, (u >> 16) & 255, (u >> 8) & 255, u & 255, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     return u
 }
 
 fn oren_bytes_set_u32_le(bytes, idx, v) {
     var u = v & 4294967295
-    var r0 = oren_bytes_set_u8(bytes, idx, u & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
-    var r2 = oren_bytes_set_u8(bytes, idx + 2, (u >> 16) & 255)
-    if r2 < 0 || r2 > 255 { return r2 }
-    var r3 = oren_bytes_set_u8(bytes, idx + 3, (u >> 24) & 255)
-    if r3 < 0 || r3 > 255 { return r3 }
+    var rc = native_bytes_set_span(bytes, idx, 4, u & 255, (u >> 8) & 255, (u >> 16) & 255, (u >> 24) & 255, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     return u
 }
 
 fn oren_bytes_set_i32_be(bytes, idx, v) {
     var u = v & 4294967295
-    var r0 = oren_bytes_set_u8(bytes, idx, (u >> 24) & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (u >> 16) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
-    var r2 = oren_bytes_set_u8(bytes, idx + 2, (u >> 8) & 255)
-    if r2 < 0 || r2 > 255 { return r2 }
-    var r3 = oren_bytes_set_u8(bytes, idx + 3, u & 255)
-    if r3 < 0 || r3 > 255 { return r3 }
+    var rc = native_bytes_set_span(bytes, idx, 4, (u >> 24) & 255, (u >> 16) & 255, (u >> 8) & 255, u & 255, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     if u >= 2147483648 { return u - 4294967296 }
     return u
 }
 
 fn oren_bytes_set_i32_le(bytes, idx, v) {
     var u = v & 4294967295
-    var r0 = oren_bytes_set_u8(bytes, idx, u & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
-    var r2 = oren_bytes_set_u8(bytes, idx + 2, (u >> 16) & 255)
-    if r2 < 0 || r2 > 255 { return r2 }
-    var r3 = oren_bytes_set_u8(bytes, idx + 3, (u >> 24) & 255)
-    if r3 < 0 || r3 > 255 { return r3 }
+    var rc = native_bytes_set_span(bytes, idx, 4, u & 255, (u >> 8) & 255, (u >> 16) & 255, (u >> 24) & 255, 0, 0, 0, 0)
+    if oren_is_err(rc) { return rc }
     if u >= 2147483648 { return u - 4294967296 }
     return u
 }
@@ -478,42 +480,14 @@ fn oren_bytes_get_i64_le(bytes, idx) {
 }
 
 fn oren_bytes_set_u64_be(bytes, idx, v) {
-    var r0 = oren_bytes_set_u8(bytes, idx, (v >> 56) & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (v >> 48) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
-    var r2 = oren_bytes_set_u8(bytes, idx + 2, (v >> 40) & 255)
-    if r2 < 0 || r2 > 255 { return r2 }
-    var r3 = oren_bytes_set_u8(bytes, idx + 3, (v >> 32) & 255)
-    if r3 < 0 || r3 > 255 { return r3 }
-    var r4 = oren_bytes_set_u8(bytes, idx + 4, (v >> 24) & 255)
-    if r4 < 0 || r4 > 255 { return r4 }
-    var r5 = oren_bytes_set_u8(bytes, idx + 5, (v >> 16) & 255)
-    if r5 < 0 || r5 > 255 { return r5 }
-    var r6 = oren_bytes_set_u8(bytes, idx + 6, (v >> 8) & 255)
-    if r6 < 0 || r6 > 255 { return r6 }
-    var r7 = oren_bytes_set_u8(bytes, idx + 7, v & 255)
-    if r7 < 0 || r7 > 255 { return r7 }
+    var rc = native_bytes_set_span(bytes, idx, 8, (v >> 56) & 255, (v >> 48) & 255, (v >> 40) & 255, (v >> 32) & 255, (v >> 24) & 255, (v >> 16) & 255, (v >> 8) & 255, v & 255)
+    if oren_is_err(rc) { return rc }
     return v
 }
 
 fn oren_bytes_set_u64_le(bytes, idx, v) {
-    var r0 = oren_bytes_set_u8(bytes, idx, v & 255)
-    if r0 < 0 || r0 > 255 { return r0 }
-    var r1 = oren_bytes_set_u8(bytes, idx + 1, (v >> 8) & 255)
-    if r1 < 0 || r1 > 255 { return r1 }
-    var r2 = oren_bytes_set_u8(bytes, idx + 2, (v >> 16) & 255)
-    if r2 < 0 || r2 > 255 { return r2 }
-    var r3 = oren_bytes_set_u8(bytes, idx + 3, (v >> 24) & 255)
-    if r3 < 0 || r3 > 255 { return r3 }
-    var r4 = oren_bytes_set_u8(bytes, idx + 4, (v >> 32) & 255)
-    if r4 < 0 || r4 > 255 { return r4 }
-    var r5 = oren_bytes_set_u8(bytes, idx + 5, (v >> 40) & 255)
-    if r5 < 0 || r5 > 255 { return r5 }
-    var r6 = oren_bytes_set_u8(bytes, idx + 6, (v >> 48) & 255)
-    if r6 < 0 || r6 > 255 { return r6 }
-    var r7 = oren_bytes_set_u8(bytes, idx + 7, (v >> 56) & 255)
-    if r7 < 0 || r7 > 255 { return r7 }
+    var rc = native_bytes_set_span(bytes, idx, 8, v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255, (v >> 32) & 255, (v >> 40) & 255, (v >> 48) & 255, (v >> 56) & 255)
+    if oren_is_err(rc) { return rc }
     return v
 }
 
@@ -527,19 +501,13 @@ fn oren_bytes_set_i64_le(bytes, idx, v) {
 
 fn oren_bytes_put_u32_be(bytes, idx, v) {
     if v < 0 || v > 4294967295 { oren_panic("u32 out of range") }
-    oren_bytes_set_u8(bytes, idx, (v >> 24) & 255)
-    oren_bytes_set_u8(bytes, idx + 1, (v >> 16) & 255)
-    oren_bytes_set_u8(bytes, idx + 2, (v >> 8) & 255)
-    oren_bytes_set_u8(bytes, idx + 3, v & 255)
+    native_bytes_set_span(bytes, idx, 4, (v >> 24) & 255, (v >> 16) & 255, (v >> 8) & 255, v & 255, 0, 0, 0, 0)
     return bytes
 }
 
 fn oren_bytes_put_u32_le(bytes, idx, v) {
     if v < 0 || v > 4294967295 { oren_panic("u32 out of range") }
-    oren_bytes_set_u8(bytes, idx, v & 255)
-    oren_bytes_set_u8(bytes, idx + 1, (v >> 8) & 255)
-    oren_bytes_set_u8(bytes, idx + 2, (v >> 16) & 255)
-    oren_bytes_set_u8(bytes, idx + 3, (v >> 24) & 255)
+    native_bytes_set_span(bytes, idx, 4, v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255, 0, 0, 0, 0)
     return bytes
 }
 

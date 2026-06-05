@@ -1,3 +1,5 @@
+import buffer "../../lib/std/buffer.oren"
+
 fn fail(code) {
     print("native bytes_set_endian FAIL " + oren_int_to_string(code))
     exit(code)
@@ -66,6 +68,15 @@ fn main() {
     assert_eq(oren_bytes_get_i64_be(b64n, 0), -2, 79)
     assert_eq(b64n[0], 255, 80)
     assert_eq(b64n[7], 254, 81)
+
+    var ub: []u8 = buffer.u8_new(8)
+    assert_eq(oren_is_err(ub), false, 90)
+    assert_eq(oren_bytes_set_u64_be(ub, 0, 72623859790382856), 72623859790382856, 91)
+    assert_eq(oren_buf_load_u8(ub, 0), 1, 92)
+    assert_eq(oren_buf_load_u8(ub, 7), 8, 93)
+    assert_eq(oren_bytes_set_u64_le(ub, 0, 72623859790382856), 72623859790382856, 94)
+    assert_eq(oren_buf_load_u8(ub, 0), 8, 95)
+    assert_eq(oren_buf_load_u8(ub, 7), 1, 96)
 
     print("native bytes_set_endian OK")
     exit(0)

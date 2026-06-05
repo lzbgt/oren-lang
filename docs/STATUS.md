@@ -532,7 +532,7 @@ Facts from the 2026-05-28 implementation pass:
 		  Base64 directly, and strict decode concatenates body lines through raw
 		  exact-size `u8_buf` writes instead of a byte list. JSON,
 		  YAML, CBOR, Base64, regex, PEM/X509, `std:time` ISO-8601 UTC parsing,
-				  crypto RNG, HPACK, HTTP/2 parser records, UI color parsing, PPM encoding, public
+				  native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing, PPM encoding, public
 			  `std:bytes` helpers, public `std:buffer` facade plus importable
 			  `std:buffer` raw/view/core/numeric/u8-matrix helpers,
 		  public `std:buffer` root/view/matrix helpers
