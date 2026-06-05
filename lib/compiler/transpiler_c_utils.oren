@@ -94,11 +94,16 @@ fn c_ident(name) {
     // Those are valid in the Oren AST but not valid C identifiers.
     if name == nil || name == "" { return "_" }
 
-    var bs = oren_bytes_from_string(name)
-    var out = []
+    var name_len = oren_string_len(name)
+    var out_len = name_len
+    var first = oren_string_byte_at_unchecked(name, 0) & 255
+    if first >= 48 && first <= 57 { out_len = out_len + 1 }
+    var out = oren_u8_buf_new(out_len)
+    if oren_is_err(out) { oren_fail(1, "c_ident: u8_buf alloc failed") }
     var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
+    var j = 0
+    while i < name_len {
+        var b = oren_string_byte_at_unchecked(name, i) & 255
         var ok = 0
         // '_' or A-Z or a-z or 0-9
         if b == 95 { ok = 1 }
@@ -109,13 +114,15 @@ fn c_ident(name) {
 
         // Leading digit is not allowed in C identifiers.
         if i == 0 && b >= 48 && b <= 57 {
-            oren_list_push(out, 95)
+            oren_buf_store_u8(out, j, 95)
+            j = j + 1
         }
-        oren_list_push(out, b)
+        oren_buf_store_u8(out, j, b)
+        j = j + 1
         i = i + 1
     }
 
-    var s = oren_string_from_bytes(out)
+    var s = oren_string_from_bytes_slice(out, 0, j)
     if s == nil || s == "" { s = "_" }
     if is_c_keyword(s) { s = "oren_" + s }
     return s

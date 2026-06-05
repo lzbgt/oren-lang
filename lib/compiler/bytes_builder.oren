@@ -161,17 +161,18 @@ fn bytes_extend_string(b, s) {
     // PERF (native self-hosted compiler):
     // - `oren_bytes_from_string(...)` is efficient in the native runtime, but still allocates a
     //   transient list object.
-    // - Per-byte `bytes_push(...)` loops avoid that list but add builder overhead for every byte.
-    // - This path keeps both costs out of hot emitters like debug-info serialization.
+    // - Grow once, then store directly into the backing u8 buffer; do not treat the Oren string
+    //   value as a raw pointer because native codegen keeps strings as tagged/runtime values.
     if s == nil { return nil }
     var n = oren_string_len(s)
     if n <= 0 { return nil }
     var used = _bytes_len_raw(b)
     _bytes_ensure_capacity(b, used + n)
-    var srcp = s
-    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
-    if dstp == 0 { oren_fail(1, "bytes_extend_string: buf data ptr is nil") }
-    _memcpy8(iadd(dstp, used), srcp, n)
+    var i = 0
+    while i < n {
+        oren_buf_store_u8(b["buf"], used + i, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
     _bytes_set_len_raw(b, used + n)
     return nil
 }

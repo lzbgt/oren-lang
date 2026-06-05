@@ -466,7 +466,8 @@ Facts from the 2026-05-28 implementation pass:
   Compiler source-policy scans, scan-cache line/number parsing, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
   bytecode string constants, OBX string/prefix encoding, AST binary v1 string
-  writing, and native Mach-O/ELF object string payloads now do the same.
+  writing, native Mach-O/ELF object string payloads, runtime-object debug-name
+  blobs, x64 native debug-table names, and C identifier escaping now do the same.
   `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and

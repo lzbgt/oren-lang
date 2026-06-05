@@ -1104,7 +1104,7 @@ fn _rtobj_build_debug_blob_sidecars_from_enc(debug_funcs_enc) {
             bytes.bytes_push_u64_le(end_u8, en - 1)
             var name_len = oren_string_len(nm)
             bytes.bytes_push_u64_le(blob, name_len)
-            bytes.bytes_extend_list(blob, oren_bytes_from_string(nm))
+            bytes.bytes_extend_string(blob, nm)
             _rtobj_align_bytes_8(blob)
             bytes.bytes_push_u64_le(blob, 0)
             bytes.bytes_push_u64_le(blob, 0)

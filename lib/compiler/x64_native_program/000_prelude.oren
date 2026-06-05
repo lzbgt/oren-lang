@@ -28,6 +28,7 @@ fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
 fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
 fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn bytes_extend_u8_buf(b, ubuf) { return core.bytes_extend_u8_buf(b, ubuf) }
+fn bytes_extend_string(b, s) { return core.bytes_extend_string(b, s) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn push_u32_le(b, n) { return core.push_u32_le(b, n) }

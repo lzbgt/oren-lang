@@ -614,9 +614,9 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
             disp = ctx["symtab_display"][nm0]
         }
         if disp == nil { disp = "" }
-        var nb = oren_bytes_from_string(disp)
-        push_u64_le(ctx["data"], oren_list_len(nb))
-        bytes_extend_list(ctx["data"], nb)
+        var nb_len = oren_string_len(disp)
+        push_u64_le(ctx["data"], nb_len)
+        bytes_extend_string(ctx["data"], disp)
         while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
 
         // file (omitted for now)

@@ -18,6 +18,7 @@ fn bytes_extend(b, other) { return bb.bytes_extend(b, other) }
 fn bytes_extend_zeros(b, n) { return bb.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return bb.bytes_extend_list(b, xs) }
 fn bytes_extend_u8_buf(b, ubuf) { return bb.bytes_extend_u8_buf(b, ubuf) }
+fn bytes_extend_string(b, s) { return bb.bytes_extend_string(b, s) }
 
 // --- Instruction scratch pool (Tier‑1 perf) ---
 //

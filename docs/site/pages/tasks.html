@@ -218,8 +218,9 @@
 <p>     scans, scan-cache line/number parsing, C-runtime include scanning,</p>
 <p>     compiler manifest JSON escaping, bytecode metadata payloads, OBX</p>
 <p>     string/prefix encoding, AST binary v1 string writing, bytecode string</p>
-<p>     constants, and native Mach-O/ELF object string payloads now use direct</p>
-<p>     source-string byte reads or builder copies too.</p>
+<p>     constants, native Mach-O/ELF object string payloads, runtime-object</p>
+<p>     debug-name blobs, x64 native debug-table names, and C identifier escaping</p>
+<p>     now use direct source-string byte reads or exact-size buffers too.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>
 <p>     strides, and matrices, so callers can write <code>buf.slice(1, 3).text()</code> and</p>
 <p>	     <code>buf.matrix(2, 3).row(1).text()</code> without explicit local annotations</p>
