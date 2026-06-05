@@ -45,7 +45,11 @@ fn _bytes_len(bs) {
     return oren_list_len(bs)
 }
 
-fn _u8_at(bs, pos) { return oren_bytes_get_u8(bs, pos) & 255 }
+fn _u8_at(bs, pos) {
+    if pos < 0 || pos >= _bytes_len(bs) { return oren_bytes_get_u8(bs, pos) & 255 }
+    if oren_is_u8_buf(bs) == true { return ptr_get_byte(oren_buf_data_ptr_unchecked(bs) + pos) & 255 }
+    return oren_bytes_get_u8(bs, pos) & 255
+}
 
 fn _string_u8_at(s, pos) { return oren_string_byte_at_unchecked(s, pos) & 255 }
 
