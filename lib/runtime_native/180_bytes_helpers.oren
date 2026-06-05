@@ -44,14 +44,19 @@ fn oren_bytes_len(bytes) {
         }
         if len > 0 { oren_memcpy(out, data + start, len) }
     } else {
+        var list_buf = ptr_get(bytes + 16)
+        if list_buf == 0 && len > 0 {
+            free(out)
+            return oren_err(4, "string_from_bytes_slice: list buffer is nil")
+        }
         var i = 0
         while i < len {
-            var b = oren_bytes_get_u8(bytes, start + i)
-            if oren_is_err(b) {
+            var b = ptr_get(list_buf + (start + i) * 8)
+            if b < 0 || b > 255 {
                 free(out)
-                return oren_err(4, "string_from_bytes_slice: byte read failed")
+                return oren_err(4, "string_from_bytes_slice: byte out of range")
             }
-            ptr_set_byte(out + i, b & 255)
+            ptr_set_byte(out + i, b)
             i = i + 1
         }
 	    }
@@ -98,12 +103,14 @@ fn oren_u8_buf_from_bytes_slice(bytes, start, len) {
         return out
     }
 
-    // list<int> slow path
+    // list<int> path: range was validated above, so read backing slots directly.
+    var list_buf = ptr_get(bytes + 16)
+    if list_buf == 0 && len > 0 { return oren_err(4, "u8_buf_from_bytes_slice: list buffer is nil") }
     var i = 0
     while i < len {
-        var b = oren_bytes_get_u8(bytes, start + i)
-        if oren_is_err(b) { return oren_err(4, "u8_buf_from_bytes_slice: byte read failed") }
-        ptr_set_byte(dst + i, b & 255)
+        var b = ptr_get(list_buf + (start + i) * 8)
+        if b < 0 || b > 255 { return oren_err(4, "u8_buf_from_bytes_slice: byte out of range") }
+        ptr_set_byte(dst + i, b)
         i = i + 1
     }
     return out
@@ -182,23 +189,29 @@ fn oren_bytes_unpack(bytes) {
     var n = oren_bytes_len(bytes)
     if oren_is_err(n) { return n }
     var out = oren_new_list(n)
+    var out_buf = ptr_get(out + 16)
+    if out_buf == 0 && n > 0 { return oren_err(8, "bytes_unpack: alloc failed") }
     if native_bytes_is_u8_buf(bytes) == true {
         var data = native_buf_data_ptr(bytes)
         if data == 0 && n > 0 { return oren_err(4, "bytes_unpack: u8_buf payload is nil") }
         var i = 0
         while i < n {
-            oren_list_push(out, ptr_get_byte(data + i) & 255)
+            ptr_set(out_buf + i * 8, ptr_get_byte(data + i) & 255)
             i = i + 1
         }
+        ptr_set(out, n)
         return out
     }
-    var i = 0
-    while i < n {
-        var b = oren_bytes_get_u8(bytes, i)
-        if oren_is_err(b) { return b }
-        oren_list_push(out, b)
-        i = i + 1
+    var list_buf = ptr_get(bytes + 16)
+    if list_buf == 0 && n > 0 { return oren_err(4, "bytes_unpack: list buffer is nil") }
+    var j = 0
+    while j < n {
+        var b = ptr_get(list_buf + j * 8)
+        if b < 0 || b > 255 { return oren_err(4, "bytes_unpack: byte out of range") }
+        ptr_set(out_buf + j * 8, b)
+        j = j + 1
     }
+    ptr_set(out, n)
     return out
 }
 
@@ -210,9 +223,11 @@ fn oren_bytes_pack(xs) {
     if oren_is_err(out) { return out }
     var outp = native_buf_data_ptr(out)
     if outp == 0 && n != 0 { return oren_err(8, "bytes_pack: alloc failed") }
+    var in_buf = ptr_get(xs + 16)
+    if in_buf == 0 && n != 0 { return oren_err(4, "bytes_pack: list buffer is nil") }
     var i = 0
     while i < n {
-        var v = oren_list_get(xs, i)
+        var v = ptr_get(in_buf + i * 8)
         if v < 0 || v > 255 { return oren_err(4, "bytes_pack: byte out of range") }
         ptr_set_byte(outp + i, v & 255)
         i = i + 1
