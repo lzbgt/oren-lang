@@ -149,7 +149,8 @@ This file is the concise task view. Detailed implementation status lives in
      exact-size `u8_buf` payloads, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes. `std:strings` prefix/suffix/search/equality
-     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text encoding, and full regex
+     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
+     encoding/decode byte carriers, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers

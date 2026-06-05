@@ -466,7 +466,8 @@ Facts from the 2026-05-28 implementation pass:
   `std:bytes.copy_into` keeps list-backed compatibility while copying into
   u8-buffer destinations through raw pointer stores after public span validation,
   JSON full decode, scalar parse, tag equality, and escape paths
-  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical key ordering/text encoding, full regex
+  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
+  key ordering/text encoding plus u8-backed decode byte carriers, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key

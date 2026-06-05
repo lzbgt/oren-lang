@@ -8,17 +8,30 @@ fn assert(cond, msg) {
 }
 
 fn assert_bytes_eq(got, exp, msg) {
-    if oren_list_len(got) != oren_list_len(exp) {
+    if oren_bytes_len(got) != oren_bytes_len(exp) {
         assert(false, msg + " (len)")
     }
     var i = 0
-    while i < oren_list_len(got) {
-        if got[i] != exp[i] {
-            print("BYTE mismatch at " + oren_int_to_string(i) + ": got=" + oren_int_to_string(got[i]) + " exp=" + oren_int_to_string(exp[i]))
+    while i < oren_bytes_len(got) {
+        var gb = oren_bytes_get_u8(got, i)
+        var eb = oren_bytes_get_u8(exp, i)
+        if gb != eb {
+            print("BYTE mismatch at " + oren_int_to_string(i) + ": got=" + oren_int_to_string(gb) + " exp=" + oren_int_to_string(eb))
             assert(false, msg + " (byte)")
         }
         i = i + 1
     }
+}
+
+fn u8_bytes(xs) {
+    var out = oren_u8_buf_new_uninit(oren_bytes_len(xs))
+    var data = oren_buf_data_ptr_unchecked(out)
+    var i = 0
+    while i < oren_bytes_len(xs) {
+        ptr_set_byte(data + i, oren_bytes_get_u8(xs, i) & 255)
+        i = i + 1
+    }
+    return out
 }
 
 fn test_array_roundtrip() {
@@ -75,6 +88,8 @@ fn test_sequence_bytes_and_decode_next() {
     assert_bytes_eq(one2, [7], "cbor value bytes method")
     var cv = one2.cbor()
     assert(oren_is_err(cv) != true && cv["i"] == 7, "cbor bytes method")
+    var cv2 = cbor.parse(u8_bytes(one2))
+    assert(oren_is_err(cv2) != true && cv2["i"] == 7, "cbor u8 parse")
     assert_bytes_eq(cbor.encode(cbor.cbool(0)), [244], "encode bool false int")
     assert_bytes_eq(cbor.encode(cbor.cbool(false)), [244], "encode bool false singleton")
     assert_bytes_eq(cbor.encode(cbor.cbool(true)), [245], "encode bool true singleton")
@@ -82,7 +97,23 @@ fn test_sequence_bytes_and_decode_next() {
     assert(oren_is_err(te) == true, "parse err")
 }
 
+fn test_byte_string_carriers() {
+    var payload = u8_bytes([65, 66])
+    var encoded = cbor.encode(cbor.cbytes(payload))
+    assert_bytes_eq(encoded, [66, 65, 66], "encode u8 byte string")
+    var decoded = cbor.decode(u8_bytes(encoded))
+    assert(decoded["ok"] == 1, "decode u8 input ok")
+    var v = decoded["v"]
+    assert(v["t"] == "bytes", "decode bytes type")
+    assert(oren_is_u8_buf(v["bs"]) == true, "decode bytes u8 carrier")
+    assert_bytes_eq(v["bs"], payload, "decode bytes payload")
+
+    var text = cbor.decode(u8_bytes([99, 111, 114, 101]))
+    assert(text["ok"] == 1 && text["v"]["s"] == "ore", "decode text from u8 input")
+}
+
 test_array_roundtrip()
 test_sequence_bytes_and_decode_next()
+test_byte_string_carriers()
 print("ok")
 exit(0)

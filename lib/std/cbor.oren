@@ -12,7 +12,7 @@
 //   {"t":"null"}
 //   {"t":"bool","b":0|1}                  // b is int for cross-backend stability
 //   {"t":"int","i":<int>}
-//   {"t":"bytes","bs":[u8...]}
+//   {"t":"bytes","bs": bytes}                 // list<int> or u8_buf
 //   {"t":"string","s":<string>}
 //   {"t":"array","a":[CborValue...]}
 //   {"t":"map","m":{ string_key: CborValue, ... }}
@@ -82,6 +82,16 @@ fn _ok(v, pos) {
 }
 
 fn _push_u8(out, b) { list.push(out, b & 255) }
+
+fn _bytes_len(bs) {
+    var n = oren_bytes_len(bs)
+    if n == nil || oren_is_err(n) { return -1 }
+    return n
+}
+
+fn _bytes_get(bs, i) {
+    return oren_bytes_get_u8(bs, i) & 255
+}
 
 fn _push_u16be(out, n) {
     _push_u8(out, (n >> 8) & 255)
@@ -191,8 +201,14 @@ fn _encode_value(out, v) {
     }
     if _streq(t, "bytes") {
         var bs = v["bs"]
-        _emit_uint(out, 2, list.len(bs)) // major 2 byte string
-        for b in bs { _push_u8(out, b) }
+        var bn = _bytes_len(bs)
+        if bn < 0 { bn = 0 }
+        _emit_uint(out, 2, bn) // major 2 byte string
+        var bi = 0
+        while bi < bn {
+            _push_u8(out, _bytes_get(bs, bi))
+            bi = bi + 1
+        }
         return nil
     }
     if _streq(t, "string") {
@@ -247,23 +263,28 @@ fn encode(v): bytes {
 }
 
 fn _need(bs, pos, n) {
-    if pos + n > list.len(bs) { return 0 }
+    var bn = _bytes_len(bs)
+    if bn < 0 { return 0 }
+    if pos + n > bn { return 0 }
     return 1
 }
 
 fn _read_u16be(bs, pos) {
-    return (bs[pos] << 8) | bs[pos + 1]
+    return (_bytes_get(bs, pos) << 8) | _bytes_get(bs, pos + 1)
 }
 
 fn _read_u32be(bs, pos) {
-    return (bs[pos] << 24) | (bs[pos + 1] << 16) | (bs[pos + 2] << 8) | bs[pos + 3]
+    return (_bytes_get(bs, pos) << 24) |
+        (_bytes_get(bs, pos + 1) << 16) |
+        (_bytes_get(bs, pos + 2) << 8) |
+        _bytes_get(bs, pos + 3)
 }
 
 fn _read_u64be(bs, pos) {
     var v = 0
     var i = 0
     while i < 8 {
-        v = (v << 8) | (bs[pos + i] & 255)
+        v = (v << 8) | _bytes_get(bs, pos + i)
         i = i + 1
     }
     return v
@@ -274,7 +295,7 @@ fn _read_uint_arg(bs, pos, ai) {
     if ai < 24 { return {"ok": 1, "n": ai, "pos": pos} }
     if ai == 24 {
         if _need(bs, pos, 1) != 1 { return _err("unexpected EOF", pos) }
-        return {"ok": 1, "n": bs[pos], "pos": pos + 1}
+        return {"ok": 1, "n": _bytes_get(bs, pos), "pos": pos + 1}
     }
     if ai == 25 {
         if _need(bs, pos, 2) != 1 { return _err("unexpected EOF", pos) }
@@ -292,9 +313,10 @@ fn _read_uint_arg(bs, pos, ai) {
 }
 
 fn _decode_value(bs, pos) {
-    var n = list.len(bs)
+    var n = _bytes_len(bs)
+    if n < 0 { return _err("input must be bytes", pos) }
     if pos >= n { return _err("unexpected EOF", pos) }
-    var b = bs[pos] & 255
+    var b = _bytes_get(bs, pos)
     pos = pos + 1
     var major = (b >> 5) & 7
     var ai = b & 31
@@ -322,25 +344,15 @@ fn _decode_value(bs, pos) {
     if major == 2 {
         // bytes
         if _need(bs, pos, arg) != 1 { return _err("unexpected EOF in bytes", pos) }
-        var out = []
-        var i2 = 0
-        while i2 < arg {
-            list.push(out, bs[pos + i2] & 255)
-            i2 = i2 + 1
-        }
+        var out = oren_u8_buf_from_bytes_slice(bs, pos, arg)
+        if out == nil || oren_is_err(out) { return _err("bytes slice failed", pos) }
         return _ok(cbytes(out), pos + arg)
     }
     if major == 3 {
         // text
         if _need(bs, pos, arg) != 1 { return _err("unexpected EOF in string", pos) }
-        var out2 = []
-        var i3 = 0
-        while i3 < arg {
-            list.push(out2, bs[pos + i3] & 255)
-            i3 = i3 + 1
-        }
-        var s = oren_string_from_bytes(out2)
-        if s == nil { return _err("string_from_bytes failed", pos) }
+        var s = oren_string_from_bytes_slice(bs, pos, arg)
+        if s == nil || oren_is_err(s) { return _err("string_from_bytes failed", pos) }
         return _ok(cstring(s), pos + arg)
     }
     if major == 4 {
@@ -381,7 +393,7 @@ fn _decode_value(bs, pos) {
 fn decode(bs) {
     var r = _decode_value(bs, 0)
     if r["ok"] != 1 { return r }
-    if r["pos"] != list.len(bs) {
+    if r["pos"] != _bytes_len(bs) {
         return _err("trailing input", r["pos"])
     }
     return r
@@ -434,7 +446,9 @@ fn next(bs, pos) {
 fn decode_sequence(bs) {
     var out = []
     var pos = 0
-    while pos < list.len(bs) {
+    var n = _bytes_len(bs)
+    if n < 0 { return _err("input must be bytes", pos) }
+    while pos < n {
         var r = _decode_value(bs, pos)
         if r["ok"] != 1 { return r }
         list.push(out, r["v"])
@@ -498,7 +512,9 @@ fn next_typed(bs, pos, decode_fn) {
 fn decode_sequence_typed(bs, decode_fn) {
     var out = []
     var pos = 0
-    while pos < list.len(bs) {
+    var n = _bytes_len(bs)
+    if n < 0 { return _err("input must be bytes", pos) }
+    while pos < n {
         var r = decode_next_typed(bs, pos, decode_fn)
         if r["ok"] != 1 { return r }
         list.push(out, r["v"])
