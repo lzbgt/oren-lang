@@ -86,6 +86,19 @@ fn lerp(a: f64, b: f64, t: f64) {
     return a + step
 }
 
+fn midpoint(a: f64, b: f64) {
+    if is_nan(a) || is_nan(b) { return oren_err(4, "midpoint: NaN") }
+    if a == b { return a }
+    if is_inf(a) || is_inf(b) {
+        if is_inf(a) && is_inf(b) { return oren_err(4, "midpoint: opposite infinities") }
+        return a + b
+    }
+    if (a >= 0.0 && b >= 0.0) || (a <= 0.0 && b <= 0.0) {
+        return a + (b - a) * 0.5
+    }
+    return a * 0.5 + b * 0.5
+}
+
 fn is_nan(x: f64) {
     // IEEE-ish: NaN != NaN
     return x != x
