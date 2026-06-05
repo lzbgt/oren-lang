@@ -97,6 +97,10 @@
 </ul>
 <p>  and AVM returns optimized integer lists for unpacked byte buffers.</p>
 <ul>
+<li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
+</ul>
+<p>  buffers instead of re-reading each byte in the stdlib loop.</p>
+<ul>
 <li><code>std:bytes</code>, <code>std:buffer</code>, <code>std:strings</code>, <code>std:list</code>, <code>std:linalg</code>,</li>
 </ul>
 <p>  <code>std:iter</code>, <code>std:crypto</code>, <code>std:ui</code>, and checked</p>

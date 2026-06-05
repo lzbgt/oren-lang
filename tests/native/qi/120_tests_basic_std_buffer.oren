@@ -97,6 +97,7 @@ fn test_std_buffer_smoke() {
     assert_streq(bufferm.u8_to_string(u8_from), "AB", 7931)
     var u8_list = bufferm.u8_unpack(u8_from)
     assert_true(oren_is_err(u8_list) == false, 7932)
+    assert_eq(oren_type_tag(u8_list), 6, 79321)
     assert_eq(oren_list_len(u8_list), 2, 7933)
     assert_eq(u8_list[0], 65, 7934)
     assert_eq(u8_list[1], 66, 7935)

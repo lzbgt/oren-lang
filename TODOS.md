@@ -50,6 +50,8 @@ design evidence lives under `project-doc/`.
   is part of the native quick integration gate.
 - Public `bytes.unpack` routes u8-buffer carriers through kernel byte intrinsics,
   and AVM returns optimized integer lists for unpacked byte buffers.
+- `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
+  buffers instead of re-reading each byte in the stdlib loop.
 - `std:bytes`, `std:buffer`, `std:strings`, `std:list`, `std:linalg`,
   `std:iter`, `std:crypto`, `std:ui`, and checked
   `std:ints` / `std:casts` helpers now expose canonical

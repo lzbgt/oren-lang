@@ -327,6 +327,7 @@ fn u8_pack_into(out: []u8, xs) {
 }
 
 fn u8_unpack(buf: []u8) {
+    if oren_is_u8_buf(buf) == true { return bytesm.unpack(buf) }
     return _unpack_list_like_with(buf, "buffer.u8_unpack", _load_u8_direct)
 }
 

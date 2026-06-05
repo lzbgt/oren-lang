@@ -98,6 +98,7 @@ fn main() {
     assert_true(!oren_is_err(ub))
     assert_eq(buffer.u8_to_string(ub), "AB")
     var ub_list = buffer.u8_unpack(ub)
+    assert_eq(oren_type_tag(ub_list), 6)
     assert_eq(ub_list[0], 65)
     assert_eq(ub_list[1], 66)
     var ub2 = buffer.u8_pack([67, 68])
