@@ -243,25 +243,6 @@ fn host_is_windows() {
     return false
 }
 
-fn _hex_digit(n) {
-    // n in [0,15]
-    return oren_string_char_at("0123456789abcdef", n)
-}
-
-fn _bytes_to_hex(bs) {
-    if bs == nil { return "" }
-    var out = ""
-    var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
-        if b < 0 { b = 0 }
-        if b > 255 { b = _imod(b, 256) }
-        out = out + _hex_digit(b / 16) + _hex_digit(_imod(b, 16))
-        i = i + 1
-    }
-    return out
-}
-
 fn _bytes_len_any(bs) {
     if bs == nil { return 0 }
     // Prefer typed-buffer length when available, otherwise fall back to list length.
@@ -274,13 +255,13 @@ fn _sha256_hex(bs) {
     if bs == nil { return "" }
     var n = _bytes_len_any(bs)
     var d = oren_sha256_range(bs, 0, n)
-    return _bytes_to_hex(d)
+    return oren_bytes_to_hex(d)
 }
 
 fn _sha256_hex_string(s) {
     if s == nil { return "" }
     var d = oren_sha256_string(s)
-    return _bytes_to_hex(d)
+    return oren_bytes_to_hex(d)
 }
 
 fn _str_byte_at(s, i) {

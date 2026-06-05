@@ -551,29 +551,11 @@ fn _rtobj_runtime_hash_cache_store(runtime_path, hash, files) {
     return nil
 }
 
-fn _hex_digit(n) { return oren_string_char_at("0123456789abcdef", n) }
-
-fn _bytes_to_hex(bs) {
-    if bs == nil { return "" }
-    var out = ""
-    var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
-        // Do not rely on `scalar == nil` semantics (native parity hazard).
-        if oren_type_tag(b) == 0 { b = 0 }
-        if b < 0 { b = 0 }
-        if b > 255 { b = b & 255 }
-        out = out + _hex_digit(b / 16) + _hex_digit(b & 15)
-        i = i + 1
-    }
-    return out
-}
-
 fn _sha256_hex_string(s) {
     // Still used for small deterministic fingerprints (e.g. manifest hashes).
     if s == nil { return "" }
     var d = oren_sha256_string(s)
-    return _bytes_to_hex(d)
+    return oren_bytes_to_hex(d)
 }
 
 fn _mask63(x) {

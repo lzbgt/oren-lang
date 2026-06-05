@@ -40,31 +40,10 @@ fn _bundle_err(ctx, msg) {
     return nil
 }
 
-fn _rt_bundle_hex_digit(n) {
-    // n in [0,15]
-    return oren_string_char_at("0123456789abcdef", n)
-}
-
-fn _rt_bundle_bytes_to_hex(bs) {
-    if bs == nil { return "" }
-    var out = ""
-    var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
-        // Do not rely on `scalar == nil` semantics (native parity hazard).
-        if oren_type_tag(b) == 0 { b = 0 }
-        if b < 0 { b = 0 }
-        if b > 255 { b = b & 255 }
-        out = out + _rt_bundle_hex_digit(b / 16) + _rt_bundle_hex_digit(b & 15)
-        i = i + 1
-    }
-    return out
-}
-
 fn _rt_bundle_sha256_hex_string(s) {
     if s == nil { return "" }
     var d = oren_sha256_string(s)
-    return _rt_bundle_bytes_to_hex(d)
+    return oren_bytes_to_hex(d)
 }
 
 fn _rt_bundle_mask63(x) {
