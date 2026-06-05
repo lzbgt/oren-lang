@@ -97,12 +97,14 @@ fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
     return 0
 }
 
+fn _cli_byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
 fn count_substring_in_src(src, needle) {
     if src == nil || needle == nil { return 0 }
-    var sb = oren_bytes_from_string(src)
-    var nb = oren_bytes_from_string(needle)
-    var sl = oren_list_len(sb)
-    var nl = oren_list_len(nb)
+    var sl = oren_string_len(src)
+    var nl = oren_string_len(needle)
     if nl == 0 { return 0 }
     if sl < nl { return 0 }
 
@@ -111,10 +113,10 @@ fn count_substring_in_src(src, needle) {
     while i + nl <= sl {
         // Skip line comments (`// ... \n`) so policy checks don't fail on docs/comments.
         if i + 1 < sl {
-            if sb[i] == 47 && sb[i + 1] == 47 {
+            if _cli_byte_at(src, i) == 47 && _cli_byte_at(src, i + 1) == 47 {
                 i = i + 2
                 while i < sl {
-                    if sb[i] == 10 { i = i + 1; break } // '\n'
+                    if _cli_byte_at(src, i) == 10 { i = i + 1; break } // '\n'
                     i = i + 1
                 }
                 continue
@@ -124,7 +126,7 @@ fn count_substring_in_src(src, needle) {
         var ok = true
         var j = 0
         while j < nl {
-            if sb[i + j] != nb[j] { ok = false; break }
+            if _cli_byte_at(src, i + j) != _cli_byte_at(needle, j) { ok = false; break }
             j = j + 1
         }
         if ok {

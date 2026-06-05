@@ -283,6 +283,10 @@ fn _sha256_hex_string(s) {
     return _bytes_to_hex(d)
 }
 
+fn _str_byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
 fn _emit_artifact_hash(kind, path, bs) {
     var h = _sha256_hex(bs)
     print("OREN_ARTIFACT kind=" + kind + " sha256=" + h + " path=" + path)
@@ -293,11 +297,11 @@ fn _json_escape(s) {
     // Minimal JSON string escaping for deterministic manifest emission.
     // Escapes: backslash and double-quote, plus \n/\r/\t.
     if s == nil { return "" }
-    var bs = oren_bytes_from_string(s)
+    var n = oren_string_len(s)
     var out = ""
     var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
+    while i < n {
+        var b = _str_byte_at(s, i)
         if b == 92 { out = out + "\\\\" } // '\'
         else {
             if b == 34 { out = out + "\\\"" } // '"'
@@ -681,14 +685,12 @@ fn string_contains(hay, needle) {
 // those syscalls.
 fn streq(a, b) {
     if a == nil || b == nil { return false }
-    var ab = oren_bytes_from_string(a)
-    var bb = oren_bytes_from_string(b)
-    var al = oren_list_len(ab)
-    var bl = oren_list_len(bb)
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
     if al != bl { return false }
     var i = 0
     while i < al {
-        if ab[i] != bb[i] { return false }
+        if _str_byte_at(a, i) != _str_byte_at(b, i) { return false }
         i = i + 1
     }
     return true
@@ -709,19 +711,17 @@ fn has_attr_list(stmt, name) {
 
 fn scan_syscalls_in_src(src, prefix) {
     var out = []
-    var sb = oren_bytes_from_string(src)
-    var pb = oren_bytes_from_string(prefix)
-    var n = oren_list_len(sb)
-    var p_len = oren_list_len(pb)
+    var n = oren_string_len(src)
+    var p_len = oren_string_len(prefix)
     var i = 0
     while i + p_len <= n {
         // Skip line comments (`// ... \n`) so policy checks don't fail on docs/comments.
         if i + 1 < n {
-            if sb[i] == 47 && sb[i + 1] == 47 {
+            if _str_byte_at(src, i) == 47 && _str_byte_at(src, i + 1) == 47 {
                 // Skip until newline or EOF.
                 i = i + 2
                 while i < n {
-                    if sb[i] == 10 { i = i + 1; break } // '\n'
+                    if _str_byte_at(src, i) == 10 { i = i + 1; break } // '\n'
                     i = i + 1
                 }
                 continue
@@ -731,7 +731,7 @@ fn scan_syscalls_in_src(src, prefix) {
         var is_match = true
         var j = 0
         while j < p_len {
-            if sb[i + j] != pb[j] { is_match = false; break }
+            if _str_byte_at(src, i + j) != _str_byte_at(prefix, j) { is_match = false; break }
             j = j + 1
         }
         if is_match {
@@ -739,7 +739,7 @@ fn scan_syscalls_in_src(src, prefix) {
             // Read identifier [a-zA-Z0-9_]+
             var k = start
             while k < n {
-                var ch = sb[k]
+                var ch = _str_byte_at(src, k)
                 var ok = false
                 if ch >= 48 && ch <= 57 { ok = true }
                 if ch >= 65 && ch <= 90 { ok = true }

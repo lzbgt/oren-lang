@@ -44,6 +44,10 @@ fn _cache_deterministic(build_cfg) {
 
 fn _mask63(x) { return x & 9223372036854775807 }
 
+fn _cache_byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
 fn _fnv1a63_string(s, basis) {
     if s == nil { return 0 }
     var h = _mask63(basis)
@@ -51,7 +55,7 @@ fn _fnv1a63_string(s, basis) {
     var n = oren_string_len(s)
     var i = 0
     while i < n {
-        var b = oren_string_byte_at_unchecked(s, i) & 255
+        var b = _cache_byte_at(s, i)
         h = _mask63(h ^ b)
         h = _mask63(h * prime)
         i = i + 1
@@ -506,40 +510,39 @@ fn _scan_cache_file(cache_dir) {
 
 fn _scan_cache_split_lines(s) {
     if s == nil { return [] }
-    var bs = oren_bytes_from_string(s)
     var out = []
-    var cur = []
+    var start = 0
     var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
+    var n = oren_string_len(s)
+    while i < n {
+        var b = _cache_byte_at(s, i)
         if b == 10 { // \n
-            oren_list_push(out, oren_string_from_bytes(cur))
-            cur = []
+            oren_list_push(out, oren_string_slice(s, start, i))
             i = i + 1
+            start = i
             continue
         }
         if b == 13 { // \r
-            oren_list_push(out, oren_string_from_bytes(cur))
-            cur = []
+            oren_list_push(out, oren_string_slice(s, start, i))
             // consume optional \n
-            if i + 1 < oren_list_len(bs) && bs[i + 1] == 10 { i = i + 2 } else { i = i + 1 }
+            if i + 1 < n && _cache_byte_at(s, i + 1) == 10 { i = i + 2 } else { i = i + 1 }
+            start = i
             continue
         }
-        oren_list_push(cur, b)
         i = i + 1
     }
     // final line
-    oren_list_push(out, oren_string_from_bytes(cur))
+    oren_list_push(out, oren_string_slice(s, start, n))
     return out
 }
 
 fn _scan_cache_parse_u32(s) {
     if s == nil { return 0 }
-    var bs = oren_bytes_from_string(s)
     var n = 0
     var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
+    var sl = oren_string_len(s)
+    while i < sl {
+        var b = _cache_byte_at(s, i)
         if b < 48 || b > 57 { return 0 }
         n = n * 10 + (b - 48)
         i = i + 1
@@ -551,11 +554,11 @@ fn _scan_cache_parse_u32(s) {
 fn _scan_cache_parse_i64(s) {
     // Parse a non-negative decimal int into i64. (Used for mtime_ns/size.)
     if s == nil { return 0 }
-    var bs = oren_bytes_from_string(s)
     var n = 0
     var i = 0
-    while i < oren_list_len(bs) {
-        var b = bs[i]
+    var sl = oren_string_len(s)
+    while i < sl {
+        var b = _cache_byte_at(s, i)
         if b < 48 || b > 57 { return 0 }
         n = n * 10 + (b - 48)
         i = i + 1
@@ -1119,20 +1122,21 @@ fn _cache_scan_c_includes_from_src(src, full_path) {
     // Scan `#include "runtime/..."` and `#include "runtime_buf/..."` in C sources.
     var out = []
     if src == nil { return out }
-    var bs = oren_bytes_from_string(src)
-    var n = oren_list_len(bs)
+    var n = oren_string_len(src)
     var i = 0
     while i + 10 < n {
-        if bs[i] == 35 && bs[i + 1] == 105 && bs[i + 2] == 110 && bs[i + 3] == 99 &&
-           bs[i + 4] == 108 && bs[i + 5] == 117 && bs[i + 6] == 100 && bs[i + 7] == 101 &&
-           bs[i + 8] == 32 && bs[i + 9] == 34 {
+        if _cache_byte_at(src, i) == 35 && _cache_byte_at(src, i + 1) == 105 &&
+           _cache_byte_at(src, i + 2) == 110 && _cache_byte_at(src, i + 3) == 99 &&
+           _cache_byte_at(src, i + 4) == 108 && _cache_byte_at(src, i + 5) == 117 &&
+           _cache_byte_at(src, i + 6) == 100 && _cache_byte_at(src, i + 7) == 101 &&
+           _cache_byte_at(src, i + 8) == 32 && _cache_byte_at(src, i + 9) == 34 {
             var j = i + 10
             var start = j
-            while j < n && bs[j] != 34 && bs[j] != 10 && bs[j] != 13 {
+            while j < n && _cache_byte_at(src, j) != 34 && _cache_byte_at(src, j) != 10 && _cache_byte_at(src, j) != 13 {
                 j = j + 1
             }
-            if j < n && bs[j] == 34 {
-                var inc = oren_string_from_bytes_slice(bs, start, j - start)
+            if j < n && _cache_byte_at(src, j) == 34 {
+                var inc = oren_string_slice(src, start, j)
                 if starts_with(inc, "runtime/") || starts_with(inc, "runtime_buf/") {
                     var base = dirname(full_path)
                     var full = path_norm(base + "/" + inc)

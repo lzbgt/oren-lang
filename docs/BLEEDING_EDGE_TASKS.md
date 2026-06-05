@@ -148,7 +148,9 @@ This file is the concise task view. Detailed implementation status lives in
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers
      also avoid list-of-byte reconstruction, while XML/HTML parser literal
      matching, class-selector scans, DOM parsing, and streaming readers no
-     longer allocate input byte lists for syntax tokens.
+     longer allocate input byte lists for syntax tokens. Compiler source-policy
+     scans, scan-cache line/number parsing, C-runtime include scanning, and
+     compiler manifest JSON escaping now use direct source-string byte reads too.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and
 	     `buf.matrix(2, 3).row(1).text()` without explicit local annotations

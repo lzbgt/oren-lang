@@ -463,6 +463,8 @@ Facts from the 2026-05-28 implementation pass:
   list-of-byte reconstruction, and XML/HTML parser literal matching,
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
+  Compiler source-policy scans, scan-cache line/number parsing, C-runtime
+  include scanning, and compiler manifest JSON escaping now do the same.
   `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
