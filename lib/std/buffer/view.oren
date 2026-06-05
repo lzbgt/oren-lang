@@ -478,10 +478,25 @@ fn _slice_load_u8_unchecked(s, idx) { return _view_load_with(_slice_is_list, "sl
 fn slice_load_u8(s, idx) { return _checked_view_load(_slice_load_u8_unchecked, _slice_is_list, "slice", s, idx, "buffer.slice_load_u8") }
 fn _slice_store_u8_unchecked(s, idx, v) { return _view_store_with(_slice_is_list, "slice", _slice_pos, _buf_store_u8, s, idx, v, "slice_store_u8") }
 fn slice_store_u8(s, idx, v) { return _checked_view_store(_slice_store_u8_unchecked, _validate_u8_or_err, _slice_is_list, "slice", s, idx, v, "buffer.slice_store_u8") }
-fn slice_to_bytes(s) { return _checked_u8_view_to_bytes(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_to_bytes") }
+fn slice_to_bytes(s) {
+    var ctx = "buffer.slice_to_bytes"
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    if oren_is_u8_buf(s[0]) == true { return bytesm.slice(s[0], s[1], s[2]) }
+    return _checked_u8_view_to_bytes(slice_load_u8, _slice_is_list, "slice", s, ctx)
+}
 fn slice_unpack_u8(s) { return _checked_u8_view_unpack(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_unpack_u8") }
-fn slice_to_u8_buf(s) { return _checked_u8_view_to_u8_buf(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_to_u8_buf") }
-fn slice_to_string(s) { return _checked_u8_view_to_string(slice_load_u8, _slice_is_list, "slice", s, "buffer.slice_to_string") }
+fn slice_to_u8_buf(s) {
+    var ctx = "buffer.slice_to_u8_buf"
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    if oren_is_u8_buf(s[0]) == true { return bytesm.to_u8_buf_slice(s[0], s[1], s[2]) }
+    return _checked_u8_view_to_u8_buf(slice_load_u8, _slice_is_list, "slice", s, ctx)
+}
+fn slice_to_string(s) {
+    var ctx = "buffer.slice_to_string"
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    if oren_is_u8_buf(s[0]) == true { return bytesm.to_string_slice(s[0], s[1], s[2]) }
+    return _checked_u8_view_to_string(slice_load_u8, _slice_is_list, "slice", s, ctx)
+}
 fn slice_copy_from_bytes(s, bytes) {
     var ctx = "buffer.slice_copy_from_bytes"
     if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }

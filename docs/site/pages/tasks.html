@@ -267,7 +267,8 @@
 <p>     string copy helpers, <code>std:bytes.from_string</code>, <code>std:strings</code> byte roundtrips,</p>
 <p>     <code>std:bytes</code> u8/endian writes, concat/copy u8-buffer spans, overlap-safe</p>
 <p>     u8 <code>copy_into</code>, <code>std:buffer</code> view/matrix <code>copy_from_bytes</code> direct</p>
-<p>     carrier reads, and <code>copy_into</code> u8-buffer destinations, native byte-order writes,</p>
+<p>     carrier reads, contiguous slice/dense-matrix byte/text exports, and</p>
+<p>     <code>copy_into</code> u8-buffer destinations, native byte-order writes,</p>
 <p>     and <code>std:time</code> ISO-8601 UTC parsing now use direct source-string byte reads</p>
 <p>     or exact-size/raw-pointer buffers too.</p>
 <p>     Buffer views now expose wrapper objects over zero-copy slices,</p>

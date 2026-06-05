@@ -108,18 +108,31 @@ fn u8_mat_unpack_flat(m) {
     return u8_mat_unpack_u8(m)
 }
 
+fn _u8_mat_is_dense_u8_buf(m) {
+    return mshared._mat_is_list(m) && oren_is_u8_buf(m[0]) == true && m[4] == m[3]
+}
+
 fn u8_mat_to_bytes(m) {
+    var ctx = "buffer.u8_mat_to_bytes"
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if _u8_mat_is_dense_u8_buf(m) { return bytesm.slice(m[0], m[1], m[2] * m[3]) }
     var buf = u8_mat_to_u8_buf(m)
     if oren_is_err(buf) { return buf }
     return raw.u8_to_bytes(buf)
 }
 
 fn u8_mat_to_u8_buf(m) {
+    var ctx = "buffer.u8_mat_to_u8_buf"
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if _u8_mat_is_dense_u8_buf(m) { return bytesm.to_u8_buf_slice(m[0], m[1], m[2] * m[3]) }
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, "buffer.u8_mat_to_u8_buf", raw.u8_new_uninit, core.mat_load_u8, raw._store_u8_buf_unchecked_direct)
+    return mshared._mat_to_typed_buf_with(m, ctx, raw.u8_new_uninit, core.mat_load_u8, raw._store_u8_buf_unchecked_direct)
 }
 
 fn u8_mat_to_string(m) {
+    var ctx = "buffer.u8_mat_to_string"
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if _u8_mat_is_dense_u8_buf(m) { return bytesm.to_string_slice(m[0], m[1], m[2] * m[3]) }
     var bytes = u8_mat_to_bytes(m)
     if oren_is_err(bytes) { return bytes }
     return bytesm.to_string(bytes)
