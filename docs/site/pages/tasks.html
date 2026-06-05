@@ -506,15 +506,16 @@
 <p>    <code>initialize</code>/<code>shutdown</code>, full-document sync, deterministic bracket/string</p>
 <p>    diagnostics plus parser-backed diagnostics on open/change, clean close</p>
 <p>    handling, keyword/local-symbol completion, and lexer-backed document symbols</p>
-<p>    for imports, functions, variables, structs, and classes, plus same-file and</p>
-<p>    opened-document cross-file definition navigation for local/import symbols.</p>
+<p>    for imports, functions, variables, structs, and classes, plus same-file,</p>
+<p>    opened-document cross-file, and import-resolved unopened-module definition</p>
+<p>    navigation for relative and <code>std:</code> modules.</p>
 <ul>
 <li>Current VS Code package slice adds the <code>.oren</code> language contribution, TextMate</li>
 </ul>
 <p>    syntax grammar, language configuration, <code>vscode-languageclient</code> activation, and</p>
 <p>    a smoke verifier for manifest/grammar/config/entrypoint integrity.</p>
 <ul>
-<li>Remaining work is package-aware workspace indexing for unopened modules.</li>
+<li>Remaining work is hover/references plus deeper semantic workspace indexing.</li>
 </ul>
 <h2 id="closed-do-not-repeat-families">Closed/Do-Not-Repeat Families</h2>
 <ul>

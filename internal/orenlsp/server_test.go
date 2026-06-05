@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -360,6 +362,67 @@ func TestServerDefinitionPrefersLocalOpenDocumentSymbol(t *testing.T) {
 	msgs := readTestMessages(t, out.Bytes())
 	defs := messageByID(t, msgs, 14)["result"].([]any)
 	assertDefinition(t, defs, "file:///main.oren", 0, 4, 16)
+}
+
+func TestServerDefinitionFindsUnopenedImportedFileSymbol(t *testing.T) {
+	tmp := t.TempDir()
+	helperPath := filepath.Join(tmp, "modules", "helper.oren")
+	if err := os.MkdirAll(filepath.Dir(helperPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(helperPath, []byte("var helper_value = 7\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile helper: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainText := strings.Join([]string{
+		"import helper \"modules/helper.oren\"",
+		"fn main() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(mainPath, []byte(mainText), 0o644); err != nil {
+		t.Fatalf("WriteFile main: %v", err)
+	}
+
+	var in bytes.Buffer
+	mainURI := fileURIFromPath(mainPath)
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      15,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	defs := messageByID(t, msgs, 15)["result"].([]any)
+	assertDefinition(t, defs, fileURIFromPath(helperPath), 0, 4, 16)
+}
+
+func TestResolveImportPathStdSpec(t *testing.T) {
+	got, ok := resolveImportPath("std:net/http.oren", "/tmp/project/app", "/tmp/project")
+	if !ok {
+		t.Fatalf("resolveImportPath returned !ok")
+	}
+	want := filepath.Join("/tmp/project", "lib", "std", "net", "http.oren")
+	if got != want {
+		t.Fatalf("path=%q want %q", got, want)
+	}
 }
 
 func writeTestMessage(t *testing.T, w *bytes.Buffer, v any) {

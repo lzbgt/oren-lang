@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -135,17 +134,11 @@ func (s *Server) definitionLocations(uri string, pos position) []location {
 	if locs := symbolDefinitionLocations(text, uri, name); len(locs) > 0 {
 		return locs
 	}
-	uris := make([]string, 0, len(s.docs))
-	for candidateURI := range s.docs {
-		if candidateURI != uri {
-			uris = append(uris, candidateURI)
-		}
+	if locs := s.openDocumentDefinitionLocations(uri, name); len(locs) > 0 {
+		return locs
 	}
-	sort.Strings(uris)
-	for _, candidateURI := range uris {
-		if locs := symbolDefinitionLocations(s.docs[candidateURI], candidateURI, name); len(locs) > 0 {
-			return locs
-		}
+	if locs := s.importedDefinitionLocations(uri, text, name); len(locs) > 0 {
+		return locs
 	}
 	return []location{}
 }

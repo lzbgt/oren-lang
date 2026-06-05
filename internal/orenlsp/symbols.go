@@ -30,6 +30,11 @@ type sourceSymbol struct {
 	Range  diagnosticRange
 }
 
+type importSpec struct {
+	Alias string
+	Spec  string
+}
+
 type completionItem struct {
 	Label  string `json:"label"`
 	Kind   int    `json:"kind"`
@@ -175,6 +180,30 @@ func collectSymbols(text string) []sourceSymbol {
 				out = append(out, newSourceSymbol(name, "class", "class"))
 			}
 		}
+	}
+	return out
+}
+
+func collectImports(text string) []importSpec {
+	l := lexer.New(text)
+	var out []importSpec
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF {
+			break
+		}
+		if tok.Type != token.IMPORT {
+			continue
+		}
+		name := l.NextToken()
+		if name.Type != token.IDENT {
+			continue
+		}
+		spec := l.NextToken()
+		if spec.Type != token.STRING || spec.Literal == "" {
+			continue
+		}
+		out = append(out, importSpec{Alias: name.Literal, Spec: spec.Literal})
 	}
 	return out
 }
