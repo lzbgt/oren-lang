@@ -81,6 +81,25 @@ func (s *Server) handle(body []byte) error {
 			return s.publishDiagnostics(p.TextDocument.URI, text)
 		}
 		return nil
+	case "textDocument/didClose":
+		var p didCloseParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		delete(s.docs, p.TextDocument.URI)
+		return s.publishDiagnostics(p.TextDocument.URI, "")
+	case "textDocument/completion":
+		var p textDocumentParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: completionItems(s.docs[p.TextDocument.URI])})
+	case "textDocument/documentSymbol":
+		var p textDocumentParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: documentSymbols(s.docs[p.TextDocument.URI])})
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -103,6 +122,10 @@ func initializeResult() map[string]any {
 				"openClose": true,
 				"change":    1,
 			},
+			"completionProvider": map[string]any{
+				"triggerCharacters": []string{".", ":"},
+			},
+			"documentSymbolProvider": true,
 		},
 		"serverInfo": map[string]any{
 			"name":    "oren-lsp",
@@ -125,6 +148,18 @@ type didChangeParams struct {
 	ContentChanges []struct {
 		Text string `json:"text"`
 	} `json:"contentChanges"`
+}
+
+type didCloseParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+}
+
+type textDocumentParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
 }
 
 func (s *Server) publishDiagnostics(uri, text string) error {

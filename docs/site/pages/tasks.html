@@ -501,14 +501,16 @@
 </ul>
 <p>     diagnostics, completion, navigation, and code intelligence.</p>
 <ul>
-<li>Current slice adds a dependency-free Go JSON-RPC stdio language server with</li>
+<li>Current slices add a dependency-free Go JSON-RPC stdio language server with</li>
 </ul>
-<p>     <code>initialize</code>/<code>shutdown</code>, full-document sync, and deterministic bracket/string</p>
-<p>     diagnostics on open/change.</p>
+<p>    <code>initialize</code>/<code>shutdown</code>, full-document sync, deterministic bracket/string</p>
+<p>    diagnostics on open/change, clean close handling, keyword/local-symbol</p>
+<p>    completion, and lexer-backed document symbols for imports, functions,</p>
+<p>    variables, structs, and classes.</p>
 <ul>
-<li>Remaining work is parser-backed diagnostics, completion/navigation, syntax</li>
+<li>Remaining work is parser-backed diagnostics, definition/navigation, syntax</li>
 </ul>
-<p>     packaging, and VS Code extension smoke coverage.</p>
+<p>    packaging, and VS Code extension smoke coverage.</p>
 <h2 id="closed-do-not-repeat-families">Closed/Do-Not-Repeat Families</h2>
 <ul>
 <li>Do not re-open Mach-O resolver variants based on generic Oren maps, global sorting,</li>

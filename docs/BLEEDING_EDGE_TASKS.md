@@ -387,11 +387,13 @@ This file is the concise task view. Detailed implementation status lives in
 5. **Oren language tooling**
    - Build out `oren-lsp` and VS Code support for Oren syntax highlighting,
      diagnostics, completion, navigation, and code intelligence.
-   - Current slice adds a dependency-free Go JSON-RPC stdio language server with
-     `initialize`/`shutdown`, full-document sync, and deterministic bracket/string
-     diagnostics on open/change.
-   - Remaining work is parser-backed diagnostics, completion/navigation, syntax
-     packaging, and VS Code extension smoke coverage.
+  - Current slices add a dependency-free Go JSON-RPC stdio language server with
+    `initialize`/`shutdown`, full-document sync, deterministic bracket/string
+    diagnostics on open/change, clean close handling, keyword/local-symbol
+    completion, and lexer-backed document symbols for imports, functions,
+    variables, structs, and classes.
+  - Remaining work is parser-backed diagnostics, definition/navigation, syntax
+    packaging, and VS Code extension smoke coverage.
 
 ## Closed/Do-Not-Repeat Families
 
