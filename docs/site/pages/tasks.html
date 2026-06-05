@@ -217,7 +217,9 @@
 <p>     matching, class-selector scans, DOM parsing, and streaming readers no</p>
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
 <p>     hashing now feeds SHA-1 from exact-size <code>u8_buf</code> input, and PPM header</p>
-<p>     emission reads ASCII header strings directly. Compiler source-policy</p>
+<p>     emission reads ASCII header strings directly. Native <code>oren_write_file</code></p>
+<p>     writes strings directly through syscalls without a transient byte list.</p>
+<p>     Compiler source-policy</p>
 <p>     scans, scan-cache line/number parsing, C-runtime include scanning,</p>
 <p>     compiler manifest JSON escaping, bytecode metadata payloads, OBX</p>
 <p>     string/prefix encoding, AST binary v1 string writing, bytecode string</p>

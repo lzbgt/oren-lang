@@ -1,0 +1,26 @@
+fn fail(code, msg) {
+    print("module write_file_string FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_streq(a, b, code, msg) {
+    if a != b { fail(code, msg) }
+}
+
+var path = "build/test_write_file_string.txt"
+var content = "alpha\nbeta:123\n"
+var w = oren_write_file(path, content)
+if oren_is_err(w) { fail(1, "write_file string failed") }
+var r = oren_read_file(path)
+if oren_is_err(r) { fail(2, "read_file failed") }
+assert_streq(r, content, 3, "roundtrip content")
+
+var empty_path = "build/test_write_file_empty.txt"
+var w2 = oren_write_file(empty_path, "")
+if oren_is_err(w2) { fail(4, "write_file empty failed") }
+var r2 = oren_read_file(empty_path)
+if oren_is_err(r2) { fail(5, "read_file empty failed") }
+assert_streq(r2, "", 6, "roundtrip empty")
+
+print("module write_file_string OK")
+exit(0)

@@ -317,10 +317,44 @@ fn oren_read_file(path) {
 
 @cap.requires(domain="FS")
 fn oren_write_file(path, content) {
-    // Write a string as bytes.
-    var bs = oren_bytes_from_string(content)
-    var r = oren_write_bytes(path, bs)
-    if oren_is_err(r) { return r }
+    // Write a native string directly as bytes without materializing list<int>.
+    var pair = native_capsule_fs_path_resolve_pair(path, 1)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var flags = 1 | OREN_O_CREAT | OREN_O_TRUNC // WRONLY|CREAT|TRUNC (Oren-level flags)
+    var fd = sys_open(rpath, flags, 420) // 0644
+    if fd < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - fd, "write_file: sys_open failed")
+    }
+
+    var n = oren_string_len(content)
+    if n > 0 {
+        var off = 0
+        while off < n {
+            var wn = sys_write(fd, content + off, n - off)
+            if wn < 0 {
+                sys_close(fd)
+                if owned == 1 { free(rpath) }
+                return oren_err(0 - wn, "write_file: sys_write failed")
+            }
+            if wn == 0 {
+                sys_close(fd)
+                if owned == 1 { free(rpath) }
+                return oren_err(5, "write_file: sys_write made no progress")
+            }
+            off = off + wn
+        }
+    }
+
+    var crc = sys_close(fd)
+    if crc < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - crc, "write_file: sys_close failed")
+    }
+    if owned == 1 { free(rpath) }
     return 0
 }
 
