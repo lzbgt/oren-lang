@@ -158,8 +158,9 @@ Facts from the 2026-05-28 implementation pass:
   capability/source/permission/update metadata, authenticated operator status page/API
   for registry counts, aggregate release-ready/incomplete counts, and missing
   bundle/source/signature/permission readiness counts, authenticated
-  operator release lifecycle page/API for visibility, readiness, latest-published
-  state, publish/yank/visibility action URLs, and authenticated no-JS browser
+	  operator release lifecycle page/API with status/visibility/readiness filters,
+	  visibility, readiness, latest-published state, publish/yank/visibility action URLs,
+	  and authenticated no-JS browser
   forms for publishing, yanking, and package visibility changes, authenticated
   operator update inventory page/API for latest/superseded package versions,
   authenticated operator audit page/API with append-only mutation JSONL and status

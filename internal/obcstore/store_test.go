@@ -234,8 +234,26 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if !strings.Contains(lifecycle["publish_url"].(string), "/publish") || !strings.Contains(lifecycle["yank_url"].(string), "/yank") || !strings.Contains(lifecycle["visibility_url"].(string), "/visibility") {
 		t.Fatalf("missing ops lifecycle urls=%v", lifecycle)
 	}
+	if opsReleases["total_release_count"] != float64(1) || opsReleases["filtered_release_count"] != float64(1) {
+		t.Fatalf("bad ops release counts=%v", opsReleases)
+	}
+	filteredReleases := getAdminJSON[map[string]any](t, ts, "/api/v0/ops/releases?status=published&visibility=public&readiness=incomplete")
+	if filteredReleases["filtered_release_count"] != float64(1) {
+		t.Fatalf("published/public/incomplete filter should keep release: %v", filteredReleases)
+	}
+	filterValues := filteredReleases["filters"].(map[string]any)
+	if filterValues["status"] != "published" || filterValues["visibility"] != "public" || filterValues["readiness"] != "incomplete" {
+		t.Fatalf("bad release filters=%v", filterValues)
+	}
+	readyReleases := getAdminJSON[map[string]any](t, ts, "/api/v0/ops/releases?readiness=ready")
+	if readyReleases["total_release_count"] != float64(1) || readyReleases["filtered_release_count"] != float64(0) || len(readyReleases["releases"].([]any)) != 0 {
+		t.Fatalf("ready filter should hide incomplete release: %v", readyReleases)
+	}
+	if got := request(t, ts, http.MethodGet, "/api/v0/ops/releases?status=oops", nil, true); got.Code != http.StatusBadRequest {
+		t.Fatalf("invalid ops release filter status=%d body=%s", got.Code, got.Body.String())
+	}
 	opsReleasesPage := request(t, ts, http.MethodGet, "/ops/releases", nil, true)
-	if opsReleasesPage.Code != http.StatusOK || !strings.Contains(opsReleasesPage.Body.String(), "Release Lifecycle") || !strings.Contains(opsReleasesPage.Body.String(), "plot-demo") || !strings.Contains(opsReleasesPage.Body.String(), "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/yank") || !strings.Contains(opsReleasesPage.Body.String(), "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/yank") {
+	if opsReleasesPage.Code != http.StatusOK || !strings.Contains(opsReleasesPage.Body.String(), "Release Lifecycle") || !strings.Contains(opsReleasesPage.Body.String(), "Filters") || !strings.Contains(opsReleasesPage.Body.String(), "Showing 1 of 1 release") || !strings.Contains(opsReleasesPage.Body.String(), "plot-demo") || !strings.Contains(opsReleasesPage.Body.String(), "/api/v0/packages/oren-labs/plot-demo/versions/0.1.0/yank") || !strings.Contains(opsReleasesPage.Body.String(), "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/yank") {
 		t.Fatalf("ops releases page status=%d body=%s", opsReleasesPage.Code, opsReleasesPage.Body.String())
 	}
 	if got := requestForm(t, ts, "/ops/actions/packages/oren-labs/plot-demo/versions/0.1.0/yank", nil, false); got.Code != http.StatusUnauthorized {
@@ -816,6 +834,19 @@ func getJSON[T any](t *testing.T, ts *httptest.Server, path string) T {
 	var out T
 	if err := json.Unmarshal(body, &out); err != nil {
 		t.Fatalf("decode %s: %v body=%s", path, err, string(body))
+	}
+	return out
+}
+
+func getAdminJSON[T any](t *testing.T, ts *httptest.Server, path string) T {
+	t.Helper()
+	resp := request(t, ts, http.MethodGet, path, nil, true)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("GET %s status=%d body=%s", path, resp.Code, resp.Body.String())
+	}
+	var out T
+	if err := json.Unmarshal(resp.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode %s: %v body=%s", path, err, resp.Body.String())
 	}
 	return out
 }

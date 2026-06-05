@@ -193,11 +193,19 @@ curl -fsS https://store.hubstack.cn/api/v0/index.json
 const siteOpsReleasesHTML = `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OBC Store Release Lifecycle</title><style>` + siteCSS + `</style></head>
-<body><header><h1 class="brand">Release Lifecycle</h1><p>Authenticated operator inventory for package visibility, release state, readiness, and next actions.</p></header>
-<main>
-<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/ops/updates">update inventory</a> · <a href="/ops/audit">audit log</a> · <a href="/api/v0/ops/releases">JSON</a></p>
-<section class="card">
-{{if .Releases}}<table><tr><th>Package</th><th>Version</th><th>Status</th><th>Visibility</th><th>Readiness</th><th>Operator actions</th><th>Lifecycle endpoints</th></tr>
+	<body><header><h1 class="brand">Release Lifecycle</h1><p>Authenticated operator inventory for package visibility, release state, readiness, and next actions.</p></header>
+	<main>
+	<p><a href="/">Browse packages</a> · <a href="/ops">operator guide</a> · <a href="/ops/status">operator status</a> · <a href="/ops/updates">update inventory</a> · <a href="/ops/audit">audit log</a> · <a href="/api/v0/ops/releases">JSON</a></p>
+	<form class="card" action="/ops/releases" method="get">
+	  <h2>Filters</h2>
+	  <input name="status" placeholder="status: all|published|yanked|draft" value="{{.Filters.Status}}">
+	  <input name="visibility" placeholder="visibility: all|public|private" value="{{.Filters.Visibility}}">
+	  <input name="readiness" placeholder="readiness: all|ready|incomplete" value="{{.Filters.Readiness}}">
+	  <button type="submit">Apply filters</button>
+	  <p class="muted">Showing {{.FilteredReleaseCount}} of {{.TotalReleaseCount}} release(s).</p>
+	</form>
+	<section class="card">
+	{{if .Releases}}<table><tr><th>Package</th><th>Version</th><th>Status</th><th>Visibility</th><th>Readiness</th><th>Operator actions</th><th>Lifecycle endpoints</th></tr>
 {{range .Releases}}<tr>
 <td><a href="{{.PackageURL}}">{{.Publisher}}/{{.Name}}</a>{{if .Title}}<br><span class="muted">{{.Title}}</span>{{end}}</td>
 <td>{{.Version}}{{if .LatestPublished}} <span class="pill">latest</span>{{end}}</td>

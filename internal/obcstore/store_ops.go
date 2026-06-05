@@ -3,6 +3,7 @@ package obcstore
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,10 +37,19 @@ type OperatorReleaseItem struct {
 }
 
 type OperatorReleaseInventory struct {
-	Schema    string                `json:"schema"`
-	Service   string                `json:"service"`
-	Releases  []OperatorReleaseItem `json:"releases"`
-	Generated string                `json:"generated_at"`
+	Schema               string                 `json:"schema"`
+	Service              string                 `json:"service"`
+	Filters              OperatorReleaseFilters `json:"filters"`
+	TotalReleaseCount    int                    `json:"total_release_count"`
+	FilteredReleaseCount int                    `json:"filtered_release_count"`
+	Releases             []OperatorReleaseItem  `json:"releases"`
+	Generated            string                 `json:"generated_at"`
+}
+
+type OperatorReleaseFilters struct {
+	Status     string `json:"status"`
+	Visibility string `json:"visibility"`
+	Readiness  string `json:"readiness"`
 }
 
 func (s *Service) handleSiteOpsReleases(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +64,12 @@ func (s *Service) handleSiteOpsReleases(w http.ResponseWriter, r *http.Request) 
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	inventory, err := s.operatorReleaseInventory()
+	filters, err := operatorReleaseFiltersFromQuery(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	inventory, err := s.operatorReleaseInventory(filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -70,7 +85,12 @@ func (s *Service) handleOpsReleases(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	inventory, err := s.operatorReleaseInventory()
+	filters, err := operatorReleaseFiltersFromQuery(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	inventory, err := s.operatorReleaseInventory(filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -126,17 +146,80 @@ func (s *Service) handleSiteOpsAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ops/releases", http.StatusSeeOther)
 }
 
-func (s *Service) operatorReleaseInventory() (OperatorReleaseInventory, error) {
+func (s *Service) operatorReleaseInventory(filters OperatorReleaseFilters) (OperatorReleaseInventory, error) {
 	items, err := s.operatorReleaseItems()
 	if err != nil {
 		return OperatorReleaseInventory{}, err
 	}
+	total := len(items)
+	items = filterOperatorReleaseItems(items, filters)
 	return OperatorReleaseInventory{
-		Schema:    "oren.obc.store.ops.releases.v0",
-		Service:   "obc-store",
-		Generated: s.now().UTC().Format("2006-01-02T15:04:05Z07:00"),
-		Releases:  items,
+		Schema:               "oren.obc.store.ops.releases.v0",
+		Service:              "obc-store",
+		Filters:              filters,
+		TotalReleaseCount:    total,
+		FilteredReleaseCount: len(items),
+		Generated:            s.now().UTC().Format("2006-01-02T15:04:05Z07:00"),
+		Releases:             items,
 	}, nil
+}
+
+func operatorReleaseFiltersFromQuery(q url.Values) (OperatorReleaseFilters, error) {
+	filters := OperatorReleaseFilters{
+		Status:     normalizeOpsFilter(q.Get("status"), "all"),
+		Visibility: normalizeOpsFilter(q.Get("visibility"), "all"),
+		Readiness:  normalizeOpsFilter(q.Get("readiness"), "all"),
+	}
+	if !oneOf(filters.Status, "all", "published", "yanked", "draft") {
+		return OperatorReleaseFilters{}, errors.New("invalid status filter")
+	}
+	if !oneOf(filters.Visibility, "all", "public", "private") {
+		return OperatorReleaseFilters{}, errors.New("invalid visibility filter")
+	}
+	if !oneOf(filters.Readiness, "all", "ready", "incomplete") {
+		return OperatorReleaseFilters{}, errors.New("invalid readiness filter")
+	}
+	return filters, nil
+}
+
+func normalizeOpsFilter(v, fallback string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func oneOf(v string, allowed ...string) bool {
+	for _, a := range allowed {
+		if v == a {
+			return true
+		}
+	}
+	return false
+}
+
+func filterOperatorReleaseItems(items []OperatorReleaseItem, filters OperatorReleaseFilters) []OperatorReleaseItem {
+	if filters.Status == "all" && filters.Visibility == "all" && filters.Readiness == "all" {
+		return items
+	}
+	out := make([]OperatorReleaseItem, 0)
+	for _, item := range items {
+		if filters.Status != "all" && item.Status != filters.Status {
+			continue
+		}
+		if filters.Visibility != "all" && item.Visibility != filters.Visibility {
+			continue
+		}
+		if filters.Readiness == "ready" && len(item.MissingReadiness) != 0 {
+			continue
+		}
+		if filters.Readiness == "incomplete" && len(item.MissingReadiness) == 0 {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func (s *Service) operatorReleaseItems() ([]OperatorReleaseItem, error) {

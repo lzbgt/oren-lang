@@ -227,7 +227,8 @@ This file is the concise task view. Detailed implementation status lives in
 	     now exposes deployment gates plus aggregate release-ready/incomplete counts
 	     and missing bundle/source/signature/permission readiness counts, and
 	     authenticated operator release lifecycle inventory
-	     pages/APIs expose visibility, readiness, latest-published state,
+	     pages/APIs expose status/visibility/readiness filters, visibility,
+	     readiness, latest-published state,
 	     publish/yank/visibility action URLs, no-JS browser forms for those
 	     release/package mutations, authenticated update inventory page/API for
 	     latest/superseded package versions, authenticated append-only audit
