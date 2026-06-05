@@ -176,32 +176,27 @@ fn datetime_from_unix_ns(ns) {
     )
 }
 
-fn _digit(ch) {
-    if ch == "0" { return 0 }
-    if ch == "1" { return 1 }
-    if ch == "2" { return 2 }
-    if ch == "3" { return 3 }
-    if ch == "4" { return 4 }
-    if ch == "5" { return 5 }
-    if ch == "6" { return 6 }
-    if ch == "7" { return 7 }
-    if ch == "8" { return 8 }
-    if ch == "9" { return 9 }
+fn _byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
+fn _digit_byte(b) {
+    if b >= 48 && b <= 57 { return b - 48 }
     return -1
 }
 
 fn _parse_2(s, off) {
-    var d0 = _digit(oren_string_char_at(s, off))
-    var d1 = _digit(oren_string_char_at(s, off + 1))
+    var d0 = _digit_byte(_byte_at(s, off))
+    var d1 = _digit_byte(_byte_at(s, off + 1))
     if d0 < 0 || d1 < 0 { return result.err(4, "parse: expected 2 digits") }
     return d0 * 10 + d1
 }
 
 fn _parse_4(s, off) {
-    var d0 = _digit(oren_string_char_at(s, off))
-    var d1 = _digit(oren_string_char_at(s, off + 1))
-    var d2 = _digit(oren_string_char_at(s, off + 2))
-    var d3 = _digit(oren_string_char_at(s, off + 3))
+    var d0 = _digit_byte(_byte_at(s, off))
+    var d1 = _digit_byte(_byte_at(s, off + 1))
+    var d2 = _digit_byte(_byte_at(s, off + 2))
+    var d3 = _digit_byte(_byte_at(s, off + 3))
     if d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0 { return result.err(4, "parse: expected 4 digits") }
     return d0 * 1000 + d1 * 100 + d2 * 10 + d3
 }
@@ -213,11 +208,11 @@ fn parse_iso8601_utc(s) {
     if s == nil { return result.err(4, "parse_iso8601_utc: nil") }
     if oren_string_len(s) < 20 { return result.err(4, "parse_iso8601_utc: too short") }
 
-    if oren_string_char_at(s, 4) != "-" { return result.err(4, "parse_iso8601_utc: expected '-'") }
-    if oren_string_char_at(s, 7) != "-" { return result.err(4, "parse_iso8601_utc: expected '-'") }
-    if oren_string_char_at(s, 10) != "T" { return result.err(4, "parse_iso8601_utc: expected 'T'") }
-    if oren_string_char_at(s, 13) != ":" { return result.err(4, "parse_iso8601_utc: expected ':'") }
-    if oren_string_char_at(s, 16) != ":" { return result.err(4, "parse_iso8601_utc: expected ':'") }
+    if _byte_at(s, 4) != 45 { return result.err(4, "parse_iso8601_utc: expected '-'") }
+    if _byte_at(s, 7) != 45 { return result.err(4, "parse_iso8601_utc: expected '-'") }
+    if _byte_at(s, 10) != 84 { return result.err(4, "parse_iso8601_utc: expected 'T'") }
+    if _byte_at(s, 13) != 58 { return result.err(4, "parse_iso8601_utc: expected ':'") }
+    if _byte_at(s, 16) != 58 { return result.err(4, "parse_iso8601_utc: expected ':'") }
 
     var year = _parse_4(s, 0)
     if result.is_err(year) { return year }
@@ -234,21 +229,21 @@ fn parse_iso8601_utc(s) {
 
     var nanosecond = 0
     var end = oren_string_len(s) - 1
-    if oren_string_char_at(s, end) != "Z" { return result.err(4, "parse_iso8601_utc: expected 'Z'") }
+    if _byte_at(s, end) != 90 { return result.err(4, "parse_iso8601_utc: expected 'Z'") }
 
     if oren_string_len(s) == 20 {
         // no fraction
         return DateTime(year, month, day, hour, minute, second, 0)
     }
 
-    if oren_string_char_at(s, 19) != "." { return result.err(4, "parse_iso8601_utc: expected '.' or 'Z'") }
+    if _byte_at(s, 19) != 46 { return result.err(4, "parse_iso8601_utc: expected '.' or 'Z'") }
 
     var frac_len = (oren_string_len(s) - 1) - 20
     if frac_len < 1 || frac_len > 9 { return result.err(4, "parse_iso8601_utc: fractional seconds must be 1..9 digits") }
 
     var i = 0
     while i < frac_len {
-        var d = _digit(oren_string_char_at(s, 20 + i))
+        var d = _digit_byte(_byte_at(s, 20 + i))
         if d < 0 { return result.err(4, "parse_iso8601_utc: invalid fractional digit") }
         nanosecond = nanosecond * 10 + d
         i = i + 1

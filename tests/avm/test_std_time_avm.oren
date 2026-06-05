@@ -1,4 +1,5 @@
 import time "std:time"
+import result "std:result"
 
 fn main() {
     var t0 = time.now_ns()
@@ -11,6 +12,32 @@ fn main() {
     if u0 < t0 { oren_exit(902) }
     if m0 < t0 { oren_exit(903) }
     if t1 <= t0 { oren_exit(904) }
+
+    var s0 = "2025-01-02T03:04:05Z"
+    var dt0 = time.parse_iso8601_utc(s0)
+    if result.is_err(dt0) { oren_exit(905) }
+    if dt0.year != 2025 { oren_exit(906) }
+    if dt0.month != 1 { oren_exit(907) }
+    if dt0.day != 2 { oren_exit(908) }
+    if dt0.hour != 3 { oren_exit(909) }
+    if dt0.minute != 4 { oren_exit(910) }
+    if dt0.second != 5 { oren_exit(911) }
+    if dt0.nanosecond != 0 { oren_exit(912) }
+    if time.format_iso8601_utc(dt0) != s0 { oren_exit(913) }
+
+    var s1 = "2025-01-02T03:04:05.1234Z"
+    var dt1 = time.parse_iso8601_utc(s1)
+    if result.is_err(dt1) { oren_exit(914) }
+    if dt1.nanosecond != 123400000 { oren_exit(915) }
+    if time.format_iso8601_utc(dt1) != s1 { oren_exit(916) }
+
+    var dt_bad = time.parse_iso8601_utc("2025-01-02 03:04:05Z")
+    if !result.is_err(dt_bad) { oren_exit(917) }
+
+    var ns0 = time.datetime_to_unix_ns(dt0)
+    if result.is_err(ns0) { oren_exit(918) }
+    var dt0b = time.datetime_from_unix_ns(ns0)
+    if time.format_iso8601_utc(dt0b) != s0 { oren_exit(919) }
 
     print("avm std time OK")
     oren_exit(0)
