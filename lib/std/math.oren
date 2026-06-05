@@ -134,6 +134,31 @@ fn isunordered(a: f64, b: f64): bool {
     return is_nan(a) || is_nan(b)
 }
 
+fn isgreater(a: f64, b: f64): bool {
+    if isunordered(a, b) { return false }
+    return a > b
+}
+
+fn isgreaterequal(a: f64, b: f64): bool {
+    if isunordered(a, b) { return false }
+    return a >= b
+}
+
+fn isless(a: f64, b: f64): bool {
+    if isunordered(a, b) { return false }
+    return a < b
+}
+
+fn islessequal(a: f64, b: f64): bool {
+    if isunordered(a, b) { return false }
+    return a <= b
+}
+
+fn islessgreater(a: f64, b: f64): bool {
+    if isunordered(a, b) { return false }
+    return a < b || a > b
+}
+
 fn signbit(x: f64) {
     var b = _f64_bits(x)
     if oren_is_err(b) { return false }

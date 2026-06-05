@@ -694,9 +694,11 @@ Working evidence:
 - `std:math` avoids host `libm` so bytecode/AVM, C, and native backends share the
   same source-level semantics.
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
-  bit helpers, C/C++ classification aliases (`isnan`, `isinf`, `isfinite`,
-  `isnormal`, `isunordered`) plus `nan`, normal/subnormal classification,
-  rounding, `fmod`, nearest-even `remainder`, `modf`, public ties-to-even
+  bit helpers, C/C++ classification and ordered-comparison aliases (`isnan`,
+  `isinf`, `isfinite`, `isnormal`, `isunordered`, `isgreater`,
+  `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
+  normal/subnormal classification, rounding, `fmod`, nearest-even `remainder`,
+  `modf`, public ties-to-even
   rounding aliases, degree/radian conversion, `ilogb` / `logb`, `fdim`, `nextafter` / `nexttoward`, `sqrt`,
   `cbrt`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `scalbn`, `scalbln`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
