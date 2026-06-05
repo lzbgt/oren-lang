@@ -581,7 +581,7 @@
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
 <p>  and <code>std:strings</code> byte roundtrips now use byte-native u8 buffers,</p>
-<p>  <code>std:bytes.set_u8</code> and <code>std:bytes.copy_into</code> keep list-backed compatibility</p>
+<p>  <code>std:bytes</code> u8/endian writes and <code>copy_into</code> keep list-backed compatibility</p>
 <p>  while mutating u8-buffer destinations through raw pointer stores after public validation,</p>
 <p>  JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>  use direct source-string byte reads or exact-size <code>u8_buf</code> output, CBOR canonical</p>

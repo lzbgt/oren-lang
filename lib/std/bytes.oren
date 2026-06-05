@@ -79,6 +79,76 @@ fn _check_slice_span(bytes, off, n, ctx) {
     return nb
 }
 
+fn _store_u16_be(bytes, idx, v) {
+    if oren_is_u8_buf(bytes) == true {
+        var p = oren_buf_data_ptr_unchecked(bytes) + idx
+        ptr_set_byte(p + 0, (v >> 8) & 255)
+        ptr_set_byte(p + 1, v & 255)
+        return v
+    }
+    return oren_bytes_set_u16_be(bytes, idx, v)
+}
+
+fn _store_u16_le(bytes, idx, v) {
+    if oren_is_u8_buf(bytes) == true {
+        var p = oren_buf_data_ptr_unchecked(bytes) + idx
+        ptr_set_byte(p + 0, v & 255)
+        ptr_set_byte(p + 1, (v >> 8) & 255)
+        return v
+    }
+    return oren_bytes_set_u16_le(bytes, idx, v)
+}
+
+fn _store_u32_be(bytes, idx, v) {
+    if oren_is_u8_buf(bytes) == true {
+        var p = oren_buf_data_ptr_unchecked(bytes) + idx
+        ptr_set_byte(p + 0, (v >> 24) & 255)
+        ptr_set_byte(p + 1, (v >> 16) & 255)
+        ptr_set_byte(p + 2, (v >> 8) & 255)
+        ptr_set_byte(p + 3, v & 255)
+        return v
+    }
+    return oren_bytes_set_u32_be(bytes, idx, v)
+}
+
+fn _store_u32_le(bytes, idx, v) {
+    if oren_is_u8_buf(bytes) == true {
+        var p = oren_buf_data_ptr_unchecked(bytes) + idx
+        ptr_set_byte(p + 0, v & 255)
+        ptr_set_byte(p + 1, (v >> 8) & 255)
+        ptr_set_byte(p + 2, (v >> 16) & 255)
+        ptr_set_byte(p + 3, (v >> 24) & 255)
+        return v
+    }
+    return oren_bytes_set_u32_le(bytes, idx, v)
+}
+
+fn _store_u64_be(bytes, idx, v) {
+    if oren_is_u8_buf(bytes) == true {
+        var p = oren_buf_data_ptr_unchecked(bytes) + idx
+        var i = 0
+        while i < 8 {
+            ptr_set_byte(p + i, (v >> ((7 - i) * 8)) & 255)
+            i = i + 1
+        }
+        return v
+    }
+    return oren_bytes_set_u64_be(bytes, idx, v)
+}
+
+fn _store_u64_le(bytes, idx, v) {
+    if oren_is_u8_buf(bytes) == true {
+        var p = oren_buf_data_ptr_unchecked(bytes) + idx
+        var i = 0
+        while i < 8 {
+            ptr_set_byte(p + i, (v >> (i * 8)) & 255)
+            i = i + 1
+        }
+        return v
+    }
+    return oren_bytes_set_u64_le(bytes, idx, v)
+}
+
 fn _bytes_to_int_list(bytes, ctx) {
     if oren_type_tag(bytes) == 6 {
         var n2 = oren_list_len(bytes)
@@ -337,7 +407,7 @@ fn set_u16_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 65535, "bytes.set_u16_be")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_u16_be(bytes, idx, v)
+    return _store_u16_be(bytes, idx, v)
 }
 
 fn set_u16_le(bytes, idx, v) {
@@ -345,7 +415,7 @@ fn set_u16_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 65535, "bytes.set_u16_le")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_u16_le(bytes, idx, v)
+    return _store_u16_le(bytes, idx, v)
 }
 
 fn set_i16_be(bytes, idx, v) {
@@ -353,7 +423,7 @@ fn set_i16_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -32768, 32767, "bytes.set_i16_be")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_i16_be(bytes, idx, v)
+    return _store_u16_be(bytes, idx, v)
 }
 
 fn set_i16_le(bytes, idx, v) {
@@ -361,7 +431,7 @@ fn set_i16_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -32768, 32767, "bytes.set_i16_le")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_i16_le(bytes, idx, v)
+    return _store_u16_le(bytes, idx, v)
 }
 
 fn put_u16_be(bytes, idx, v) {
@@ -369,7 +439,7 @@ fn put_u16_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 65535, "bytes.put_u16_be")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_u16_be(bytes, idx, v)
+    var rc = _store_u16_be(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -379,7 +449,7 @@ fn put_u16_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 65535, "bytes.put_u16_le")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_u16_le(bytes, idx, v)
+    var rc = _store_u16_le(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -389,7 +459,7 @@ fn put_i16_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -32768, 32767, "bytes.put_i16_be")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_i16_be(bytes, idx, v)
+    var rc = _store_u16_be(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -399,7 +469,7 @@ fn put_i16_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -32768, 32767, "bytes.put_i16_le")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_i16_le(bytes, idx, v)
+    var rc = _store_u16_le(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -409,7 +479,7 @@ fn set_u32_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 4294967295, "bytes.set_u32_be")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_u32_be(bytes, idx, v)
+    return _store_u32_be(bytes, idx, v)
 }
 
 fn set_u32_le(bytes, idx, v) {
@@ -417,7 +487,7 @@ fn set_u32_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 4294967295, "bytes.set_u32_le")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_u32_le(bytes, idx, v)
+    return _store_u32_le(bytes, idx, v)
 }
 
 fn set_i32_be(bytes, idx, v) {
@@ -425,7 +495,7 @@ fn set_i32_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -2147483648, 2147483647, "bytes.set_i32_be")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_i32_be(bytes, idx, v)
+    return _store_u32_be(bytes, idx, v)
 }
 
 fn set_i32_le(bytes, idx, v) {
@@ -433,7 +503,7 @@ fn set_i32_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -2147483648, 2147483647, "bytes.set_i32_le")
     if oren_is_err(vv) { return vv }
-    return oren_bytes_set_i32_le(bytes, idx, v)
+    return _store_u32_le(bytes, idx, v)
 }
 
 fn put_u32_be(bytes, idx, v) {
@@ -441,7 +511,7 @@ fn put_u32_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 4294967295, "bytes.put_u32_be")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_u32_be(bytes, idx, v)
+    var rc = _store_u32_be(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -451,7 +521,7 @@ fn put_u32_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_unsigned(v, 4294967295, "bytes.put_u32_le")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_u32_le(bytes, idx, v)
+    var rc = _store_u32_le(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -461,7 +531,7 @@ fn put_i32_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -2147483648, 2147483647, "bytes.put_i32_be")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_i32_be(bytes, idx, v)
+    var rc = _store_u32_be(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -471,7 +541,7 @@ fn put_i32_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     var vv = _check_signed(v, -2147483648, 2147483647, "bytes.put_i32_le")
     if oren_is_err(vv) { return vv }
-    var rc = oren_bytes_set_i32_le(bytes, idx, v)
+    var rc = _store_u32_le(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -480,28 +550,28 @@ fn set_u64_be(bytes, idx, v) {
     var ok = _check_span(bytes, idx, 8, "bytes.set_u64_be")
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.set_u64_be: value not int") }
-    return oren_bytes_set_u64_be(bytes, idx, v)
+    return _store_u64_be(bytes, idx, v)
 }
 
 fn set_u64_le(bytes, idx, v) {
     var ok = _check_span(bytes, idx, 8, "bytes.set_u64_le")
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.set_u64_le: value not int") }
-    return oren_bytes_set_u64_le(bytes, idx, v)
+    return _store_u64_le(bytes, idx, v)
 }
 
 fn set_i64_be(bytes, idx, v) {
     var ok = _check_span(bytes, idx, 8, "bytes.set_i64_be")
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.set_i64_be: value not int") }
-    return oren_bytes_set_i64_be(bytes, idx, v)
+    return _store_u64_be(bytes, idx, v)
 }
 
 fn set_i64_le(bytes, idx, v) {
     var ok = _check_span(bytes, idx, 8, "bytes.set_i64_le")
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.set_i64_le: value not int") }
-    return oren_bytes_set_i64_le(bytes, idx, v)
+    return _store_u64_le(bytes, idx, v)
 }
 
 fn put_u64_be(bytes, idx, v) {
@@ -509,7 +579,7 @@ fn put_u64_be(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.put_u64_be: value not int") }
     if v < 0 { return oren_err(4, "bytes.put_u64_be: value out of range") }
-    var rc = oren_bytes_set_u64_be(bytes, idx, v)
+    var rc = _store_u64_be(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -519,7 +589,7 @@ fn put_u64_le(bytes, idx, v) {
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.put_u64_le: value not int") }
     if v < 0 { return oren_err(4, "bytes.put_u64_le: value out of range") }
-    var rc = oren_bytes_set_u64_le(bytes, idx, v)
+    var rc = _store_u64_le(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -528,7 +598,7 @@ fn put_i64_be(bytes, idx, v) {
     var ok = _check_span(bytes, idx, 8, "bytes.put_i64_be")
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.put_i64_be: value not int") }
-    var rc = oren_bytes_set_i64_be(bytes, idx, v)
+    var rc = _store_u64_be(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }
@@ -537,7 +607,7 @@ fn put_i64_le(bytes, idx, v) {
     var ok = _check_span(bytes, idx, 8, "bytes.put_i64_le")
     if oren_is_err(ok) { return ok }
     if _is_int(v) == false { return oren_err(4, "bytes.put_i64_le: value not int") }
-    var rc = oren_bytes_set_i64_le(bytes, idx, v)
+    var rc = _store_u64_le(bytes, idx, v)
     if oren_is_err(rc) { return rc }
     return bytes
 }

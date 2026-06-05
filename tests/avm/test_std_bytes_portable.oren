@@ -109,6 +109,31 @@ fn test_bytes_u8_buf_to_string() {
     assert_true(oren_is_err(bytesm.to_u8_buf_slice(bytesm.from_string("hi"), 1, 2)))
 }
 
+fn test_bytes_endian_writes() {
+    var ub = bufferm.u8_from_string("........")
+    assert_true(!oren_is_err(ub))
+    assert_eq(bytesm.set_u16_be(ub, 0, 4660), 4660)
+    assert_eq(bytesm.get_u16_be(ub, 0), 4660)
+    assert_true(!oren_is_err(bytesm.put_i16_le(ub, 0, -2)))
+    assert_eq(bytesm.get_i16_le(ub, 0), -2)
+    assert_eq(bytesm.set_u32_le(ub, 0, 16909060), 16909060)
+    assert_eq(bytesm.get_u32_le(ub, 0), 16909060)
+    assert_true(!oren_is_err(bytesm.put_i32_be(ub, 0, -2)))
+    assert_eq(bytesm.get_i32_be(ub, 0), -2)
+    assert_eq(bytesm.set_u64_be(ub, 0, 72623859790382856), 72623859790382856)
+    assert_eq(bytesm.get_u64_be(ub, 0), 72623859790382856)
+    assert_true(!oren_is_err(bytesm.put_i64_le(ub, 0, -2)))
+    assert_eq(bytesm.get_i64_le(ub, 0), -2)
+    assert_true(oren_is_err(bytesm.put_u16_be(ub, 7, 1)))
+    assert_true(oren_is_err(bytesm.put_u64_be(ub, 0, -1)))
+
+    var listb = [0, 0, 0, 0]
+    assert_true(!oren_is_err(bytesm.put_u16_be(listb, 0, 4660)))
+    assert_eq(bytesm.get_u16_be(listb, 0), 4660)
+    assert_eq(bytesm.set_u32_le(listb, 0, 16909060), 16909060)
+    assert_eq(bytesm.get_u32_le(listb, 0), 16909060)
+}
+
 fn test_assert_streq_portable() {
     assertm.assert_streq("ok", "ok", "avm std assert_streq portable")
 }
@@ -126,6 +151,7 @@ fn test_list_and_strings_validation() {
 fn main() {
     test_bytes_conversions()
     test_bytes_u8_buf_to_string()
+    test_bytes_endian_writes()
     test_assert_streq_portable()
     test_list_and_strings_validation()
     return 0
