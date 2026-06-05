@@ -1,4 +1,5 @@
 import codegen_bytecode "codegen_bytecode.oren"
+import bytes_builder "bytes_builder.oren"
 
 // OBC linker (rolling)
 //
@@ -358,69 +359,73 @@ fn _sort_strings(xs) {
 
 fn _emit_constant(out, c) {
     if c["type"] == "Nil" {
-        oren_list_push(out, 0)
+        bytes_builder.bytes_push(out, 0)
         return nil
     }
     if c["type"] == "Integer" {
-        oren_list_push(out, 1)
-        _push_u64_le(out, c["value"])
+        bytes_builder.bytes_push(out, 1)
+        bytes_builder.bytes_push_u64_le(out, c["value"])
         return nil
     }
     if c["type"] == "Bool" {
-        oren_list_push(out, 2)
+        bytes_builder.bytes_push(out, 2)
         var b = c["value"]
         if b != 0 { b = 1 }
-        oren_list_push(out, b & 255)
+        bytes_builder.bytes_push(out, b & 255)
         return nil
     }
     if c["type"] == "Float" {
-        oren_list_push(out, 3)
-        _push_u64_le(out, c["value"])
+        bytes_builder.bytes_push(out, 3)
+        bytes_builder.bytes_push_u64_le(out, c["value"])
         return nil
     }
     if c["type"] == "String" {
-        oren_list_push(out, 4)
+        bytes_builder.bytes_push(out, 4)
         var s = c["value"]
         if s == nil { s = "" }
         var len = oren_string_len(s)
-        _push_u16_le(out, len)
-        var i = 0
-        while i < len {
-            oren_list_push(out, _string_u8_at(s, i))
-            i = i + 1
-        }
+        bytes_builder.bytes_push_u16_le(out, len)
+        bytes_builder.bytes_extend_string(out, s)
         return nil
     }
     if c["type"] == "Bytes" {
-        oren_list_push(out, 8)
+        bytes_builder.bytes_push(out, 8)
         var b = c["value"]
         var blen = 0
         // `Bytes` constants are encoded as a length-prefixed byte list.
         // Defensive: treat raw 0 (null pointer) and `nil` as empty.
-        if b != 0 && oren_type_tag(b) != 0 { blen = oren_list_len(b) }
-        _push_u32_le(out, blen)
-        var i = 0
-        while i < blen {
-            oren_list_push(out, b[i] & 255)
-            i = i + 1
+        if b != 0 {
+            var n_bytes = oren_bytes_len(b)
+            if !oren_is_err(n_bytes) { blen = n_bytes }
+            else {
+                if oren_type_tag(b) != 0 { blen = oren_list_len(b) }
+            }
+        }
+        bytes_builder.bytes_push_u32_le(out, blen)
+        if blen > 0 {
+            if oren_is_u8_buf(b) == true {
+                bytes_builder.bytes_extend_u8_buf(out, b)
+            } else {
+                bytes_builder.bytes_extend_list(out, b)
+            }
         }
         return nil
     }
     // Unknown constant: encode as NIL (rolling best-effort).
-    oren_list_push(out, 0)
+    bytes_builder.bytes_push(out, 0)
     return nil
 }
 
 fn obc_encode_bytes(obc) {
-    var bytes = []
+    var bytes = bytes_builder.bytes_new()
     // Magic: 0x0ECD (CD 0E)
-    oren_list_push(bytes, 205)
-    oren_list_push(bytes, 14)
+    bytes_builder.bytes_push(bytes, 205)
+    bytes_builder.bytes_push(bytes, 14)
 
     var consts = obc["constants"]
     if consts == nil { consts = [] }
     var n_consts = oren_list_len(consts)
-    _push_u16_le(bytes, n_consts)
+    bytes_builder.bytes_push_u16_le(bytes, n_consts)
 
     var i = 0
     while i < n_consts {
@@ -430,12 +435,12 @@ fn obc_encode_bytes(obc) {
 
     var code = obc["code"]
     if code == nil { code = [] }
-    i = 0
-    while i < oren_list_len(code) {
-        oren_list_push(bytes, code[i] & 255)
-        i = i + 1
+    if oren_is_u8_buf(code) == true {
+        bytes_builder.bytes_extend_u8_buf(bytes, code)
+    } else {
+        bytes_builder.bytes_extend_list(bytes, code)
     }
-    return bytes
+    return bytes_builder.bytes_finalize(bytes)
 }
 
 fn obc_write_file(out_path, obc) {
