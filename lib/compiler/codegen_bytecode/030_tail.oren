@@ -653,7 +653,5 @@ fn bytecode_emit_program(out_path, ctx) {
         print(e)
         oren_exit(1)
     }
-    var out_list2 = oren_bytes_unpack(out_buf)
-    if oren_is_err(out_list2) { return out_buf }
-    return out_list2
+    return out_buf
 }

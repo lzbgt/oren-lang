@@ -528,7 +528,7 @@ Facts from the 2026-05-28 implementation pass:
   direct unchecked u8 stores after exact-size allocation, and native SHA-256
   contiguous input remainders copy with `oren_memcpy`. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
-	  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
+	  bytecode final artifact return as `u8_buf`, bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
 	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
 	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,
 	  native capsule mount path resolution, realpath segment output, readdir names,
