@@ -513,8 +513,8 @@ Facts from the 2026-05-28 implementation pass:
 		  directly. HPACK Huffman string encode/decode and full header-block
 		  encoding now write exact-size `u8_buf` payloads instead of building
 		  intermediate Oren byte lists. PEM relaxed decode passes body slices to
-		  Base64 directly, and strict decode concatenates body lines through an
-		  exact-size `u8_buf` instead of a byte list. JSON,
+		  Base64 directly, and strict decode concatenates body lines through raw
+		  exact-size `u8_buf` writes instead of a byte list. JSON,
 		  YAML, CBOR, Base64, regex, PEM/X509, time parsing, crypto RNG, HPACK,
 			  HTTP/2 parser records, UI color parsing, PPM encoding, public
 			  `std:bytes` helpers, public `std:buffer` facade plus importable

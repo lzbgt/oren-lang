@@ -113,6 +113,11 @@ fn _strict_body_string(pem_text, start, end, ctx) {
 
     var out = oren_u8_buf_new_uninit(count)
     if oren_is_err(out) { return out }
+    var outp = 0
+    if count > 0 {
+        outp = oren_buf_data_ptr_unchecked(out)
+        if outp == 0 { return oren_err(4, ctx + ": output data ptr is nil") }
+    }
     var oi = 0
     i = start
     while i < end {
@@ -120,7 +125,7 @@ fn _strict_body_string(pem_text, start, end, ctx) {
         if le2 > end { le2 = end }
         var k2 = i
         while k2 < le2 {
-            oren_buf_store_u8(out, oi, oren_string_byte_at_unchecked(pem_text, k2) & 255)
+            ptr_set_byte(iadd(outp, oi), oren_string_byte_at_unchecked(pem_text, k2) & 255)
             oi = oi + 1
             k2 = k2 + 1
         }

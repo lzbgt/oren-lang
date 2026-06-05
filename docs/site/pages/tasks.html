@@ -215,7 +215,8 @@
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     Huffman string encode/decode and full header-block encoding now write</p>
 <p>     exact-size <code>u8_buf</code> payloads, and PEM/Base64 body handling avoids</p>
-<p>     materializing Oren byte lists. <code>std:strings</code> prefix/suffix/search/equality</p>
+<p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
+<p>     exact-size writes. <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text encoding, and full regex</p>
 <p>     pattern/text matching now use direct string</p>
 <p>     byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,</p>

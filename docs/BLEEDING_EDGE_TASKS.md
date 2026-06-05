@@ -147,7 +147,8 @@ This file is the concise task view. Detailed implementation status lives in
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      Huffman string encode/decode and full header-block encoding now write
      exact-size `u8_buf` payloads, and PEM/Base64 body handling avoids
-     materializing Oren byte lists. `std:strings` prefix/suffix/search/equality
+     materializing Oren byte lists with strict PEM body concatenation through raw
+     exact-size writes. `std:strings` prefix/suffix/search/equality
      and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text encoding, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
