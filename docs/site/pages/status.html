@@ -628,7 +628,8 @@
 <p>		  result byte lists. Native crypto RNG now fills its result <code>u8_buf</code></p>
 <p>		  directly. HPACK Huffman string encode/decode and full header-block</p>
 <p>		  encoding now write exact-size <code>u8_buf</code> payloads instead of building</p>
-<p>		  intermediate Oren byte lists. PEM relaxed decode passes body slices to</p>
+<p>		  intermediate Oren byte lists, and HTTP/2 client continuation/header-block</p>
+<p>		  buffers now copy through native <code>oren_memcpy</code>. PEM relaxed decode passes body slices to</p>
 <p>		  Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>		  exact-size <code>u8_buf</code> writes instead of a byte list. JSON,</p>
 <p>		  YAML, CBOR, Base64, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing,</p>

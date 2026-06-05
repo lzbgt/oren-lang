@@ -214,7 +214,8 @@
 <p>     write string bytes directly into OGF0 payloads. SHA-1/SHA-256 digest outputs and native</p>
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     Huffman string encode/decode and full header-block encoding now write</p>
-<p>     exact-size <code>u8_buf</code> payloads, and PEM/Base64 body handling avoids</p>
+<p>     exact-size <code>u8_buf</code> payloads, HTTP/2 client continuation/header-block</p>
+<p>     buffering copies with native <code>oren_memcpy</code>, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
 <p>     exact-size writes. <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text</p>
