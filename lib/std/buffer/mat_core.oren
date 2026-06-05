@@ -4,6 +4,7 @@
 // in separate modules.
 
 import common "std:buffer/common"
+import raw "std:buffer/raw"
 
 fn _err_invalid(msg) { return common._err_invalid(msg) }
 fn _is_int(v) { return common._is_int(v) }
@@ -95,6 +96,7 @@ fn _mat_store_u8_unchecked(m, r, c, v) {
     var cols = m[3]
     if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_u8: index out of bounds") }
     var idx = m[1] + r * m[4] + c
+    if oren_is_u8_buf(m[0]) == true { return raw._store_u8_buf_unchecked_direct(m[0], idx, v) }
     return oren_buf_store_u8(m[0], idx, v)
 }
 

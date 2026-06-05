@@ -483,7 +483,8 @@ Facts from the 2026-05-28 implementation pass:
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
   and `std:strings` byte roundtrips now use byte-native u8 buffers,
   `std:bytes` u8/endian writes and `copy_into` keep list-backed compatibility
-  while mutating u8-buffer destinations through raw pointer stores after public validation,
+  while mutating u8-buffer destinations and u8 slice/strided/matrix views
+  through raw pointer stores after public validation,
   JSON full decode, scalar parse, tag equality, and escape paths
   use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
   key ordering/text encoding plus u8-backed decode byte carriers, full regex
@@ -537,29 +538,29 @@ Facts from the 2026-05-28 implementation pass:
 	  package opts into HTML/XML parsing.
 	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical
 	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
-		  indexed byte access instead of unpacking the whole message to a list, and
-		  write fixed-size digest `u8_buf` outputs directly instead of packing
-			  result byte lists. Native crypto RNG now fills its result `u8_buf`
-			  directly. HPACK plain literal decode now slices the header block directly,
-				  while Huffman string encode/decode, decoded-string boundaries, and full
-				  header-block encoding use exact-size `u8_buf` payloads or byte-slice
-				  conversion instead of building intermediate Oren byte lists; TLS ALPN
-				  decoded-byte strings also convert through byte slices. HTTP/2 client continuation/header-block
-			  buffers now copy through native `oren_memcpy`, and native WebSocket header
-			  slices/unmasked frame payloads plus DNS QNAME labels use the same native copy path.
-			  PEM relaxed decode passes body slices to
-		  Base64 directly, and strict decode concatenates body lines through raw
-		  exact-size `u8_buf` writes instead of a byte list. JSON,
-			  YAML, CBOR, Base64, regex, PEM/X509, `std:time` ISO-8601 UTC parsing,
-					  native string concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
-			  `std:bytes` helpers, public `std:buffer` facade plus importable
-			  `std:buffer` raw/view/core/numeric/u8-matrix helpers,
-		  public `std:buffer` root/view/matrix helpers
-		  including matrix projection helpers, public `std:strings` / `std:list`
-			  helpers, public `std:linalg` root helpers, public `std:iter` range
-			  helpers, public SHA-1/SHA-256 digest helpers, UI validate/raster/PPM
-			  helpers, and checked
-		  `std:ints` / `std:casts` helpers now use canonical fallible verbs or
+	  indexed byte access instead of unpacking the whole message to a list, and
+	  write fixed-size digest `u8_buf` outputs directly instead of packing
+	  result byte lists. Native crypto RNG now fills its result `u8_buf`
+	  directly. HPACK plain literal decode now slices the header block directly,
+	  while Huffman string encode/decode, decoded-string boundaries, and full
+	  header-block encoding use exact-size `u8_buf` payloads or byte-slice
+	  conversion instead of building intermediate Oren byte lists; TLS ALPN
+	  decoded-byte strings also convert through byte slices. HTTP/2 client
+	  continuation/header-block buffers now copy through native `oren_memcpy`,
+	  and native WebSocket header slices/unmasked frame payloads plus DNS QNAME
+	  labels use the same native copy path. PEM relaxed decode passes body slices
+	  to Base64 directly, and strict decode concatenates body lines through raw
+	  exact-size `u8_buf` writes instead of a byte list. JSON, YAML, CBOR,
+	  Base64, regex, PEM/X509, `std:time` ISO-8601 UTC parsing, native string
+	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,
+	  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
+	  `std:bytes` helpers, public `std:buffer` facade plus importable
+	  `std:buffer` raw/view/core/numeric/u8-matrix helpers including u8 view
+	  stores, public `std:buffer` root/view/matrix helpers including matrix
+	  projection helpers, public `std:strings` / `std:list` helpers, public
+	  `std:linalg` root helpers, public `std:iter` range helpers, public
+	  SHA-1/SHA-256 digest helpers, UI validate/raster/PPM helpers, and checked
+	  `std:ints` / `std:casts` helpers now use canonical fallible verbs or
 		  `{ok,...}` records (`parse`, `encode`, `decode_bytes`, `compile`,
 		  `bytes`, `bytes.pack`, `bytes.get_u32_le`, `load_i32`, `mat_row_to_bytes`,
 			  `strings.slice`, `list.get`, `linalg.dot_f64_buf`, `iter.range`,

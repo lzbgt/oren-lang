@@ -264,7 +264,10 @@ fn _strided_pos(s, idx) { return s[1] + idx * s[3] }
 fn _buf_load_i32(buf, idx) { return oren_buf_load_i32(buf, idx) }
 fn _buf_store_i32(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
 fn _buf_load_u8(buf, idx) { return oren_buf_load_u8(buf, idx) }
-fn _buf_store_u8(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
+fn _buf_store_u8(buf, idx, v) {
+    if oren_is_u8_buf(buf) == true { return raw._store_u8_buf_unchecked_direct(buf, idx, v) }
+    return oren_buf_store_u8(buf, idx, v)
+}
 fn _buf_load_f32(buf, idx) { return oren_buf_load_f32(buf, idx) }
 fn _buf_store_f32(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
 fn _buf_load_i64(buf, idx) { return oren_buf_load_i64(buf, idx) }

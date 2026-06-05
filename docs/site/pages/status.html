@@ -583,7 +583,8 @@
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
 <p>  and <code>std:strings</code> byte roundtrips now use byte-native u8 buffers,</p>
 <p>  <code>std:bytes</code> u8/endian writes and <code>copy_into</code> keep list-backed compatibility</p>
-<p>  while mutating u8-buffer destinations through raw pointer stores after public validation,</p>
+<p>  while mutating u8-buffer destinations and u8 slice/strided/matrix views</p>
+<p>  through raw pointer stores after public validation,</p>
 <p>  JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>  use direct source-string byte reads or exact-size <code>u8_buf</code> output, CBOR canonical</p>
 <p>  key ordering/text encoding plus u8-backed decode byte carriers, full regex</p>
@@ -637,29 +638,29 @@
 <p>	  package opts into HTML/XML parsing.</p>
 <p>	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical</p>
 <p>	  <code>digest</code> / <code>hex</code> / receiver-method APIs, and process virtual padding via</p>
-<p>		  indexed byte access instead of unpacking the whole message to a list, and</p>
-<p>		  write fixed-size digest <code>u8_buf</code> outputs directly instead of packing</p>
-<p>			  result byte lists. Native crypto RNG now fills its result <code>u8_buf</code></p>
-<p>			  directly. HPACK plain literal decode now slices the header block directly,</p>
-<p>				  while Huffman string encode/decode, decoded-string boundaries, and full</p>
-<p>				  header-block encoding use exact-size <code>u8_buf</code> payloads or byte-slice</p>
-<p>				  conversion instead of building intermediate Oren byte lists; TLS ALPN</p>
-<p>				  decoded-byte strings also convert through byte slices. HTTP/2 client continuation/header-block</p>
-<p>			  buffers now copy through native <code>oren_memcpy</code>, and native WebSocket header</p>
-<p>			  slices/unmasked frame payloads plus DNS QNAME labels use the same native copy path.</p>
-<p>			  PEM relaxed decode passes body slices to</p>
-<p>		  Base64 directly, and strict decode concatenates body lines through raw</p>
-<p>		  exact-size <code>u8_buf</code> writes instead of a byte list. JSON,</p>
-<p>			  YAML, CBOR, Base64, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing,</p>
-<p>					  native string concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK, HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>
-<p>			  <code>std:bytes</code> helpers, public <code>std:buffer</code> facade plus importable</p>
-<p>			  <code>std:buffer</code> raw/view/core/numeric/u8-matrix helpers,</p>
-<p>		  public <code>std:buffer</code> root/view/matrix helpers</p>
-<p>		  including matrix projection helpers, public <code>std:strings</code> / <code>std:list</code></p>
-<p>			  helpers, public <code>std:linalg</code> root helpers, public <code>std:iter</code> range</p>
-<p>			  helpers, public SHA-1/SHA-256 digest helpers, UI validate/raster/PPM</p>
-<p>			  helpers, and checked</p>
-<p>		  <code>std:ints</code> / <code>std:casts</code> helpers now use canonical fallible verbs or</p>
+<p>	  indexed byte access instead of unpacking the whole message to a list, and</p>
+<p>	  write fixed-size digest <code>u8_buf</code> outputs directly instead of packing</p>
+<p>	  result byte lists. Native crypto RNG now fills its result <code>u8_buf</code></p>
+<p>	  directly. HPACK plain literal decode now slices the header block directly,</p>
+<p>	  while Huffman string encode/decode, decoded-string boundaries, and full</p>
+<p>	  header-block encoding use exact-size <code>u8_buf</code> payloads or byte-slice</p>
+<p>	  conversion instead of building intermediate Oren byte lists; TLS ALPN</p>
+<p>	  decoded-byte strings also convert through byte slices. HTTP/2 client</p>
+<p>	  continuation/header-block buffers now copy through native <code>oren_memcpy</code>,</p>
+<p>	  and native WebSocket header slices/unmasked frame payloads plus DNS QNAME</p>
+<p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
+<p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>
+<p>	  exact-size <code>u8_buf</code> writes instead of a byte list. JSON, YAML, CBOR,</p>
+<p>	  Base64, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing, native string</p>
+<p>	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,</p>
+<p>	  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>
+<p>	  <code>std:bytes</code> helpers, public <code>std:buffer</code> facade plus importable</p>
+<p>	  <code>std:buffer</code> raw/view/core/numeric/u8-matrix helpers including u8 view</p>
+<p>	  stores, public <code>std:buffer</code> root/view/matrix helpers including matrix</p>
+<p>	  projection helpers, public <code>std:strings</code> / <code>std:list</code> helpers, public</p>
+<p>	  <code>std:linalg</code> root helpers, public <code>std:iter</code> range helpers, public</p>
+<p>	  SHA-1/SHA-256 digest helpers, UI validate/raster/PPM helpers, and checked</p>
+<p>	  <code>std:ints</code> / <code>std:casts</code> helpers now use canonical fallible verbs or</p>
 <p>		  <code>{ok,...}</code> records (<code>parse</code>, <code>encode</code>, <code>decode_bytes</code>, <code>compile</code>,</p>
 <p>		  <code>bytes</code>, <code>bytes.pack</code>, <code>bytes.get_u32_le</code>, <code>load_i32</code>, <code>mat_row_to_bytes</code>,</p>
 <p>			  <code>strings.slice</code>, <code>list.get</code>, <code>linalg.dot_f64_buf</code>, <code>iter.range</code>,</p>
