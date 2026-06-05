@@ -518,7 +518,7 @@ Facts from the 2026-05-28 implementation pass:
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, SHA hex helpers and
   Windows Schannel certificate-hash formatting use direct std bytes hex
-  emission, the native runtime hex/string/slice/unpack/pack/endian-read helpers read
+  emission, C/native runtime hex/string/slice/unpack/pack/endian-read helpers read
   list/u8-buffer backing storage directly after one validation pass, and Windows
   Schannel passphrase cache keys use the direct string hash path instead of
   materializing a byte list, SHA-1/SHA-256 digest buffers finalize through

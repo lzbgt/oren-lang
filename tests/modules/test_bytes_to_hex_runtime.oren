@@ -1,0 +1,32 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("bytes_to_hex runtime FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn main() {
+    assert_eq(oren_bytes_to_hex([0, 255, 16, 32]), "00ff1020", 10)
+    assert_eq(oren_bytes_to_hex([]), "", 11)
+    if oren_is_err(oren_bytes_to_hex([0, 256])) == false { fail(12) }
+
+    var ub: []u8 = buffer.u8_new(4)
+    if oren_is_err(ub) { fail(20) }
+    oren_buf_store_u8(ub, 0, 0)
+    oren_buf_store_u8(ub, 1, 255)
+    oren_buf_store_u8(ub, 2, 171)
+    oren_buf_store_u8(ub, 3, 32)
+    assert_eq(oren_bytes_to_hex(ub), "00ffab20", 21)
+
+    var empty: []u8 = buffer.u8_new(0)
+    if oren_is_err(empty) { fail(30) }
+    assert_eq(oren_bytes_to_hex(empty), "", 31)
+
+    print("bytes_to_hex runtime OK")
+    exit(0)
+}

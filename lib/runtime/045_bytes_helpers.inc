@@ -82,15 +82,40 @@ OrenValue oren_bytes_to_hex(OrenValue bytes) {
     }
 
     lock_collections();
-    for (size_t i = 0; i < n; i++) {
-        uint8_t b = 0;
-        if (!bytes_get_u8_checked(bytes, (int)i, &b)) {
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || b->elem_size != 1u || b->len < n || (n > 0u && !b->data)) {
             unlock_collections();
             free(out);
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_to_hex: expected list<int 0..255> or u8_buf"));
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_to_hex: expected u8_buf"));
         }
-        out[i * 2u + 0u] = bytes_hex_char((uint8_t)((b >> 4) & 0x0Fu));
-        out[i * 2u + 1u] = bytes_hex_char((uint8_t)(b & 0x0Fu));
+        for (size_t i = 0; i < n; i++) {
+            uint8_t bv = b->data[i];
+            out[i * 2u + 0u] = bytes_hex_char((uint8_t)((bv >> 4) & 0x0Fu));
+            out[i * 2u + 1u] = bytes_hex_char((uint8_t)(bv & 0x0Fu));
+        }
+    } else if (bytes.type == OREN_TYPE_LIST) {
+        OrenList* list = bytes.as.list_val;
+        if (!list || list->count < 0 || (size_t)list->count < n || (n > 0u && !list->items)) {
+            unlock_collections();
+            free(out);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_to_hex: expected list<int 0..255>"));
+        }
+        for (size_t i = 0; i < n; i++) {
+            OrenValue v = list->items[i];
+            if (v.type != OREN_TYPE_INT || v.as.int_val < 0 || v.as.int_val > 255) {
+                unlock_collections();
+                free(out);
+                return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_to_hex: expected list<int 0..255>"));
+            }
+            uint8_t bv = (uint8_t)v.as.int_val;
+            out[i * 2u + 0u] = bytes_hex_char((uint8_t)((bv >> 4) & 0x0Fu));
+            out[i * 2u + 1u] = bytes_hex_char((uint8_t)(bv & 0x0Fu));
+        }
+    } else {
+        unlock_collections();
+        free(out);
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_to_hex: expected list<int 0..255> or u8_buf"));
     }
     unlock_collections();
 
