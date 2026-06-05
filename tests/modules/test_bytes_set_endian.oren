@@ -1,5 +1,7 @@
 // Module/C backend regression: endian-aware writes to list<int> must exist.
 
+import buffer "../../lib/std/buffer.oren"
+
 var b16 = [0, 0]
 if oren_bytes_set_u16_be(b16, 0, 4660) != 4660 { exit(1) }
 if b16[0] != 18 || b16[1] != 52 { exit(2) }
@@ -34,6 +36,19 @@ var b64n = [0, 0, 0, 0, 0, 0, 0, 0]
 if oren_bytes_set_i64_be(b64n, 0, -2) != -2 { exit(19) }
 if b64n[0] != 255 || b64n[7] != 254 { exit(20) }
 if oren_bytes_get_i64_be(b64n, 0) != -2 { exit(21) }
+
+var ub: []u8 = buffer.u8_new(8)
+if oren_is_err(ub) { exit(22) }
+if oren_bytes_set_u64_be(ub, 0, 72623859790382856) != 72623859790382856 { exit(23) }
+if oren_bytes_get_u64_be(ub, 0) != 72623859790382856 { exit(24) }
+if oren_buf_load_u8(ub, 0) != 1 || oren_buf_load_u8(ub, 7) != 8 { exit(25) }
+if oren_bytes_set_u64_le(ub, 0, 72623859790382856) != 72623859790382856 { exit(26) }
+if oren_bytes_get_u64_le(ub, 0) != 72623859790382856 { exit(27) }
+if oren_buf_load_u8(ub, 0) != 8 || oren_buf_load_u8(ub, 7) != 1 { exit(28) }
+
+if oren_is_err(oren_bytes_get_u16_be([0, 256], 0)) == false { exit(29) }
+if oren_is_err(oren_bytes_get_u16_be([0], 0)) == false { exit(30) }
+if oren_is_err(oren_bytes_set_u16_be([0], 0, 1)) == false { exit(31) }
 
 print("module bytes_set_endian OK")
 exit(0)
