@@ -639,7 +639,7 @@ fn _decode_int(ptr0, off, n, prefix_bits) {
     return {"ok": 1, "v": value, "off": off}
 }
 
-fn _decode_string(ptr0, off, n) {
+fn _decode_string(block_bytes, ptr0, off, n) {
     // RFC 7541 §5.2.
     if ptr0 == 0 { return {"ok": 0, "err": "hpack.decode_string: nil ptr"} }
     if off < 0 || off >= n { return {"ok": 0, "err": "hpack.decode_string: out of range"} }
@@ -651,25 +651,13 @@ fn _decode_string(ptr0, off, n) {
     var slen = r["v"]
     if slen < 0 { return {"ok": 0, "err": "hpack.decode_string: negative length"} }
     if (off + slen) > n { return {"ok": 0, "err": "hpack.decode_string: truncated"} }
-    var b = nil
     if huffman {
         var hr = _huff_decode_bytes(ptr0, off, slen)
         if hr["ok"] != 1 { return hr }
-        b = hr["b"]
-    } else {
-        b = oren_u8_buf_new(slen)
-        if oren_is_err(b) { return b }
-        if slen > 0 {
-            var dst2 = native_buf_data_ptr(b)
-            if dst2 == 0 { return {"ok": 0, "err": "hpack.decode_string: bytes ptr nil"} }
-            var i = 0
-            while i < slen {
-                ptr_set_byte(dst2 + i, ptr_get_byte(ptr0 + off + i) & 255)
-                i = i + 1
-            }
-        }
+        var hs = oren_string_from_bytes(hr["b"])
+        return {"ok": 1, "s": hs, "off": off + slen}
     }
-    var s = oren_string_from_bytes(b)
+    var s = oren_string_from_bytes_slice(block_bytes, off, slen)
     return {"ok": 1, "s": s, "off": off + slen}
 }
 
@@ -715,7 +703,7 @@ fn decode_header_block(table, header_block_bytes) {
             var name_idx = r2["v"]
             var name = nil
             if name_idx == 0 {
-                var sr = _decode_string(ptr0, off, n)
+                var sr = _decode_string(header_block_bytes, ptr0, off, n)
                 if sr["ok"] != 1 { return sr }
                 name = sr["s"]
                 off = sr["off"]
@@ -724,7 +712,7 @@ fn decode_header_block(table, header_block_bytes) {
                 if nr["ok"] != 1 { return nr }
                 name = nr["name"]
             }
-            var vr = _decode_string(ptr0, off, n)
+            var vr = _decode_string(header_block_bytes, ptr0, off, n)
             if vr["ok"] != 1 { return vr }
             off = vr["off"]
             var value = vr["s"]
@@ -754,7 +742,7 @@ fn decode_header_block(table, header_block_bytes) {
 
         var name2 = nil
         if name_idx2 == 0 {
-            var sr2 = _decode_string(ptr0, off, n)
+            var sr2 = _decode_string(header_block_bytes, ptr0, off, n)
             if sr2["ok"] != 1 { return sr2 }
             name2 = sr2["s"]
             off = sr2["off"]
@@ -763,7 +751,7 @@ fn decode_header_block(table, header_block_bytes) {
             if nr2["ok"] != 1 { return nr2 }
             name2 = nr2["name"]
         }
-        var vr2 = _decode_string(ptr0, off, n)
+        var vr2 = _decode_string(header_block_bytes, ptr0, off, n)
         if vr2["ok"] != 1 { return vr2 }
         off = vr2["off"]
         var value2 = vr2["s"]

@@ -525,10 +525,11 @@ Facts from the 2026-05-28 implementation pass:
 	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
 		  indexed byte access instead of unpacking the whole message to a list, and
 		  write fixed-size digest `u8_buf` outputs directly instead of packing
-		  result byte lists. Native crypto RNG now fills its result `u8_buf`
-		  directly. HPACK Huffman string encode/decode and full header-block
-		  encoding now write exact-size `u8_buf` payloads instead of building
-		  intermediate Oren byte lists, and HTTP/2 client continuation/header-block
+			  result byte lists. Native crypto RNG now fills its result `u8_buf`
+			  directly. HPACK plain literal decode now slices the header block directly,
+			  while Huffman string encode/decode and full header-block encoding write
+			  exact-size `u8_buf` payloads instead of building
+			  intermediate Oren byte lists, and HTTP/2 client continuation/header-block
 		  buffers now copy through native `oren_memcpy`. PEM relaxed decode passes body slices to
 		  Base64 directly, and strict decode concatenates body lines through raw
 		  exact-size `u8_buf` writes instead of a byte list. JSON,
