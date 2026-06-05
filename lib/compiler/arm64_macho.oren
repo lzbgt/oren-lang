@@ -325,11 +325,24 @@ fn push_u16_le(buf, n) {
 
 fn push_str_fixed16(buf, s) {
     // Write a Mach-O fixed-size 16-byte ASCII field (segname/sectname), NUL-padded.
-    var b = oren_bytes_from_string(s)
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
     var i = 0
     while i < 16 {
-        if i < oren_list_len(b) { bytes_push(buf, b[i]) }
+        if i < n { bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255) }
         else { bytes_push(buf, 0) }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _macho_push_string_bytes(buf, s) {
+    if buf == nil { return nil }
+    if s == nil { s = "" }
+    var i = 0
+    var n = oren_string_len(s)
+    while i < n {
+        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
         i = i + 1
     }
     return nil
@@ -377,12 +390,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
         
         // Symbol name (C-string) + '_' prefix if typical C
         bytes_push(p, 95) // '_'
-        var name_bytes = oren_bytes_from_string(name)
-        var k = 0
-        while k < oren_list_len(name_bytes) {
-             bytes_push(p, name_bytes[k])
-             k = k + 1
-        }
+        _macho_push_string_bytes(p, name)
         bytes_push(p, 0)
         
         // BIND_OPCODE_DO_BIND (0x90)
@@ -583,16 +591,11 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     push_u32_le(p, 0) // export_size
     
     // 6. LC_LOAD_DYLINKER
-    var dyld_bytes = oren_bytes_from_string(dyld_path)
     var cmd_start = bytes_len(p)
     push_u32_le(p, lc_load_dylinker())
     push_u32_le(p, dyld_cmdsize)
     push_u32_le(p, dylinker_name_offset())
-    i = 0
-    while i < oren_list_len(dyld_bytes) {
-        bytes_push(p, dyld_bytes[i])
-        i = i + 1
-    }
+    _macho_push_string_bytes(p, dyld_path)
     bytes_push(p, 0)
     while bytes_len(p) < cmd_start + dyld_cmdsize {
         bytes_push(p, 0)
@@ -607,12 +610,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current version
         push_u32_le(p, 0) // compatibility version
-        k_lib = 0
-        var libsys_bytes = oren_bytes_from_string(libsys_path)
-        while k_lib < oren_list_len(libsys_bytes) {
-            bytes_push(p, libsys_bytes[k_lib])
-            k_lib = k_lib + 1
-        }
+        _macho_push_string_bytes(p, libsys_path)
         bytes_push(p, 0) // null terminator
         while bytes_len(p) < cmd_start_lib + libsys_cmdsize {
             bytes_push(p, 0) // padding
@@ -631,12 +629,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current version
         push_u32_le(p, 0) // compatibility version
-        var kl2 = 0
-        var lib_bytes2 = oren_bytes_from_string(lib_path2)
-        while kl2 < oren_list_len(lib_bytes2) {
-            bytes_push(p, lib_bytes2[kl2])
-            kl2 = kl2 + 1
-        }
+        _macho_push_string_bytes(p, lib_path2)
         bytes_push(p, 0)
         while bytes_len(p) < cmd_start_lib2 + lib_cmdsize2 {
             bytes_push(p, 0)
@@ -669,12 +662,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current ver
         push_u32_le(p, 0) // compat ver
-        var ki = 0
-        var id_bytes = oren_bytes_from_string(id_name)
-        while ki < oren_list_len(id_bytes) {
-            bytes_push(p, id_bytes[ki])
-            ki = ki + 1
-        }
+        _macho_push_string_bytes(p, id_name)
         bytes_push(p, 0)
         while bytes_len(p) < id_start + id_size { bytes_push(p, 0) }
     } else {

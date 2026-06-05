@@ -228,12 +228,24 @@ fn _bytes_align(buf, align) {
     return nil
 }
 
+fn _elf_push_string_bytes(buf, s) {
+    if buf == nil { return nil }
+    if s == nil { s = "" }
+    var i = 0
+    var n = oren_string_len(s)
+    while i < n {
+        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    return nil
+}
+
 fn _bytes_add_str0(buf, s) {
     // Append a NUL-terminated string to a byte buffer and return its starting offset.
     if buf == nil { return nil }
     if s == nil { s = "" }
     var off = bytes_len(buf)
-    bytes_extend_list(buf, oren_bytes_from_string(s))
+    _elf_push_string_bytes(buf, s)
     bytes_push(buf, 0)
     return off
 }
@@ -413,12 +425,11 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         // Use the conventional x86_64 interpreter path on glibc-based distros.
         // (WSL2/Ubuntu provides /lib64/ld-linux-x86-64.so.2 as a stable entry point.)
         var interp = "/lib64/ld-linux-x86-64.so.2"
-        var interp_bytes = oren_bytes_from_string(interp)
         _bytes_align(data, 1)
         interp_off = bytes_len(data)
-        bytes_extend_list(data, interp_bytes)
+        _elf_push_string_bytes(data, interp)
         bytes_push(data, 0)
-        interp_len = oren_list_len(interp_bytes) + 1
+        interp_len = oren_string_len(interp) + 1
     }
 
     // --- .init_array (shared libraries) ---
@@ -1082,13 +1093,13 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     var shstr = bytes_new()
     bytes_push(shstr, 0) // leading NUL => name index 0 is ""
     var off_text = bytes_len(shstr)
-    bytes_extend_list(shstr, oren_bytes_from_string(".text"))
+    _elf_push_string_bytes(shstr, ".text")
     bytes_push(shstr, 0)
     var off_data = bytes_len(shstr)
-    bytes_extend_list(shstr, oren_bytes_from_string(".data"))
+    _elf_push_string_bytes(shstr, ".data")
     bytes_push(shstr, 0)
     var off_shstr = bytes_len(shstr)
-    bytes_extend_list(shstr, oren_bytes_from_string(".shstrtab"))
+    _elf_push_string_bytes(shstr, ".shstrtab")
     bytes_push(shstr, 0)
 
     // Align and append shstrtab.
