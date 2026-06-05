@@ -389,14 +389,14 @@ This file is the concise task view. Detailed implementation status lives in
      diagnostics, completion, navigation, and code intelligence.
   - Current slices add a dependency-free Go JSON-RPC stdio language server with
     `initialize`/`shutdown`, full-document sync, deterministic bracket/string
-    diagnostics on open/change, clean close handling, keyword/local-symbol
-    completion, and lexer-backed document symbols for imports, functions,
-    variables, structs, and classes, plus same-file definition navigation for
-    local/import symbols.
+    diagnostics plus parser-backed diagnostics on open/change, clean close
+    handling, keyword/local-symbol completion, and lexer-backed document symbols
+    for imports, functions, variables, structs, and classes, plus same-file
+    definition navigation for local/import symbols.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and
     a smoke verifier for manifest/grammar/config/entrypoint integrity.
-  - Remaining work is parser-backed diagnostics and cross-file definition/navigation.
+  - Remaining work is cross-file definition/navigation.
 
 ## Closed/Do-Not-Repeat Families
 

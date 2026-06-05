@@ -8,6 +8,9 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"oren/pkg/lexer"
+	"oren/pkg/parser"
 )
 
 type Server struct {
@@ -261,7 +264,50 @@ func diagnose(text string) []diagnostic {
 		fr := stack[i]
 		out = append(out, diag(fr.pos, fr.pos, "unclosed delimiter"))
 	}
+	out = append(out, parserDiagnostics(text)...)
 	return out
+}
+
+func parserDiagnostics(text string) []diagnostic {
+	p := parser.New(lexer.New(text))
+	p.ParseProgram()
+	errs := p.Errors()
+	out := make([]diagnostic, 0, len(errs))
+	for _, err := range errs {
+		out = append(out, parserDiagnostic(err))
+	}
+	return out
+}
+
+func parserDiagnostic(msg string) diagnostic {
+	line, col, rest := splitParserError(msg)
+	pos := position{Line: line, Character: col}
+	return diagWithSource(pos, pos, "oren-parser", rest)
+}
+
+func splitParserError(msg string) (int, int, string) {
+	line, col := 0, 0
+	rest := msg
+	first, tail, ok := strings.Cut(msg, ":")
+	if !ok {
+		return line, col, rest
+	}
+	second, tail2, ok := strings.Cut(tail, " ")
+	if !ok {
+		return line, col, rest
+	}
+	parsedLine, lineErr := strconv.Atoi(first)
+	parsedCol, colErr := strconv.Atoi(strings.TrimSuffix(second, ":"))
+	if lineErr != nil || colErr != nil {
+		return line, col, rest
+	}
+	if parsedLine > 0 {
+		line = parsedLine - 1
+	}
+	if parsedCol > 0 {
+		col = parsedCol - 1
+	}
+	return line, col, tail2
 }
 
 type runeFrame struct {
@@ -296,13 +342,17 @@ func openerFor(r rune) rune {
 }
 
 func diag(start, end position, msg string) diagnostic {
+	return diagWithSource(start, end, "oren-lsp", msg)
+}
+
+func diagWithSource(start, end position, source, msg string) diagnostic {
 	if end.Line == start.Line && end.Character == start.Character {
 		end.Character++
 	}
 	return diagnostic{
 		Range:    diagnosticRange{Start: start, End: end},
 		Severity: 1,
-		Source:   "oren-lsp",
+		Source:   source,
 		Message:  msg,
 	}
 }

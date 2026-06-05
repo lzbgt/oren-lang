@@ -95,6 +95,27 @@ func TestDiagnoseIgnoresLineCommentDelimiters(t *testing.T) {
 	}
 }
 
+func TestDiagnoseIncludesParserErrors(t *testing.T) {
+	got := diagnose("fn main( { return 1 }\n")
+	parserDiags := diagnosticsWithSource(got, "oren-parser")
+	if len(parserDiags) == 0 {
+		t.Fatalf("diagnostics=%#v missing parser diagnostics", got)
+	}
+	if !strings.Contains(parserDiags[0].Message, "expected next token") {
+		t.Fatalf("parser diagnostic=%#v missing parser message", parserDiags[0])
+	}
+	if parserDiags[0].Range.Start.Line != 0 || parserDiags[0].Range.Start.Character < 0 {
+		t.Fatalf("parser diagnostic range=%#v", parserDiags[0].Range)
+	}
+}
+
+func TestDiagnoseValidProgramHasNoParserErrors(t *testing.T) {
+	got := diagnose("fn main() { return 1 }\n")
+	if len(got) != 0 {
+		t.Fatalf("diagnostics=%#v want none", got)
+	}
+}
+
 func TestServerCompletionAndDocumentSymbols(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{
@@ -335,4 +356,14 @@ func assertDefinition(t *testing.T, defs []any, uri string, line, startChar, end
 	if start["line"] != line || start["character"] != startChar || end["line"] != line || end["character"] != endChar {
 		t.Fatalf("definition range=%#v want line=%v chars=%v..%v", rng, line, startChar, endChar)
 	}
+}
+
+func diagnosticsWithSource(diags []diagnostic, source string) []diagnostic {
+	out := []diagnostic{}
+	for _, diag := range diags {
+		if diag.Source == source {
+			out = append(out, diag)
+		}
+	}
+	return out
 }
