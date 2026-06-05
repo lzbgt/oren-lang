@@ -210,7 +210,8 @@
 <p>     Base64 and crypto hashes now follow the same rule with</p>
 <p>     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
 <p>     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
-<p>     path on exact-size <code>u8_buf</code> output. SHA-1/SHA-256 digest outputs and native</p>
+<p>     path on exact-size <code>u8_buf</code> output; plain UI <code>text</code> frame commands now also</p>
+<p>     write string bytes directly into OGF0 payloads. SHA-1/SHA-256 digest outputs and native</p>
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     Huffman string encode/decode and full header-block encoding now write</p>
 <p>     exact-size <code>u8_buf</code> payloads, and PEM/Base64 body handling avoids</p>

@@ -142,7 +142,8 @@ This file is the concise task view. Detailed implementation status lives in
      Base64 and crypto hashes now follow the same rule with
      `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
      `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
-     path on exact-size `u8_buf` output. SHA-1/SHA-256 digest outputs and native
+     path on exact-size `u8_buf` output; plain UI `text` frame commands now also
+     write string bytes directly into OGF0 payloads. SHA-1/SHA-256 digest outputs and native
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      Huffman string encode/decode and full header-block encoding now write
      exact-size `u8_buf` payloads, and PEM/Base64 body handling avoids
