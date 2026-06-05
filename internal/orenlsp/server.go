@@ -100,6 +100,13 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: documentSymbols(s.docs[p.TextDocument.URI])})
+	case "textDocument/definition":
+		var p textDocumentParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		uri := p.TextDocument.URI
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: definitionLocations(s.docs[uri], uri, p.Position)})
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -126,6 +133,7 @@ func initializeResult() map[string]any {
 				"triggerCharacters": []string{".", ":"},
 			},
 			"documentSymbolProvider": true,
+			"definitionProvider":     true,
 		},
 		"serverInfo": map[string]any{
 			"name":    "oren-lsp",
@@ -160,6 +168,7 @@ type textDocumentParams struct {
 	TextDocument struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
+	Position position `json:"position"`
 }
 
 func (s *Server) publishDiagnostics(uri, text string) error {

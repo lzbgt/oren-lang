@@ -37,6 +37,9 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	if caps["documentSymbolProvider"] != true {
 		t.Fatalf("missing documentSymbolProvider capability: %#v", caps)
 	}
+	if caps["definitionProvider"] != true {
+		t.Fatalf("missing definitionProvider capability: %#v", caps)
+	}
 }
 
 func TestServerPublishesDiagnosticsOnDidOpenAndDidChange(t *testing.T) {
@@ -183,6 +186,67 @@ func TestServerDidCloseDropsDocumentSymbols(t *testing.T) {
 	}
 }
 
+func TestServerDefinitionFindsLocalSymbol(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"import math \"std:math\"",
+		"var answer = 42",
+		"fn compute() {",
+		"  return answer",
+		"}",
+		"",
+	}, "\n")
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///definition.oren", "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      10,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///definition.oren"},
+			"position":     map[string]any{"line": 3, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      11,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///definition.oren"},
+			"position":     map[string]any{"line": 3, "character": 15},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      12,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": "file:///definition.oren"},
+			"position":     map[string]any{"line": 4, "character": 0},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	defs := messageByID(t, msgs, 10)["result"].([]any)
+	assertDefinition(t, defs, "file:///definition.oren", 1, 4, 10)
+	defsAtEnd := messageByID(t, msgs, 11)["result"].([]any)
+	assertDefinition(t, defsAtEnd, "file:///definition.oren", 1, 4, 10)
+	empty := messageByID(t, msgs, 12)["result"].([]any)
+	if len(empty) != 0 {
+		t.Fatalf("definition for non-word=%#v want none", empty)
+	}
+}
+
 func writeTestMessage(t *testing.T, w *bytes.Buffer, v any) {
 	t.Helper()
 	msg, err := EncodeMessage(v)
@@ -254,4 +318,21 @@ func hasCompletion(items []any, label string, kind float64) bool {
 		}
 	}
 	return false
+}
+
+func assertDefinition(t *testing.T, defs []any, uri string, line, startChar, endChar float64) {
+	t.Helper()
+	if len(defs) != 1 {
+		t.Fatalf("definitions=%#v want one", defs)
+	}
+	loc := defs[0].(map[string]any)
+	if loc["uri"] != uri {
+		t.Fatalf("definition uri=%#v want %q", loc["uri"], uri)
+	}
+	rng := loc["range"].(map[string]any)
+	start := rng["start"].(map[string]any)
+	end := rng["end"].(map[string]any)
+	if start["line"] != line || start["character"] != startChar || end["line"] != line || end["character"] != endChar {
+		t.Fatalf("definition range=%#v want line=%v chars=%v..%v", rng, line, startChar, endChar)
+	}
 }

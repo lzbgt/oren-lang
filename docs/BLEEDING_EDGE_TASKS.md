@@ -391,9 +391,10 @@ This file is the concise task view. Detailed implementation status lives in
     `initialize`/`shutdown`, full-document sync, deterministic bracket/string
     diagnostics on open/change, clean close handling, keyword/local-symbol
     completion, and lexer-backed document symbols for imports, functions,
-    variables, structs, and classes.
-  - Remaining work is parser-backed diagnostics, definition/navigation, syntax
-    packaging, and VS Code extension smoke coverage.
+    variables, structs, and classes, plus same-file definition navigation for
+    local/import symbols.
+  - Remaining work is parser-backed diagnostics, cross-file definition/navigation,
+    syntax packaging, and VS Code extension smoke coverage.
 
 ## Closed/Do-Not-Repeat Families
 

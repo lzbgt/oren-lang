@@ -2,6 +2,7 @@ package orenlsp
 
 import (
 	"sort"
+	"strings"
 
 	"oren/pkg/lexer"
 	"oren/pkg/token"
@@ -43,6 +44,11 @@ type documentSymbol struct {
 	Detail         string          `json:"detail,omitempty"`
 }
 
+type location struct {
+	URI   string          `json:"uri"`
+	Range diagnosticRange `json:"range"`
+}
+
 func completionItems(text string) []completionItem {
 	items := make([]completionItem, 0, len(orenKeywords)+8)
 	seen := map[string]bool{}
@@ -79,6 +85,64 @@ func documentSymbols(text string) []documentSymbol {
 		})
 	}
 	return out
+}
+
+func definitionLocations(text, uri string, pos position) []location {
+	name := wordAtPosition(text, pos)
+	if name == "" {
+		return []location{}
+	}
+	for _, sym := range collectSymbols(text) {
+		if sym.Name == name {
+			return []location{{URI: uri, Range: sym.Range}}
+		}
+	}
+	return []location{}
+}
+
+func wordAtPosition(text string, pos position) string {
+	lines := strings.Split(text, "\n")
+	if pos.Line < 0 || pos.Line >= len(lines) {
+		return ""
+	}
+	line := []rune(lines[pos.Line])
+	if len(line) == 0 {
+		return ""
+	}
+	col := pos.Character
+	if col < 0 {
+		return ""
+	}
+	if col >= len(line) {
+		col = len(line) - 1
+	}
+	if !isIdentRune(line[col]) && col > 0 && isIdentRune(line[col-1]) {
+		col--
+	}
+	if !isIdentRune(line[col]) {
+		return ""
+	}
+	start := col
+	for start > 0 && isIdentRune(line[start-1]) {
+		start--
+	}
+	end := col + 1
+	for end < len(line) && isIdentRune(line[end]) {
+		end++
+	}
+	word := string(line[start:end])
+	if !isIdentStart(rune(word[0])) {
+		return ""
+	}
+	return word
+}
+
+func isIdentRune(r rune) bool {
+	return isIdentStart(r) || (r >= '0' && r <= '9')
+}
+
+func isIdentStart(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_'
 }
 
 func collectSymbols(text string) []sourceSymbol {
