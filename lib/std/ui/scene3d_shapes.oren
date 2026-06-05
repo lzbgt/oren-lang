@@ -4,7 +4,6 @@
 // This keeps shape authoring growth out of the retained-scene orchestration
 // module while preserving the existing OGF0 mesh byte ABI.
 
-import bytes "std:bytes"
 import ints "std:ints"
 import math "std:math"
 import raw "std:buffer/raw"
@@ -165,7 +164,7 @@ fn pack_cylinders_z(cylinders, ctx) {
         }
         ci = ci + 1
     }
-    return bytes.from_u8_buf(out)
+    return out
 }
 
 fn _cones_triangle_count(cones, ctx) {
@@ -233,7 +232,7 @@ fn pack_cones_z(cones, ctx) {
         }
         ci = ci + 1
     }
-    return bytes.from_u8_buf(out)
+    return out
 }
 
 fn _sphere_center(sphere, ctx) {
@@ -393,7 +392,7 @@ fn pack_spheres_xyz(spheres, ctx) {
         }
         si = si + 1
     }
-    return bytes.from_u8_buf(out)
+    return out
 }
 
 fn _ellipsoids_triangle_count(ellipsoids, ctx) {
@@ -470,7 +469,7 @@ fn pack_ellipsoids_xyz(ellipsoids, ctx) {
         }
         ei = ei + 1
     }
-    return bytes.from_u8_buf(out)
+    return out
 }
 
 fn _torus_radius(torus, primary, fallback, label, ctx) {
@@ -585,7 +584,7 @@ fn pack_toruses_xyz(toruses, ctx) {
         }
         ti = ti + 1
     }
-    return bytes.from_u8_buf(out)
+    return out
 }
 
 fn _capsules_triangle_count(capsules, ctx) {
@@ -705,5 +704,5 @@ fn pack_capsules_z(capsules, ctx) {
         }
         ci = ci + 1
     }
-    return bytes.from_u8_buf(out)
+    return out
 }

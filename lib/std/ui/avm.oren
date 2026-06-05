@@ -664,7 +664,7 @@ fn frame_bytes(cmds, w, h, opts) {
         i = i + 1
     }
     if _writer_pos(wr) != frame_len { return oren_err(4, "ui.avm.frame_bytes: internal size mismatch") }
-    return bytes.from_u8_buf(_writer_buf(wr))
+    return _writer_buf(wr)
 }
 
 fn present_bytes(frame) {

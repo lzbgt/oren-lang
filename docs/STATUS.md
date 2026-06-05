@@ -477,7 +477,7 @@ Facts from the 2026-05-28 implementation pass:
   raw process/thread creation exposed to OBC.
 - AVM app-facing stdlib hot paths now prefer raw bytes: `std:ui/avm` has
   `text_bytes`, direct text/composition event payload string slicing, and
-  exact-size `u8_buf` OGF0 frame encoding with direct string-byte writes for
+  exact-size directly-returned `u8_buf` OGF0 frame encoding with direct string-byte writes for
   plain `text` commands instead of final list-to-byte packing,
   `std:ui/color` parses hex colors directly from ASCII string bytes,
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
