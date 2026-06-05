@@ -396,11 +396,12 @@ This file is the concise task view. Detailed implementation status lives in
     navigation for relative and `std:` modules, plus lexer-backed hover and
     references over the same current/open/imported workspace graph with bounded
     transitive import traversal and cycle guards, plus full-document semantic-token
-    classification for declarations/references/literals/operators.
+    classification for declarations/references/literals/operators and
+    parser-derived parameter/property classes.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and
     a smoke verifier for manifest/grammar/config/entrypoint integrity.
-  - Remaining work is deeper parser/type-aware indexing beyond lexical symbols.
+  - Remaining work is deeper scope/type-aware indexing beyond parser symbol classes.
 
 ## Closed/Do-Not-Repeat Families
 
