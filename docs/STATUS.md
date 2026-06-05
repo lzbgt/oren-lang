@@ -480,7 +480,8 @@ Facts from the 2026-05-28 implementation pass:
   byte list, and SHA-1/SHA-256 digest buffers finalize through direct unchecked
   u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
-  bytecode string constants, OBX string/prefix encoding, AST binary v1 string
+  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
+  writes,
   writing, native Mach-O/ELF object string payloads, runtime-object debug-name
   blobs, x64 native debug-table names, ARM64 native panic-message payloads,
   shared compiler byte-builder append/list/string/set stores, C identifier

@@ -130,12 +130,6 @@ fn _astbin_size(v) {
     return 1 + _astbin_varint_size_signed(v)
 }
 
-fn _astbin_write_u8(buf, off, b) {
-    // Write a single byte and return next offset.
-    oren_buf_store_u8(buf, off, b & 255)
-    return off + 1
-}
-
 // --- Fast u8_buf encoder helpers (stage2-native critical) ---
 //
 // These helpers assume the output buffer is a `u8_buf` allocated with the correct final size.
@@ -190,69 +184,69 @@ fn _astbin_write_string_ptr(data_ptr, off, s) {
     return off
 }
 
-fn _astbin_write_uvarint(buf, off, x) {
+fn _astbin_write_uvarint_v1_ptr(data_ptr, off, x) {
     var v = x
     // Defensive clamp: treat negatives as 0.
     if v < 0 { v = 0 }
     while v >= 128 {
-        off = _astbin_write_u8(buf, off, (v & 127) | 128)
+        off = _astbin_write_u8_ptr(data_ptr, off, (v & 127) | 128)
         v = v >> 7
     }
-    off = _astbin_write_u8(buf, off, v & 127)
+    off = _astbin_write_u8_ptr(data_ptr, off, v & 127)
     return off
 }
 
-fn _astbin_write_varint_signed(buf, off, x) {
+fn _astbin_write_varint_signed_v1_ptr(data_ptr, off, x) {
     var zz = _astbin_zigzag(x)
     if zz < 0 { zz = 0 } // defensive
-    return _astbin_write_uvarint(buf, off, zz)
+    return _astbin_write_uvarint_v1_ptr(data_ptr, off, zz)
 }
 
-fn _astbin_write_string(buf, off, s) {
+fn _astbin_write_string_v1_ptr(data_ptr, off, s) {
     // Encode string as uvarint(len) + raw bytes.
     if s == nil { s = "" }
     var n = oren_string_len(s)
-    off = _astbin_write_uvarint(buf, off, n)
+    off = _astbin_write_uvarint_v1_ptr(data_ptr, off, n)
     var i = 0
     while i < n {
         var b = oren_string_byte_at_unchecked(s, i) & 255
-        off = _astbin_write_u8(buf, off, b)
+        off = _astbin_write_u8_ptr(data_ptr, off, b)
         i = i + 1
     }
     return off
 }
 
-fn _astbin_write_u64_le(buf, off, x0) {
+fn _astbin_write_u64_le_v1_ptr(data_ptr, off, x0) {
     var x = x0
     var i = 0
     while i < 8 {
-        off = _astbin_write_u8(buf, off, x & 255)
+        off = _astbin_write_u8_ptr(data_ptr, off, x & 255)
         x = x >> 8
         i = i + 1
     }
     return off
 }
 
-fn _astbin_write_value(buf, off, v) {
-    if oren_type_tag(v) == 0 { return _astbin_write_u8(buf, off, 0) }
-    if v == false { return _astbin_write_u8(buf, off, 1) }
-    if v == true { return _astbin_write_u8(buf, off, 2) }
+fn _astbin_write_value_v1_ptr(buf, data_ptr, off, v) {
+    if oren_type_tag(v) == 0 { return _astbin_write_u8_ptr(data_ptr, off, 0) }
+    if v == false { return _astbin_write_u8_ptr(data_ptr, off, 1) }
+    if v == true { return _astbin_write_u8_ptr(data_ptr, off, 2) }
 
     if _astbin_is_list(v) {
-        off = _astbin_write_u8(buf, off, 5)
+        off = _astbin_write_u8_ptr(data_ptr, off, 5)
         var n = oren_list_len(v)
-        off = _astbin_write_uvarint(buf, off, n)
+        off = _astbin_write_uvarint_v1_ptr(data_ptr, off, n)
         var i = 0
         while i < n {
-            off = _astbin_write_value(buf, off, v[i])
+            off = _astbin_write_value_v1_ptr(buf, data_ptr, off, v[i])
             i = i + 1
         }
         return off
     }
     if _astbin_is_map(v) {
-        off = _astbin_write_u8(buf, off, 6)
+        off = _astbin_write_u8_ptr(data_ptr, off, 6)
         var n2 = oren_map_len(v)
-        off = _astbin_write_uvarint(buf, off, n2)
+        off = _astbin_write_uvarint_v1_ptr(data_ptr, off, n2)
         var idx = 0
         var out_pair = [nil, nil]
         while 1 {
@@ -268,20 +262,20 @@ fn _astbin_write_value(buf, off, v) {
                 print("astbin: unsupported map key (need int|string), got bool/nil")
                 return off
             }
-            off = _astbin_write_value(buf, off, k)
-            off = _astbin_write_value(buf, off, val)
+            off = _astbin_write_value_v1_ptr(buf, data_ptr, off, k)
+            off = _astbin_write_value_v1_ptr(buf, data_ptr, off, val)
             idx = idx + 1
         }
         return off
     }
     if _astbin_is_string(v) {
-        off = _astbin_write_u8(buf, off, 4)
-        return _astbin_write_string(buf, off, v)
+        off = _astbin_write_u8_ptr(data_ptr, off, 4)
+        return _astbin_write_string_v1_ptr(data_ptr, off, v)
     }
     if _astbin_is_u8_buf(v) {
-        off = _astbin_write_u8(buf, off, 7)
+        off = _astbin_write_u8_ptr(data_ptr, off, 7)
         var n3 = oren_buf_len(v)
-        off = _astbin_write_uvarint(buf, off, n3)
+        off = _astbin_write_uvarint_v1_ptr(data_ptr, off, n3)
         var i3 = 0
         while i3 < n3 {
             var b = oren_buf_load_u8(v, i3)
@@ -289,7 +283,7 @@ fn _astbin_write_value(buf, off, v) {
                 print("astbin: buf_load_u8 failed")
                 oren_exit(1)
             }
-            off = _astbin_write_u8(buf, off, b & 255)
+            off = _astbin_write_u8_ptr(data_ptr, off, b & 255)
             i3 = i3 + 1
         }
         return off
@@ -302,12 +296,12 @@ fn _astbin_write_value(buf, off, v) {
     // Float: encode as raw IEEE bits for determinism.
     // Type tags follow lib/runtime.h OrenType enum values (float == 2).
     if oren_type_tag(v) == 2 {
-        off = _astbin_write_u8(buf, off, 8)
+        off = _astbin_write_u8_ptr(data_ptr, off, 8)
         // Native backend requires a "floaty" argument at compile-time (it does not flow-narrow on
         // runtime `oren_type_tag` checks). Adding a float literal makes the expression floaty while
         // preserving value when `v` is already a float.
         var bits = oren_f64_to_u64_bits(v + 0.0)
-        return _astbin_write_u64_le(buf, off, bits)
+        return _astbin_write_u64_le_v1_ptr(data_ptr, off, bits)
     }
 
     // Default: int
@@ -316,8 +310,8 @@ fn _astbin_write_value(buf, off, v) {
         print("astbin: unsupported value type tag=" + oren_int_to_string(tt))
         oren_exit(1)
     }
-    off = _astbin_write_u8(buf, off, 3)
-    return _astbin_write_varint_signed(buf, off, v)
+    off = _astbin_write_u8_ptr(data_ptr, off, 3)
+    return _astbin_write_varint_signed_v1_ptr(data_ptr, off, v)
 }
 
 fn _astbin_validate_value(v, ctx_key, ctx_idx, depth) {
@@ -384,7 +378,8 @@ fn astbin_encode_v1(v) {
     }
     var n = _astbin_size(v)
     var buf = oren_u8_buf_new(n)
-    var off = _astbin_write_value(buf, 0, v)
+    var data_ptr = oren_buf_data_ptr_unchecked(buf)
+    var off = _astbin_write_value_v1_ptr(buf, data_ptr, 0, v)
     // Defensive: ignore mismatch; buffer is fixed-size.
     if off != n {
         // Best-effort: if we underfilled, remaining bytes are already zeroed by allocator.
@@ -952,7 +947,8 @@ fn _astbin_write_value_v2_ptr(buf, data_ptr, off, v, pool_idx_map) {
         return off
     }
     if _astbin_is_buf(v) {
-        return _astbin_write_value(buf, off, v)
+        print("astbin(v2): unsupported typed buffer (only u8_buf is supported)")
+        oren_exit(1)
     }
     if oren_type_tag(v) == 2 {
         // float
