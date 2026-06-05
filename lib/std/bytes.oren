@@ -79,6 +79,13 @@ fn _check_slice_span(bytes, off, n, ctx) {
     return nb
 }
 
+fn _load_u8(bytes, idx) {
+    if oren_is_u8_buf(bytes) == true {
+        return ptr_get_byte(oren_buf_data_ptr_unchecked(bytes) + idx) & 255
+    }
+    return oren_bytes_get_u8(bytes, idx)
+}
+
 fn _store_u16_be(bytes, idx, v) {
     if oren_is_u8_buf(bytes) == true {
         var p = oren_buf_data_ptr_unchecked(bytes) + idx
@@ -185,7 +192,7 @@ fn _bytes_to_int_list(bytes, ctx) {
     var out = []
     var i = 0
     while i < n {
-        var b = oren_bytes_get_u8(bytes, i)
+        var b = _load_u8(bytes, i)
         if oren_is_err(b) { return b }
         oren_list_push(out, b)
         i = i + 1
@@ -203,7 +210,7 @@ fn get_u8(bytes, idx) {
     if oren_is_err(n) { return n }
     if _is_int(idx) == false { return oren_err(4, "bytes.get_u8: index not int") }
     if idx < 0 || idx >= n { return oren_err(4, "bytes.get_u8: index out of bounds") }
-    return oren_bytes_get_u8(bytes, idx)
+    return _load_u8(bytes, idx)
 }
 
 fn set_u8(bytes, idx, v) {
@@ -284,7 +291,7 @@ fn concat(a, b): bytes {
         _copy_u8_ptr_forward(outp, oren_buf_data_ptr_unchecked(a), na)
     } else {
         while i < na {
-            var av = oren_bytes_get_u8(a, i)
+            var av = _load_u8(a, i)
             if oren_is_err(av) { return av }
             raw._store_u8_buf_unchecked_direct(out, i, av)
             i = i + 1
@@ -295,7 +302,7 @@ fn concat(a, b): bytes {
         _copy_u8_ptr_forward(outp + na, oren_buf_data_ptr_unchecked(b), nb)
     } else {
         while j < nb {
-            var bv = oren_bytes_get_u8(b, j)
+            var bv = _load_u8(b, j)
             if oren_is_err(bv) { return bv }
             raw._store_u8_buf_unchecked_direct(out, na + j, bv)
             j = j + 1
@@ -337,7 +344,7 @@ fn copy_into(dst, dst_off, src, src_off, n) {
         var i = 0
         while i < n {
             var b = 0
-            b = oren_bytes_get_u8(src, src_off + i)
+            b = _load_u8(src, src_off + i)
             if oren_is_err(b) { return b }
             ptr_set_byte(dstp + dst_off + i, b & 255)
             i = i + 1
@@ -346,7 +353,7 @@ fn copy_into(dst, dst_off, src, src_off, n) {
     }
     var j = 0
     while j < n {
-        var bj = oren_bytes_get_u8(src, src_off + j)
+        var bj = _load_u8(src, src_off + j)
         if oren_is_err(bj) { return bj }
         var rc = oren_bytes_set_u8(dst, dst_off + j, bj)
         if oren_is_err(rc) { return rc }

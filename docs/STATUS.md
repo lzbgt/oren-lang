@@ -487,7 +487,8 @@ Facts from the 2026-05-28 implementation pass:
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
   and `from_hex` plus `std:strings` byte roundtrips now use byte-native u8 buffers,
-  `std:bytes` u8/endian writes and `copy_into` keep list-backed compatibility
+  `std:bytes` get/unpack/concat/copy sources read u8-buffer carriers directly,
+  while u8/endian writes and `copy_into` keep list-backed compatibility
   while raw u8-buffer loads/stores plus u8 slice/strided/matrix view
   loads/stores use raw pointer access after public validation, contiguous u8
   concat/copy spans use raw pointer byte copies, and overlapping in-place u8

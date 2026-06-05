@@ -33,6 +33,7 @@ fn test_bytes_conversions() {
 
     var packed = bytesm.pack([1, 2, 3])
     assert_true(!oren_is_err(packed))
+    assert_eq(bytesm.get_u8(packed, 1), 2)
     var unpacked = bytesm.unpack(packed)
     assert_true(!oren_is_err(unpacked))
     assert_eq(oren_list_len(unpacked), 3)
@@ -53,6 +54,7 @@ fn test_bytes_conversions() {
     assert_true(!oren_is_err(cat))
     assert_eq(bytesm.to_string(cat), "abCD")
     assert_eq(bytesm.from_string("ab").concat(bytesm.from_string("CD")).text(), "abCD")
+    assert_eq(bytesm.to_string(bytesm.concat([65], bytesm.from_string("BC"))), "ABC")
     assert_true(oren_is_err(bytesm.concat(123, cat)))
 
     var dst = bytesm.from_string("hello")
@@ -69,7 +71,9 @@ fn test_bytes_conversions() {
 
     var list_dst = [97, 98]
     assert_true(!oren_is_err(bytesm.set_u8(list_dst, 1, 67)))
-    assert_eq(bytesm.to_string(list_dst), "aC")
+    assert_true(!oren_is_err(bytesm.copy_into(list_dst, 0, bytesm.from_string("Z"), 0, 1)))
+    assert_eq(bytesm.get_u8(list_dst, 0), 90)
+    assert_eq(bytesm.to_string(list_dst), "ZC")
 
     var ub_dst = bufferm.u8_from_string("hello")
     var ub_src = bufferm.u8_from_string("ABCD")
