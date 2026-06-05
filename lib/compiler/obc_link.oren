@@ -136,8 +136,10 @@ fn _metadata_json_from_bytes(bs) {
 }
 
 fn _decode_string_u16(bs, pos) {
+    if !_span_ok(bs, pos, 2) { return {"error": "truncated OBX string length", "next": pos} }
     var len = _u16_le_at(bs, pos)
     var start = pos + 2
+    if !_span_ok(bs, start, len) { return {"error": "truncated OBX string", "next": start + len} }
     return {"value": oren_string_from_bytes_slice(bs, start, len), "next": start + len}
 }
 
@@ -239,17 +241,21 @@ fn obx_decode(obx_bytes) {
     var pos = oren_string_len("OREN_OBX\n1\n")
 
     var m = _decode_string_u16(obx_bytes, pos)
+    if m["error"] != nil { return m }
     var module_name = m["value"]
     pos = m["next"]
 
     var exports = {}
+    if !_span_ok(obx_bytes, pos, 2) { return {"error": "truncated OBX export count"} }
     var n_exports = _u16_le_at(obx_bytes, pos)
     pos = pos + 2
     var i = 0
     while i < n_exports {
         var dn = _decode_string_u16(obx_bytes, pos)
+        if dn["error"] != nil { return dn }
         var name = dn["value"]
         pos = dn["next"]
+        if !_span_ok(obx_bytes, pos, 4) { return {"error": "truncated OBX export address"} }
         var addr = _u32_le_at(obx_bytes, pos)
         pos = pos + 4
         exports[name] = addr
@@ -257,13 +263,16 @@ fn obx_decode(obx_bytes) {
     }
 
     var relocs = []
+    if !_span_ok(obx_bytes, pos, 2) { return {"error": "truncated OBX reloc count"} }
     var n_relocs = _u16_le_at(obx_bytes, pos)
     pos = pos + 2
     var j = 0
     while j < n_relocs {
         var dn2 = _decode_string_u16(obx_bytes, pos)
+        if dn2["error"] != nil { return dn2 }
         var rname = dn2["value"]
         pos = dn2["next"]
+        if !_span_ok(obx_bytes, pos, 5) { return {"error": "truncated OBX reloc entry"} }
         var rpos = _u32_le_at(obx_bytes, pos)
         pos = pos + 4
         var kind = _u8_at(obx_bytes, pos)
@@ -276,34 +285,42 @@ fn obx_decode(obx_bytes) {
     if pos + 4 <= _bytes_len(obx_bytes) {
         if _u8_at(obx_bytes, pos) == 83 && _u8_at(obx_bytes, pos + 1) == 85 && _u8_at(obx_bytes, pos + 2) == 82 && _u8_at(obx_bytes, pos + 3) == 70 {
             pos = pos + 4
+            if !_span_ok(obx_bytes, pos, 2) { return {"error": "truncated OBX surface return count"} }
             var n_returns = _u16_le_at(obx_bytes, pos)
             pos = pos + 2
             var ri2 = 0
             while ri2 < n_returns {
                 var rn = _decode_string_u16(obx_bytes, pos)
+                if rn["error"] != nil { return rn }
                 var fn_name = rn["value"]
                 pos = rn["next"]
                 var rr = _decode_string_u16(obx_bytes, pos)
+                if rr["error"] != nil { return rr }
                 var ret_name = rr["value"]
                 pos = rr["next"]
                 surface["function_returns"][fn_name] = ret_name
                 ri2 = ri2 + 1
             }
 
+            if !_span_ok(obx_bytes, pos, 2) { return {"error": "truncated OBX surface impl count"} }
             var n_impls = _u16_le_at(obx_bytes, pos)
             pos = pos + 2
             var ii2 = 0
             while ii2 < n_impls {
                 var it = _decode_string_u16(obx_bytes, pos)
+                if it["error"] != nil { return it }
                 var trait_name = it["value"]
                 pos = it["next"]
                 var ity = _decode_string_u16(obx_bytes, pos)
+                if ity["error"] != nil { return ity }
                 var type_name = ity["value"]
                 pos = ity["next"]
                 var imn = _decode_string_u16(obx_bytes, pos)
+                if imn["error"] != nil { return imn }
                 var method_name = imn["value"]
                 pos = imn["next"]
                 var ifn = _decode_string_u16(obx_bytes, pos)
+                if ifn["error"] != nil { return ifn }
                 var impl_fn = ifn["value"]
                 pos = ifn["next"]
 
@@ -487,7 +504,10 @@ fn obc_parse_bytes(bs) {
                                 pos = pos + bl
                                 // detect OBX payload
                                 var d = obx_decode(bb)
-                                if d != nil { obx = d }
+                                if d != nil {
+                                    if d["error"] != nil { return {"error": d["error"]} }
+                                    obx = d
+                                }
                                 var mj = _metadata_json_from_bytes(bb)
                                 if mj != nil { metadata_json = mj }
                                 oren_list_push(consts, {"type": "Bytes", "value": bb})

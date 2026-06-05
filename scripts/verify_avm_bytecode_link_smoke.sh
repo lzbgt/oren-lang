@@ -44,12 +44,14 @@ lib_obc="$tmpdir/lib.obc"
 app_obc="$tmpdir/app.obc"
 undef_obc="$tmpdir/lib_undef.obc"
 bad_obc="$tmpdir/truncated_string_const.obc"
+bad_obx="$tmpdir/truncated_obx_payload.obc"
 lib_log="build/logs/avm_obc_link_smoke_lib.log"
 app_log="build/logs/avm_obc_link_smoke_app.log"
 run_log="build/logs/avm_obc_link_smoke_run.log"
 undef_log="build/logs/avm_obc_link_smoke_undef.log"
 bad_log="build/logs/avm_obc_link_smoke_bad.log"
-rm -f "$lib_log" "$app_log" "$run_log" "$undef_log" "$bad_log" 2>/dev/null || true
+bad_obx_log="build/logs/avm_obc_link_smoke_bad_obx.log"
+rm -f "$lib_log" "$app_log" "$run_log" "$undef_log" "$bad_log" "$bad_obx_log" 2>/dev/null || true
 
 cat >"$lib_src" <<'OREN'
 fn lib_answer() {
@@ -118,6 +120,25 @@ grep -F "truncated string constant" "$bad_log" >/dev/null || {
   echo "FAIL: missing truncated OBC diagnostic" >&2
   tail -n 120 "$bad_log" >&2 || true
   exit 9
+}
+
+echo "== reject: truncated linked OBC OBX payload ==" >&2
+# Magic CD 0E, one BYTES constant, payload starts with OBX prefix and declares
+# a four-byte module name with only one payload byte.
+printf '\315\016\001\000\010\016\000\000\000OREN_OBX\n1\n\004\000a' >"$bad_obx"
+set +e
+"$COMPILER" build "$app_src" --backend bytecode --link-obc "$bad_obx" -o "$tmpdir/bad_obx_app.obc" >"$bad_obx_log" 2>&1
+bad_obx_rc=$?
+set -e
+if [[ "$bad_obx_rc" -eq 0 ]]; then
+  echo "FAIL: truncated linked OBC OBX was accepted" >&2
+  tail -n 120 "$bad_obx_log" >&2 || true
+  exit 10
+fi
+grep -F "truncated OBX string" "$bad_obx_log" >/dev/null || {
+  echo "FAIL: missing truncated OBX diagnostic" >&2
+  tail -n 120 "$bad_obx_log" >&2 || true
+  exit 11
 }
 
 if [[ "${OREN_VERIFY_FULL_STDLIB_OBC:-0}" == "1" ]]; then
