@@ -468,7 +468,8 @@ Facts from the 2026-05-28 implementation pass:
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
   bytecode string constants, OBX string/prefix encoding, AST binary v1 string
   writing, native Mach-O/ELF object string payloads, runtime-object debug-name
-  blobs, x64 native debug-table names, and C identifier escaping now do the same.
+  blobs, x64 native debug-table names, ARM64 native panic-message payloads, and
+  C identifier escaping now do the same.
   `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
