@@ -470,10 +470,10 @@ Facts from the 2026-05-28 implementation pass:
   list-of-byte reconstruction, and XML/HTML parser literal matching,
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
-  WebSocket accept hashing now feeds SHA-1 from exact-size `u8_buf`
-  input, PPM header emission reads ASCII header strings directly, and
+  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,
+  PPM header emission reads ASCII header strings directly, and
   native `oren_write_file` writes strings directly through syscalls without a
-  transient byte list. SHA-256 can now hash UTF-8 strings directly, and Windows
+  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, and Windows
   Schannel passphrase cache keys use that path instead of materializing a
   byte list. Compiler source-policy scans, scan-cache line/number parsing, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,

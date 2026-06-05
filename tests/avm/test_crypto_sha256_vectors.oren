@@ -70,11 +70,19 @@ fn main() {
     assert_eq(sha1.hex(bytes.from_string("abc")), sha1_abc, "sha1 canonical hex")
     assert_eq(bytes.from_string("abc").sha1_hex(), sha1_abc, "sha1 method hex")
     assert_eq(bytes.from_string("abc").sha1().hex(), sha1_abc, "sha1 chained digest hex")
+    assert_eq(sha1.sha1_hex_string("abc"), sha1_abc, "sha1 string hex")
+    assert_eq(sha1.hex_string("abc"), sha1_abc, "sha1 string hex alias")
+    assert_eq(bytes.to_hex(sha1.sha1_string("abc")), sha1_abc, "sha1 string digest")
     var sha1_multiblock = sha1.sha1_hex(oren_bytes_pack(multiblock))
     assert_eq(sha1_multiblock, "84983e441c3bd26ebaae4aa1f95129e5e54670f1", "sha1 multiblock")
+    assert_eq(sha1.sha1_hex_string("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"), sha1_multiblock, "sha1 string multiblock")
     var sha1_bad = sha1.sha1_bytes(123)
     if oren_is_err(sha1_bad) != true {
         fail("sha1_bytes bad input should return err")
+    }
+    var sha1_bad_string = sha1.sha1_string(123)
+    if oren_is_err(sha1_bad_string) != true {
+        fail("sha1_string bad input should return err")
     }
 
     var x509_abc = x509.sha256_hex_der(oren_bytes_pack(abc))

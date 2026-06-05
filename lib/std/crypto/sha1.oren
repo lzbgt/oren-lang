@@ -7,6 +7,7 @@
 // Canonical API:
 // - `digest(input_bytes)` / `input_bytes.sha1()` -> BYTES (len=20)
 // - `hex(input_bytes)` / `input_bytes.sha1_hex()` -> lowercase hex string
+// - `digest_string(s)` / `hex_string(s)` hash UTF-8 string bytes directly.
 // - Canonical verbs validate byte-like inputs and return `oren_err` on failure.
 
 import list "std:list"
@@ -65,6 +66,23 @@ fn _u32_be_at(input_bytes, orig_len, bit_len, pos) {
     var b1 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 1) & 255
     var b2 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 2) & 255
     var b3 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 3) & 255
+    return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
+}
+
+fn _padded_string_byte_at(s, orig_len, bit_len, pos) {
+    if pos < orig_len { return oren_string_byte_at_unchecked(s, pos) & 255 }
+    if pos == orig_len { return 128 }
+    var len_start = _padded_len(orig_len) - 8
+    if pos < len_start { return 0 }
+    var shift = (7 - (pos - len_start)) * 8
+    return (bit_len >> shift) & 255
+}
+
+fn _u32_be_string_at(s, orig_len, bit_len, pos) {
+    var b0 = _padded_string_byte_at(s, orig_len, bit_len, pos + 0) & 255
+    var b1 = _padded_string_byte_at(s, orig_len, bit_len, pos + 1) & 255
+    var b2 = _padded_string_byte_at(s, orig_len, bit_len, pos + 2) & 255
+    var b3 = _padded_string_byte_at(s, orig_len, bit_len, pos + 3) & 255
     return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 }
 
@@ -163,8 +181,96 @@ fn sha1_bytes(input_bytes) {
     return out
 }
 
+fn sha1_string(s) {
+    if s == nil { s = "" }
+    if oren_type_tag(s) != 4 { return oren_err(4, "sha1.digest_string: expected string") }
+
+    var orig_len = oren_string_len(s)
+    if oren_is_err(orig_len) { return orig_len }
+    var bit_len = orig_len * 8
+    var total_len = _padded_len(orig_len)
+
+    var h0 = 1732584193  // 0x67452301
+    var h1 = 4023233417  // 0xEFCDAB89
+    var h2 = 2562383102  // 0x98BADCFE
+    var h3 = 271733878   // 0x10325476
+    var h4 = 3285377520  // 0xC3D2E1F0
+
+    var off = 0
+    while off < total_len {
+        var w = []
+        var t = 0
+        while t < 16 {
+            list.push(w, _u32_be_string_at(s, orig_len, bit_len, off + t * 4))
+            t = t + 1
+        }
+        while t < 80 {
+            var v = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]
+            list.push(w, _rotl32(v, 1))
+            t = t + 1
+        }
+
+        var a = h0
+        var b = h1
+        var c = h2
+        var d = h3
+        var e = h4
+
+        t = 0
+        while t < 80 {
+            var f = 0
+            var k = 0
+            if t < 20 {
+                f = (b & c) | ((~b) & d)
+                k = 1518500249  // 0x5A827999
+            } else if t < 40 {
+                f = b ^ c ^ d
+                k = 1859775393  // 0x6ED9EBA1
+            } else if t < 60 {
+                f = (b & c) | (b & d) | (c & d)
+                k = 2400959708  // 0x8F1BBCDC
+            } else {
+                f = b ^ c ^ d
+                k = 3395469782  // 0xCA62C1D6
+            }
+
+            var temp = _u32(_rotl32(a, 5) + _u32(f) + e + k + w[t])
+            e = d
+            d = c
+            c = _rotl32(b, 30)
+            b = a
+            a = temp
+            t = t + 1
+        }
+
+        h0 = _u32(h0 + a)
+        h1 = _u32(h1 + b)
+        h2 = _u32(h2 + c)
+        h3 = _u32(h3 + d)
+        h4 = _u32(h4 + e)
+
+        off = off + 64
+    }
+
+    var out = oren_u8_buf_new_uninit(20)
+    if oren_is_err(out) { return out }
+    var out_off = 0
+    out_off = _store_u32_be(out, out_off, h0)
+    out_off = _store_u32_be(out, out_off, h1)
+    out_off = _store_u32_be(out, out_off, h2)
+    out_off = _store_u32_be(out, out_off, h3)
+    out_off = _store_u32_be(out, out_off, h4)
+    return out
+}
+
 fn sha1_hex(input_bytes) {
     var d = sha1_bytes(input_bytes)
+    if oren_is_err(d) { return d }
+    return oren_bytes_to_hex(d)
+}
+
+fn sha1_hex_string(s) {
+    var d = sha1_string(s)
     if oren_is_err(d) { return d }
     return oren_bytes_to_hex(d)
 }
@@ -172,6 +278,10 @@ fn sha1_hex(input_bytes) {
 fn digest(input_bytes): bytes { return sha1_bytes(input_bytes) }
 
 fn hex(input_bytes) { return sha1_hex(input_bytes) }
+
+fn digest_string(s): bytes { return sha1_string(s) }
+
+fn hex_string(s) { return sha1_hex_string(s) }
 
 impl Sha1Bytes for bytes {
     fn sha1(self): bytes { return digest(self) }

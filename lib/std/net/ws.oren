@@ -19,7 +19,6 @@ import hostutil "std:net/host"
 import sha1 "std:crypto/sha1"
 import rand "std:crypto/rand"
 import base64 "std:encoding/base64"
-import raw "std:buffer/raw"
 
 struct Conn {
     kind,
@@ -382,12 +381,7 @@ fn _ws_accept_for_key(key) {
     // GUID: RFC6455
     var guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     var s = key + guid
-    var payload = raw.u8_from_string(s)
-    if oren_is_err(payload) {
-        free(s)
-        return payload
-    }
-    var digest = sha1.sha1_bytes(payload)
+    var digest = sha1.sha1_string(s)
     free(s)
     return base64.encode_bytes(digest)
 }

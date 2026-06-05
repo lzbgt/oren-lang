@@ -222,13 +222,13 @@
 <p>     also avoid list-of-byte reconstruction, while XML/HTML parser literal</p>
 <p>     matching, class-selector scans, DOM parsing, and streaming readers no</p>
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
-<p>     hashing now feeds SHA-1 from exact-size <code>u8_buf</code> input, PPM header</p>
+<p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, PPM header</p>
 <p>     emission reads ASCII header strings directly, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
-<p>     through syscalls without a transient byte list, and SHA-256 string hashing</p>
-<p>     now reads UTF-8 string bytes directly for Windows Schannel passphrase cache</p>
-<p>     keys and callers that already hold text.</p>
+<p>     through syscalls without a transient byte list, and SHA-1/SHA-256 string</p>
+<p>     hashing now reads UTF-8 string bytes directly for WebSocket accept values,</p>
+<p>     Windows Schannel passphrase cache keys, and callers that already hold text.</p>
 <p>     Compiler source-policy</p>
 <p>     scans, scan-cache line/number parsing, C-runtime include scanning,</p>
 <p>     compiler manifest JSON escaping, bytecode metadata payloads, OBX</p>
