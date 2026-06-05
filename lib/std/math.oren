@@ -37,7 +37,9 @@ fn abs_f(x: f64) {
 }
 
 fn fabs(x: f64): f64 {
-    return abs_f(x)
+    var b = _f64_bits(x)
+    if oren_is_err(b) { return b }
+    return _f64_from_bits(b & 9223372036854775807)
 }
 
 fn min_f(a: f64, b: f64) {
@@ -46,7 +48,10 @@ fn min_f(a: f64, b: f64) {
 }
 
 fn fmin(a: f64, b: f64): f64 {
-    return min_f(a, b)
+    if is_nan(a) { return b }
+    if is_nan(b) { return a }
+    if a < b { return a }
+    return b
 }
 
 fn max_f(a: f64, b: f64) {
@@ -55,7 +60,10 @@ fn max_f(a: f64, b: f64) {
 }
 
 fn fmax(a: f64, b: f64): f64 {
-    return max_f(a, b)
+    if is_nan(a) { return b }
+    if is_nan(b) { return a }
+    if a > b { return a }
+    return b
 }
 
 fn clamp_f(x: f64, lo: f64, hi: f64) {
