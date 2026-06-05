@@ -8,9 +8,16 @@ import (
 	"strings"
 )
 
+const maxImportedDocuments = 128
+
 type documentSnapshot struct {
 	URI  string
 	Text string
+}
+
+type importQueueItem struct {
+	Spec    string
+	BaseDir string
 }
 
 func (s *Server) openDocumentDefinitionLocations(uri, name string) []location {
@@ -57,10 +64,16 @@ func (s *Server) importedDocumentSnapshots(uri, text string) []documentSnapshot 
 	}
 	currentDir := filepath.Dir(currentPath)
 	repoRoot := findRepoRoot(currentDir)
-	seen := map[string]bool{}
-	var out []documentSnapshot
+	queue := make([]importQueueItem, 0, len(imports))
 	for _, imp := range imports {
-		path, ok := resolveImportPath(imp.Spec, currentDir, repoRoot)
+		queue = append(queue, importQueueItem{Spec: imp.Spec, BaseDir: currentDir})
+	}
+	seen := map[string]bool{uri: true}
+	var out []documentSnapshot
+	for len(queue) > 0 && len(out) < maxImportedDocuments {
+		item := queue[0]
+		queue = queue[1:]
+		path, ok := resolveImportPath(item.Spec, item.BaseDir, repoRoot)
 		if !ok {
 			continue
 		}
@@ -78,6 +91,10 @@ func (s *Server) importedDocumentSnapshots(uri, text string) []documentSnapshot 
 			candidateText = string(raw)
 		}
 		out = append(out, documentSnapshot{URI: candidateURI, Text: candidateText})
+		nestedDir := filepath.Dir(path)
+		for _, imp := range collectImports(candidateText) {
+			queue = append(queue, importQueueItem{Spec: imp.Spec, BaseDir: nestedDir})
+		}
 	}
 	return out
 }

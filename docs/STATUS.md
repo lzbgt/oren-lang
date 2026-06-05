@@ -783,11 +783,12 @@ Working evidence:
   initialization, full-document sync, deterministic bracket/string diagnostics,
   parser-backed diagnostics, close cleanup, keyword/local-symbol completion,
   lexer-backed document symbols, same-file/opened-document/import-resolved
-  definition navigation for relative and `std:` modules, and lexer-backed hover
-  plus references over the same current/open/imported workspace graph. The VS
-  Code package now contributes `.oren` syntax highlighting, language
-  configuration, `vscode-languageclient` activation, and a smoke verifier; deeper
-  semantic workspace indexing remains.
+  definition navigation for relative and `std:` modules, lexer-backed hover plus
+  references over the same current/open/imported workspace graph, and bounded
+  transitive import traversal with cycle guards. The VS Code package now
+  contributes `.oren` syntax highlighting, language configuration,
+  `vscode-languageclient` activation, and a smoke verifier; richer semantic
+  classification/indexing beyond lexer-level symbols remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

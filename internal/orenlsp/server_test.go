@@ -420,6 +420,90 @@ func TestServerDefinitionFindsUnopenedImportedFileSymbol(t *testing.T) {
 	assertDefinition(t, defs, fileURIFromPath(helperPath), 0, 4, 16)
 }
 
+func TestServerDefinitionFindsTransitiveImportedFileSymbol(t *testing.T) {
+	tmp := t.TempDir()
+	moduleDir := filepath.Join(tmp, "modules")
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	leafPath := filepath.Join(moduleDir, "leaf.oren")
+	if err := os.WriteFile(leafPath, []byte("var leaf_value = 9\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile leaf: %v", err)
+	}
+	midPath := filepath.Join(moduleDir, "mid.oren")
+	midText := strings.Join([]string{
+		"import leaf \"leaf.oren\"",
+		"fn mid() {",
+		"  return leaf_value",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(midPath, []byte(midText), 0o644); err != nil {
+		t.Fatalf("WriteFile mid: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainText := strings.Join([]string{
+		"import mid \"modules/mid.oren\"",
+		"fn main() {",
+		"  return leaf_value",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(mainPath, []byte(mainText), 0o644); err != nil {
+		t.Fatalf("WriteFile main: %v", err)
+	}
+
+	var in bytes.Buffer
+	mainURI := fileURIFromPath(mainPath)
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      16,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	defs := messageByID(t, msgs, 16)["result"].([]any)
+	assertDefinition(t, defs, fileURIFromPath(leafPath), 0, 4, 14)
+}
+
+func TestImportedDocumentSnapshotsSkipsImportCycles(t *testing.T) {
+	tmp := t.TempDir()
+	mainPath := filepath.Join(tmp, "main.oren")
+	helperPath := filepath.Join(tmp, "helper.oren")
+	mainText := "import helper \"helper.oren\"\nfn main() { return helper_value }\n"
+	helperText := "import main \"main.oren\"\nvar helper_value = 3\n"
+	if err := os.WriteFile(mainPath, []byte(mainText), 0o644); err != nil {
+		t.Fatalf("WriteFile main: %v", err)
+	}
+	if err := os.WriteFile(helperPath, []byte(helperText), 0o644); err != nil {
+		t.Fatalf("WriteFile helper: %v", err)
+	}
+	s := NewServer(strings.NewReader(""), &bytes.Buffer{})
+	docs := s.importedDocumentSnapshots(fileURIFromPath(mainPath), mainText)
+	if len(docs) != 1 {
+		t.Fatalf("imported docs=%#v want only helper", docs)
+	}
+	if docs[0].URI != fileURIFromPath(helperPath) {
+		t.Fatalf("imported doc uri=%q want helper", docs[0].URI)
+	}
+}
+
 func TestResolveImportPathStdSpec(t *testing.T) {
 	got, ok := resolveImportPath("std:net/http.oren", "/tmp/project/app", "/tmp/project")
 	if !ok {

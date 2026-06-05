@@ -394,11 +394,13 @@ This file is the concise task view. Detailed implementation status lives in
     for imports, functions, variables, structs, and classes, same-file,
     opened-document cross-file, and import-resolved unopened-module definition
     navigation for relative and `std:` modules, plus lexer-backed hover and
-    references over the same current/open/imported workspace graph.
+    references over the same current/open/imported workspace graph with bounded
+    transitive import traversal and cycle guards.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and
     a smoke verifier for manifest/grammar/config/entrypoint integrity.
-  - Remaining work is deeper semantic workspace indexing for richer code intelligence.
+  - Remaining work is richer semantic classification/indexing beyond lexer-level
+    symbols.
 
 ## Closed/Do-Not-Repeat Families
 
