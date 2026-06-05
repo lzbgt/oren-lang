@@ -699,7 +699,8 @@ Working evidence:
   `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
   normal/subnormal classification, rounding, `fmod`, nearest-even `remainder`,
   `modf`, public ties-to-even
-  rounding aliases, degree/radian conversion, `ilogb` / `logb`, `fdim`, `nextafter` / `nexttoward`, `sqrt`,
+  rounding aliases, degree/radian conversion, `ilogb` / `logb`, `fdim`,
+  `nextafter` / `nexttoward` / `nextup` / `nextdown`, `sqrt`,
   `cbrt`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `scalbn`, `scalbln`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,

@@ -375,6 +375,14 @@ fn nexttoward(x: f64, y: f64) {
     return nextafter(x, y)
 }
 
+fn nextup(x: f64) {
+    return nextafter(x, inf())
+}
+
+fn nextdown(x: f64) {
+    return nextafter(x, neg_inf())
+}
+
 // --- sqrt / pow (HPC foundation) ---
 //
 // sqrt(x) semantics:
