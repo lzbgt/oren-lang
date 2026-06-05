@@ -1303,6 +1303,36 @@ fn test_sockaddr_packers() {
     }
     free(sa6)
 
+    var ip6_list = [32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66]
+    var sa6_list = oren_sockaddr_in6(ip6_list, 443)
+    if sa6_list == 0 { fail(907) }
+    assert_eq(u16be_at(sa6_list, 2), 443, 908)
+    if ptr_get_byte(sa6_list + 8 + 0) != 32 { fail(909) }
+    if ptr_get_byte(sa6_list + 8 + 1) != 1 { fail(917) }
+    if ptr_get_byte(sa6_list + 8 + 2) != 13 { fail(918) }
+    if ptr_get_byte(sa6_list + 8 + 3) != 184 { fail(919) }
+    if ptr_get_byte(sa6_list + 8 + 15) != 66 { fail(920) }
+    free(sa6_list)
+
+    var ip6_buf = oren_u8_buf_new(16)
+    if oren_is_err(ip6_buf) { fail(921) }
+    var bi = 0
+    while bi < 16 {
+        oren_buf_store_u8(ip6_buf, bi, ip6_list[bi])
+        bi = bi + 1
+    }
+    var sa6_buf = oren_sockaddr_in6(ip6_buf, 8443)
+    if sa6_buf == 0 { fail(922) }
+    assert_eq(u16be_at(sa6_buf, 2), 8443, 923)
+    if ptr_get_byte(sa6_buf + 8 + 0) != 32 { fail(924) }
+    if ptr_get_byte(sa6_buf + 8 + 15) != 66 { fail(925) }
+    free(sa6_buf)
+
+    var bad_ip6 = [1, 2, 3]
+    if oren_sockaddr_in6(bad_ip6, 1) != 0 { fail(926) }
+    var bad_ip6_byte = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 256]
+    if oren_sockaddr_in6(bad_ip6_byte, 1) != 0 { fail(927) }
+
     // sockaddr_un path "/tmp/ab"
     var sun = oren_sockaddr_un("/tmp/ab")
     if sun == 0 { fail(910) }

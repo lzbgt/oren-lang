@@ -170,14 +170,25 @@ fn oren_sockaddr_in6(ip6_bytes, port) {
         ptr_set_byte(sa + 8 + 15, 1)
     } else {
         var n = oren_bytes_len(ip6_bytes)
-        if oren_is_err(n) { return 0 }
-        if n != 16 { return 0 }
-        var i = 0
-        while i < 16 {
-            var b = oren_bytes_get_u8(ip6_bytes, i)
-            if b < 0 || b > 255 { return 0 }
-            ptr_set_byte(sa + 8 + i, b)
-            i = i + 1
+        if oren_is_err(n) { free(sa); return 0 }
+        if n != 16 { free(sa); return 0 }
+        if native_bytes_is_u8_buf(ip6_bytes) == true {
+            var data = native_buf_data_ptr(ip6_bytes)
+            if data == 0 { free(sa); return 0 }
+            oren_memcpy(sa + 8, data, 16)
+        } else if native_bytes_is_list(ip6_bytes) == true {
+            var buf = ptr_get(ip6_bytes + 16)
+            if buf == 0 { free(sa); return 0 }
+            var i = 0
+            while i < 16 {
+                var b = ptr_get(buf + i * 8)
+                if b < 0 || b > 255 { free(sa); return 0 }
+                ptr_set_byte(sa + 8 + i, b)
+                i = i + 1
+            }
+        } else {
+            free(sa)
+            return 0
         }
     }
     return sa

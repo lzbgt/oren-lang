@@ -1,0 +1,78 @@
+import buffer "../../lib/std/buffer.oren"
+import tcp "std:net/tcp"
+
+fn fail(code) {
+    print("native sockaddr_in6 bytes direct FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off)
+    var lo = ptr_get_byte(p + off + 1)
+    return (hi << 8) | lo
+}
+
+fn assert_sockaddr_family(sa, code) {
+    if g_target_os == 1 {
+        if ptr_get_byte(sa + 0) != 28 { fail(code) }
+        if ptr_get_byte(sa + 1) != OREN_AF_INET6 { fail(code + 1) }
+    } else {
+        if ptr_get_byte(sa + 0) != (OREN_AF_INET6 & 255) { fail(code) }
+        if ptr_get_byte(sa + 1) != ((OREN_AF_INET6 >> 8) & 255) { fail(code + 1) }
+    }
+}
+
+fn fill_u8_buf_from_list(src) {
+    var ub: []u8 = buffer.u8_new(16)
+    if oren_is_err(ub) { fail(300) }
+    var i = 0
+    while i < 16 {
+        oren_buf_store_u8(ub, i, src[i])
+        i = i + 1
+    }
+    return ub
+}
+
+fn check_addr(sa, code) {
+    assert_eq(ptr_get_byte(sa + 8 + 0), 32, code)
+    assert_eq(ptr_get_byte(sa + 8 + 1), 1, code + 1)
+    assert_eq(ptr_get_byte(sa + 8 + 2), 13, code + 2)
+    assert_eq(ptr_get_byte(sa + 8 + 3), 184, code + 3)
+    assert_eq(ptr_get_byte(sa + 8 + 15), 66, code + 4)
+}
+
+fn main() {
+    var sa_default = oren_sockaddr_in6(0, 1234)
+    if sa_default == 0 { fail(10) }
+    assert_sockaddr_family(sa_default, 11)
+    assert_eq(u16be_at(sa_default, 2), 1234, 13)
+    assert_eq(ptr_get_byte(sa_default + 8 + 15), 1, 14)
+    free(sa_default)
+
+    var ip6_list = [32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66]
+    var sa_list = oren_sockaddr_in6(ip6_list, 443)
+    if sa_list == 0 { fail(20) }
+    assert_sockaddr_family(sa_list, 21)
+    assert_eq(u16be_at(sa_list, 2), 443, 23)
+    check_addr(sa_list, 24)
+    free(sa_list)
+
+    var ip6_buf = fill_u8_buf_from_list(ip6_list)
+    var sa_buf = oren_sockaddr_in6(ip6_buf, 8443)
+    if sa_buf == 0 { fail(40) }
+    assert_sockaddr_family(sa_buf, 41)
+    assert_eq(u16be_at(sa_buf, 2), 8443, 43)
+    check_addr(sa_buf, 44)
+    free(sa_buf)
+
+    if oren_sockaddr_in6([1, 2, 3], 1) != 0 { fail(60) }
+    if oren_sockaddr_in6([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 256], 1) != 0 { fail(61) }
+
+    print("native sockaddr_in6 bytes direct OK")
+    exit(0)
+}

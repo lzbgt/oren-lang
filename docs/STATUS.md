@@ -511,8 +511,8 @@ Facts from the 2026-05-28 implementation pass:
   source-string byte reads instead of repeated input byte-list materialization.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,
   and native WebSocket header slices plus unmasked frame payloads copy with
-  `oren_memcpy`; DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites
-  copy through `oren_memcpy` after validation;
+  `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
+  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
   Base64 decode/encode writes exact-size output buffers directly, PPM header/body
   output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
