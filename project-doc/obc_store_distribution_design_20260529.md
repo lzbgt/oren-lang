@@ -199,7 +199,8 @@ and the deploy script can regenerate it with
 `scripts/deploy_obc_store_service.sh --print-traefik-dynamic-config`.
 `make verify-obc-store-live-route` performs a public HTTPS smoke against the live
 route and demo index; strict release-readiness checks can be enabled with
-`OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1`. When
+`OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1`, which also treats missing health build
+metadata as a stale/unstamped deployment signal. When
 `OBC_STORE_LIVE_ADMIN_PASSWORD` or `OBC_STORE_LIVE_ADMIN_BEARER_TOKEN` is
 provided, the same live-route smoke also validates authenticated operator status
 storage/readiness; `OBC_STORE_LIVE_REQUIRE_OPS_STATUS=1` makes missing
@@ -308,7 +309,7 @@ trusted persisted package updates, visible update-status checks, and the externa
 trust issue tool. The Note package manager exposes Check/Recheck status actions
 and a visible trusted Update action for installed OBC packages. The store also has
 authenticated operator lifecycle controls, update inventory pages/APIs,
-append-only mutation audit logs, and checked Traefik route generation. Remaining
+append-only mutation audit logs, public build-stamped health/status metadata, and checked Traefik route generation. Remaining
 store work is live deployment polish before a public store is release-ready.
 
 Key custody rule: private signing keys and any root CA material must live outside

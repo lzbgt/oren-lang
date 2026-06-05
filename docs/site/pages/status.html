@@ -217,8 +217,8 @@
 <p>  <code>cmd/obc-store-server</code> and <code>internal/obcstore</code>. It supports admin-authenticated</p>
 <p>  publisher/package/release publish, public list/search/index/download endpoints,</p>
 <p>  browser browse/detail/publisher/operator pages, package detail release</p>
-<p>  capability/source/permission/update metadata, authenticated operator status page/API</p>
-<p>  for registry counts, aggregate release-ready/incomplete counts, missing</p>
+<p>  capability/source/permission/update metadata, public health build metadata, authenticated operator status page/API</p>
+<p>  for build commit/time, registry counts, aggregate release-ready/incomplete counts, missing</p>
 <p>  bundle/source/signature/permission readiness counts, and data-dir writable/storage</p>
 <p>  byte totals by metadata/payload class, authenticated</p>
 <p>	  operator release lifecycle page/API with status/visibility/readiness filters,</p>
@@ -245,7 +245,8 @@
 <p>  semver-aware latest published release metadata and an <code>update_available</code> flag.</p>
 <p>  <code>scripts/deploy_obc_store_service.sh</code> now supports an opt-in systemd service</p>
 <p>  install/restart path, configurable listen address for Traefik, generated</p>
-<p>  Traefik dynamic route YAML, an optional remote <code>/api/v0/health</code> probe, and an</p>
+<p>  Traefik dynamic route YAML, build commit/time stamping for deployed binaries,</p>
+<p>  an optional remote <code>/api/v0/health</code> probe, and an</p>
 <p>  optional authenticated remote <code>/api/v0/ops/status</code> storage/readiness probe.</p>
 <p>  The live cloud host currently runs</p>
 <p>  <code>oren-obc-store.service</code> on <code>172.20.0.1:18080</code> and Dockerized Traefik routes</p>
@@ -253,8 +254,8 @@
 <p>  are public smoke endpoints for browser/API reachability. `make</p>
 <p>  verify-obc-store-live-route` checks the public HTTPS route, public index, and</p>
 <p>  first-party demo package visibility, while</p>
-<p>	  <code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code> upgrades signed-index/trust/update</p>
-<p>	  endpoint warnings into deployment failures, and live-route credentials enable</p>
+<p>	  <code>OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1</code> upgrades missing build metadata</p>
+<p>	  plus signed-index/trust/update endpoint warnings into deployment failures, and live-route credentials enable</p>
 <p>	  authenticated operator-status storage/readiness validation. `make</p>
 <p>	  verify-obc-store-backup-restore` publishes a fixture package, copies the</p>
 <p>	  file-backed store data directory, and proves a restored service preserves</p>

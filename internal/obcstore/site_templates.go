@@ -183,8 +183,10 @@ const siteOpsStatusHTML = `<!doctype html>
 	<tr><th>Metadata</th><td>{{.MetadataBytes}} byte(s), audit log {{.AuditLogBytes}} byte(s)</td></tr>
 	<tr><th>Payloads</th><td>{{.PayloadBytes}} byte(s): {{.ProgramBytes}} program, {{.BundleBytes}} bundle, {{.AssetBytes}} asset, {{.ScreenshotBytes}} screenshot</td></tr>
 	</table></section>
-		<section class="card"><h2>Deployment Gates</h2><table>
-		<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
+			<section class="card"><h2>Deployment Gates</h2><table>
+			<tr><th>Build commit</th><td>{{.BuildCommit}}</td></tr>
+			<tr><th>Build time</th><td>{{if .BuildTime}}{{.BuildTime}}{{else}}not stamped{{end}}</td></tr>
+			<tr><th>Signed index</th><td>{{.SignedIndexEnabled}}</td></tr>
 	<tr><th>Index signing key</th><td>{{if .IndexSigningKeyID}}{{.IndexSigningKeyID}}{{else}}not configured{{end}}</td></tr>
 	<tr><th>Active key trusted</th><td>{{.IndexSigningKeyTrusted}}</td></tr>
 	<tr><th>Trust bundle</th><td>{{.TrustBundleAvailable}} ({{.TrustBundleStoreKeys}} store key(s){{if .TrustBundleStoreKeyIDs}}: {{range $i, $id := .TrustBundleStoreKeyIDs}}{{if $i}}, {{end}}{{$id}}{{end}}{{end}})</td></tr>

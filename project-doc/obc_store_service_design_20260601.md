@@ -149,7 +149,9 @@ Remaining service work:
   index signing key only when `OBC_STORE_COPY_INDEX_SIGNING_KEY=1`. It can copy
   the public trust bundle with `OBC_STORE_COPY_TRUST_BUNDLE=1`, set
   `OBC_STORE_INDEX_SIGN_KEY_ID`, and pass `OBC_STORE_TRUST_BUNDLE` to the service.
-  It can also
+  Deployed binaries are stamped with `OBC_STORE_BUILD_COMMIT`/`OBC_STORE_BUILD_TIME`
+  or the local git commit and UTC build time by default; these fields appear in
+  `/api/v0/health` and authenticated operator status. It can also
   install/restart `oren-obc-store.service` when `OBC_STORE_INSTALL_SYSTEMD=1`,
   bind the service to `OBC_STORE_LISTEN_ADDR` for the Traefik backend, run a
   remote health probe when `OBC_STORE_REMOTE_HEALTHCHECK=1`, and run an
@@ -369,7 +371,7 @@ Before deployment:
    for the default `172.20.0.1:18080` backend. `make
    verify-obc-store-live-route` checks the public HTTPS route and demo package
    index visibility; set `OBC_STORE_LIVE_REQUIRE_RELEASE_READY=1` to make
-   signed-index/trust/update endpoint gaps fail the gate, and provide
+   missing build metadata plus signed-index/trust/update endpoint gaps fail the gate, and provide
    `OBC_STORE_LIVE_ADMIN_PASSWORD` or `OBC_STORE_LIVE_ADMIN_BEARER_TOKEN` to also
    validate authenticated operator status storage/readiness through the public
    route. `OBC_STORE_LIVE_REQUIRE_OPS_STATUS=1` makes missing credentials fail.

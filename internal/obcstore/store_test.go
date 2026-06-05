@@ -40,6 +40,14 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 
 	if got := request(t, ts, http.MethodGet, "/api/v0/health", nil, false); got.Code != http.StatusOK {
 		t.Fatalf("health status=%d body=%s", got.Code, got.Body.String())
+	} else {
+		var health map[string]any
+		if err := json.Unmarshal(got.Body.Bytes(), &health); err != nil {
+			t.Fatalf("decode health: %v body=%s", err, got.Body.String())
+		}
+		if health["service"] != "obc-store" || health["build_commit"] == "" {
+			t.Fatalf("health missing build metadata=%v", health)
+		}
 	}
 	if got := request(t, ts, http.MethodGet, "/healthz", nil, false); got.Code != http.StatusOK {
 		t.Fatalf("healthz status=%d body=%s", got.Code, got.Body.String())
@@ -195,6 +203,9 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 	if opsStatus["publisher_count"] != float64(1) || opsStatus["public_package_count"] != float64(1) || opsStatus["published_release_count"] != float64(1) || opsStatus["admin_auth_configured"] != true {
 		t.Fatalf("bad ops status=%v", opsStatus)
 	}
+	if opsStatus["build_commit"] == "" {
+		t.Fatalf("ops status missing build commit=%v", opsStatus)
+	}
 	if opsStatus["bundle_release_count"] != float64(1) || opsStatus["source_release_count"] != float64(1) || opsStatus["source_asset_count"] != float64(1) || opsStatus["permission_default_count"] != float64(1) {
 		t.Fatalf("bad ops status=%v", opsStatus)
 	}
@@ -211,7 +222,7 @@ func TestStorePublishSearchDownloadAndYank(t *testing.T) {
 		t.Fatalf("bad ops storage bytes=%v", opsStatus)
 	}
 	opsStatusPage := request(t, ts, http.MethodGet, "/ops/status", nil, true)
-	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Complete releases") || !strings.Contains(opsStatusPage.Body.String(), "Missing readiness") || !strings.Contains(opsStatusPage.Body.String(), "Storage") || !strings.Contains(opsStatusPage.Body.String(), "Data dir writable") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") {
+	if opsStatusPage.Code != http.StatusOK || !strings.Contains(opsStatusPage.Body.String(), "Operator Status") || !strings.Contains(opsStatusPage.Body.String(), "Release Readiness") || !strings.Contains(opsStatusPage.Body.String(), "Complete releases") || !strings.Contains(opsStatusPage.Body.String(), "Missing readiness") || !strings.Contains(opsStatusPage.Body.String(), "Storage") || !strings.Contains(opsStatusPage.Body.String(), "Data dir writable") || !strings.Contains(opsStatusPage.Body.String(), "Deployment Gates") || !strings.Contains(opsStatusPage.Body.String(), "Build commit") {
 		t.Fatalf("ops status page status=%d body=%s", opsStatusPage.Code, opsStatusPage.Body.String())
 	}
 	if got := request(t, ts, http.MethodGet, "/api/v0/ops/releases", nil, false); got.Code != http.StatusUnauthorized {

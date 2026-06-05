@@ -28,6 +28,11 @@ const (
 	releaseBundleMediaType = "application/vnd.oren.obc.release+zip"
 )
 
+var (
+	BuildCommit = "dev"
+	BuildTime   = ""
+)
+
 type Config struct {
 	DataDir                string
 	AdminUser              string
@@ -138,6 +143,8 @@ type PackageVisibilityUpdate struct {
 type OperatorStatus struct {
 	Schema                 string   `json:"schema"`
 	Service                string   `json:"service"`
+	BuildCommit            string   `json:"build_commit"`
+	BuildTime              string   `json:"build_time,omitempty"`
 	GeneratedAt            string   `json:"generated_at"`
 	PublisherCount         int      `json:"publisher_count"`
 	ActivePublisherCount   int      `json:"active_publisher_count"`
@@ -289,9 +296,11 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":  "ok",
-		"schema":  indexSchema,
-		"service": "obc-store",
+		"status":       "ok",
+		"schema":       indexSchema,
+		"service":      "obc-store",
+		"build_commit": BuildCommit,
+		"build_time":   BuildTime,
 	})
 }
 
@@ -1497,6 +1506,8 @@ func (s *Service) operatorStatus() (OperatorStatus, error) {
 	status := OperatorStatus{
 		Schema:              indexSchema,
 		Service:             "obc-store",
+		BuildCommit:         BuildCommit,
+		BuildTime:           BuildTime,
 		GeneratedAt:         s.now().UTC().Format(time.RFC3339),
 		SignedIndexEnabled:  s.indexSigner != nil,
 		IndexSigningKeyID:   s.indexSigningKeyID,

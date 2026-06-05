@@ -33,6 +33,8 @@ Optional:
   OBC_STORE_REMOTE_OPS_STATUSCHECK=1
   OBC_STORE_REMOTE_OPS_STATUS_URL=http://127.0.0.1:8080/api/v0/ops/status
   OBC_STORE_ADMIN_BEARER_TOKEN=<raw deploy bearer token for status check only>
+  OBC_STORE_BUILD_COMMIT=<override build commit stamp>
+  OBC_STORE_BUILD_TIME=<override RFC3339 build timestamp>
   OBC_STORE_TRAEFIK_HOST=store.hubstack.cn
   OBC_STORE_TRAEFIK_ENTRYPOINT=websecure
   OBC_STORE_TRAEFIK_CERT_RESOLVER=letsencrypt
@@ -145,6 +147,8 @@ with urllib.request.urlopen(req, timeout=8) as resp:
     doc = json.loads(resp.read().decode("utf-8"))
 if doc.get("service") != "obc-store":
     raise SystemExit(f"unexpected ops status service: {doc!r}")
+if not doc.get("build_commit"):
+    raise SystemExit(f"ops status missing build commit: {doc!r}")
 if doc.get("admin_auth_configured") is not True:
     raise SystemExit(f"ops status reports admin auth is not configured: {doc!r}")
 if doc.get("data_dir_writable") is not True:
@@ -233,7 +237,11 @@ esac
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/oren-obc-store-deploy.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT
 bin="$tmp_dir/obc-store-server"
-GOOS=linux GOARCH="$goarch" go build -o "$bin" ./cmd/obc-store-server
+build_commit="${OBC_STORE_BUILD_COMMIT:-$(git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)}"
+build_time="${OBC_STORE_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+GOOS=linux GOARCH="$goarch" go build \
+  -ldflags "-X oren/internal/obcstore.BuildCommit=$build_commit -X oren/internal/obcstore.BuildTime=$build_time" \
+  -o "$bin" ./cmd/obc-store-server
 
 ssh $ssh_opts "$ssh_target" "mkdir -p '$remote_dir' '$remote_data_dir'"
 scp $ssh_opts "$bin" "$ssh_target:$remote_dir/obc-store-server.new"

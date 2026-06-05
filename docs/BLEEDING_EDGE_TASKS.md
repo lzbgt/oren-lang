@@ -236,8 +236,8 @@ This file is the concise task view. Detailed implementation status lives in
 		     with total/filtered counts, authenticated filterable append-only
 		     audit page/API by action/actor/target with total/filtered counts, checked Traefik dynamic route
 	     generation for the cloud-host backend, optional authenticated deploy-time
-	     operator-status storage/readiness probes, a public live-route smoke target
-	     with strict release-readiness/operator-status modes, and a local data-dir backup/restore
+	     operator-status storage/readiness probes, public build-stamped health/status
+	     metadata, a public live-route smoke target with strict build/release-readiness/operator-status modes, and a local data-dir backup/restore
 	     smoke for metadata plus artifacts; live deployment polish remains.
      Design note:
      `project-doc/obc_store_distribution_design_20260529.md`.

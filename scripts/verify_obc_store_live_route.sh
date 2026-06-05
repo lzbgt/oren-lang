@@ -22,6 +22,7 @@ admin_password = sys.argv[4]
 admin_bearer_token = sys.argv[5]
 require_ops_status = sys.argv[6] == "1"
 warnings = []
+health_build_commits = set()
 
 
 def fetch(path, *, want_json=True, required=True):
@@ -50,6 +51,11 @@ def check_health(path):
     doc = fetch(path)
     if doc.get("schema") != "oren.obc.store.index.v0" or doc.get("status") != "ok" or doc.get("service") != "obc-store":
         raise RuntimeError(f"{path} returned unexpected health payload: {doc}")
+    commit = doc.get("build_commit")
+    if not isinstance(commit, str) or not commit:
+        warnings.append(f"{path}: missing build_commit; live service may be an older unstamped binary")
+    else:
+        health_build_commits.add(commit)
 
 
 check_health("/healthz")
@@ -84,6 +90,11 @@ if admin_bearer_token or admin_password:
     status = fetch_request(req, ops_url, required=True, path="/api/v0/ops/status")
     if status.get("service") != "obc-store" or status.get("admin_auth_configured") is not True:
         raise RuntimeError(f"operator status returned unexpected payload: {status}")
+    status_commit = status.get("build_commit")
+    if not isinstance(status_commit, str) or not status_commit:
+        raise RuntimeError(f"operator status missing build_commit: {status}")
+    if health_build_commits and status_commit not in health_build_commits:
+        raise RuntimeError(f"operator status build {status_commit!r} does not match public health builds {sorted(health_build_commits)!r}")
     if status.get("data_dir_writable") is not True:
         raise RuntimeError(f"operator status reports unwritable data dir: {status}")
     if int(status.get("data_dir_file_count") or 0) <= 0 or int(status.get("data_dir_bytes") or 0) <= 0:
