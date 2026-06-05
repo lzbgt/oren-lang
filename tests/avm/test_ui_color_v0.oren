@@ -35,6 +35,12 @@ fn test_parse_hex_rgba() {
     assert_eq(r["g"], 11)
     assert_eq(r["b"], 12)
     assert_eq(r["a"], 13)
+    var up = ui_color.parse_hex("#A0B1C2D3")
+    assert_true(oren_is_err(up) == false)
+    assert_eq(up["r"], 160)
+    assert_eq(up["g"], 177)
+    assert_eq(up["b"], 194)
+    assert_eq(up["a"], 211)
 }
 
 fn test_parse_hex_err() {
@@ -42,6 +48,9 @@ fn test_parse_hex_err() {
     assert_true(oren_is_err(bad) == true)
     assert_eq(oren_err_code(bad), 4)
     assert_eq(oren_err_msg(bad), "color must be #RRGGBB or #RRGGBBAA")
+    var bad_digit = ui_color.parse_hex("#0000000x")
+    assert_true(oren_is_err(bad_digit) == true)
+    assert_eq(oren_err_msg(bad_digit), "invalid hex digits")
 }
 
 fn test_is_hex() {

@@ -221,7 +221,8 @@
 <p>     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
 <p>     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
 <p>     path on exact-size <code>u8_buf</code> output; plain UI <code>text</code> frame commands now also</p>
-<p>     write string bytes directly into OGF0 payloads. SHA-1/SHA-256 digest outputs and native</p>
+<p>     write string bytes directly into OGF0 payloads, and UI color parsing reads</p>
+<p>     hex digits directly from ASCII string bytes. SHA-1/SHA-256 digest outputs and native</p>
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     plain literal decode now slices the header block directly, while Huffman</p>
 <p>     string encode/decode, decoded-string boundaries, and full header-block</p>

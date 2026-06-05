@@ -13,6 +13,20 @@
 
 import result "std:result"
 
+fn _hex_digit_value(b) {
+    if b >= 48 && b <= 57 { return b - 48 }
+    if b >= 65 && b <= 70 { return b - 55 }
+    if b >= 97 && b <= 102 { return b - 87 }
+    return -1
+}
+
+fn _hex_byte_at(s, off) {
+    var hi = _hex_digit_value(oren_string_byte_at_unchecked(s, off))
+    var lo = _hex_digit_value(oren_string_byte_at_unchecked(s, off + 1))
+    if hi < 0 || lo < 0 { return -1 }
+    return hi * 16 + lo
+}
+
 fn parse_hex(s) {
     // Returns either:
     // - {"r":u8,"g":u8,"b":u8,"a":u8}
@@ -21,24 +35,16 @@ fn parse_hex(s) {
     var n = oren_string_len(s)
     if oren_is_err(n) { return oren_err(4, "color must be string") }
     if n != 7 && n != 9 { return oren_err(4, "color must be #RRGGBB or #RRGGBBAA") }
-    if oren_string_slice(s, 0, 1) != "#" { return oren_err(4, "color must start with #") }
+    if oren_string_byte_at_unchecked(s, 0) != 35 { return oren_err(4, "color must start with #") }
 
-    // Use std bytes helpers so this works under AVM bytecode too.
-    var hex = oren_string_slice(s, 1, n)
-    var bb = oren_bytes_from_hex(hex)
-    if oren_is_err(bb) { return oren_err(4, "invalid hex digits") }
-    var bl = oren_bytes_len(bb)
-    if oren_is_err(bl) { return oren_err(4, "invalid bytes") }
-    if bl != 3 && bl != 4 { return oren_err(4, "color hex must decode to 3 or 4 bytes") }
-
-    var r = oren_bytes_get_u8(bb, 0)
-    var g = oren_bytes_get_u8(bb, 1)
-    var b = oren_bytes_get_u8(bb, 2)
-    if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return oren_err(4, "invalid bytes") }
+    var r = _hex_byte_at(s, 1)
+    var g = _hex_byte_at(s, 3)
+    var b = _hex_byte_at(s, 5)
+    if r < 0 || g < 0 || b < 0 { return oren_err(4, "invalid hex digits") }
     var a = 255
-    if bl == 4 {
-        a = oren_bytes_get_u8(bb, 3)
-        if oren_is_err(a) { return oren_err(4, "invalid alpha byte") }
+    if n == 9 {
+        a = _hex_byte_at(s, 7)
+        if a < 0 { return oren_err(4, "invalid hex digits") }
     }
     return {"r": r, "g": g, "b": b, "a": a}
 }
