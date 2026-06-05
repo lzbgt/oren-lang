@@ -120,11 +120,7 @@ fn oren_realpath(path) {
         var seg2 = oren_list_get(segs, k)
         var seg_len3 = seg2 & 4294967295
         var seg_start3 = seg2 >> 32
-        var t = 0
-        while t < seg_len3 {
-            ptr_set_byte(out + off + t, ptr_get_byte(path + seg_start3 + t))
-            t = t + 1
-        }
+        if seg_len3 > 0 { oren_memcpy(out + off, path + seg_start3, seg_len3) }
         off = off + seg_len3
         if k + 1 < cnt2 {
             ptr_set_byte(out + off, 47)

@@ -435,18 +435,8 @@ fn native_capsule_fs_mount_resolve(path, mounts_csv) {
     var out = malloc(best_host_len + rem_len + 1)
     if out == 0 { exit(301) }
 
-    // host prefix
-    var a = 0
-    while a < best_host_len {
-        ptr_set_byte(out + a, ptr_get_byte(iadd(mounts_csv, best_host_start + a)))
-        a = a + 1
-    }
-    // remainder
-    var b = 0
-    while b < rem_len {
-        ptr_set_byte(out + best_host_len + b, ptr_get_byte(path + best_virt_len + b))
-        b = b + 1
-    }
+    if best_host_len > 0 { oren_memcpy(out, iadd(mounts_csv, best_host_start), best_host_len) }
+    if rem_len > 0 { oren_memcpy(out + best_host_len, path + best_virt_len, rem_len) }
     ptr_set_byte(out + best_host_len + rem_len, 0)
     oren_track_alloc(out, best_host_len + rem_len + 1, 1) // STRING
     return out

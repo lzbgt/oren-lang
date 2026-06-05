@@ -202,12 +202,9 @@ fn oren_sockaddr_un(path) {
         while zi < 106 { ptr_set_byte(sa + zi, 0); zi = zi + 1 }
         ptr_set_byte(sa + 0, 106)
         ptr_set_byte(sa + 1, OREN_AF_UNIX)
-        var i = 0
-        while i < n {
-            if i >= 104 { break }
-            ptr_set_byte(sa + 2 + i, ptr_get_byte(path + i))
-            i = i + 1
-        }
+        var i = n
+        if i > 104 { i = 104 }
+        if i > 0 { oren_memcpy(sa + 2, path, i) }
         // NUL terminate if there is space
         if i < 104 { ptr_set_byte(sa + 2 + i, 0) }
         return sa
@@ -221,12 +218,9 @@ fn oren_sockaddr_un(path) {
     while zj < 110 { ptr_set_byte(sa2 + zj, 0); zj = zj + 1 }
     ptr_set_byte(sa2 + 0, OREN_AF_UNIX)
     ptr_set_byte(sa2 + 1, 0)
-    var j = 0
-    while j < n {
-        if j >= 108 { break }
-        ptr_set_byte(sa2 + 2 + j, ptr_get_byte(path + j))
-        j = j + 1
-    }
+    var j = n
+    if j > 108 { j = 108 }
+    if j > 0 { oren_memcpy(sa2 + 2, path, j) }
     if j < 108 { ptr_set_byte(sa2 + 2 + j, 0) }
     return sa2
 }

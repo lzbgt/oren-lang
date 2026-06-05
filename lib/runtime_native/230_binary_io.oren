@@ -793,11 +793,7 @@ fn oren_readdir(path) {
                     if owned == 1 { free(rpath) }
                     return oren_err(12, "readdir: alloc failed")
                 }
-                var j = 0
-                while j < name_len {
-                    ptr_set_byte(s2 + j, ptr_get_byte(name_ptr + j))
-                    j = j + 1
-                }
+                if name_len > 0 { oren_memcpy(s2, name_ptr, name_len) }
                 ptr_set_byte(s2 + name_len, 0)
                 oren_track_alloc(s2, name_len + 1, 1) // STRING
                 oren_list_push(out, s2)

@@ -497,10 +497,12 @@ Facts from the 2026-05-28 implementation pass:
   byte list, and SHA-1/SHA-256 digest buffers finalize through direct unchecked
   u8 stores after exact-size allocation. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, bytecode metadata payloads,
-  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
-  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
-  blobs, x64 native debug-table names, ARM64 native panic-message payloads,
-  shared compiler byte-builder append/list/string/set stores, C identifier
+	  bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw
+	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
+	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,
+	  native capsule mount path resolution, realpath segment output, readdir names,
+	  and UNIX-socket path copies through `oren_memcpy`, shared compiler
+	  byte-builder append/list/string/set stores, C identifier
   escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy
   helpers now do the same.
   `std:buffer`
