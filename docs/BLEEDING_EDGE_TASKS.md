@@ -174,7 +174,8 @@ This file is the concise task view. Detailed implementation status lives in
      debug-name blobs, x64 native debug-table names, ARM64 native panic-message
      payloads, shared compiler byte-builder append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
-     string copy helpers, `std:bytes.from_string`, and `std:bytes.copy_into` u8-buffer destinations now
+     string copy helpers, `std:bytes.from_string`, `std:strings` byte roundtrips,
+     and `std:bytes.copy_into` u8-buffer destinations now
      use direct source-string byte reads or exact-size/raw-pointer buffers too.
      Buffer views now expose wrapper objects over zero-copy slices,
      strides, and matrices, so callers can write `buf.slice(1, 3).text()` and

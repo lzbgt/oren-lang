@@ -462,10 +462,10 @@ Facts from the 2026-05-28 implementation pass:
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
-  now returns byte-native u8 buffers, `std:bytes.copy_into` keeps list-backed
-  compatibility while copying into u8-buffer destinations through raw pointer
-  stores after public span validation, JSON full decode, scalar parse, tag
-  equality, and escape paths
+  and `std:strings` byte roundtrips now use byte-native u8 buffers,
+  `std:bytes.copy_into` keeps list-backed compatibility while copying into
+  u8-buffer destinations through raw pointer stores after public span validation,
+  JSON full decode, scalar parse, tag equality, and escape paths
   use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical key ordering/text encoding, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and

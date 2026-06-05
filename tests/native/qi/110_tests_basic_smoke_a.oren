@@ -81,13 +81,17 @@ fn test_std_strings_smoke() {
     assert_streq(strings.slice(s, 1, 3), "re", 7801)
     assert_streq(strings.char_at(s, 2), "e", 7802)
     var bs = strings.to_bytes("AZ")
-    assert_eq(oren_list_len(bs), 2, 7803)
-    assert_eq(bs[0], 65, 7804)
-    assert_eq(bs[1], 90, 7805)
+    assert_true(oren_is_u8_buf(bs) == true, 7803)
+    assert_eq(oren_bytes_len(bs), 2, 7804)
+    assert_eq(oren_bytes_get_u8(bs, 0), 65, 7805)
+    assert_eq(oren_bytes_get_u8(bs, 1), 90, 7806)
+    assert_streq(strings.from_bytes(bs), "AZ", 7807)
     var s2 = strings.from_bytes([66, 67])
-    assert_streq(s2, "BC", 7806)
-    assert_true(oren_is_err(strings.char_at("hi", "x")), 7807)
-    assert_true(oren_is_err(strings.slice("hi", "x", 1)), 7808)
+    assert_streq(s2, "BC", 7808)
+    assert_true(oren_is_err(strings.char_at("hi", "x")), 7809)
+    assert_true(oren_is_err(strings.slice("hi", "x", 1)), 7810)
+    assert_true(oren_is_err(strings.to_bytes(123)), 7811)
+    assert_true(oren_is_err(strings.from_bytes("not-bytes")), 7812)
     return 0
 }
 

@@ -8,9 +8,24 @@ fn _slice_raw(s, start, end) { return oren_string_slice(s, start, end) }
 
 fn _byte_at_raw(s, i) { return oren_string_byte_at_unchecked(s, i) & 255 }
 
-fn to_bytes(s) { return oren_bytes_from_string(s) }
+fn to_bytes(s) {
+    if _is_string(s) == false { return oren_err(4, "strings.to_bytes: s must be string") }
+    var n = _len_raw(s)
+    var out = oren_u8_buf_new_uninit(n)
+    var data = oren_buf_data_ptr_unchecked(out)
+    var i = 0
+    while i < n {
+        ptr_set_byte(data + i, _byte_at_raw(s, i))
+        i = i + 1
+    }
+    return out
+}
 
-fn from_bytes(bs) { return oren_string_from_bytes(bs) }
+fn from_bytes(bs) {
+    var n = oren_bytes_len(bs)
+    if n == nil || oren_is_err(n) { return oren_err(4, "strings.from_bytes: bs must be bytes") }
+    return oren_string_from_bytes_slice(bs, 0, n)
+}
 
 fn _is_int(v) {
     if v == nil { return false }
