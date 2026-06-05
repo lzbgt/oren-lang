@@ -2,7 +2,7 @@
 .PHONY: examples-cross-compile-smoke
 .PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-green-cache-flake test-native-quick-green-local-ptr-flake test-native-quick-green-local-ptr-direct-flake test-native-quick-green-local-ptr-plain-flake test-native-quick-green-local-ptr-workers-flake test-native-quick-green-local-ptr-split-flake test-native-quick-green-fairness-flake test-native-quick-green-fairness-zeroarg-flake test-native-quick-green-fairness-onearg-flake test-native-quick-green-fairness-onearg-direct-flake test-native-quick-green-fairness-onearg-modes-flake test-native-quick-green-fairness-onearg-count-sweep-flake test-native-quick-green-fairness-modes-flake test-native-quick-gc-stw-focus-flake test-native-quick-green-tail-flake test-native-quick-green-join-waiters-stress-flake test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-native-quick-base-cold-seeded verify-native-quick-stage2-direct-autoseed verify-native-quick-green-local-ptr-guarded verify-green-world-lock-guarded verify-green-preworld-guarded verify-green-fairness-guarded verify-backend-parity verify-backend-semantic-diff verify-backend-semantic-diff-gas-calibration verify-backend-semantic-diff-gas-branch-calibration verify-backend-semantic-diff-gas-call-calibration verify-backend-semantic-diff-gas-alloc-calibration verify-backend-parity-bytes verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-index-audit-trend readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-report-sanitize readiness-pipeline status-snapshot status-snapshot-diff status-faq status-faq-diff status-matrix status-matrix-diff status-markdown verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-index-audit-trend verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-report-sanitize verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff verify-status-faq verify-status-faq-diff verify-status-matrix verify-status-matrix-diff verify-status-markdown benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
-.PHONY: docs-site verify-docs-site issue-obc-store-trust verify-obc-store-service verify-obc-store-demos verify-obc-store-deploy-script verify-obc-store-live-route deploy-obc-store-service verify-stdlib-api-shape
+.PHONY: docs-site verify-docs-site issue-obc-store-trust verify-obc-store-service verify-obc-store-demos verify-obc-store-deploy-script verify-obc-store-live-route deploy-obc-store-service verify-stdlib-api-shape verify-oren-lsp
 .PHONY: verify-oretest
 .PHONY: verify-yield-lowering-v0 verify-yield-backend-parity-v0 verify-yield-value-surface-v0 verify-yield-exchange-surface-v0 verify-generator-surface-v0 verify-coroutine-surface-v0 verify-task-surface-v0 verify-task-group-surface-v0 verify-task-group-task-surface-v0 verify-generator-finalize-surface-v0 verify-generator-nested-green-resume-v0
 .PHONY: verify-native-x64-selfhost-compile
@@ -73,6 +73,7 @@ OREN_BIN := oren$(EXE_EXT)
 OREN_STAGE2_BIN := oren_stage2$(EXE_EXT)
 OREDOC_BIN := oredoc$(EXE_EXT)
 ORENSIGN_BIN := orensign$(EXE_EXT)
+ORENLSP_BIN := oren-lsp$(EXE_EXT)
 AVM_BIN := avm$(EXE_EXT)
 COMPILER_BUILD_LOCK := ./scripts/with_build_lock.sh build/locks/compiler-build.lock
 OREN_RUNTIME_ROBUSTNESS_RUNS ?= 1
@@ -355,7 +356,7 @@ endif
 # Source files
 OREN_SRC := oren.oren
 $(OREN_SRC): ;
-GO_SRC := $(shell find cmd pkg -name "*.go")
+GO_SRC := $(shell find cmd pkg internal -name "*.go")
 OREN_OREN_SRC := $(shell find lib -name "*.oren")
 OREN_RUNTIME_INC := $(shell find lib/runtime -name "*.inc")
 
@@ -392,6 +393,13 @@ endif
 $(ORENSIGN_BIN): $(GO_SRC)
 	@echo "Building orensign..."
 	@go build -o "$(ORENSIGN_BIN)" ./cmd/orensign
+
+# Go-based Oren language server.
+oren-lsp: $(ORENLSP_BIN)
+
+$(ORENLSP_BIN): $(GO_SRC)
+	@echo "Building oren-lsp..."
+	@go build -o "$(ORENLSP_BIN)" ./cmd/oren-lsp
 
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
 ifeq ($(HOST_IS_WINDOWS),1)
@@ -941,6 +949,10 @@ issue-obc-store-trust:
 
 verify-obc-store-service:
 	@go test ./cmd/obc-store-server ./internal/obcstore
+
+verify-oren-lsp:
+	@go test ./internal/orenlsp ./cmd/oren-lsp
+	@go build -o "$(ORENLSP_BIN)" ./cmd/oren-lsp
 
 verify-obc-store-backup-restore:
 	@go test ./internal/obcstore -run TestStoreDataDirBackupRestore -count=1
@@ -1974,7 +1986,7 @@ obc-portability: oren avm
 clean:
 	@echo "Cleaning workspace..."
 	rm -rf build/ *.dSYM verify_full.sh run_tests.sh
-	rm -f "$(BOOTSTRAP_BIN)" "$(OREN_BIN)" "$(OREN_STAGE2_BIN)" "oren_stage3$(EXE_EXT)" "$(AVM_BIN)" "$(OREDOC_BIN)" "$(ORENSIGN_BIN)"
+	rm -f "$(BOOTSTRAP_BIN)" "$(OREN_BIN)" "$(OREN_STAGE2_BIN)" "oren_stage3$(EXE_EXT)" "$(AVM_BIN)" "$(OREDOC_BIN)" "$(ORENSIGN_BIN)" "$(ORENLSP_BIN)"
 	rm -f *.oren.c *.obc *.otool *.dylib *.so
 	@# Remove local test binaries (keep .oren sources)
 	@find tests/native -maxdepth 1 -type f ! -name '*.oren' -delete 2>/dev/null || true

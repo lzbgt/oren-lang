@@ -779,6 +779,9 @@ Working evidence:
 - AVM allocation slabs and list-int lowering.
 - Deterministic AVM child-universe scheduling and snapshot/restore maturity.
 - Platform breadth for Linux/Windows/x64 paths.
+- Oren language tooling: initial `oren-lsp` stdio JSON-RPC server now covers
+  initialization, full-document sync, and deterministic bracket/string diagnostics;
+  parser-backed diagnostics, completion/navigation, and VS Code packaging remain.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

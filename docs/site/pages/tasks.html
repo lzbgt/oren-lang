@@ -497,10 +497,18 @@
 <li><strong>Oren language tooling</strong></li>
 </ol>
 <ul>
-<li>After the current AVM/OBC store jobs land, build a Go language server and</li>
+<li>Build out <code>oren-lsp</code> and VS Code support for Oren syntax highlighting,</li>
 </ul>
-<p>     VS Code extension for Oren syntax highlighting, diagnostics, completion,</p>
-<p>     navigation, and code intelligence.</p>
+<p>     diagnostics, completion, navigation, and code intelligence.</p>
+<ul>
+<li>Current slice adds a dependency-free Go JSON-RPC stdio language server with</li>
+</ul>
+<p>     <code>initialize</code>/<code>shutdown</code>, full-document sync, and deterministic bracket/string</p>
+<p>     diagnostics on open/change.</p>
+<ul>
+<li>Remaining work is parser-backed diagnostics, completion/navigation, syntax</li>
+</ul>
+<p>     packaging, and VS Code extension smoke coverage.</p>
 <h2 id="closed-do-not-repeat-families">Closed/Do-Not-Repeat Families</h2>
 <ul>
 <li>Do not re-open Mach-O resolver variants based on generic Oren maps, global sorting,</li>

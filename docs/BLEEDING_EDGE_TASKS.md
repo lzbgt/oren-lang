@@ -385,9 +385,13 @@ This file is the concise task view. Detailed implementation status lives in
    - Keep canonical docs concise; archive raw history in logs or focused project notes.
 
 5. **Oren language tooling**
-   - After the current AVM/OBC store jobs land, build a Go language server and
-     VS Code extension for Oren syntax highlighting, diagnostics, completion,
-     navigation, and code intelligence.
+   - Build out `oren-lsp` and VS Code support for Oren syntax highlighting,
+     diagnostics, completion, navigation, and code intelligence.
+   - Current slice adds a dependency-free Go JSON-RPC stdio language server with
+     `initialize`/`shutdown`, full-document sync, and deterministic bracket/string
+     diagnostics on open/change.
+   - Remaining work is parser-backed diagnostics, completion/navigation, syntax
+     packaging, and VS Code extension smoke coverage.
 
 ## Closed/Do-Not-Repeat Families
 
