@@ -230,7 +230,9 @@
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
 <p>     through syscalls without a transient byte list, and SHA-1/SHA-256 string</p>
 <p>     hashing now reads UTF-8 string bytes directly for WebSocket accept values,</p>
-<p>     Windows Schannel passphrase cache keys, and callers that already hold text.</p>
+<p>     Windows Schannel passphrase cache keys, and callers that already hold text;</p>
+<p>     SHA-1/SHA-256 digest buffers finalize through direct unchecked u8 stores</p>
+<p>     after exact-size allocation.</p>
 <p>     Compiler source-policy</p>
 <p>     scans, scan-cache line/number parsing, C-runtime include scanning,</p>
 <p>     compiler manifest JSON escaping, bytecode metadata payloads, OBX</p>

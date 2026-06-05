@@ -10,6 +10,7 @@
 
 import list "std:list"
 import bytesm "std:bytes"
+import raw "std:buffer/raw"
 
 trait Sha256Bytes {
     fn sha256(self): bytes;
@@ -99,10 +100,10 @@ fn _u32_be_string_at(s, orig_len, bit_len, pos) {
 
 fn _store_u32_be(out, off, x) {
     x = _u32(x)
-    oren_buf_store_u8(out, off + 0, (x >> 24) & 255)
-    oren_buf_store_u8(out, off + 1, (x >> 16) & 255)
-    oren_buf_store_u8(out, off + 2, (x >> 8) & 255)
-    oren_buf_store_u8(out, off + 3, x & 255)
+    raw._store_u8_buf_unchecked_direct(out, off + 0, (x >> 24) & 255)
+    raw._store_u8_buf_unchecked_direct(out, off + 1, (x >> 16) & 255)
+    raw._store_u8_buf_unchecked_direct(out, off + 2, (x >> 8) & 255)
+    raw._store_u8_buf_unchecked_direct(out, off + 3, x & 255)
     return off + 4
 }
 
