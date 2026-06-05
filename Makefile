@@ -953,6 +953,7 @@ verify-obc-store-service:
 verify-oren-lsp:
 	@go test ./internal/orenlsp ./cmd/oren-lsp
 	@go build -o "$(ORENLSP_BIN)" ./cmd/oren-lsp
+	@python3 scripts/verify_vscode_oren_extension.py
 
 verify-obc-store-backup-restore:
 	@go test ./internal/obcstore -run TestStoreDataDirBackupRestore -count=1

@@ -1,0 +1,55 @@
+{
+  "name": "oren-language",
+  "displayName": "Oren Language",
+  "description": "Oren language syntax highlighting and language-server integration.",
+  "version": "0.1.0",
+  "publisher": "oren",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:oren"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "oren",
+        "aliases": [
+          "Oren",
+          "oren"
+        ],
+        "extensions": [
+          ".oren"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "oren",
+        "scopeName": "source.oren",
+        "path": "./syntaxes/oren.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Oren",
+      "properties": {
+        "oren.lsp.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the oren-lsp executable. Defaults to ./oren-lsp in the workspace root, then PATH."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0"
+  }
+}

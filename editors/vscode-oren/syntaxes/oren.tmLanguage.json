@@ -1,0 +1,102 @@
+{
+  "name": "Oren",
+  "scopeName": "source.oren",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.oren",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.oren",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.oren",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.oren",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.oren",
+          "match": "\\b(if|else|for|while|break|continue|return|in|spawn)\\b"
+        },
+        {
+          "name": "keyword.declaration.oren",
+          "match": "\\b(fn|var|import|struct|class|ffi)\\b"
+        },
+        {
+          "name": "constant.language.oren",
+          "match": "\\b(true|false|nil)\\b"
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "support.module.oren",
+          "match": "\"std:[^\"]+\""
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "entity.name.function.oren",
+          "match": "(?<=\\bfn\\s+)[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.oren",
+          "match": "(?<=\\b(?:struct|class)\\s+)[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "variable.other.declaration.oren",
+          "match": "(?<=\\bvar\\s+)[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.oren",
+          "match": "\\b[0-9]+(?:\\.[0-9]+)?\\b"
+        }
+      ]
+    }
+  }
+}
