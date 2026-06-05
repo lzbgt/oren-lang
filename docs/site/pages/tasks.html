@@ -125,6 +125,9 @@
 <p>     guard, but uses a 900s stage2 cross-build floor because active self-hosted</p>
 <p>     Linux NET/HTTP2 fixture compiles exceeded both the generic 120s stage2</p>
 <p>     floor and a 300s trial on the primary dev host.</p>
+<p>     Stage1 native quick now fails if a timeout-triggered retry was needed, and</p>
+<p>     the retry enables <code>OREN_QI_TRACE=1</code> so hang symptoms leave fixture-boundary</p>
+<p>     evidence in the preserved log.</p>
 <ul>
 <li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
 </ul>

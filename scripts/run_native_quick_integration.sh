@@ -23,6 +23,7 @@ green_cache_runs="${OREN_QI_GREEN_CACHE_RUNS:-1}"
 green_cache_retries="${OREN_QI_GREEN_CACHE_RETRIES:-1}"
 followon_smoke_retries="${OREN_QI_FOLLOWON_SMOKE_RETRIES:-1}"
 fail_on_retry="${OREN_QI_FAIL_ON_RETRY:-0}"
+trace_on_retry="${OREN_QI_TRACE_ON_RETRY:-0}"
 
 retry_base_count=0
 retry_green_cache_count=0
@@ -241,7 +242,12 @@ run_with_timeout_retry() {
     local secs2=$((secs * 2))
     record_retry "$retry_bucket"
     echo "WARN: timeout (rc=$rc). Retrying with ${secs2}s." >&2
-    run_with_timeout "$secs2" "$@"
+    if [[ "$trace_on_retry" == "1" ]]; then
+      echo "WARN: retry enabling OREN_QI_TRACE=1." >&2
+      OREN_QI_TRACE=1 run_with_timeout "$secs2" "$@"
+    else
+      run_with_timeout "$secs2" "$@"
+    fi
     return $?
   fi
   return "$rc"
@@ -365,6 +371,7 @@ echo "run_timeout_secs=$run_timeout_secs"
 echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
 echo "followon_smoke_retries=$followon_smoke_retries"
 echo "fail_on_retry=$fail_on_retry"
+echo "trace_on_retry=$trace_on_retry"
 echo "stop_after_base=$stop_after_base"
 
 rm -f "$log" "$out" 2>/dev/null || true
@@ -386,6 +393,7 @@ fi
   echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
   echo "followon_smoke_retries=$followon_smoke_retries"
   echo "fail_on_retry=$fail_on_retry"
+  echo "trace_on_retry=$trace_on_retry"
   echo "stop_after_base=$stop_after_base"
 } >>"$log"
 

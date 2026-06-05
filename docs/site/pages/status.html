@@ -105,6 +105,12 @@
 <p>  fixture compiles exceeded both the generic 120s stage2 floor and a 300s trial</p>
 <p>  on the primary dev host.</p>
 <ul>
+<li>The default stage1 native quick gate treats any timeout-triggered retry as a</li>
+</ul>
+<p>  failure and enables <code>OREN_QI_TRACE=1</code> on the diagnostic retry, so intermittent</p>
+<p>  low-output hangs leave fixture-boundary evidence instead of being hidden by the</p>
+<p>  broad-suite retry.</p>
+<ul>
 <li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
 </ul>
 <p>  deterministic config, budgets, virtual FS/PROC/NET defaults, structured result</p>

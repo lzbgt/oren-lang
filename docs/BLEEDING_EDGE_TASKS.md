@@ -69,6 +69,9 @@ This file is the concise task view. Detailed implementation status lives in
      guard, but uses a 900s stage2 cross-build floor because active self-hosted
      Linux NET/HTTP2 fixture compiles exceeded both the generic 120s stage2
      floor and a 300s trial on the primary dev host.
+     Stage1 native quick now fails if a timeout-triggered retry was needed, and
+     the retry enables `OREN_QI_TRACE=1` so hang symptoms leave fixture-boundary
+     evidence in the preserved log.
    - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
      by default, but expand through a manifest/size gate so bundle build time remains
      acceptable; keep host-only modules out until AVM shims exist.

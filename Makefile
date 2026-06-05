@@ -543,7 +543,8 @@ astbin-seed-x64: oren
 test-native-quick: verify-stdlib-api-shape oren avm
 	@./scripts/guard_no_external_rg_dependency.sh
 	@./scripts/guard_no_msvc_comment_line_continuation.sh
-	@./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
+	@OREN_QI_FAIL_ON_RETRY=1 OREN_QI_TRACE_ON_RETRY=1 \
+	  ./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
 
 verify-stdlib-api-shape:
 	@python3 scripts/verify_stdlib_api_shape.py

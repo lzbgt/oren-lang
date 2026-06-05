@@ -64,6 +64,10 @@ Facts from the 2026-05-28 implementation pass:
   stage2 cross-build floor because active cross-target self-hosted NET/HTTP2
   fixture compiles exceeded both the generic 120s stage2 floor and a 300s trial
   on the primary dev host.
+- The default stage1 native quick gate treats any timeout-triggered retry as a
+  failure and enables `OREN_QI_TRACE=1` on the diagnostic retry, so intermittent
+  low-output hangs leave fixture-boundary evidence instead of being hidden by the
+  broad-suite retry.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:
