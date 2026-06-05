@@ -697,7 +697,7 @@ Working evidence:
   bit helpers, C/C++ classification and ordered-comparison aliases (`isnan`,
   `isinf`, `isfinite`, `isnormal`, `fpclassify`, `isunordered`, `isgreater`,
   `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
-  NaN-aware `fabs` / `fmin` / `fmax`,
+  NaN-aware `fabs` / `fmin` / `fmax`, finite `lerp`,
   normal/subnormal classification, rounding, `fmod`, nearest-even `remainder`,
   `modf`, public ties-to-even
   rounding aliases, degree/radian conversion, `ilogb` / `logb`, `fdim`,
@@ -715,7 +715,7 @@ Working evidence:
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/sign
-  helpers, NaN-aware `fabs`/`fmin`/`fmax`, public ties-to-even rounding aliases, degree/radian conversion,
+  helpers, NaN-aware `fabs`/`fmin`/`fmax`, finite `lerp`, public ties-to-even rounding aliases, degree/radian conversion,
   normal/subnormal/`fpclassify` classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,
   pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`/`hypot3`,

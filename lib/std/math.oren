@@ -72,6 +72,20 @@ fn clamp_f(x: f64, lo: f64, hi: f64) {
     return x
 }
 
+fn lerp(a: f64, b: f64, t: f64) {
+    if is_nan(a) || is_nan(b) || is_nan(t) { return oren_err(4, "lerp: NaN") }
+    if t == 0.0 { return a }
+    if t == 1.0 { return b }
+    if is_finite(a) && is_finite(b) && t >= 0.0 && t <= 1.0 {
+        var left: f64 = (1.0 - t) * a
+        var right: f64 = t * b
+        return left + right
+    }
+    var delta: f64 = b - a
+    var step: f64 = t * delta
+    return a + step
+}
+
 fn is_nan(x: f64) {
     // IEEE-ish: NaN != NaN
     return x != x
