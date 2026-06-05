@@ -265,7 +265,20 @@ fn to_string(bytes) {
 }
 
 fn pack(xs): bytes {
-    return oren_bytes_pack(xs)
+    if oren_type_tag(xs) != 6 { return oren_bytes_pack(xs) }
+    var n = oren_list_len(xs)
+    if n == nil || oren_is_err(n) { return oren_bytes_pack(xs) }
+    var out = raw.u8_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    var i = 0
+    while i < n {
+        var b = xs[i]
+        if _is_int(b) == false || b < 0 || b > 255 { return oren_err(4, "bytes.pack: expected list<int 0..255>") }
+        ptr_set_byte(p + i, b & 255)
+        i = i + 1
+    }
+    return out
 }
 
 fn unpack(bytes) {

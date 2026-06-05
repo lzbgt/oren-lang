@@ -33,6 +33,7 @@ fn test_bytes_conversions() {
 
     var packed = bytesm.pack([1, 2, 3])
     assert_true(!oren_is_err(packed))
+    assert_true(oren_is_u8_buf(packed) == true)
     assert_eq(bytesm.get_u8(packed, 1), 2)
     var unpacked = bytesm.unpack(packed)
     assert_true(!oren_is_err(unpacked))
@@ -43,6 +44,7 @@ fn test_bytes_conversions() {
 
     assert_true(oren_is_err(bytesm.from_string(123)))
     assert_true(oren_is_err(bytesm.pack(123)))
+    assert_true(oren_is_err(bytesm.pack([1, 256])))
     assert_true(oren_is_err(bytesm.unpack("nope")))
 
     var sub = bytesm.slice(bytesm.from_string("hello"), 1, 3)
