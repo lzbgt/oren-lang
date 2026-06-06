@@ -511,8 +511,9 @@
 <p>    navigation for relative and <code>std:</code> modules, plus lexer-backed hover and</p>
 <p>    references over the same current/open/imported workspace graph with bounded</p>
 <p>    transitive import traversal and cycle guards, scoped function-parameter</p>
-<p>    definition/hover/reference navigation with nested shadowing, plus</p>
-<p>    full-document semantic-token classification for</p>
+<p>    definition/hover/reference navigation with nested shadowing,</p>
+<p>    constructor-inferred same-file struct/class field definition/hover/reference</p>
+<p>    navigation, plus full-document semantic-token classification for</p>
 <p>    declarations/references/literals/operators and parser-derived</p>
 <p>    parameter/property classes.</p>
 <ul>
@@ -521,7 +522,7 @@
 <p>    syntax grammar, language configuration, <code>vscode-languageclient</code> activation, and</p>
 <p>    a smoke verifier for manifest/grammar/config/entrypoint integrity.</p>
 <ul>
-<li>Remaining work is richer type/member inference beyond parser symbol classes.</li>
+<li>Remaining work is richer cross-file/member inference beyond direct constructor evidence.</li>
 </ul>
 <h2 id="closed-do-not-repeat-families">Closed/Do-Not-Repeat Families</h2>
 <ul>

@@ -724,6 +724,102 @@ func TestServerNavigationUsesScopedParameters(t *testing.T) {
 	})
 }
 
+func TestServerNavigationUsesConstructorInferredFields(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"var p = Point(1, 2)",
+		"var q = Point(3, 4)",
+		"var u = 0",
+		"fn main() {",
+		"  return p.x + q.x + p.y + u.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-members.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      24,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 5, "character": 11},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      25,
+		"method":  "textDocument/hover",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 5, "character": 17},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      26,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      27,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 5, "character": 23},
+			"context":      map[string]any{"includeDeclaration": false},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      28,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 5, "character": 29},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertDefinition(t, messageByID(t, msgs, 24)["result"].([]any), uri, 0, 15, 16)
+
+	hover := messageByID(t, msgs, 25)["result"].(map[string]any)
+	value := hover["contents"].(map[string]any)["value"].(string)
+	if !strings.Contains(value, "property x") || !strings.Contains(value, "Point property") {
+		t.Fatalf("hover value=%q missing field detail", value)
+	}
+
+	assertLocations(t, messageByID(t, msgs, 26)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 5, Character: 11}, End: position{Line: 5, Character: 12}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 5, Character: 17}, End: position{Line: 5, Character: 18}}},
+	})
+	assertLocations(t, messageByID(t, msgs, 27)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 5, Character: 23}, End: position{Line: 5, Character: 24}}},
+	})
+	defs := messageByID(t, msgs, 28)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("untyped member definition=%#v want none", defs)
+	}
+}
+
 func TestServerSemanticTokensFullClassifiesSymbols(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{
