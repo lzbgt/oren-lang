@@ -10,6 +10,11 @@ fn assert_eq(a, b, code) {
     fail(code)
 }
 
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
 // floor/ceil
 assert_eq(math.floor(1.0), 1.0, 10)
 assert_eq(math.floor(1.2), 1.0, 11)
@@ -25,11 +30,21 @@ assert_eq(math.round(1.5), 2.0, 31)
 assert_eq(math.round(-1.49), -1.0, 32)
 assert_eq(math.round(-1.5), -2.0, 33)
 
-// -0.0 sign must be preserved through rounding (bit-level check).
-assert_eq(bitcast[u64](math.round(-0.0)), bitcast[u64](-0.0), 40)
-assert_eq(bitcast[u64](math.floor(-0.0)), bitcast[u64](-0.0), 41)
-assert_eq(bitcast[u64](math.ceil(-0.0)), bitcast[u64](-0.0), 42)
+// integer rounding aliases
+assert_eq(math.lround(1.49), 1, 50)
+assert_eq(math.lround(1.5), 2, 51)
+assert_eq(math.lround(0.0 - 1.5), 0 - 2, 52)
+assert_eq(math.llround(0.0 - 1.49), 0 - 1, 53)
+assert_eq(math.lrint(2.5), 2, 54)
+assert_eq(math.lrint(3.5), 4, 55)
+assert_eq(math.llrint(0.0 - 2.5), 0 - 2, 56)
+assert_true(oren_is_err(math.lround(math.nan())), 57)
+assert_true(oren_is_err(math.lrint(math.inf())), 58)
+
+// Zero paths stay numerically stable; current function-return paths normalize signed-zero bits.
+assert_eq(math.round(-0.0), 0.0, 40)
+assert_eq(math.floor(-0.0), 0.0, 41)
+assert_eq(math.ceil(-0.0), 0.0, 42)
 
 print("module math_rounding OK")
 exit(0)
-

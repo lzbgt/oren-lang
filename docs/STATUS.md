@@ -698,7 +698,8 @@ Working evidence:
   `isinf`, `isfinite`, `isnormal`, `fpclassify`, `isunordered`, `isgreater`,
   `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
   NaN-aware `fabs` / `fmin` / `fmax`, finite `lerp`, overflow-aware `midpoint`,
-  normal/subnormal classification, rounding, `fmod`, nearest-even `remainder`/`remquo`,
+  normal/subnormal classification, rounding, integer rounding aliases
+  `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,
   `modf`, public ties-to-even
   rounding aliases, degree/radian conversion, `ilogb` / `logb`, `fdim`,
   `nextafter` / `nexttoward` / `nextup` / `nextdown`, `sqrt`,
@@ -715,7 +716,7 @@ Working evidence:
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/remquo/sign
-  helpers, NaN-aware `fabs`/`fmin`/`fmax`, finite `lerp`, overflow-aware `midpoint`, public ties-to-even rounding aliases, degree/radian conversion,
+  helpers, integer rounding aliases, NaN-aware `fabs`/`fmin`/`fmax`, finite `lerp`, overflow-aware `midpoint`, public ties-to-even rounding aliases, degree/radian conversion,
   normal/subnormal/`fpclassify` classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,
   pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`/`hypot3`,

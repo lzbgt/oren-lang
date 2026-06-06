@@ -369,6 +369,31 @@ fn rint(x: f64) {
     return _round_ties_even(x)
 }
 
+fn _rounded_i64(label, x: f64, rounded) {
+    if is_nan(x) { return oren_err(4, label + ": NaN") }
+    if is_inf(x) { return oren_err(4, label + ": infinite") }
+    if oren_is_err(rounded) { return rounded }
+    var out = trunc_i64_from_f(rounded)
+    if oren_is_err(out) { return oren_err(4, label + ": out of range") }
+    return out
+}
+
+fn lround(x: f64) {
+    return _rounded_i64("lround", x, round(x))
+}
+
+fn llround(x: f64) {
+    return _rounded_i64("llround", x, round(x))
+}
+
+fn lrint(x: f64) {
+    return _rounded_i64("lrint", x, _round_ties_even(x))
+}
+
+fn llrint(x: f64) {
+    return _rounded_i64("llrint", x, _round_ties_even(x))
+}
+
 fn remainder(x: f64, y: f64) {
     // IEEE-style remainder: x - n*y where n is nearest integer to x/y,
     // choosing the even integer when the quotient is exactly halfway.

@@ -347,7 +347,8 @@ This file is the concise task view. Detailed implementation status lives in
 4. **Scientific stdlib math breadth**
    - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
    - Current retained surface includes `fmod`, IEEE-style nearest-even
-     `remainder`, `remquo`, `modf`, public ties-to-even rounding aliases, `ilogb`/`logb`,
+     `remainder`, `remquo`, `modf`, integer rounding aliases
+     `lround`/`llround`/`lrint`/`llrint`, public ties-to-even rounding aliases, `ilogb`/`logb`,
      `fdim`, `nextafter`/`nexttoward`, `pow` / `power` for integer, negative, fractional
      positive-base, infinity edge, and negative-base real-domain cases,
      `cbrt` with normal/subnormal/`fpclassify` classification and sign/non-finite coverage,
