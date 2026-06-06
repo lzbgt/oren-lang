@@ -78,18 +78,21 @@ func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot
 			env.Types[key] = info
 		}
 	}
-	env.Functions = collectFunctionReturnTypes(program, "", env.Types)
+	env.Functions = collectFunctionReturnTypes(program, "", env.Types, nil)
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
 		if alias == "" {
 			continue
 		}
 		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		for key, typeName := range collectFunctionReturnTypes(importProgram, alias+".", env.Types) {
+		for key, typeName := range collectFunctionReturnTypes(importProgram, alias+".", env.Types, nil) {
 			env.Functions[key] = typeName
 		}
 	}
 	env.Params = collectFunctionParamTypes(program, env)
+	for key, typeName := range collectFunctionReturnTypes(program, "", env.Types, env.Params) {
+		env.Functions[key] = typeName
+	}
 	if len(env.Types) == 0 {
 		return index
 	}
@@ -140,12 +143,12 @@ func collectTypeInfos(program *ast.Program, uri, prefix string) map[string]typeI
 	return out
 }
 
-func collectFunctionReturnTypes(program *ast.Program, prefix string, types map[string]typeInfo) map[string]string {
+func collectFunctionReturnTypes(program *ast.Program, prefix string, types map[string]typeInfo, params map[string]map[string]string) map[string]string {
 	out := map[string]string{}
 	if program == nil {
 		return out
 	}
-	env := memberTypeEnv{Types: types, Functions: map[string]string{}, Prefix: prefix}
+	env := memberTypeEnv{Types: types, Functions: map[string]string{}, Params: params, Prefix: prefix}
 	for _, stmt := range program.Statements {
 		fn := namedFunctionLiteral(stmt)
 		if fn == nil || fn.Name == "" {
