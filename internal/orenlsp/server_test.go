@@ -820,6 +820,73 @@ func TestServerNavigationUsesConstructorInferredFields(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesAliasedConstructorFields(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"var p = Point(1, 2)",
+		"var alias = p",
+		"var reset = p",
+		"reset = 0",
+		"fn main() {",
+		"  return alias.x + reset.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-member-aliases.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      29,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": 15},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      30,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      31,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": 25},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertDefinition(t, messageByID(t, msgs, 29)["result"].([]any), uri, 0, 15, 16)
+	assertLocations(t, messageByID(t, msgs, 30)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 6, Character: 15}, End: position{Line: 6, Character: 16}}},
+	})
+	defs := messageByID(t, msgs, 31)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("reset member definition=%#v want none after unknown assignment", defs)
+	}
+}
+
 func TestServerNavigationUsesImportedConstructorFields(t *testing.T) {
 	tmp := t.TempDir()
 	shapesPath := filepath.Join(tmp, "shapes.oren")
@@ -850,7 +917,7 @@ func TestServerNavigationUsesImportedConstructorFields(t *testing.T) {
 	})
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      29,
+		"id":      32,
 		"method":  "textDocument/definition",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -859,7 +926,7 @@ func TestServerNavigationUsesImportedConstructorFields(t *testing.T) {
 	})
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      30,
+		"id":      33,
 		"method":  "textDocument/hover",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -868,7 +935,7 @@ func TestServerNavigationUsesImportedConstructorFields(t *testing.T) {
 	})
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      31,
+		"id":      34,
 		"method":  "textDocument/references",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -878,7 +945,7 @@ func TestServerNavigationUsesImportedConstructorFields(t *testing.T) {
 	})
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      32,
+		"id":      35,
 		"method":  "textDocument/references",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -893,20 +960,20 @@ func TestServerNavigationUsesImportedConstructorFields(t *testing.T) {
 		t.Fatalf("Run error: %v", err)
 	}
 	msgs := readTestMessages(t, out.Bytes())
-	assertDefinition(t, messageByID(t, msgs, 29)["result"].([]any), shapesURI, 0, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 32)["result"].([]any), shapesURI, 0, 15, 16)
 
-	hover := messageByID(t, msgs, 30)["result"].(map[string]any)
+	hover := messageByID(t, msgs, 33)["result"].(map[string]any)
 	value := hover["contents"].(map[string]any)["value"].(string)
 	if !strings.Contains(value, "property x") || !strings.Contains(value, "shapes.Point property") || !strings.Contains(value, shapesURI) {
 		t.Fatalf("hover value=%q missing imported field detail", value)
 	}
 
-	assertLocations(t, messageByID(t, msgs, 31)["result"].([]any), []location{
+	assertLocations(t, messageByID(t, msgs, 34)["result"].([]any), []location{
 		{URI: shapesURI, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
 		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 4, Character: 11}, End: position{Line: 4, Character: 12}}},
 		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 4, Character: 17}, End: position{Line: 4, Character: 18}}},
 	})
-	assertLocations(t, messageByID(t, msgs, 32)["result"].([]any), []location{
+	assertLocations(t, messageByID(t, msgs, 35)["result"].([]any), []location{
 		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 4, Character: 23}, End: position{Line: 4, Character: 24}}},
 	})
 }

@@ -125,14 +125,14 @@ func collectTypedMemberStatement(stmt ast.Statement, uri string, types map[strin
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
 		collectTypedMemberExpression(stmt.Value, uri, types, stack, index)
-		setInferredVarType(stmt.Name, inferConstructorType(stmt.Value, types), *stack)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, types, *stack), *stack)
 	case *ast.ReturnStatement:
 		collectTypedMemberExpression(stmt.ReturnValue, uri, types, stack, index)
 	case *ast.ExpressionStatement:
 		collectTypedMemberExpression(stmt.Expression, uri, types, stack, index)
 	case *ast.AssignStatement:
 		collectTypedMemberExpression(stmt.Value, uri, types, stack, index)
-		setInferredVarType(stmt.Name, inferConstructorType(stmt.Value, types), *stack)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, types, *stack), *stack)
 	case *ast.SetStatement:
 		collectTypedMemberExpression(stmt.Left, uri, types, stack, index)
 		collectTypedMemberExpression(stmt.Value, uri, types, stack, index)
@@ -227,14 +227,15 @@ func addTypedMemberRef(expr *ast.MemberExpression, uri string, types map[string]
 	index.refsByDecl[declKey] = append(index.refsByDecl[declKey], ref)
 }
 
-func inferConstructorType(expr ast.Expression, types map[string]typeInfo) string {
-	call, ok := expr.(*ast.CallExpression)
-	if !ok {
-		return ""
-	}
-	typeKey := constructorTypeKey(call.Function)
-	if _, ok := types[typeKey]; ok {
-		return typeKey
+func inferExpressionType(expr ast.Expression, types map[string]typeInfo, stack []map[string]string) string {
+	switch expr := expr.(type) {
+	case *ast.Identifier:
+		return lookupInferredVarType(expr.Value, stack)
+	case *ast.CallExpression:
+		typeKey := constructorTypeKey(expr.Function)
+		if _, ok := types[typeKey]; ok {
+			return typeKey
+		}
 	}
 	return ""
 }
