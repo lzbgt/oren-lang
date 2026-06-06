@@ -38,6 +38,24 @@ func (s *Server) importedDefinitionLocations(uri, text, name string) []location 
 	return []location{}
 }
 
+func (s *Server) importedAliasByURI(uri, text string) map[string]string {
+	out := map[string]string{}
+	currentPath, ok := filePathFromURI(uri)
+	if !ok {
+		return out
+	}
+	currentDir := filepath.Dir(currentPath)
+	repoRoot := findRepoRoot(currentDir)
+	for _, imp := range collectImports(text) {
+		path, ok := resolveImportPath(imp.Spec, currentDir, repoRoot)
+		if !ok {
+			continue
+		}
+		out[fileURIFromPath(path)] = imp.Alias
+	}
+	return out
+}
+
 func (s *Server) openDocumentSnapshots(excludeURI string) []documentSnapshot {
 	uris := make([]string, 0, len(s.docs))
 	for candidateURI := range s.docs {

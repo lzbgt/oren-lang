@@ -18,7 +18,9 @@ func (s *Server) hover(uri string, pos position) any {
 	if name == "" {
 		return nil
 	}
-	if match, ok := typedMemberSymbolAt(text, uri, pos); ok {
+	importedDocs := s.importedDocumentSnapshots(uri, text)
+	aliasByURI := s.importedAliasByURI(uri, text)
+	if match, ok := typedMemberSymbolAt(text, uri, pos, importedDocs, aliasByURI); ok {
 		return hoverForResolvedSymbol(match)
 	}
 	if match, ok := scopedParameterSymbolAt(text, uri, pos); ok {
@@ -49,7 +51,9 @@ func (s *Server) references(uri string, pos position, includeDeclaration bool) [
 	if name == "" {
 		return []location{}
 	}
-	if refs, ok := typedMemberReferencesAt(text, uri, pos, includeDeclaration); ok {
+	importedDocs := s.importedDocumentSnapshots(uri, text)
+	aliasByURI := s.importedAliasByURI(uri, text)
+	if refs, ok := typedMemberReferencesAt(text, uri, pos, includeDeclaration, importedDocs, aliasByURI); ok {
 		return refs
 	}
 	if refs, ok := scopedParameterReferencesAt(text, uri, pos, includeDeclaration); ok {

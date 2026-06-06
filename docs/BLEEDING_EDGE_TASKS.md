@@ -397,14 +397,14 @@ This file is the concise task view. Detailed implementation status lives in
     references over the same current/open/imported workspace graph with bounded
     transitive import traversal and cycle guards, scoped function-parameter
     definition/hover/reference navigation with nested shadowing,
-    constructor-inferred same-file struct/class field definition/hover/reference
-    navigation, plus full-document semantic-token classification for
+    constructor-inferred same-file and direct-import-alias struct/class field
+    definition/hover/reference navigation, plus full-document semantic-token classification for
     declarations/references/literals/operators and parser-derived
     parameter/property classes.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and
     a smoke verifier for manifest/grammar/config/entrypoint integrity.
-  - Remaining work is richer cross-file/member inference beyond direct constructor evidence.
+  - Remaining work is richer member inference beyond direct local/imported constructor evidence.
 
 ## Closed/Do-Not-Repeat Families
 

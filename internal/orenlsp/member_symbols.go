@@ -17,12 +17,12 @@ type typeInfo struct {
 	Fields map[string]resolvedSymbol
 }
 
-func typedMemberSymbolAt(text, uri string, pos position) (resolvedSymbol, bool) {
+func typedMemberSymbolAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) (resolvedSymbol, bool) {
 	name, rng := wordRangeAtPosition(text, pos)
 	if name == "" {
 		return resolvedSymbol{}, false
 	}
-	index := collectTypedMemberSymbols(text, uri)
+	index := collectTypedMemberSymbols(text, uri, importedDocs, aliasByURI)
 	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
 	if !ok || match.Symbol.Name != name {
 		return resolvedSymbol{}, false
@@ -30,12 +30,12 @@ func typedMemberSymbolAt(text, uri string, pos position) (resolvedSymbol, bool) 
 	return match, true
 }
 
-func typedMemberReferencesAt(text, uri string, pos position, includeDeclaration bool) ([]location, bool) {
+func typedMemberReferencesAt(text, uri string, pos position, includeDeclaration bool, importedDocs []documentSnapshot, aliasByURI map[string]string) ([]location, bool) {
 	name, rng := wordRangeAtPosition(text, pos)
 	if name == "" {
 		return nil, false
 	}
-	index := collectTypedMemberSymbols(text, uri)
+	index := collectTypedMemberSymbols(text, uri, importedDocs, aliasByURI)
 	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
 	if !ok || match.Symbol.Name != name {
 		return nil, false
@@ -50,7 +50,7 @@ func typedMemberReferencesAt(text, uri string, pos position, includeDeclaration 
 	return uniqueLocations(out), true
 }
 
-func collectTypedMemberSymbols(text, uri string) typeFieldIndex {
+func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot, aliasByURI map[string]string) typeFieldIndex {
 	index := typeFieldIndex{
 		usesByLocation: map[string]resolvedSymbol{},
 		refsByDecl:     map[string][]location{},
@@ -60,7 +60,17 @@ func collectTypedMemberSymbols(text, uri string) typeFieldIndex {
 	if program == nil {
 		return index
 	}
-	types := collectTypeInfos(program, uri)
+	types := collectTypeInfos(program, uri, "")
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		for key, info := range collectTypeInfos(importProgram, doc.URI, alias+".") {
+			types[key] = info
+		}
+	}
 	if len(types) == 0 {
 		return index
 	}
@@ -82,14 +92,18 @@ func collectTypedMemberSymbols(text, uri string) typeFieldIndex {
 	return index
 }
 
-func collectTypeInfos(program *ast.Program, uri string) map[string]typeInfo {
+func collectTypeInfos(program *ast.Program, uri, prefix string) map[string]typeInfo {
 	out := map[string]typeInfo{}
+	if program == nil {
+		return out
+	}
 	for _, stmt := range program.Statements {
 		ts, ok := stmt.(*ast.TypeStatement)
 		if !ok || ts.Name == nil || ts.Name.Value == "" {
 			continue
 		}
-		info := typeInfo{Name: ts.Name.Value, Fields: map[string]resolvedSymbol{}}
+		typeKey := prefix + ts.Name.Value
+		info := typeInfo{Name: typeKey, Fields: map[string]resolvedSymbol{}}
 		for _, field := range ts.Fields {
 			if !validMemberIdentifier(field) {
 				continue
@@ -97,12 +111,12 @@ func collectTypeInfos(program *ast.Program, uri string) map[string]typeInfo {
 			sym := resolvedSymbol{URI: uri, Symbol: sourceSymbol{
 				Name:   field.Value,
 				Kind:   "property",
-				Detail: ts.Name.Value + " property",
+				Detail: typeKey + " property",
 				Range:  tokenRange(field.Token),
 			}}
 			info.Fields[field.Value] = sym
 		}
-		out[ts.Name.Value] = info
+		out[typeKey] = info
 	}
 	return out
 }
@@ -218,12 +232,24 @@ func inferConstructorType(expr ast.Expression, types map[string]typeInfo) string
 	if !ok {
 		return ""
 	}
-	fn, ok := call.Function.(*ast.Identifier)
-	if !ok || !validMemberIdentifier(fn) {
-		return ""
+	typeKey := constructorTypeKey(call.Function)
+	if _, ok := types[typeKey]; ok {
+		return typeKey
 	}
-	if _, ok := types[fn.Value]; ok {
-		return fn.Value
+	return ""
+}
+
+func constructorTypeKey(expr ast.Expression) string {
+	switch expr := expr.(type) {
+	case *ast.Identifier:
+		if validMemberIdentifier(expr) {
+			return expr.Value
+		}
+	case *ast.MemberExpression:
+		left, ok := expr.Left.(*ast.Identifier)
+		if ok && validMemberIdentifier(left) && validMemberIdentifier(expr.Property) {
+			return left.Value + "." + expr.Property.Value
+		}
 	}
 	return ""
 }

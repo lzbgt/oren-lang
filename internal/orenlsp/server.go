@@ -149,7 +149,9 @@ func (s *Server) definitionLocations(uri string, pos position) []location {
 	if name == "" {
 		return []location{}
 	}
-	if match, ok := typedMemberSymbolAt(text, uri, pos); ok {
+	importedDocs := s.importedDocumentSnapshots(uri, text)
+	aliasByURI := s.importedAliasByURI(uri, text)
+	if match, ok := typedMemberSymbolAt(text, uri, pos, importedDocs, aliasByURI); ok {
 		return []location{{URI: match.URI, Range: match.Symbol.Range}}
 	}
 	if match, ok := scopedParameterSymbolAt(text, uri, pos); ok {
