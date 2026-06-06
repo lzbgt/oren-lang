@@ -11,6 +11,7 @@ import (
 const (
 	lspCompletionKeyword  = 14
 	lspCompletionFunction = 3
+	lspCompletionField    = 5
 	lspCompletionVariable = 6
 	lspCompletionClass    = 7
 	lspCompletionModule   = 9

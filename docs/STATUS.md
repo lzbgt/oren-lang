@@ -783,7 +783,8 @@ Working evidence:
 - Oren language tooling: initial `oren-lsp` stdio JSON-RPC server now covers
   initialization, full-document sync, deterministic bracket/string diagnostics,
   parser-backed diagnostics, close cleanup, keyword/local-symbol completion,
-  lexer-backed document symbols, same-file/opened-document/import-resolved
+  typed struct/class field completion after proven receivers, lexer-backed
+  document symbols, same-file/opened-document/import-resolved
   definition navigation for relative and `std:` modules, lexer-backed hover plus
   references over the same current/open/imported workspace graph, and bounded
   transitive import traversal with cycle guards, scoped function-parameter

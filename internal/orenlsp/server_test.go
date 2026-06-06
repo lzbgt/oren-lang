@@ -185,6 +185,61 @@ func TestServerCompletionAndDocumentSymbols(t *testing.T) {
 	}
 }
 
+func TestServerCompletionUsesTypedMembers(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"var p = Point(1, 2)",
+		"var value = p.",
+		"var exact = p.x",
+		"",
+	}, "\n")
+	uri := "file:///member-completion.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      9,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 2, "character": 14},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      10,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 3, "character": 15},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 9)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) {
+		t.Fatalf("member completion items missing fields: %#v", items)
+	}
+	if hasCompletion(items, "return", 14) {
+		t.Fatalf("member completion included global keyword: %#v", items)
+	}
+	filtered := messageByID(t, msgs, 10)["result"].([]any)
+	if !hasCompletion(filtered, "x", 5) || hasCompletion(filtered, "y", 5) {
+		t.Fatalf("filtered member completion mismatch: %#v", filtered)
+	}
+}
+
 func TestServerDidCloseDropsDocumentSymbols(t *testing.T) {
 	var in bytes.Buffer
 	writeTestMessage(t, &in, map[string]any{

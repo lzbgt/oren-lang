@@ -1,6 +1,9 @@
 package orenlsp
 
 import (
+	"sort"
+	"strings"
+
 	"oren/pkg/ast"
 	"oren/pkg/lexer"
 	"oren/pkg/parser"
@@ -57,15 +60,96 @@ func typedMemberReferencesAt(text, uri string, pos position, includeDeclaration 
 	return uniqueLocations(out), true
 }
 
+func typedMemberCompletionItemsAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) ([]completionItem, bool) {
+	_, partial, ok := memberCompletionTarget(text, pos)
+	if !ok {
+		return nil, false
+	}
+	program, env := typedMemberAnalysisEnv(text, uri, importedDocs, aliasByURI)
+	typeName := parsedMemberTypeAt(text, uri, pos, importedDocs, aliasByURI)
+	if typeName == "" {
+		receiver, _, _ := memberCompletionTarget(text, pos)
+		typeName = inferredReceiverTypeAt(program, receiver, pos, env)
+	}
+	if typeName == "" {
+		return []completionItem{}, true
+	}
+	return memberCompletionItemsForType(env, typeName, partial), true
+}
+
+func memberCompletionItemsForType(env memberTypeEnv, typeName, partial string) []completionItem {
+	info, ok := env.Types[typeName]
+	if !ok {
+		return []completionItem{}
+	}
+	fields := make([]resolvedSymbol, 0, len(info.Fields))
+	for _, field := range info.Fields {
+		if partial != "" && !strings.HasPrefix(field.Symbol.Name, partial) {
+			continue
+		}
+		fields = append(fields, field)
+	}
+	sort.Slice(fields, func(i, j int) bool {
+		if fields[i].Symbol.Name == fields[j].Symbol.Name {
+			return fields[i].Symbol.Detail < fields[j].Symbol.Detail
+		}
+		return fields[i].Symbol.Name < fields[j].Symbol.Name
+	})
+	items := make([]completionItem, 0, len(fields))
+	for _, field := range fields {
+		items = append(items, completionItem{Label: field.Symbol.Name, Kind: lspCompletionField, Detail: field.Symbol.Detail})
+	}
+	return items
+}
+
+func parsedMemberTypeAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) string {
+	name, rng := wordRangeAtPosition(text, pos)
+	if name == "" {
+		return ""
+	}
+	index := collectTypedMemberSymbols(text, uri, importedDocs, aliasByURI)
+	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
+	if !ok || match.Symbol.Name != name {
+		return ""
+	}
+	return strings.TrimSuffix(match.Symbol.Detail, " property")
+}
+
 func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot, aliasByURI map[string]string) typeFieldIndex {
 	index := typeFieldIndex{
 		usesByLocation: map[string]resolvedSymbol{},
 		refsByDecl:     map[string][]location{},
 	}
+	program, env := typedMemberAnalysisEnv(text, uri, importedDocs, aliasByURI)
+	if program == nil {
+		return index
+	}
+	if len(env.Types) == 0 {
+		return index
+	}
+	for _, info := range env.Types {
+		for _, field := range info.Fields {
+			decl := location{URI: field.URI, Range: field.Symbol.Range}
+			declKey := locationKey(decl)
+			index.usesByLocation[declKey] = field
+			if _, ok := index.refsByDecl[declKey]; !ok {
+				index.refsByDecl[declKey] = nil
+			}
+		}
+	}
+	var stack []map[string]string
+	stack = append(stack, map[string]string{})
+	for _, stmt := range program.Statements {
+		collectTypedMemberStatement(stmt, uri, env, &stack, index)
+	}
+	return index
+}
+
+func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, aliasByURI map[string]string) (*ast.Program, memberTypeEnv) {
 	p := parser.New(lexer.New(text))
 	program := p.ParseProgram()
 	if program == nil {
-		return index
+		return nil, memberTypeEnv{}
 	}
 	env := memberTypeEnv{Types: collectTypeInfos(program, uri, "")}
 	for _, doc := range importedDocs {
@@ -93,25 +177,175 @@ func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot
 	for key, typeName := range collectFunctionReturnTypes(program, "", env.Types, env.Params) {
 		env.Functions[key] = typeName
 	}
-	if len(env.Types) == 0 {
-		return index
-	}
-	for _, info := range env.Types {
-		for _, field := range info.Fields {
-			decl := location{URI: field.URI, Range: field.Symbol.Range}
-			declKey := locationKey(decl)
-			index.usesByLocation[declKey] = field
-			if _, ok := index.refsByDecl[declKey]; !ok {
-				index.refsByDecl[declKey] = nil
-			}
-		}
+	return program, env
+}
+
+func inferredReceiverTypeAt(program *ast.Program, receiver string, pos position, env memberTypeEnv) string {
+	if program == nil || receiver == "" {
+		return ""
 	}
 	var stack []map[string]string
 	stack = append(stack, map[string]string{})
 	for _, stmt := range program.Statements {
-		collectTypedMemberStatement(stmt, uri, env, &stack, index)
+		collectInferredTypesUntil(stmt, pos, env, &stack)
 	}
-	return index
+	return lookupInferredVarType(receiver, stack)
+}
+
+func memberCompletionTarget(text string, pos position) (receiver, partial string, ok bool) {
+	lines := strings.Split(text, "\n")
+	if pos.Line < 0 || pos.Line >= len(lines) {
+		return "", "", false
+	}
+	line := []rune(lines[pos.Line])
+	col := pos.Character
+	if col < 0 {
+		return "", "", false
+	}
+	if col > len(line) {
+		col = len(line)
+	}
+	prefix := line[:col]
+	partialStart := len(prefix)
+	for partialStart > 0 && isIdentRune(prefix[partialStart-1]) {
+		partialStart--
+	}
+	if partialStart == 0 || prefix[partialStart-1] != '.' {
+		return "", "", false
+	}
+	receiverEnd := partialStart - 1
+	receiverStart := receiverEnd
+	for receiverStart > 0 && isIdentRune(prefix[receiverStart-1]) {
+		receiverStart--
+	}
+	if receiverStart == receiverEnd || !isIdentStart(prefix[receiverStart]) {
+		return "", "", false
+	}
+	receiver = string(prefix[receiverStart:receiverEnd])
+	partial = string(prefix[partialStart:])
+	return receiver, partial, true
+}
+
+func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeEnv, stack *[]map[string]string) {
+	if stmt == nil || !statementStartsBeforeOrAt(stmt, pos) {
+		return
+	}
+	switch stmt := stmt.(type) {
+	case *ast.VarStatement:
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.AssignStatement:
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.ExpressionStatement:
+		collectInferredExpressionTypesUntil(stmt.Expression, pos, env, stack)
+	case *ast.ReturnStatement:
+		collectInferredExpressionTypesUntil(stmt.ReturnValue, pos, env, stack)
+	case *ast.SetStatement:
+		collectInferredExpressionTypesUntil(stmt.Left, pos, env, stack)
+		collectInferredExpressionTypesUntil(stmt.Value, pos, env, stack)
+	case *ast.WhileStatement:
+		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack)
+		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
+	case *ast.ForStatement:
+		collectInferredTypesUntil(stmt.Init, pos, env, stack)
+		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack)
+		collectInferredTypesUntil(stmt.Post, pos, env, stack)
+		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
+	case *ast.BlockStatement:
+		collectInferredBlockTypesUntil(stmt, pos, env, stack)
+	}
+}
+
+func collectInferredBlockTypesUntil(block *ast.BlockStatement, pos position, env memberTypeEnv, stack *[]map[string]string) {
+	if block == nil || !tokenStartsBeforeOrAt(block.Token, pos) {
+		return
+	}
+	*stack = append(*stack, map[string]string{})
+	defer func() { *stack = (*stack)[:len(*stack)-1] }()
+	for _, stmt := range block.Statements {
+		collectInferredTypesUntil(stmt, pos, env, stack)
+	}
+}
+
+func collectInferredExpressionTypesUntil(expr ast.Expression, pos position, env memberTypeEnv, stack *[]map[string]string) {
+	switch expr := expr.(type) {
+	case *ast.FunctionLiteral:
+		if expr.Body == nil || !tokenStartsBeforeOrAt(expr.Token, pos) {
+			return
+		}
+		*stack = append(*stack, inferredParamFrame(expr, env))
+		defer func() { *stack = (*stack)[:len(*stack)-1] }()
+		for _, stmt := range expr.Body.Statements {
+			collectInferredTypesUntil(stmt, pos, env, stack)
+		}
+	case *ast.IfExpression:
+		collectInferredExpressionTypesUntil(expr.Condition, pos, env, stack)
+		collectInferredBlockTypesUntil(expr.Consequence, pos, env, stack)
+		collectInferredBlockTypesUntil(expr.Alternative, pos, env, stack)
+	case *ast.CallExpression:
+		collectInferredExpressionTypesUntil(expr.Function, pos, env, stack)
+		for _, arg := range expr.Arguments {
+			collectInferredExpressionTypesUntil(arg, pos, env, stack)
+		}
+	case *ast.MemberExpression:
+		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack)
+	case *ast.PrefixExpression:
+		collectInferredExpressionTypesUntil(expr.Right, pos, env, stack)
+	case *ast.InfixExpression:
+		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Right, pos, env, stack)
+	case *ast.SpawnExpression:
+		collectInferredExpressionTypesUntil(expr.Call, pos, env, stack)
+	case *ast.ArrayLiteral:
+		for _, elem := range expr.Elements {
+			collectInferredExpressionTypesUntil(elem, pos, env, stack)
+		}
+	case *ast.IndexExpression:
+		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Index, pos, env, stack)
+	case *ast.HashLiteral:
+		for key, value := range expr.Pairs {
+			collectInferredExpressionTypesUntil(key, pos, env, stack)
+			collectInferredExpressionTypesUntil(value, pos, env, stack)
+		}
+	}
+}
+
+func statementStartsBeforeOrAt(stmt ast.Statement, pos position) bool {
+	switch stmt := stmt.(type) {
+	case *ast.VarStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.ReturnStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.ExpressionStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.ImportStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.TypeStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.WhileStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.ForStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.AssignStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.SetStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.FFIStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	case *ast.BlockStatement:
+		return tokenStartsBeforeOrAt(stmt.Token, pos)
+	default:
+		return false
+	}
+}
+
+func tokenStartsBeforeOrAt(tok token.Token, pos position) bool {
+	line := tok.Line - 1
+	character := tok.Column - 1
+	if line < 0 || character < 0 {
+		return false
+	}
+	return line < pos.Line || (line == pos.Line && character <= pos.Character)
 }
 
 func collectTypeInfos(program *ast.Program, uri, prefix string) map[string]typeInfo {

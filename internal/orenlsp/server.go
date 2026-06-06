@@ -96,7 +96,7 @@ func (s *Server) handle(body []byte) error {
 		if err := json.Unmarshal(req.Params, &p); err != nil {
 			return err
 		}
-		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: completionItems(s.docs[p.TextDocument.URI])})
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.completionItems(p.TextDocument.URI, p.Position)})
 	case "textDocument/documentSymbol":
 		var p textDocumentParams
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -141,6 +141,16 @@ func (s *Server) handle(body []byte) error {
 			},
 		})
 	}
+}
+
+func (s *Server) completionItems(uri string, pos position) []completionItem {
+	text := s.docs[uri]
+	importedDocs := s.importedDocumentSnapshots(uri, text)
+	aliasByURI := s.importedAliasByURI(uri, text)
+	if items, ok := typedMemberCompletionItemsAt(text, uri, pos, importedDocs, aliasByURI); ok {
+		return items
+	}
+	return completionItems(text)
 }
 
 func (s *Server) definitionLocations(uri string, pos position) []location {
