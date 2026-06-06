@@ -788,13 +788,13 @@ Working evidence:
   transitive import traversal with cycle guards, scoped function-parameter
   definition/hover/reference navigation with nested shadowing,
   constructor-inferred same-file and direct-import-alias struct/class field
-  definition/hover/reference navigation with direct variable-alias propagation
-  and unknown-assignment invalidation, plus full-document semantic-token classification for
+  definition/hover/reference navigation with direct variable-alias propagation,
+  direct named factory-return inference, and unknown-assignment invalidation, plus full-document semantic-token classification for
   declarations/references/literals/operators and parser-derived
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
-  constructor/alias evidence remains.
+  constructor/alias/factory evidence remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

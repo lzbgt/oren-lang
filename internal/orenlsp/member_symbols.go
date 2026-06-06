@@ -17,6 +17,12 @@ type typeInfo struct {
 	Fields map[string]resolvedSymbol
 }
 
+type memberTypeEnv struct {
+	Types     map[string]typeInfo
+	Functions map[string]string
+	Prefix    string
+}
+
 func typedMemberSymbolAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) (resolvedSymbol, bool) {
 	name, rng := wordRangeAtPosition(text, pos)
 	if name == "" {
@@ -60,7 +66,7 @@ func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot
 	if program == nil {
 		return index
 	}
-	types := collectTypeInfos(program, uri, "")
+	env := memberTypeEnv{Types: collectTypeInfos(program, uri, "")}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
 		if alias == "" {
@@ -68,13 +74,24 @@ func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot
 		}
 		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
 		for key, info := range collectTypeInfos(importProgram, doc.URI, alias+".") {
-			types[key] = info
+			env.Types[key] = info
 		}
 	}
-	if len(types) == 0 {
+	env.Functions = collectFunctionReturnTypes(program, "", env.Types)
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		for key, typeName := range collectFunctionReturnTypes(importProgram, alias+".", env.Types) {
+			env.Functions[key] = typeName
+		}
+	}
+	if len(env.Types) == 0 {
 		return index
 	}
-	for _, info := range types {
+	for _, info := range env.Types {
 		for _, field := range info.Fields {
 			decl := location{URI: field.URI, Range: field.Symbol.Range}
 			declKey := locationKey(decl)
@@ -87,7 +104,7 @@ func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot
 	var stack []map[string]string
 	stack = append(stack, map[string]string{})
 	for _, stmt := range program.Statements {
-		collectTypedMemberStatement(stmt, uri, types, &stack, index)
+		collectTypedMemberStatement(stmt, uri, env, &stack, index)
 	}
 	return index
 }
@@ -121,86 +138,172 @@ func collectTypeInfos(program *ast.Program, uri, prefix string) map[string]typeI
 	return out
 }
 
-func collectTypedMemberStatement(stmt ast.Statement, uri string, types map[string]typeInfo, stack *[]map[string]string, index typeFieldIndex) {
+func collectFunctionReturnTypes(program *ast.Program, prefix string, types map[string]typeInfo) map[string]string {
+	out := map[string]string{}
+	if program == nil {
+		return out
+	}
+	env := memberTypeEnv{Types: types, Functions: map[string]string{}, Prefix: prefix}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn == nil || fn.Name == "" {
+			continue
+		}
+		typeName := inferFunctionReturnType(fn, env)
+		if typeName != "" {
+			out[prefix+fn.Name] = typeName
+			env.Functions[prefix+fn.Name] = typeName
+		}
+	}
+	return out
+}
+
+func namedFunctionLiteral(stmt ast.Statement) *ast.FunctionLiteral {
+	es, ok := stmt.(*ast.ExpressionStatement)
+	if !ok {
+		return nil
+	}
+	fn, ok := es.Expression.(*ast.FunctionLiteral)
+	if !ok || fn.Name == "" {
+		return nil
+	}
+	return fn
+}
+
+func inferFunctionReturnType(fn *ast.FunctionLiteral, env memberTypeEnv) string {
+	var stack []map[string]string
+	stack = append(stack, map[string]string{})
+	return inferBlockReturnType(fn.Body, env, &stack)
+}
+
+func inferBlockReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) string {
+	if block == nil {
+		return ""
+	}
+	*stack = append(*stack, map[string]string{})
+	defer func() { *stack = (*stack)[:len(*stack)-1] }()
+
+	var inferred string
+	for _, stmt := range block.Statements {
+		next := inferStatementReturnType(stmt, env, stack)
+		if next == "" {
+			continue
+		}
+		if inferred == "" {
+			inferred = next
+			continue
+		}
+		if inferred != next {
+			return ""
+		}
+	}
+	return inferred
+}
+
+func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string) string {
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
-		collectTypedMemberExpression(stmt.Value, uri, types, stack, index)
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, types, *stack), *stack)
-	case *ast.ReturnStatement:
-		collectTypedMemberExpression(stmt.ReturnValue, uri, types, stack, index)
-	case *ast.ExpressionStatement:
-		collectTypedMemberExpression(stmt.Expression, uri, types, stack, index)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
 	case *ast.AssignStatement:
-		collectTypedMemberExpression(stmt.Value, uri, types, stack, index)
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, types, *stack), *stack)
-	case *ast.SetStatement:
-		collectTypedMemberExpression(stmt.Left, uri, types, stack, index)
-		collectTypedMemberExpression(stmt.Value, uri, types, stack, index)
-	case *ast.WhileStatement:
-		collectTypedMemberExpression(stmt.Condition, uri, types, stack, index)
-		collectTypedMemberBlock(stmt.Body, uri, types, stack, index)
-	case *ast.ForStatement:
-		collectTypedMemberStatement(stmt.Init, uri, types, stack, index)
-		collectTypedMemberExpression(stmt.Condition, uri, types, stack, index)
-		collectTypedMemberStatement(stmt.Post, uri, types, stack, index)
-		collectTypedMemberBlock(stmt.Body, uri, types, stack, index)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.ReturnStatement:
+		return inferExpressionType(stmt.ReturnValue, env, *stack)
 	case *ast.BlockStatement:
-		collectTypedMemberBlock(stmt, uri, types, stack, index)
+		return inferBlockReturnType(stmt, env, stack)
+	case *ast.WhileStatement:
+		return inferBlockReturnType(stmt.Body, env, stack)
+	case *ast.ForStatement:
+		if stmt.Init != nil {
+			_ = inferStatementReturnType(stmt.Init, env, stack)
+		}
+		if stmt.Post != nil {
+			_ = inferStatementReturnType(stmt.Post, env, stack)
+		}
+		return inferBlockReturnType(stmt.Body, env, stack)
+	}
+	return ""
+}
+
+func collectTypedMemberStatement(stmt ast.Statement, uri string, env memberTypeEnv, stack *[]map[string]string, index typeFieldIndex) {
+	switch stmt := stmt.(type) {
+	case *ast.VarStatement:
+		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.ReturnStatement:
+		collectTypedMemberExpression(stmt.ReturnValue, uri, env, stack, index)
+	case *ast.ExpressionStatement:
+		collectTypedMemberExpression(stmt.Expression, uri, env, stack, index)
+	case *ast.AssignStatement:
+		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.SetStatement:
+		collectTypedMemberExpression(stmt.Left, uri, env, stack, index)
+		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
+	case *ast.WhileStatement:
+		collectTypedMemberExpression(stmt.Condition, uri, env, stack, index)
+		collectTypedMemberBlock(stmt.Body, uri, env, stack, index)
+	case *ast.ForStatement:
+		collectTypedMemberStatement(stmt.Init, uri, env, stack, index)
+		collectTypedMemberExpression(stmt.Condition, uri, env, stack, index)
+		collectTypedMemberStatement(stmt.Post, uri, env, stack, index)
+		collectTypedMemberBlock(stmt.Body, uri, env, stack, index)
+	case *ast.BlockStatement:
+		collectTypedMemberBlock(stmt, uri, env, stack, index)
 	}
 }
 
-func collectTypedMemberBlock(block *ast.BlockStatement, uri string, types map[string]typeInfo, stack *[]map[string]string, index typeFieldIndex) {
+func collectTypedMemberBlock(block *ast.BlockStatement, uri string, env memberTypeEnv, stack *[]map[string]string, index typeFieldIndex) {
 	if block == nil {
 		return
 	}
 	*stack = append(*stack, map[string]string{})
 	for _, stmt := range block.Statements {
-		collectTypedMemberStatement(stmt, uri, types, stack, index)
+		collectTypedMemberStatement(stmt, uri, env, stack, index)
 	}
 	*stack = (*stack)[:len(*stack)-1]
 }
 
-func collectTypedMemberExpression(expr ast.Expression, uri string, types map[string]typeInfo, stack *[]map[string]string, index typeFieldIndex) {
+func collectTypedMemberExpression(expr ast.Expression, uri string, env memberTypeEnv, stack *[]map[string]string, index typeFieldIndex) {
 	switch expr := expr.(type) {
 	case *ast.PrefixExpression:
-		collectTypedMemberExpression(expr.Right, uri, types, stack, index)
+		collectTypedMemberExpression(expr.Right, uri, env, stack, index)
 	case *ast.InfixExpression:
-		collectTypedMemberExpression(expr.Left, uri, types, stack, index)
-		collectTypedMemberExpression(expr.Right, uri, types, stack, index)
+		collectTypedMemberExpression(expr.Left, uri, env, stack, index)
+		collectTypedMemberExpression(expr.Right, uri, env, stack, index)
 	case *ast.SpawnExpression:
-		collectTypedMemberExpression(expr.Call, uri, types, stack, index)
+		collectTypedMemberExpression(expr.Call, uri, env, stack, index)
 	case *ast.IfExpression:
-		collectTypedMemberExpression(expr.Condition, uri, types, stack, index)
-		collectTypedMemberBlock(expr.Consequence, uri, types, stack, index)
-		collectTypedMemberBlock(expr.Alternative, uri, types, stack, index)
+		collectTypedMemberExpression(expr.Condition, uri, env, stack, index)
+		collectTypedMemberBlock(expr.Consequence, uri, env, stack, index)
+		collectTypedMemberBlock(expr.Alternative, uri, env, stack, index)
 	case *ast.FunctionLiteral:
 		*stack = append(*stack, map[string]string{})
-		collectTypedMemberBlock(expr.Body, uri, types, stack, index)
+		collectTypedMemberBlock(expr.Body, uri, env, stack, index)
 		*stack = (*stack)[:len(*stack)-1]
 	case *ast.CallExpression:
-		collectTypedMemberExpression(expr.Function, uri, types, stack, index)
+		collectTypedMemberExpression(expr.Function, uri, env, stack, index)
 		for _, arg := range expr.Arguments {
-			collectTypedMemberExpression(arg, uri, types, stack, index)
+			collectTypedMemberExpression(arg, uri, env, stack, index)
 		}
 	case *ast.MemberExpression:
-		collectTypedMemberExpression(expr.Left, uri, types, stack, index)
-		addTypedMemberRef(expr, uri, types, *stack, index)
+		collectTypedMemberExpression(expr.Left, uri, env, stack, index)
+		addTypedMemberRef(expr, uri, env, *stack, index)
 	case *ast.ArrayLiteral:
 		for _, elem := range expr.Elements {
-			collectTypedMemberExpression(elem, uri, types, stack, index)
+			collectTypedMemberExpression(elem, uri, env, stack, index)
 		}
 	case *ast.IndexExpression:
-		collectTypedMemberExpression(expr.Left, uri, types, stack, index)
-		collectTypedMemberExpression(expr.Index, uri, types, stack, index)
+		collectTypedMemberExpression(expr.Left, uri, env, stack, index)
+		collectTypedMemberExpression(expr.Index, uri, env, stack, index)
 	case *ast.HashLiteral:
 		for key, value := range expr.Pairs {
-			collectTypedMemberExpression(key, uri, types, stack, index)
-			collectTypedMemberExpression(value, uri, types, stack, index)
+			collectTypedMemberExpression(key, uri, env, stack, index)
+			collectTypedMemberExpression(value, uri, env, stack, index)
 		}
 	}
 }
 
-func addTypedMemberRef(expr *ast.MemberExpression, uri string, types map[string]typeInfo, stack []map[string]string, index typeFieldIndex) {
+func addTypedMemberRef(expr *ast.MemberExpression, uri string, env memberTypeEnv, stack []map[string]string, index typeFieldIndex) {
 	if expr == nil || !validMemberIdentifier(expr.Property) {
 		return
 	}
@@ -212,7 +315,7 @@ func addTypedMemberRef(expr *ast.MemberExpression, uri string, types map[string]
 	if typeName == "" {
 		return
 	}
-	info, ok := types[typeName]
+	info, ok := env.Types[typeName]
 	if !ok {
 		return
 	}
@@ -227,14 +330,28 @@ func addTypedMemberRef(expr *ast.MemberExpression, uri string, types map[string]
 	index.refsByDecl[declKey] = append(index.refsByDecl[declKey], ref)
 }
 
-func inferExpressionType(expr ast.Expression, types map[string]typeInfo, stack []map[string]string) string {
+func inferExpressionType(expr ast.Expression, env memberTypeEnv, stack []map[string]string) string {
 	switch expr := expr.(type) {
 	case *ast.Identifier:
 		return lookupInferredVarType(expr.Value, stack)
 	case *ast.CallExpression:
 		typeKey := constructorTypeKey(expr.Function)
-		if _, ok := types[typeKey]; ok {
+		if _, ok := env.Types[typeKey]; ok {
 			return typeKey
+		}
+		if env.Prefix != "" {
+			prefixedTypeKey := env.Prefix + typeKey
+			if _, ok := env.Types[prefixedTypeKey]; ok {
+				return prefixedTypeKey
+			}
+		}
+		if typeName := env.Functions[typeKey]; typeName != "" {
+			return typeName
+		}
+		if env.Prefix != "" {
+			if typeName := env.Functions[env.Prefix+typeKey]; typeName != "" {
+				return typeName
+			}
 		}
 	}
 	return ""
