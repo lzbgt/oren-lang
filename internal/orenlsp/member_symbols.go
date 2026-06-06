@@ -20,6 +20,7 @@ type typeInfo struct {
 type memberTypeEnv struct {
 	Types     map[string]typeInfo
 	Functions map[string]string
+	Params    map[string]map[string]string
 	Prefix    string
 }
 
@@ -88,6 +89,7 @@ func collectTypedMemberSymbols(text, uri string, importedDocs []documentSnapshot
 			env.Functions[key] = typeName
 		}
 	}
+	env.Params = collectFunctionParamTypes(program, env)
 	if len(env.Types) == 0 {
 		return index
 	}
@@ -158,6 +160,30 @@ func collectFunctionReturnTypes(program *ast.Program, prefix string, types map[s
 	return out
 }
 
+func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if program == nil {
+		return out
+	}
+	functions := map[string]*ast.FunctionLiteral{}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn != nil && fn.Name != "" {
+			functions[fn.Name] = fn
+		}
+	}
+	if len(functions) == 0 {
+		return out
+	}
+	conflicts := map[string]bool{}
+	var stack []map[string]string
+	stack = append(stack, map[string]string{})
+	for _, stmt := range program.Statements {
+		collectFunctionParamStatementTypes(stmt, env, functions, &stack, out, conflicts)
+	}
+	return out
+}
+
 func namedFunctionLiteral(stmt ast.Statement) *ast.FunctionLiteral {
 	es, ok := stmt.(*ast.ExpressionStatement)
 	if !ok {
@@ -172,7 +198,7 @@ func namedFunctionLiteral(stmt ast.Statement) *ast.FunctionLiteral {
 
 func inferFunctionReturnType(fn *ast.FunctionLiteral, env memberTypeEnv) string {
 	var stack []map[string]string
-	stack = append(stack, map[string]string{})
+	stack = append(stack, inferredParamFrame(fn, env))
 	return inferBlockReturnType(fn.Body, env, &stack)
 }
 
@@ -222,6 +248,128 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 		return inferBlockReturnType(stmt.Body, env, stack)
 	}
 	return ""
+}
+
+func collectFunctionParamStatementTypes(stmt ast.Statement, env memberTypeEnv, functions map[string]*ast.FunctionLiteral, stack *[]map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	switch stmt := stmt.(type) {
+	case *ast.VarStatement:
+		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.ReturnStatement:
+		collectFunctionParamExpressionTypes(stmt.ReturnValue, env, functions, stack, out, conflicts)
+	case *ast.ExpressionStatement:
+		collectFunctionParamExpressionTypes(stmt.Expression, env, functions, stack, out, conflicts)
+	case *ast.AssignStatement:
+		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.SetStatement:
+		collectFunctionParamExpressionTypes(stmt.Left, env, functions, stack, out, conflicts)
+		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
+	case *ast.WhileStatement:
+		collectFunctionParamExpressionTypes(stmt.Condition, env, functions, stack, out, conflicts)
+		collectFunctionParamBlockTypes(stmt.Body, env, functions, stack, out, conflicts)
+	case *ast.ForStatement:
+		collectFunctionParamStatementTypes(stmt.Init, env, functions, stack, out, conflicts)
+		collectFunctionParamExpressionTypes(stmt.Condition, env, functions, stack, out, conflicts)
+		collectFunctionParamStatementTypes(stmt.Post, env, functions, stack, out, conflicts)
+		collectFunctionParamBlockTypes(stmt.Body, env, functions, stack, out, conflicts)
+	case *ast.BlockStatement:
+		collectFunctionParamBlockTypes(stmt, env, functions, stack, out, conflicts)
+	}
+}
+
+func collectFunctionParamBlockTypes(block *ast.BlockStatement, env memberTypeEnv, functions map[string]*ast.FunctionLiteral, stack *[]map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	if block == nil {
+		return
+	}
+	*stack = append(*stack, map[string]string{})
+	for _, stmt := range block.Statements {
+		collectFunctionParamStatementTypes(stmt, env, functions, stack, out, conflicts)
+	}
+	*stack = (*stack)[:len(*stack)-1]
+}
+
+func collectFunctionParamExpressionTypes(expr ast.Expression, env memberTypeEnv, functions map[string]*ast.FunctionLiteral, stack *[]map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	switch expr := expr.(type) {
+	case *ast.PrefixExpression:
+		collectFunctionParamExpressionTypes(expr.Right, env, functions, stack, out, conflicts)
+	case *ast.InfixExpression:
+		collectFunctionParamExpressionTypes(expr.Left, env, functions, stack, out, conflicts)
+		collectFunctionParamExpressionTypes(expr.Right, env, functions, stack, out, conflicts)
+	case *ast.SpawnExpression:
+		collectFunctionParamExpressionTypes(expr.Call, env, functions, stack, out, conflicts)
+	case *ast.IfExpression:
+		collectFunctionParamExpressionTypes(expr.Condition, env, functions, stack, out, conflicts)
+		collectFunctionParamBlockTypes(expr.Consequence, env, functions, stack, out, conflicts)
+		collectFunctionParamBlockTypes(expr.Alternative, env, functions, stack, out, conflicts)
+	case *ast.FunctionLiteral:
+		*stack = append(*stack, inferredParamFrame(expr, env))
+		collectFunctionParamBlockTypes(expr.Body, env, functions, stack, out, conflicts)
+		*stack = (*stack)[:len(*stack)-1]
+	case *ast.CallExpression:
+		collectCallParamTypes(expr, env, functions, *stack, out, conflicts)
+		collectFunctionParamExpressionTypes(expr.Function, env, functions, stack, out, conflicts)
+		for _, arg := range expr.Arguments {
+			collectFunctionParamExpressionTypes(arg, env, functions, stack, out, conflicts)
+		}
+	case *ast.MemberExpression:
+		collectFunctionParamExpressionTypes(expr.Left, env, functions, stack, out, conflicts)
+	case *ast.ArrayLiteral:
+		for _, elem := range expr.Elements {
+			collectFunctionParamExpressionTypes(elem, env, functions, stack, out, conflicts)
+		}
+	case *ast.IndexExpression:
+		collectFunctionParamExpressionTypes(expr.Left, env, functions, stack, out, conflicts)
+		collectFunctionParamExpressionTypes(expr.Index, env, functions, stack, out, conflicts)
+	case *ast.HashLiteral:
+		for key, value := range expr.Pairs {
+			collectFunctionParamExpressionTypes(key, env, functions, stack, out, conflicts)
+			collectFunctionParamExpressionTypes(value, env, functions, stack, out, conflicts)
+		}
+	}
+}
+
+func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, functions map[string]*ast.FunctionLiteral, stack []map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	fnName := calledFunctionName(call.Function)
+	fn := functions[fnName]
+	if fn == nil {
+		return
+	}
+	for i, arg := range call.Arguments {
+		if i >= len(fn.Parameters) {
+			break
+		}
+		param := fn.Parameters[i]
+		if !validMemberIdentifier(param) {
+			continue
+		}
+		typeName := inferExpressionType(arg, env, stack)
+		if typeName == "" {
+			continue
+		}
+		paramKey := fnName + "\x00" + param.Value
+		if conflicts[paramKey] {
+			continue
+		}
+		if out[fnName] == nil {
+			out[fnName] = map[string]string{}
+		}
+		existing := out[fnName][param.Value]
+		if existing == "" || existing == typeName {
+			out[fnName][param.Value] = typeName
+			continue
+		}
+		delete(out[fnName], param.Value)
+		conflicts[paramKey] = true
+	}
+}
+
+func calledFunctionName(expr ast.Expression) string {
+	ident, ok := expr.(*ast.Identifier)
+	if !ok || !validMemberIdentifier(ident) {
+		return ""
+	}
+	return ident.Value
 }
 
 func collectTypedMemberStatement(stmt ast.Statement, uri string, env memberTypeEnv, stack *[]map[string]string, index typeFieldIndex) {
@@ -277,7 +425,7 @@ func collectTypedMemberExpression(expr ast.Expression, uri string, env memberTyp
 		collectTypedMemberBlock(expr.Consequence, uri, env, stack, index)
 		collectTypedMemberBlock(expr.Alternative, uri, env, stack, index)
 	case *ast.FunctionLiteral:
-		*stack = append(*stack, map[string]string{})
+		*stack = append(*stack, inferredParamFrame(expr, env))
 		collectTypedMemberBlock(expr.Body, uri, env, stack, index)
 		*stack = (*stack)[:len(*stack)-1]
 	case *ast.CallExpression:
@@ -382,6 +530,19 @@ func setInferredVarType(ident *ast.Identifier, typeName string, stack []map[stri
 		return
 	}
 	scope[ident.Value] = typeName
+}
+
+func inferredParamFrame(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
+	frame := map[string]string{}
+	if fn == nil || fn.Name == "" {
+		return frame
+	}
+	for name, typeName := range env.Params[fn.Name] {
+		if typeName != "" {
+			frame[name] = typeName
+		}
+	}
+	return frame
 }
 
 func lookupInferredVarType(name string, stack []map[string]string) string {
