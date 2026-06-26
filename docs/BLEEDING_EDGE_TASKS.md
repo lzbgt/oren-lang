@@ -391,8 +391,9 @@ This file is the concise task view. Detailed implementation status lives in
   - Current slices add a dependency-free Go JSON-RPC stdio language server with
     `initialize`/`shutdown`, full-document sync, deterministic bracket/string
     diagnostics plus parser-backed diagnostics on open/change, clean close
-    handling, keyword/local-symbol completion, typed struct/class field completion
-    after proven receivers, and lexer-backed document symbols for imports, functions,
+    handling, keyword/local-symbol completion, direct imported-module alias
+    completion, typed struct/class field completion after proven receivers,
+    and lexer-backed document symbols for imports, functions,
     variables, structs, and classes, same-file,
     opened-document cross-file, and import-resolved unopened-module definition
     navigation for relative and `std:` modules, plus lexer-backed hover and

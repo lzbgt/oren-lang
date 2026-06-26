@@ -83,6 +83,35 @@ func completionItems(text string) []completionItem {
 	return items
 }
 
+func importedModuleCompletionItems(receiver, partial string, importedDocs []documentSnapshot, aliasByURI map[string]string) ([]completionItem, bool) {
+	if receiver == "" {
+		return nil, false
+	}
+	for _, doc := range importedDocs {
+		if aliasByURI[doc.URI] != receiver {
+			continue
+		}
+		syms := collectSymbols(doc.Text)
+		items := make([]completionItem, 0, len(syms))
+		seen := map[string]bool{}
+		for _, sym := range syms {
+			if seen[sym.Name] || (partial != "" && !strings.HasPrefix(sym.Name, partial)) {
+				continue
+			}
+			seen[sym.Name] = true
+			items = append(items, completionItem{Label: sym.Name, Kind: completionKind(sym.Kind), Detail: sym.Detail})
+		}
+		sort.Slice(items, func(i, j int) bool {
+			if items[i].Label == items[j].Label {
+				return items[i].Detail < items[j].Detail
+			}
+			return items[i].Label < items[j].Label
+		})
+		return items, true
+	}
+	return nil, false
+}
+
 func documentSymbols(text string) []documentSymbol {
 	syms := collectSymbols(text)
 	out := make([]documentSymbol, 0, len(syms))

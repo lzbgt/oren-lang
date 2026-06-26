@@ -147,8 +147,14 @@ func (s *Server) completionItems(uri string, pos position) []completionItem {
 	text := s.docs[uri]
 	importedDocs := s.importedDocumentSnapshots(uri, text)
 	aliasByURI := s.importedAliasByURI(uri, text)
-	if items, ok := typedMemberCompletionItemsAt(text, uri, pos, importedDocs, aliasByURI); ok {
-		return items
+	if receiver, partial, ok := memberCompletionTarget(text, pos); ok {
+		if items, found := importedModuleCompletionItems(receiver, partial, importedDocs, aliasByURI); found {
+			return items
+		}
+		if items, found := typedMemberCompletionItemsAt(text, uri, pos, importedDocs, aliasByURI); found {
+			return items
+		}
+		return []completionItem{}
 	}
 	return completionItems(text)
 }

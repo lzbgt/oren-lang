@@ -240,6 +240,74 @@ func TestServerCompletionUsesTypedMembers(t *testing.T) {
 	}
 }
 
+func TestServerCompletionUsesImportedModuleAlias(t *testing.T) {
+	tmp := t.TempDir()
+	shapesPath := filepath.Join(tmp, "shapes.oren")
+	shapesText := strings.Join([]string{
+		"struct Point { x, y }",
+		"fn make_point() { return Point(1, 2) }",
+		"var origin = Point(0, 0)",
+		"",
+	}, "\n")
+	if err := os.WriteFile(shapesPath, []byte(shapesText), 0o644); err != nil {
+		t.Fatalf("write shapes: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainURI := fileURIFromPath(mainPath)
+	mainLines := []string{
+		`import shapes "shapes.oren"`,
+		"var value = shapes.",
+		"var filtered = shapes.ma",
+		"",
+	}
+	text := strings.Join(mainLines, "\n")
+
+	var in bytes.Buffer
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      11,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 1, "character": len(mainLines[1])},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      12,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": len(mainLines[2])},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 11)["result"].([]any)
+	if !hasCompletion(items, "Point", 22) || !hasCompletion(items, "make_point", 3) || !hasCompletion(items, "origin", 6) {
+		t.Fatalf("module completion items missing imported symbols: %#v", items)
+	}
+	if hasCompletion(items, "return", 14) {
+		t.Fatalf("module completion included global keyword: %#v", items)
+	}
+	filtered := messageByID(t, msgs, 12)["result"].([]any)
+	if !hasCompletion(filtered, "make_point", 3) || hasCompletion(filtered, "Point", 22) || hasCompletion(filtered, "origin", 6) {
+		t.Fatalf("filtered module completion mismatch: %#v", filtered)
+	}
+}
+
 func TestServerDidCloseDropsDocumentSymbols(t *testing.T) {
 	var in bytes.Buffer
 	writeTestMessage(t, &in, map[string]any{
