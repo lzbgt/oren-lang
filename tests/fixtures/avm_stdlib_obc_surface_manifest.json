@@ -107,6 +107,16 @@
       ]
     },
     {
+      "module": "std:proc",
+      "alias": "proc",
+      "probes": [
+        "if proc.succeeded(0) != true { fail(101) }",
+        "if proc.failed(7) != true { fail(102) }",
+        "var proc_status = proc.status(7)",
+        "if proc_status[\"ok\"] != false || proc_status[\"code\"] != 7 { fail(103) }"
+      ]
+    },
+    {
       "module": "std:assert",
       "alias": "assert_mod",
       "probes": [

@@ -1,0 +1,39 @@
+import proc "std:proc"
+
+fn fail(code) {
+    print("avm std proc FAIL " + oren_int_to_string(code))
+    oren_exit(code)
+}
+
+fn main() {
+    if proc.succeeded(0) != true { fail(1) }
+    if proc.failed(0) != false { fail(2) }
+    if proc.succeeded(7) != false { fail(3) }
+    if proc.failed(7) != true { fail(4) }
+
+    var s0 = proc.status(0)
+    if s0["ok"] != true || s0["code"] != 0 { fail(5) }
+    var s7 = proc.status(7)
+    if s7["ok"] != false || s7["code"] != 7 { fail(6) }
+
+    var rc1 = proc.run("echo hi")
+    if rc1 != 0 { fail(10) }
+    var rr1 = proc.run_result("echo hi")
+    if oren_is_err(rr1) { fail(11) }
+    if rr1["ok"] != true || rr1["code"] != 0 { fail(12) }
+    var req1 = proc.require_success("echo hi")
+    if oren_is_err(req1) { fail(13) }
+    if req1["ok"] != true || req1["code"] != 0 { fail(14) }
+
+    var rc2 = proc.run("unknown-cmd")
+    if rc2 != 7 { fail(20) }
+    var rr2 = proc.run_result("unknown-cmd")
+    if oren_is_err(rr2) { fail(21) }
+    if rr2["ok"] != false || rr2["code"] != 7 { fail(22) }
+    if !oren_is_err(proc.require_success("unknown-cmd")) { fail(23) }
+
+    print("avm std proc OK")
+    oren_exit(0)
+}
+
+main()

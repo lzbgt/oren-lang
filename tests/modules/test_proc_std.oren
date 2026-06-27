@@ -1,0 +1,28 @@
+import proc "../../lib/std/proc.oren"
+
+fn fail(code) {
+    print("module proc_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+if proc.succeeded(0) != true { fail(1) }
+if proc.failed(0) != false { fail(2) }
+if proc.succeeded(7) != false { fail(3) }
+if proc.failed(7) != true { fail(4) }
+
+var s0 = proc.status(0)
+if s0["ok"] != true || s0["code"] != 0 { fail(5) }
+var s7 = proc.status(7)
+if s7["ok"] != false || s7["code"] != 7 { fail(6) }
+
+var rc = proc.run("true")
+if rc != 0 { fail(10) }
+var rr = proc.run_result("true")
+if oren_is_err(rr) { fail(11) }
+if rr["ok"] != true || rr["code"] != 0 { fail(12) }
+var req = proc.require_success("true")
+if oren_is_err(req) { fail(13) }
+if req["ok"] != true || req["code"] != 0 { fail(14) }
+
+print("module proc_std OK")
+exit(0)

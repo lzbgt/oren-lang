@@ -1,0 +1,35 @@
+// std/proc (v0, rolling)
+//
+// Capability-gated process facade over the existing PROC runtime intrinsic.
+// This module does not expose process handles or raw OS APIs. Host execution,
+// VirtualPROC fixtures, capsule policy, and record/replay behavior remain
+// runtime-controlled.
+
+fn status(code) {
+    return {"ok": code == 0, "code": code}
+}
+
+fn succeeded(code) {
+    return code == 0
+}
+
+fn failed(code) {
+    return code != 0
+}
+
+fn run(command) {
+    return oren_system(command)
+}
+
+fn run_result(command) {
+    var code = run(command)
+    if oren_is_err(code) { return code }
+    return status(code)
+}
+
+fn require_success(command) {
+    var r = run_result(command)
+    if oren_is_err(r) { return r }
+    if r["ok"] == true { return r }
+    return oren_err(3, "std:proc.require_success: command failed with status " + oren_int_to_string(r["code"]))
+}

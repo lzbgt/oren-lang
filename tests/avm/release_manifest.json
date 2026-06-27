@@ -644,6 +644,22 @@
     {"path": "tests/avm/test_ui_ppm_v0.oren"},
     {"path": "tests/avm/test_ui_cmds_validate_v0.oren"},
     {
+      "path": "tests/avm/test_std_proc_vproc.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,5,6",
+        "--proc-backend",
+        "vproc",
+        "--proc-exit-code",
+        "7",
+        "--proc-fixtures-hex",
+        "41564d505243303101000000070000006563686f20686900000000",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-std-proc-vproc"
+    },
+    {
       "path": "tests/avm/test_vproc_fixtures.oren",
       "release_gate": false,
       "avm_args": [
