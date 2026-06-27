@@ -1,0 +1,39 @@
+// std/fs (v0, rolling)
+//
+// Capability-gated filesystem facade over the existing runtime FS intrinsics.
+// The module intentionally does not bypass AVM/native policy: host/VFS choice,
+// allow-prefixes, record/replay, and IO budgets remain controlled by the runtime.
+
+fn read_text(path) {
+    return oren_read_file(path)
+}
+
+fn write_text(path, content) {
+    return oren_write_file(path, content)
+}
+
+fn read_bytes(path) {
+    // Prefer byte-native output for new code. Use read_byte_list for the legacy
+    // list<int 0..255> ABI when a caller explicitly needs it.
+    return oren_read_u8_buf(path)
+}
+
+fn read_byte_list(path) {
+    return oren_read_bytes(path)
+}
+
+fn write_bytes(path, data) {
+    return oren_write_bytes(path, data)
+}
+
+fn exists(path) {
+    return oren_exists(path)
+}
+
+fn list_dir(path) {
+    return oren_readdir(path)
+}
+
+fn chmod(path, mode) {
+    return oren_chmod(path, mode)
+}

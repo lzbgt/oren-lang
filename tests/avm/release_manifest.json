@@ -379,6 +379,18 @@
       "backend_policy": "deny-default-vfs-helpers"
     },
     {
+      "path": "tests/avm/test_std_fs_vfs.oren",
+      "avm_args": [
+        "--deny-by-default",
+        "--allow-domains",
+        "0,1,6",
+        "--fs-backend",
+        "vfs",
+        "--print-run-json"
+      ],
+      "backend_policy": "deny-default-std-fs-vfs"
+    },
+    {
       "path": "tests/avm/test_fs_mounts_host_backend.oren",
       "avm_args": [
         "--deny-by-default",

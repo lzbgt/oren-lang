@@ -43,6 +43,14 @@
       ]
     },
     {
+      "module": "std:fs",
+      "alias": "fs",
+      "probes": [
+        "if fs.exists(\"__avm_stdlib_surface_missing_fs_probe__\") != false { fail(99) }",
+        "if !oren_is_err(fs.read_text(\"__avm_stdlib_surface_missing_fs_probe__\")) { fail(100) }"
+      ]
+    },
+    {
       "module": "std:casts",
       "alias": "casts",
       "probes": [

@@ -1454,6 +1454,19 @@ run_step_checked "std sys smoke (bytecode)" "$sys_std_log" \
   "$compiler" test "$sys_std_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$sys_std_log"
 
+echo "== std fs smoke (native/C/bytecode) =="
+fs_std_src="tests/modules/test_fs_std.oren"
+fs_std_log="build/logs/${compiler_base}_std_fs.log"
+rm -f "$fs_std_log" 2>/dev/null || true
+
+run_step_checked "std fs smoke (native)" "$fs_std_log" \
+  "$compiler" test "$fs_std_src" --backend native --platform "$platform" --no-cache
+run_step_checked "std fs smoke (C)" "$fs_std_log" \
+  "$compiler" test "$fs_std_src" --backend c --platform "$platform" --no-cache
+run_step_checked "std fs smoke (bytecode)" "$fs_std_log" \
+  "$compiler" test "$fs_std_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$fs_std_log"
+
 echo "== math cbrt smoke (native/C/bytecode) =="
 math_cbrt_src="tests/modules/test_math_cbrt.oren"
 math_cbrt_log="build/logs/${compiler_base}_math_cbrt.log"

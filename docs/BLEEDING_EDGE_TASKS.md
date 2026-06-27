@@ -104,6 +104,7 @@ This file is the concise task view. Detailed implementation status lives in
      session handles and `std:net/avm/tcp` / `std:net/avm/udp` convenience facades
      plus `std:net/avm/ws` over host-owned iOS sockets with readiness selection,
      plus pure `std:sys` AVM capability-domain id/name/mask helpers,
+     `std:fs` capability-gated text/byte/list-dir facade helpers,
      portable `std:timer` deadline/interval helpers and the native `std:avm/events`
      virtual event-bus facade over AVM `EVENT` domain and `std:avm/permission`
      facade and OPR0 permission mailbox for host-visible OBC permission intent,

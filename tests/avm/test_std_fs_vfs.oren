@@ -1,0 +1,54 @@
+import bytes "std:bytes"
+import fs "std:fs"
+
+fn fail(code) {
+    print("avm std fs FAIL " + oren_int_to_string(code))
+    oren_exit(code)
+}
+
+fn has_name(names, want) {
+    var i = 0
+    while i < oren_list_len(names) {
+        if names[i] == want { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn main() {
+    var wt = fs.write_text("v/dir/in.txt", "hello vfs")
+    if oren_is_err(wt) { fail(1) }
+    if fs.exists("v/dir/in.txt") != true { fail(2) }
+    if fs.exists("v/dir/missing.txt") != false { fail(3) }
+
+    var rt = fs.read_text("v/dir/in.txt")
+    if oren_is_err(rt) { fail(4) }
+    if rt != "hello vfs" { fail(5) }
+    if !oren_is_err(fs.read_text("v/dir/missing.txt")) { fail(6) }
+
+    var src = bytes.pack([7, 8, 9, 255])
+    if oren_is_err(src) { fail(10) }
+    var wb = fs.write_bytes("v/dir/data.bin", src)
+    if oren_is_err(wb) { fail(11) }
+
+    var rb = fs.read_bytes("v/dir/data.bin")
+    if oren_is_err(rb) { fail(12) }
+    if bytes.len(rb) != 4 { fail(13) }
+    if bytes.get_u8(rb, 0) != 7 { fail(14) }
+    if bytes.get_u8(rb, 3) != 255 { fail(15) }
+
+    var legacy = fs.read_byte_list("v/dir/data.bin")
+    if oren_is_err(legacy) { fail(16) }
+    if oren_list_len(legacy) != 4 { fail(17) }
+    if legacy[1] != 8 || legacy[3] != 255 { fail(18) }
+
+    var names = fs.list_dir("v/dir")
+    if oren_is_err(names) { fail(20) }
+    if has_name(names, "data.bin") != true { fail(21) }
+    if has_name(names, "in.txt") != true { fail(22) }
+
+    print("avm std fs OK")
+    oren_exit(0)
+}
+
+main()

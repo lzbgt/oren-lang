@@ -1,0 +1,53 @@
+import bytes "../../lib/std/bytes.oren"
+import fs "../../lib/std/fs.oren"
+
+fn fail(code) {
+    print("module fs_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn has_name(names, want) {
+    var i = 0
+    while i < oren_list_len(names) {
+        if names[i] == want { return true }
+        i = i + 1
+    }
+    return false
+}
+
+var text_path = "build/tmp/std_fs_text.txt"
+var bytes_path = "build/tmp/std_fs_bytes.bin"
+
+var wt = fs.write_text(text_path, "hello fs")
+if oren_is_err(wt) { fail(1) }
+if fs.exists(text_path) != true { fail(2) }
+if fs.exists("build/tmp/std_fs_missing.txt") != false { fail(3) }
+
+var rt = fs.read_text(text_path)
+if oren_is_err(rt) { fail(4) }
+if rt != "hello fs" { fail(5) }
+if !oren_is_err(fs.read_text("build/tmp/std_fs_missing.txt")) { fail(6) }
+
+var src = bytes.pack([1, 2, 3, 255])
+if oren_is_err(src) { fail(10) }
+var wb = fs.write_bytes(bytes_path, src)
+if oren_is_err(wb) { fail(11) }
+
+var rb = fs.read_bytes(bytes_path)
+if oren_is_err(rb) { fail(12) }
+if bytes.len(rb) != 4 { fail(13) }
+if bytes.get_u8(rb, 0) != 1 { fail(14) }
+if bytes.get_u8(rb, 3) != 255 { fail(15) }
+
+var legacy = fs.read_byte_list(bytes_path)
+if oren_is_err(legacy) { fail(16) }
+if oren_list_len(legacy) != 4 { fail(17) }
+if legacy[1] != 2 || legacy[3] != 255 { fail(18) }
+
+var names = fs.list_dir("build/tmp")
+if oren_is_err(names) { fail(20) }
+if has_name(names, "std_fs_text.txt") != true { fail(21) }
+if has_name(names, "std_fs_bytes.bin") != true { fail(22) }
+
+print("module fs_std OK")
+exit(0)

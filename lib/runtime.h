@@ -992,6 +992,7 @@ OrenValue oren_mkdir_p(OrenValue path);
 //   - Windows: `if exist ...`
 OrenValue oren_exists(OrenValue path);
 OrenValue oren_is_file(OrenValue path);
+OrenValue oren_readdir(OrenValue path);
 OrenValue oren_unlink(OrenValue path);
 OrenValue oren_rmdir(OrenValue path);
 // Recursive delete (rm -rf semantics).

@@ -607,6 +607,80 @@ OrenValue oren_rm_rf(OrenValue path) {
 #endif
 }
 
+OrenValue oren_readdir(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("readdir expects string path"));
+    }
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("readdir expects non-empty path"));
+    }
+
+    OrenValue out = oren_new_list(0);
+    if (oren_is_err(out).as.bool_val) return out;
+
+#if defined(_WIN32)
+    char* p = oren_path_strdup_norm_win(s);
+    if (!p) return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("readdir: alloc failed"));
+    size_t lp = strlen(p);
+    size_t pat_len = lp + 3u;
+    char* pat = (char*)malloc(pat_len);
+    if (!pat) {
+        free(p);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("readdir: alloc failed"));
+    }
+    memcpy(pat, p, lp);
+    size_t off = lp;
+    if (off > 0 && pat[off - 1] != '\\' && pat[off - 1] != '/') pat[off++] = '\\';
+    pat[off++] = '*';
+    pat[off] = '\0';
+    for (char* q = pat; *q; q++) {
+        if (*q == '/') *q = '\\';
+    }
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pat, &fd);
+    free(pat);
+    if (h == INVALID_HANDLE_VALUE) {
+        DWORD e = GetLastError();
+        free(p);
+        int code = (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND) ? OREN_ERR_NOT_FOUND : OREN_ERR_IO;
+        char msg[512];
+        snprintf(msg, sizeof(msg), "readdir: %s (winerr=%lu)", s, (unsigned long)e);
+        return oren_err(oren_int(code), oren_string(msg));
+    }
+    for (;;) {
+        const char* name = fd.cFileName;
+        if (!(name[0] == '.' && name[1] == '\0') && !(name[0] == '.' && name[1] == '.' && name[2] == '\0')) {
+            oren_list_push(out, oren_string(name));
+        }
+        if (!FindNextFileA(h, &fd)) break;
+    }
+    FindClose(h);
+    free(p);
+    return out;
+#else
+    DIR* d = opendir(s);
+    if (!d) {
+        return oren_err_from_errno("readdir: opendir failed", s, errno);
+    }
+    errno = 0;
+    struct dirent* ent;
+    while ((ent = readdir(d)) != NULL) {
+        const char* name = ent->d_name;
+        if (name[0] == '.' && name[1] == '\0') continue;
+        if (name[0] == '.' && name[1] == '.' && name[2] == '\0') continue;
+        oren_list_push(out, oren_string(name));
+    }
+    int err = errno;
+    closedir(d);
+    if (err != 0) {
+        return oren_err_from_errno("readdir failed", s, err);
+    }
+    return out;
+#endif
+}
+
 OrenValue oren_read_bytes(OrenValue path) {
     if (path.type != OREN_TYPE_STRING) {
         oren_panic("read_bytes expects string path");
