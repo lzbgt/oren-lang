@@ -105,11 +105,14 @@ Implemented as of 2026-05-31:
   packs retained text into bounded atlas pages with same-atlas run coalescing.
 - Live-device capture is now scripted through
   `make capture-ios-live-3d-performance`. The target builds a generated iPhoneOS
-  app that embeds a 3D OBC frame, drives `OrenAVMMetalView`, and writes
-  CPU/vertex/run metrics under `build/ios-live-3d/` when launched with
+  app that runs a 3D OBC program concurrently with `OrenAVMMetalView`, uses host
+  `frame_tick` events to republish animated frames, and writes CPU/vertex/run
+  metrics under `build/ios-live-3d/` when launched with
   `OREN_IOS_LIVE_INSTALL=1`. The default target stops after building the app and
   recording `devicectl`/`xctrace` preflight artifacts so normal verification does
-  not mutate a physical device or require signing credentials.
+  not mutate a physical device or require signing credentials. A live run still
+  requires a provisioning profile whose bundle ID and device list both match the
+  target phone.
 - Host helpers can enqueue pointer, resize, key, UTF-8 text, compact
   gamepad/controller state, coalesced motion, focus, and IME/composition input
   events.

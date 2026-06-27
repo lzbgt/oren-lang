@@ -20,6 +20,17 @@ MIN_IOS_VERSION="${MIN_IOS_VERSION:-13.0}"
 
 mkdir -p "$TMP_DIR" "$RESULT_DIR" "$LOG_DIR"
 
+case "$FRAME_COUNT" in
+  ''|*[!0-9]*)
+    echo "ERROR: OREN_IOS_LIVE_FRAME_COUNT must be a positive integer" >&2
+    exit 2
+    ;;
+esac
+if [[ "$FRAME_COUNT" -le 0 || "$FRAME_COUNT" -ge 100000 ]]; then
+  echo "ERROR: OREN_IOS_LIVE_FRAME_COUNT must be in 1..99999" >&2
+  exit 2
+fi
+
 if [[ ! -x ./oren ]]; then
   make oren > "$LOG_DIR/make_oren_for_ios_live_3d.log" 2>&1
 fi
@@ -34,12 +45,13 @@ DEVICE_LOG="$RESULT_DIR/devicectl-devices.log"
 xcrun devicectl list devices --json-output "$DEVICE_JSON" --log-output "$DEVICE_LOG" >/dev/null 2>&1 || true
 xcrun xctrace list devices > "$RESULT_DIR/xctrace-devices.txt" 2>&1 || true
 
-cat > "$TMP_DIR/live3d.oren" <<'OREN'
+cat > "$TMP_DIR/live3d.oren" <<OREN
 import bytes "std:bytes"
+import events "std:avm/events"
 import list "std:list"
 import ui_avm "std:ui/avm"
 
-fn main() {
+fn present_live_frame(seq) {
     var triangle3d = bytes.pack([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         16, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0,
@@ -61,9 +73,10 @@ fn main() {
     ]
     var i = 0
     while i < 48 {
-        list.push(cmds, {"op": "draw_mesh3d_at", "id": 1, "x": i, "y": i / 2, "z": i % 8, "scale_milli": 1000})
-        list.push(cmds, {"op": "draw_mesh3d_at", "id": 2, "x": i / 2, "y": i, "z": (i + 3) % 8, "scale_milli": 1000})
-        list.push(cmds, {"op": "draw_mesh3d_at_material", "id": 3, "material_id": 4, "x": (i + 5) / 2, "y": (i + 7) / 2, "z": (i + 5) % 8, "scale_milli": 1000})
+        var phase = seq % 64
+        list.push(cmds, {"op": "draw_mesh3d_at", "id": 1, "x": (i + phase) % 64, "y": (i / 2 + phase / 4) % 64, "z": i % 8, "scale_milli": 1000})
+        list.push(cmds, {"op": "draw_mesh3d_at", "id": 2, "x": (i / 2 + phase / 3) % 64, "y": (i + phase) % 64, "z": (i + 3) % 8, "scale_milli": 1000})
+        list.push(cmds, {"op": "draw_mesh3d_at_material", "id": 3, "material_id": 4, "x": ((i + 5) / 2 + phase / 5) % 64, "y": ((i + 7) / 2 + phase / 6) % 64, "z": (i + 5) % 8, "scale_milli": 1000})
         i = i + 1
     }
     list.push(cmds, {"op": "destroy_material3d", "id": 4})
@@ -74,16 +87,39 @@ fn main() {
     var r = ui_avm.present_frame(cmds, 64, 64, {
         "strict_bounds": true,
         "scale_milli": 3000,
-        "sequence": 42,
+        "sequence": seq,
         "drawable_w": 192,
         "drawable_h": 192,
         "target_hz_milli": 120000
     })
-    if oren_is_err(r) {
-        print(oren_err_msg(r))
+    return r
+}
+
+fn main() {
+    var first = present_live_frame(0)
+    if oren_is_err(first) {
+        print(oren_err_msg(first))
         oren_exit(2)
     }
-    print("live3d:frame-ok")
+    var frame_limit = $FRAME_COUNT
+    var frames = 0
+    while frames < frame_limit {
+        var ready = events.select([{"kind": "ui", "id": "frame"}], 1000)
+        if oren_is_err(ready) {
+            print(oren_err_msg(ready))
+            oren_exit(3)
+        }
+        if ready != nil && ready["event"]["kind"] == "frame_tick" {
+            var ev = ready["event"]
+            var r = present_live_frame(ev["sequence"])
+            if oren_is_err(r) {
+                print(oren_err_msg(r))
+                oren_exit(4)
+            }
+            frames = frames + 1
+        }
+    }
+    print("live3d:frames-ok")
     oren_exit(0)
 }
 
@@ -196,6 +232,10 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
 @property(nonatomic, strong) UIWindow* window;
 @property(nonatomic, strong) OrenAVMRuntime* runtime;
 @property(nonatomic, strong) OrenAVMMetalView* metalView;
+@property(nonatomic) BOOL runtimeFinished;
+@property(nonatomic) NSInteger runtimeStatus;
+@property(nonatomic) NSInteger runtimeExitCode;
+@property(nonatomic, copy) NSString* runtimeErrorMessage;
 @end
 
 @implementation OrenLive3DAppDelegate
@@ -206,29 +246,28 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
     NSError* error = nil;
     OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
     self.runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
-    OrenAVMRunResult* result = [self.runtime runOBCData:[NSData dataWithBytes:kLive3DObc length:kLive3DObcLen] error:&error];
-    if (!result || result.exitCode != 0) {
-        fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR run_failed status=%ld exit=%ld message=%s\n",
-                (long)(result ? result.status : -1),
-                (long)(result ? result.exitCode : -1),
-                error.localizedDescription.UTF8String ?: "");
-        exit(2);
-    }
-    NSData* frame = [self.runtime getGraphicsFrameDataWithError:&error];
-    if (!frame) {
-        fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR frame_missing message=%s\n", error.localizedDescription.UTF8String ?: "");
-        exit(3);
-    }
     CGRect bounds = UIScreen.mainScreen.bounds;
     self.window = [[UIWindow alloc] initWithFrame:bounds];
     UIViewController* controller = [[UIViewController alloc] init];
     self.metalView = [[OrenAVMMetalView alloc] initWithRuntime:self.runtime];
     self.metalView.frame = bounds;
     self.metalView.targetHzMilli = 120000;
-    self.metalView.frameData = frame;
     controller.view = self.metalView;
     self.window.rootViewController = controller;
     [self.window makeKeyAndVisible];
+    [self.metalView publishScreenStateWithError:&error];
+    [self.metalView sendMediaEventWithError:&error];
+    NSData* obc = [NSData dataWithBytes:kLive3DObc length:kLive3DObcLen];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError* runError = nil;
+        OrenAVMRunResult* result = [self.runtime runOBCData:obc error:&runError];
+        @synchronized (self) {
+            self.runtimeFinished = YES;
+            self.runtimeStatus = result ? result.status : -1;
+            self.runtimeExitCode = result ? result.exitCode : -1;
+            self.runtimeErrorMessage = runError.localizedDescription ?: @"";
+        }
+    });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(250 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
         [self runCapture];
     });
@@ -247,9 +286,19 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
     uint64_t maxNs = 0;
     uint64_t sumNs = 0;
     uint32_t overBudget = 0;
+    for (NSUInteger wait = 0; wait < 200 && !self.metalView.hasValidFrameData; wait++) {
+        [self.metalView reloadFrameWithError:nil];
+        [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+    }
+    if (!self.metalView.hasValidFrameData) {
+        fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR frame_missing_after_start\n");
+        exit(3);
+    }
     for (NSUInteger i = 0; i < frames; i++) {
         @autoreleasepool {
             [self.metalView draw];
+            [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];
+            [self.metalView reloadFrameWithError:nil];
             if (![self.metalView prepareFrameResourcesWithError:&error]) {
                 fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR prepare_failed frame=%lu message=%s\n",
                         (unsigned long)i,
@@ -261,6 +310,26 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
             if (ns > maxNs) maxNs = ns;
             sumNs += ns;
             if (self.metalView.lastFrameOverBudget) overBudget++;
+        }
+    }
+    for (NSUInteger wait = 0; wait < 500; wait++) {
+        @synchronized (self) {
+            if (self.runtimeFinished) break;
+        }
+        [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+    }
+    @synchronized (self) {
+        if (!self.runtimeFinished) {
+            [self.runtime requestCancelWithError:nil];
+            fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR run_timeout\n");
+            exit(5);
+        }
+        if (self.runtimeStatus != 0 || self.runtimeExitCode != 0) {
+            fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR run_failed status=%ld exit=%ld message=%s\n",
+                    (long)self.runtimeStatus,
+                    (long)self.runtimeExitCode,
+                    self.runtimeErrorMessage.UTF8String ?: "");
+            exit(2);
         }
     }
     uint64_t avgNs = frames > 0 ? sumNs / frames : 0;

@@ -450,13 +450,15 @@ Facts from the 2026-05-28 implementation pass:
   headless verifiers can parse retained 3D/resource frames and inspect vertex,
   text-run, and image-run metrics even when no `CAMetalDrawable` is available.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
-  harness that runs a 3D OBC frame through `OrenAVMMetalView`, records device
+  harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
+  republishes animated frames from host `frame_tick` events, records device
   preflight data, and can install/launch through `devicectl` to write live
   CPU/vertex/run metrics when a matching provisioning profile and device
-  developer services are available. The 2026-06-05 preflight saw `blu-ip`
-  paired in `devicectl`, but `xctrace` still listed it offline and CoreDevice
-  reported `ddiServicesAvailable=false`, so the actual live run remains blocked
-  by device/developer-service state rather than renderer code.
+  developer services are available. The 2026-06-27 phone check saw `blu-ip`
+  paired/available in `devicectl`, but install failed with `0xe8008012` because
+  the available `cn.hubstack.pc` provisioning profile cannot be installed on
+  that device, so the actual live run remains blocked by signing/profile state
+  rather than renderer code.
   Remaining game-grade work is completing a signed live-device 3D capture run
   and broader package scene formats. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale

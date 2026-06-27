@@ -156,11 +156,14 @@
 <li>Live-device capture is now scripted through</li>
 </ul>
 <p>  <code>make capture-ios-live-3d-performance</code>. The target builds a generated iPhoneOS</p>
-<p>  app that embeds a 3D OBC frame, drives <code>OrenAVMMetalView</code>, and writes</p>
-<p>  CPU/vertex/run metrics under <code>build/ios-live-3d/</code> when launched with</p>
+<p>  app that runs a 3D OBC program concurrently with <code>OrenAVMMetalView</code>, uses host</p>
+<p>  <code>frame_tick</code> events to republish animated frames, and writes CPU/vertex/run</p>
+<p>  metrics under <code>build/ios-live-3d/</code> when launched with</p>
 <p>  <code>OREN_IOS_LIVE_INSTALL=1</code>. The default target stops after building the app and</p>
 <p>  recording <code>devicectl</code>/<code>xctrace</code> preflight artifacts so normal verification does</p>
-<p>  not mutate a physical device or require signing credentials.</p>
+<p>  not mutate a physical device or require signing credentials. A live run still</p>
+<p>  requires a provisioning profile whose bundle ID and device list both match the</p>
+<p>  target phone.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>

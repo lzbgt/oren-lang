@@ -203,10 +203,11 @@
 <p>     SDK-side atlas packing plus same-atlas/scissor/opacity run coalescing so</p>
 <p>     repeated and adjacent labels reduce texture churn and draw calls without</p>
 <p>     changing the <code>OGF0</code> protocol. <code>make capture-ios-live-3d-performance</code></p>
-<p>     now builds the generated iPhoneOS live 3D capture app and records</p>
-<p>     <code>devicectl</code>/<code>xctrace</code> preflight artifacts; install/launch is opt-in via</p>
-<p>     <code>OREN_IOS_LIVE_INSTALL=1</code> because it requires a matching provisioning</p>
-<p>     profile and device developer services.</p>
+<p>     now builds the generated iPhoneOS live 3D capture app, runs its OBC program</p>
+<p>     concurrently with <code>OrenAVMMetalView</code>, and republishes animated 3D frames from</p>
+<p>     host <code>frame_tick</code> events; install/launch is opt-in via</p>
+<p>     <code>OREN_IOS_LIVE_INSTALL=1</code> because it requires a provisioning profile that</p>
+<p>     matches both the bundle ID and the target device.</p>
 <ul>
 <li>High-priority cleanup: remove legacy stdlib byte/string conversion paths from</li>
 </ul>

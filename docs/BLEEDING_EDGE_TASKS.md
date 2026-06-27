@@ -137,10 +137,11 @@ This file is the concise task view. Detailed implementation status lives in
      SDK-side atlas packing plus same-atlas/scissor/opacity run coalescing so
      repeated and adjacent labels reduce texture churn and draw calls without
      changing the `OGF0` protocol. `make capture-ios-live-3d-performance`
-     now builds the generated iPhoneOS live 3D capture app and records
-     `devicectl`/`xctrace` preflight artifacts; install/launch is opt-in via
-     `OREN_IOS_LIVE_INSTALL=1` because it requires a matching provisioning
-     profile and device developer services.
+     now builds the generated iPhoneOS live 3D capture app, runs its OBC program
+     concurrently with `OrenAVMMetalView`, and republishes animated 3D frames from
+     host `frame_tick` events; install/launch is opt-in via
+     `OREN_IOS_LIVE_INSTALL=1` because it requires a provisioning profile that
+     matches both the bundle ID and the target device.
    - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
      hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
      may convert at the boundary but must not force list-of-byte round trips.
