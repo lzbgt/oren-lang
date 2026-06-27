@@ -342,6 +342,92 @@ fn _pyramid_points(pyr) {
     return points
 }
 
+fn _gable_roof_z(roof, primary, fallback, label, ctx) {
+    var z = roof[primary]
+    if z == nil { z = roof[fallback] }
+    if _is_int(z) == false { return oren_err(4, ctx + ": " + label + " must be i32") }
+    return z
+}
+
+fn _gable_roofs_xy_triangle_count(roofs, ctx) {
+    if roofs == nil { return oren_err(4, ctx + ": missing gable_roofs_xy") }
+    var nr = oren_list_len(roofs)
+    if oren_is_err(nr) { return oren_err(4, ctx + ": gable_roofs_xy must be list") }
+    var i = 0
+    while i < nr {
+        var roof = roofs[i]
+        if roof == nil { return oren_err(4, ctx + ": gable roof must be object") }
+        var p0 = _segment_point(roof, "from", "start", "gable roof from", ctx)
+        if oren_is_err(p0) { return p0 }
+        var p1 = _segment_point(roof, "to", "end", "gable roof to", ctx)
+        if oren_is_err(p1) { return p1 }
+        if p0[0] == p1[0] && p0[1] == p1[1] { return oren_err(4, ctx + ": gable roof ridge must be nonzero") }
+        var width = _line_width(roof, "gable roof", ctx)
+        if oren_is_err(width) { return width }
+        var z0 = _gable_roof_z(roof, "z_eave", "eave_z", "z_eave", ctx)
+        if oren_is_err(z0) { return z0 }
+        var z1 = _gable_roof_z(roof, "z_ridge", "ridge_z", "z_ridge", ctx)
+        if oren_is_err(z1) { return z1 }
+        if z1 <= z0 { return oren_err(4, ctx + ": gable roof z_ridge must be greater than z_eave") }
+        var ox = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 0, ctx)
+        if oren_is_err(ox) { return ox }
+        var oy = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 1, ctx)
+        if oren_is_err(oy) { return oy }
+        if ox == 0 && oy == 0 { return oren_err(4, ctx + ": gable roof width rounds to zero") }
+        i = i + 1
+    }
+    if nr * 6 > 4096 { return oren_err(4, ctx + ": gable_roofs exceed mesh3d triangle budget") }
+    return nr * 6
+}
+
+fn pack_gable_roofs_xy(roofs, ctx) {
+    var tri_count = _gable_roofs_xy_triangle_count(roofs, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ri = 0
+    var nr = oren_list_len(roofs)
+    while ri < nr {
+        var roof = roofs[ri]
+        var p0 = _segment_point(roof, "from", "start", "gable roof from", ctx)
+        var p1 = _segment_point(roof, "to", "end", "gable roof to", ctx)
+        var width = _line_width(roof, "gable roof", ctx)
+        var z0 = _gable_roof_z(roof, "z_eave", "eave_z", "z_eave", ctx)
+        var z1 = _gable_roof_z(roof, "z_ridge", "ridge_z", "z_ridge", ctx)
+        var ox = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 0, ctx)
+        var oy = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 1, ctx)
+        var l0x = p0[0] + ox
+        var l0y = p0[1] + oy
+        var l1x = p1[0] + ox
+        var l1y = p1[1] + oy
+        var r0x = p0[0] - ox
+        var r0y = p0[1] - oy
+        var r1x = p1[0] - ox
+        var r1y = p1[1] - oy
+        var rc = _store_triangle(out, off, l0x, l0y, z0, l1x, l1y, z0, p1[0], p1[1], z1, ctx + ".left0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, l0x, l0y, z0, p1[0], p1[1], z1, p0[0], p0[1], z1, ctx + ".left1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, r0x, r0y, z0, p0[0], p0[1], z1, p1[0], p1[1], z1, ctx + ".right0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, r0x, r0y, z0, p1[0], p1[1], z1, r1x, r1y, z0, ctx + ".right1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, l0x, l0y, z0, r0x, r0y, z0, p0[0], p0[1], z1, ctx + ".gable0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, l1x, l1y, z0, p1[0], p1[1], z1, r1x, r1y, z0, ctx + ".gable1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        ri = ri + 1
+    }
+    return out
+}
+
 fn _pyramid_apex(pyr, ctx) {
     var apex = pyr["apex"]
     if apex != nil { return _xyz_point(apex, "pyramid apex", ctx) }
