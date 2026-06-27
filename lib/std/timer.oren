@@ -1,0 +1,67 @@
+// std/timer (v0, rolling)
+//
+// Portable timer helpers built on `std:time` and AVM event timer watches. This
+// module does not expose host handles; it returns plain maps that can be passed
+// to `std:avm/events.select`.
+
+import time "std:time"
+
+fn _err(msg) {
+    return oren_err(4, msg)
+}
+
+fn now_ns() {
+    return time.now_ns()
+}
+
+fn deadline_after_ms(delay_ms) {
+    if delay_ms < 0 { return _err("std:timer.deadline_after_ms: negative delay_ms") }
+    return now_ns() + delay_ms * 1000000
+}
+
+fn remaining_ns(deadline_ns) {
+    var rem = deadline_ns - now_ns()
+    if rem < 0 { return 0 }
+    return rem
+}
+
+fn remaining_ms(deadline_ns) {
+    var rem = remaining_ns(deadline_ns)
+    if rem <= 0 { return 0 }
+    return (rem + 999999) / 1000000
+}
+
+fn expired(deadline_ns) {
+    return now_ns() >= deadline_ns
+}
+
+fn watch_deadline(id, deadline_ns) {
+    return {"kind": "timer", "id": id, "deadline_ns": deadline_ns}
+}
+
+fn watch_after_ms(id, delay_ms) {
+    var deadline = deadline_after_ms(delay_ms)
+    if oren_is_err(deadline) { return deadline }
+    return watch_deadline(id, deadline)
+}
+
+fn interval(id, period_ms) {
+    if period_ms <= 0 { return _err("std:timer.interval: non-positive period_ms") }
+    var period_ns = period_ms * 1000000
+    var deadline = now_ns() + period_ns
+    return {"kind": "timer", "id": id, "deadline_ns": deadline, "period_ns": period_ns}
+}
+
+fn advance_interval(w) {
+    if w == nil { return _err("std:timer.advance_interval: nil interval") }
+    var period = w["period_ns"]
+    if period == nil || period <= 0 { return _err("std:timer.advance_interval: invalid period") }
+    var deadline = w["deadline_ns"]
+    if deadline == nil { deadline = now_ns() }
+    var next = deadline + period
+    var now = now_ns()
+    while next <= now {
+        next = next + period
+    }
+    return {"kind": "timer", "id": w["id"], "deadline_ns": next, "period_ns": period}
+}

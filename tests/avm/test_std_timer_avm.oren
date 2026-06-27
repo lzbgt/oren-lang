@@ -1,0 +1,40 @@
+import events "std:avm/events"
+import timer "std:timer"
+
+fn main() {
+    var now = timer.now_ns()
+    var d0 = timer.deadline_after_ms(0)
+    if oren_is_err(d0) { oren_exit(1) }
+    if d0 < now { oren_exit(2) }
+    if timer.remaining_ns(now - 1) != 0 { oren_exit(3) }
+    if timer.remaining_ms(now - 1) != 0 { oren_exit(4) }
+    if !timer.expired(now - 1) { oren_exit(5) }
+    if timer.expired(now + 1000000000) { oren_exit(6) }
+    if !oren_is_err(timer.deadline_after_ms(-1)) { oren_exit(7) }
+
+    var w0 = timer.watch_deadline("ready", timer.now_ns())
+    if w0["kind"] != "timer" || w0["id"] != "ready" { oren_exit(10) }
+    var ev = events.select_once([w0])
+    if oren_is_err(ev) { oren_exit(11) }
+    if ev["kind"] != "timer" || ev["id"] != "ready" { oren_exit(12) }
+
+    var wf = timer.watch_after_ms("future", 1000)
+    if oren_is_err(wf) { oren_exit(13) }
+    var none = events.select_once([wf])
+    if oren_is_err(none) || none != nil { oren_exit(14) }
+
+    var it = timer.interval("tick", 1)
+    if oren_is_err(it) { oren_exit(20) }
+    if it["kind"] != "timer" || it["id"] != "tick" || it["period_ns"] != 1000000 { oren_exit(21) }
+    var it2 = timer.advance_interval({"kind": "timer", "id": "tick", "deadline_ns": timer.now_ns() - 1000000, "period_ns": 1000000})
+    if oren_is_err(it2) { oren_exit(22) }
+    if it2["deadline_ns"] <= timer.now_ns() { oren_exit(23) }
+    if it2["period_ns"] != 1000000 { oren_exit(24) }
+    if !oren_is_err(timer.interval("bad", 0)) { oren_exit(25) }
+    if !oren_is_err(timer.advance_interval({"kind": "timer", "id": "bad", "period_ns": 0})) { oren_exit(26) }
+
+    print("avm std timer OK")
+    oren_exit(0)
+}
+
+main()

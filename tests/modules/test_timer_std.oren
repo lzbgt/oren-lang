@@ -1,0 +1,39 @@
+import result "../../lib/std/result.oren"
+import timer "../../lib/std/timer.oren"
+
+fn fail(code) {
+    print("module timer_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+var now = timer.now_ns()
+var d0 = timer.deadline_after_ms(0)
+if result.is_err(d0) { fail(1) }
+if d0 < now { fail(2) }
+if timer.remaining_ns(now - 1) != 0 { fail(3) }
+if timer.remaining_ms(now - 1) != 0 { fail(4) }
+if !timer.expired(now - 1) { fail(5) }
+if timer.expired(now + 1000000000) { fail(6) }
+if !result.is_err(timer.deadline_after_ms(-1)) { fail(7) }
+
+var w0 = timer.watch_deadline("ready", timer.now_ns())
+if w0["kind"] != "timer" || w0["id"] != "ready" { fail(10) }
+if w0["deadline_ns"] > timer.now_ns() { fail(11) }
+
+var wf = timer.watch_after_ms("future", 1000)
+if result.is_err(wf) { fail(12) }
+if wf["kind"] != "timer" || wf["id"] != "future" { fail(13) }
+if wf["deadline_ns"] <= timer.now_ns() { fail(14) }
+
+var it = timer.interval("tick", 1)
+if result.is_err(it) { fail(20) }
+if it["kind"] != "timer" || it["id"] != "tick" || it["period_ns"] != 1000000 { fail(21) }
+var it2 = timer.advance_interval({"kind": "timer", "id": "tick", "deadline_ns": timer.now_ns() - 1000000, "period_ns": 1000000})
+if result.is_err(it2) { fail(22) }
+if it2["deadline_ns"] <= timer.now_ns() { fail(23) }
+if it2["period_ns"] != 1000000 { fail(24) }
+if !result.is_err(timer.interval("bad", 0)) { fail(25) }
+if !result.is_err(timer.advance_interval({"kind": "timer", "id": "bad", "period_ns": 0})) { fail(26) }
+
+print("module timer_std OK")
+exit(0)

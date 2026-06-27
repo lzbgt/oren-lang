@@ -78,6 +78,6 @@ design evidence lives under `project-doc/`.
   verbs returning `value | oren_err` or explicit `{ok,...}` records; numeric errno
   contracts belong under explicit `*_raw` primitives.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
-  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time,
+  buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time/timer,
   `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
   `std:avm/events`, and `std:avm/permission`.

@@ -92,7 +92,7 @@ Facts from the 2026-05-28 implementation pass:
   `sleep_ms` blocks the AVM worker on wall-clock time and `now_unix_ns` uses host
   realtime. Hosts must run this off the UI thread.
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
-  app-facing modules such as `std:time`, `std:ui/avm`, `std:linalg`,
+  app-facing modules such as `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
   `std:cbor`, `std:yaml`, `std:regex`, `std:encoding/base64`,
   `std:crypto/pem`, `std:crypto/sha1`, `std:crypto/sha256`, and
   `std:crypto/x509`.
@@ -338,7 +338,9 @@ Facts from the 2026-05-28 implementation pass:
   VNET readiness, GFX/input events, timers, cancellation, and future FS/package
   events. Host SDKs may implement that bus with platform reactors, but OBC must
   not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
-- `std:avm/events` now uses a native AVM `EVENT` capability domain for timer
+- `std:timer` now provides portable deadline/remaining/expiry helpers and
+  fixed-period timer-watch maps that compose with `std:avm/events.select`.
+  `std:avm/events` now uses a native AVM `EVENT` capability domain for timer
   watches, GFX input watches, VNET session readiness, cooperative host-cancel
   watches, and host-enqueued FS/package lifecycle events. If OBC includes a
   `cancel` watch, a host `avm_embed_cancel` request wakes the event loop as a
@@ -646,7 +648,7 @@ Facts from the 2026-05-28 implementation pass:
 	  host FS mounts, nested multiverse AVM/VNET/VPROC/VFS fixtures, VFS inheritance
 	  plus host-prefix inheritance, record/replay env/exit/FS/proc flows,
 	  snapshot/resume tasks/VFS/record-log flows, state-hash VFS inclusion,
-	  trace-byte repeat/native-event coverage, deterministic math core/rounding, exp/log,
+	  trace-byte repeat/native-event coverage, deterministic timer helpers, deterministic math core/rounding, exp/log,
 	  trig/inverse-trig/atan vectors, float diagnostic formatting, crypto hash vectors, iterator
 	  ranges, retained-3D draw-only frame republishing, and Scene3D package-asset authoring rather than leaving those as
 	  ad-hoc focused fixtures.

@@ -218,6 +218,16 @@
       ]
     },
     {
+      "module": "std:timer",
+      "alias": "timer",
+      "probes": [
+        "var tw = timer.watch_deadline(\"surface\", timer.now_ns())",
+        "if tw[\"kind\"] != \"timer\" || tw[\"id\"] != \"surface\" { fail(101) }",
+        "if timer.remaining_ms(timer.now_ns() - 1) != 0 { fail(102) }",
+        "if !timer.expired(timer.now_ns() - 1) { fail(103) }"
+      ]
+    },
+    {
       "module": "std:argparse",
       "alias": "argparse",
       "probes": [
