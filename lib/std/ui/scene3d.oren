@@ -10,6 +10,8 @@
 import list "std:list"
 import bytes "std:bytes"
 import json "std:json"
+import ints "std:ints"
+import math "std:math"
 import raw "std:buffer/raw"
 import shapes "std:ui/scene3d_shapes"
 import ui_color "std:ui/color"
@@ -158,7 +160,7 @@ fn _store_xyz_values(out, off, x, y, z, ctx) {
     return _store_i32_le(out, off + 8, z, ctx + ".z")
 }
 
-fn _pack_vertices_xyz(points, sx, sy, sz, ctx) {
+fn _pack_vertices_xyz(points, xf, ctx) {
     if points == nil { return oren_err(4, ctx + ": missing vertices_xyz") }
     var np = oren_list_len(points)
     if oren_is_err(np) { return oren_err(4, ctx + ": vertices_xyz must be list") }
@@ -169,7 +171,7 @@ fn _pack_vertices_xyz(points, sx, sy, sz, ctx) {
         var p = points[i]
         if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": vertex must be [x,y,z]") }
         var off = i * 12
-        var rc = _store_scaled_xyz_values(out, off, p[0], p[1], p[2], sx, sy, sz, ctx)
+        var rc = _store_transformed_xyz_values(out, off, p[0], p[1], p[2], xf, ctx)
         if oren_is_err(rc) { return rc }
         i = i + 1
     }
@@ -277,15 +279,65 @@ fn _has_scale_xyz_milli(m) {
     return transform != nil && transform["scale_xyz_milli"] != nil
 }
 
+fn _rotation_z_milli_deg(m, ctx) {
+    var v = m["rotation_z_milli_deg"]
+    if v == nil { v = m["rotate_z_milli_deg"] }
+    var transform = m["transform"]
+    if v == nil && transform != nil { v = transform["rotation_z_milli_deg"] }
+    if v == nil && transform != nil { v = transform["rotate_z_milli_deg"] }
+    if v == nil { return 0 }
+    if _is_int(v) == false { return oren_err(4, ctx + ": invalid rotation_z_milli_deg") }
+    return v
+}
+
+fn _has_rotation_z_milli_deg(m) {
+    if m["rotation_z_milli_deg"] != nil || m["rotate_z_milli_deg"] != nil { return true }
+    var transform = m["transform"]
+    return transform != nil && (transform["rotation_z_milli_deg"] != nil || transform["rotate_z_milli_deg"] != nil)
+}
+
+fn _has_mesh_transform(m) {
+    return _has_scale_xyz_milli(m) || _has_rotation_z_milli_deg(m)
+}
+
+fn _mesh_transform(m, ctx) {
+    var sx = _scale_axis_milli(m, 0, ctx); if oren_is_err(sx) { return sx }
+    var sy = _scale_axis_milli(m, 1, ctx); if oren_is_err(sy) { return sy }
+    var sz = _scale_axis_milli(m, 2, ctx); if oren_is_err(sz) { return sz }
+    var rz = _rotation_z_milli_deg(m, ctx); if oren_is_err(rz) { return rz }
+    if rz == 0 { return [sx, sy, sz, false, 0.0, 1.0] }
+    var rad = math.radians(f64(rz) / 1000.0)
+    var sc = math.sincos(rad)
+    if oren_is_err(sc) { return sc }
+    return [sx, sy, sz, true, sc[0], sc[1]]
+}
+
 fn _scaled_i32(v, scale, ctx) {
     if _is_int(v) == false { return oren_err(4, ctx + ": expected i32") }
     return v * scale / 1000
 }
 
-fn _store_scaled_xyz_values(out, off, x, y, z, sx, sy, sz, ctx) {
-    var xx = _scaled_i32(x, sx, ctx + ".x"); if oren_is_err(xx) { return xx }
-    var yy = _scaled_i32(y, sy, ctx + ".y"); if oren_is_err(yy) { return yy }
-    var zz = _scaled_i32(z, sz, ctx + ".z"); if oren_is_err(zz) { return zz }
+fn _round_i32(v, ctx) {
+    var rounded = math.round(v)
+    if oren_is_err(rounded) { return oren_err(4, ctx + ": rotation overflow") }
+    if rounded < -2147483648.0 || rounded > 2147483647.0 {
+        return oren_err(4, ctx + ": rotated coordinate out of i32 range")
+    }
+    return ints.i32(rounded)
+}
+
+fn _store_transformed_xyz_values(out, off, x, y, z, xf, ctx) {
+    var xx = _scaled_i32(x, xf[0], ctx + ".x"); if oren_is_err(xx) { return xx }
+    var yy = _scaled_i32(y, xf[1], ctx + ".y"); if oren_is_err(yy) { return yy }
+    var zz = _scaled_i32(z, xf[2], ctx + ".z"); if oren_is_err(zz) { return zz }
+    if xf[3] {
+        var rx = _round_i32(f64(xx) * xf[5] - f64(yy) * xf[4], ctx + ".x")
+        if oren_is_err(rx) { return rx }
+        var ry = _round_i32(f64(xx) * xf[4] + f64(yy) * xf[5], ctx + ".y")
+        if oren_is_err(ry) { return ry }
+        xx = rx
+        yy = ry
+    }
     return _store_xyz_values(out, off, xx, yy, zz, ctx)
 }
 
@@ -298,15 +350,11 @@ fn _load_i32_le(buf, off) {
     return u
 }
 
-fn _scale_packed_triangles_xyz(tris, m, ctx) {
-    if _has_scale_xyz_milli(m) == false { return tris }
-    var sx = _scale_axis_milli(m, 0, ctx)
-    if oren_is_err(sx) { return sx }
-    var sy = _scale_axis_milli(m, 1, ctx)
-    if oren_is_err(sy) { return sy }
-    var sz = _scale_axis_milli(m, 2, ctx)
-    if oren_is_err(sz) { return sz }
-    if sx == 1000 && sy == 1000 && sz == 1000 { return tris }
+fn _transform_packed_triangles_xyz(tris, m, ctx) {
+    if _has_mesh_transform(m) == false { return tris }
+    var xf = _mesh_transform(m, ctx)
+    if oren_is_err(xf) { return xf }
+    if xf[0] == 1000 && xf[1] == 1000 && xf[2] == 1000 && xf[3] == false { return tris }
     var n = bytes.len(tris)
     if oren_is_err(n) { return oren_err(4, ctx + ": expected triangle bytes") }
     if n % 36 != 0 { return oren_err(4, ctx + ": triangle byte length must be multiple of 36") }
@@ -315,14 +363,14 @@ fn _scale_packed_triangles_xyz(tris, m, ctx) {
         var x = _load_i32_le(tris, off + 0)
         var y = _load_i32_le(tris, off + 4)
         var z = _load_i32_le(tris, off + 8)
-        var rc = _store_scaled_xyz_values(tris, off, x, y, z, sx, sy, sz, ctx)
+        var rc = _store_transformed_xyz_values(tris, off, x, y, z, xf, ctx)
         if oren_is_err(rc) { return rc }
         off = off + 12
     }
     return tris
 }
 
-fn _pack_triangles_xyz(triangles, sx, sy, sz, ctx) {
+fn _pack_triangles_xyz(triangles, xf, ctx) {
     if triangles == nil { return oren_err(4, ctx + ": missing triangles_xyz") }
     var nt = oren_list_len(triangles)
     if oren_is_err(nt) { return oren_err(4, ctx + ": triangles_xyz must be list") }
@@ -337,7 +385,7 @@ fn _pack_triangles_xyz(triangles, sx, sy, sz, ctx) {
             var p = tri[j]
             if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": triangle vertex must be [x,y,z]") }
             var off = i * 36 + j * 12
-            var rc = _store_scaled_xyz_values(out, off, p[0], p[1], p[2], sx, sy, sz, ctx)
+            var rc = _store_transformed_xyz_values(out, off, p[0], p[1], p[2], xf, ctx)
             if oren_is_err(rc) { return rc }
             j = j + 1
         }
@@ -346,12 +394,12 @@ fn _pack_triangles_xyz(triangles, sx, sy, sz, ctx) {
     return out
 }
 
-fn _store_point_xyz(out, off, p, sx, sy, sz, ctx) {
+fn _store_point_xyz(out, off, p, xf, ctx) {
     if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": vertex must be [x,y,z]") }
-    return _store_scaled_xyz_values(out, off, p[0], p[1], p[2], sx, sy, sz, ctx)
+    return _store_transformed_xyz_values(out, off, p[0], p[1], p[2], xf, ctx)
 }
 
-fn _pack_quads_xyz(quads, sx, sy, sz, ctx) {
+fn _pack_quads_xyz(quads, xf, ctx) {
     if quads == nil { return oren_err(4, ctx + ": missing quads_xyz") }
     var nq = oren_list_len(quads)
     if oren_is_err(nq) { return oren_err(4, ctx + ": quads_xyz must be list") }
@@ -362,12 +410,12 @@ fn _pack_quads_xyz(quads, sx, sy, sz, ctx) {
         var q = quads[i]
         if q == nil || oren_list_len(q) != 4 { return oren_err(4, ctx + ": quad must have 4 vertices") }
         var off = i * 72
-        var rc = _store_point_xyz(out, off + 0, q[0], sx, sy, sz, ctx + ".a"); if oren_is_err(rc) { return rc }
-        rc = _store_point_xyz(out, off + 12, q[1], sx, sy, sz, ctx + ".b"); if oren_is_err(rc) { return rc }
-        rc = _store_point_xyz(out, off + 24, q[2], sx, sy, sz, ctx + ".c"); if oren_is_err(rc) { return rc }
-        rc = _store_point_xyz(out, off + 36, q[0], sx, sy, sz, ctx + ".a"); if oren_is_err(rc) { return rc }
-        rc = _store_point_xyz(out, off + 48, q[2], sx, sy, sz, ctx + ".c"); if oren_is_err(rc) { return rc }
-        rc = _store_point_xyz(out, off + 60, q[3], sx, sy, sz, ctx + ".d"); if oren_is_err(rc) { return rc }
+        var rc = _store_point_xyz(out, off + 0, q[0], xf, ctx + ".a"); if oren_is_err(rc) { return rc }
+        rc = _store_point_xyz(out, off + 12, q[1], xf, ctx + ".b"); if oren_is_err(rc) { return rc }
+        rc = _store_point_xyz(out, off + 24, q[2], xf, ctx + ".c"); if oren_is_err(rc) { return rc }
+        rc = _store_point_xyz(out, off + 36, q[0], xf, ctx + ".a"); if oren_is_err(rc) { return rc }
+        rc = _store_point_xyz(out, off + 48, q[2], xf, ctx + ".c"); if oren_is_err(rc) { return rc }
+        rc = _store_point_xyz(out, off + 60, q[3], xf, ctx + ".d"); if oren_is_err(rc) { return rc }
         i = i + 1
     }
     return out
@@ -556,7 +604,7 @@ fn _store_rgba(out, off, color, ctx) {
     return 0
 }
 
-fn _pack_triangles_xyz_rgba(triangles, sx, sy, sz, ctx) {
+fn _pack_triangles_xyz_rgba(triangles, xf, ctx) {
     if triangles == nil { return oren_err(4, ctx + ": missing triangles_xyz_rgba") }
     var nt = oren_list_len(triangles)
     if oren_is_err(nt) { return oren_err(4, ctx + ": triangles_xyz_rgba must be list") }
@@ -574,7 +622,7 @@ fn _pack_triangles_xyz_rgba(triangles, sx, sy, sz, ctx) {
             var p = verts[j]
             if p == nil || oren_list_len(p) != 3 { return oren_err(4, ctx + ": triangle vertex must be [x,y,z]") }
             var off = i * 40 + j * 12
-            var rc = _store_scaled_xyz_values(out, off, p[0], p[1], p[2], sx, sy, sz, ctx)
+            var rc = _store_transformed_xyz_values(out, off, p[0], p[1], p[2], xf, ctx)
             if oren_is_err(rc) { return rc }
             j = j + 1
         }
@@ -592,53 +640,45 @@ fn _asset_mesh(m) {
     if kind == nil { kind = "triangles" }
     if kind == "triangles" {
         var tris = nil
-        var scale_generated = false
+        var transform_generated = false
         if m["triangles_xyz"] != nil {
-            var sx = _scale_axis_milli(m, 0, "ui.scene3d mesh")
-            if oren_is_err(sx) { return sx }
-            var sy = _scale_axis_milli(m, 1, "ui.scene3d mesh")
-            if oren_is_err(sy) { return sy }
-            var sz = _scale_axis_milli(m, 2, "ui.scene3d mesh")
-            if oren_is_err(sz) { return sz }
-            tris = _pack_triangles_xyz(m["triangles_xyz"], sx, sy, sz, "ui.scene3d mesh.triangles_xyz")
+            var xf = _mesh_transform(m, "ui.scene3d mesh")
+            if oren_is_err(xf) { return xf }
+            tris = _pack_triangles_xyz(m["triangles_xyz"], xf, "ui.scene3d mesh.triangles_xyz")
         } else if m["quads_xyz"] != nil {
-            var qsx = _scale_axis_milli(m, 0, "ui.scene3d mesh")
-            if oren_is_err(qsx) { return qsx }
-            var qsy = _scale_axis_milli(m, 1, "ui.scene3d mesh")
-            if oren_is_err(qsy) { return qsy }
-            var qsz = _scale_axis_milli(m, 2, "ui.scene3d mesh")
-            if oren_is_err(qsz) { return qsz }
-            tris = _pack_quads_xyz(m["quads_xyz"], qsx, qsy, qsz, "ui.scene3d mesh.quads_xyz")
+            var qxf = _mesh_transform(m, "ui.scene3d mesh")
+            if oren_is_err(qxf) { return qxf }
+            tris = _pack_quads_xyz(m["quads_xyz"], qxf, "ui.scene3d mesh.quads_xyz")
         } else if m["boxes_xyz"] != nil {
             tris = _pack_boxes_xyz(m["boxes_xyz"], "ui.scene3d mesh.boxes_xyz")
-            scale_generated = true
+            transform_generated = true
         } else if m["prisms_xy"] != nil {
             tris = _pack_prisms_xy(m["prisms_xy"], "ui.scene3d mesh.prisms_xy")
-            scale_generated = true
+            transform_generated = true
         } else if m["cylinders_z"] != nil {
             tris = shapes.pack_cylinders_z(m["cylinders_z"], "ui.scene3d mesh.cylinders_z")
-            scale_generated = true
+            transform_generated = true
         } else if m["cones_z"] != nil {
             tris = shapes.pack_cones_z(m["cones_z"], "ui.scene3d mesh.cones_z")
-            scale_generated = true
+            transform_generated = true
         } else if m["spheres_xyz"] != nil {
             tris = shapes.pack_spheres_xyz(m["spheres_xyz"], "ui.scene3d mesh.spheres_xyz")
-            scale_generated = true
+            transform_generated = true
         } else if m["ellipsoids_xyz"] != nil {
             tris = shapes.pack_ellipsoids_xyz(m["ellipsoids_xyz"], "ui.scene3d mesh.ellipsoids_xyz")
-            scale_generated = true
+            transform_generated = true
         } else if m["toruses_xyz"] != nil {
             tris = shapes.pack_toruses_xyz(m["toruses_xyz"], "ui.scene3d mesh.toruses_xyz")
-            scale_generated = true
+            transform_generated = true
         } else if m["capsules_z"] != nil {
             tris = shapes.pack_capsules_z(m["capsules_z"], "ui.scene3d mesh.capsules_z")
-            scale_generated = true
+            transform_generated = true
         } else {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }
         if oren_is_err(tris) { return tris }
-        if scale_generated {
-            tris = _scale_packed_triangles_xyz(tris, m, "ui.scene3d mesh")
+        if transform_generated {
+            tris = _transform_packed_triangles_xyz(tris, m, "ui.scene3d mesh")
             if oren_is_err(tris) { return tris }
         }
         var tri_color = _asset_color(m, "ui.scene3d mesh")
@@ -648,17 +688,11 @@ fn _asset_mesh(m) {
     if kind == "triangles_rgba" {
         var tris_rgba = nil
         if m["triangles_xyz_rgba"] != nil {
-            var rsx = _scale_axis_milli(m, 0, "ui.scene3d mesh")
-            if oren_is_err(rsx) { return rsx }
-            var rsy = _scale_axis_milli(m, 1, "ui.scene3d mesh")
-            if oren_is_err(rsy) { return rsy }
-            var rsz = _scale_axis_milli(m, 2, "ui.scene3d mesh")
-            if oren_is_err(rsz) { return rsz }
+            var rxf = _mesh_transform(m, "ui.scene3d mesh")
+            if oren_is_err(rxf) { return rxf }
             tris_rgba = _pack_triangles_xyz_rgba(
                 m["triangles_xyz_rgba"],
-                rsx,
-                rsy,
-                rsz,
+                rxf,
                 "ui.scene3d mesh.triangles_xyz_rgba"
             )
         } else {
@@ -671,13 +705,9 @@ fn _asset_mesh(m) {
         var vertices = nil
         var vertex_count = -1
         if m["vertices_xyz"] != nil {
-            var vsx = _scale_axis_milli(m, 0, "ui.scene3d mesh")
-            if oren_is_err(vsx) { return vsx }
-            var vsy = _scale_axis_milli(m, 1, "ui.scene3d mesh")
-            if oren_is_err(vsy) { return vsy }
-            var vsz = _scale_axis_milli(m, 2, "ui.scene3d mesh")
-            if oren_is_err(vsz) { return vsz }
-            vertices = _pack_vertices_xyz(m["vertices_xyz"], vsx, vsy, vsz, "ui.scene3d mesh.vertices_xyz")
+            var vxf = _mesh_transform(m, "ui.scene3d mesh")
+            if oren_is_err(vxf) { return vxf }
+            vertices = _pack_vertices_xyz(m["vertices_xyz"], vxf, "ui.scene3d mesh.vertices_xyz")
             vertex_count = oren_list_len(m["vertices_xyz"])
         } else {
             vertices = _pack_bytes(m["vertices"], "ui.scene3d mesh.vertices")
