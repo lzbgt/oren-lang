@@ -45,7 +45,7 @@ design evidence lives under `project-doc/`.
   query building/replacement/appending shared by native `std:net/http`, native
   `std:net/ws`, and AVM-safe app code; native and AVM HTTP request opts now route
   structured `query` / `append_query` pairs through the same composer, and native
-  HTTP wire requests strip URL fragments through the shared `request_target`.
+  HTTP/WebSocket wire requests strip URL fragments through the shared `request_target`.
 - `std:path` now provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and extension
   helpers shared by AVM and desktop SDK code.

@@ -17,6 +17,8 @@ fn check(u, scheme, host, port, path, code) {
 check(http._parse_http_url("https://host.test:9443/p"), "https", "host.test", 9443, "/p", 10)
 check(ws._parse_ws_url("wss://socket.test/chat"), "wss", "socket.test", 443, "/chat", 20)
 check(ws._parse_url_record("ws://127.0.0.1:9000"), "ws", "127.0.0.1", 9000, "/", 30)
+var ws_wire_url = ws._parse_url_record("ws://socket.test/chat?room=1#frag")
+if ws_wire_url["request_target"] != "/chat?room=1" { fail(31) }
 
 var replaced = http._url_with_opts("http://host.test/search?old=1#frag", {"query": [["q", "hello world"]]}, "test")
 if replaced != "http://host.test/search?q=hello%20world#frag" { fail(35) }
@@ -28,7 +30,7 @@ if wire_url["request_target"] != "/search?old=1" { fail(38) }
 
 var public_url = ws.parse_url("wss://example.org/x")
 if oren_is_err(public_url) { fail(40) }
-if public_url["scheme"] != "wss" || public_url["host"] != "example.org" || public_url["port"] != 443 || public_url["path"] != "/x" { fail(41) }
+if public_url["scheme"] != "wss" || public_url["host"] != "example.org" || public_url["port"] != 443 || public_url["path"] != "/x" || public_url["request_target"] != "/x" { fail(41) }
 
 print("module net_url_consumers_native OK")
 exit(0)

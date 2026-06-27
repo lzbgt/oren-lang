@@ -321,7 +321,7 @@ fn run_case() {
 }
 
 fn run_low_level_helpers() {
-    var u = ws.parse_url("ws://127.0.0.1:1234/chat")
+    var u = ws.parse_url("ws://127.0.0.1:1234/chat?room=1#frag")
     if oren_is_err(u) {
         print("ws_echo_loopback: FAIL parse_url err=" + oren_err_msg(u))
         return 70
@@ -329,7 +329,8 @@ fn run_low_level_helpers() {
     if strcmp(u["scheme"], "ws") != 0 { return 71 }
     if strcmp(u["host"], "127.0.0.1") != 0 { return 72 }
     if u["port"] != 1234 { return 73 }
-    if strcmp(u["path"], "/chat") != 0 { return 74 }
+    if strcmp(u["path"], "/chat?room=1#frag") != 0 { return 74 }
+    if strcmp(u["request_target"], "/chat?room=1") != 0 { return 78 }
 
     var bad = ws.parse_url("ftp://127.0.0.1/")
     if !oren_is_err(bad) { return 75 }

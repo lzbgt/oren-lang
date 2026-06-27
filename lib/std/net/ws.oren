@@ -123,7 +123,7 @@ fn _parse_url_record(url) {
 fn parse_url(url) {
     var r = _parse_url_record(url)
     if oren_map_get_str(r, "ok") == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
     }
     return _err_from_record(r, "ws.parse_url failed")
 }
@@ -398,7 +398,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
 
     var host = pu["host"]
     var port = pu["port"]
-    var path = pu["path"]
+    var path = pu["request_target"]
 
     var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
     if oren_map_get_str(rh, "ok") != 1 {
