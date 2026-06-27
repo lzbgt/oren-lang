@@ -136,6 +136,20 @@ fn query_part(target) {
     return _slice_or_empty(target, q + 1, end)
 }
 
+fn fragment_part(target) {
+    if target == nil { return oren_err(4, "url.fragment_part: target is nil") }
+    var hash = _find_byte(target, 0, 35) // '#'
+    if hash < 0 { return "" }
+    return _slice_or_empty(target, hash + 1, oren_string_len(target))
+}
+
+fn request_target(target) {
+    if target == nil { return oren_err(4, "url.request_target: target is nil") }
+    var end = _path_query_end(target, 0)
+    if end == 0 { return "/" }
+    return _slice_or_empty(target, 0, end)
+}
+
 fn encode_component(s) {
     if oren_type_tag(s) != 4 { return oren_err(4, "url.encode_component: s must be string") }
     var n = oren_string_len(s)
@@ -434,8 +448,10 @@ fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
     if oren_is_err(clean_path) { return {"ok": 0, "err": "path parse failed"} }
     var query = query_part(path)
     if oren_is_err(query) { return {"ok": 0, "err": "query parse failed"} }
+    var wire_target = request_target(path)
+    if oren_is_err(wire_target) { return {"ok": 0, "err": "request-target parse failed"} }
 
-    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path, "path_only": clean_path, "query": query}
+    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path, "path_only": clean_path, "query": query, "request_target": wire_target}
 }
 
 fn _err_from_record(r, fallback) {
@@ -455,7 +471,7 @@ fn parse_ws_record(url) {
 fn parse_http(url) {
     var r = parse_http_record(url)
     if r["ok"] == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"]}
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
     }
     return _err_from_record(r, "url.parse_http failed")
 }
@@ -463,7 +479,7 @@ fn parse_http(url) {
 fn parse_ws(url) {
     var r = parse_ws_record(url)
     if r["ok"] == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"]}
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
     }
     return _err_from_record(r, "url.parse_ws failed")
 }
@@ -471,11 +487,11 @@ fn parse_ws(url) {
 fn parse(url) {
     var h = parse_http_record(url)
     if h["ok"] == 1 {
-        return {"scheme": h["scheme"], "host": h["host"], "port": h["port"], "path": h["path"], "path_only": h["path_only"], "query": h["query"]}
+        return {"scheme": h["scheme"], "host": h["host"], "port": h["port"], "path": h["path"], "path_only": h["path_only"], "query": h["query"], "request_target": h["request_target"]}
     }
     var w = parse_ws_record(url)
     if w["ok"] == 1 {
-        return {"scheme": w["scheme"], "host": w["host"], "port": w["port"], "path": w["path"], "path_only": w["path_only"], "query": w["query"]}
+        return {"scheme": w["scheme"], "host": w["host"], "port": w["port"], "path": w["path"], "path_only": w["path_only"], "query": w["query"], "request_target": w["request_target"]}
     }
     return _err_from_record(h, "url.parse failed")
 }

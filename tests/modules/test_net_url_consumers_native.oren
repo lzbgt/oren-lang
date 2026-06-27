@@ -23,6 +23,8 @@ if replaced != "http://host.test/search?q=hello%20world#frag" { fail(35) }
 var appended = http._url_with_opts("http://host.test/search?old=1#frag", {"append_query": [["q", "hello world"]]}, "test")
 if appended != "http://host.test/search?old=1&q=hello%20world#frag" { fail(36) }
 if !oren_is_err(http._url_with_opts("http://host.test/search", {"query": [["bad"]]}, "test")) { fail(37) }
+var wire_url = http._parse_http_url("http://host.test/search?old=1#frag")
+if wire_url["request_target"] != "/search?old=1" { fail(38) }
 
 var public_url = ws.parse_url("wss://example.org/x")
 if oren_is_err(public_url) { fail(40) }

@@ -20,9 +20,12 @@ check(neturl.parse("wss://example.org"), "wss", "example.org", 443, "/", 40)
 
 var u = neturl.parse_http("https://example.com:8443/a/b?q=hello+world&x=%2B#frag")
 if oren_is_err(u) { fail(50) }
-if u["path_only"] != "/a/b" || u["query"] != "q=hello+world&x=%2B" { fail(51) }
+if u["path_only"] != "/a/b" || u["query"] != "q=hello+world&x=%2B" || u["request_target"] != "/a/b?q=hello+world&x=%2B" { fail(51) }
 if neturl.path_part(u["path"]) != "/a/b" { fail(52) }
 if neturl.query_part(u["path"]) != "q=hello+world&x=%2B" { fail(53) }
+if neturl.fragment_part(u["path"]) != "frag" { fail(76) }
+if neturl.request_target(u["path"]) != "/a/b?q=hello+world&x=%2B" { fail(77) }
+if neturl.request_target("#frag") != "/" { fail(78) }
 
 if neturl.encode_component("a b+c/%") != "a%20b%2Bc%2F%25" { fail(54) }
 if neturl.decode_component("a%20b%2Bc%2F%25") != "a b+c/%" { fail(55) }

@@ -86,7 +86,8 @@
 <p>  path/query splitting, percent encode/decode, query param get/list, and exact-size</p>
 <p>  query building/replacement/appending shared by native <code>std:net/http</code>, native</p>
 <p>  <code>std:net/ws</code>, and AVM-safe app code; native and AVM HTTP request opts now route</p>
-<p>  structured <code>query</code> / <code>append_query</code> pairs through the same composer.</p>
+<p>  structured <code>query</code> / <code>append_query</code> pairs through the same composer, and native</p>
+<p>  HTTP wire requests strip URL fragments through the shared <code>request_target</code>.</p>
 <ul>
 <li><code>std:path</code> now provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>

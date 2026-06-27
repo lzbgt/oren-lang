@@ -396,7 +396,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if pu["scheme"] == "https" { is_tls = 1 }
     var host = pu["host"]
     var port = pu["port"]
-    var path = pu["path"]
+    var path = pu["request_target"]
 
     var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
     if rh["ok"] != 1 {
