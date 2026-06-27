@@ -41,7 +41,7 @@ fn main() {
             sid = net_tcp.connect_spec(args[3], 5000)
         }
         if oren_is_err(sid) { oren_exit(57) }
-        var first_ip = net_dns.resolve_first("localhost", 5000)
+        var first_ip = net_dns.resolve_first("127.0.0.1", 5000)
         if oren_is_err(first_ip) || oren_string_len(first_ip) <= 0 { oren_exit(65) }
         var pw = nil
         if is_ws {

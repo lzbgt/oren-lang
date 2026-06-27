@@ -596,6 +596,7 @@ int main(void) {
         NSString* packagePublisherKeyB64 = env[@"OREN_AVM_SDK_PACKAGE_PUBLISHER_KEY_B64"];
         NSString* trustBundlePath = env[@"OREN_AVM_SDK_TRUST_BUNDLE_PATH"];
         NSString* allowedHost = env[@"OREN_AVM_SDK_NET_ALLOWED_HOST"] ?: @"note.local";
+        NSString* allowedHostList = env[@"OREN_AVM_SDK_NET_ALLOWED_HOSTS"];
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
         BOOL defaultLiveNetwork = env[@"OREN_AVM_SDK_NET_DEFAULT_LIVE"] != nil;
@@ -640,7 +641,10 @@ int main(void) {
         };
         if (defaultLiveNetwork) {
             if (![runtime disableLiveNetworkWithError:&error]) return 70;
-            if (![runtime enableLiveNetworkWithAllowedHosts:nil timeoutSeconds:5.0 error:&error]) return 71;
+            NSSet<NSString*>* allowedHosts = allowedHostList.length > 0
+                ? [NSSet setWithArray:[allowedHostList componentsSeparatedByString:@","]]
+                : nil;
+            if (![runtime enableLiveNetworkWithAllowedHosts:allowedHosts timeoutSeconds:5.0 error:&error]) return 71;
         }
         if (![runtime configureLiveNetworkSessionLimitsWithMaxSessions:cfg.liveNetworkMaxSessions
                                                         byteLimitBytes:cfg.liveNetworkSessionByteLimitBytes
@@ -1554,7 +1558,7 @@ srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 srv.bind(("127.0.0.1", port))
 srv.listen(5)
 ready.write_text("ready\n", encoding="utf-8")
-for _ in range(7):
+for _ in range(8):
     conn, _addr = srv.accept()
     try:
         conn.recv(4096)
@@ -1941,26 +1945,31 @@ OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_NET_ALLOWED_HOST="http://127.0.0.1:${NET_PORT}" \
   "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},tcp://127.0.0.1:${TCP_PORT}" OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},tcp://127.0.0.1:$((TCP_PORT + 1))" \
+OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" OREN_AVM_SDK_EXPECT_EXIT=57 "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
-OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" \
-  "$HOST_SDK_BIN"
-OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
-OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},tcp://127.0.0.1:${TCP_PORT}" \
 OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" \
 OREN_AVM_SDK_SESSION_BYTE_LIMIT=7 \
 OREN_AVM_SDK_EXPECT_EXIT=60 \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},udp://127.0.0.1:${UDP_PORT}" \
 OREN_AVM_SDK_TCP_URL="udp://127.0.0.1:${UDP_PORT}" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},ws://127.0.0.1:${WS_PORT}" \
 OREN_AVM_SDK_TCP_URL="ws://127.0.0.1:${WS_PORT}/echo" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},tcp-listen://127.0.0.1:${TCP_LISTEN_PORT}" \
 OREN_AVM_SDK_TCP_LISTEN_URL="tcp-listen://127.0.0.1:${TCP_LISTEN_PORT}" \
   "$HOST_SDK_BIN" > "$LOG_DIR/libavm_ios_sdk_tcp_listen_host.log" 2>&1 &
 TCP_LISTEN_HOST_PID=$!

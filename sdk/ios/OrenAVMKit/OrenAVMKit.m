@@ -105,6 +105,19 @@ static BOOL OrenAVMKitURLAllowedByHostOrOrigin(NSURL* url, NSSet<NSString*>* all
     return NO;
 }
 
+static BOOL OrenAVMKitHostAllowedByHostOrOrigin(NSString* host, NSSet<NSString*>* allowedHosts) {
+    if (allowedHosts.count == 0) return YES;
+    NSString* needle = host.lowercaseString;
+    if (needle.length == 0) return NO;
+    for (NSString* entry in allowedHosts) {
+        if (![entry isKindOfClass:[NSString class]] || entry.length == 0) continue;
+        NSURL* entryURL = [entry containsString:@"://"] ? [NSURL URLWithString:entry] : nil;
+        NSString* entryHost = entryURL ? entryURL.host.lowercaseString : entry.lowercaseString;
+        if ([needle isEqualToString:entryHost]) return YES;
+    }
+    return NO;
+}
+
 @interface OrenAVMRuntime ()
 @property(nonatomic, readonly) AvmEmbedHandle* handle;
 @end
@@ -482,7 +495,7 @@ static int OrenAVMRuntimeNetResolve(void* userData, const char* host, uint32_t t
     OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
     NSString* hostString = [NSString stringWithUTF8String:host] ?: @"";
     if (hostString.length == 0) return -1;
-    if (runtime->_liveNetworkAllowedHosts.count > 0 && ![runtime->_liveNetworkAllowedHosts containsObject:hostString]) return -1;
+    if (!OrenAVMKitHostAllowedByHostOrOrigin(hostString, runtime->_liveNetworkAllowedHosts)) return -1;
 
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -549,7 +562,7 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     BOOL isUDP = [scheme isEqualToString:@"udp"];
     BOOL isWS = [scheme isEqualToString:@"ws"];
     if (!url || (!isTCP && !isTCPListen && !isUDP && !isWS) || url.host.length == 0 || !url.port) return -1;
-    if (runtime->_liveNetworkAllowedHosts.count > 0 && ![runtime->_liveNetworkAllowedHosts containsObject:url.host]) return -1;
+    if (!OrenAVMKitURLAllowedByHostOrOrigin(url, runtime->_liveNetworkAllowedHosts)) return -1;
 
     char service[16];
     snprintf(service, sizeof(service), "%u", url.port.unsignedIntValue);

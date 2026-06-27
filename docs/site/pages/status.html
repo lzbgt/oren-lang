@@ -331,8 +331,8 @@
 <p>  host network responses into VirtualNET. <code>make verify-libavm-ios</code> starts a local</p>
 <p>  HTTP server, fetches it through the SDK, injects the body under the requested URL,</p>
 <p>  then runs OBC that reads it as <code>http.get(url).bytes()</code> through</p>
-<p>  <code>std:net/avm/http</code>. The allow-list accepts legacy host entries and canonical</p>
-<p>  origins, so apps can restrict scheme/host/port when needed.</p>
+<p>  <code>std:net/avm/http</code>. URL fetch allow-lists accept legacy host entries and</p>
+<p>  canonical origins, so apps can restrict scheme/host/port when needed.</p>
 <p>  The raw <code>oren_net_get*</code> intrinsics remain the AVM substrate, not the app-facing API.</p>
 <p>  AVM still does not expose raw host networking to bytecode.</p>
 <ul>
@@ -346,8 +346,8 @@
 <p>  do not need hardcoded OBC builds. The SDK reuses its ephemeral <code>NSURLSession</code> for</p>
 <p>  prefetch and live fetches instead of constructing one per OBC-triggered request.</p>
 <p>  <code>make verify-libavm-ios</code> proves fixture, prefetch, explicit live, and interactive-</p>
-<p>  default live fetch modes against a local HTTP server, including origin-scoped</p>
-<p>  allow-list denial and dynamic disable</p>
+<p>  default live fetch/session modes against local HTTP/TCP/UDP/WebSocket servers,</p>
+<p>  including origin-scoped allow-list denial and dynamic disable</p>
 <p>  and re-enable through the SDK.</p>
 <ul>
 <li>AVM NET now also has virtual socket/session handles for performance-oriented TCP/UDP/WebSocket</li>
@@ -397,7 +397,8 @@
 <p>  native wire requests plus AVM virtual-provider specs strip URL fragments at</p>
 <p>  the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals</p>
 <p>  explicitly instead of treating them as hostnames, and iOS runtime/package URL</p>
-<p>  fetch allow-lists accept canonical origins in addition to legacy host entries.</p>
+<p>  fetch plus live session allow-lists accept canonical origins in addition to</p>
+<p>  legacy host entries.</p>
 <ul>
 <li><code>std:path</code> provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>
