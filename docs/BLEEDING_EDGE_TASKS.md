@@ -370,7 +370,8 @@ This file is the concise task view. Detailed implementation status lives in
      `fdim`, `nextafter`/`nexttoward`, `pow` / `power` for integer, negative, fractional
      positive-base, infinity edge, and negative-base real-domain cases,
      `cbrt` with normal/subnormal/`fpclassify` classification and sign/non-finite coverage,
-     finite `lerp`, overflow-aware `midpoint`,
+     finite `lerp`, graphics interpolation helpers `clamp`, `saturate`,
+     `smoothstep`, and `smootherstep`, overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
      inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated

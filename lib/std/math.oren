@@ -72,6 +72,19 @@ fn clamp_f(x: f64, lo: f64, hi: f64) {
     return x
 }
 
+fn clamp(x: f64, lo: f64, hi: f64) {
+    if is_nan(x) || is_nan(lo) || is_nan(hi) { return oren_err(4, "clamp: NaN") }
+    if hi < lo { return oren_err(4, "clamp: hi < lo") }
+    var out: f64 = clamp_f(x, lo, hi)
+    return out
+}
+
+fn saturate(x: f64) {
+    if is_nan(x) { return oren_err(4, "saturate: NaN") }
+    var out: f64 = clamp_f(x, 0.0, 1.0)
+    return out
+}
+
 fn lerp(a: f64, b: f64, t: f64) {
     if is_nan(a) || is_nan(b) || is_nan(t) { return oren_err(4, "lerp: NaN") }
     if t == 0.0 { return a }
@@ -84,6 +97,24 @@ fn lerp(a: f64, b: f64, t: f64) {
     var delta: f64 = b - a
     var step: f64 = t * delta
     return a + step
+}
+
+fn smoothstep(edge0: f64, edge1: f64, x: f64) {
+    if is_nan(edge0) || is_nan(edge1) || is_nan(x) { return oren_err(4, "smoothstep: NaN") }
+    if edge1 <= edge0 { return oren_err(4, "smoothstep: edge1 <= edge0") }
+    var tv = saturate((x - edge0) / (edge1 - edge0))
+    if oren_is_err(tv) { return tv }
+    var t: f64 = tv
+    return t * t * (3.0 - 2.0 * t)
+}
+
+fn smootherstep(edge0: f64, edge1: f64, x: f64) {
+    if is_nan(edge0) || is_nan(edge1) || is_nan(x) { return oren_err(4, "smootherstep: NaN") }
+    if edge1 <= edge0 { return oren_err(4, "smootherstep: edge1 <= edge0") }
+    var tv = saturate((x - edge0) / (edge1 - edge0))
+    if oren_is_err(tv) { return tv }
+    var t: f64 = tv
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
 }
 
 fn midpoint(a: f64, b: f64) {
