@@ -137,6 +137,22 @@ fn _build_get_request(host, path) {
     return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
 }
 
+fn _url_with_opts(url, opts, ctx) {
+    if opts == nil || opts == 0 || oren_is_map(opts) != true { return url }
+    var out = url
+    var q = oren_map_get_str(opts, "query")
+    if q != nil && q != 0 {
+        out = neturl.with_query(out, q)
+        if oren_is_err(out) { return oren_err(4, ctx + ": invalid query") }
+    }
+    var aq = oren_map_get_str(opts, "append_query")
+    if aq != nil && aq != 0 {
+        out = neturl.append_query(out, aq)
+        if oren_is_err(out) { return oren_err(4, ctx + ": invalid append_query") }
+    }
+    return out
+}
+
 fn _resolve_host_ipv4(host, timeout_ms, resolver) {
     return hostutil.resolve_host_ipv4("http", host, timeout_ms, resolver)
 }
@@ -370,7 +386,10 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     }
     timeout_ms = timeout0
 
-    var pu = _parse_http_url(url)
+    var effective_url = _url_with_opts(url, opts, "http.request")
+    if oren_is_err(effective_url) { return {"ok": 0, "err": oren_err_msg(effective_url)} }
+
+    var pu = _parse_http_url(effective_url)
     if pu["ok"] != 1 { return {"ok": 0, "err": "http.request: " + pu["err"]} }
 
     var is_tls = 0
@@ -610,7 +629,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
             response_free({"headers": headers, "body": nil})
             return {"ok": 0, "err": "http.request: chunked decode failed"}
         }
-        return {"ok": 1, "status": status_code, "headers": headers, "body": outc["body"], "body_bytes": outc["body_bytes"]}
+        return {"ok": 1, "url": effective_url, "status": status_code, "headers": headers, "body": outc["body"], "body_bytes": outc["body_bytes"]}
     }
 
     var out = malloc(body_len + 1)
@@ -629,7 +648,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
         return {"ok": 0, "err": "http.request: body bytes allocation failed"}
     }
     free(buf)
-    return {"ok": 1, "status": status_code, "headers": headers, "body": out, "body_bytes": body_bytes}
+    return {"ok": 1, "url": effective_url, "status": status_code, "headers": headers, "body": out, "body_bytes": body_bytes}
 }
 
 fn request_resolver_opts(method, url, timeout_ms, resolver, opts): Response {
@@ -637,7 +656,7 @@ fn request_resolver_opts(method, url, timeout_ms, resolver, opts): Response {
     if method != "GET" { return oren_err(4, "http.request: only GET is supported by std:net/http v0") }
     var r = _fetch_response_resolver_opts(url, timeout_ms, resolver, opts)
     if r["ok"] != 1 { return _err_from_record(r, "http.request failed") }
-    return Response("GET", url, r["status"], r["headers"], r["body"], r["body_bytes"])
+    return Response("GET", r["url"], r["status"], r["headers"], r["body"], r["body_bytes"])
 }
 
 fn request(method, url, ...args): Response {

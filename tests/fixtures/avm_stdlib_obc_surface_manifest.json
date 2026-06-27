@@ -2,7 +2,7 @@
   "schema": "oren.avm.stdlib_surface.v0",
   "stdlib_root": "lib/std/stdlib_avm.oren",
   "success_marker": "avm stdlib obc surface OK",
-  "net_fixtures_hex": "41564d4e45543031020000000100000075020000006f6b010000006a070000007b2261223a317d",
+  "net_fixtures_hex": "41564d4e45543031040000000100000075020000006f6b010000006a070000007b2261223a317d11000000753f713d68656c6c6f253230776f726c6405000000717565727917000000753f6f6c643d3126713d68656c6c6f253230776f726c6406000000617070656e64",
   "modules": [
     {
       "module": "std:buffer",
@@ -217,7 +217,11 @@
         "var net_b = net_req.bytes()",
         "if oren_is_err(net_b) || bytes.len(net_b) != 2 || bytes.get_u8(net_b, 0) != 111 || bytes.get_u8(net_b, 1) != 107 { fail(59) }",
         "var net_j = net_avm_http.get(\"j\").json()",
-        "if oren_is_err(net_j) || net_j[\"t\"] != \"object\" || net_j[\"o\"][\"a\"][\"i\"] != 1 { fail(60) }"
+        "if oren_is_err(net_j) || net_j[\"t\"] != \"object\" || net_j[\"o\"][\"a\"][\"i\"] != 1 { fail(60) }",
+        "var net_q = net_avm_http.request(\"GET\", \"u?old=1\", {\"query\": [[\"q\", \"hello world\"]]})",
+        "if oren_is_err(net_q) || net_q.url != \"u?q=hello%20world\" || net_q.text() != \"query\" { fail(61) }",
+        "var net_a = net_avm_http.request(\"GET\", \"u?old=1\", {\"append_query\": [[\"q\", \"hello world\"]]})",
+        "if oren_is_err(net_a) || net_a.url != \"u?old=1&q=hello%20world\" || net_a.text() != \"append\" { fail(62) }"
       ]
     },
     {

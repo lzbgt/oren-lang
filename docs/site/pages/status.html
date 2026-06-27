@@ -385,7 +385,9 @@
 </ul>
 <p>  <code>std:net/http</code>, native <code>std:net/ws</code>, and AVM-safe app code. It keeps parsing</p>
 <p>  separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the</p>
-<p>  same endpoint interpretation across host and virtual NET providers.</p>
+<p>  same endpoint interpretation across host and virtual NET providers; native and</p>
+<p>  AVM HTTP request opts route structured <code>query</code> / <code>append_query</code> pairs through</p>
+<p>  the shared request-target composer.</p>
 <ul>
 <li><code>std:path</code> provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>
@@ -642,7 +644,8 @@
 <p>  exact-size <code>u8_buf</code> builders and emits color hex digits through string slices,</p>
 <p>  <code>std:net/avm/http</code> has request/response helpers, pure <code>std:net/url</code> shares</p>
 <p>  byte-level percent/query parsing and request-target composition across native</p>
-<p>  and AVM-safe code,</p>
+<p>  and AVM-safe code, and native/AVM HTTP request opts consume those structured</p>
+<p>  query builders,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>

@@ -15,6 +15,14 @@ fn main() {
     if http.text(req) != "ok" { fail("unexpected functional text body") }
     if req.text() != "ok" { fail("unexpected receiver text body") }
     if http.get("u").text() != "ok" { fail("unexpected chained text body") }
+    var req_query = http.request("GET", "u?old=1", {"query": [["q", "hello world"]]})
+    if oren_is_err(req_query) { fail("unexpected query request error") }
+    if req_query.url != "u?q=hello%20world" { fail("unexpected query request url") }
+    if req_query.text() != "query" { fail("unexpected query body") }
+    var req_append = http.request("GET", "u?old=1", {"append_query": [["q", "hello world"]]})
+    if oren_is_err(req_append) { fail("unexpected append request error") }
+    if req_append.url != "u?old=1&q=hello%20world" { fail("unexpected append request url") }
+    if req_append.text() != "append" { fail("unexpected append body") }
     oren_exit(0)
 }
 

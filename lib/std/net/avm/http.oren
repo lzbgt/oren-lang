@@ -8,6 +8,7 @@
 // The root `std:net/avm` module is intentionally only a namespace boundary.
 
 import json_std "std:json"
+import neturl "std:net/url"
 
 struct Response {
     method,
@@ -34,16 +35,35 @@ fn _check_response(resp, ctx) {
     return 0
 }
 
+fn _url_with_opts(url, opts, ctx) {
+    if opts == nil || opts == 0 || oren_is_map(opts) != true { return url }
+    var out = url
+    var q = oren_map_get_str(opts, "query")
+    if q != nil && q != 0 {
+        out = neturl.with_query(out, q)
+        if oren_is_err(out) { return oren_err(4, ctx + ": invalid query") }
+    }
+    var aq = oren_map_get_str(opts, "append_query")
+    if aq != nil && aq != 0 {
+        out = neturl.append_query(out, aq)
+        if oren_is_err(out) { return oren_err(4, ctx + ": invalid append_query") }
+    }
+    return out
+}
+
 fn request(method, url, opts): Response {
     if method == nil { return oren_err(4, "std:net/avm/http.request: method is nil") }
     if url == nil { return oren_err(4, "std:net/avm/http.request: url is nil") }
     if method != "GET" { return oren_err(4, "std:net/avm/http.request: only GET is supported by AVM v0") }
 
-    var body = oren_net_get_bytes(url)
+    var effective_url = _url_with_opts(url, opts, "std:net/avm/http.request")
+    if oren_is_err(effective_url) { return effective_url }
+
+    var body = oren_net_get_bytes(effective_url)
     if oren_is_err(body) {
         return oren_err(oren_err_code(body), _err_msg(body, "std:net/avm/http.request failed"))
     }
-    return Response("GET", url, 200, {}, body)
+    return Response("GET", effective_url, 200, {}, body)
 }
 
 fn get(url): Response {
