@@ -374,8 +374,9 @@ This file is the concise task view. Detailed implementation status lives in
      positive-base, infinity edge, and negative-base real-domain cases,
      `cbrt` with normal/subnormal/`fpclassify` classification and sign/non-finite coverage,
      finite `lerp`, range mapping helpers `inverse_lerp`, `remap`, and
-     `remap_clamped`, graphics interpolation helpers `clamp`, `saturate`,
-     `smoothstep`, and `smootherstep`, overflow-aware `midpoint`,
+     `remap_clamped`, graphics scalar/interpolation helpers `sign`, `step`,
+     `fract`, `clamp`, `saturate`, `smoothstep`, and `smootherstep`,
+     overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
      inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated

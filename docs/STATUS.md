@@ -787,7 +787,8 @@ Working evidence:
   `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
   NaN-aware `fabs` / `fmin` / `fmax`, finite `lerp`, `inverse_lerp`,
   `remap`, `remap_clamped`, `clamp`, `saturate`, `smoothstep`,
-  `smootherstep`, overflow-aware `midpoint`,
+  `smootherstep`, graphics scalar helpers `sign`, `step`, `fract`,
+  overflow-aware `midpoint`,
   normal/subnormal classification, rounding, integer rounding aliases
   `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,
   `modf`, public ties-to-even
@@ -808,7 +809,7 @@ Working evidence:
   set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/remquo/sign
   helpers, integer rounding aliases, NaN-aware `fabs`/`fmin`/`fmax`, finite
   `lerp`, range mapping helpers `inverse_lerp`/`remap`/`remap_clamped`,
-  graphics interpolation helpers `clamp`/`saturate`/`smoothstep`/`smootherstep`,
+  graphics scalar/interpolation helpers `sign`/`step`/`fract`/`clamp`/`saturate`/`smoothstep`/`smootherstep`,
   overflow-aware `midpoint`, public ties-to-even rounding aliases, degree/radian conversion,
   normal/subnormal/`fpclassify` classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,

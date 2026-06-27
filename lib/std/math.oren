@@ -85,6 +85,46 @@ fn saturate(x: f64) {
     return out
 }
 
+fn sign(x: f64) {
+    if is_nan(x) { return oren_err(4, "sign: NaN") }
+    if x > 0.0 {
+        var pos: f64 = 1.0
+        return pos
+    }
+    if x < 0.0 {
+        var neg: f64 = 0.0 - 1.0
+        return neg
+    }
+    var zero: f64 = x
+    return zero
+}
+
+fn step(edge: f64, x: f64) {
+    if is_nan(edge) || is_nan(x) { return oren_err(4, "step: NaN") }
+    if x < edge {
+        var lo: f64 = 0.0
+        return lo
+    }
+    var hi: f64 = 1.0
+    return hi
+}
+
+fn fract(x: f64) {
+    if is_nan(x) { return oren_err(4, "fract: NaN") }
+    if !is_finite(x) { return oren_err(4, "fract: non-finite") }
+    var lim = 9223372036854775808.0 // 2^63
+    if x >= lim || x <= 0.0 - lim {
+        var zero: f64 = 0.0
+        return zero
+    }
+    var ti = trunc_i64_from_f(x)
+    if oren_is_err(ti) { return ti }
+    var f: f64 = f64(ti)
+    if f != x && x < 0.0 { f = f - 1.0 }
+    var out: f64 = x - f
+    return out
+}
+
 fn lerp(a: f64, b: f64, t: f64) {
     if is_nan(a) || is_nan(b) || is_nan(t) { return oren_err(4, "lerp: NaN") }
     if t == 0.0 { return a }
