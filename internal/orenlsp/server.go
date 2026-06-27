@@ -122,6 +122,18 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.references(p.TextDocument.URI, p.Position, p.Context.IncludeDeclaration)})
+	case "textDocument/prepareRename":
+		var p textDocumentParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.prepareRename(p.TextDocument.URI, p.Position)})
+	case "textDocument/rename":
+		var p renameParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.rename(p.TextDocument.URI, p.Position, p.NewName)})
 	case "textDocument/semanticTokens/full":
 		var p textDocumentOnlyParams
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -199,6 +211,9 @@ func initializeResult() map[string]any {
 			"definitionProvider":     true,
 			"hoverProvider":          true,
 			"referencesProvider":     true,
+			"renameProvider": map[string]any{
+				"prepareProvider": true,
+			},
 			"semanticTokensProvider": map[string]any{
 				"legend": map[string]any{
 					"tokenTypes":     semanticTokenTypes,
@@ -258,6 +273,14 @@ type referenceParams struct {
 	Context  struct {
 		IncludeDeclaration bool `json:"includeDeclaration"`
 	} `json:"context"`
+}
+
+type renameParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position position `json:"position"`
+	NewName  string   `json:"newName"`
 }
 
 func (s *Server) publishDiagnostics(uri, text string) error {

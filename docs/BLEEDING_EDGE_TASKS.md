@@ -427,8 +427,9 @@ This file is the concise task view. Detailed implementation status lives in
     definition/hover/reference navigation with direct variable-alias propagation,
     direct named factory-return inference, consistent direct call-site parameter
     inference with conflict invalidation, direct parameter-return propagation,
-    and unknown-assignment invalidation, plus full-document semantic-token classification for
-    declarations/references/literals/operators and parser-derived
+    unknown-assignment invalidation, and conservative prepare/rename workspace
+    edits for exact scoped parameters and same-document typed fields, plus
+    full-document semantic-token classification for declarations/references/literals/operators and parser-derived
     parameter/property classes.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and

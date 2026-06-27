@@ -885,7 +885,9 @@ Working evidence:
   constructor-inferred same-file and direct-import-alias struct/class field
   definition/hover/reference navigation with direct variable-alias propagation,
   direct named factory-return inference, consistent direct call-site parameter
-  inference with conflict invalidation, direct parameter-return propagation, and unknown-assignment invalidation, plus full-document semantic-token classification for
+  inference with conflict invalidation, direct parameter-return propagation, unknown-assignment invalidation,
+  and conservative prepare/rename workspace edits for exact scoped parameters and
+  same-document typed fields, plus full-document semantic-token classification for
   declarations/references/literals/operators and parser-derived
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
