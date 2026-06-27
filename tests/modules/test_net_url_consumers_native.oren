@@ -1,4 +1,5 @@
 import http "../../lib/std/net/http.oren"
+import hostutil "../../lib/std/net/host.oren"
 import ws "../../lib/std/net/ws.oren"
 
 fn fail(code) {
@@ -24,6 +25,8 @@ var ws_wire_url = ws._parse_url_record("ws://socket.test/chat?room=1#frag")
 if ws_wire_url["request_target"] != "/chat?room=1" { fail(31) }
 var ws_ip6 = ws._parse_url_record("ws://[::1]:9000/chat")
 if ws_ip6["host"] != "::1" || ws_ip6["authority"] != "[::1]:9000" || ws_ip6["request_target"] != "/chat" { fail(32) }
+if hostutil.looks_like_ipv6_literal("::1") != 1 { fail(33) }
+if hostutil.looks_like_ipv6_literal("example.com") != 0 { fail(34) }
 
 var replaced = http._url_with_opts("http://host.test/search?old=1#frag", {"query": [["q", "hello world"]]}, "test")
 if replaced != "http://host.test/search?q=hello%20world#frag" { fail(35) }
@@ -38,6 +41,12 @@ if query_only["host"] != "host.test" || query_only["path"] != "/?old=1#frag" || 
 var public_url = ws.parse_url("wss://example.org/x")
 if oren_is_err(public_url) { fail(40) }
 if public_url["scheme"] != "wss" || public_url["host"] != "example.org" || public_url["authority"] != "example.org" || public_url["port"] != 443 || public_url["path"] != "/x" || public_url["request_target"] != "/x" { fail(41) }
+var http_ip6 = http._resolve_host_ipv4("::1", 1, 0)
+if http_ip6["ok"] != 0 { fail(42) }
+if http_ip6["err"] != "http: IPv6 literal requires an IPv6-capable connector" { fail(43) }
+var ws_ip6_resolve = ws._resolve_host_ipv4("2001:db8::1", 1, 0)
+if ws_ip6_resolve["ok"] != 0 { fail(44) }
+if ws_ip6_resolve["err"] != "ws: IPv6 literal requires an IPv6-capable connector" { fail(45) }
 
 print("module net_url_consumers_native OK")
 exit(0)

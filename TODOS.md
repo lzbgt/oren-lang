@@ -48,6 +48,8 @@ design evidence lives under `project-doc/`.
   structured `query` / `append_query` pairs through the same composer, while
   native HTTP/WebSocket Host headers preserve parsed authority and native wire
   requests plus AVM virtual-provider specs strip URL fragments at the NET boundary.
+  Native IPv4/DNS-A connectors now reject IPv6 literals explicitly instead of
+  treating them as hostnames.
 - `std:path` now provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and extension
   helpers shared by AVM and desktop SDK code.

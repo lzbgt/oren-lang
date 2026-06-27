@@ -5,7 +5,7 @@
 // - Avoid duplicating host parsing and DNS resolution logic across modules.
 //
 // Scope (v0):
-// - IPv4-literal heuristic
+// - IPv4/IPv6 literal heuristics
 // - "host -> IPv4" resolution via std:net/dns (A queries only)
 //
 // Return shape convention:
@@ -35,6 +35,21 @@ fn looks_like_ipv4(host) {
     return 1
 }
 
+fn looks_like_ipv6_literal(host) {
+    // Conservative v0 literal marker: any colon means this is not a DNS A-query
+    // name and not an IPv4 address. Full IPv6 text validation belongs in a real
+    // IPv6 connector, not in the IPv4 resolver.
+    if host == nil { return 0 }
+    var n = oren_string_len(host)
+    if n <= 0 { return 0 }
+    var i = 0
+    while i < n {
+        if (ptr_get_byte(host + i) & 255) == 58 { return 1 } // ':'
+        i = i + 1
+    }
+    return 0
+}
+
 fn resolve_host_ipv4(who, host, timeout_ms, resolver) {
     // Returns:
     // - {"ok":1, "ip": string, "owned":0|1} (owned=1 => caller must free(ip))
@@ -46,6 +61,7 @@ fn resolve_host_ipv4(who, host, timeout_ms, resolver) {
     if who == nil { who = "net" }
     if host == nil { return {"ok": 0, "err": who + ": host is nil"} }
     if looks_like_ipv4(host) == 1 { return {"ok": 1, "ip": host, "owned": 0} }
+    if looks_like_ipv6_literal(host) == 1 { return {"ok": 0, "err": who + ": IPv6 literal requires an IPv6-capable connector"} }
 
     var r0 = 0
     if resolver != nil {

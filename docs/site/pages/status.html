@@ -391,7 +391,8 @@
 <p>  structured <code>query</code> / <code>append_query</code> pairs through the shared request-target</p>
 <p>  composer, native HTTP/WebSocket Host headers preserve parsed authority, and</p>
 <p>  native wire requests plus AVM virtual-provider specs strip URL fragments at</p>
-<p>  the NET boundary.</p>
+<p>  the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals</p>
+<p>  explicitly instead of treating them as hostnames.</p>
 <ul>
 <li><code>std:path</code> provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>
@@ -467,6 +468,8 @@
 <p>  userinfo rejection, path/query splitting, percent encode/decode, query param</p>
 <p>  get/list, and exact-size query building/replacement/appending for native and</p>
 <p>  AVM-safe NET code without opening sockets or touching host network state.</p>
+<p>  Native IPv4/DNS-A connectors fail fast on IPv6 literals until an IPv6-capable</p>
+<p>  connector is added.</p>
 <p>  <code>std:path</code> now centralizes pure slash-path normalization, joining, containment,</p>
 <p>  and traversal-safe <code>join_under</code> for VFS and package assets without touching</p>
 <p>  host filesystem state.</p>
@@ -653,6 +656,7 @@
 <p>  native/AVM HTTP request opts consume those structured query builders while</p>
 <p>  native HTTP/WebSocket Host headers preserve parsed authority and native wire</p>
 <p>  requests plus AVM virtual-provider specs strip fragments at the NET boundary,</p>
+<p>  with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>

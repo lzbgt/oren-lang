@@ -309,7 +309,8 @@ Facts from the 2026-05-28 implementation pass:
   structured `query` / `append_query` pairs through the shared request-target
   composer, native HTTP/WebSocket Host headers preserve parsed authority, and
   native wire requests plus AVM virtual-provider specs strip URL fragments at
-  the NET boundary.
+  the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals
+  explicitly instead of treating them as hostnames.
 - `std:path` provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and
   extension helpers. It deliberately stays separate from host filesystem APIs so
@@ -371,6 +372,8 @@ Facts from the 2026-05-28 implementation pass:
   userinfo rejection, path/query splitting, percent encode/decode, query param
   get/list, and exact-size query building/replacement/appending for native and
   AVM-safe NET code without opening sockets or touching host network state.
+  Native IPv4/DNS-A connectors fail fast on IPv6 literals until an IPv6-capable
+  connector is added.
   `std:path` now centralizes pure slash-path normalization, joining, containment,
   and traversal-safe `join_under` for VFS and package assets without touching
   host filesystem state.
@@ -547,6 +550,7 @@ Facts from the 2026-05-28 implementation pass:
   native/AVM HTTP request opts consume those structured query builders while
   native HTTP/WebSocket Host headers preserve parsed authority and native wire
   requests plus AVM virtual-provider specs strip fragments at the NET boundary,
+  with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
