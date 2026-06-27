@@ -13,6 +13,7 @@ BUNDLE_ID="${OREN_IOS_LIVE_BUNDLE_ID:-cn.hubstack.orenlive3d}"
 APP_NAME="${OREN_IOS_LIVE_APP_NAME:-OrenLive3D}"
 FRAME_COUNT="${OREN_IOS_LIVE_FRAME_COUNT:-120}"
 INSTALL="${OREN_IOS_LIVE_INSTALL:-0}"
+SNAPSHOT="${OREN_IOS_LIVE_SNAPSHOT:-1}"
 TEAM_ID="${OREN_IOS_LIVE_TEAM_ID:-}"
 SIGN_IDENTITY="${OREN_IOS_LIVE_SIGN_IDENTITY:-}"
 PROFILE="${OREN_IOS_LIVE_PROVISIONING_PROFILE:-}"
@@ -77,10 +78,17 @@ def load_device():
 def profile_paths():
     if requested_profile:
         return [pathlib.Path(requested_profile)]
-    root = pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles"
-    if not root.is_dir():
-        return []
-    return sorted(root.glob("*.provisionprofile"))
+    roots = [
+        pathlib.Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
+        pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles",
+    ]
+    paths = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        paths.extend(sorted(root.glob("*.mobileprovision")))
+        paths.extend(sorted(root.glob("*.provisionprofile")))
+    return paths
 
 def decode_profile(path):
     data = subprocess.check_output(["security", "cms", "-D", "-i", str(path)], stderr=subprocess.DEVNULL)
@@ -105,6 +113,16 @@ def matches_bundle(profile):
     suffix = profile["suffix"]
     return suffix == "*" or suffix == bundle or (suffix.endswith(".*") and bundle.startswith(suffix[:-1]))
 
+def match_score(profile):
+    suffix = profile["suffix"]
+    if suffix == bundle:
+        return 3
+    if suffix.endswith(".*") and bundle.startswith(suffix[:-1]):
+        return 2
+    if suffix == "*":
+        return 1
+    return 0
+
 device = load_device()
 profiles = []
 for path in profile_paths():
@@ -113,10 +131,18 @@ for path in profile_paths():
     except Exception:
         continue
     if matches_bundle(profile):
+        profile["match_score"] = match_score(profile)
         profiles.append(profile)
 
-selected = profiles[0] if profiles else {}
 device_udid = device.get("udid", "")
+
+def device_allowed_by(profile):
+    explicit_device_match = bool(device_udid and device_udid in profile["provisioned_devices"])
+    development_all_devices = profile["provisions_all_devices"] and profile["get_task_allow"]
+    return explicit_device_match or development_all_devices
+
+profiles.sort(key=lambda p: (device_allowed_by(p), p["get_task_allow"], p["match_score"], p["expiration"], p["name"]), reverse=True)
+selected = profiles[0] if profiles else {}
 device_allowed = False
 device_reason = "no matching profile"
 if selected:
@@ -190,44 +216,160 @@ test -f "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a"
 test -f "$OUT_ROOT/include/OrenAVMKit/OrenAVMKit.h"
 
 cat > "$TMP_DIR/live3d.oren" <<OREN
-import bytes "std:bytes"
 import events "std:avm/events"
-import list "std:list"
+import raw "std:buffer/raw"
 import ui_avm "std:ui/avm"
 
-fn present_live_frame(seq) {
-    var triangle3d = bytes.pack([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        16, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0,
-        4, 0, 0, 0, 18, 0, 0, 0, 16, 0, 0, 0
-    ])
-    var triangle3d_rgba = bytes.pack([
-        0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0,
-        24, 0, 0, 0, 24, 0, 0, 0, 8, 0, 0, 0,
-        8, 0, 0, 0, 40, 0, 0, 0, 16, 0, 0, 0,
-        255, 96, 32, 255
-    ])
-    var indices = bytes.pack([0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0])
-    var cmds = [
-        {"op": "push_camera_ortho", "near_z": 0, "far_z": 64},
-        {"op": "mesh3d", "id": 1, "triangles": triangle3d, "color": "#44ccff"},
-        {"op": "mesh3d_rgba", "id": 2, "triangles": triangle3d_rgba},
-        {"op": "mesh3d_indexed", "id": 3, "vertices": triangle3d, "indices": indices, "color": "#ffee44"},
-        {"op": "material3d", "id": 4, "color": "#ff44cc"}
+fn store_u32(out, off, v) {
+    raw._store_u8_buf_unchecked_direct(out, off + 0, v % 256)
+    raw._store_u8_buf_unchecked_direct(out, off + 1, (v / 256) % 256)
+    raw._store_u8_buf_unchecked_direct(out, off + 2, (v / 65536) % 256)
+    raw._store_u8_buf_unchecked_direct(out, off + 3, (v / 16777216) % 256)
+    return 0
+}
+
+fn store_i32(out, off, v) {
+    var u = v
+    if u < 0 { u = u + 4294967296 }
+    return store_u32(out, off, u)
+}
+
+fn store_xyz(out, off, p) {
+    store_i32(out, off + 0, p[0])
+    store_i32(out, off + 4, p[1])
+    store_i32(out, off + 8, p[2])
+    return 0
+}
+
+fn store_tri_rgba(out, ti, a, b, c, r, g, bb) {
+    var off = ti * 40
+    store_xyz(out, off + 0, a)
+    store_xyz(out, off + 12, b)
+    store_xyz(out, off + 24, c)
+    raw._store_u8_buf_unchecked_direct(out, off + 36, r)
+    raw._store_u8_buf_unchecked_direct(out, off + 37, g)
+    raw._store_u8_buf_unchecked_direct(out, off + 38, bb)
+    raw._store_u8_buf_unchecked_direct(out, off + 39, 255)
+    return 0
+}
+
+fn rot_yaw(seq) {
+    var phase = ((seq / 2) + 9) % 32
+    if phase == 0 { return [1000, 0] }
+    if phase == 1 { return [981, 195] }
+    if phase == 2 { return [924, 383] }
+    if phase == 3 { return [831, 556] }
+    if phase == 4 { return [707, 707] }
+    if phase == 5 { return [556, 831] }
+    if phase == 6 { return [383, 924] }
+    if phase == 7 { return [195, 981] }
+    if phase == 8 { return [0, 1000] }
+    if phase == 9 { return [-195, 981] }
+    if phase == 10 { return [-383, 924] }
+    if phase == 11 { return [-556, 831] }
+    if phase == 12 { return [-707, 707] }
+    if phase == 13 { return [-831, 556] }
+    if phase == 14 { return [-924, 383] }
+    if phase == 15 { return [-981, 195] }
+    if phase == 16 { return [-1000, 0] }
+    if phase == 17 { return [-981, -195] }
+    if phase == 18 { return [-924, -383] }
+    if phase == 19 { return [-831, -556] }
+    if phase == 20 { return [-707, -707] }
+    if phase == 21 { return [-556, -831] }
+    if phase == 22 { return [-383, -924] }
+    if phase == 23 { return [-195, -981] }
+    if phase == 24 { return [0, -1000] }
+    if phase == 25 { return [195, -981] }
+    if phase == 26 { return [383, -924] }
+    if phase == 27 { return [556, -831] }
+    if phase == 28 { return [707, -707] }
+    if phase == 29 { return [831, -556] }
+    if phase == 30 { return [924, -383] }
+    return [981, -195]
+}
+
+fn cube_vertex(seq, x, y, z) {
+    var r = rotate_dir(seq, x, y, z)
+    return [32 + (r[0] * 15) / 1000, 32 - (r[1] * 15) / 1000, 24 + (r[2] * 15) / 1000]
+}
+
+fn rotate_dir(seq, x, y, z) {
+    var yaw = rot_yaw(seq)
+    var cy = yaw[0]
+    var sy = yaw[1]
+    var x1 = (x * cy + z * sy) / 1000
+    var z1 = (0 - x * sy + z * cy) / 1000
+    var y1 = y
+    var pitch_c = 924
+    var pitch_s = 383
+    var y2 = (y1 * pitch_c - z1 * pitch_s) / 1000
+    var z2 = (y1 * pitch_s + z1 * pitch_c) / 1000
+    return [x1, y2, z2]
+}
+
+fn edge_line(a, b) {
+    return {"op": "stroke_line", "x1": a[0], "y1": a[1], "x2": b[0], "y2": b[1], "width": 1, "color": "#0f172a"}
+}
+
+fn face_rgb(seq, nx, ny, nz) {
+    var n = rotate_dir(seq, nx, ny, nz)
+    var dot = (n[0] * -250 + n[1] * -450 + n[2] * 850) / 1000
+    if dot < 0 { dot = 0 }
+    var shade = 80 + dot / 8
+    if shade > 220 { shade = 220 }
+    return [20 + shade / 7, 76 + shade / 2, 112 + shade / 2]
+}
+
+fn store_face(out, ti, a, b, c, d, color) {
+    store_tri_rgba(out, ti, a, b, c, color[0], color[1], color[2])
+    store_tri_rgba(out, ti + 1, a, c, d, color[0], color[1], color[2])
+    return 0
+}
+
+fn cube_points(seq) {
+    return [
+        cube_vertex(seq, -1000, -1000, -1000),
+        cube_vertex(seq, 1000, -1000, -1000),
+        cube_vertex(seq, 1000, 1000, -1000),
+        cube_vertex(seq, -1000, 1000, -1000),
+        cube_vertex(seq, -1000, -1000, 1000),
+        cube_vertex(seq, 1000, -1000, 1000),
+        cube_vertex(seq, 1000, 1000, 1000),
+        cube_vertex(seq, -1000, 1000, 1000)
     ]
-    var i = 0
-    while i < 48 {
-        var phase = seq % 64
-        list.push(cmds, {"op": "draw_mesh3d_at", "id": 1, "x": (i + phase) % 64, "y": (i / 2 + phase / 4) % 64, "z": i % 8, "scale_milli": 1000})
-        list.push(cmds, {"op": "draw_mesh3d_at", "id": 2, "x": (i / 2 + phase / 3) % 64, "y": (i + phase) % 64, "z": (i + 3) % 8, "scale_milli": 1000})
-        list.push(cmds, {"op": "draw_mesh3d_at_material", "id": 3, "material_id": 4, "x": ((i + 5) / 2 + phase / 5) % 64, "y": ((i + 7) / 2 + phase / 6) % 64, "z": (i + 5) % 8, "scale_milli": 1000})
-        i = i + 1
-    }
-    list.push(cmds, {"op": "destroy_material3d", "id": 4})
-    list.push(cmds, {"op": "destroy_mesh3d", "id": 3})
-    list.push(cmds, {"op": "destroy_mesh3d", "id": 2})
-    list.push(cmds, {"op": "destroy_mesh3d", "id": 1})
-    list.push(cmds, {"op": "pop_camera"})
+}
+
+fn cube_mesh(seq) {
+    var p = cube_points(seq)
+    var out = raw.u8_new_uninit(480)
+    store_face(out, 0, p[4], p[5], p[6], p[7], face_rgb(seq, 0, 0, 1000))
+    store_face(out, 2, p[1], p[0], p[3], p[2], face_rgb(seq, 0, 0, -1000))
+    store_face(out, 4, p[1], p[2], p[6], p[5], face_rgb(seq, 1000, 0, 0))
+    store_face(out, 6, p[0], p[4], p[7], p[3], face_rgb(seq, -1000, 0, 0))
+    store_face(out, 8, p[0], p[1], p[5], p[4], face_rgb(seq, 0, -1000, 0))
+    store_face(out, 10, p[3], p[7], p[6], p[2], face_rgb(seq, 0, 1000, 0))
+    return out
+}
+
+fn cube_frame_commands(seq) {
+    var p = cube_points(seq)
+    return [
+        {"op": "fill_rect", "x": 0, "y": 0, "w": 64, "h": 64, "color": "#f8fafc"},
+        {"op": "fill_rect", "x": 17, "y": 49, "w": 30, "h": 3, "color": "#cbd5e1"},
+        {"op": "push_camera_ortho", "near_z": 0, "far_z": 64},
+        {"op": "mesh3d_rgba", "id": 1, "triangles": cube_mesh(seq)},
+        {"op": "draw_mesh3d", "id": 1},
+        {"op": "destroy_mesh3d", "id": 1},
+        {"op": "pop_camera"},
+        edge_line(p[4], p[5]), edge_line(p[5], p[6]), edge_line(p[6], p[7]), edge_line(p[7], p[4]),
+        edge_line(p[0], p[1]), edge_line(p[1], p[2]), edge_line(p[2], p[3]), edge_line(p[3], p[0]),
+        edge_line(p[0], p[4]), edge_line(p[1], p[5]), edge_line(p[2], p[6]), edge_line(p[3], p[7])
+    ]
+}
+
+fn present_live_frame(seq) {
+    var cmds = cube_frame_commands(seq)
     var r = ui_avm.present_frame(cmds, 64, 64, {
         "strict_bounds": true,
         "scale_milli": 3000,
@@ -326,6 +468,7 @@ PLIST
 cat > "$TMP_DIR/main.m" <<'OBJC'
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <OrenAVMKit/OrenAVMKit.h>
 #include "live3d_obc.h"
 
@@ -346,14 +489,26 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
     (void)launchOptions;
     NSError* error = nil;
     OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
+    cfg.gasLimit = 0;
     self.runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
     CGRect bounds = UIScreen.mainScreen.bounds;
     self.window = [[UIWindow alloc] initWithFrame:bounds];
     UIViewController* controller = [[UIViewController alloc] init];
+    UIView* rootView = [[UIView alloc] initWithFrame:bounds];
+    rootView.backgroundColor = UIColor.whiteColor;
     self.metalView = [[OrenAVMMetalView alloc] initWithRuntime:self.runtime];
-    self.metalView.frame = bounds;
+    CGFloat side = MIN(MIN(bounds.size.width, bounds.size.height), 240.0);
+    self.metalView.frame = CGRectMake((bounds.size.width - side) * 0.5,
+                                      MAX(32.0, (bounds.size.height - side) * 0.22),
+                                      side,
+                                      side);
+    self.metalView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin |
+                                      UIViewAutoresizingFlexibleRightMargin |
+                                      UIViewAutoresizingFlexibleTopMargin |
+                                      UIViewAutoresizingFlexibleBottomMargin;
     self.metalView.targetHzMilli = 120000;
-    controller.view = self.metalView;
+    [rootView addSubview:self.metalView];
+    controller.view = rootView;
     self.window.rootViewController = controller;
     [self.window makeKeyAndVisible];
     [self.metalView publishScreenStateWithError:&error];
@@ -413,6 +568,13 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
             if (self.metalView.lastFrameOverBudget) overBudget++;
         }
     }
+    [self.metalView draw];
+    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    if (![self writeSnapshotWithError:&error]) {
+        fprintf(stderr, "OREN_IOS_LIVE_3D_ERROR snapshot_failed message=%s\n",
+                error.localizedDescription.UTF8String ?: "");
+        exit(6);
+    }
     for (NSUInteger wait = 0; wait < 500; wait++) {
         @synchronized (self) {
             if (self.runtimeFinished) break;
@@ -449,6 +611,36 @@ cat > "$TMP_DIR/main.m" <<'OBJC'
     exit(0);
 }
 
+- (BOOL)writeSnapshotWithError:(NSError**)error {
+    UIGraphicsImageRendererFormat* format = [UIGraphicsImageRendererFormat defaultFormat];
+    format.scale = 1.0;
+    CGSize size = CGSizeMake(192.0, 192.0);
+    UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size format:format];
+    UIImage* image = [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
+        BOOL captured = [self.metalView drawViewHierarchyInRect:CGRectMake(0, 0, size.width, size.height) afterScreenUpdates:YES];
+        if (!captured) {
+            CGContextSaveGState(context.CGContext);
+            CGFloat sx = size.width / MAX(self.metalView.bounds.size.width, 1.0);
+            CGFloat sy = size.height / MAX(self.metalView.bounds.size.height, 1.0);
+            CGContextScaleCTM(context.CGContext, sx, sy);
+            [self.metalView.layer renderInContext:context.CGContext];
+            CGContextRestoreGState(context.CGContext);
+        }
+    }];
+    NSData* png = UIImagePNGRepresentation(image);
+    if (!png) return NO;
+    NSURL* docs = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
+    NSURL* out = [docs URLByAppendingPathComponent:@"oren-live-3d-snapshot.png"];
+    BOOL ok = [png writeToURL:out options:NSDataWritingAtomic error:error];
+    if (ok) {
+        printf("OREN_IOS_LIVE_3D_SNAPSHOT path=%s bytes=%llu\n",
+               out.path.UTF8String ?: "",
+               (unsigned long long)png.length);
+        fflush(stdout);
+    }
+    return ok;
+}
+
 @end
 
 int main(int argc, char* argv[]) {
@@ -470,6 +662,7 @@ CC="$(xcrun --sdk iphoneos --find clang)"
   "$TMP_DIR/main.m" \
   "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" \
   "$OUT_ROOT/iphoneos-arm64/libavm.a" \
+  -ObjC \
   -framework Foundation \
   -framework UIKit \
   -framework CoreGraphics \
@@ -520,6 +713,9 @@ INSTALL_LOG="$RESULT_DIR/install.log"
 LAUNCH_JSON="$RESULT_DIR/launch.json"
 LAUNCH_LOG="$RESULT_DIR/launch.log"
 CONSOLE_LOG="$RESULT_DIR/console.log"
+SNAPSHOT_PNG="$RESULT_DIR/snapshot.png"
+SNAPSHOT_JSON="$RESULT_DIR/snapshot-copy.json"
+SNAPSHOT_LOG="$RESULT_DIR/snapshot-copy.log"
 
 xcrun devicectl device install app --device "$DEVICE" "$APP_DIR" \
   --json-output "$INSTALL_JSON" \
@@ -550,5 +746,16 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps(metrics, indent=2, sort_keys=Tru
 keys = sorted(metrics)
 pathlib.Path(sys.argv[3]).write_text(",".join(keys) + "\n" + ",".join(str(metrics[k]) for k in keys) + "\n", encoding="utf-8")
 PY
+
+if [[ "$SNAPSHOT" == "1" ]]; then
+  xcrun devicectl device copy from --device "$DEVICE" \
+    --domain-type appDataContainer \
+    --domain-identifier "$BUNDLE_ID" \
+    --source "Documents/oren-live-3d-snapshot.png" \
+    --destination "$SNAPSHOT_PNG" \
+    --json-output "$SNAPSHOT_JSON" \
+    --log-output "$SNAPSHOT_LOG"
+  echo "Live-device 3D snapshot copied to $SNAPSHOT_PNG"
+fi
 
 echo "Live-device 3D metrics written to $RESULT_DIR/metrics.json and $RESULT_DIR/metrics.csv"

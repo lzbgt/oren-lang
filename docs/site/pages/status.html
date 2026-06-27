@@ -551,13 +551,19 @@
 <p>  developer services are available. The capture target writes</p>
 <p>  <code>build/ios-live-3d/signing-preflight.json</code> and fails before the iOS build when</p>
 <p>  install is requested with a missing or non-installable development profile. The</p>
-<p>  2026-06-27 phone check saw <code>blu-ip</code></p>
-<p>  paired/available in <code>devicectl</code>, but install failed with <code>0xe8008012</code> because</p>
-<p>  the available <code>cn.hubstack.pc</code> provisioning profile cannot be installed on</p>
-<p>  that device, so the actual live run remains blocked by signing/profile state</p>
-<p>  rather than renderer code.</p>
-<p>  Remaining game-grade work is completing a signed live-device 3D capture run</p>
-<p>  and broader package scene formats. The next GUI contract is</p>
+<p>  2026-06-27 phone verification on <code>blu-ip</code> found and used Xcode&#x27;s managed</p>
+<p>  wildcard development profile (<code>US56HHF2Y4.*</code>), fixed the generated app&#x27;s static</p>
+<p>  SDK category linkage with <code>-ObjC</code>, switched the live OBC to interactive</p>
+<p>  unbounded gas, fixed the Metal vertex ABI by using packed shader-side vertex</p>
+<p>  structs, and completed a visually inspected physically rotated cube mesh with</p>
+<p>  stable normal-based lighting. The final 120-frame capture was copied back from</p>
+<p>  the phone as <code>build/ios-live-3d-litrot-phone/snapshot.png</code>: 120 requested</p>
+<p>  frame ticks, 257 rendered frames, 120 vertices, average CPU preparation</p>
+<p>  60,539 ns, max 144,959 ns, target budget 8,333,333 ns, and 0 over-budget</p>
+<p>  frames. A 119-frame adjacent capture</p>
+<p>  (<code>build/ios-live-3d-litrot-phone-119/snapshot.png</code>) verifies visual continuity</p>
+<p>  between neighboring frames.</p>
+<p>  Remaining game-grade work is broader package scene formats. The next GUI contract is</p>
 <p>  game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale</p>
 <p>  behavior, retained resource handles, strict budgets, low-latency input ordering,</p>
 <p>  and Metal/<code>MTKView</code> conformance gates are documented in</p>

@@ -165,7 +165,15 @@
 <p>  requires a provisioning profile whose bundle ID and device list both match the</p>
 <p>  target phone; requested installs now fail before the iOS build and write</p>
 <p>  <code>build/ios-live-3d/signing-preflight.json</code> when that profile state is missing</p>
-<p>  or not installable for development capture on the target phone.</p>
+<p>  or not installable for development capture on the target phone. The 2026-06-27</p>
+<p>  <code>blu-ip</code> run used Xcode&#x27;s managed wildcard development profile, installed and</p>
+<p>  launched the generated app, fixed the Metal shader/CPU vertex ABI through</p>
+<p>  packed shader structs, and completed a visually inspected 120-frame physically</p>
+<p>  rotated cube mesh capture with stable normal-based lighting. The phone-copied</p>
+<p>  <code>build/ios-live-3d-litrot-phone/snapshot.png</code> artifact reported 257 rendered</p>
+<p>  frames, 120 vertices, 60,539 ns average CPU preparation, 144,959 ns max CPU</p>
+<p>  preparation, and 0 frames over the 8.33 ms 120 Hz budget; the adjacent</p>
+<p>  119-frame phone snapshot verifies frame-to-frame visual continuity.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>
@@ -642,10 +650,10 @@
 <p>    fallback, Metal, iOS verifier, and the 2D conformance scene.</p>
 <ol>
 <li>Add richer 2D and 3D command sets.</li>
-<li>Add signed live-device app capture in the Note host or iOS SDK harness once</li>
+<li>Done: add signed live-device app capture in the iOS SDK harness with</li>
 </ol>
-<p>    physical-device developer services and a matching provisioning profile are</p>
-<p>    available.</p>
+<p>    physical-device provisioning preflight, on-phone launch, metrics, and</p>
+<p>    copied PNG snapshots for visual inspection.</p>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>

@@ -457,13 +457,19 @@ Facts from the 2026-05-28 implementation pass:
   developer services are available. The capture target writes
   `build/ios-live-3d/signing-preflight.json` and fails before the iOS build when
   install is requested with a missing or non-installable development profile. The
-  2026-06-27 phone check saw `blu-ip`
-  paired/available in `devicectl`, but install failed with `0xe8008012` because
-  the available `cn.hubstack.pc` provisioning profile cannot be installed on
-  that device, so the actual live run remains blocked by signing/profile state
-  rather than renderer code.
-  Remaining game-grade work is completing a signed live-device 3D capture run
-  and broader package scene formats. The next GUI contract is
+  2026-06-27 phone verification on `blu-ip` found and used Xcode's managed
+  wildcard development profile (`US56HHF2Y4.*`), fixed the generated app's static
+  SDK category linkage with `-ObjC`, switched the live OBC to interactive
+  unbounded gas, fixed the Metal vertex ABI by using packed shader-side vertex
+  structs, and completed a visually inspected physically rotated cube mesh with
+  stable normal-based lighting. The final 120-frame capture was copied back from
+  the phone as `build/ios-live-3d-litrot-phone/snapshot.png`: 120 requested
+  frame ticks, 257 rendered frames, 120 vertices, average CPU preparation
+  60,539 ns, max 144,959 ns, target budget 8,333,333 ns, and 0 over-budget
+  frames. A 119-frame adjacent capture
+  (`build/ios-live-3d-litrot-phone-119/snapshot.png`) verifies visual continuity
+  between neighboring frames.
+  Remaining game-grade work is broader package scene formats. The next GUI contract is
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in

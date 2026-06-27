@@ -144,7 +144,12 @@ This file is the concise task view. Detailed implementation status lives in
      matches both the bundle ID and the target device. The target now writes
      `build/ios-live-3d/signing-preflight.json` and fails before the iOS build
      when install is requested with a missing or non-installable development
-     profile.
+     profile. The 2026-06-27 `blu-ip` phone run installed and launched the
+     generated app with Xcode's managed wildcard development profile, linked SDK
+     categories through `-ObjC`, fixed Metal shader/CPU vertex stride matching
+     through packed shader structs, and completed a 120-frame physically rotated
+     cube mesh capture with stable normal-based lighting, phone-copied PNG
+     snapshots, and 0 over-budget frames.
    - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
      hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
      may convert at the boundary but must not force list-of-byte round trips.

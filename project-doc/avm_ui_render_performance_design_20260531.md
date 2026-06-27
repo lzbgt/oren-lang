@@ -114,7 +114,15 @@ Implemented as of 2026-05-31:
   requires a provisioning profile whose bundle ID and device list both match the
   target phone; requested installs now fail before the iOS build and write
   `build/ios-live-3d/signing-preflight.json` when that profile state is missing
-  or not installable for development capture on the target phone.
+  or not installable for development capture on the target phone. The 2026-06-27
+  `blu-ip` run used Xcode's managed wildcard development profile, installed and
+  launched the generated app, fixed the Metal shader/CPU vertex ABI through
+  packed shader structs, and completed a visually inspected 120-frame physically
+  rotated cube mesh capture with stable normal-based lighting. The phone-copied
+  `build/ios-live-3d-litrot-phone/snapshot.png` artifact reported 257 rendered
+  frames, 120 vertices, 60,539 ns average CPU preparation, 144,959 ns max CPU
+  preparation, and 0 frames over the 8.33 ms 120 Hz budget; the adjacent
+  119-frame phone snapshot verifies frame-to-frame visual continuity.
 - Host helpers can enqueue pointer, resize, key, UTF-8 text, compact
   gamepad/controller state, coalesced motion, focus, and IME/composition input
   events.
@@ -469,6 +477,6 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
     binary frames, AVM protocol validation, deterministic raster, CoreGraphics
     fallback, Metal, iOS verifier, and the 2D conformance scene.
 26. Add richer 2D and 3D command sets.
-27. Add signed live-device app capture in the Note host or iOS SDK harness once
-    physical-device developer services and a matching provisioning profile are
-    available.
+27. Done: add signed live-device app capture in the iOS SDK harness with
+    physical-device provisioning preflight, on-phone launch, metrics, and
+    copied PNG snapshots for visual inspection.
