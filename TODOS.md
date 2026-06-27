@@ -33,6 +33,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
+  direct/link bytecode emission gates use carrier-aware byte lengths for metadata
+  and OBX payloads.
 - iOS `OrenAVMKit` builds as an xcframework and verifies TIME, FS, VNET, VPROC,
   GFX/input, package store, trust bundle, permission grant persistence, and
   compiler-in-AVM smoke paths through `make verify-libavm-ios`.

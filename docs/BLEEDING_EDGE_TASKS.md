@@ -204,7 +204,7 @@ This file is the concise task view. Detailed implementation status lives in
      copy with `oren_memcpy`.
      Compiler source-policy
      scans, scan-cache line/number parsing and delimiter writes, C-runtime include scanning,
-     compiler manifest JSON escaping, bytecode metadata payloads, OBX
+     compiler manifest JSON escaping, byte-native bytecode metadata payloads, OBX
      string/prefix encoding, AST binary v1 full-value raw writes, bytecode string
      constants, native Mach-O/ELF object string payloads, runtime-object
      debug-name blobs, x64 native debug-table names, ARM64 native panic-message

@@ -549,6 +549,13 @@ fn emit_u32_le(out, n) {
     bytes.bytes_push_u32_le(out, n)
 }
 
+fn _byte_blob_len(b) {
+    if b == nil { return 0 }
+    var n = oren_buf_len(b)
+    if !oren_is_err(n) { return n }
+    return oren_list_len(b)
+}
+
 fn bytecode_emit_program(out_path, ctx) {
     var out = bytes.bytes_new()
     // Magic: 0x0ECD (CD 0E)
@@ -558,12 +565,12 @@ fn bytecode_emit_program(out_path, ctx) {
     // Constants
     var consts = ctx["constants"]
     var meta = ctx["meta_bytes"]
-    if meta != nil && oren_list_len(meta) > 0 {
+    if _byte_blob_len(meta) > 0 {
         // Rolling: append as an unused BYTES constant.
         oren_list_push(consts, {"type": "Bytes", "value": meta})
     }
     var obx = ctx["obx_bytes"]
-    if obx != nil && oren_list_len(obx) > 0 {
+    if _byte_blob_len(obx) > 0 {
         // Rolling: append as an unused BYTES constant for module exports/relocs.
         oren_list_push(consts, {"type": "Bytes", "value": obx})
     }

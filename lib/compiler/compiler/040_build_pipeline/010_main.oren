@@ -26,17 +26,6 @@ fn _build_obx_api_surface(linked) {
     return surface
 }
 
-fn _build_push_string_bytes(out, s) {
-    if s == nil { return nil }
-    var n = oren_string_len(s)
-    var i = 0
-    while i < n {
-        oren_list_push(out, oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
-    return nil
-}
-
 fn compiler_main() {
     // Modern CLI parsing (click-style):
     // - supports `--opt=value` and interspersed options/args
@@ -788,10 +777,7 @@ fn compiler_main() {
 	        if trace_phase_path != nil {
 	            _build_phase_log_append(trace_phase_path, "build.bytecode.meta.done", "bytes=" + oren_int_to_string(oren_string_len(meta_json)), t_sum0)
 	        }
-        var meta_bytes = []
-        _build_push_string_bytes(meta_bytes, "OREN_META\n1\n")
-        _build_push_string_bytes(meta_bytes, meta_json)
-        ctx["meta_bytes"] = meta_bytes
+        ctx["meta_bytes"] = oren_bytes_from_string("OREN_META\n1\n" + meta_json)
 
         // Optional OBX (exports/relocs) for `.obc` module linking.
             if allow_undef || obc_lib {
@@ -865,10 +851,10 @@ fn compiler_main() {
                 oren_list_push(consts2, ctx["constants"][ci])
                 ci = ci + 1
             }
-            if ctx["meta_bytes"] != nil && oren_list_len(ctx["meta_bytes"]) > 0 {
+            if ctx["meta_bytes"] != nil && _bytes_len_any(ctx["meta_bytes"]) > 0 {
                 oren_list_push(consts2, {"type": "Bytes", "value": ctx["meta_bytes"]})
             }
-            if ctx["obx_bytes"] != nil && oren_list_len(ctx["obx_bytes"]) > 0 {
+            if ctx["obx_bytes"] != nil && _bytes_len_any(ctx["obx_bytes"]) > 0 {
                 oren_list_push(consts2, {"type": "Bytes", "value": ctx["obx_bytes"]})
             }
             var main_obx = {"module": path, "exports": {}, "relocs": ctx["relocs"]}
