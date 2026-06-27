@@ -524,16 +524,11 @@ fn bytecode_compile_program(linked, config) {
         profile_t = oren_time_now_ns()
     }
 
-    // Finalize bytecode buffer for direct emission. Only materialize list<int>
-    // for OBC linking, where the linker still consumes code as a list.
+    // Finalize bytecode buffer for direct emission/linking without materializing
+    // boxed byte lists.
     var code_buf = bytes.bytes_finalize(ctx["code"])
     ctx["code_buf"] = code_buf
-    if config != nil && config["materialize_code_list"] == true {
-        var code_list = oren_bytes_unpack(code_buf)
-        if !oren_is_err(code_list) { ctx["code"] = code_list }
-    } else {
-        ctx["code"] = nil
-    }
+    ctx["code"] = nil
     if profile_codegen {
         print("[bc_codegen_profile] section=finalize ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000))
     }

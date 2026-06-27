@@ -500,12 +500,7 @@ fn obc_parse_bytes(bs) {
                                 var bl = _u32_le_at(bs, pos)
                                 pos = pos + 4
                                 if !_span_ok(bs, pos, bl) { return {"error": "truncated bytes constant"} }
-                                var bb = []
-                                var j2 = 0
-                                while j2 < bl {
-                                    oren_list_push(bb, _u8_at(bs, pos + j2))
-                                    j2 = j2 + 1
-                                }
+                                var bb = oren_u8_buf_from_bytes_slice(bs, pos, bl)
                                 pos = pos + bl
                                 // detect OBX payload
                                 var d = obx_decode(bb)
@@ -527,11 +522,8 @@ fn obc_parse_bytes(bs) {
         i = i + 1
     }
 
-    var code = []
-    while pos < _bytes_len(bs) {
-        oren_list_push(code, _u8_at(bs, pos))
-        pos = pos + 1
-    }
+    var code = oren_u8_buf_from_bytes_slice(bs, pos, _bytes_len(bs) - pos)
+    pos = _bytes_len(bs)
 
     var g = obc_global_count(code)
     return {"constants": consts, "code": code, "obx": obx, "metadata_json": metadata_json, "global_count": g}
@@ -548,11 +540,12 @@ fn obc_global_count(code) {
     if code == nil { return 0 }
     var i = 0
     var max_idx = -1
-    while i < oren_list_len(code) {
-        var op = code[i] & 255
+    var n_code = _bytes_len(code)
+    while i < n_code {
+        var op = _u8_at(code, i)
         if op == codegen_bytecode.AVM_LOAD_GLOBAL || op == codegen_bytecode.AVM_STORE_GLOBAL {
-            if i + 2 >= oren_list_len(code) { break }
-            var idx = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
+            if i + 2 >= n_code { break }
+            var idx = _u16_le_at(code, i + 1)
             if idx > max_idx { max_idx = idx }
             i = i + 3
             continue
@@ -565,7 +558,7 @@ fn obc_global_count(code) {
 
 fn obc_opcode_len(code, i) {
     // Returns the total byte length of the instruction starting at `i`.
-    var op = code[i] & 255
+    var op = _u8_at(code, i)
     if op == codegen_bytecode.AVM_PUSH_CONST { return 3 }
     if op == codegen_bytecode.AVM_LOAD_LOCAL { return 2 }
     if op == codegen_bytecode.AVM_STORE_LOCAL { return 2 }
@@ -592,56 +585,60 @@ fn obc_opcode_len(code, i) {
     return 1
 }
 
-fn obc_patch_code_in_place(code, const_base, global_base, code_base) {
+fn _append_code_span(out, code, start, n) {
+    var i = 0
+    while i < n {
+        bytes_builder.bytes_push(out, _u8_at(code, start + i))
+        i = i + 1
+    }
+    return nil
+}
+
+fn _append_patched_code(out, code, code_len_eff, const_base, global_base, code_base) {
     if code == nil { return nil }
     var i = 0
-    while i < oren_list_len(code) {
-        var op = code[i] & 255
+    while i < code_len_eff {
+        var op = _u8_at(code, i)
+        var ilen = obc_opcode_len(code, i)
         if op == codegen_bytecode.AVM_PUSH_CONST {
-            var idx = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
-            var n = idx + const_base
-            code[i + 1] = n & 255
-            code[i + 2] = (n >> 8) & 255
+            var idx = _u16_le_at(code, i + 1)
+            bytes_builder.bytes_push(out, op)
+            bytes_builder.bytes_push_u16_le(out, idx + const_base)
             i = i + 3
             continue
         }
         if op == codegen_bytecode.AVM_LOAD_GLOBAL || op == codegen_bytecode.AVM_STORE_GLOBAL {
-            var gidx = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
-            var ng = gidx + global_base
-            code[i + 1] = ng & 255
-            code[i + 2] = (ng >> 8) & 255
+            var gidx = _u16_le_at(code, i + 1)
+            bytes_builder.bytes_push(out, op)
+            bytes_builder.bytes_push_u16_le(out, gidx + global_base)
             i = i + 3
             continue
         }
         if op == codegen_bytecode.AVM_CALL32 || op == codegen_bytecode.AVM_PUSH_FUNC32 {
-            var a = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8) | ((code[i + 3] & 255) << 16) | ((code[i + 4] & 255) << 24)
-            var na = a + code_base
-            code[i + 1] = na & 255
-            code[i + 2] = (na >> 8) & 255
-            code[i + 3] = (na >> 16) & 255
-            code[i + 4] = (na >> 24) & 255
-            i = i + obc_opcode_len(code, i)
+            var a = _u32_le_at(code, i + 1)
+            bytes_builder.bytes_push(out, op)
+            bytes_builder.bytes_push_u32_le(out, a + code_base)
+            if ilen > 5 { _append_code_span(out, code, i + 5, ilen - 5) }
+            i = i + ilen
             continue
         }
         if op == codegen_bytecode.AVM_CALL || op == codegen_bytecode.AVM_PUSH_FUNC {
-            var a16 = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
-            var na16 = a16 + code_base
-            code[i + 1] = na16 & 255
-            code[i + 2] = (na16 >> 8) & 255
-            i = i + obc_opcode_len(code, i)
+            var a16 = _u16_le_at(code, i + 1)
+            bytes_builder.bytes_push(out, op)
+            bytes_builder.bytes_push_u16_le(out, a16 + code_base)
+            if ilen > 3 { _append_code_span(out, code, i + 3, ilen - 3) }
+            i = i + ilen
             continue
         }
-        i = i + obc_opcode_len(code, i)
+        _append_code_span(out, code, i, ilen)
+        i = i + ilen
     }
     return nil
 }
 
 fn obc_patch_u32_at(code, pos, v) {
     if v < 0 { v = v + 4294967296 }
-    code[pos + 0] = v & 255
-    code[pos + 1] = (v >> 8) & 255
-    code[pos + 2] = (v >> 16) & 255
-    code[pos + 3] = (v >> 24) & 255
+    bytes_builder.bytes_set_u32_le(code, pos, v)
     return nil
 }
 
@@ -652,7 +649,7 @@ fn obc_link(obcs) {
     // - collect exports and patch relocs against the merged export map
     if obcs == nil { obcs = [] }
     var out_consts = []
-    var out_code = []
+    var out_code = bytes_builder.bytes_new()
     var export_map = {}
     var all_relocs = []
     var const_base = 0
@@ -677,9 +674,9 @@ fn obc_link(obcs) {
         //
         // Therefore: strip exactly one trailing HALT from every non-final module's code
         // during concatenation. The last module (the main program) keeps its HALT.
-        var code_len_eff = oren_list_len(code)
+        var code_len_eff = _bytes_len(code)
         if mi < (oren_list_len(obcs) - 1) {
-            if code_len_eff > 0 && (code[code_len_eff - 1] & 255) == codegen_bytecode.AVM_HALT {
+            if code_len_eff > 0 && _u8_at(code, code_len_eff - 1) == codegen_bytecode.AVM_HALT {
                 code_len_eff = code_len_eff - 1
             }
         }
@@ -691,13 +688,9 @@ fn obc_link(obcs) {
             ci = ci + 1
         }
 
-        // Patch code in place and append.
-        obc_patch_code_in_place(code, const_base, global_base, code_base)
-        var k = 0
-        while k < code_len_eff {
-            oren_list_push(out_code, code[k] & 255)
-            k = k + 1
-        }
+        // Patch code while appending so parsed u8 buffers do not need to be
+        // materialized as boxed byte lists.
+        _append_patched_code(out_code, code, code_len_eff, const_base, global_base, code_base)
 
         // Collect exports and relocs (if present).
         var obx = m["obx"]
@@ -753,5 +746,5 @@ fn obc_link(obcs) {
         ri2 = ri2 + 1
     }
 
-    return {"constants": out_consts, "code": out_code, "exports": export_map}
+    return {"constants": out_consts, "code": bytes_builder.bytes_finalize(out_code), "exports": export_map}
 }

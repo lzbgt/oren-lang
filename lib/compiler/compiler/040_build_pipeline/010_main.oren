@@ -753,7 +753,7 @@ fn compiler_main() {
 	            if allow_undef == true { allow_undef_s = "true" }
 	            _build_phase_log_append(trace_phase_path, "build.bytecode.codegen.start", "allow_undef=" + allow_undef_s, t_sum0)
 	        }
-	        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef, "materialize_code_list": need_link})
+	        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
 	        if trace_phase_path != nil {
 	            var n_consts_bc = 0
 	            var n_code_bc = 0
@@ -872,7 +872,7 @@ fn compiler_main() {
                 oren_list_push(consts2, {"type": "Bytes", "value": ctx["obx_bytes"]})
             }
             var main_obx = {"module": path, "exports": {}, "relocs": ctx["relocs"]}
-            var main_obc = {"constants": consts2, "code": ctx["code"], "obx": main_obx, "global_count": ctx["global_count"]}
+            var main_obc = {"constants": consts2, "code": ctx["code_buf"], "obx": main_obx, "global_count": ctx["global_count"]}
             oren_list_push(parsed, main_obc)
 
 	            if trace_phase_path != nil {
