@@ -1,0 +1,26 @@
+import http "../../lib/std/net/http.oren"
+import ws "../../lib/std/net/ws.oren"
+
+fn fail(code) {
+    print("module net_url_consumers_native FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn check(u, scheme, host, port, path, code) {
+    if u["ok"] != 1 { fail(code) }
+    if u["scheme"] != scheme { fail(code + 1) }
+    if u["host"] != host { fail(code + 2) }
+    if u["port"] != port { fail(code + 3) }
+    if u["path"] != path { fail(code + 4) }
+}
+
+check(http._parse_http_url("https://host.test:9443/p"), "https", "host.test", 9443, "/p", 10)
+check(ws._parse_ws_url("wss://socket.test/chat"), "wss", "socket.test", 443, "/chat", 20)
+check(ws._parse_url_record("ws://127.0.0.1:9000"), "ws", "127.0.0.1", 9000, "/", 30)
+
+var public_url = ws.parse_url("wss://example.org/x")
+if oren_is_err(public_url) { fail(40) }
+if public_url["scheme"] != "wss" || public_url["host"] != "example.org" || public_url["port"] != 443 || public_url["path"] != "/x" { fail(41) }
+
+print("module net_url_consumers_native OK")
+exit(0)

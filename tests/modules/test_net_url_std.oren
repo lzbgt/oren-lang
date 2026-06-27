@@ -1,0 +1,27 @@
+import neturl "../../lib/std/net/url.oren"
+
+fn fail(code) {
+    print("module net_url_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn check(u, scheme, host, port, path, code) {
+    if oren_is_err(u) { fail(code) }
+    if u["scheme"] != scheme { fail(code + 1) }
+    if u["host"] != host { fail(code + 2) }
+    if u["port"] != port { fail(code + 3) }
+    if u["path"] != path { fail(code + 4) }
+}
+
+check(neturl.parse_http("http://example.com"), "http", "example.com", 80, "/", 10)
+check(neturl.parse_http("https://example.com:8443/a/b?q=1"), "https", "example.com", 8443, "/a/b?q=1", 20)
+check(neturl.parse_ws("ws://127.0.0.1:9000/chat"), "ws", "127.0.0.1", 9000, "/chat", 30)
+check(neturl.parse("wss://example.org"), "wss", "example.org", 443, "/", 40)
+
+if !oren_is_err(neturl.parse_http("ftp://example.com")) { fail(70) }
+if !oren_is_err(neturl.parse_ws("http://example.com")) { fail(71) }
+if !oren_is_err(neturl.parse_http("http:///missing")) { fail(72) }
+if !oren_is_err(neturl.parse_http("http://example.com:0")) { fail(73) }
+
+print("module net_url_std OK")
+exit(0)

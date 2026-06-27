@@ -140,7 +140,7 @@
 <ul>
 <li>The AVM stdlib bundle root includes the compiler/app-critical portable subset plus</li>
 </ul>
-<p>  app-facing modules such as <code>std:sys</code>, <code>std:env</code>, <code>std:fs</code>, <code>std:proc</code>, <code>std:time</code>, <code>std:timer</code>, <code>std:ui/avm</code>, <code>std:linalg</code>,</p>
+<p>  app-facing modules such as <code>std:sys</code>, <code>std:env</code>, <code>std:fs</code>, <code>std:proc</code>, <code>std:net/url</code>, <code>std:time</code>, <code>std:timer</code>, <code>std:ui/avm</code>, <code>std:linalg</code>,</p>
 <p>  <code>std:cbor</code>, <code>std:yaml</code>, <code>std:regex</code>, <code>std:encoding/base64</code>,</p>
 <p>  <code>std:crypto/pem</code>, <code>std:crypto/sha1</code>, <code>std:crypto/sha256</code>, and</p>
 <p>  <code>std:crypto/x509</code>.</p>
@@ -379,6 +379,12 @@
 <p>  and timeout policy. OBC receives only address strings, not resolver handles or</p>
 <p>  native socket descriptors.</p>
 <ul>
+<li><code>std:net/url</code> provides pure HTTP/WebSocket URL parsing shared by native</li>
+</ul>
+<p>  <code>std:net/http</code>, native <code>std:net/ws</code>, and AVM-safe app code. It keeps parsing</p>
+<p>  separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the</p>
+<p>  same endpoint interpretation across host and virtual NET providers.</p>
+<ul>
 <li>iOS <code>OrenAVMKit</code> now enforces live VNET session limits in the host-backed</li>
 </ul>
 <p>  provider: <code>liveNetworkMaxSessions</code> caps open virtual TCP/UDP sessions, and</p>
@@ -437,6 +443,8 @@
 <p>  <code>std:env</code> now names capability-gated environment reads with get/fallback,</p>
 <p>  presence, require, and truthy helpers while leaving host ENV access, AVM</p>
 <p>  record/replay, and capsule policy under runtime control.</p>
+<p>  <code>std:net/url</code> now centralizes pure HTTP/WebSocket endpoint parsing for native</p>
+<p>  and AVM-safe NET code without opening sockets or touching host network state.</p>
 <p>  <code>std:fs</code> now names the capability-gated FS operations with explicit text,</p>
 <p>  byte-native <code>u8_buf</code>, legacy byte-list, exists, directory-list, and chmod helpers</p>
 <p>  while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets</p>

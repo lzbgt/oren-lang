@@ -40,6 +40,8 @@ design evidence lives under `project-doc/`.
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.
 - `std:env` now provides app-facing capability-gated environment get/fallback,
   presence, require, and truthy helpers over the existing runtime ENV policy surface.
+- `std:net/url` now provides pure HTTP/WebSocket URL parsing shared by native
+  `std:net/http`, native `std:net/ws`, and AVM-safe app code.
 - `std:fs` now provides app-facing capability-gated text, byte-native `u8_buf`,
   legacy byte-list, exists, directory-list, and chmod facade helpers over the
   existing runtime FS policy surface.
@@ -88,5 +90,5 @@ design evidence lives under `project-doc/`.
   contracts belong under explicit `*_raw` primitives.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time/timer,
-  `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
+  `std:net/url`, `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
   `std:avm/events`, and `std:avm/permission`.

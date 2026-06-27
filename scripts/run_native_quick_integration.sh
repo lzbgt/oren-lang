@@ -1470,6 +1470,28 @@ run_step_checked "std env smoke (bytecode)" "$env_std_log" \
   "$compiler" test "$env_std_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$env_std_log"
 
+echo "== std net url smoke (native/C/bytecode) =="
+net_url_std_src="tests/modules/test_net_url_std.oren"
+net_url_std_log="build/logs/${compiler_base}_std_net_url.log"
+rm -f "$net_url_std_log" 2>/dev/null || true
+
+run_step_checked "std net url smoke (native)" "$net_url_std_log" \
+  "$compiler" test "$net_url_std_src" --backend native --platform "$platform" --no-cache
+run_step_checked "std net url smoke (C)" "$net_url_std_log" \
+  "$compiler" test "$net_url_std_src" --backend c --platform "$platform" --no-cache
+run_step_checked "std net url smoke (bytecode)" "$net_url_std_log" \
+  "$compiler" test "$net_url_std_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$net_url_std_log"
+
+echo "== std net url consumer smoke (native) =="
+net_url_consumer_src="tests/modules/test_net_url_consumers_native.oren"
+net_url_consumer_log="build/logs/${compiler_base}_std_net_url_consumers.log"
+rm -f "$net_url_consumer_log" 2>/dev/null || true
+
+run_step_checked "std net url consumer smoke (native)" "$net_url_consumer_log" \
+  "$compiler" test "$net_url_consumer_src" --backend native --platform "$platform" --no-cache
+tail -n 8 "$net_url_consumer_log"
+
 echo "== std fs smoke (native/C/bytecode) =="
 fs_std_src="tests/modules/test_fs_std.oren"
 fs_std_log="build/logs/${compiler_base}_std_fs.log"

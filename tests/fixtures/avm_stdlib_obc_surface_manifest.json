@@ -169,6 +169,15 @@
       ]
     },
     {
+      "module": "std:net/url",
+      "alias": "net_url",
+      "probes": [
+        "var parsed_url = net_url.parse_http(\"https://example.com:8443/a\")",
+        "if oren_is_err(parsed_url) || parsed_url[\"scheme\"] != \"https\" || parsed_url[\"host\"] != \"example.com\" || parsed_url[\"port\"] != 8443 || parsed_url[\"path\"] != \"/a\" { fail(107) }",
+        "if !oren_is_err(net_url.parse_ws(\"http://example.com\")) { fail(108) }"
+      ]
+    },
+    {
       "module": "std:json",
       "alias": "json",
       "probes": [

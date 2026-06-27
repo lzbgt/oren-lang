@@ -16,6 +16,7 @@
 import tcp "std:net/tcp"
 import tls "std:net/tls"
 import hostutil "std:net/host"
+import neturl "std:net/url"
 import sha1 "std:crypto/sha1"
 import rand "std:crypto/rand"
 import base64 "std:encoding/base64"
@@ -111,102 +112,8 @@ fn client_key_base64() {
     return _err_from_record(r, "ws.client_key_base64 failed")
 }
 
-fn _starts_with(s, prefix) {
-    if s == nil || prefix == nil { return 0 }
-    var sl = oren_string_len(s)
-    var pl = oren_string_len(prefix)
-    if sl < pl { return 0 }
-    var i = 0
-    while i < pl {
-        if ptr_get_byte(s + i) != ptr_get_byte(prefix + i) { return 0 }
-        i = i + 1
-    }
-    return 1
-}
-
 fn _parse_ws_url(url) {
-    // Supported:
-    //   ws://<host>[:port][/path]
-    //   wss://<host>[:port][/path]   (TLS provider availability is OS-dependent; see docs/DESIGN.md#tls-provider-availability)
-    //
-    // Where <host> can be an IPv4 literal or a hostname (resolved separately).
-    //
-    // Returns {ok:1, scheme:string, host:string, port:int, path:string} or {ok:0, err:string}.
-    if url == nil { return {"ok": 0, "err": "url is nil"} }
-
-    var scheme = 0
-    var pos = 0
-    if _starts_with(url, "ws://") == 1 {
-        scheme = "ws"
-        pos = 5 // len("ws://")
-    } else if _starts_with(url, "wss://") == 1 {
-        scheme = "wss"
-        pos = 6 // len("wss://")
-    } else {
-        return {"ok": 0, "err": "only ws:// and wss:// are supported"}
-    }
-
-    var ul = oren_string_len(url)
-
-    // Find '/' for path start
-    var slash = -1
-    var i = pos
-    while i < ul {
-        if ptr_get_byte(url + i) == 47 { slash = i; break } // '/'
-        i = i + 1
-    }
-    if slash == -1 { slash = ul }
-
-    // Find ':' for port separator (only within host segment)
-    var colon = -1
-    i = pos
-    while i < slash {
-        if ptr_get_byte(url + i) == 58 { colon = i; break } // ':'
-        i = i + 1
-    }
-
-    var host_end = slash
-    if colon != -1 { host_end = colon }
-    if host_end <= pos { return {"ok": 0, "err": "missing host"} }
-
-    var host = oren_string_slice(url, pos, host_end)
-    if host == 0 { return {"ok": 0, "err": "host slice failed"} }
-
-    var port = 80
-    if scheme == "wss" { port = 443 }
-    if colon != -1 {
-        var port_s = oren_string_slice(url, colon + 1, slash)
-        if port_s == 0 {
-            free(host)
-            return {"ok": 0, "err": "port slice failed"}
-        }
-        var pv = oren_int_from_string(port_s)
-        free(port_s)
-        if pv <= 0 {
-            free(host)
-            return {"ok": 0, "err": "invalid port"}
-        }
-        port = pv
-    }
-
-    // Always return an owned (malloc) path string so callers can `free()` unconditionally.
-    var path = 0
-    if slash < ul {
-        path = oren_string_slice(url, slash, ul)
-        if path == 0 {
-            free(host)
-            return {"ok": 0, "err": "path slice failed"}
-        }
-    } else {
-        // No explicit path => "/"
-        path = oren_string_slice("/", 0, 1)
-        if path == 0 {
-            free(host)
-            return {"ok": 0, "err": "path alloc failed"}
-        }
-    }
-
-    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
+    return neturl.parse_ws_record(url)
 }
 
 fn _parse_url_record(url) {

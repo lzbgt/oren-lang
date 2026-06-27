@@ -103,6 +103,7 @@ This file is the concise task view. Detailed implementation status lives in
      session, plus first `std:net/avm/socket.open/write/read/select/accept/close` TCP/UDP/WebSocket virtual
      session handles and `std:net/avm/tcp` / `std:net/avm/udp` convenience facades
      plus `std:net/avm/ws` over host-owned iOS sockets with readiness selection,
+     pure `std:net/url` HTTP/WebSocket endpoint parsing shared by native and AVM-safe NET code,
      plus pure `std:sys` AVM capability-domain id/name/mask helpers,
      `std:env` capability-gated get/fallback/presence/truthy facade helpers,
      `std:fs` capability-gated text/byte/list-dir facade helpers,

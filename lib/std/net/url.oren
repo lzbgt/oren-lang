@@ -1,0 +1,150 @@
+// std/net/url (v0, rolling)
+//
+// Pure URL parsing helpers for the std NET family. This module intentionally
+// does not perform DNS, socket, TLS, or host I/O; callers decide which runtime
+// capability backend handles the parsed endpoint.
+
+fn _byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
+fn _starts_with(s, prefix) {
+    if s == nil || prefix == nil { return 0 }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return 0 }
+    var i = 0
+    while i < pl {
+        if _byte_at(s, i) != _byte_at(prefix, i) { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+fn _parse_positive_int(s) {
+    if s == nil { return -1 }
+    var n = oren_string_len(s)
+    if n <= 0 { return -1 }
+    var acc = 0
+    var i = 0
+    while i < n {
+        var b = _byte_at(s, i)
+        if b < 48 || b > 57 { return -1 }
+        acc = acc * 10 + (b - 48)
+        i = i + 1
+    }
+    if acc <= 0 { return -1 }
+    return acc
+}
+
+fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
+    if url == nil { return {"ok": 0, "err": "url is nil"} }
+
+    var scheme = nil
+    var pos = 0
+    var prefix_a = scheme_a + "://"
+    var prefix_b = scheme_b + "://"
+    if _starts_with(url, prefix_a) == 1 {
+        scheme = scheme_a
+        pos = oren_string_len(prefix_a)
+    } else if _starts_with(url, prefix_b) == 1 {
+        scheme = scheme_b
+        pos = oren_string_len(prefix_b)
+    } else {
+        return {"ok": 0, "err": "only " + prefix_a + " and " + prefix_b + " are supported"}
+    }
+
+    var ul = oren_string_len(url)
+    var slash = -1
+    var i = pos
+    while i < ul {
+        if _byte_at(url, i) == 47 { slash = i; break } // '/'
+        i = i + 1
+    }
+    if slash == -1 { slash = ul }
+
+    var colon = -1
+    i = pos
+    while i < slash {
+        if _byte_at(url, i) == 58 { colon = i; break } // ':'
+        i = i + 1
+    }
+
+    var host_end = slash
+    if colon != -1 { host_end = colon }
+    if host_end <= pos { return {"ok": 0, "err": "missing host"} }
+
+    var host = oren_string_slice(url, pos, host_end)
+    if host == 0 { return {"ok": 0, "err": "host slice failed"} }
+
+    var port = default_port_a
+    if scheme == scheme_b { port = default_port_b }
+    if colon != -1 {
+        var port_s = oren_string_slice(url, colon + 1, slash)
+        if port_s == 0 {
+            return {"ok": 0, "err": "port slice failed"}
+        }
+        var pv = _parse_positive_int(port_s)
+        if pv <= 0 {
+            return {"ok": 0, "err": "invalid port"}
+        }
+        port = pv
+    }
+
+    var path = nil
+    if slash < ul {
+        path = oren_string_slice(url, slash, ul)
+        if path == 0 {
+            return {"ok": 0, "err": "path slice failed"}
+        }
+    } else {
+        path = oren_string_slice("/", 0, 1)
+        if path == 0 {
+            return {"ok": 0, "err": "path alloc failed"}
+        }
+    }
+
+    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
+}
+
+fn _err_from_record(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
+fn parse_http_record(url) {
+    return _parse_two_schemes(url, "http", 80, "https", 443)
+}
+
+fn parse_ws_record(url) {
+    return _parse_two_schemes(url, "ws", 80, "wss", 443)
+}
+
+fn parse_http(url) {
+    var r = parse_http_record(url)
+    if r["ok"] == 1 {
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
+    }
+    return _err_from_record(r, "url.parse_http failed")
+}
+
+fn parse_ws(url) {
+    var r = parse_ws_record(url)
+    if r["ok"] == 1 {
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
+    }
+    return _err_from_record(r, "url.parse_ws failed")
+}
+
+fn parse(url) {
+    var h = parse_http_record(url)
+    if h["ok"] == 1 {
+        return {"scheme": h["scheme"], "host": h["host"], "port": h["port"], "path": h["path"]}
+    }
+    var w = parse_ws_record(url)
+    if w["ok"] == 1 {
+        return {"scheme": w["scheme"], "host": w["host"], "port": w["port"], "path": w["path"]}
+    }
+    return _err_from_record(h, "url.parse failed")
+}

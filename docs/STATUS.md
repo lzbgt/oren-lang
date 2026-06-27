@@ -92,7 +92,7 @@ Facts from the 2026-05-28 implementation pass:
   `sleep_ms` blocks the AVM worker on wall-clock time and `now_unix_ns` uses host
   realtime. Hosts must run this off the UI thread.
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
-  app-facing modules such as `std:sys`, `std:env`, `std:fs`, `std:proc`, `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
+  app-facing modules such as `std:sys`, `std:env`, `std:fs`, `std:proc`, `std:net/url`, `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
   `std:cbor`, `std:yaml`, `std:regex`, `std:encoding/base64`,
   `std:crypto/pem`, `std:crypto/sha1`, `std:crypto/sha256`, and
   `std:crypto/x509`.
@@ -298,6 +298,10 @@ Facts from the 2026-05-28 implementation pass:
   virtual DNS request to `getaddrinfo` under the same dynamic live-NET allowlist
   and timeout policy. OBC receives only address strings, not resolver handles or
   native socket descriptors.
+- `std:net/url` provides pure HTTP/WebSocket URL parsing shared by native
+  `std:net/http`, native `std:net/ws`, and AVM-safe app code. It keeps parsing
+  separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the
+  same endpoint interpretation across host and virtual NET providers.
 - iOS `OrenAVMKit` now enforces live VNET session limits in the host-backed
   provider: `liveNetworkMaxSessions` caps open virtual TCP/UDP sessions, and
   `liveNetworkSessionByteLimitBytes` caps total bytes read/written per session.
@@ -345,6 +349,8 @@ Facts from the 2026-05-28 implementation pass:
   `std:env` now names capability-gated environment reads with get/fallback,
   presence, require, and truthy helpers while leaving host ENV access, AVM
   record/replay, and capsule policy under runtime control.
+  `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing for native
+  and AVM-safe NET code without opening sockets or touching host network state.
   `std:fs` now names the capability-gated FS operations with explicit text,
   byte-native `u8_buf`, legacy byte-list, exists, directory-list, and chmod helpers
   while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets
