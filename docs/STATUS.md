@@ -503,7 +503,8 @@ Facts from the 2026-05-28 implementation pass:
 	  elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, sampled `beziers_xy`, partial `sectors_xy`/`arc_bands_xy`, bounded `cylinders_z`,
   `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle
   `triangles_xyz_rgba` colors. Procedural mesh packers now live in focused
-  helpers (`std:ui/scene3d_shapes` for flat/solid shapes and
+  helpers (`std:ui/scene3d_shapes_flat` for flat XY shapes,
+  `std:ui/scene3d_shapes` for solid 3D shapes, and
   `std:ui/scene3d_shapes_grid` for heightfield/surface grids), keeping the
   retained-scene orchestration and shape helpers small enough for continued
   package-format expansion without changing the public JSON schema or renderer ABI.
