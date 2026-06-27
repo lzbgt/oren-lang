@@ -93,6 +93,92 @@ fn _store_triangle(out, off, ax, ay, az, bx, by, bz, cx, cy, cz, ctx) {
     return _store_xyz_values(out, off + 24, cx, cy, cz, ctx + ".c")
 }
 
+fn _xy_pair(v, label, ctx) {
+    if v == nil || oren_list_len(v) != 2 { return oren_err(4, ctx + ": " + label + " must be [x,y]") }
+    if _is_int(v[0]) == false || _is_int(v[1]) == false {
+        return oren_err(4, ctx + ": " + label + " must contain i32")
+    }
+    return v
+}
+
+fn _xyz_point(v, label, ctx) {
+    if v == nil || oren_list_len(v) != 3 { return oren_err(4, ctx + ": " + label + " must be [x,y,z]") }
+    if _is_int(v[0]) == false || _is_int(v[1]) == false || _is_int(v[2]) == false {
+        return oren_err(4, ctx + ": " + label + " must contain i32")
+    }
+    return v
+}
+
+fn _plane_xy_bounds(plane, ctx) {
+    var lo = plane["min"]
+    if lo == nil { lo = plane["min_xy"] }
+    var hi = plane["max"]
+    if hi == nil { hi = plane["max_xy"] }
+    if lo != nil || hi != nil {
+        lo = _xy_pair(lo, "plane min", ctx)
+        if oren_is_err(lo) { return lo }
+        hi = _xy_pair(hi, "plane max", ctx)
+        if oren_is_err(hi) { return hi }
+        var z = plane["z"]
+        if z == nil { z = plane["z_milli"] }
+        if z == nil { z = 0 }
+        if _is_int(z) == false { return oren_err(4, ctx + ": plane z must be i32") }
+        if hi[0] <= lo[0] || hi[1] <= lo[1] { return oren_err(4, ctx + ": plane max must be greater than min") }
+        return [lo[0], lo[1], hi[0], hi[1], z]
+    }
+    var origin = plane["origin"]
+    if origin == nil { origin = plane["origin_xyz"] }
+    origin = _xyz_point(origin, "plane origin", ctx)
+    if oren_is_err(origin) { return origin }
+    var size = plane["size"]
+    if size == nil { size = plane["size_xy"] }
+    size = _xy_pair(size, "plane size", ctx)
+    if oren_is_err(size) { return size }
+    if size[0] <= 0 || size[1] <= 0 { return oren_err(4, ctx + ": plane size must be positive") }
+    return [origin[0], origin[1], origin[0] + size[0], origin[1] + size[1], origin[2]]
+}
+
+fn _planes_xy_triangle_count(planes, ctx) {
+    if planes == nil { return oren_err(4, ctx + ": missing planes_xy") }
+    var np = oren_list_len(planes)
+    if oren_is_err(np) { return oren_err(4, ctx + ": planes_xy must be list") }
+    var i = 0
+    while i < np {
+        var plane = planes[i]
+        if plane == nil { return oren_err(4, ctx + ": plane must be object") }
+        var bounds = _plane_xy_bounds(plane, ctx)
+        if oren_is_err(bounds) { return bounds }
+        i = i + 1
+    }
+    return np * 2
+}
+
+fn pack_planes_xy(planes, ctx) {
+    var tri_count = _planes_xy_triangle_count(planes, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var i = 0
+    var np = oren_list_len(planes)
+    while i < np {
+        var bounds = _plane_xy_bounds(planes[i], ctx)
+        var x0 = bounds[0]
+        var y0 = bounds[1]
+        var x1 = bounds[2]
+        var y1 = bounds[3]
+        var z = bounds[4]
+        var rc = _store_triangle(out, off, x0, y0, z, x1, y0, z, x1, y1, z, ctx + ".plane0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, x0, y0, z, x1, y1, z, x0, y1, z, ctx + ".plane1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        i = i + 1
+    }
+    return out
+}
+
 fn _cylinders_triangle_count(cylinders, ctx) {
     if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
     var nc = oren_list_len(cylinders)

@@ -528,6 +528,52 @@ fn main() {
     assert_eq(_px(surface_buf, 4, 2, 1, 1), 204)
     assert_eq(_px(surface_buf, 4, 2, 1, 2), 136)
 
+    var from_planes = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 143,
+                "planes_xy": [
+                    {"min": [0, 0], "max": [2, 2], "z": 1}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#cc8844"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 143}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_planes) == false)
+    assert_eq(from_planes[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_planes[0]["triangles"]), 72)
+    assert_eq(_i32_at(from_planes[0]["triangles"], 0), 1)
+    assert_eq(_i32_at(from_planes[0]["triangles"], 4), 0)
+    assert_eq(_i32_at(from_planes[0]["triangles"], 8), 6)
+    assert_true(ui_cmds.validate(from_planes, 4, 4, {"strict_bounds": true}) == 0)
+    var plane_buf = ui_raster.rasterize(from_planes, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(plane_buf) == false)
+    assert_eq(_px(plane_buf, 4, 2, 1, 0), 204)
+    assert_eq(_px(plane_buf, 4, 2, 1, 1), 136)
+    assert_eq(_px(plane_buf, 4, 2, 1, 2), 68)
+
+    var from_plane_origin_size = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 243,
+                "planes_xy": [
+                    {"origin": [2, 3, 4], "size": [5, 6]}
+                ],
+                "color": "#ffffff"
+            }
+        ]
+    })
+    assert_true(oren_is_err(from_plane_origin_size) == false)
+    assert_eq(_i32_at(from_plane_origin_size[0]["triangles"], 0), 2)
+    assert_eq(_i32_at(from_plane_origin_size[0]["triangles"], 4), 3)
+    assert_eq(_i32_at(from_plane_origin_size[0]["triangles"], 8), 4)
+    assert_eq(_i32_at(from_plane_origin_size[0]["triangles"], 12), 7)
+
     var from_cylinders = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -879,6 +925,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"prisms_xy\":[{\"points\":[[0,0],[1,0]],\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"heightfields_xy\":[{\"z_values\":[[0,1],[2]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"surfaces_xyz\":[{\"vertices\":[[[0,0,0],[1,0,0]],[[0,1,0]]]}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"planes_xy\":[{\"origin\":[0,0,0],\"size\":[0,1]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cylinders_z\":[{\"center\":[0,0],\"radius\":1,\"z_min\":0,\"z_max\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cones_z\":[{\"center\":[0,0],\"radius\":0,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"spheres_xyz\":[{\"center\":[0,0,0],\"radius\":1,\"segments\":4,\"rings\":1}],\"color\":\"#ffffff\"}]}")) == true)
