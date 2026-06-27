@@ -65,7 +65,9 @@
       "probes": [
         "if path.normalize(\"/a//b/../c\") != \"/a/c\" { fail(109) }",
         "if path.join([\"/pkg\", \"scenes\", \"../scene.os3d\"]) != \"/pkg/scene.os3d\" { fail(110) }",
-        "if path.basename(\"/pkg/scene/cube.os3d\") != \"cube.os3d\" { fail(111) }"
+        "if path.basename(\"/pkg/scene/cube.os3d\") != \"cube.os3d\" { fail(111) }",
+        "if path.join_under(\"/pkg/assets\", [\"scenes\", \"cube.os3d\"]) != \"/pkg/assets/scenes/cube.os3d\" { fail(112) }",
+        "if !oren_is_err(path.join_under(\"/pkg/assets\", [\"..\", \"secret\"])) { fail(113) }"
       ]
     },
     {

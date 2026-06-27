@@ -106,7 +106,7 @@ This file is the concise task view. Detailed implementation status lives in
      pure `std:net/url` HTTP/WebSocket endpoint parsing shared by native and AVM-safe NET code,
      plus pure `std:sys` AVM capability-domain id/name/mask helpers,
      `std:env` capability-gated get/fallback/presence/truthy facade helpers,
-     pure `std:path` slash-separated VFS/package path helpers,
+     pure `std:path` slash-separated VFS/package path and traversal-safe root-join helpers,
      `std:fs` capability-gated text/byte/list-dir facade helpers,
      `std:proc` capability-gated run/status facade helpers,
      portable `std:timer` deadline/interval helpers and the native `std:avm/events`

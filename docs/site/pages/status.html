@@ -388,9 +388,10 @@
 <ul>
 <li><code>std:path</code> provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>
-<p>  join, dirname, basename, and extension helpers. It deliberately stays separate</p>
-<p>  from host filesystem APIs so SDKs can share package-asset path behavior across</p>
-<p>  iOS/macOS/Linux/Windows and AVM without inheriting platform path quirks.</p>
+<p>  join, boundary-checked <code>join_under</code>, containment, dirname, basename, and</p>
+<p>  extension helpers. It deliberately stays separate from host filesystem APIs so</p>
+<p>  SDKs can share package-asset path behavior across iOS/macOS/Linux/Windows and</p>
+<p>  AVM without inheriting platform path quirks.</p>
 <ul>
 <li>iOS <code>OrenAVMKit</code> now enforces live VNET session limits in the host-backed</li>
 </ul>
@@ -452,8 +453,9 @@
 <p>  record/replay, and capsule policy under runtime control.</p>
 <p>  <code>std:net/url</code> now centralizes pure HTTP/WebSocket endpoint parsing for native</p>
 <p>  and AVM-safe NET code without opening sockets or touching host network state.</p>
-<p>  <code>std:path</code> now centralizes pure slash-path normalization and joining for VFS</p>
-<p>  and package assets without touching host filesystem state.</p>
+<p>  <code>std:path</code> now centralizes pure slash-path normalization, joining, containment,</p>
+<p>  and traversal-safe <code>join_under</code> for VFS and package assets without touching</p>
+<p>  host filesystem state.</p>
 <p>  <code>std:fs</code> now names the capability-gated FS operations with explicit text,</p>
 <p>  byte-native <code>u8_buf</code>, legacy byte-list, exists, directory-list, and chmod helpers</p>
 <p>  while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets</p>

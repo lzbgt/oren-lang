@@ -304,9 +304,10 @@ Facts from the 2026-05-28 implementation pass:
   separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the
   same endpoint interpretation across host and virtual NET providers.
 - `std:path` provides pure slash-separated VFS/package path split, normalize,
-  join, dirname, basename, and extension helpers. It deliberately stays separate
-  from host filesystem APIs so SDKs can share package-asset path behavior across
-  iOS/macOS/Linux/Windows and AVM without inheriting platform path quirks.
+  join, boundary-checked `join_under`, containment, dirname, basename, and
+  extension helpers. It deliberately stays separate from host filesystem APIs so
+  SDKs can share package-asset path behavior across iOS/macOS/Linux/Windows and
+  AVM without inheriting platform path quirks.
 - iOS `OrenAVMKit` now enforces live VNET session limits in the host-backed
   provider: `liveNetworkMaxSessions` caps open virtual TCP/UDP sessions, and
   `liveNetworkSessionByteLimitBytes` caps total bytes read/written per session.
@@ -356,8 +357,9 @@ Facts from the 2026-05-28 implementation pass:
   record/replay, and capsule policy under runtime control.
   `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing for native
   and AVM-safe NET code without opening sockets or touching host network state.
-  `std:path` now centralizes pure slash-path normalization and joining for VFS
-  and package assets without touching host filesystem state.
+  `std:path` now centralizes pure slash-path normalization, joining, containment,
+  and traversal-safe `join_under` for VFS and package assets without touching
+  host filesystem state.
   `std:fs` now names the capability-gated FS operations with explicit text,
   byte-native `u8_buf`, legacy byte-list, exists, directory-list, and chmod helpers
   while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets

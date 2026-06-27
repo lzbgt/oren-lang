@@ -27,6 +27,15 @@ assert_eq(path.normalize("a/../../b"), "../b", 16)
 assert_eq(path.join(["/pkg", "scenes", "../scene.os3d"]), "/pkg/scene.os3d", 20)
 assert_eq(path.join(["", "assets", "cube.os3d"]), "assets/cube.os3d", 21)
 assert_eq(path.join([]), ".", 22)
+assert_eq(path.join_under("/pkg/assets", ["scenes", "cube.os3d"]), "/pkg/assets/scenes/cube.os3d", 23)
+assert_eq(path.join_under("/pkg/assets", ["scenes", "..", "cube.os3d"]), "/pkg/assets/cube.os3d", 24)
+assert_eq(path.join_under("pkg", ["assets", "cube.os3d"]), "pkg/assets/cube.os3d", 25)
+if !oren_is_err(path.join_under("/pkg/assets", ["..", "secret"])) { fail(26) }
+if !oren_is_err(path.join_under("/pkg/assets", ["/etc/passwd"])) { fail(27) }
+if path.contains("/pkg/assets", "/pkg/assets/cube.os3d") != true { fail(28) }
+if path.contains("/pkg/assets", "/pkg/assets2/cube.os3d") != false { fail(29) }
+if path.contains(".", "assets/cube.os3d") != true { fail(60) }
+if path.contains(".", "../secret") != false { fail(61) }
 
 assert_eq(path.dirname("/pkg/scene/cube.os3d"), "/pkg/scene", 30)
 assert_eq(path.dirname("cube.os3d"), ".", 31)
@@ -44,6 +53,7 @@ if parts[0] != "a" || parts[1] != "." || parts[2] != "b" { fail(42) }
 
 if !oren_is_err(path.normalize(7)) { fail(50) }
 if !oren_is_err(path.join(["a", 7])) { fail(51) }
+if !oren_is_err(path.join_under("/pkg", ["a", 7])) { fail(52) }
 
 print("module path_std OK")
 exit(0)

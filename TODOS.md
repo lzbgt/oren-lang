@@ -43,7 +43,8 @@ design evidence lives under `project-doc/`.
 - `std:net/url` now provides pure HTTP/WebSocket URL parsing shared by native
   `std:net/http`, native `std:net/ws`, and AVM-safe app code.
 - `std:path` now provides pure slash-separated VFS/package path split, normalize,
-  join, dirname, basename, and extension helpers shared by AVM and desktop SDK code.
+  join, boundary-checked `join_under`, containment, dirname, basename, and extension
+  helpers shared by AVM and desktop SDK code.
 - `std:fs` now provides app-facing capability-gated text, byte-native `u8_buf`,
   legacy byte-list, exists, directory-list, and chmod facade helpers over the
   existing runtime FS policy surface.

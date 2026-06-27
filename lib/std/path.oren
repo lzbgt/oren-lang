@@ -133,6 +133,51 @@ fn join(parts) {
     return normalize(combined)
 }
 
+fn _starts_with_path_prefix(path, prefix) {
+    var pn = oren_string_len(path)
+    var qn = oren_string_len(prefix)
+    if pn < qn { return false }
+    var i = 0
+    while i < qn {
+        if _byte_at(path, i) != _byte_at(prefix, i) { return false }
+        i = i + 1
+    }
+    if pn == qn { return true }
+    return _byte_at(path, qn) == 47
+}
+
+fn _has_leading_parent(path) {
+    if path == ".." { return true }
+    return _starts_with_path_prefix(path, "..")
+}
+
+fn contains(root, target) {
+    var r = normalize(root)
+    if oren_is_err(r) { return r }
+    var t = normalize(target)
+    if oren_is_err(t) { return t }
+    var r_abs = is_abs(r)
+    var t_abs = is_abs(t)
+    if r_abs != t_abs { return false }
+    if r == "/" { return t_abs }
+    if r == "." {
+        if t_abs { return false }
+        return _has_leading_parent(t) == false
+    }
+    return _starts_with_path_prefix(t, r)
+}
+
+fn join_under(root, parts) {
+    var r = normalize(root)
+    if oren_is_err(r) { return r }
+    var child = join(parts)
+    if oren_is_err(child) { return child }
+    if is_abs(child) { return oren_err(4, "path.join_under: child path must be relative") }
+    if _has_leading_parent(child) { return oren_err(4, "path.join_under: child path escapes root") }
+    if child == "." { return r }
+    return normalize(r + "/" + child)
+}
+
 fn basename(path) {
     var p = normalize(path)
     if oren_is_err(p) { return p }

@@ -23,6 +23,11 @@ fn main() {
     assert_eq(path.normalize("/../a"), "/a", 13)
 
     assert_eq(path.join(["/pkg", "scenes", "../scene.os3d"]), "/pkg/scene.os3d", 20)
+    assert_eq(path.join_under("/pkg/assets", ["scenes", "cube.os3d"]), "/pkg/assets/scenes/cube.os3d", 21)
+    if !oren_is_err(path.join_under("/pkg/assets", ["..", "secret"])) { fail(22) }
+    if !oren_is_err(path.join_under("/pkg/assets", ["/etc/passwd"])) { fail(23) }
+    if path.contains("/pkg/assets", "/pkg/assets/cube.os3d") != true { fail(24) }
+    if path.contains("/pkg/assets", "/pkg/assets2/cube.os3d") != false { fail(25) }
     assert_eq(path.dirname("/pkg/scene/cube.os3d"), "/pkg/scene", 30)
     assert_eq(path.basename("/pkg/scene/cube.os3d"), "cube.os3d", 31)
     assert_eq(path.extname("cube.os3d"), ".os3d", 32)
