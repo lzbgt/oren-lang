@@ -292,6 +292,12 @@ fn _expect_body_ok(body) {
     return 0
 }
 
+fn _expect_empty_body(body) {
+    if body == nil { return 0 - 1 }
+    if oren_buf_len(body) != 0 { return 0 - 2 }
+    return 0
+}
+
 fn _client_roundtrip(conn) {
     // Use stdlib HTTP/2 client facade to avoid re-embedding frame logic in tests.
     var c = h2c.new(conn, 5000, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
@@ -305,7 +311,20 @@ fn _client_roundtrip(conn) {
     if oren_is_err(rr) { return 0 - 12 }
     if rr.status != 200 { return 0 - 13 }
     if rr.text() != "ok" { return 0 - 14 }
-    return _expect_body_ok(rr.bytes())
+    var brc = _expect_body_ok(rr.bytes())
+    if brc != 0 { return 0 - 15 }
+
+    var rr2 = c.request([
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/empty"},
+        {"name": ":authority", "value": "oren.test", "index": "inc"}
+    ], nil, {"split_headers_at": 0})
+    if oren_is_err(rr2) { return 0 - 16 }
+    if rr2.status != 204 { return 0 - 17 }
+    brc = _expect_empty_body(rr2.bytes())
+    if brc != 0 { return 0 - 18 }
+    return 0
 }
 
 fn server_impl(listen_fd, pfx_b64) {
@@ -379,7 +398,7 @@ fn server_impl(listen_fd, pfx_b64) {
     var okh = _expect_headers_list(hs, exp)
     if okh != 0 { tls.close(conn); return 28 }
 
-    // Response HEADERS (fragmented) + DATA "ok".
+    // Response HEADERS (fragmented) + split DATA "ok".
     var rt = hpack.table_new(4096)
     var hr = hpack.encode_header_block(rt, [
         {"name": ":status", "value": "200"},
@@ -391,9 +410,42 @@ fn server_impl(listen_fd, pfx_b64) {
     wr0 = _send_headers_fragmented(conn, 1, hflags, hr["b"], 8, 5000)
     if wr0 != 0 { tls.close(conn); return 30 }
 
-    var data = oren_bytes_pack([111, 107]) // "ok"
-    wr0 = _send_frame(conn, h2.FRAME_DATA, h2.FLAG_END_STREAM, 1, data, 5000)
+    var data = oren_bytes_pack([111]) // "o"
+    wr0 = _send_frame(conn, h2.FRAME_DATA, 0, 1, data, 5000)
     if wr0 != 0 { tls.close(conn); return 31 }
+    data = oren_bytes_pack([107]) // "k"
+    wr0 = _send_frame(conn, h2.FRAME_DATA, h2.FLAG_END_STREAM, 1, data, 5000)
+    if wr0 != 0 { tls.close(conn); return 310 }
+
+    // Second request on stream 3; response is HEADERS with END_STREAM and no DATA.
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); return 32 }
+    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); return 33 }
+    if fr["stream"] != 3 { tls.close(conn); return 34 }
+    if (fr["flags"] & h2.FLAG_PADDED) != 0 { tls.close(conn); return 35 }
+    if (fr["flags"] & h2.FLAG_PRIORITY) != 0 { tls.close(conn); return 36 }
+    hb0 = _read_header_block(conn, fr, 5000)
+    if hb0["ok"] != 1 { tls.close(conn); return 37 }
+
+    dr = hpack.decode_header_block(tbl, hb0["b"])
+    if dr["ok"] != 1 { tls.close(conn); return 38 }
+    hs = dr["headers"]
+    exp = [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/empty"},
+        {"name": ":authority", "value": "oren.test"}
+    ]
+    okh = _expect_headers_list(hs, exp)
+    if okh != 0 { tls.close(conn); return 39 }
+
+    hr = hpack.encode_header_block(rt, [
+        {"name": ":status", "value": "204"},
+        {"name": "content-length", "value": "0", "index": "no"}
+    ], {"huffman": 1})
+    if hr["ok"] != 1 { tls.close(conn); return 40 }
+    wr0 = _send_headers_fragmented(conn, 3, h2.FLAG_END_STREAM, hr["b"], 0, 5000)
+    if wr0 != 0 { tls.close(conn); return 41 }
 
     tls.close(conn)
     return 0

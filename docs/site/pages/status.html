@@ -762,7 +762,8 @@
 <p>	  header-block encoding use exact-size <code>u8_buf</code> payloads or byte-slice</p>
 <p>	  conversion instead of building intermediate Oren byte lists; TLS ALPN</p>
 <p>	  decoded-byte strings also convert through byte slices. HTTP/2 client</p>
-<p>	  continuation/header-block buffers now copy through native <code>oren_memcpy</code>,</p>
+<p>	  continuation/header-block and DATA response buffers now accumulate through</p>
+<p>	  amortized <code>u8_buf</code> builders, including header-only response termination,</p>
 <p>	  and native WebSocket header slices/unmasked frame payloads plus DNS QNAME</p>
 <p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
 <p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>

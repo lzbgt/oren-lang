@@ -103,25 +103,61 @@ fn _write_all_bytes(conn, b, timeout_ms) {
     return _write_all_ptr(conn, p, n, timeout_ms)
 }
 
-fn _u8_concat2(a, b) {
-    if a == nil { a = oren_u8_buf_new_uninit(0) }
-    if b == nil { b = oren_u8_buf_new_uninit(0) }
-    var na = oren_buf_len(a)
-    var nb = oren_buf_len(b)
-    if oren_is_err(na) || oren_is_err(nb) { return oren_err(4, "http2_client: concat: bad buf") }
-    var out = oren_u8_buf_new_uninit(na + nb)
-    if oren_is_err(out) { return out }
-    var p = native_buf_data_ptr(out)
-    if p == 0 && (na + nb) > 0 { return oren_err(4, "http2_client: concat: nil ptr") }
-    if na > 0 {
-        var pa = native_buf_data_ptr(a)
-        if pa == 0 { return oren_err(4, "http2_client: concat: nil pa") }
-        oren_memcpy(p, pa, na)
+fn _u8_acc_new(initial_cap) {
+    if initial_cap < 64 { initial_cap = 64 }
+    var buf = oren_u8_buf_new_uninit(initial_cap)
+    if oren_is_err(buf) { return buf }
+    return {"buf": buf, "len": 0, "cap": initial_cap}
+}
+
+fn _u8_acc_reserve(acc, extra) {
+    if extra < 0 { return oren_err(4, "http2_client: acc negative extra") }
+    var len = acc["len"]
+    var cap = acc["cap"]
+    var need = len + extra
+    if need <= cap { return 0 }
+    var new_cap = cap
+    while new_cap < need {
+        new_cap = new_cap * 2
     }
-    if nb > 0 {
-        var pb = native_buf_data_ptr(b)
-        if pb == 0 { return oren_err(4, "http2_client: concat: nil pb") }
-        oren_memcpy(p + na, pb, nb)
+    var nb = oren_u8_buf_new_uninit(new_cap)
+    if oren_is_err(nb) { return nb }
+    if len > 0 {
+        var oldp = native_buf_data_ptr(acc["buf"])
+        var newp = native_buf_data_ptr(nb)
+        if oldp == 0 || newp == 0 { return oren_err(4, "http2_client: acc grow nil ptr") }
+        oren_memcpy(newp, oldp, len)
+    }
+    acc["buf"] = nb
+    acc["cap"] = new_cap
+    return 0
+}
+
+fn _u8_acc_append(acc, b) {
+    if b == nil { return 0 }
+    var n = oren_buf_len(b)
+    if oren_is_err(n) { return oren_err(4, "http2_client: acc append bad buf") }
+    if n == 0 { return 0 }
+    var rc = _u8_acc_reserve(acc, n)
+    if oren_is_err(rc) { return rc }
+    var src = native_buf_data_ptr(b)
+    var dst = native_buf_data_ptr(acc["buf"])
+    if src == 0 || dst == 0 { return oren_err(4, "http2_client: acc append nil ptr") }
+    oren_memcpy(dst + acc["len"], src, n)
+    acc["len"] = acc["len"] + n
+    return 0
+}
+
+fn _u8_acc_finish(acc) {
+    var len = acc["len"]
+    if len == acc["cap"] { return acc["buf"] }
+    var out = oren_u8_buf_new_uninit(len)
+    if oren_is_err(out) { return out }
+    if len > 0 {
+        var src = native_buf_data_ptr(acc["buf"])
+        var dst = native_buf_data_ptr(out)
+        if src == 0 || dst == 0 { return oren_err(4, "http2_client: acc finish nil ptr") }
+        oren_memcpy(dst, src, len)
     }
     return out
 }
@@ -171,14 +207,22 @@ fn _read_header_block(conn, first_fr, timeout_ms) {
     if (flags & h2.FLAG_END_HEADERS) != 0 {
         return {"ok": 1, "b": hb, "flags": flags, "stream": stream}
     }
+    var hb_len = oren_buf_len(hb)
+    if oren_is_err(hb_len) { return _err("http2_client: bad header block") }
+    var acc = _u8_acc_new(hb_len + 64)
+    if oren_is_err(acc) { return _err("http2_client: alloc header block") }
+    var arc = _u8_acc_append(acc, hb)
+    if oren_is_err(arc) { return _err("http2_client: append header block") }
     while true {
         var fr = _read_frame(conn, timeout_ms)
         if fr["ok"] != 1 { return _err("http2_client: read CONTINUATION") }
         if fr["type"] != h2.FRAME_CONTINUATION { return _err("http2_client: expected CONTINUATION") }
         if fr["stream"] != stream { return _err("http2_client: CONTINUATION stream mismatch") }
-        hb = _u8_concat2(hb, fr["payload"])
-        if oren_is_err(hb) { return _err("http2_client: concat header block") }
+        arc = _u8_acc_append(acc, fr["payload"])
+        if oren_is_err(arc) { return _err("http2_client: append header block") }
         if (fr["flags"] & h2.FLAG_END_HEADERS) != 0 {
+            hb = _u8_acc_finish(acc)
+            if oren_is_err(hb) { return _err("http2_client: finish header block") }
             return {"ok": 1, "b": hb, "flags": flags, "stream": stream}
         }
     }
@@ -338,15 +382,26 @@ fn _request_state(c, headers, body_bytes, opts) {
         i = i + 1
     }
 
-    // Read DATA frames until END_STREAM on our stream.
-    var body = oren_u8_buf_new(0)
+    // Read DATA frames until END_STREAM on our stream. Header-only responses
+    // terminate on the response HEADERS frame and do not require a DATA frame.
+    var body_acc = _u8_acc_new(0)
+    if oren_is_err(body_acc) { return _err("http2_client.request: alloc body") }
+    var body = oren_u8_buf_new_uninit(0)
+    if oren_is_err(body) { return _err("http2_client.request: alloc empty body") }
+    if (hb2["flags"] & h2.FLAG_END_STREAM) != 0 {
+        return {"ok": 1, "status": status, "headers": hs, "body": body}
+    }
     while true {
         var frd = _read_frame(conn, timeout_ms)
         if frd["ok"] != 1 { return _err("http2_client.request: read DATA") }
         if frd["type"] == h2.FRAME_DATA && frd["stream"] == sid {
-            body = _u8_concat2(body, frd["payload"])
-            if oren_is_err(body) { return _err("http2_client.request: concat body") }
-            if (frd["flags"] & h2.FLAG_END_STREAM) != 0 { break }
+            var brc = _u8_acc_append(body_acc, frd["payload"])
+            if oren_is_err(brc) { return _err("http2_client.request: append body") }
+            if (frd["flags"] & h2.FLAG_END_STREAM) != 0 {
+                body = _u8_acc_finish(body_acc)
+                if oren_is_err(body) { return _err("http2_client.request: finish body") }
+                break
+            }
             continue
         }
         // Ignore other frames for now.

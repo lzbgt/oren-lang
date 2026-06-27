@@ -175,8 +175,9 @@ This file is the concise task view. Detailed implementation status lives in
      plain literal decode now slices the header block directly, while Huffman
      string encode/decode, decoded-string boundaries, and full header-block
      encoding use exact-size `u8_buf` payloads or byte-slice conversion; TLS
-     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client continuation/header-block
-     buffering copies with native `oren_memcpy`, and PEM/Base64 body handling avoids
+     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client
+     continuation/header-block and DATA response buffering now uses amortized
+     `u8_buf` accumulators, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes. `std:strings` prefix/suffix/search/equality
      and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text

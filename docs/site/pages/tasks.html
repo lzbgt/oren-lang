@@ -243,8 +243,9 @@
 <p>     plain literal decode now slices the header block directly, while Huffman</p>
 <p>     string encode/decode, decoded-string boundaries, and full header-block</p>
 <p>     encoding use exact-size <code>u8_buf</code> payloads or byte-slice conversion; TLS</p>
-<p>     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client continuation/header-block</p>
-<p>     buffering copies with native <code>oren_memcpy</code>, and PEM/Base64 body handling avoids</p>
+<p>     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client</p>
+<p>     continuation/header-block and DATA response buffering now uses amortized</p>
+<p>     <code>u8_buf</code> accumulators, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
 <p>     exact-size writes. <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text</p>
