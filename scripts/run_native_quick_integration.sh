@@ -1470,6 +1470,19 @@ run_step_checked "std env smoke (bytecode)" "$env_std_log" \
   "$compiler" test "$env_std_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$env_std_log"
 
+echo "== std timer smoke (native/C/bytecode) =="
+timer_std_src="tests/modules/test_timer_std.oren"
+timer_std_log="build/logs/${compiler_base}_std_timer.log"
+rm -f "$timer_std_log" 2>/dev/null || true
+
+run_step_checked "std timer smoke (native)" "$timer_std_log" \
+  "$compiler" test "$timer_std_src" --backend native --platform "$platform" --no-cache
+run_step_checked "std timer smoke (C)" "$timer_std_log" \
+  "$compiler" test "$timer_std_src" --backend c --platform "$platform" --no-cache
+run_step_checked "std timer smoke (bytecode)" "$timer_std_log" \
+  "$compiler" test "$timer_std_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$timer_std_log"
+
 echo "== std net url smoke (native/C/bytecode) =="
 net_url_std_src="tests/modules/test_net_url_std.oren"
 net_url_std_log="build/logs/${compiler_base}_std_net_url.log"

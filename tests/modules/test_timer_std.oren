@@ -7,6 +7,13 @@ fn fail(code) {
 }
 
 var now = timer.now_ns()
+if timer.ms_to_ns(2) != 2000000 { fail(30) }
+if !result.is_err(timer.ms_to_ns(-1)) { fail(34) }
+var dn = timer.deadline_after_ns(0)
+if result.is_err(dn) { fail(37) }
+if dn < now { fail(38) }
+if !result.is_err(timer.deadline_after_ns(-1)) { fail(39) }
+
 var d0 = timer.deadline_after_ms(0)
 if result.is_err(d0) { fail(1) }
 if d0 < now { fail(2) }
@@ -24,6 +31,11 @@ var wf = timer.watch_after_ms("future", 1000)
 if result.is_err(wf) { fail(12) }
 if wf["kind"] != "timer" || wf["id"] != "future" { fail(13) }
 if wf["deadline_ns"] <= timer.now_ns() { fail(14) }
+var wfn = timer.watch_after_ns("future-ns", 1000000)
+if result.is_err(wfn) { fail(15) }
+if wfn["kind"] != "timer" || wfn["id"] != "future-ns" { fail(16) }
+if wfn["deadline_ns"] <= timer.now_ns() { fail(17) }
+if !result.is_err(timer.watch_after_ns("bad", -1)) { fail(18) }
 
 var it = timer.interval("tick", 1)
 if result.is_err(it) { fail(20) }
@@ -34,6 +46,10 @@ if it2["deadline_ns"] <= timer.now_ns() { fail(23) }
 if it2["period_ns"] != 1000000 { fail(24) }
 if !result.is_err(timer.interval("bad", 0)) { fail(25) }
 if !result.is_err(timer.advance_interval({"kind": "timer", "id": "bad", "period_ns": 0})) { fail(26) }
+var itn = timer.interval_ns("tick-ns", 1000000)
+if result.is_err(itn) { fail(40) }
+if itn["kind"] != "timer" || itn["id"] != "tick-ns" || itn["period_ns"] != 1000000 { fail(41) }
+if !result.is_err(timer.interval_ns("bad-ns", 0)) { fail(42) }
 
 print("module timer_std OK")
 exit(0)

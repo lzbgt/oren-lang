@@ -443,9 +443,11 @@
 <p>  events. Host SDKs may implement that bus with platform reactors, but OBC must</p>
 <p>  not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.</p>
 <ul>
-<li><code>std:timer</code> now provides portable deadline/remaining/expiry helpers and</li>
+<li><code>std:timer</code> now provides portable deadline/remaining/expiry helpers,</li>
 </ul>
-<p>  fixed-period timer-watch maps that compose with <code>std:avm/events.select</code>.</p>
+<p>  nanosecond-native watch/interval helpers, explicit millisecond-to-nanosecond</p>
+<p>  conversion, and fixed-period timer-watch maps that compose with</p>
+<p>  <code>std:avm/events.select</code>.</p>
 <p>  <code>std:sys</code> exposes the pure AVM capability-domain id/name/mask helpers and</p>
 <p>  default embedder domain mask so packages and hosts do not duplicate policy constants.</p>
 <p>  <code>std:env</code> now names capability-gated environment reads with get/fallback,</p>

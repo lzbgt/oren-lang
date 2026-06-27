@@ -348,8 +348,10 @@ Facts from the 2026-05-28 implementation pass:
   VNET readiness, GFX/input events, timers, cancellation, and future FS/package
   events. Host SDKs may implement that bus with platform reactors, but OBC must
   not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
-- `std:timer` now provides portable deadline/remaining/expiry helpers and
-  fixed-period timer-watch maps that compose with `std:avm/events.select`.
+- `std:timer` now provides portable deadline/remaining/expiry helpers,
+  nanosecond-native watch/interval helpers, explicit millisecond-to-nanosecond
+  conversion, and fixed-period timer-watch maps that compose with
+  `std:avm/events.select`.
   `std:sys` exposes the pure AVM capability-domain id/name/mask helpers and
   default embedder domain mask so packages and hosts do not duplicate policy constants.
   `std:env` now names capability-gated environment reads with get/fallback,

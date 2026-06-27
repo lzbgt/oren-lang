@@ -52,6 +52,11 @@ design evidence lives under `project-doc/`.
 - `std:proc` now provides app-facing capability-gated run/status/result helpers
   plus status-map `code`/`ok`/`require_ok` combinators over the existing runtime
   PROC policy surface and AVM VirtualPROC fixtures.
+- `std:timer` now provides nanosecond-native deadline/watch/interval helpers plus
+  explicit millisecond-to-nanosecond conversion for host/event-loop adapters.
+- Native cross-module functions returning computed integer division results can produce
+  unsafe numeric carriers; keep public nanosecond-to-millisecond conversion helpers
+  deferred until that compiler/runtime boundary is fixed.
 - The main iOS verifier keeps reusable OBC smoke sources under
   `tests/fixtures/ios_avm/` instead of embedding large heredocs, preserving
   line-guardrail headroom for more GUI/Metal gates.

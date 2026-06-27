@@ -14,9 +14,20 @@ fn now_ns() {
     return time.now_ns()
 }
 
+fn ms_to_ns(ms) {
+    if ms < 0 { return _err("std:timer.ms_to_ns: negative ms") }
+    return ms * 1000000
+}
+
+fn deadline_after_ns(delay_ns) {
+    if delay_ns < 0 { return _err("std:timer.deadline_after_ns: negative delay_ns") }
+    return now_ns() + delay_ns
+}
+
 fn deadline_after_ms(delay_ms) {
-    if delay_ms < 0 { return _err("std:timer.deadline_after_ms: negative delay_ms") }
-    return now_ns() + delay_ms * 1000000
+    var delay_ns = ms_to_ns(delay_ms)
+    if oren_is_err(delay_ns) { return delay_ns }
+    return deadline_after_ns(delay_ns)
 }
 
 fn remaining_ns(deadline_ns) {
@@ -45,11 +56,23 @@ fn watch_after_ms(id, delay_ms) {
     return watch_deadline(id, deadline)
 }
 
-fn interval(id, period_ms) {
-    if period_ms <= 0 { return _err("std:timer.interval: non-positive period_ms") }
-    var period_ns = period_ms * 1000000
+fn watch_after_ns(id, delay_ns) {
+    var deadline = deadline_after_ns(delay_ns)
+    if oren_is_err(deadline) { return deadline }
+    return watch_deadline(id, deadline)
+}
+
+fn interval_ns(id, period_ns) {
+    if period_ns <= 0 { return _err("std:timer.interval_ns: non-positive period_ns") }
     var deadline = now_ns() + period_ns
     return {"kind": "timer", "id": id, "deadline_ns": deadline, "period_ns": period_ns}
+}
+
+fn interval(id, period_ms) {
+    var period_ns = ms_to_ns(period_ms)
+    if oren_is_err(period_ns) { return period_ns }
+    if period_ns <= 0 { return _err("std:timer.interval: non-positive period_ms") }
+    return interval_ns(id, period_ns)
 }
 
 fn advance_interval(w) {

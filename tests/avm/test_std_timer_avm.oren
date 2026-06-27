@@ -3,6 +3,13 @@ import timer "std:timer"
 
 fn main() {
     var now = timer.now_ns()
+    if timer.ms_to_ns(2) != 2000000 { oren_exit(30) }
+    if !oren_is_err(timer.ms_to_ns(-1)) { oren_exit(34) }
+    var dn = timer.deadline_after_ns(0)
+    if oren_is_err(dn) { oren_exit(37) }
+    if dn < now { oren_exit(38) }
+    if !oren_is_err(timer.deadline_after_ns(-1)) { oren_exit(39) }
+
     var d0 = timer.deadline_after_ms(0)
     if oren_is_err(d0) { oren_exit(1) }
     if d0 < now { oren_exit(2) }
@@ -22,6 +29,11 @@ fn main() {
     if oren_is_err(wf) { oren_exit(13) }
     var none = events.select_once([wf])
     if oren_is_err(none) || none != nil { oren_exit(14) }
+    var wfn = timer.watch_after_ns("future-ns", 1000000)
+    if oren_is_err(wfn) { oren_exit(15) }
+    var none2 = events.select_once([wfn])
+    if oren_is_err(none2) || none2 != nil { oren_exit(16) }
+    if !oren_is_err(timer.watch_after_ns("bad", -1)) { oren_exit(17) }
 
     var it = timer.interval("tick", 1)
     if oren_is_err(it) { oren_exit(20) }
@@ -32,6 +44,10 @@ fn main() {
     if it2["period_ns"] != 1000000 { oren_exit(24) }
     if !oren_is_err(timer.interval("bad", 0)) { oren_exit(25) }
     if !oren_is_err(timer.advance_interval({"kind": "timer", "id": "bad", "period_ns": 0})) { oren_exit(26) }
+    var itn = timer.interval_ns("tick-ns", 1000000)
+    if oren_is_err(itn) { oren_exit(40) }
+    if itn["kind"] != "timer" || itn["id"] != "tick-ns" || itn["period_ns"] != 1000000 { oren_exit(41) }
+    if !oren_is_err(timer.interval_ns("bad-ns", 0)) { oren_exit(42) }
 
     print("avm std timer OK")
     oren_exit(0)

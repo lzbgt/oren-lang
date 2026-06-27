@@ -101,6 +101,15 @@
 <p>  plus status-map <code>code</code>/<code>ok</code>/<code>require_ok</code> combinators over the existing runtime</p>
 <p>  PROC policy surface and AVM VirtualPROC fixtures.</p>
 <ul>
+<li><code>std:timer</code> now provides nanosecond-native deadline/watch/interval helpers plus</li>
+</ul>
+<p>  explicit millisecond-to-nanosecond conversion for host/event-loop adapters.</p>
+<ul>
+<li>Native cross-module functions returning computed integer division results can produce</li>
+</ul>
+<p>  unsafe numeric carriers; keep public nanosecond-to-millisecond conversion helpers</p>
+<p>  deferred until that compiler/runtime boundary is fixed.</p>
+<ul>
 <li>The main iOS verifier keeps reusable OBC smoke sources under</li>
 </ul>
 <p>  <code>tests/fixtures/ios_avm/</code> instead of embedding large heredocs, preserving</p>
