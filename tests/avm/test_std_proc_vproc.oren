@@ -15,6 +15,9 @@ fn main() {
     if s0["ok"] != true || s0["code"] != 0 { fail(5) }
     var s7 = proc.status(7)
     if s7["ok"] != false || s7["code"] != 7 { fail(6) }
+    if proc.code(0) != 0 { fail(7) }
+    if proc.code(s7) != 7 { fail(8) }
+    if proc.ok(s0) != true || proc.ok(s7) != false { fail(9) }
 
     var rc1 = proc.run("echo hi")
     if rc1 != 0 { fail(10) }
@@ -24,6 +27,9 @@ fn main() {
     var req1 = proc.require_success("echo hi")
     if oren_is_err(req1) { fail(13) }
     if req1["ok"] != true || req1["code"] != 0 { fail(14) }
+    var req1b = proc.require_ok(0, "avm std proc")
+    if oren_is_err(req1b) { fail(15) }
+    if req1b["ok"] != true || req1b["code"] != 0 { fail(16) }
 
     var rc2 = proc.run("unknown-cmd")
     if rc2 != 7 { fail(20) }
@@ -31,6 +37,8 @@ fn main() {
     if oren_is_err(rr2) { fail(21) }
     if rr2["ok"] != false || rr2["code"] != 7 { fail(22) }
     if !oren_is_err(proc.require_success("unknown-cmd")) { fail(23) }
+    if !oren_is_err(proc.require_ok(rr2, "avm std proc")) { fail(24) }
+    if !oren_is_err(proc.code({"ok": false})) { fail(25) }
 
     print("avm std proc OK")
     oren_exit(0)

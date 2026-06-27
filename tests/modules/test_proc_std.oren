@@ -14,6 +14,9 @@ var s0 = proc.status(0)
 if s0["ok"] != true || s0["code"] != 0 { fail(5) }
 var s7 = proc.status(7)
 if s7["ok"] != false || s7["code"] != 7 { fail(6) }
+if proc.code(0) != 0 { fail(7) }
+if proc.code(s7) != 7 { fail(8) }
+if proc.ok(s0) != true || proc.ok(s7) != false { fail(9) }
 
 var rc = proc.run("true")
 if rc != 0 { fail(10) }
@@ -23,6 +26,11 @@ if rr["ok"] != true || rr["code"] != 0 { fail(12) }
 var req = proc.require_success("true")
 if oren_is_err(req) { fail(13) }
 if req["ok"] != true || req["code"] != 0 { fail(14) }
+var req2 = proc.require_ok(0, "proc_std")
+if oren_is_err(req2) { fail(15) }
+if req2["ok"] != true || req2["code"] != 0 { fail(16) }
+if !oren_is_err(proc.require_ok(s7, "proc_std")) { fail(17) }
+if !oren_is_err(proc.code({"ok": false})) { fail(18) }
 
 print("module proc_std OK")
 exit(0)

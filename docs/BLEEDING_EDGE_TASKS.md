@@ -108,7 +108,7 @@ This file is the concise task view. Detailed implementation status lives in
      `std:env` capability-gated get/fallback/presence/truthy facade helpers,
      pure `std:path` slash-separated VFS/package path and traversal-safe root-join helpers,
      `std:fs` capability-gated text/byte/list-dir and root-scoped facade helpers,
-     `std:proc` capability-gated run/status facade helpers,
+     `std:proc` capability-gated run/status/result-combinator facade helpers,
      portable `std:timer` deadline/interval helpers and the native `std:avm/events`
      virtual event-bus facade over AVM `EVENT` domain and `std:avm/permission`
      facade and OPR0 permission mailbox for host-visible OBC permission intent,

@@ -9,6 +9,11 @@ fn status(code) {
     return {"ok": code == 0, "code": code}
 }
 
+fn _is_int(v) {
+    if v == nil { return false }
+    return oren_type_tag(v) == 1
+}
+
 fn succeeded(code) {
     return code == 0
 }
@@ -27,9 +32,32 @@ fn run_result(command) {
     return status(code)
 }
 
+fn code(result) {
+    if oren_is_err(result) { return result }
+    if _is_int(result) { return result }
+    var c = result["code"]
+    if _is_int(c) == false { return oren_err(4, "std:proc.code: result must be exit code or status map") }
+    return c
+}
+
+fn ok(result) {
+    var c = code(result)
+    if oren_is_err(c) { return c }
+    return c == 0
+}
+
+fn require_ok(result, label) {
+    var c = code(result)
+    if oren_is_err(c) { return c }
+    if c == 0 {
+        if _is_int(result) { return status(c) }
+        return result
+    }
+    return oren_err(3, label + ": command failed with status " + oren_int_to_string(c))
+}
+
 fn require_success(command) {
     var r = run_result(command)
     if oren_is_err(r) { return r }
-    if r["ok"] == true { return r }
-    return oren_err(3, "std:proc.require_success: command failed with status " + oren_int_to_string(r["code"]))
+    return require_ok(r, "std:proc.require_success")
 }

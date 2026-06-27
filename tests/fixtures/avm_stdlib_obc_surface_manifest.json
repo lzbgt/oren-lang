@@ -134,7 +134,8 @@
         "if proc.succeeded(0) != true { fail(101) }",
         "if proc.failed(7) != true { fail(102) }",
         "var proc_status = proc.status(7)",
-        "if proc_status[\"ok\"] != false || proc_status[\"code\"] != 7 { fail(103) }"
+        "if proc_status[\"ok\"] != false || proc_status[\"code\"] != 7 { fail(103) }",
+        "if proc.code(proc_status) != 7 || proc.ok(proc_status) != false { fail(115) }"
       ]
     },
     {

@@ -366,8 +366,8 @@ Facts from the 2026-05-28 implementation pass:
   Host/VFS selection, allow-prefixes, record/replay, and IO budgets remain under
   runtime control.
   `std:proc` now names the capability-gated PROC `run` operation plus status/result
-  helpers while leaving host-process versus VirtualPROC fixture selection under
-  runtime control.
+  helpers and status-map `code`/`ok`/`require_ok` combinators while leaving
+  host-process versus VirtualPROC fixture selection under runtime control.
   `std:avm/events` now uses a native AVM `EVENT` capability domain for timer
   watches, GFX input watches, VNET session readiness, cooperative host-cancel
   watches, and host-enqueued FS/package lifecycle events. If OBC includes a

@@ -50,7 +50,8 @@ design evidence lives under `project-doc/`.
   existing runtime FS policy surface, plus root-scoped `*_under` helpers that
   compose with `std:path.join_under` for traversal-safe VFS/package access.
 - `std:proc` now provides app-facing capability-gated run/status/result helpers
-  over the existing runtime PROC policy surface and AVM VirtualPROC fixtures.
+  plus status-map `code`/`ok`/`require_ok` combinators over the existing runtime
+  PROC policy surface and AVM VirtualPROC fixtures.
 - The main iOS verifier keeps reusable OBC smoke sources under
   `tests/fixtures/ios_avm/` instead of embedding large heredocs, preserving
   line-guardrail headroom for more GUI/Metal gates.
