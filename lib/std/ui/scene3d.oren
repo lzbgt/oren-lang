@@ -764,6 +764,9 @@ fn _asset_mesh(m) {
         } else if m["planes_xy"] != nil {
             tris = shapes.pack_planes_xy(m["planes_xy"], "ui.scene3d mesh.planes_xy")
             transform_generated = true
+        } else if m["polygons_xy"] != nil {
+            tris = shapes.pack_polygons_xy(m["polygons_xy"], "ui.scene3d mesh.polygons_xy")
+            transform_generated = true
         } else if m["cylinders_z"] != nil {
             tris = shapes.pack_cylinders_z(m["cylinders_z"], "ui.scene3d mesh.cylinders_z")
             transform_generated = true

@@ -44,7 +44,7 @@ design evidence lives under `project-doc/`.
   (with `rotation_z_milli_deg` shorthand), and `translation_xyz` transforms
   for `triangles_xyz`, `quads_xyz`, `vertices_xyz`, `triangles_xyz_rgba`,
   `boxes_xyz`, `prisms_xy`, bounded `heightfields_xy` terrain grids, bounded
-  `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, and curved generated solids before
+  `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, flat `polygons_xy`, and curved generated solids before
   byte-native packing, including translation-only generated meshes.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.

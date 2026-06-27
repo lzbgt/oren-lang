@@ -179,6 +179,74 @@ fn pack_planes_xy(planes, ctx) {
     return out
 }
 
+fn _polygon_points(poly) {
+    var points = poly["points"]
+    if points == nil { points = poly["points_xy"] }
+    return points
+}
+
+fn _polygon_z(poly, ctx) {
+    var z = poly["z"]
+    if z == nil { z = poly["z_milli"] }
+    if z == nil { z = 0 }
+    if _is_int(z) == false { return oren_err(4, ctx + ": polygon z must be i32") }
+    return z
+}
+
+fn _polygons_xy_triangle_count(polygons, ctx) {
+    if polygons == nil { return oren_err(4, ctx + ": missing polygons_xy") }
+    var np = oren_list_len(polygons)
+    if oren_is_err(np) { return oren_err(4, ctx + ": polygons_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < np {
+        var poly = polygons[i]
+        if poly == nil { return oren_err(4, ctx + ": polygon must be object") }
+        var points = _polygon_points(poly)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || n < 3 || n > 128 { return oren_err(4, ctx + ": polygon points must contain 3..128 [x,y] entries") }
+        var z = _polygon_z(poly, ctx)
+        if oren_is_err(z) { return z }
+        var j = 0
+        while j < n {
+            var rc = _xy_pair(points[j], "polygon point", ctx)
+            if oren_is_err(rc) { return rc }
+            j = j + 1
+        }
+        total = total + n - 2
+        i = i + 1
+    }
+    if total > 2048 { return oren_err(4, ctx + ": polygons exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_polygons_xy(polygons, ctx) {
+    var tri_count = _polygons_xy_triangle_count(polygons, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var pi = 0
+    var np = oren_list_len(polygons)
+    while pi < np {
+        var poly = polygons[pi]
+        var points = _polygon_points(poly)
+        var z = _polygon_z(poly, ctx)
+        var p0 = points[0]
+        var i = 1
+        while i < oren_list_len(points) - 1 {
+            var p1 = points[i]
+            var p2 = points[i + 1]
+            var rc = _store_triangle(out, off, p0[0], p0[1], z, p1[0], p1[1], z, p2[0], p2[1], z, ctx + ".polygon")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            i = i + 1
+        }
+        pi = pi + 1
+    }
+    return out
+}
+
 fn _cylinders_triangle_count(cylinders, ctx) {
     if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
     var nc = oren_list_len(cylinders)
