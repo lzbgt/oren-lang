@@ -85,7 +85,8 @@
 <p>     <code>LibAVM.xcframework</code> packaging, Linux x64 static <code>LibAVM</code> packaging, Windows</p>
 <p>     x64 static <code>LibAVM</code> packaging, and a C embedder API now exist. The public API includes argv, VFS input/output,</p>
 <p>     VirtualNET fixture, VirtualPROC fixture/default, deterministic TIME by default,</p>
-<p>     and stdout-capture helpers required by app-host compile/run bridges.</p>
+<p>     stdout-capture helpers required by app-host compile/run bridges, plus a</p>
+<p>     one-shot <code>avm_runner</code> API for the common run/capture lifecycle.</p>
 <p>     <code>make verify-libavm-ios</code> now proves host compile-to-OBC, iOS C smoke linkage,</p>
 <p>     host embedder</p>
 <p>     argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a</p>
@@ -99,19 +100,19 @@
 <li>Desktop SDK gate: <code>make verify-libavm-desktop</code> builds macOS arm64/x86_64</li>
 </ul>
 <p>     <code>LibAVM.xcframework</code> slices, checks public embedder symbols in both archives,</p>
-<p>     and runs local host C and Swift embedders against OBC bytes.</p>
+<p>     and runs local host C, Swift, and <code>avm_runner</code> embedders against OBC bytes.</p>
 <ul>
 <li>Linux x64 SDK gate: <code>make verify-libavm-linux-x64</code> cross-builds the C embedder</li>
 </ul>
 <p>     static library with Zig, exports headers/module-map/pkg-config metadata, checks</p>
-<p>     x86_64 ELF output and embedder symbols, and compiles a Linux x64 host embedder</p>
-<p>     smoke. Runtime execution is QEMU-gated when an emulator is present.</p>
+<p>     x86_64 ELF output and embedder/runner symbols, and compiles a Linux x64 host</p>
+<p>     <code>avm_runner</code> smoke. Runtime execution is QEMU-gated when an emulator is present.</p>
 <ul>
 <li>Windows x64 SDK gate: <code>make verify-libavm-windows-x64</code> cross-builds the C</li>
 </ul>
 <p>     embedder static library with Zig, exports headers/module-map metadata, checks</p>
-<p>     amd64 COFF output and embedder symbols, and compiles a Windows x64 host</p>
-<p>     embedder smoke. Runtime execution is Wine-gated when available.</p>
+<p>     amd64 COFF output and embedder/runner symbols, and compiles a Windows x64 host</p>
+<p>     <code>avm_runner</code> smoke. Runtime execution is Wine-gated when available.</p>
 <ul>
 <li>Native x64 compile gate: <code>make verify-native-x64-compile</code> now prewarms</li>
 </ul>

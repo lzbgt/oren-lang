@@ -21,6 +21,7 @@ test -f "$OUT_ROOT/macos-x86_64/libavm.a"
 test -f "$OUT_ROOT/macos-universal/libavm.a"
 test -d "$OUT_ROOT/LibAVM.xcframework"
 test -f "$OUT_ROOT/include/avm_embed.h"
+test -f "$OUT_ROOT/include/avm_runner.h"
 test -f "$OUT_ROOT/include/module.modulemap"
 
 lipo -info "$OUT_ROOT/macos-arm64/libavm.a" | grep -F arm64 >/dev/null
@@ -29,6 +30,8 @@ lipo -info "$OUT_ROOT/macos-universal/libavm.a" | grep -F arm64 >/dev/null
 lipo -info "$OUT_ROOT/macos-universal/libavm.a" | grep -F x86_64 >/dev/null
 nm -g "$OUT_ROOT/macos-arm64/libavm.a" | grep -F _avm_embed_run_obc_bytes >/dev/null
 nm -g "$OUT_ROOT/macos-x86_64/libavm.a" | grep -F _avm_embed_run_obc_bytes >/dev/null
+nm -g "$OUT_ROOT/macos-arm64/libavm.a" | grep -F _avm_runner_run_obc_bytes >/dev/null
+nm -g "$OUT_ROOT/macos-x86_64/libavm.a" | grep -F _avm_runner_run_obc_bytes >/dev/null
 find "$OUT_ROOT/LibAVM.xcframework" -name libavm.a -print | grep -q .
 
 OREN_SRC="$TMP_DIR/desktop_embed_smoke.oren"
@@ -37,9 +40,12 @@ OBC_OUT="$TMP_DIR/desktop_embed_smoke.obc"
 BLOCKING_OBC_OUT="$TMP_DIR/desktop_embed_blocking_net.obc"
 SMOKE_C="$TMP_DIR/desktop_embed_smoke.c"
 SMOKE_BIN="$TMP_DIR/desktop_embed_smoke"
+RUNNER_C="$TMP_DIR/desktop_runner_smoke.c"
+RUNNER_BIN="$TMP_DIR/desktop_runner_smoke"
 SWIFT_SRC="$TMP_DIR/desktop_embed_smoke.swift"
 SWIFT_BIN="$TMP_DIR/desktop_embed_swift_smoke"
 SMOKE_LOG="$LOG_DIR/libavm_desktop_embed_smoke.log"
+RUNNER_LOG="$LOG_DIR/libavm_desktop_runner_smoke.log"
 SWIFT_LOG="$LOG_DIR/libavm_desktop_swift_smoke.log"
 
 cat > "$OREN_SRC" <<'OREN'
@@ -396,6 +402,84 @@ cc -std=c11 -D_DARWIN_C_SOURCE -I"$OUT_ROOT/include" "$SMOKE_C" "$HOST_SLICE" \
   -o "$SMOKE_BIN" > "$LOG_DIR/libavm_desktop_host_compile.log" 2>&1
 "$SMOKE_BIN" "$OBC_OUT" "$BLOCKING_OBC_OUT" > "$SMOKE_LOG" 2>&1
 grep -F "OK: desktop LibAVM C embed smoke passed" "$SMOKE_LOG" >/dev/null
+
+cat > "$RUNNER_C" <<'SMOKE'
+#include "avm_runner.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int read_file(const char* path, uint8_t** out_data, size_t* out_len) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return 1;
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return 1;
+    }
+    long len = ftell(f);
+    if (len < 0) {
+        fclose(f);
+        return 1;
+    }
+    rewind(f);
+    uint8_t* data = (uint8_t*)malloc((size_t)len);
+    if (!data && len > 0) {
+        fclose(f);
+        return 1;
+    }
+    size_t got = fread(data, 1, (size_t)len, f);
+    fclose(f);
+    if (got != (size_t)len) {
+        free(data);
+        return 1;
+    }
+    *out_data = data;
+    *out_len = (size_t)len;
+    return 0;
+}
+
+static int contains_bytes(const uint8_t* hay, size_t hay_len, const char* needle) {
+    size_t needle_len = strlen(needle);
+    if (needle_len == 0 || hay_len < needle_len) return 0;
+    for (size_t i = 0; i <= hay_len - needle_len; i++) {
+        if (memcmp(hay + i, needle, needle_len) == 0) return 1;
+    }
+    return 0;
+}
+
+int main(int argc, char** argv) {
+    if (argc != 2) return 2;
+    uint8_t* obc = NULL;
+    size_t obc_len = 0;
+    if (read_file(argv[1], &obc, &obc_len) != 0) return 3;
+
+    const char* avm_argv[] = {"desktop-runner"};
+    AvmRunnerConfig config;
+    AvmRunnerResult result;
+    avm_runner_config_default(&config);
+    config.argc = 1;
+    config.argv = avm_argv;
+
+    int rc = avm_runner_run_obc_bytes(obc, obc_len, &config, &result);
+    free(obc);
+    if (rc != AVM_EMBED_OK || result.embed_result.exit_code != 0) {
+        avm_runner_result_free(&result);
+        return 4;
+    }
+    int ok = result.output_data && contains_bytes(result.output_data, result.output_len, "desktop-libavm-ok");
+    avm_runner_result_free(&result);
+    if (!ok) return 5;
+    puts("OK: desktop LibAVM runner smoke passed");
+    return 0;
+}
+SMOKE
+
+cc -std=c11 -I"$OUT_ROOT/include" "$RUNNER_C" "$HOST_SLICE" \
+  -o "$RUNNER_BIN" > "$LOG_DIR/libavm_desktop_runner_compile.log" 2>&1
+"$RUNNER_BIN" "$OBC_OUT" > "$RUNNER_LOG" 2>&1
+grep -F "OK: desktop LibAVM runner smoke passed" "$RUNNER_LOG" >/dev/null
 
 cat > "$SWIFT_SRC" <<'SWIFT'
 import Foundation

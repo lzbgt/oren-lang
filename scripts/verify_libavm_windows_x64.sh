@@ -24,11 +24,13 @@ OBJ="$OUT_ROOT/obj/lib_avm_avm_embed_c.o"
 test -f "$LIB"
 test -f "$OBJ"
 test -f "$OUT_ROOT/include/avm_embed.h"
+test -f "$OUT_ROOT/include/avm_runner.h"
 test -f "$OUT_ROOT/include/module.modulemap"
 
 file "$OBJ" | grep -E 'Intel amd64 COFF object|x86-64' >/dev/null
 strings "$LIB" | grep -F avm_embed_open >/dev/null
 strings "$LIB" | grep -F avm_embed_run_obc_bytes >/dev/null
+strings "$LIB" | grep -F avm_runner_run_obc_bytes >/dev/null
 
 OREN_SRC="$TMP_DIR/windows_x64_embed_smoke.oren"
 OBC_OUT="$TMP_DIR/windows_x64_embed_smoke.obc"
@@ -49,7 +51,7 @@ OREN
   > "$LOG_DIR/libavm_windows_x64_obc_build.log" 2>&1
 
 cat > "$SMOKE_C" <<'SMOKE'
-#include "avm_embed.h"
+#include "avm_runner.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -100,37 +102,20 @@ int main(int argc, char** argv) {
     size_t obc_len = 0;
     if (read_file(argv[1], &obc, &obc_len) != 0) return 3;
 
-    AvmEmbedConfig config;
-    AvmEmbedResult result;
-    avm_embed_config_default(&config);
-    avm_embed_result_clear(&result);
-    AvmEmbedHandle* handle = avm_embed_open(&config, &result);
-    if (!handle) {
-        free(obc);
-        return 4;
-    }
-    if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) {
-        avm_embed_close(handle);
-        free(obc);
-        return 5;
-    }
-    if (avm_embed_run_obc_bytes(handle, obc, obc_len, &result) != AVM_EMBED_OK ||
-        result.exit_code != 0) {
-        avm_embed_close(handle);
-        free(obc);
+    const char* avm_argv[] = {"windows-x64-runner"};
+    AvmRunnerConfig config;
+    AvmRunnerResult result;
+    avm_runner_config_default(&config);
+    config.argc = 1;
+    config.argv = avm_argv;
+    int rc = avm_runner_run_obc_bytes(obc, obc_len, &config, &result);
+    free(obc);
+    if (rc != AVM_EMBED_OK || result.embed_result.exit_code != 0) {
+        avm_runner_result_free(&result);
         return 6;
     }
-    uint8_t* out = NULL;
-    size_t out_len = 0;
-    if (avm_embed_output_get(handle, &out, &out_len, &result) != AVM_EMBED_OK) {
-        avm_embed_close(handle);
-        free(obc);
-        return 7;
-    }
-    int ok = out && contains_bytes(out, out_len, "windows-x64-libavm-ok");
-    avm_embed_free_bytes(out);
-    avm_embed_close(handle);
-    free(obc);
+    int ok = result.output_data && contains_bytes(result.output_data, result.output_len, "windows-x64-libavm-ok");
+    avm_runner_result_free(&result);
     if (!ok) return 8;
     puts("OK: Windows x64 LibAVM C embed smoke passed");
     return 0;

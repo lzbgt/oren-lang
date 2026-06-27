@@ -35,7 +35,11 @@ for sym in \
   _avm_embed_permission_request_clear \
   _avm_embed_cancel \
   _avm_embed_clear_cancel \
-  _avm_embed_free_bytes; do
+  _avm_embed_free_bytes \
+  _avm_runner_config_default \
+  _avm_runner_result_clear \
+  _avm_runner_result_free \
+  _avm_runner_run_obc_bytes; do
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
 done

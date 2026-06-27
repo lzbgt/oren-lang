@@ -41,17 +41,21 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-libavm-desktop` builds `build/libavm/desktop/LibAVM.xcframework`
   for macOS arm64 and x86_64, exports the same public C embedder headers/module
   map, symbol-checks both static-library slices, and runs host C and Swift
-  embedder smokes against OBC bytes on the local macOS architecture.
+  embedder smokes against OBC bytes on the local macOS architecture. The public
+  C SDK also exports `avm_runner.h`, a one-shot lifecycle wrapper over
+  `avm_embed_*`; the macOS verifier links and runs it against OBC bytes so hosts
+  have a stable minimal run/capture API without rewriting handle boilerplate.
 - `make verify-libavm-linux-x64` uses Zig to build
   `build/libavm/linux-x64/lib/x86_64-linux-gnu/libavm.a`, exports headers,
   a module map, and `libavm.pc`, checks the x86_64 ELF objects and embedder
-  symbols, then compiles a Linux x64 C host embedder smoke. It executes that
-  smoke only when `qemu-x86_64` is available or `VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1`
-  is set.
+  plus runner symbols, then compiles a Linux x64 C host smoke through
+  `avm_runner_run_obc_bytes(...)`. It executes that smoke only when
+  `qemu-x86_64` is available or `VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1` is set.
 - `make verify-libavm-windows-x64` uses Zig to build
   `build/libavm/windows-x64/lib/x86_64-windows-gnu/libavm.a`, exports headers
-  and a module map, checks amd64 COFF objects and embedder symbols, then compiles
-  a Windows x64 PE host embedder smoke. It executes that smoke only when Wine is
+  and a module map, checks amd64 COFF objects and embedder plus runner symbols,
+  then compiles a Windows x64 PE host smoke through
+  `avm_runner_run_obc_bytes(...)`. It executes that smoke only when Wine is
   available or `VERIFY_LIBAVM_WINDOWS_X64_REQUIRE_RUN=1` is set.
 - `make verify-native-x64-compile` prewarms Linux/Windows x64 runtime-object
   seeds through the helper's explicit bounded cross-compiler compatibility probe.

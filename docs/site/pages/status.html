@@ -75,21 +75,25 @@
 </ul>
 <p>  for macOS arm64 and x86_64, exports the same public C embedder headers/module</p>
 <p>  map, symbol-checks both static-library slices, and runs host C and Swift</p>
-<p>  embedder smokes against OBC bytes on the local macOS architecture.</p>
+<p>  embedder smokes against OBC bytes on the local macOS architecture. The public</p>
+<p>  C SDK also exports <code>avm_runner.h</code>, a one-shot lifecycle wrapper over</p>
+<p>  <code>avm_embed_*</code>; the macOS verifier links and runs it against OBC bytes so hosts</p>
+<p>  have a stable minimal run/capture API without rewriting handle boilerplate.</p>
 <ul>
 <li><code>make verify-libavm-linux-x64</code> uses Zig to build</li>
 </ul>
 <p>  <code>build/libavm/linux-x64/lib/x86_64-linux-gnu/libavm.a</code>, exports headers,</p>
 <p>  a module map, and <code>libavm.pc</code>, checks the x86_64 ELF objects and embedder</p>
-<p>  symbols, then compiles a Linux x64 C host embedder smoke. It executes that</p>
-<p>  smoke only when <code>qemu-x86_64</code> is available or <code>VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1</code></p>
-<p>  is set.</p>
+<p>  plus runner symbols, then compiles a Linux x64 C host smoke through</p>
+<p>  <code>avm_runner_run_obc_bytes(...)</code>. It executes that smoke only when</p>
+<p>  <code>qemu-x86_64</code> is available or <code>VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1</code> is set.</p>
 <ul>
 <li><code>make verify-libavm-windows-x64</code> uses Zig to build</li>
 </ul>
 <p>  <code>build/libavm/windows-x64/lib/x86_64-windows-gnu/libavm.a</code>, exports headers</p>
-<p>  and a module map, checks amd64 COFF objects and embedder symbols, then compiles</p>
-<p>  a Windows x64 PE host embedder smoke. It executes that smoke only when Wine is</p>
+<p>  and a module map, checks amd64 COFF objects and embedder plus runner symbols,</p>
+<p>  then compiles a Windows x64 PE host smoke through</p>
+<p>  <code>avm_runner_run_obc_bytes(...)</code>. It executes that smoke only when Wine is</p>
 <p>  available or <code>VERIFY_LIBAVM_WINDOWS_X64_REQUIRE_RUN=1</code> is set.</p>
 <ul>
 <li><code>make verify-native-x64-compile</code> prewarms Linux/Windows x64 runtime-object</li>

@@ -37,7 +37,8 @@ This file is the concise task view. Detailed implementation status lives in
      `LibAVM.xcframework` packaging, Linux x64 static `LibAVM` packaging, Windows
      x64 static `LibAVM` packaging, and a C embedder API now exist. The public API includes argv, VFS input/output,
      VirtualNET fixture, VirtualPROC fixture/default, deterministic TIME by default,
-     and stdout-capture helpers required by app-host compile/run bridges.
+     stdout-capture helpers required by app-host compile/run bridges, plus a
+     one-shot `avm_runner` API for the common run/capture lifecycle.
      `make verify-libavm-ios` now proves host compile-to-OBC, iOS C smoke linkage,
      host embedder
      argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a
@@ -49,15 +50,15 @@ This file is the concise task view. Detailed implementation status lives in
      VirtualFS/argv.
    - Desktop SDK gate: `make verify-libavm-desktop` builds macOS arm64/x86_64
      `LibAVM.xcframework` slices, checks public embedder symbols in both archives,
-     and runs local host C and Swift embedders against OBC bytes.
+     and runs local host C, Swift, and `avm_runner` embedders against OBC bytes.
    - Linux x64 SDK gate: `make verify-libavm-linux-x64` cross-builds the C embedder
      static library with Zig, exports headers/module-map/pkg-config metadata, checks
-     x86_64 ELF output and embedder symbols, and compiles a Linux x64 host embedder
-     smoke. Runtime execution is QEMU-gated when an emulator is present.
+     x86_64 ELF output and embedder/runner symbols, and compiles a Linux x64 host
+     `avm_runner` smoke. Runtime execution is QEMU-gated when an emulator is present.
    - Windows x64 SDK gate: `make verify-libavm-windows-x64` cross-builds the C
      embedder static library with Zig, exports headers/module-map metadata, checks
-     amd64 COFF output and embedder symbols, and compiles a Windows x64 host
-     embedder smoke. Runtime execution is Wine-gated when available.
+     amd64 COFF output and embedder/runner symbols, and compiles a Windows x64 host
+     `avm_runner` smoke. Runtime execution is Wine-gated when available.
    - Native x64 compile gate: `make verify-native-x64-compile` now prewarms
      Linux/Windows x64 runtime-object seeds through an explicit bounded
      cross-compiler compatibility probe, avoiding slow stage2 cold-build

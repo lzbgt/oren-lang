@@ -2,8 +2,8 @@
 
 ## Verdict
 
-`libavm` is now buildable as an iOS xcframework with an embedder C API, public
-argv/VFS/VNET/VPROC virtual-backend helpers, stdout capture, an
+`libavm` is now buildable as an iOS xcframework with an embedder C API, a
+one-shot C runner API, public argv/VFS/VNET/VPROC virtual-backend helpers, stdout capture, an
 Oren-source-to-bytecode-to-libavm run gate, and a compiler-in-AVM stdlib-OBC
 compile/run smoke gate. It is ready for a Note-side integration pass, but still
 not fully production-ready for an iOS app until app-bundle resource loading,
@@ -28,6 +28,10 @@ allocator/lifecycle hardening.
   virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.
   TIME is virtual by default for `std:time.now_ns`, `std:time.mono_raw`,
   `std:time.now_unix_ns`, and `std:time.sleep_ms`.
+- Runner API after 2026-06-27: `lib/avm/avm_runner.h` provides
+  `avm_runner_run_obc_bytes(...)`, a stable one-shot run/capture wrapper over the
+  raw embedder lifecycle. It is exported in iOS, macOS, Linux x64, and Windows x64
+  SDK packages and verified by macOS runtime plus Linux/Windows cross-link smokes.
 - Interactive app mode after 2026-05-29: call
   `avm_embed_config_interactive_default(...)` before `avm_embed_open(...)` when
   user-visible delays should use wall-clock time. This keeps virtual FS/PROC/NET

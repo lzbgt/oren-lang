@@ -40,6 +40,7 @@ stage_headers() {
   mkdir -p "$include_dir" "$OUT_ROOT/lib/pkgconfig"
   cp lib/avm/avm.h "$include_dir/"
   cp lib/avm/avm_embed.h "$include_dir/"
+  cp lib/avm/avm_runner.h "$include_dir/"
   cp lib/avm/avm_sig.h "$include_dir/"
   cp lib/avm/avm_cert.h "$include_dir/"
   cp lib/avm/sha256.h "$include_dir/"
@@ -47,6 +48,7 @@ stage_headers() {
 module LibAVM [extern_c] {
   header "avm.h"
   header "avm_embed.h"
+  header "avm_runner.h"
   header "avm_sig.h"
   header "avm_cert.h"
   header "sha256.h"

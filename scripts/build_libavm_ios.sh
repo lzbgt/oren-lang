@@ -50,6 +50,7 @@ stage_headers() {
   mkdir -p "$include_dir"
   cp lib/avm/avm.h "$include_dir/"
   cp lib/avm/avm_embed.h "$include_dir/"
+  cp lib/avm/avm_runner.h "$include_dir/"
   cp lib/avm/avm_sig.h "$include_dir/"
   cp lib/avm/avm_cert.h "$include_dir/"
   cp lib/avm/sha256.h "$include_dir/"

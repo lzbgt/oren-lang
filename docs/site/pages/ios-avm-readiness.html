@@ -38,8 +38,8 @@
     <main class="content">
       <h1 id="ios-avm-readiness-inspection-current-through-2026-05-28">iOS AVM Readiness Inspection (current through 2026-05-28)</h1>
 <h2 id="verdict">Verdict</h2>
-<p><code>libavm</code> is now buildable as an iOS xcframework with an embedder C API, public</p>
-<p>argv/VFS/VNET/VPROC virtual-backend helpers, stdout capture, an</p>
+<p><code>libavm</code> is now buildable as an iOS xcframework with an embedder C API, a</p>
+<p>one-shot C runner API, public argv/VFS/VNET/VPROC virtual-backend helpers, stdout capture, an</p>
 <p>Oren-source-to-bytecode-to-libavm run gate, and a compiler-in-AVM stdlib-OBC</p>
 <p>compile/run smoke gate. It is ready for a Note-side integration pass, but still</p>
 <p>not fully production-ready for an iOS app until app-bundle resource loading,</p>
@@ -65,6 +65,12 @@
 <p>  virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.</p>
 <p>  TIME is virtual by default for <code>std:time.now_ns</code>, <code>std:time.mono_raw</code>,</p>
 <p>  <code>std:time.now_unix_ns</code>, and <code>std:time.sleep_ms</code>.</p>
+<ul>
+<li>Runner API after 2026-06-27: <code>lib/avm/avm_runner.h</code> provides</li>
+</ul>
+<p>  <code>avm_runner_run_obc_bytes(...)</code>, a stable one-shot run/capture wrapper over the</p>
+<p>  raw embedder lifecycle. It is exported in iOS, macOS, Linux x64, and Windows x64</p>
+<p>  SDK packages and verified by macOS runtime plus Linux/Windows cross-link smokes.</p>
 <ul>
 <li>Interactive app mode after 2026-05-29: call</li>
 </ul>
