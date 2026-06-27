@@ -336,6 +336,99 @@ fn _room_points(room) {
     return points
 }
 
+fn _pyramid_points(pyr) {
+    var points = pyr["points"]
+    if points == nil { points = pyr["points_xy"] }
+    return points
+}
+
+fn _pyramid_apex(pyr, ctx) {
+    var apex = pyr["apex"]
+    if apex != nil { return _xyz_point(apex, "pyramid apex", ctx) }
+    var apex_xy = pyr["apex_xy"]
+    if apex_xy == nil { apex_xy = pyr["center"] }
+    var ap = _xy_pair(apex_xy, "pyramid apex_xy", ctx)
+    if oren_is_err(ap) { return ap }
+    var z = _z(pyr, "z_apex", "apex_z", ctx + ".z_apex")
+    if oren_is_err(z) { return z }
+    return [ap[0], ap[1], z]
+}
+
+fn _pyramids_xy_triangle_count(pyramids, ctx) {
+    if pyramids == nil { return oren_err(4, ctx + ": missing pyramids_xy") }
+    var np = oren_list_len(pyramids)
+    if oren_is_err(np) { return oren_err(4, ctx + ": pyramids_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < np {
+        var pyr = pyramids[i]
+        if pyr == nil { return oren_err(4, ctx + ": pyramid must be object") }
+        var points = _pyramid_points(pyr)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || n < 3 || n > 128 { return oren_err(4, ctx + ": pyramid points must contain 3..128 [x,y] entries") }
+        var z_base = _z(pyr, "z_base", "base_z", ctx + ".z_base")
+        if oren_is_err(z_base) { return z_base }
+        var apex = _pyramid_apex(pyr, ctx)
+        if oren_is_err(apex) { return apex }
+        if apex[2] == z_base { return oren_err(4, ctx + ": pyramid apex z must differ from z_base") }
+        var j = 0
+        while j < n {
+            var rc = _xy_pair(points[j], "pyramid point", ctx)
+            if oren_is_err(rc) { return rc }
+            var next = j + 1
+            if next >= n { next = 0 }
+            if points[j][0] == points[next][0] && points[j][1] == points[next][1] {
+                return oren_err(4, ctx + ": pyramid edge must be nonzero")
+            }
+            j = j + 1
+        }
+        total = total + (n - 2) + n
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": pyramids exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_pyramids_xy(pyramids, ctx) {
+    var tri_count = _pyramids_xy_triangle_count(pyramids, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var pi = 0
+    var np = oren_list_len(pyramids)
+    while pi < np {
+        var pyr = pyramids[pi]
+        var points = _pyramid_points(pyr)
+        var n = oren_list_len(points)
+        var z_base = _z(pyr, "z_base", "base_z", ctx + ".z_base")
+        var apex = _pyramid_apex(pyr, ctx)
+        var p0 = points[0]
+        var i = 1
+        while i < n - 1 {
+            var p1 = points[i]
+            var p2 = points[i + 1]
+            var rc = _store_triangle(out, off, p0[0], p0[1], z_base, p2[0], p2[1], z_base, p1[0], p1[1], z_base, ctx + ".base")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            i = i + 1
+        }
+        i = 0
+        while i < n {
+            var next = i + 1
+            if next >= n { next = 0 }
+            var a = points[i]
+            var b = points[next]
+            var sr = _store_triangle(out, off, a[0], a[1], z_base, b[0], b[1], z_base, apex[0], apex[1], apex[2], ctx + ".side")
+            if oren_is_err(sr) { return sr }
+            off = off + 36
+            i = i + 1
+        }
+        pi = pi + 1
+    }
+    return out
+}
+
 fn _rooms_xy_triangle_count(rooms, ctx) {
     if rooms == nil { return oren_err(4, ctx + ": missing rooms_xy") }
     var nr = oren_list_len(rooms)
