@@ -472,6 +472,34 @@ fn main() {
     assert_eq(_px(prism_buf, 4, 1, 1, 1), 204)
     assert_eq(_px(prism_buf, 4, 1, 1, 2), 68)
 
+    var from_heightfield = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 141,
+                "heightfields_xy": [
+                    {"origin": [0, 0], "step_xy": [2, 2], "z_values": [[0, 1], [2, 3]]}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#8844cc"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 141}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_heightfield) == false)
+    assert_eq(from_heightfield[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_heightfield[0]["triangles"]), 72)
+    assert_eq(_i32_at(from_heightfield[0]["triangles"], 0), 1)
+    assert_eq(_i32_at(from_heightfield[0]["triangles"], 4), 0)
+    assert_eq(_i32_at(from_heightfield[0]["triangles"], 8), 5)
+    assert_true(ui_cmds.validate(from_heightfield, 4, 4, {"strict_bounds": true}) == 0)
+    var heightfield_buf = ui_raster.rasterize(from_heightfield, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(heightfield_buf) == false)
+    assert_eq(_px(heightfield_buf, 4, 2, 1, 0), 136)
+    assert_eq(_px(heightfield_buf, 4, 2, 1, 1), 68)
+    assert_eq(_px(heightfield_buf, 4, 2, 1, 2), 204)
+
     var from_cylinders = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -821,6 +849,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"boxes_xyz\":[{\"min\":[0,0,0],\"max\":[1,1,1]}],\"scale_xyz_milli\":[1000,-1,1000],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"boxes_xyz\":[{\"min\":[0,0,0],\"max\":[0,1,1]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"prisms_xy\":[{\"points\":[[0,0],[1,0]],\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"heightfields_xy\":[{\"z_values\":[[0,1],[2]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cylinders_z\":[{\"center\":[0,0],\"radius\":1,\"z_min\":0,\"z_max\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cones_z\":[{\"center\":[0,0],\"radius\":0,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"spheres_xyz\":[{\"center\":[0,0,0],\"radius\":1,\"segments\":4,\"rings\":1}],\"color\":\"#ffffff\"}]}")) == true)
