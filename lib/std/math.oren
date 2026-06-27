@@ -1114,20 +1114,33 @@ fn _reduce_pio2_medium(x: f64) {
     // Cody-Waite style reduction (good up to ~2^20 * (pi/2)).
     // Returns [r, n_mod8] where r ~ x - n*pi/2, and n_mod8 is in [0..7].
     //
-    // Constants from fdlibm `e_rem_pio2.c`.
+    var kf = _reduce_pio2_medium_kf(x)
+    if oren_is_err(kf) { return kf }
+    var n = _reduce_pio2_medium_q(kf)
+    if oren_is_err(n) { return n }
+    var rem: f64 = _reduce_pio2_medium_remainder(x, kf)
+    if oren_is_err(rem) { return rem }
+
+    var rb = _f64_bits(rem)
+    return [rb, (n & 7)]
+}
+
+fn _reduce_pio2_medium_kf(x: f64) {
     var invpio2 = 6.36619772367581382433e-01 // 2/pi (53 bits)
+    return round(x * invpio2)
+}
+
+fn _reduce_pio2_medium_q(kf: f64) {
+    return trunc_i64_from_f(kf)
+}
+
+fn _reduce_pio2_medium_remainder(x: f64, kf: f64) {
     var pio2_1 = 1.57079632673412561417e+00
     var pio2_1t = 6.07710050650619224932e-11
     var pio2_2 = 6.07710050630396597660e-11
     var pio2_2t = 2.02226624879595063154e-21
     var pio2_3 = 2.02226624871116645580e-21
     var pio2_3t = 8.47842766036889956997e-32
-
-    var kf = round(x * invpio2)
-    if oren_is_err(kf) { return kf }
-    var n = trunc_i64_from_f(kf)
-    if oren_is_err(n) { return n }
-
     var r = x - kf * pio2_1
     var w = kf * pio2_1t // 1st round good to ~85 bits
     var y0 = r - w
@@ -1167,7 +1180,7 @@ fn _reduce_pio2_medium(x: f64) {
         }
     }
 
-    return [y0 + y1, (n & 7)]
+    return y0 + y1
 }
 
 fn _kernel_rem_pio2(tx, e0, nx) {
@@ -1398,7 +1411,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
 
 fn _reduce_pio2_payne_hanek(x: f64) {
     // Payne–Hanek reduction for large |x|.
-    // Returns [r, q] where r in ~[-pi/4,pi/4], q in [0..3].
+    // Returns [r_bits, q] where r is in ~[-pi/4,pi/4], q is in [0..3].
     if is_nan(x) { return oren_err(4, "_reduce_pio2: NaN") }
     if is_inf(x) { return oren_err(4, "_reduce_pio2: inf") }
     if x == 0.0 { return [x, 0] }
@@ -1443,16 +1456,22 @@ fn _reduce_pio2_payne_hanek(x: f64) {
         nmod8 = (0 - nmod8) & 7
     }
     var q = nmod8 & 3
-    return [r, q]
+    var rb = _f64_bits(r)
+    return [rb, q]
 }
 
 fn _reduce_pio2(x: f64) {
-    // Returns [r, q] or Err where q in [0..3].
+    // Returns [r_bits, q] or Err where q in [0..3].
+    // The remainder crosses a generic list boundary as raw f64 bits so native
+    // untagged float lowering never has to infer list element floatness.
     if is_nan(x) { return oren_err(4, "_reduce_pio2: NaN") }
     if is_inf(x) { return oren_err(4, "_reduce_pio2: inf") }
     // |x| <= pi/4: no reduction needed.
     var ax = abs_f(x)
-    if ax <= (pi() / 4.0) { return [x, 0] }
+    if ax <= (pi() / 4.0) {
+        var xb = _f64_bits(x)
+        return [xb, 0]
+    }
 
     // Medium threshold from fdlibm: |x| < 2^20 * (pi/2).
     // Beyond this, Cody-Waite begins losing bits and Payne-Hanek is needed.
@@ -1468,10 +1487,26 @@ fn _reduce_pio2(x: f64) {
 
 fn sin(x: f64) {
     if x == 0.0 { return x } // preserve signed zero
-    var rq = _reduce_pio2(x)
-    if oren_is_err(rq) { return rq }
-    var r = rq[0]
-    var q = rq[1]
+    var r: f64 = x
+    var q = 0
+    var ax = abs_f(x)
+    if ax > (pi() / 4.0) {
+        var MED = 1644934.0
+        if ax < MED {
+            var kf: f64 = _reduce_pio2_medium_kf(x)
+            if oren_is_err(kf) { return kf }
+            var n = _reduce_pio2_medium_q(kf)
+            if oren_is_err(n) { return n }
+            r = _reduce_pio2_medium_remainder(x, kf)
+            if oren_is_err(r) { return r }
+            q = n & 3
+        } else {
+            var rq = _reduce_pio2_payne_hanek(x)
+            if oren_is_err(rq) { return rq }
+            r = _f64_from_bits(rq[0])
+            q = rq[1]
+        }
+    }
     var sr = _sin_poly(r)
     var cr = _cos_poly(r)
     if q == 0 { return sr }
@@ -1484,10 +1519,26 @@ fn cos(x: f64) {
     if is_nan(x) { return oren_err(4, "cos: NaN") }
     if is_inf(x) { return oren_err(4, "cos: inf") }
     if x == 0.0 { return 1.0 }
-    var rq = _reduce_pio2(x)
-    if oren_is_err(rq) { return rq }
-    var r = rq[0]
-    var q = rq[1]
+    var r: f64 = x
+    var q = 0
+    var ax = abs_f(x)
+    if ax > (pi() / 4.0) {
+        var MED = 1644934.0
+        if ax < MED {
+            var kf: f64 = _reduce_pio2_medium_kf(x)
+            if oren_is_err(kf) { return kf }
+            var n = _reduce_pio2_medium_q(kf)
+            if oren_is_err(n) { return n }
+            r = _reduce_pio2_medium_remainder(x, kf)
+            if oren_is_err(r) { return r }
+            q = n & 3
+        } else {
+            var rq = _reduce_pio2_payne_hanek(x)
+            if oren_is_err(rq) { return rq }
+            r = _f64_from_bits(rq[0])
+            q = rq[1]
+        }
+    }
     var sr = _sin_poly(r)
     var cr = _cos_poly(r)
     if q == 0 { return cr }

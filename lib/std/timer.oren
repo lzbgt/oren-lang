@@ -19,6 +19,19 @@ fn ms_to_ns(ms) {
     return ms * 1000000
 }
 
+fn ns_to_ms_floor(ns) {
+    if ns < 0 { return _err("std:timer.ns_to_ms_floor: negative ns") }
+    return time.floor_div(ns, 1000000)
+}
+
+fn ns_to_ms_ceil(ns) {
+    if ns < 0 { return _err("std:timer.ns_to_ms_ceil: negative ns") }
+    if ns == 0 { return 0 }
+    var floor = ns_to_ms_floor(ns)
+    if time.floor_mod(ns, 1000000) == 0 { return floor }
+    return floor + 1
+}
+
 fn deadline_after_ns(delay_ns) {
     if delay_ns < 0 { return _err("std:timer.deadline_after_ns: negative delay_ns") }
     return now_ns() + delay_ns
@@ -38,8 +51,7 @@ fn remaining_ns(deadline_ns) {
 
 fn remaining_ms(deadline_ns) {
     var rem = remaining_ns(deadline_ns)
-    if rem <= 0 { return 0 }
-    return (rem + 999999) / 1000000
+    return ns_to_ms_ceil(rem)
 }
 
 fn expired(deadline_ns) {

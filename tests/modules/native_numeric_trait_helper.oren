@@ -1,0 +1,10 @@
+fn div_floor(a, b) {
+    return a / b
+}
+
+fn add_if_floor(q, p, den, limit) {
+    var cand = q + p
+    var prod = cand * den
+    if prod <= limit { return cand }
+    return q
+}

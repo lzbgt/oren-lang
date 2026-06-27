@@ -60,7 +60,8 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-native-x64-compile` prewarms Linux/Windows x64 runtime-object
   seeds through the helper's explicit bounded cross-compiler compatibility probe.
   This keeps the default compile-only platform gate from looking hung on slow
-  stage2 cross-target cold builds while still checking stage2 x64 fixture output.
+  cross-target cold builds while still checking x64 fixture output under explicit
+  stage1/stage2 timeout floors.
   Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
   missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
   spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
@@ -349,9 +350,11 @@ Facts from the 2026-05-28 implementation pass:
   events. Host SDKs may implement that bus with platform reactors, but OBC must
   not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
 - `std:timer` now provides portable deadline/remaining/expiry helpers,
-  nanosecond-native watch/interval helpers, explicit millisecond-to-nanosecond
-  conversion, and fixed-period timer-watch maps that compose with
-  `std:avm/events.select`.
+  nanosecond-native watch/interval helpers, explicit millisecond/nanosecond
+  floor/ceil conversions, and fixed-period timer-watch maps that compose with
+  `std:avm/events.select`. Native `std:math` trig range reduction keeps f64
+  remainders on scalar paths for medium inputs, avoiding ambiguous mixed-list
+  tuple carriers.
   `std:sys` exposes the pure AVM capability-domain id/name/mask helpers and
   default embedder domain mask so packages and hosts do not duplicate policy constants.
   `std:env` now names capability-gated environment reads with get/fallback,

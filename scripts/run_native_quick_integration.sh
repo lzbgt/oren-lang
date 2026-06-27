@@ -1483,6 +1483,15 @@ run_step_checked "std timer smoke (bytecode)" "$timer_std_log" \
   "$compiler" test "$timer_std_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$timer_std_log"
 
+echo "== native numeric trait smoke (native) =="
+native_numeric_traits_src="tests/modules/test_native_numeric_traits.oren"
+native_numeric_traits_log="build/logs/${compiler_base}_native_numeric_traits.log"
+rm -f "$native_numeric_traits_log" 2>/dev/null || true
+
+run_step_checked "native numeric trait smoke (native)" "$native_numeric_traits_log" \
+  "$compiler" test "$native_numeric_traits_src" --backend native --platform "$platform" --no-cache
+tail -n 8 "$native_numeric_traits_log"
+
 echo "== std net url smoke (native/C/bytecode) =="
 net_url_std_src="tests/modules/test_net_url_std.oren"
 net_url_std_log="build/logs/${compiler_base}_std_net_url.log"

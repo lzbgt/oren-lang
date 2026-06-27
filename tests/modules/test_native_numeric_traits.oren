@@ -1,0 +1,17 @@
+import helper "native_numeric_trait_helper.oren"
+
+fn fail(code) {
+    print("module native_numeric_traits FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+var q = helper.div_floor(1999999, 1000000)
+if q != 1 { fail(1) }
+if q - 1 != 0 { fail(2) }
+
+var q2 = helper.add_if_floor(0, 1, 1000000, 1999999)
+if q2 != 1 { fail(3) }
+if q2 - 1 != 0 { fail(4) }
+
+print("module native_numeric_traits OK")
+exit(0)

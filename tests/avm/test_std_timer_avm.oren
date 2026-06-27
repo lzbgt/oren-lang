@@ -4,7 +4,12 @@ import timer "std:timer"
 fn main() {
     var now = timer.now_ns()
     if timer.ms_to_ns(2) != 2000000 { oren_exit(30) }
+    if timer.ns_to_ms_floor(1999999) != 1 { oren_exit(31) }
+    if timer.ns_to_ms_ceil(1) != 1 { oren_exit(32) }
+    if timer.ns_to_ms_ceil(2000000) != 2 { oren_exit(33) }
     if !oren_is_err(timer.ms_to_ns(-1)) { oren_exit(34) }
+    if !oren_is_err(timer.ns_to_ms_floor(-1)) { oren_exit(35) }
+    if !oren_is_err(timer.ns_to_ms_ceil(-1)) { oren_exit(36) }
     var dn = timer.deadline_after_ns(0)
     if oren_is_err(dn) { oren_exit(37) }
     if dn < now { oren_exit(38) }

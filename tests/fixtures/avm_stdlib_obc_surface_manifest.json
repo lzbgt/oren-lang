@@ -283,7 +283,7 @@
       "probes": [
         "var tw = timer.watch_deadline(\"surface\", timer.now_ns())",
         "if tw[\"kind\"] != \"timer\" || tw[\"id\"] != \"surface\" { fail(101) }",
-        "if timer.ms_to_ns(2) != 2000000 { fail(116) }",
+        "if timer.ms_to_ns(2) != 2000000 || timer.ns_to_ms_ceil(1) != 1 { fail(116) }",
         "if timer.remaining_ms(timer.now_ns() - 1) != 0 { fail(102) }",
         "if !timer.expired(timer.now_ns() - 1) { fail(103) }"
       ]

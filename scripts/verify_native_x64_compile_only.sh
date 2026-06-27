@@ -33,6 +33,7 @@ Examples:
 
 Env:
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10)
+  OREN_NATIVE_BUILD_TIMEOUT_SECS_STAGE1 (default: 30) timeout floor for stage1 compile-only fixtures
   OREN_NATIVE_BUILD_TIMEOUT_SECS_STAGE2 (default: 90) timeout floor for stage2 compile-only fixtures
   OREN_NATIVE_BUILD_TIMEOUT_SECS_QI timeout override when full quick-integration is explicitly enabled
   OREN_NATIVE_BUILD_TIMEOUT_SECS_NET_TLS_HTTP2 timeout override when the large NET/TLS/HTTP2 compile-only smoke fixture is explicitly enabled
@@ -133,6 +134,7 @@ if [[ "$TARGETS_CSV" != "all" ]]; then
 fi
 
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+BUILD_TIMEOUT_SECS_STAGE1="${OREN_NATIVE_BUILD_TIMEOUT_SECS_STAGE1:-30}"
 BUILD_TIMEOUT_SECS_STAGE2="${OREN_NATIVE_BUILD_TIMEOUT_SECS_STAGE2:-90}"
 INCLUDE_QI="${OREN_NATIVE_X64_INCLUDE_QI:-0}"
 INCLUDE_NET_TLS_HTTP2="${OREN_NATIVE_X64_INCLUDE_NET_TLS_HTTP2:-0}"
@@ -294,6 +296,8 @@ build_one() {
   local timeout_secs="$BUILD_TIMEOUT_SECS"
   if [[ "$ccname" == *stage2* && "$timeout_secs" -lt "$BUILD_TIMEOUT_SECS_STAGE2" ]]; then
     timeout_secs="$BUILD_TIMEOUT_SECS_STAGE2"
+  elif [[ "$ccname" != *stage2* && "$timeout_secs" -lt "$BUILD_TIMEOUT_SECS_STAGE1" ]]; then
+    timeout_secs="$BUILD_TIMEOUT_SECS_STAGE1"
   fi
   if [[ "$src" == "$QI_SRC" ]]; then
     local qi_override="${OREN_NATIVE_BUILD_TIMEOUT_SECS_QI:-}"
@@ -583,7 +587,7 @@ if [[ "$WANT_WIN" -eq 1 ]]; then echo -n "x64-win " >&2; fi
 echo -n "compilers=" >&2
 if [[ "$WANT_STAGE1" -eq 1 ]]; then echo -n "stage1 " >&2; fi
 if [[ "$WANT_STAGE2" -eq 1 ]]; then echo -n "stage2 " >&2; fi
-echo "timeout=${BUILD_TIMEOUT_SECS}s stage2_timeout_floor=${BUILD_TIMEOUT_SECS_STAGE2}s include_qi=${INCLUDE_QI} include_net_tls_http2=${INCLUDE_NET_TLS_HTTP2} include_stage2_full=${INCLUDE_STAGE2_FULL} ==" >&2
+echo "timeout=${BUILD_TIMEOUT_SECS}s stage1_timeout_floor=${BUILD_TIMEOUT_SECS_STAGE1}s stage2_timeout_floor=${BUILD_TIMEOUT_SECS_STAGE2}s include_qi=${INCLUDE_QI} include_net_tls_http2=${INCLUDE_NET_TLS_HTTP2} include_stage2_full=${INCLUDE_STAGE2_FULL} ==" >&2
 
 if [[ "$WANT_LINUX" -eq 1 ]]; then
   ensure_runtime_astbin_seed x64-linux || {

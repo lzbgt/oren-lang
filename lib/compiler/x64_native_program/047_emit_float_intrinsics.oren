@@ -24,6 +24,13 @@ fn _x64_name_is_or_has_suffix(name, exact, suffix) {
     return _x64_name_has_suffix(name, suffix)
 }
 
+fn _x64_name_is_std_math_rounding_float(name) {
+    if name == "floor" || name == "ceil" || name == "round" || name == "trunc" { return true }
+    if name == "STD_math_floor" || name == "STD_math_ceil" || name == "STD_math_round" || name == "STD_math_trunc" { return true }
+    if name == "math_floor" || name == "math_ceil" || name == "math_round" || name == "math_trunc" { return true }
+    return false
+}
+
 fn _x64_expr_is_floaty(ctx, expr) {
     // Heuristic, rolling "float propagation" for x64 native.
     //
@@ -66,13 +73,10 @@ fn _x64_expr_is_floaty(ctx, expr) {
             if _x64_name_is_or_has_suffix(nm, "min_f", "_min_f") { return true }
             if _x64_name_is_or_has_suffix(nm, "max_f", "_max_f") { return true }
             if _x64_name_is_or_has_suffix(nm, "clamp_f", "_clamp_f") { return true }
-            if _x64_name_is_or_has_suffix(nm, "floor", "_floor") { return true }
-            if _x64_name_is_or_has_suffix(nm, "ceil", "_ceil") { return true }
-            if _x64_name_is_or_has_suffix(nm, "round", "_round") { return true }
+            if _x64_name_is_std_math_rounding_float(nm) { return true }
             if _x64_name_is_or_has_suffix(nm, "round_even", "_round_even") { return true }
             if _x64_name_is_or_has_suffix(nm, "nearbyint", "_nearbyint") { return true }
             if _x64_name_is_or_has_suffix(nm, "rint", "_rint") { return true }
-            if _x64_name_is_or_has_suffix(nm, "trunc", "_trunc") { return true }
             if _x64_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
             if _x64_name_is_or_has_suffix(nm, "_round_ties_even", "_round_ties_even") { return true }
             if _x64_name_is_or_has_suffix(nm, "remainder", "_remainder") { return true }

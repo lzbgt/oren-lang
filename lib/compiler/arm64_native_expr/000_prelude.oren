@@ -543,6 +543,13 @@ fn native_name_is_or_has_suffix(name, exact, suffix) {
     return native_name_has_suffix(name, suffix)
 }
 
+fn native_name_is_std_math_rounding_float(name) {
+    if name == "floor" || name == "ceil" || name == "round" || name == "trunc" { return true }
+    if name == "STD_math_floor" || name == "STD_math_ceil" || name == "STD_math_round" || name == "STD_math_trunc" { return true }
+    if name == "math_floor" || name == "math_ceil" || name == "math_round" || name == "math_trunc" { return true }
+    return false
+}
+
 fn native_expr_static_member_field_kind(ctx, expr) {
     if ctx == nil || expr == nil { return nil }
     if expr["type"] != "Member" { return nil }
@@ -647,13 +654,10 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "copysign", "_copysign") { return true }
             if native_name_is_or_has_suffix(nm, "inf", "_inf") { return true }
             if native_name_is_or_has_suffix(nm, "neg_inf", "_neg_inf") { return true }
-            if native_name_is_or_has_suffix(nm, "floor", "_floor") { return true }
-            if native_name_is_or_has_suffix(nm, "ceil", "_ceil") { return true }
-            if native_name_is_or_has_suffix(nm, "round", "_round") { return true }
+            if native_name_is_std_math_rounding_float(nm) { return true }
             if native_name_is_or_has_suffix(nm, "round_even", "_round_even") { return true }
             if native_name_is_or_has_suffix(nm, "nearbyint", "_nearbyint") { return true }
             if native_name_is_or_has_suffix(nm, "rint", "_rint") { return true }
-            if native_name_is_or_has_suffix(nm, "trunc", "_trunc") { return true }
             if native_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
             if native_name_is_or_has_suffix(nm, "_round_ties_even", "_round_ties_even") { return true }
             if native_name_is_or_has_suffix(nm, "remainder", "_remainder") { return true }

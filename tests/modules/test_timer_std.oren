@@ -8,7 +8,12 @@ fn fail(code) {
 
 var now = timer.now_ns()
 if timer.ms_to_ns(2) != 2000000 { fail(30) }
+if timer.ns_to_ms_floor(1999999) != 1 { fail(31) }
+if timer.ns_to_ms_ceil(1) != 1 { fail(32) }
+if timer.ns_to_ms_ceil(2000000) != 2 { fail(33) }
 if !result.is_err(timer.ms_to_ns(-1)) { fail(34) }
+if !result.is_err(timer.ns_to_ms_floor(-1)) { fail(35) }
+if !result.is_err(timer.ns_to_ms_ceil(-1)) { fail(36) }
 var dn = timer.deadline_after_ns(0)
 if result.is_err(dn) { fail(37) }
 if dn < now { fail(38) }

@@ -103,12 +103,11 @@
 <ul>
 <li><code>std:timer</code> now provides nanosecond-native deadline/watch/interval helpers plus</li>
 </ul>
-<p>  explicit millisecond-to-nanosecond conversion for host/event-loop adapters.</p>
-<ul>
-<li>Native cross-module functions returning computed integer division results can produce</li>
-</ul>
-<p>  unsafe numeric carriers; keep public nanosecond-to-millisecond conversion helpers</p>
-<p>  deferred until that compiler/runtime boundary is fixed.</p>
+<p>  explicit millisecond/nanosecond floor/ceil conversion helpers for host/event-loop</p>
+<p>  adapters; native ARM64/x64 float-return heuristics no longer misclassify arbitrary</p>
+<p>  <code>*_floor</code>/<code>*_ceil</code>/<code>*_round</code> integer helpers as f64 carriers, while <code>std:math</code></p>
+<p>  trig range reduction keeps f64 remainders out of ambiguous mixed-list native</p>
+<p>  tuple returns on the hot medium path.</p>
 <ul>
 <li>The main iOS verifier keeps reusable OBC smoke sources under</li>
 </ul>
