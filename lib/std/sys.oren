@@ -1,0 +1,138 @@
+// std/sys (v0, rolling)
+//
+// Pure helpers for AVM capability-domain metadata. This module intentionally
+// exposes no host inspection or handles; it gives packages and embedders one
+// stdlib place for the domain ids/masks used by the AVM runtime policy.
+
+fn domain_core() { return 0 }
+fn domain_fs() { return 1 }
+fn domain_time() { return 2 }
+fn domain_rng() { return 3 }
+fn domain_net() { return 4 }
+fn domain_proc() { return 5 }
+fn domain_exit() { return 6 }
+fn domain_env() { return 7 }
+fn domain_avm() { return 8 }
+fn domain_gfx() { return 9 }
+fn domain_permission() { return 10 }
+fn domain_event() { return 11 }
+
+fn domain_count() { return 12 }
+
+fn domains() {
+    return [
+        domain_core(),
+        domain_fs(),
+        domain_time(),
+        domain_rng(),
+        domain_net(),
+        domain_proc(),
+        domain_exit(),
+        domain_env(),
+        domain_avm(),
+        domain_gfx(),
+        domain_permission(),
+        domain_event()
+    ]
+}
+
+fn domain_name(id) {
+    if id == domain_core() { return "core" }
+    if id == domain_fs() { return "fs" }
+    if id == domain_time() { return "time" }
+    if id == domain_rng() { return "rng" }
+    if id == domain_net() { return "net" }
+    if id == domain_proc() { return "proc" }
+    if id == domain_exit() { return "exit" }
+    if id == domain_env() { return "env" }
+    if id == domain_avm() { return "avm" }
+    if id == domain_gfx() { return "gfx" }
+    if id == domain_permission() { return "permission" }
+    if id == domain_event() { return "event" }
+    return oren_err(4, "std:sys.domain_name: unknown domain id")
+}
+
+fn domain_id(name) {
+    if name == "core" || name == "CORE" { return domain_core() }
+    if name == "fs" || name == "FS" { return domain_fs() }
+    if name == "time" || name == "TIME" { return domain_time() }
+    if name == "rng" || name == "RNG" { return domain_rng() }
+    if name == "net" || name == "NET" { return domain_net() }
+    if name == "proc" || name == "PROC" { return domain_proc() }
+    if name == "exit" || name == "EXIT" { return domain_exit() }
+    if name == "env" || name == "ENV" { return domain_env() }
+    if name == "avm" || name == "AVM" { return domain_avm() }
+    if name == "gfx" || name == "GFX" { return domain_gfx() }
+    if name == "permission" || name == "PERMISSION" { return domain_permission() }
+    if name == "event" || name == "EVENT" { return domain_event() }
+    return oren_err(4, "std:sys.domain_id: unknown domain name")
+}
+
+fn domain_bit(id) {
+    if oren_type_tag(id) != 1 { return oren_err(4, "std:sys.domain_bit: id must be int") }
+    if id < 0 || id >= domain_count() { return oren_err(4, "std:sys.domain_bit: id out of range") }
+    return 1 << id
+}
+
+fn domain_mask(ids) {
+    if oren_type_tag(ids) != 6 { return oren_err(4, "std:sys.domain_mask: ids must be list") }
+    var mask = 0
+    var i = 0
+    while i < oren_list_len(ids) {
+        var bit = domain_bit(ids[i])
+        if oren_is_err(bit) { return bit }
+        mask = mask | bit
+        i = i + 1
+    }
+    return mask
+}
+
+fn domain_mask_names(names) {
+    if oren_type_tag(names) != 6 { return oren_err(4, "std:sys.domain_mask_names: names must be list") }
+    var ids = []
+    var i = 0
+    while i < oren_list_len(names) {
+        var id = domain_id(names[i])
+        if oren_is_err(id) { return id }
+        oren_list_push(ids, id)
+        i = i + 1
+    }
+    return domain_mask(ids)
+}
+
+fn mask_has(mask, id) {
+    var bit = domain_bit(id)
+    if oren_is_err(bit) { return bit }
+    return (mask & bit) != 0
+}
+
+fn require_domain(mask, id) {
+    var ok = mask_has(mask, id)
+    if oren_is_err(ok) { return ok }
+    if ok { return true }
+    var name = domain_name(id)
+    if oren_is_err(name) { name = oren_int_to_string(id) }
+    return oren_err(9, "std:sys.require_domain: missing domain " + name)
+}
+
+fn all_domain_mask() {
+    return domain_mask(domains())
+}
+
+fn default_embed_domains() {
+    return [
+        domain_core(),
+        domain_fs(),
+        domain_time(),
+        domain_net(),
+        domain_proc(),
+        domain_exit(),
+        domain_gfx(),
+        domain_permission(),
+        domain_event()
+    ]
+}
+
+fn default_embed_mask() {
+    return domain_mask(default_embed_domains())
+}

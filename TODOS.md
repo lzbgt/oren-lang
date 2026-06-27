@@ -36,6 +36,8 @@ design evidence lives under `project-doc/`.
 - iOS `OrenAVMKit` builds as an xcframework and verifies TIME, FS, VNET, VPROC,
   GFX/input, package store, trust bundle, permission grant persistence, and
   compiler-in-AVM smoke paths through `make verify-libavm-ios`.
+- `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
+  the default embedder domain mask, and is covered by the stdlib OBC surface gate.
 - The main iOS verifier keeps reusable OBC smoke sources under
   `tests/fixtures/ios_avm/` instead of embedding large heredocs, preserving
   line-guardrail headroom for more GUI/Metal gates.

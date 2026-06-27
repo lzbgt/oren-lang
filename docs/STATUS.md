@@ -92,7 +92,7 @@ Facts from the 2026-05-28 implementation pass:
   `sleep_ms` blocks the AVM worker on wall-clock time and `now_unix_ns` uses host
   realtime. Hosts must run this off the UI thread.
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
-  app-facing modules such as `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
+  app-facing modules such as `std:sys`, `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
   `std:cbor`, `std:yaml`, `std:regex`, `std:encoding/base64`,
   `std:crypto/pem`, `std:crypto/sha1`, `std:crypto/sha256`, and
   `std:crypto/x509`.
@@ -340,6 +340,8 @@ Facts from the 2026-05-28 implementation pass:
   not receive raw fd sets, kqueue descriptors, native pointers, or OS handles.
 - `std:timer` now provides portable deadline/remaining/expiry helpers and
   fixed-period timer-watch maps that compose with `std:avm/events.select`.
+  `std:sys` exposes the pure AVM capability-domain id/name/mask helpers and
+  default embedder domain mask so packages and hosts do not duplicate policy constants.
   `std:avm/events` now uses a native AVM `EVENT` capability domain for timer
   watches, GFX input watches, VNET session readiness, cooperative host-cancel
   watches, and host-enqueued FS/package lifecycle events. If OBC includes a

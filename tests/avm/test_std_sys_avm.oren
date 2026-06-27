@@ -1,0 +1,60 @@
+import sys "std:sys"
+
+fn main() {
+    if sys.domain_core() != 0 { oren_exit(1) }
+    if sys.domain_fs() != 1 { oren_exit(2) }
+    if sys.domain_time() != 2 { oren_exit(3) }
+    if sys.domain_rng() != 3 { oren_exit(4) }
+    if sys.domain_net() != 4 { oren_exit(5) }
+    if sys.domain_proc() != 5 { oren_exit(6) }
+    if sys.domain_exit() != 6 { oren_exit(7) }
+    if sys.domain_env() != 7 { oren_exit(8) }
+    if sys.domain_avm() != 8 { oren_exit(9) }
+    if sys.domain_gfx() != 9 { oren_exit(10) }
+    if sys.domain_permission() != 10 { oren_exit(11) }
+    if sys.domain_event() != 11 { oren_exit(12) }
+
+    if sys.domain_count() != 12 { oren_exit(20) }
+    if oren_list_len(sys.domains()) != 12 { oren_exit(21) }
+    if sys.domain_name(sys.domain_net()) != "net" { oren_exit(22) }
+    if sys.domain_id("PROC") != sys.domain_proc() { oren_exit(23) }
+    if sys.domain_id("permission") != sys.domain_permission() { oren_exit(24) }
+    if !oren_is_err(sys.domain_name(99)) { oren_exit(25) }
+    if !oren_is_err(sys.domain_id("missing")) { oren_exit(26) }
+
+    if sys.domain_bit(sys.domain_core()) != 1 { oren_exit(30) }
+    if sys.domain_bit(sys.domain_fs()) != 2 { oren_exit(31) }
+    if sys.domain_bit(sys.domain_event()) != 2048 { oren_exit(32) }
+    if !oren_is_err(sys.domain_bit(-1)) { oren_exit(33) }
+    if !oren_is_err(sys.domain_bit(12)) { oren_exit(34) }
+
+    var m = sys.domain_mask([sys.domain_core(), sys.domain_net(), sys.domain_event()])
+    if oren_is_err(m) { oren_exit(40) }
+    if m != 2065 { oren_exit(41) }
+    if sys.mask_has(m, sys.domain_net()) != true { oren_exit(42) }
+    if sys.mask_has(m, sys.domain_fs()) != false { oren_exit(43) }
+    if !oren_is_err(sys.domain_mask([sys.domain_core(), 99])) { oren_exit(44) }
+
+    var mn = sys.domain_mask_names(["fs", "TIME", "gfx"])
+    if oren_is_err(mn) { oren_exit(50) }
+    if mn != 518 { oren_exit(51) }
+    if !oren_is_err(sys.domain_mask_names(["fs", "bad"])) { oren_exit(52) }
+
+    var dm = sys.default_embed_mask()
+    if oren_is_err(dm) { oren_exit(60) }
+    if sys.mask_has(dm, sys.domain_core()) != true { oren_exit(61) }
+    if sys.mask_has(dm, sys.domain_fs()) != true { oren_exit(62) }
+    if sys.mask_has(dm, sys.domain_time()) != true { oren_exit(63) }
+    if sys.mask_has(dm, sys.domain_rng()) != false { oren_exit(64) }
+    if sys.mask_has(dm, sys.domain_env()) != false { oren_exit(65) }
+    if sys.mask_has(dm, sys.domain_avm()) != false { oren_exit(66) }
+    if sys.mask_has(dm, sys.domain_event()) != true { oren_exit(67) }
+    if sys.require_domain(dm, sys.domain_gfx()) != true { oren_exit(68) }
+    if !oren_is_err(sys.require_domain(dm, sys.domain_rng())) { oren_exit(69) }
+    if oren_list_len(sys.default_embed_domains()) != 9 { oren_exit(70) }
+
+    print("avm std sys OK")
+    oren_exit(0)
+}
+
+main()

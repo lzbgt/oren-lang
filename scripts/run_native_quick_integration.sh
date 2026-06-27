@@ -1441,6 +1441,19 @@ run_step_checked "buffer method view smoke (bytecode)" "$buffer_method_log" \
   "$compiler" test "$buffer_method_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$buffer_method_log"
 
+echo "== std sys smoke (native/C/bytecode) =="
+sys_std_src="tests/modules/test_sys_std.oren"
+sys_std_log="build/logs/${compiler_base}_std_sys.log"
+rm -f "$sys_std_log" 2>/dev/null || true
+
+run_step_checked "std sys smoke (native)" "$sys_std_log" \
+  "$compiler" test "$sys_std_src" --backend native --platform "$platform" --no-cache
+run_step_checked "std sys smoke (C)" "$sys_std_log" \
+  "$compiler" test "$sys_std_src" --backend c --platform "$platform" --no-cache
+run_step_checked "std sys smoke (bytecode)" "$sys_std_log" \
+  "$compiler" test "$sys_std_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$sys_std_log"
+
 echo "== math cbrt smoke (native/C/bytecode) =="
 math_cbrt_src="tests/modules/test_math_cbrt.oren"
 math_cbrt_log="build/logs/${compiler_base}_math_cbrt.log"

@@ -1,0 +1,61 @@
+import sys "../../lib/std/sys.oren"
+
+fn fail(code) {
+    print("module sys_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+if sys.domain_core() != 0 { fail(1) }
+if sys.domain_fs() != 1 { fail(2) }
+if sys.domain_time() != 2 { fail(3) }
+if sys.domain_rng() != 3 { fail(4) }
+if sys.domain_net() != 4 { fail(5) }
+if sys.domain_proc() != 5 { fail(6) }
+if sys.domain_exit() != 6 { fail(7) }
+if sys.domain_env() != 7 { fail(8) }
+if sys.domain_avm() != 8 { fail(9) }
+if sys.domain_gfx() != 9 { fail(10) }
+if sys.domain_permission() != 10 { fail(11) }
+if sys.domain_event() != 11 { fail(12) }
+
+if sys.domain_count() != 12 { fail(20) }
+if oren_list_len(sys.domains()) != 12 { fail(21) }
+if sys.domain_name(sys.domain_net()) != "net" { fail(22) }
+if sys.domain_id("PROC") != sys.domain_proc() { fail(23) }
+if sys.domain_id("permission") != sys.domain_permission() { fail(24) }
+if !oren_is_err(sys.domain_name(99)) { fail(25) }
+if !oren_is_err(sys.domain_id("missing")) { fail(26) }
+
+if sys.domain_bit(sys.domain_core()) != 1 { fail(30) }
+if sys.domain_bit(sys.domain_fs()) != 2 { fail(31) }
+if sys.domain_bit(sys.domain_event()) != 2048 { fail(32) }
+if !oren_is_err(sys.domain_bit(-1)) { fail(33) }
+if !oren_is_err(sys.domain_bit(12)) { fail(34) }
+
+var m = sys.domain_mask([sys.domain_core(), sys.domain_net(), sys.domain_event()])
+if oren_is_err(m) { fail(40) }
+if m != 2065 { fail(41) }
+if sys.mask_has(m, sys.domain_net()) != true { fail(42) }
+if sys.mask_has(m, sys.domain_fs()) != false { fail(43) }
+if !oren_is_err(sys.domain_mask([sys.domain_core(), 99])) { fail(44) }
+
+var mn = sys.domain_mask_names(["fs", "TIME", "gfx"])
+if oren_is_err(mn) { fail(50) }
+if mn != 518 { fail(51) }
+if !oren_is_err(sys.domain_mask_names(["fs", "bad"])) { fail(52) }
+
+var dm = sys.default_embed_mask()
+if oren_is_err(dm) { fail(60) }
+if sys.mask_has(dm, sys.domain_core()) != true { fail(61) }
+if sys.mask_has(dm, sys.domain_fs()) != true { fail(62) }
+if sys.mask_has(dm, sys.domain_time()) != true { fail(63) }
+if sys.mask_has(dm, sys.domain_rng()) != false { fail(64) }
+if sys.mask_has(dm, sys.domain_env()) != false { fail(65) }
+if sys.mask_has(dm, sys.domain_avm()) != false { fail(66) }
+if sys.mask_has(dm, sys.domain_event()) != true { fail(67) }
+if sys.require_domain(dm, sys.domain_gfx()) != true { fail(68) }
+if !oren_is_err(sys.require_domain(dm, sys.domain_rng())) { fail(69) }
+if oren_list_len(sys.default_embed_domains()) != 9 { fail(70) }
+
+print("module sys_std OK")
+exit(0)

@@ -131,6 +131,17 @@
       ]
     },
     {
+      "module": "std:sys",
+      "alias": "sys",
+      "probes": [
+        "if sys.domain_net() != 4 { fail(95) }",
+        "if sys.domain_name(sys.domain_gfx()) != \"gfx\" { fail(96) }",
+        "var sys_mask = sys.default_embed_mask()",
+        "if oren_is_err(sys_mask) || sys.mask_has(sys_mask, sys.domain_event()) != true { fail(97) }",
+        "if sys.mask_has(sys_mask, sys.domain_rng()) != false { fail(98) }"
+      ]
+    },
+    {
       "module": "std:json",
       "alias": "json",
       "probes": [

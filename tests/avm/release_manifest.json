@@ -122,6 +122,7 @@
     },
     {"path": "tests/avm/test_std_time_avm.oren"},
     {"path": "tests/avm/test_std_timer_avm.oren"},
+    {"path": "tests/avm/test_std_sys_avm.oren"},
     {"path": "tests/avm/test_time_rng_deterministic.oren"},
     {"path": "tests/avm/test_time_rng_record_replay_mem.oren"},
     {
