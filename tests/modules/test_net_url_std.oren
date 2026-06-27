@@ -40,6 +40,10 @@ if neturl.query_get("/search?q=hello+world&x=%2B", "q") != "hello world" { fail(
 if neturl.query_get("/search?q=hello+world&x=%2B", "missing") != nil { fail(65) }
 if neturl.build_query([["q", "hello world"], ["x", "+"]]) != "q=hello%20world&x=%2B" { fail(66) }
 if !oren_is_err(neturl.build_query([["bad"]])) { fail(67) }
+if neturl.with_query("/search?old=1#frag", [["q", "hello world"]]) != "/search?q=hello%20world#frag" { fail(68) }
+if neturl.with_query("/search?old=1#frag", []) != "/search#frag" { fail(69) }
+if neturl.append_query("/search?old=1#frag", [["q", "hello world"]]) != "/search?old=1&q=hello%20world#frag" { fail(74) }
+if neturl.append_query("/search?#frag", [["q", "x"]]) != "/search?q=x#frag" { fail(75) }
 
 if !oren_is_err(neturl.parse_http("ftp://example.com")) { fail(70) }
 if !oren_is_err(neturl.parse_ws("http://example.com")) { fail(71) }

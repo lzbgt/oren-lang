@@ -36,6 +36,10 @@ fn main() {
     if params[3][0] != "x" || params[3][1] != "+" { fail(62) }
     if neturl.query_get("/search?q=hello+world&x=%2B", "q") != "hello world" { fail(63) }
     if neturl.build_query([["q", "hello world"], ["x", "+"]]) != "q=hello%20world&x=%2B" { fail(64) }
+    if neturl.with_query("/search?old=1#frag", [["q", "hello world"]]) != "/search?q=hello%20world#frag" { fail(65) }
+    if neturl.with_query("/search?old=1#frag", []) != "/search#frag" { fail(66) }
+    if neturl.append_query("/search?old=1#frag", [["q", "hello world"]]) != "/search?old=1&q=hello%20world#frag" { fail(67) }
+    if neturl.append_query("/search?#frag", [["q", "x"]]) != "/search?q=x#frag" { fail(68) }
 
     if !oren_is_err(neturl.parse_http("ftp://example.com")) { fail(70) }
     if !oren_is_err(neturl.parse_ws("http://example.com")) { fail(71) }

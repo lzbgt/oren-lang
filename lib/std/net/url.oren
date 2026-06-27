@@ -79,6 +79,46 @@ fn _slice_or_empty(s, start, end) {
     return oren_string_slice(s, start, end)
 }
 
+fn _write_string(outp, off, s) {
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        ptr_set_byte(outp + off + i, _byte_at(s, i))
+        i = i + 1
+    }
+    return off + n
+}
+
+fn _concat3(a, b, c) {
+    var na = oren_string_len(a)
+    var nb = oren_string_len(b)
+    var nc = oren_string_len(c)
+    var out = raw.u8_new_uninit(na + nb + nc)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    var off = _write_string(p, 0, a)
+    off = _write_string(p, off, b)
+    _write_string(p, off, c)
+    return oren_string_from_bytes_slice(out, 0, na + nb + nc)
+}
+
+fn _concat5(a, b, c, d, e) {
+    var na = oren_string_len(a)
+    var nb = oren_string_len(b)
+    var nc = oren_string_len(c)
+    var nd = oren_string_len(d)
+    var ne = oren_string_len(e)
+    var out = raw.u8_new_uninit(na + nb + nc + nd + ne)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    var off = _write_string(p, 0, a)
+    off = _write_string(p, off, b)
+    off = _write_string(p, off, c)
+    off = _write_string(p, off, d)
+    _write_string(p, off, e)
+    return oren_string_from_bytes_slice(out, 0, na + nb + nc + nd + ne)
+}
+
 fn path_part(target) {
     if target == nil { return oren_err(4, "url.path_part: target is nil") }
     var end = _path_query_end(target, 0)
@@ -283,6 +323,44 @@ fn build_query(pairs) {
         i = i + 1
     }
     return oren_string_from_bytes_slice(out, 0, total)
+}
+
+fn with_query(target, pairs) {
+    if oren_type_tag(target) != 4 { return oren_err(4, "url.with_query: target must be string") }
+    var q = build_query(pairs)
+    if oren_is_err(q) { return q }
+    var n = oren_string_len(target)
+    var hash = _find_byte(target, 0, 35) // '#'
+    var end = n
+    if hash >= 0 { end = hash }
+    var qpos = _find_byte(target, 0, 63) // '?'
+    var base_end = end
+    if qpos >= 0 && qpos < end { base_end = qpos }
+    var base = _slice_or_empty(target, 0, base_end)
+    var frag = ""
+    if hash >= 0 { frag = _slice_or_empty(target, hash, n) }
+    if q == "" { return _concat3(base, "", frag) }
+    return _concat5(base, "?", q, "", frag)
+}
+
+fn append_query(target, pairs) {
+    if oren_type_tag(target) != 4 { return oren_err(4, "url.append_query: target must be string") }
+    var q = build_query(pairs)
+    if oren_is_err(q) { return q }
+    if q == "" { return target }
+    var n = oren_string_len(target)
+    var hash = _find_byte(target, 0, 35) // '#'
+    var end = n
+    if hash >= 0 { end = hash }
+    var head = _slice_or_empty(target, 0, end)
+    var frag = ""
+    if hash >= 0 { frag = _slice_or_empty(target, hash, n) }
+    var sep = "?"
+    var qpos = _find_byte(target, 0, 63) // '?'
+    if qpos >= 0 && qpos < end {
+        if qpos + 1 >= end { sep = "" } else { sep = "&" }
+    }
+    return _concat5(head, sep, q, "", frag)
 }
 
 fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {

@@ -42,8 +42,8 @@ design evidence lives under `project-doc/`.
   presence, require, and truthy helpers over the existing runtime ENV policy surface.
 - `std:net/url` now provides pure HTTP/WebSocket URL parsing, request-target
   path/query splitting, percent encode/decode, query param get/list, and exact-size
-  query building shared by native `std:net/http`, native `std:net/ws`, and
-  AVM-safe app code.
+  query building/replacement/appending shared by native `std:net/http`, native
+  `std:net/ws`, and AVM-safe app code.
 - `std:path` now provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and extension
   helpers shared by AVM and desktop SDK code.

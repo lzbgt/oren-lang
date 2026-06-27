@@ -189,6 +189,7 @@
         "if oren_is_err(parsed_url) || parsed_url[\"scheme\"] != \"https\" || parsed_url[\"host\"] != \"example.com\" || parsed_url[\"port\"] != 8443 || parsed_url[\"path\"] != \"/a\" { fail(107) }",
         "if net_url.query_get(\"/search?q=hello+world&x=%2B\", \"q\") != \"hello world\" { fail(109) }",
         "if net_url.build_query([[\"q\", \"hello world\"], [\"x\", \"+\"]]) != \"q=hello%20world&x=%2B\" { fail(110) }",
+        "if net_url.append_query(\"/search?old=1#frag\", [[\"q\", \"hello world\"]]) != \"/search?old=1&q=hello%20world#frag\" { fail(111) }",
         "if !oren_is_err(net_url.parse_ws(\"http://example.com\")) { fail(108) }"
       ]
     },
