@@ -389,10 +389,11 @@
 <p>  separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the</p>
 <p>  same endpoint interpretation across host and virtual NET providers; authority</p>
 <p>  parsing now handles query-only targets and bracketed IPv6 structure while</p>
-<p>  rejecting userinfo explicitly, and canonical origin/same-origin helpers</p>
-<p>  normalize host case plus default ports for SDK allow-list checks. Native and</p>
-<p>  AVM HTTP request opts route structured <code>query</code> / <code>append_query</code> pairs through</p>
-<p>  the shared request-target</p>
+<p>  rejecting userinfo explicitly, canonical HTTP/WebSocket origin/same-origin</p>
+<p>  helpers normalize host case plus default ports, and generic endpoint-origin</p>
+<p>  plus host-or-origin allow-list helpers cover TCP/UDP/WebSocket session policy</p>
+<p>  lists. Native and AVM HTTP request opts route structured <code>query</code> /</p>
+<p>  <code>append_query</code> pairs through the shared request-target</p>
 <p>  composer, native HTTP/WebSocket Host headers preserve parsed authority, and</p>
 <p>  native wire requests plus AVM virtual-provider specs strip URL fragments at</p>
 <p>  the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals</p>

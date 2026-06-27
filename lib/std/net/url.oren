@@ -171,9 +171,25 @@ fn _has_colon(s) {
     return 0
 }
 
+fn _scheme_separator_pos(s) {
+    var n = oren_string_len(s)
+    var i = 0
+    while i + 2 < n {
+        if _byte_at(s, i) == 58 && _byte_at(s, i + 1) == 47 && _byte_at(s, i + 2) == 47 { return i } // ://
+        i = i + 1
+    }
+    return -1
+}
+
 fn _default_port_for_scheme(scheme) {
     if scheme == "https" || scheme == "wss" { return 443 }
     return 80
+}
+
+fn _optional_default_port_for_scheme(scheme) {
+    if scheme == "http" || scheme == "ws" { return 80 }
+    if scheme == "https" || scheme == "wss" { return 443 }
+    return 0
 }
 
 fn _origin_from_parts(scheme, host, port) {
@@ -182,6 +198,23 @@ fn _origin_from_parts(scheme, host, port) {
     var prefix = scheme + "://"
     var port_s = ""
     if port != _default_port_for_scheme(scheme) {
+        port_s = ":" + oren_int_to_string(port)
+    }
+    if _has_colon(host_l) == 1 {
+        return _concat5(prefix, "[", host_l, "]", port_s)
+    }
+    return _concat3(prefix, host_l, port_s)
+}
+
+fn _origin_from_endpoint_parts(scheme, host, port, has_port) {
+    var scheme_l = _lower_ascii(scheme)
+    if oren_is_err(scheme_l) { return scheme_l }
+    var host_l = _lower_ascii(host)
+    if oren_is_err(host_l) { return host_l }
+    var prefix = scheme_l + "://"
+    var port_s = ""
+    var default_port = _optional_default_port_for_scheme(scheme_l)
+    if has_port && (default_port == 0 || port != default_port) {
         port_s = ":" + oren_int_to_string(port)
     }
     if _has_colon(host_l) == 1 {
@@ -455,22 +488,51 @@ fn append_query(target, pairs) {
 }
 
 fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
-    if url == nil { return {"ok": 0, "err": "url is nil"} }
-
-    var scheme = nil
-    var pos = 0
     var prefix_a = scheme_a + "://"
     var prefix_b = scheme_b + "://"
-    if _starts_with(url, prefix_a) == 1 {
-        scheme = scheme_a
-        pos = oren_string_len(prefix_a)
-    } else if _starts_with(url, prefix_b) == 1 {
-        scheme = scheme_b
-        pos = oren_string_len(prefix_b)
-    } else {
+    var r = _parse_endpoint_origin_record(url)
+    if r["ok"] != 1 { return r }
+    var scheme = r["scheme"]
+    if scheme != scheme_a && scheme != scheme_b {
         return {"ok": 0, "err": "only " + prefix_a + " and " + prefix_b + " are supported"}
     }
 
+    var port = default_port_a
+    if scheme == scheme_b { port = default_port_b }
+    if r["has_port"] { port = r["port"] }
+
+    var auth_end = r["auth_end"]
+    var path = _path_from_url_suffix(url, auth_end)
+    if path == 0 { return {"ok": 0, "err": "path slice failed"} }
+
+    var clean_path = path_part(path)
+    if oren_is_err(clean_path) { return {"ok": 0, "err": "path parse failed"} }
+    var query = query_part(path)
+    if oren_is_err(query) { return {"ok": 0, "err": "query parse failed"} }
+    var wire_target = request_target(path)
+    if oren_is_err(wire_target) { return {"ok": 0, "err": "request-target parse failed"} }
+    var authority = r["authority"]
+    if authority == 0 { return {"ok": 0, "err": "authority slice failed"} }
+
+    return {"ok": 1, "scheme": scheme, "host": r["host"], "authority": authority, "port": port, "path": path, "path_only": clean_path, "query": query, "request_target": wire_target}
+}
+
+fn _err_from_record(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
+fn _parse_endpoint_origin_record(url) {
+    if oren_type_tag(url) != 4 { return {"ok": 0, "err": "url must be string"} }
+    var sep = _scheme_separator_pos(url)
+    if sep <= 0 { return {"ok": 0, "err": "missing scheme"} }
+    var scheme = oren_string_slice(url, 0, sep)
+    if scheme == 0 { return {"ok": 0, "err": "scheme slice failed"} }
+    scheme = _lower_ascii(scheme)
+    if oren_is_err(scheme) { return {"ok": 0, "err": "scheme lower failed"} }
+
+    var pos = sep + 3
     var ul = oren_string_len(url)
     var auth_end = -1
     var i = pos
@@ -511,43 +573,23 @@ fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
     }
 
     if host_end <= host_start { return {"ok": 0, "err": "missing host"} }
-
     var host = oren_string_slice(url, host_start, host_end)
     if host == 0 { return {"ok": 0, "err": "host slice failed"} }
 
-    var port = default_port_a
-    if scheme == scheme_b { port = default_port_b }
+    var has_port = false
+    var port = 0
     if port_start != -1 {
         var port_s = oren_string_slice(url, port_start, auth_end)
-        if port_s == 0 {
-            return {"ok": 0, "err": "port slice failed"}
-        }
+        if port_s == 0 { return {"ok": 0, "err": "port slice failed"} }
         var pv = _parse_positive_int(port_s)
-        if pv <= 0 || pv > 65535 {
-            return {"ok": 0, "err": "invalid port"}
-        }
+        if pv <= 0 || pv > 65535 { return {"ok": 0, "err": "invalid port"} }
         port = pv
+        has_port = true
     }
 
-    var path = _path_from_url_suffix(url, auth_end)
-    if path == 0 { return {"ok": 0, "err": "path slice failed"} }
-
-    var clean_path = path_part(path)
-    if oren_is_err(clean_path) { return {"ok": 0, "err": "path parse failed"} }
-    var query = query_part(path)
-    if oren_is_err(query) { return {"ok": 0, "err": "query parse failed"} }
-    var wire_target = request_target(path)
-    if oren_is_err(wire_target) { return {"ok": 0, "err": "request-target parse failed"} }
     var authority = oren_string_slice(url, pos, auth_end)
     if authority == 0 { return {"ok": 0, "err": "authority slice failed"} }
-
-    return {"ok": 1, "scheme": scheme, "host": host, "authority": authority, "port": port, "path": path, "path_only": clean_path, "query": query, "request_target": wire_target}
-}
-
-fn _err_from_record(r, fallback) {
-    var msg = r["err"]
-    if msg == nil || msg == "" { msg = fallback }
-    return oren_err(4, msg)
+    return {"ok": 1, "scheme": scheme, "host": host, "authority": authority, "port": port, "has_port": has_port, "auth_end": auth_end}
 }
 
 fn parse_http_record(url) {
@@ -598,4 +640,39 @@ fn same_origin(a, b) {
     var ob = origin(b)
     if oren_is_err(ob) { return ob }
     return oa == ob
+}
+
+fn endpoint_origin(url) {
+    var r = _parse_endpoint_origin_record(url)
+    if r["ok"] != 1 { return _err_from_record(r, "url.endpoint_origin failed") }
+    return _origin_from_endpoint_parts(r["scheme"], r["host"], r["port"], r["has_port"])
+}
+
+fn allowed_by_host_or_origin(url, allowed) {
+    if allowed == nil { return true }
+    if oren_type_tag(allowed) != 6 { return oren_err(4, "url.allowed_by_host_or_origin: allowed must be list") }
+    if oren_list_len(allowed) == 0 { return true }
+
+    var r = _parse_endpoint_origin_record(url)
+    if r["ok"] != 1 { return _err_from_record(r, "url.allowed_by_host_or_origin failed") }
+    var target_host = _lower_ascii(r["host"])
+    if oren_is_err(target_host) { return target_host }
+    var target_origin = _origin_from_endpoint_parts(r["scheme"], r["host"], r["port"], r["has_port"])
+    if oren_is_err(target_origin) { return target_origin }
+
+    var i = 0
+    while i < oren_list_len(allowed) {
+        var entry = allowed[i]
+        if oren_type_tag(entry) == 4 && oren_string_len(entry) > 0 {
+            if _scheme_separator_pos(entry) >= 0 {
+                var entry_origin = endpoint_origin(entry)
+                if !oren_is_err(entry_origin) && entry_origin == target_origin { return true }
+            } else {
+                var entry_host = _lower_ascii(entry)
+                if !oren_is_err(entry_host) && entry_host == target_host { return true }
+            }
+        }
+        i = i + 1
+    }
+    return false
 }
