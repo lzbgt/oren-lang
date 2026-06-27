@@ -1,4 +1,5 @@
 import token "token.oren"
+import bytebuf "bytes_builder.oren"
 
 // --- Tracing controls (cached) ---
 //
@@ -507,19 +508,22 @@ fn read_string(l) {
     // and becomes a major self-host compiler bottleneck because the runtime/stdlib contains many
     // string literals (error messages, diagnostics, etc.).
     //
-    // Instead, accumulate bytes and allocate exactly once at the end.
-    var bs = []
+    // Instead, accumulate bytes in a compact builder and allocate the final
+    // string exactly once at the end.
+    var bs = bytebuf.bytes_new_cap(32)
     read_char(l)
     while l["ch"] != token.CH_QUOTE {
         var ch = l["ch"]
         if ch == "" {
-            return oren_string_from_bytes(bs)
+            var out0 = bytebuf.bytes_finalize(bs)
+            return oren_string_from_bytes_slice(out0, 0, bytebuf.bytes_len(bs))
         }
         if ch == token.CH_BACKSLASH {
             read_char(l)
             ch = l["ch"]
             if ch == "" {
-                return oren_string_from_bytes(bs)
+                var out1 = bytebuf.bytes_finalize(bs)
+                return oren_string_from_bytes_slice(out1, 0, bytebuf.bytes_len(bs))
             }
             var b = l["ch_byte"]
             if ch == "n" { b = 10 }        // '\n'
@@ -529,16 +533,17 @@ fn read_string(l) {
             else if ch == token.CH_BACKSLASH { b = 92 }   // '\\'
             // Unknown escape: keep the old behavior (treat as literal char).
             if b < 0 { b = 0 }
-            oren_list_push(bs, b)
+            bytebuf.bytes_push(bs, b)
             read_char(l)
         } else {
             var b2 = l["ch_byte"]
             if b2 < 0 { b2 = 0 }
-            oren_list_push(bs, b2)
+            bytebuf.bytes_push(bs, b2)
             read_char(l)
         }
     }
-    return oren_string_from_bytes(bs)
+    var out2 = bytebuf.bytes_finalize(bs)
+    return oren_string_from_bytes_slice(out2, 0, bytebuf.bytes_len(bs))
 }
 
 fn tok_lc(l, t, lit, start_pos, end_pos, line, col) {

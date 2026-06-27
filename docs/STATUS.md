@@ -618,8 +618,8 @@ Facts from the 2026-05-28 implementation pass:
 	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
 	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,
 	  native capsule mount path resolution, realpath segment output, readdir names,
-	  and UNIX-socket path copies through `oren_memcpy`, shared compiler
-	  byte-builder append/list/string/set stores, C identifier
+		  and UNIX-socket path copies through `oren_memcpy`, shared compiler
+		  byte-builder append/list/string/set stores, lexer string-literal decoding through compact byte builders, C identifier
   escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy
   helpers now do the same.
   `std:buffer`
