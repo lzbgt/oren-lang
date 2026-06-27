@@ -37,10 +37,10 @@ design evidence lives under `project-doc/`.
   GFX/input, package store, trust bundle, permission grant persistence, and
   compiler-in-AVM smoke paths through `make verify-libavm-ios`.
 - `std:ui/scene3d` package coordinate and generated primitive meshes now accept validated
-  authoring-time `scale_xyz_milli`, `pivot_xyz`, and `rotation_xyz_milli_deg`
-  transforms (with `rotation_z_milli_deg` shorthand) for `triangles_xyz`,
-  `quads_xyz`, `vertices_xyz`, `triangles_xyz_rgba`, `boxes_xyz`,
-  `prisms_xy`, and curved generated solids before byte-native packing.
+  authoring-time `scale_xyz_milli`, `pivot_xyz`, `rotation_xyz_milli_deg`
+  (with `rotation_z_milli_deg` shorthand), and `translation_xyz` transforms
+  for `triangles_xyz`, `quads_xyz`, `vertices_xyz`, `triangles_xyz_rgba`,
+  `boxes_xyz`, `prisms_xy`, and curved generated solids before byte-native packing.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.
 - `std:env` now provides app-facing capability-gated environment get/fallback,

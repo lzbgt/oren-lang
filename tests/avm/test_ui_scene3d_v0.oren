@@ -242,6 +242,24 @@ fn main() {
     assert_eq(_i32_at(from_pivot_rotated_coords[0]["triangles"], 4), 2)
     assert_eq(_i32_at(from_pivot_rotated_coords[0]["triangles"], 8), 0)
 
+    var from_translated_coords = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 438,
+                "triangles_xyz": [
+                    [[1, 0, 3], [2, 0, 3], [1, 1, 3]]
+                ],
+                "transform": {"translation_xyz": [5, -2, 7]},
+                "color": "#ffffff"
+            }
+        ]
+    })
+    assert_true(oren_is_err(from_translated_coords) == false)
+    assert_eq(_i32_at(from_translated_coords[0]["triangles"], 0), 6)
+    assert_eq(_i32_at(from_translated_coords[0]["triangles"], 4), -2)
+    assert_eq(_i32_at(from_translated_coords[0]["triangles"], 8), 10)
+
     var from_quads = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -412,6 +430,24 @@ fn main() {
     assert_eq(_i32_at(from_pivot_rotated_box[0]["triangles"], 0), 3)
     assert_eq(_i32_at(from_pivot_rotated_box[0]["triangles"], 4), 1)
     assert_eq(_i32_at(from_pivot_rotated_box[0]["triangles"], 8), 0)
+
+    var from_translated_box = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 441,
+                "boxes_xyz": [
+                    {"min": [1, 1, 0], "max": [3, 3, 1]}
+                ],
+                "transform": {"pivot_xyz": [2, 2, 0], "rotation_z_milli_deg": 90000, "translation_xyz": [10, 0, 5]},
+                "color": "#ffffff"
+            }
+        ]
+    })
+    assert_true(oren_is_err(from_translated_box) == false)
+    assert_eq(_i32_at(from_translated_box[0]["triangles"], 0), 13)
+    assert_eq(_i32_at(from_translated_box[0]["triangles"], 4), 1)
+    assert_eq(_i32_at(from_translated_box[0]["triangles"], 8), 5)
 
     var from_prisms = scene3d.commands_from_asset({
         "meshes": [
@@ -781,6 +817,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"triangles_xyz\":[[[0,0,0],[1,0,0],[0,1,0]]],\"rotation_z_milli_deg\":\"bad\",\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"triangles_xyz\":[[[0,0,0],[1,0,0],[0,1,0]]],\"rotation_xyz_milli_deg\":[0,90000],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"triangles_xyz\":[[[0,0,0],[1,0,0],[0,1,0]]],\"pivot_xyz\":[0,0],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"triangles_xyz\":[[[0,0,0],[1,0,0],[0,1,0]]],\"translation_xyz\":[0,\"bad\",0],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"boxes_xyz\":[{\"min\":[0,0,0],\"max\":[1,1,1]}],\"scale_xyz_milli\":[1000,-1,1000],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"boxes_xyz\":[{\"min\":[0,0,0],\"max\":[0,1,1]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"prisms_xy\":[{\"points\":[[0,0],[1,0]],\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
