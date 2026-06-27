@@ -36,9 +36,10 @@ design evidence lives under `project-doc/`.
 - iOS `OrenAVMKit` builds as an xcframework and verifies TIME, FS, VNET, VPROC,
   GFX/input, package store, trust bundle, permission grant persistence, and
   compiler-in-AVM smoke paths through `make verify-libavm-ios`.
-- `std:ui/scene3d` package coordinate meshes now accept validated
+- `std:ui/scene3d` package coordinate and generated primitive meshes now accept validated
   `scale_xyz_milli` pre-scaling for `triangles_xyz`, `quads_xyz`,
-  `vertices_xyz`, and `triangles_xyz_rgba` before byte-native packing.
+  `vertices_xyz`, `triangles_xyz_rgba`, `boxes_xyz`, `prisms_xy`, and curved
+  generated solids before byte-native packing.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.
 - `std:env` now provides app-facing capability-gated environment get/fallback,

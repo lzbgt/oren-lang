@@ -303,8 +303,8 @@ This file is the concise task view. Detailed implementation status lives in
 	     inline ASCII PLY text lowering, PLY face/vertex colors to `mesh3d_rgba`,
 	     core 3MF ZIP mesh/build plus basematerial `displaycolor` lowering and
 	     optional `3mf_triangle_set` subgroup selection,
-	     direct-coordinate `scale_xyz_milli` pre-scaling for JSON coordinate
-	     meshes, plus
+	     package-authoring `scale_xyz_milli` pre-scaling for JSON coordinate
+	     and generated primitive meshes, plus
 	     `cylinders_z`/`cones_z`/`spheres_xyz`/`ellipsoids_xyz`/`toruses_xyz`/`capsules_z` authoring that lower to existing
 	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
 	     Curved solid packers are split into `std:ui/scene3d_shapes` so broader

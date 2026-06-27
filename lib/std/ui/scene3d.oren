@@ -271,6 +271,12 @@ fn _scale_axis_milli(m, axis, ctx) {
     return v
 }
 
+fn _has_scale_xyz_milli(m) {
+    if m["scale_xyz_milli"] != nil { return true }
+    var transform = m["transform"]
+    return transform != nil && transform["scale_xyz_milli"] != nil
+}
+
 fn _scaled_i32(v, scale, ctx) {
     if _is_int(v) == false { return oren_err(4, ctx + ": expected i32") }
     return v * scale / 1000
@@ -281,6 +287,39 @@ fn _store_scaled_xyz_values(out, off, x, y, z, sx, sy, sz, ctx) {
     var yy = _scaled_i32(y, sy, ctx + ".y"); if oren_is_err(yy) { return yy }
     var zz = _scaled_i32(z, sz, ctx + ".z"); if oren_is_err(zz) { return zz }
     return _store_xyz_values(out, off, xx, yy, zz, ctx)
+}
+
+fn _load_i32_le(buf, off) {
+    var u = raw._load_u8_direct(buf, off + 0) +
+        raw._load_u8_direct(buf, off + 1) * 256 +
+        raw._load_u8_direct(buf, off + 2) * 65536 +
+        raw._load_u8_direct(buf, off + 3) * 16777216
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn _scale_packed_triangles_xyz(tris, m, ctx) {
+    if _has_scale_xyz_milli(m) == false { return tris }
+    var sx = _scale_axis_milli(m, 0, ctx)
+    if oren_is_err(sx) { return sx }
+    var sy = _scale_axis_milli(m, 1, ctx)
+    if oren_is_err(sy) { return sy }
+    var sz = _scale_axis_milli(m, 2, ctx)
+    if oren_is_err(sz) { return sz }
+    if sx == 1000 && sy == 1000 && sz == 1000 { return tris }
+    var n = bytes.len(tris)
+    if oren_is_err(n) { return oren_err(4, ctx + ": expected triangle bytes") }
+    if n % 36 != 0 { return oren_err(4, ctx + ": triangle byte length must be multiple of 36") }
+    var off = 0
+    while off < n {
+        var x = _load_i32_le(tris, off + 0)
+        var y = _load_i32_le(tris, off + 4)
+        var z = _load_i32_le(tris, off + 8)
+        var rc = _store_scaled_xyz_values(tris, off, x, y, z, sx, sy, sz, ctx)
+        if oren_is_err(rc) { return rc }
+        off = off + 12
+    }
+    return tris
 }
 
 fn _pack_triangles_xyz(triangles, sx, sy, sz, ctx) {
@@ -553,6 +592,7 @@ fn _asset_mesh(m) {
     if kind == nil { kind = "triangles" }
     if kind == "triangles" {
         var tris = nil
+        var scale_generated = false
         if m["triangles_xyz"] != nil {
             var sx = _scale_axis_milli(m, 0, "ui.scene3d mesh")
             if oren_is_err(sx) { return sx }
@@ -571,24 +611,36 @@ fn _asset_mesh(m) {
             tris = _pack_quads_xyz(m["quads_xyz"], qsx, qsy, qsz, "ui.scene3d mesh.quads_xyz")
         } else if m["boxes_xyz"] != nil {
             tris = _pack_boxes_xyz(m["boxes_xyz"], "ui.scene3d mesh.boxes_xyz")
+            scale_generated = true
         } else if m["prisms_xy"] != nil {
             tris = _pack_prisms_xy(m["prisms_xy"], "ui.scene3d mesh.prisms_xy")
+            scale_generated = true
         } else if m["cylinders_z"] != nil {
             tris = shapes.pack_cylinders_z(m["cylinders_z"], "ui.scene3d mesh.cylinders_z")
+            scale_generated = true
         } else if m["cones_z"] != nil {
             tris = shapes.pack_cones_z(m["cones_z"], "ui.scene3d mesh.cones_z")
+            scale_generated = true
         } else if m["spheres_xyz"] != nil {
             tris = shapes.pack_spheres_xyz(m["spheres_xyz"], "ui.scene3d mesh.spheres_xyz")
+            scale_generated = true
         } else if m["ellipsoids_xyz"] != nil {
             tris = shapes.pack_ellipsoids_xyz(m["ellipsoids_xyz"], "ui.scene3d mesh.ellipsoids_xyz")
+            scale_generated = true
         } else if m["toruses_xyz"] != nil {
             tris = shapes.pack_toruses_xyz(m["toruses_xyz"], "ui.scene3d mesh.toruses_xyz")
+            scale_generated = true
         } else if m["capsules_z"] != nil {
             tris = shapes.pack_capsules_z(m["capsules_z"], "ui.scene3d mesh.capsules_z")
+            scale_generated = true
         } else {
             tris = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles")
         }
         if oren_is_err(tris) { return tris }
+        if scale_generated {
+            tris = _scale_packed_triangles_xyz(tris, m, "ui.scene3d mesh")
+            if oren_is_err(tris) { return tris }
+        }
         var tri_color = _asset_color(m, "ui.scene3d mesh")
         if oren_is_err(tri_color) { return tri_color }
         return mesh(id, tris, tri_color)
