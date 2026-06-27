@@ -4,12 +4,30 @@
 // The module intentionally does not bypass AVM/native policy: host/VFS choice,
 // allow-prefixes, record/replay, and IO budgets remain controlled by the runtime.
 
+import pathm "std:path"
+
+fn _join_under(root, parts) {
+    return pathm.join_under(root, parts)
+}
+
 fn read_text(path) {
     return oren_read_file(path)
 }
 
+fn read_text_under(root, parts) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return read_text(p)
+}
+
 fn write_text(path, content) {
     return oren_write_file(path, content)
+}
+
+fn write_text_under(root, parts, content) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return write_text(p, content)
 }
 
 fn read_bytes(path) {
@@ -18,22 +36,58 @@ fn read_bytes(path) {
     return oren_read_u8_buf(path)
 }
 
+fn read_bytes_under(root, parts) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return read_bytes(p)
+}
+
 fn read_byte_list(path) {
     return oren_read_bytes(path)
+}
+
+fn read_byte_list_under(root, parts) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return read_byte_list(p)
 }
 
 fn write_bytes(path, data) {
     return oren_write_bytes(path, data)
 }
 
+fn write_bytes_under(root, parts, data) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return write_bytes(p, data)
+}
+
 fn exists(path) {
     return oren_exists(path)
+}
+
+fn exists_under(root, parts) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return exists(p)
 }
 
 fn list_dir(path) {
     return oren_readdir(path)
 }
 
+fn list_dir_under(root, parts) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return list_dir(p)
+}
+
 fn chmod(path, mode) {
     return oren_chmod(path, mode)
+}
+
+fn chmod_under(root, parts, mode) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return chmod(p, mode)
 }

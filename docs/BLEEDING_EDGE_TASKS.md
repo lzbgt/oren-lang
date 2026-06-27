@@ -107,7 +107,7 @@ This file is the concise task view. Detailed implementation status lives in
      plus pure `std:sys` AVM capability-domain id/name/mask helpers,
      `std:env` capability-gated get/fallback/presence/truthy facade helpers,
      pure `std:path` slash-separated VFS/package path and traversal-safe root-join helpers,
-     `std:fs` capability-gated text/byte/list-dir facade helpers,
+     `std:fs` capability-gated text/byte/list-dir and root-scoped facade helpers,
      `std:proc` capability-gated run/status facade helpers,
      portable `std:timer` deadline/interval helpers and the native `std:avm/events`
      virtual event-bus facade over AVM `EVENT` domain and `std:avm/permission`

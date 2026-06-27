@@ -457,9 +457,10 @@
 <p>  and traversal-safe <code>join_under</code> for VFS and package assets without touching</p>
 <p>  host filesystem state.</p>
 <p>  <code>std:fs</code> now names the capability-gated FS operations with explicit text,</p>
-<p>  byte-native <code>u8_buf</code>, legacy byte-list, exists, directory-list, and chmod helpers</p>
-<p>  while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets</p>
-<p>  under runtime control.</p>
+<p>  byte-native <code>u8_buf</code>, legacy byte-list, exists, directory-list, and chmod helpers,</p>
+<p>  plus root-scoped <code>*_under</code> helpers that compose with <code>std:path.join_under</code>.</p>
+<p>  Host/VFS selection, allow-prefixes, record/replay, and IO budgets remain under</p>
+<p>  runtime control.</p>
 <p>  <code>std:proc</code> now names the capability-gated PROC <code>run</code> operation plus status/result</p>
 <p>  helpers while leaving host-process versus VirtualPROC fixture selection under</p>
 <p>  runtime control.</p>

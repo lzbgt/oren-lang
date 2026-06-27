@@ -47,6 +47,27 @@ fn main() {
     if has_name(names, "data.bin") != true { fail(21) }
     if has_name(names, "in.txt") != true { fail(22) }
 
+    var wt2 = fs.write_text_under("v/dir", ["under.txt"], "under root")
+    if oren_is_err(wt2) { fail(30) }
+    if fs.exists_under("v/dir", ["under.txt"]) != true { fail(31) }
+    if fs.read_text_under("v/dir", ["under.txt"]) != "under root" { fail(32) }
+    var sub_names = fs.list_dir_under("v/dir", [])
+    if oren_is_err(sub_names) { fail(33) }
+    if has_name(sub_names, "under.txt") != true { fail(34) }
+
+    var wb2 = fs.write_bytes_under("v/dir", ["under.bin"], src)
+    if oren_is_err(wb2) { fail(35) }
+    var rb2 = fs.read_bytes_under("v/dir", ["under.bin"])
+    if oren_is_err(rb2) { fail(36) }
+    if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(37) }
+    var legacy2 = fs.read_byte_list_under("v/dir", ["under.bin"])
+    if oren_is_err(legacy2) { fail(38) }
+    if oren_list_len(legacy2) != 4 || legacy2[0] != 7 { fail(39) }
+
+    if !oren_is_err(fs.write_text_under("v/dir", ["..", "escape.txt"], "bad")) { fail(40) }
+    if !oren_is_err(fs.read_text_under("v/dir", ["/etc/passwd"])) { fail(41) }
+    if !oren_is_err(fs.exists_under("v/dir", ["..", "escape.txt"])) { fail(42) }
+
     print("avm std fs OK")
     oren_exit(0)
 }

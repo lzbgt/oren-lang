@@ -49,5 +49,27 @@ if oren_is_err(names) { fail(20) }
 if has_name(names, "std_fs_text.txt") != true { fail(21) }
 if has_name(names, "std_fs_bytes.bin") != true { fail(22) }
 
+var root = "build/tmp"
+var wt2 = fs.write_text_under(root, ["std_fs_under.txt"], "under root")
+if oren_is_err(wt2) { fail(30) }
+if fs.exists_under(root, ["std_fs_under.txt"]) != true { fail(31) }
+if fs.read_text_under(root, ["std_fs_under.txt"]) != "under root" { fail(32) }
+var sub_names = fs.list_dir_under(root, [])
+if oren_is_err(sub_names) { fail(33) }
+if has_name(sub_names, "std_fs_under.txt") != true { fail(34) }
+
+var wb2 = fs.write_bytes_under(root, ["std_fs_under.bin"], src)
+if oren_is_err(wb2) { fail(35) }
+var rb2 = fs.read_bytes_under(root, ["std_fs_under.bin"])
+if oren_is_err(rb2) { fail(36) }
+if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(37) }
+var legacy2 = fs.read_byte_list_under(root, ["std_fs_under.bin"])
+if oren_is_err(legacy2) { fail(38) }
+if oren_list_len(legacy2) != 4 || legacy2[0] != 1 { fail(39) }
+
+if !oren_is_err(fs.write_text_under(root, ["..", "escape.txt"], "bad")) { fail(40) }
+if !oren_is_err(fs.read_text_under(root, ["/etc/passwd"])) { fail(41) }
+if !oren_is_err(fs.exists_under(root, ["..", "escape.txt"])) { fail(42) }
+
 print("module fs_std OK")
 exit(0)

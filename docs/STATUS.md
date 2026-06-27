@@ -361,9 +361,10 @@ Facts from the 2026-05-28 implementation pass:
   and traversal-safe `join_under` for VFS and package assets without touching
   host filesystem state.
   `std:fs` now names the capability-gated FS operations with explicit text,
-  byte-native `u8_buf`, legacy byte-list, exists, directory-list, and chmod helpers
-  while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets
-  under runtime control.
+  byte-native `u8_buf`, legacy byte-list, exists, directory-list, and chmod helpers,
+  plus root-scoped `*_under` helpers that compose with `std:path.join_under`.
+  Host/VFS selection, allow-prefixes, record/replay, and IO budgets remain under
+  runtime control.
   `std:proc` now names the capability-gated PROC `run` operation plus status/result
   helpers while leaving host-process versus VirtualPROC fixture selection under
   runtime control.
