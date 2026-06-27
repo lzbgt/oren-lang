@@ -74,6 +74,37 @@ static NSString* OrenAVMKitJoinVFSPath(NSString* root, NSString* relative) {
     return [cleanRoot stringByAppendingFormat:@"/%@", cleanRel];
 }
 
+static NSString* OrenAVMKitCanonicalURLOrigin(NSURL* url) {
+    NSString* scheme = url.scheme.lowercaseString;
+    NSString* host = url.host.lowercaseString;
+    if (scheme.length == 0 || host.length == 0) return nil;
+    NSNumber* port = url.port;
+    BOOL defaultPort = (!port ||
+        (([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"ws"]) && port.unsignedIntValue == 80u) ||
+        (([scheme isEqualToString:@"https"] || [scheme isEqualToString:@"wss"]) && port.unsignedIntValue == 443u));
+    NSString* displayHost = [host containsString:@":"] ? [NSString stringWithFormat:@"[%@]", host] : host;
+    if (defaultPort) return [NSString stringWithFormat:@"%@://%@", scheme, displayHost];
+    return [NSString stringWithFormat:@"%@://%@:%@", scheme, displayHost, port];
+}
+
+static BOOL OrenAVMKitURLAllowedByHostOrOrigin(NSURL* url, NSSet<NSString*>* allowedHosts) {
+    if (allowedHosts.count == 0) return YES;
+    NSString* host = url.host.lowercaseString;
+    NSString* origin = OrenAVMKitCanonicalURLOrigin(url);
+    if (host.length == 0 || origin.length == 0) return NO;
+    for (NSString* entry in allowedHosts) {
+        if (![entry isKindOfClass:[NSString class]] || entry.length == 0) continue;
+        NSURL* entryURL = [entry containsString:@"://"] ? [NSURL URLWithString:entry] : nil;
+        if (entryURL) {
+            NSString* entryOrigin = OrenAVMKitCanonicalURLOrigin(entryURL);
+            if ([origin isEqualToString:entryOrigin]) return YES;
+        } else if ([host isEqualToString:entry.lowercaseString]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 @interface OrenAVMRuntime ()
 @property(nonatomic, readonly) AvmEmbedHandle* handle;
 @end
@@ -348,9 +379,9 @@ static BOOL OrenAVMRuntimeFetchURLData(NSURL* url,
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
                                         @"network fetch URL must include a host");
     }
-    if (allowedHosts.count > 0 && ![allowedHosts containsObject:host]) {
+    if (!OrenAVMKitURLAllowedByHostOrOrigin(url, allowedHosts)) {
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
-                                        @"network fetch host is not allowlisted");
+                                        @"network fetch URL is not allowlisted");
     }
 
     NSTimeInterval effectiveTimeout = timeoutSeconds > 0.0 ? timeoutSeconds : 15.0;

@@ -259,7 +259,8 @@ Facts from the 2026-05-28 implementation pass:
   host network responses into VirtualNET. `make verify-libavm-ios` starts a local
   HTTP server, fetches it through the SDK, injects the body under the requested URL,
   then runs OBC that reads it as `http.get(url).bytes()` through
-  `std:net/avm/http`.
+  `std:net/avm/http`. The allow-list accepts legacy host entries and canonical
+  origins, so apps can restrict scheme/host/port when needed.
   The raw `oren_net_get*` intrinsics remain the AVM substrate, not the app-facing API.
   AVM still does not expose raw host networking to bytecode.
 - Interactive `OrenAVMRuntimeConfig` now enables the live host-backed VNET provider
@@ -271,7 +272,8 @@ Facts from the 2026-05-28 implementation pass:
   do not need hardcoded OBC builds. The SDK reuses its ephemeral `NSURLSession` for
   prefetch and live fetches instead of constructing one per OBC-triggered request.
   `make verify-libavm-ios` proves fixture, prefetch, explicit live, and interactive-
-  default live fetch modes against a local HTTP server, including dynamic disable
+  default live fetch modes against a local HTTP server, including origin-scoped
+  allow-list denial and dynamic disable
   and re-enable through the SDK.
 - AVM NET now also has virtual socket/session handles for performance-oriented TCP/UDP/WebSocket
   networking: `std:net/avm/socket.open/write/read/close` map to AVM NET ops 1-4,
@@ -312,7 +314,8 @@ Facts from the 2026-05-28 implementation pass:
   composer, native HTTP/WebSocket Host headers preserve parsed authority, and
   native wire requests plus AVM virtual-provider specs strip URL fragments at
   the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals
-  explicitly instead of treating them as hostnames.
+  explicitly instead of treating them as hostnames, and iOS runtime/package URL
+  fetch allow-lists accept canonical origins in addition to legacy host entries.
 - `std:path` provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and
   extension helpers. It deliberately stays separate from host filesystem APIs so

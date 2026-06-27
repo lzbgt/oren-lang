@@ -666,12 +666,16 @@ int main(void) {
         NSData* body = [@"net-ok" dataUsingEncoding:NSUTF8StringEncoding];
         if (liveNetwork) {
             NSURL* url = [NSURL URLWithString:netURL];
-            NSSet<NSString*>* allowedHosts = [NSSet setWithObject:(url.host ?: allowedHost)];
-            if (![runtime enableLiveNetworkWithAllowedHosts:allowedHosts timeoutSeconds:5.0 error:&error]) return 68;
+            if (![runtime enableLiveNetworkWithAllowedHosts:[NSSet setWithObject:allowedHost] timeoutSeconds:5.0 error:&error]) return 68;
         } else if (prefetchNetwork) {
             NSURL* url = [NSURL URLWithString:netURL];
-            NSSet<NSString*>* allowedHosts = [NSSet setWithObject:allowedHost];
-            if (![runtime fetchURLIntoVirtualNet:url allowedHosts:allowedHosts timeoutSeconds:5.0 error:&error]) return 38;
+            if (url.port) {
+                NSString* wrongOrigin = [NSString stringWithFormat:@"%@://%@:%ld", url.scheme.lowercaseString, url.host.lowercaseString, (long)url.port.integerValue + 1];
+                NSError* deniedError = nil;
+                if ([runtime fetchURLIntoVirtualNet:url allowedHosts:[NSSet setWithObject:wrongOrigin] timeoutSeconds:5.0 error:&deniedError]) return 182;
+                if (!deniedError) return 183;
+            }
+            if (![runtime fetchURLIntoVirtualNet:url allowedHosts:[NSSet setWithObject:allowedHost] timeoutSeconds:5.0 error:&error]) return 38;
         } else if (!defaultLiveNetwork && ![runtime putVirtualNetResponseForURL:netURL data:body error:&error]) {
             return 38;
         }
@@ -842,11 +846,19 @@ int main(void) {
             if (![trustBundle.defaultStoreKeyID isEqual:@"oren-store-dev"]) return 113;
             if (![trustBundle.defaultStorePublicKey isEqualToData:indexKey]) return 114;
             if (![trustBundle.publisherPublicKeys[@"oren-labs"] isEqualToData:publisherKey]) return 115;
-            OrenAVMPackage* package = [store downloadPackageFromSignedIndexURL:[NSURL URLWithString:packageIndexURL]
+            NSURL* packageIndexNSURL = [NSURL URLWithString:packageIndexURL];
+            if (!packageIndexNSURL || !packageIndexNSURL.port) return 184;
+            NSString* packageOrigin = [NSString stringWithFormat:@"%@://%@:%@", packageIndexNSURL.scheme.lowercaseString, packageIndexNSURL.host.lowercaseString, packageIndexNSURL.port];
+            NSString* wrongPackageOrigin = [NSString stringWithFormat:@"%@://%@:%ld", packageIndexNSURL.scheme.lowercaseString, packageIndexNSURL.host.lowercaseString, (long)packageIndexNSURL.port.integerValue + 1];
+            error = nil;
+            OrenAVMPackage* wrongOriginPackage = [store downloadPackageFromSignedIndexURL:packageIndexNSURL packageID:@"oren-labs/sdk-package-remote" version:@"0.1.0" destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES] allowedHosts:[NSSet setWithObject:wrongPackageOrigin] timeoutSeconds:5.0 trustBundle:trustBundle error:&error];
+            if (wrongOriginPackage || !error) return 185;
+            error = nil;
+            OrenAVMPackage* package = [store downloadPackageFromSignedIndexURL:packageIndexNSURL
                                                                       packageID:@"oren-labs/sdk-package-remote"
                                                                         version:@"0.1.0"
                                                         destinationDirectoryURL:[NSURL fileURLWithPath:packageDownloadDir isDirectory:YES]
-                                                                   allowedHosts:[NSSet setWithObject:@"127.0.0.1"]
+                                                                   allowedHosts:[NSSet setWithObject:packageOrigin]
                                                                  timeoutSeconds:5.0
                                                                    trustBundle:trustBundle
                                                                           error:&error];
@@ -1913,7 +1925,7 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
 done
 OREN_AVM_SDK_NET_PREFETCH=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
-OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
+OREN_AVM_SDK_NET_ALLOWED_HOST="http://127.0.0.1:${NET_PORT}" \
 OREN_AVM_SDK_PACKAGE_DIR="$PACKAGE_DIR" \
 OREN_AVM_SDK_SCENE_PACKAGE_DIR="$SCENE_PACKAGE_DIR" \
 OREN_AVM_SDK_PACKAGE_INDEX_URL="http://127.0.0.1:${PKG_PORT}/index.json" \
@@ -1927,7 +1939,7 @@ OREN_AVM_SDK_TRUST_BUNDLE_PATH="$TRUST_BUNDLE_JSON" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
-OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
+OREN_AVM_SDK_NET_ALLOWED_HOST="http://127.0.0.1:${NET_PORT}" \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \

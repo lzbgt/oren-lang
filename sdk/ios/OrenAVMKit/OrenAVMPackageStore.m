@@ -47,6 +47,37 @@ static NSData* OrenAVMPackageDecodeP256PublicKey(NSString* b64) {
     return data;
 }
 
+static NSString* OrenAVMPackageCanonicalURLOrigin(NSURL* url) {
+    NSString* scheme = url.scheme.lowercaseString;
+    NSString* host = url.host.lowercaseString;
+    if (scheme.length == 0 || host.length == 0) return nil;
+    NSNumber* port = url.port;
+    BOOL defaultPort = (!port ||
+        (([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"ws"]) && port.unsignedIntValue == 80u) ||
+        (([scheme isEqualToString:@"https"] || [scheme isEqualToString:@"wss"]) && port.unsignedIntValue == 443u));
+    NSString* displayHost = [host containsString:@":"] ? [NSString stringWithFormat:@"[%@]", host] : host;
+    if (defaultPort) return [NSString stringWithFormat:@"%@://%@", scheme, displayHost];
+    return [NSString stringWithFormat:@"%@://%@:%@", scheme, displayHost, port];
+}
+
+static BOOL OrenAVMPackageURLAllowedByHostOrOrigin(NSURL* url, NSSet<NSString*>* allowedHosts) {
+    if (allowedHosts.count == 0) return YES;
+    NSString* host = url.host.lowercaseString;
+    NSString* origin = OrenAVMPackageCanonicalURLOrigin(url);
+    if (host.length == 0 || origin.length == 0) return NO;
+    for (NSString* entry in allowedHosts) {
+        if (![entry isKindOfClass:[NSString class]] || entry.length == 0) continue;
+        NSURL* entryURL = [entry containsString:@"://"] ? [NSURL URLWithString:entry] : nil;
+        if (entryURL) {
+            NSString* entryOrigin = OrenAVMPackageCanonicalURLOrigin(entryURL);
+            if ([origin isEqualToString:entryOrigin]) return YES;
+        } else if ([host isEqualToString:entry.lowercaseString]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 static BOOL OrenAVMPackageVerifyP256Signature(NSData* publicKeyX963, NSData* message, NSData* signatureDER) {
     if (publicKeyX963.length != 65u || signatureDER.length == 0 || message.length == 0) return NO;
     NSDictionary* attrs = @{
@@ -374,8 +405,8 @@ static BOOL OrenAVMPackageFetchURLData(NSURL* url,
     }
     NSString* host = url.host;
     if (host.length == 0) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"network fetch URL must include a host");
-    if (allowedHosts.count > 0 && ![allowedHosts containsObject:host]) {
-        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_VM, @"network fetch host is not allowlisted");
+    if (!OrenAVMPackageURLAllowedByHostOrOrigin(url, allowedHosts)) {
+        return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_VM, @"network fetch URL is not allowlisted");
     }
     NSTimeInterval effectiveTimeout = timeoutSeconds > 0.0 ? timeoutSeconds : 15.0;
     NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url
