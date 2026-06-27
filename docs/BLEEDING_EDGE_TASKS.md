@@ -303,7 +303,7 @@ This file is the concise task view. Detailed implementation status lives in
 	     inline ASCII PLY text lowering, PLY face/vertex colors to `mesh3d_rgba`,
 	     core 3MF ZIP mesh/build plus basematerial `displaycolor` lowering and
 	     optional `3mf_triangle_set` subgroup selection,
-	     package-authoring `scale_xyz_milli` pre-scaling plus
+	     package-authoring `scale_xyz_milli` pre-scaling, `pivot_xyz`, plus
 	     `rotation_xyz_milli_deg` Euler rotation and `rotation_z_milli_deg`
 	     shorthand for JSON coordinate and generated primitive meshes, plus
 	     `cylinders_z`/`cones_z`/`spheres_xyz`/`ellipsoids_xyz`/`toruses_xyz`/`capsules_z` authoring that lower to existing

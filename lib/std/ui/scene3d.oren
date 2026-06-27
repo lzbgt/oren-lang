@@ -279,6 +279,24 @@ fn _has_scale_xyz_milli(m) {
     return transform != nil && transform["scale_xyz_milli"] != nil
 }
 
+fn _pivot_xyz(m, ctx) {
+    var p = m["pivot_xyz"]
+    var transform = m["transform"]
+    if p == nil && transform != nil { p = transform["pivot_xyz"] }
+    if p == nil { return [0, 0, 0, false] }
+    if oren_list_len(p) != 3 { return oren_err(4, ctx + ": pivot_xyz must be [x,y,z]") }
+    if _is_int(p[0]) == false || _is_int(p[1]) == false || _is_int(p[2]) == false {
+        return oren_err(4, ctx + ": invalid pivot_xyz")
+    }
+    return [p[0], p[1], p[2], true]
+}
+
+fn _has_pivot_xyz(m) {
+    if m["pivot_xyz"] != nil { return true }
+    var transform = m["transform"]
+    return transform != nil && transform["pivot_xyz"] != nil
+}
+
 fn _rotation_z_milli_deg_value(m) {
     var v = m["rotation_z_milli_deg"]
     if v == nil { v = m["rotate_z_milli_deg"] }
@@ -318,7 +336,7 @@ fn _has_rotation_milli_deg(m) {
 }
 
 fn _has_mesh_transform(m) {
-    return _has_scale_xyz_milli(m) || _has_rotation_milli_deg(m)
+    return _has_scale_xyz_milli(m) || _has_rotation_milli_deg(m) || _has_pivot_xyz(m)
 }
 
 fn _sincos_milli_deg(v) {
@@ -331,12 +349,15 @@ fn _mesh_transform(m, ctx) {
     var sx = _scale_axis_milli(m, 0, ctx); if oren_is_err(sx) { return sx }
     var sy = _scale_axis_milli(m, 1, ctx); if oren_is_err(sy) { return sy }
     var sz = _scale_axis_milli(m, 2, ctx); if oren_is_err(sz) { return sz }
+    var pivot = _pivot_xyz(m, ctx); if oren_is_err(pivot) { return pivot }
     var r = _rotation_xyz_milli_deg(m, ctx); if oren_is_err(r) { return r }
-    if r[0] == 0 && r[1] == 0 && r[2] == 0 { return [sx, sy, sz, false, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0] }
+    if r[0] == 0 && r[1] == 0 && r[2] == 0 {
+        return [sx, sy, sz, false, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, pivot[3], pivot[0], pivot[1], pivot[2]]
+    }
     var scx = _sincos_milli_deg(r[0]); if oren_is_err(scx) { return scx }
     var scy = _sincos_milli_deg(r[1]); if oren_is_err(scy) { return scy }
     var scz = _sincos_milli_deg(r[2]); if oren_is_err(scz) { return scz }
-    return [sx, sy, sz, true, scx[0], scx[1], scy[0], scy[1], scz[0], scz[1]]
+    return [sx, sy, sz, true, scx[0], scx[1], scy[0], scy[1], scz[0], scz[1], pivot[3], pivot[0], pivot[1], pivot[2]]
 }
 
 fn _scaled_i32(v, scale, ctx) {
@@ -354,9 +375,12 @@ fn _round_i32(v, ctx) {
 }
 
 fn _store_transformed_xyz_values(out, off, x, y, z, xf, ctx) {
-    var xx = _scaled_i32(x, xf[0], ctx + ".x"); if oren_is_err(xx) { return xx }
-    var yy = _scaled_i32(y, xf[1], ctx + ".y"); if oren_is_err(yy) { return yy }
-    var zz = _scaled_i32(z, xf[2], ctx + ".z"); if oren_is_err(zz) { return zz }
+    var px = xf[11]
+    var py = xf[12]
+    var pz = xf[13]
+    var xx = _scaled_i32(x - px, xf[0], ctx + ".x"); if oren_is_err(xx) { return xx }
+    var yy = _scaled_i32(y - py, xf[1], ctx + ".y"); if oren_is_err(yy) { return yy }
+    var zz = _scaled_i32(z - pz, xf[2], ctx + ".z"); if oren_is_err(zz) { return zz }
     if xf[3] {
         var fx = f64(xx)
         var fy = f64(yy)
@@ -381,6 +405,9 @@ fn _store_transformed_xyz_values(out, off, x, y, z, xf, ctx) {
         yy = ry
         zz = rz
     }
+    xx = xx + px
+    yy = yy + py
+    zz = zz + pz
     return _store_xyz_values(out, off, xx, yy, zz, ctx)
 }
 
