@@ -60,6 +60,15 @@
       ]
     },
     {
+      "module": "std:path",
+      "alias": "path",
+      "probes": [
+        "if path.normalize(\"/a//b/../c\") != \"/a/c\" { fail(109) }",
+        "if path.join([\"/pkg\", \"scenes\", \"../scene.os3d\"]) != \"/pkg/scene.os3d\" { fail(110) }",
+        "if path.basename(\"/pkg/scene/cube.os3d\") != \"cube.os3d\" { fail(111) }"
+      ]
+    },
+    {
       "module": "std:casts",
       "alias": "casts",
       "probes": [

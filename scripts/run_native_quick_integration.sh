@@ -1492,6 +1492,19 @@ run_step_checked "std net url consumer smoke (native)" "$net_url_consumer_log" \
   "$compiler" test "$net_url_consumer_src" --backend native --platform "$platform" --no-cache
 tail -n 8 "$net_url_consumer_log"
 
+echo "== std path smoke (native/C/bytecode) =="
+path_std_src="tests/modules/test_path_std.oren"
+path_std_log="build/logs/${compiler_base}_std_path.log"
+rm -f "$path_std_log" 2>/dev/null || true
+
+run_step_checked "std path smoke (native)" "$path_std_log" \
+  "$compiler" test "$path_std_src" --backend native --platform "$platform" --no-cache
+run_step_checked "std path smoke (C)" "$path_std_log" \
+  "$compiler" test "$path_std_src" --backend c --platform "$platform" --no-cache
+run_step_checked "std path smoke (bytecode)" "$path_std_log" \
+  "$compiler" test "$path_std_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$path_std_log"
+
 echo "== std fs smoke (native/C/bytecode) =="
 fs_std_src="tests/modules/test_fs_std.oren"
 fs_std_log="build/logs/${compiler_base}_std_fs.log"

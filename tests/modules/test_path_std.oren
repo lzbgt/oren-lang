@@ -1,0 +1,49 @@
+import path "../../lib/std/path.oren"
+
+fn fail(code) {
+    print("module path_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(actual, expected, code) {
+    if actual != expected {
+        print("expected " + expected + " got " + actual)
+        fail(code)
+    }
+}
+
+assert_eq(path.sep(), "/", 1)
+if path.is_abs("/pkg/scene.os3d") != true { fail(2) }
+if path.is_abs("pkg/scene.os3d") != false { fail(3) }
+
+assert_eq(path.normalize(""), ".", 10)
+assert_eq(path.normalize("/"), "/", 11)
+assert_eq(path.normalize("/a//b/./c/"), "/a/b/c", 12)
+assert_eq(path.normalize("a/b/../c"), "a/c", 13)
+assert_eq(path.normalize("../../a"), "../../a", 14)
+assert_eq(path.normalize("/../a"), "/a", 15)
+assert_eq(path.normalize("a/../../b"), "../b", 16)
+
+assert_eq(path.join(["/pkg", "scenes", "../scene.os3d"]), "/pkg/scene.os3d", 20)
+assert_eq(path.join(["", "assets", "cube.os3d"]), "assets/cube.os3d", 21)
+assert_eq(path.join([]), ".", 22)
+
+assert_eq(path.dirname("/pkg/scene/cube.os3d"), "/pkg/scene", 30)
+assert_eq(path.dirname("cube.os3d"), ".", 31)
+assert_eq(path.dirname("/cube.os3d"), "/", 32)
+assert_eq(path.basename("/pkg/scene/cube.os3d"), "cube.os3d", 33)
+assert_eq(path.basename("/"), "/", 34)
+assert_eq(path.extname("cube.os3d"), ".os3d", 35)
+assert_eq(path.extname("archive.tar.gz"), ".gz", 36)
+assert_eq(path.extname(".profile"), "", 37)
+
+var parts = path.split("/a//./b")
+if oren_is_err(parts) { fail(40) }
+if oren_list_len(parts) != 3 { fail(41) }
+if parts[0] != "a" || parts[1] != "." || parts[2] != "b" { fail(42) }
+
+if !oren_is_err(path.normalize(7)) { fail(50) }
+if !oren_is_err(path.join(["a", 7])) { fail(51) }
+
+print("module path_std OK")
+exit(0)

@@ -42,6 +42,8 @@ design evidence lives under `project-doc/`.
   presence, require, and truthy helpers over the existing runtime ENV policy surface.
 - `std:net/url` now provides pure HTTP/WebSocket URL parsing shared by native
   `std:net/http`, native `std:net/ws`, and AVM-safe app code.
+- `std:path` now provides pure slash-separated VFS/package path split, normalize,
+  join, dirname, basename, and extension helpers shared by AVM and desktop SDK code.
 - `std:fs` now provides app-facing capability-gated text, byte-native `u8_buf`,
   legacy byte-list, exists, directory-list, and chmod facade helpers over the
   existing runtime FS policy surface.
@@ -90,5 +92,5 @@ design evidence lives under `project-doc/`.
   contracts belong under explicit `*_raw` primitives.
 - `stdlib_bundle.obc` includes the current app-facing AVM stdlib surface:
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time/timer,
-  `std:net/url`, `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
+  `std:net/url`, `std:path`, `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
   `std:avm/events`, and `std:avm/permission`.

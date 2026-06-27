@@ -1,0 +1,180 @@
+// Pure slash-path helpers for Oren VFS/package paths.
+// These helpers intentionally do not mirror host-specific POSIX/Windows quirks.
+
+fn _is_string(v) {
+    if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 4 { return true }
+    if tag == 0 || tag == 1 || tag == 3 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
+    var n = oren_string_len(v)
+    if n == nil { return false }
+    return oren_is_err(n) == false
+}
+
+fn _byte_at(s, i) {
+    return oren_string_byte_at_unchecked(s, i) & 255
+}
+
+fn _slice(s, start, end) {
+    return oren_string_slice(s, start, end)
+}
+
+fn _validate_path(path, ctx) {
+    if _is_string(path) == false { return oren_err(4, ctx + ": path must be string") }
+    return nil
+}
+
+fn _validate_parts(parts, ctx) {
+    var n = oren_list_len(parts)
+    if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": parts must be list") }
+    return n
+}
+
+fn sep() {
+    return "/"
+}
+
+fn is_abs(path) {
+    var ok = _validate_path(path, "path.is_abs")
+    if oren_is_err(ok) { return ok }
+    return oren_string_len(path) > 0 && _byte_at(path, 0) == 47
+}
+
+fn split(path) {
+    var ok = _validate_path(path, "path.split")
+    if oren_is_err(ok) { return ok }
+    var n = oren_string_len(path)
+    var out = []
+    var start = 0
+    var i = 0
+    while i <= n {
+        if i == n || _byte_at(path, i) == 47 {
+            if i > start { oren_list_push(out, _slice(path, start, i)) }
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _push_normal_segment(out, out_len, seg, absolute) {
+    if seg == "." { return out_len }
+    if seg == ".." {
+        if out_len > 0 && out[out_len - 1] != ".." {
+            return out_len - 1
+        }
+        if absolute { return out_len }
+    }
+    if out_len < oren_list_len(out) {
+        out[out_len] = seg
+    } else {
+        oren_list_push(out, seg)
+    }
+    return out_len + 1
+}
+
+fn _join_segments(parts, count, absolute) {
+    if count == 0 {
+        if absolute { return "/" }
+        return "."
+    }
+    var out = ""
+    if absolute { out = "/" }
+    var i = 0
+    while i < count {
+        if i > 0 { out = out + "/" }
+        out = out + parts[i]
+        i = i + 1
+    }
+    return out
+}
+
+fn normalize(path) {
+    var ok = _validate_path(path, "path.normalize")
+    if oren_is_err(ok) { return ok }
+    var n = oren_string_len(path)
+    if n == 0 { return "." }
+
+    var absolute = _byte_at(path, 0) == 47
+    var parts = []
+    var out_len = 0
+    var start = 0
+    var i = 0
+    while i <= n {
+        if i == n || _byte_at(path, i) == 47 {
+            if i > start {
+                out_len = _push_normal_segment(parts, out_len, _slice(path, start, i), absolute)
+            }
+            start = i + 1
+        }
+        i = i + 1
+    }
+
+    return _join_segments(parts, out_len, absolute)
+}
+
+fn join(parts) {
+    var n = _validate_parts(parts, "path.join")
+    if oren_is_err(n) { return n }
+    var combined = ""
+    var used = false
+    var i = 0
+    while i < n {
+        var p = parts[i]
+        if _is_string(p) == false { return oren_err(4, "path.join: part must be string") }
+        if oren_string_len(p) > 0 {
+            if used { combined = combined + "/" + p } else { combined = p }
+            used = true
+        }
+        i = i + 1
+    }
+    if used == false { return "." }
+    return normalize(combined)
+}
+
+fn basename(path) {
+    var p = normalize(path)
+    if oren_is_err(p) { return p }
+    if p == "/" || p == "." { return p }
+    var n = oren_string_len(p)
+    var last = -1
+    var i = 0
+    while i < n {
+        if _byte_at(p, i) == 47 { last = i }
+        i = i + 1
+    }
+    if last < 0 { return p }
+    return _slice(p, last + 1, n)
+}
+
+fn dirname(path) {
+    var p = normalize(path)
+    if oren_is_err(p) { return p }
+    if p == "/" || p == "." { return p }
+    var n = oren_string_len(p)
+    var last = -1
+    var i = 0
+    while i < n {
+        if _byte_at(p, i) == 47 { last = i }
+        i = i + 1
+    }
+    if last < 0 { return "." }
+    if last == 0 { return "/" }
+    return _slice(p, 0, last)
+}
+
+fn extname(path) {
+    var b = basename(path)
+    if oren_is_err(b) { return b }
+    if b == "/" || b == "." { return "" }
+    var n = oren_string_len(b)
+    var dot = -1
+    var i = 0
+    while i < n {
+        if _byte_at(b, i) == 46 { dot = i }
+        i = i + 1
+    }
+    if dot <= 0 { return "" }
+    return _slice(b, dot, n)
+}

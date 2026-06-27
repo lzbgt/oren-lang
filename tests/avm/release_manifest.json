@@ -124,6 +124,7 @@
     {"path": "tests/avm/test_std_timer_avm.oren"},
     {"path": "tests/avm/test_std_sys_avm.oren"},
     {"path": "tests/avm/test_std_net_url_avm.oren"},
+    {"path": "tests/avm/test_std_path_avm.oren"},
     {
       "path": "tests/avm/test_std_env_avm.oren",
       "env": {
