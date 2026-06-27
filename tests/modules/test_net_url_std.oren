@@ -24,6 +24,7 @@ if u["path_only"] != "/a/b" || u["query"] != "q=hello+world&x=%2B" || u["request
 if neturl.path_part(u["path"]) != "/a/b" { fail(52) }
 if neturl.query_part(u["path"]) != "q=hello+world&x=%2B" { fail(53) }
 if neturl.fragment_part(u["path"]) != "frag" { fail(76) }
+if neturl.without_fragment("https://example.com/a?b=1#frag") != "https://example.com/a?b=1" { fail(79) }
 if neturl.request_target(u["path"]) != "/a/b?q=hello+world&x=%2B" { fail(77) }
 if neturl.request_target("#frag") != "/" { fail(78) }
 

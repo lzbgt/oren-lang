@@ -143,6 +143,12 @@ fn fragment_part(target) {
     return _slice_or_empty(target, hash + 1, oren_string_len(target))
 }
 
+fn without_fragment(target) {
+    if target == nil { return oren_err(4, "url.without_fragment: target is nil") }
+    var end = _path_query_end(target, 0)
+    return _slice_or_empty(target, 0, end)
+}
+
 fn request_target(target) {
     if target == nil { return oren_err(4, "url.request_target: target is nil") }
     var end = _path_query_end(target, 0)

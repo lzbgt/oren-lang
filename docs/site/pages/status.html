@@ -387,8 +387,8 @@
 <p>  separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the</p>
 <p>  same endpoint interpretation across host and virtual NET providers; native and</p>
 <p>  AVM HTTP request opts route structured <code>query</code> / <code>append_query</code> pairs through</p>
-<p>  the shared request-target composer, and native HTTP/WebSocket wire requests</p>
-<p>  strip URL fragments through the shared <code>request_target</code>.</p>
+<p>  the shared request-target composer, while native wire requests and AVM</p>
+<p>  virtual-provider specs strip URL fragments at the NET boundary.</p>
 <ul>
 <li><code>std:path</code> provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>
@@ -646,7 +646,8 @@
 <p>  <code>std:net/avm/http</code> has request/response helpers, pure <code>std:net/url</code> shares</p>
 <p>  byte-level percent/query parsing and request-target composition across native</p>
 <p>  and AVM-safe code, and native/AVM HTTP request opts consume those structured</p>
-<p>  query builders while native HTTP/WebSocket strips fragments from wire request targets,</p>
+<p>  query builders while native wire requests and AVM virtual-provider specs strip</p>
+<p>  fragments at the NET boundary,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>

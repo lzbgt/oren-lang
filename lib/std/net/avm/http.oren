@@ -36,7 +36,7 @@ fn _check_response(resp, ctx) {
 }
 
 fn _url_with_opts(url, opts, ctx) {
-    if opts == nil || opts == 0 || oren_is_map(opts) != true { return url }
+    if opts == nil || opts == 0 || oren_is_map(opts) != true { return neturl.without_fragment(url) }
     var out = url
     var q = oren_map_get_str(opts, "query")
     if q != nil && q != 0 {
@@ -48,7 +48,7 @@ fn _url_with_opts(url, opts, ctx) {
         out = neturl.append_query(out, aq)
         if oren_is_err(out) { return oren_err(4, ctx + ": invalid append_query") }
     }
-    return out
+    return neturl.without_fragment(out)
 }
 
 fn request(method, url, opts): Response {

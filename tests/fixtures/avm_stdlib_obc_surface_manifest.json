@@ -189,6 +189,7 @@
         "if oren_is_err(parsed_url) || parsed_url[\"scheme\"] != \"https\" || parsed_url[\"host\"] != \"example.com\" || parsed_url[\"port\"] != 8443 || parsed_url[\"path\"] != \"/a\" { fail(107) }",
         "if net_url.request_target(\"/a?b=1#frag\") != \"/a?b=1\" { fail(112) }",
         "if net_url.fragment_part(\"/a?b=1#frag\") != \"frag\" { fail(113) }",
+        "if net_url.without_fragment(\"https://example.com/a?b=1#frag\") != \"https://example.com/a?b=1\" { fail(114) }",
         "if net_url.query_get(\"/search?q=hello+world&x=%2B\", \"q\") != \"hello world\" { fail(109) }",
         "if net_url.build_query([[\"q\", \"hello world\"], [\"x\", \"+\"]]) != \"q=hello%20world&x=%2B\" { fail(110) }",
         "if net_url.append_query(\"/search?old=1#frag\", [[\"q\", \"hello world\"]]) != \"/search?old=1&q=hello%20world#frag\" { fail(111) }",
@@ -216,6 +217,8 @@
         "if net_avm_http.text(net_req) != \"ok\" { fail(56) }",
         "if net_req.text() != \"ok\" { fail(57) }",
         "if net_avm_http.get(\"u\").text() != \"ok\" { fail(58) }",
+        "var net_gf = net_avm_http.get(\"u#frag\")",
+        "if oren_is_err(net_gf) || net_gf.url != \"u\" || net_gf.text() != \"ok\" { fail(54) }",
         "var net_b = net_req.bytes()",
         "if oren_is_err(net_b) || bytes.len(net_b) != 2 || bytes.get_u8(net_b, 0) != 111 || bytes.get_u8(net_b, 1) != 107 { fail(59) }",
         "var net_j = net_avm_http.get(\"j\").json()",
@@ -223,7 +226,9 @@
         "var net_q = net_avm_http.request(\"GET\", \"u?old=1\", {\"query\": [[\"q\", \"hello world\"]]})",
         "if oren_is_err(net_q) || net_q.url != \"u?q=hello%20world\" || net_q.text() != \"query\" { fail(61) }",
         "var net_a = net_avm_http.request(\"GET\", \"u?old=1\", {\"append_query\": [[\"q\", \"hello world\"]]})",
-        "if oren_is_err(net_a) || net_a.url != \"u?old=1&q=hello%20world\" || net_a.text() != \"append\" { fail(62) }"
+        "if oren_is_err(net_a) || net_a.url != \"u?old=1&q=hello%20world\" || net_a.text() != \"append\" { fail(62) }",
+        "var net_af = net_avm_http.request(\"GET\", \"u?old=1#frag\", {\"append_query\": [[\"q\", \"hello world\"]]})",
+        "if oren_is_err(net_af) || net_af.url != \"u?old=1&q=hello%20world\" || net_af.text() != \"append\" { fail(64) }"
       ]
     },
     {

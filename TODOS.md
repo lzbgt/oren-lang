@@ -44,8 +44,9 @@ design evidence lives under `project-doc/`.
   path/query splitting, percent encode/decode, query param get/list, and exact-size
   query building/replacement/appending shared by native `std:net/http`, native
   `std:net/ws`, and AVM-safe app code; native and AVM HTTP request opts now route
-  structured `query` / `append_query` pairs through the same composer, and native
-  HTTP/WebSocket wire requests strip URL fragments through the shared `request_target`.
+  structured `query` / `append_query` pairs through the same composer, while
+  native wire requests and AVM virtual-provider specs strip URL fragments at the
+  NET boundary.
 - `std:path` now provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and extension
   helpers shared by AVM and desktop SDK code.
