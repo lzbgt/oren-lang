@@ -13,6 +13,7 @@ import copy
 import json
 import os
 import pathlib
+import platform
 import subprocess
 import sys
 from typing import Any
@@ -192,6 +193,28 @@ def sanitize_name(path_value: str) -> str:
     return pathlib.Path(path_value).stem.replace("/", "_").replace(" ", "_")
 
 
+def detect_host_platform() -> str:
+    env_platform = os.environ.get("OREN_PLATFORM", "").strip()
+    if env_platform:
+        return env_platform
+    sys_name = platform.system()
+    machine = platform.machine().lower()
+    if sys_name == "Darwin":
+        if machine in {"arm64", "aarch64"}:
+            return "arm64-macos"
+        if machine in {"x86_64", "amd64"}:
+            return "x64-macos"
+    if sys_name == "Linux":
+        if machine in {"arm64", "aarch64"}:
+            return "arm64-linux"
+        if machine in {"x86_64", "amd64"}:
+            return "x64-linux"
+    if sys_name in {"Windows", "MSYS_NT", "MINGW64_NT", "CYGWIN_NT"} or os.name == "nt":
+        if machine in {"x86_64", "amd64"} or os.environ.get("PROCESSOR_ARCHITECTURE") == "AMD64":
+            return "x64-windows"
+    raise SystemExit("AVM release manifest: could not determine host platform; pass --platform or set OREN_PLATFORM")
+
+
 def default_phase(case: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": "run",
@@ -246,6 +269,7 @@ def main() -> int:
     parser.add_argument("--avm-bin", default="./avm")
     parser.add_argument("--build-dir", default="build")
     parser.add_argument("--log-dir", default="build/logs")
+    parser.add_argument("--platform", default="")
     parser.add_argument("--tests", nargs="*", default=None)
     args = parser.parse_args()
 
@@ -262,6 +286,7 @@ def main() -> int:
     log_dir = ROOT / args.log_dir
     build_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
+    target_platform = args.platform.strip() or detect_host_platform()
 
     print("=== AVM Tests (Manifest) ===")
     for case in selected:
@@ -274,7 +299,17 @@ def main() -> int:
         run_log = log_dir / f"avm_{name}.out"
         print(f"Testing {name}...")
         build_rc = run_cmd(
-            [args.oren_bin, "build", case["path"], "--backend", "bytecode", "-o", str(obc.relative_to(ROOT))],
+            [
+                args.oren_bin,
+                "build",
+                case["path"],
+                "--backend",
+                "bytecode",
+                "--platform",
+                target_platform,
+                "-o",
+                str(obc.relative_to(ROOT)),
+            ],
             build_log,
             timeout=180,
         )
@@ -296,6 +331,8 @@ def main() -> int:
                     setup_build["src"],
                     "--backend",
                     "bytecode",
+                    "--platform",
+                    target_platform,
                     "-o",
                     str(setup_out.relative_to(ROOT)),
                 ],
@@ -371,7 +408,8 @@ def main() -> int:
                 return 1
             log.write(
                 f"\nmanifest: deterministic={case['deterministic']} "
-                f"backend_policy={case['backend_policy']} budgets={json.dumps(case['budgets'], sort_keys=True)}\n"
+                f"backend_policy={case['backend_policy']} platform={target_platform} "
+                f"budgets={json.dumps(case['budgets'], sort_keys=True)}\n"
             )
 
     print("AVM manifest tests OK")

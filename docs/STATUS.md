@@ -703,7 +703,8 @@ Facts from the 2026-05-28 implementation pass:
 - The manifest records fixture path, release-gate inclusion, expected exit/error,
   environment budgets, backend policy, deterministic mode, setup builds,
   multi-phase record/replay or snapshot/resume runs, line-prefix captures,
-  cross-phase assertions, and host-effect checks.
+  cross-phase assertions, host-effect checks, and explicit platform selection for
+  bytecode setup builds so parallel verification does not depend on host autodetect.
   `AVM_TESTS="..."` overrides still work; paths not present in the manifest run with
   default zero-exit virtual-backend policy.
 - The default AVM release gate now also covers portable stdlib bytes/buffer view
