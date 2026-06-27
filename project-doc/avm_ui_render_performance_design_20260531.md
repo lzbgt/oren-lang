@@ -112,7 +112,9 @@ Implemented as of 2026-05-31:
   recording `devicectl`/`xctrace` preflight artifacts so normal verification does
   not mutate a physical device or require signing credentials. A live run still
   requires a provisioning profile whose bundle ID and device list both match the
-  target phone.
+  target phone; requested installs now fail before the iOS build and write
+  `build/ios-live-3d/signing-preflight.json` when that profile state is missing
+  or not installable for development capture on the target phone.
 - Host helpers can enqueue pointer, resize, key, UTF-8 text, compact
   gamepad/controller state, coalesced motion, focus, and IME/composition input
   events.

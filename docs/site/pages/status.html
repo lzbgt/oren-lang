@@ -548,7 +548,10 @@
 <p>  republishes animated frames from host <code>frame_tick</code> events, records device</p>
 <p>  preflight data, and can install/launch through <code>devicectl</code> to write live</p>
 <p>  CPU/vertex/run metrics when a matching provisioning profile and device</p>
-<p>  developer services are available. The 2026-06-27 phone check saw <code>blu-ip</code></p>
+<p>  developer services are available. The capture target writes</p>
+<p>  <code>build/ios-live-3d/signing-preflight.json</code> and fails before the iOS build when</p>
+<p>  install is requested with a missing or non-installable development profile. The</p>
+<p>  2026-06-27 phone check saw <code>blu-ip</code></p>
 <p>  paired/available in <code>devicectl</code>, but install failed with <code>0xe8008012</code> because</p>
 <p>  the available <code>cn.hubstack.pc</code> provisioning profile cannot be installed on</p>
 <p>  that device, so the actual live run remains blocked by signing/profile state</p>

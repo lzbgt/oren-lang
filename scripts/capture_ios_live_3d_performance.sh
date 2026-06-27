@@ -31,6 +31,155 @@ if [[ "$FRAME_COUNT" -le 0 || "$FRAME_COUNT" -ge 100000 ]]; then
   exit 2
 fi
 
+DEVICE_JSON="$RESULT_DIR/devicectl-devices.json"
+DEVICE_LOG="$RESULT_DIR/devicectl-devices.log"
+SIGNING_PREFLIGHT_JSON="$RESULT_DIR/signing-preflight.json"
+xcrun devicectl list devices --json-output "$DEVICE_JSON" --log-output "$DEVICE_LOG" >/dev/null 2>&1 || true
+xcrun xctrace list devices > "$RESULT_DIR/xctrace-devices.txt" 2>&1 || true
+
+find_profile() {
+  python3 - "$BUNDLE_ID" "$DEVICE" "$DEVICE_JSON" "$PROFILE" "$SIGNING_PREFLIGHT_JSON" <<'PY'
+import json
+import pathlib
+import plistlib
+import subprocess
+import sys
+
+bundle, requested_device, device_json, requested_profile, out_json = sys.argv[1:6]
+
+def load_device():
+    try:
+        devices = json.loads(pathlib.Path(device_json).read_text()).get("result", {}).get("devices", [])
+    except Exception:
+        devices = []
+    for dev in devices:
+        props = dev.get("deviceProperties", {})
+        hw = dev.get("hardwareProperties", {})
+        names = {
+            dev.get("identifier", ""),
+            props.get("name", ""),
+            hw.get("udid", ""),
+            *(dev.get("connectionProperties", {}).get("potentialHostnames", []) or []),
+        }
+        if requested_device in names:
+            return {
+                "identifier": dev.get("identifier", ""),
+                "name": props.get("name", ""),
+                "udid": hw.get("udid", ""),
+                "productType": hw.get("productType", ""),
+                "osVersionNumber": props.get("osVersionNumber", ""),
+                "pairingState": dev.get("connectionProperties", {}).get("pairingState", ""),
+                "ddiServicesAvailable": props.get("ddiServicesAvailable", None),
+                "developerModeStatus": props.get("developerModeStatus", ""),
+            }
+    return {}
+
+def profile_paths():
+    if requested_profile:
+        return [pathlib.Path(requested_profile)]
+    root = pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles"
+    if not root.is_dir():
+        return []
+    return sorted(root.glob("*.provisionprofile"))
+
+def decode_profile(path):
+    data = subprocess.check_output(["security", "cms", "-D", "-i", str(path)], stderr=subprocess.DEVNULL)
+    plist = plistlib.loads(data)
+    ent = plist.get("Entitlements", {})
+    app_id = ent.get("application-identifier") or ent.get("com.apple.application-identifier") or ""
+    teams = plist.get("TeamIdentifier", [])
+    suffix = app_id.split(".", 1)[1] if "." in app_id else ""
+    return {
+        "path": str(path),
+        "name": plist.get("Name", ""),
+        "team": teams[0] if teams else "",
+        "app_id": app_id,
+        "suffix": suffix,
+        "get_task_allow": bool(ent.get("get-task-allow", False)),
+        "provisions_all_devices": bool(plist.get("ProvisionsAllDevices", False)),
+        "provisioned_devices": plist.get("ProvisionedDevices", []) or [],
+        "expiration": plist.get("ExpirationDate").isoformat() if plist.get("ExpirationDate") else "",
+    }
+
+def matches_bundle(profile):
+    suffix = profile["suffix"]
+    return suffix == "*" or suffix == bundle or (suffix.endswith(".*") and bundle.startswith(suffix[:-1]))
+
+device = load_device()
+profiles = []
+for path in profile_paths():
+    try:
+        profile = decode_profile(path)
+    except Exception:
+        continue
+    if matches_bundle(profile):
+        profiles.append(profile)
+
+selected = profiles[0] if profiles else {}
+device_udid = device.get("udid", "")
+device_allowed = False
+device_reason = "no matching profile"
+if selected:
+    explicit_device_match = bool(device_udid and device_udid in selected["provisioned_devices"])
+    development_all_devices = selected["provisions_all_devices"] and selected["get_task_allow"]
+    device_allowed = explicit_device_match or development_all_devices
+    if explicit_device_match:
+        device_reason = "device udid is listed in ProvisionedDevices"
+    elif development_all_devices:
+        device_reason = "profile provisions all devices and allows development debugging"
+    elif selected["provisions_all_devices"]:
+        device_reason = "profile provisions all devices but does not allow development debugging"
+    else:
+        device_reason = "target device udid is not listed in profile"
+
+report = {
+    "requested_bundle_id": bundle,
+    "requested_device": requested_device,
+    "device": device,
+    "profile": {k: v for k, v in selected.items() if k != "provisioned_devices"},
+    "profile_device_count": len(selected.get("provisioned_devices", [])) if selected else 0,
+    "device_allowed_by_profile": device_allowed,
+    "device_allowed_reason": device_reason,
+    "matching_profile_count": len(profiles),
+}
+pathlib.Path(out_json).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+if not selected:
+    raise SystemExit(1)
+print(selected["path"])
+print(selected["team"])
+print(selected["app_id"])
+print("true" if selected["get_task_allow"] else "false")
+print("true" if device_allowed else "false")
+PY
+}
+
+if [[ -z "$PROFILE" || -z "$TEAM_ID" ]]; then
+  profile_info="$(find_profile || true)"
+  if [[ -n "$profile_info" ]]; then
+    PROFILE="${PROFILE:-$(printf '%s\n' "$profile_info" | sed -n '1p')}"
+    TEAM_ID="${TEAM_ID:-$(printf '%s\n' "$profile_info" | sed -n '2p')}"
+    PROFILE_DEVICE_ALLOWED="$(printf '%s\n' "$profile_info" | sed -n '5p')"
+  else
+    PROFILE_DEVICE_ALLOWED="false"
+  fi
+else
+  profile_info="$(find_profile || true)"
+  PROFILE_DEVICE_ALLOWED="$(printf '%s\n' "$profile_info" | sed -n '5p')"
+fi
+
+if [[ "$INSTALL" == "1" ]]; then
+  if [[ -z "$PROFILE" || -z "$TEAM_ID" ]]; then
+    echo "ERROR: OREN_IOS_LIVE_INSTALL=1 requires a provisioning profile matching $BUNDLE_ID" >&2
+    echo "Signing preflight: $SIGNING_PREFLIGHT_JSON" >&2
+    exit 2
+  fi
+  if [[ "$PROFILE_DEVICE_ALLOWED" != "true" ]]; then
+    echo "ERROR: provisioning profile is not installable for target device $DEVICE for $BUNDLE_ID" >&2
+    echo "Signing preflight: $SIGNING_PREFLIGHT_JSON" >&2
+    exit 2
+  fi
+fi
+
 if [[ ! -x ./oren ]]; then
   make oren > "$LOG_DIR/make_oren_for_ios_live_3d.log" 2>&1
 fi
@@ -39,11 +188,6 @@ fi
 test -f "$OUT_ROOT/iphoneos-arm64/libavm.a"
 test -f "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a"
 test -f "$OUT_ROOT/include/OrenAVMKit/OrenAVMKit.h"
-
-DEVICE_JSON="$RESULT_DIR/devicectl-devices.json"
-DEVICE_LOG="$RESULT_DIR/devicectl-devices.log"
-xcrun devicectl list devices --json-output "$DEVICE_JSON" --log-output "$DEVICE_LOG" >/dev/null 2>&1 || true
-xcrun xctrace list devices > "$RESULT_DIR/xctrace-devices.txt" 2>&1 || true
 
 cat > "$TMP_DIR/live3d.oren" <<OREN
 import bytes "std:bytes"
@@ -146,49 +290,6 @@ pathlib.Path(sys.argv[2]).write_text(
     encoding="utf-8",
 )
 PY
-
-find_profile() {
-  python3 - "$BUNDLE_ID" <<'PY'
-import os
-import pathlib
-import plistlib
-import subprocess
-import sys
-
-bundle = sys.argv[1]
-profile_dir = pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles"
-if not profile_dir.is_dir():
-    raise SystemExit(1)
-for profile in sorted(profile_dir.glob("*.provisionprofile")):
-    try:
-        data = subprocess.check_output(["security", "cms", "-D", "-i", str(profile)], stderr=subprocess.DEVNULL)
-        plist = plistlib.loads(data)
-    except Exception:
-        continue
-    ent = plist.get("Entitlements", {})
-    app_id = ent.get("application-identifier") or ent.get("com.apple.application-identifier")
-    teams = plist.get("TeamIdentifier", [])
-    if not app_id or not teams:
-        continue
-    team = teams[0]
-    suffix = app_id.split(".", 1)[1] if "." in app_id else ""
-    if suffix == "*" or suffix == bundle or (suffix.endswith(".*") and bundle.startswith(suffix[:-1])):
-        print(str(profile))
-        print(team)
-        print(app_id)
-        print("true" if ent.get("get-task-allow", False) else "false")
-        raise SystemExit(0)
-raise SystemExit(1)
-PY
-}
-
-if [[ -z "$PROFILE" || -z "$TEAM_ID" ]]; then
-  profile_info="$(find_profile || true)"
-  if [[ -n "$profile_info" ]]; then
-    PROFILE="${PROFILE:-$(printf '%s\n' "$profile_info" | sed -n '1p')}"
-    TEAM_ID="${TEAM_ID:-$(printf '%s\n' "$profile_info" | sed -n '2p')}"
-  fi
-fi
 
 if [[ -z "$SIGN_IDENTITY" ]]; then
   SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk -F'\"' '/Apple Development:/ {print $2; exit}')"

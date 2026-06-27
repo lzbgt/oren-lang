@@ -163,7 +163,9 @@
 <p>  recording <code>devicectl</code>/<code>xctrace</code> preflight artifacts so normal verification does</p>
 <p>  not mutate a physical device or require signing credentials. A live run still</p>
 <p>  requires a provisioning profile whose bundle ID and device list both match the</p>
-<p>  target phone.</p>
+<p>  target phone; requested installs now fail before the iOS build and write</p>
+<p>  <code>build/ios-live-3d/signing-preflight.json</code> when that profile state is missing</p>
+<p>  or not installable for development capture on the target phone.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, UTF-8 text, compact</li>
 </ul>

@@ -141,7 +141,10 @@ This file is the concise task view. Detailed implementation status lives in
      concurrently with `OrenAVMMetalView`, and republishes animated 3D frames from
      host `frame_tick` events; install/launch is opt-in via
      `OREN_IOS_LIVE_INSTALL=1` because it requires a provisioning profile that
-     matches both the bundle ID and the target device.
+     matches both the bundle ID and the target device. The target now writes
+     `build/ios-live-3d/signing-preflight.json` and fails before the iOS build
+     when install is requested with a missing or non-installable development
+     profile.
    - High-priority cleanup: remove legacy stdlib byte/string conversion paths from
      hot AVM app-facing APIs. Raw bytes should stay the performance path; text helpers
      may convert at the boundary but must not force list-of-byte round trips.
