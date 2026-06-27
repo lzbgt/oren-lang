@@ -652,6 +652,56 @@ fn main() {
     assert_eq(_i32_at(from_rings[0]["triangles"], 8), 1)
     assert_true(ui_cmds.validate(from_rings, 7, 7, {"strict_bounds": true}) == 0)
 
+    var from_segments = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 147,
+                "segments_xy": [
+                    {"from": [1, 2], "to": [4, 2], "width": 2, "z": 1}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#44cc88"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 147}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_segments) == false)
+    assert_eq(from_segments[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_segments[0]["triangles"]), 72)
+    assert_eq(_i32_at(from_segments[0]["triangles"], 0), 2)
+    assert_eq(_i32_at(from_segments[0]["triangles"], 4), 3)
+    assert_eq(_i32_at(from_segments[0]["triangles"], 8), 6)
+    assert_true(ui_cmds.validate(from_segments, 7, 5, {"strict_bounds": true}) == 0)
+    var segment_buf = ui_raster.rasterize(from_segments, 7, 5, {"strict_bounds": true})
+    assert_true(oren_is_err(segment_buf) == false)
+    assert_eq(_px(segment_buf, 7, 3, 2, 0), 68)
+    assert_eq(_px(segment_buf, 7, 3, 2, 1), 204)
+    assert_eq(_px(segment_buf, 7, 3, 2, 2), 136)
+
+    var from_paths = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 148,
+                "paths_xy": [
+                    {"points": [[1, 1], [4, 1], [4, 4]], "width": 2, "z": 1}
+                ],
+                "color": "#8844cc"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 148}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_paths) == false)
+    assert_eq(from_paths[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_paths[0]["triangles"]), 144)
+    assert_eq(_i32_at(from_paths[0]["triangles"], 0), 1)
+    assert_eq(_i32_at(from_paths[0]["triangles"], 4), 2)
+    assert_eq(_i32_at(from_paths[0]["triangles"], 8), 1)
+    assert_true(ui_cmds.validate(from_paths, 6, 6, {"strict_bounds": true}) == 0)
+
     var from_cylinders = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -1007,6 +1057,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"polygons_xy\":[{\"points\":[[0,0],[1,0]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"discs_xy\":[{\"center\":[0,0],\"radius\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"rings_xy\":[{\"center\":[0,0],\"inner_radius\":1,\"outer_radius\":1}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"segments_xy\":[{\"from\":[0,0],\"to\":[0,0],\"width\":1}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"paths_xy\":[{\"points\":[[0,0],[0,0]],\"width\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cylinders_z\":[{\"center\":[0,0],\"radius\":1,\"z_min\":0,\"z_max\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cones_z\":[{\"center\":[0,0],\"radius\":0,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"spheres_xyz\":[{\"center\":[0,0,0],\"radius\":1,\"segments\":4,\"rings\":1}],\"color\":\"#ffffff\"}]}")) == true)

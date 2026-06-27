@@ -387,6 +387,164 @@ fn pack_rings_xy(rings, ctx) {
     return out
 }
 
+fn _line_width(shape, label, ctx) {
+    var width = shape["width"]
+    if width == nil { width = shape["width_milli"] }
+    if width == nil { width = 1 }
+    if _is_int(width) == false || width <= 0 {
+        return oren_err(4, ctx + ": " + label + " width must be positive i32")
+    }
+    return width
+}
+
+fn _segment_point(seg, primary, fallback, label, ctx) {
+    var point = seg[primary]
+    if point == nil { point = seg[fallback] }
+    return _xy_pair(point, label, ctx)
+}
+
+fn _path_points(path) {
+    var points = path["points"]
+    if points == nil { points = path["points_xy"] }
+    return points
+}
+
+fn _line_offset(dx, dy, width, axis, ctx) {
+    var len = math.sqrt(f64(dx) * f64(dx) + f64(dy) * f64(dy))
+    if oren_is_err(len) || len <= 0.0 { return oren_err(4, ctx + ": line segment must be nonzero") }
+    var scale = f64(width) * 0.5 / len
+    var v = (0.0 - f64(dy)) * scale
+    if axis == 1 { v = f64(dx) * scale }
+    var rounded = math.round(v)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _store_line_segment(out, off, x0, y0, x1, y1, z, width, ctx) {
+    var dx = x1 - x0
+    var dy = y1 - y0
+    var ox = _line_offset(dx, dy, width, 0, ctx)
+    if oren_is_err(ox) { return ox }
+    var oy = _line_offset(dx, dy, width, 1, ctx)
+    if oren_is_err(oy) { return oy }
+    if ox == 0 && oy == 0 { return oren_err(4, ctx + ": line width rounds to zero") }
+    var ax = x0 + ox
+    var ay = y0 + oy
+    var bx = x1 + ox
+    var by = y1 + oy
+    var cx = x1 - ox
+    var cy = y1 - oy
+    var dxp = x0 - ox
+    var dyp = y0 - oy
+    var rc = _store_triangle(out, off, ax, ay, z, bx, by, z, cx, cy, z, ctx + ".line0")
+    if oren_is_err(rc) { return rc }
+    return _store_triangle(out, off + 36, ax, ay, z, cx, cy, z, dxp, dyp, z, ctx + ".line1")
+}
+
+fn _segments_xy_triangle_count(segments, ctx) {
+    if segments == nil { return oren_err(4, ctx + ": missing segments_xy") }
+    var ns = oren_list_len(segments)
+    if oren_is_err(ns) { return oren_err(4, ctx + ": segments_xy must be list") }
+    var i = 0
+    while i < ns {
+        var seg = segments[i]
+        if seg == nil { return oren_err(4, ctx + ": segment must be object") }
+        var p0 = _segment_point(seg, "from", "start", "segment from", ctx)
+        if oren_is_err(p0) { return p0 }
+        var p1 = _segment_point(seg, "to", "end", "segment to", ctx)
+        if oren_is_err(p1) { return p1 }
+        if p0[0] == p1[0] && p0[1] == p1[1] { return oren_err(4, ctx + ": segment must be nonzero") }
+        var width = _line_width(seg, "segment", ctx)
+        if oren_is_err(width) { return width }
+        var z = _flat_z(seg, "segment", ctx)
+        if oren_is_err(z) { return z }
+        i = i + 1
+    }
+    if ns * 2 > 4096 { return oren_err(4, ctx + ": segments exceed mesh3d triangle budget") }
+    return ns * 2
+}
+
+fn pack_segments_xy(segments, ctx) {
+    var tri_count = _segments_xy_triangle_count(segments, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var i = 0
+    var ns = oren_list_len(segments)
+    while i < ns {
+        var seg = segments[i]
+        var p0 = _segment_point(seg, "from", "start", "segment from", ctx)
+        var p1 = _segment_point(seg, "to", "end", "segment to", ctx)
+        var width = _line_width(seg, "segment", ctx)
+        var z = _flat_z(seg, "segment", ctx)
+        var rc = _store_line_segment(out, off, p0[0], p0[1], p1[0], p1[1], z, width, ctx + ".segment")
+        if oren_is_err(rc) { return rc }
+        off = off + 72
+        i = i + 1
+    }
+    return out
+}
+
+fn _paths_xy_triangle_count(paths, ctx) {
+    if paths == nil { return oren_err(4, ctx + ": missing paths_xy") }
+    var np = oren_list_len(paths)
+    if oren_is_err(np) { return oren_err(4, ctx + ": paths_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < np {
+        var path = paths[i]
+        if path == nil { return oren_err(4, ctx + ": path must be object") }
+        var points = _path_points(path)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || n < 2 || n > 128 { return oren_err(4, ctx + ": path points must contain 2..128 [x,y] entries") }
+        var width = _line_width(path, "path", ctx)
+        if oren_is_err(width) { return width }
+        var z = _flat_z(path, "path", ctx)
+        if oren_is_err(z) { return z }
+        var j = 0
+        while j < n {
+            var rc = _xy_pair(points[j], "path point", ctx)
+            if oren_is_err(rc) { return rc }
+            if j > 0 && points[j - 1][0] == points[j][0] && points[j - 1][1] == points[j][1] {
+                return oren_err(4, ctx + ": path segment must be nonzero")
+            }
+            j = j + 1
+        }
+        total = total + (n - 1) * 2
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": paths exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_paths_xy(paths, ctx) {
+    var tri_count = _paths_xy_triangle_count(paths, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var pi = 0
+    var np = oren_list_len(paths)
+    while pi < np {
+        var path = paths[pi]
+        var points = _path_points(path)
+        var width = _line_width(path, "path", ctx)
+        var z = _flat_z(path, "path", ctx)
+        var i = 1
+        while i < oren_list_len(points) {
+            var p0 = points[i - 1]
+            var p1 = points[i]
+            var rc = _store_line_segment(out, off, p0[0], p0[1], p1[0], p1[1], z, width, ctx + ".path")
+            if oren_is_err(rc) { return rc }
+            off = off + 72
+            i = i + 1
+        }
+        pi = pi + 1
+    }
+    return out
+}
+
 fn _cylinders_triangle_count(cylinders, ctx) {
     if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
     var nc = oren_list_len(cylinders)
