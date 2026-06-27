@@ -489,12 +489,14 @@ Facts from the 2026-05-28 implementation pass:
   model/material/transform override objects that lower to generated retained
   models, human-readable `position_xyz` or nested `transform` records,
   human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays with
-  package-authoring `scale_xyz_milli` pre-scaling plus `rotation_z_milli_deg`
-  Z-axis rotation,
+  package-authoring `scale_xyz_milli` pre-scaling plus
+  `rotation_xyz_milli_deg` Euler rotation and `rotation_z_milli_deg`
+  shorthand,
   builder-side glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with URI or GLB BIN buffers, sparse accessors, static `POSITION` and `COLOR_0` morph target weights, baked skinning through `JOINTS_n`/`WEIGHTS_n` and inverse bind matrices, sampled `gltf_animation` / `gltf_sample_time_milli` node translation/rotation/scale/morph-weight animations, material base colors multiplied by `COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix hierarchy selection, Wavefront OBJ `obj_source` / `obj_text`, binary-or-ASCII STL `stl_source`, inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`, inline ASCII PLY `ply_text`, PLY face/vertex colors lowered to `mesh3d_rgba`, and core 3MF `3mf_source` ZIP mesh/build plus basematerial `displaycolor` lowering and optional `3mf_triangle_set` subgroup selection,
   `triangles_xyz` or `quads_xyz` direct meshes with
-  package-authoring `scale_xyz_milli` pre-scaling plus `rotation_z_milli_deg`
-  Z-axis rotation, compact `boxes_xyz` cuboid primitives, `prisms_xy` extruded polygon solids, bounded
+  package-authoring `scale_xyz_milli` pre-scaling plus
+  `rotation_xyz_milli_deg` Euler rotation and `rotation_z_milli_deg`
+  shorthand, compact `boxes_xyz` cuboid primitives, `prisms_xy` extruded polygon solids, bounded
   `cylinders_z`, `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle
   `triangles_xyz_rgba` colors. Curved solid packers now live in the
   dedicated `std:ui/scene3d_shapes` helper module, keeping the retained-scene

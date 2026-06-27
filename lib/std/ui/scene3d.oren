@@ -279,37 +279,64 @@ fn _has_scale_xyz_milli(m) {
     return transform != nil && transform["scale_xyz_milli"] != nil
 }
 
-fn _rotation_z_milli_deg(m, ctx) {
+fn _rotation_z_milli_deg_value(m) {
     var v = m["rotation_z_milli_deg"]
     if v == nil { v = m["rotate_z_milli_deg"] }
     var transform = m["transform"]
     if v == nil && transform != nil { v = transform["rotation_z_milli_deg"] }
     if v == nil && transform != nil { v = transform["rotate_z_milli_deg"] }
-    if v == nil { return 0 }
-    if _is_int(v) == false { return oren_err(4, ctx + ": invalid rotation_z_milli_deg") }
     return v
 }
 
-fn _has_rotation_z_milli_deg(m) {
-    if m["rotation_z_milli_deg"] != nil || m["rotate_z_milli_deg"] != nil { return true }
+fn _rotation_xyz_milli_deg(m, ctx) {
+    var v = m["rotation_xyz_milli_deg"]
+    if v == nil { v = m["rotate_xyz_milli_deg"] }
     var transform = m["transform"]
-    return transform != nil && (transform["rotation_z_milli_deg"] != nil || transform["rotate_z_milli_deg"] != nil)
+    if v == nil && transform != nil { v = transform["rotation_xyz_milli_deg"] }
+    if v == nil && transform != nil { v = transform["rotate_xyz_milli_deg"] }
+    if v != nil {
+        if oren_list_len(v) != 3 { return oren_err(4, ctx + ": rotation_xyz_milli_deg must be [rx,ry,rz]") }
+        if _is_int(v[0]) == false || _is_int(v[1]) == false || _is_int(v[2]) == false {
+            return oren_err(4, ctx + ": invalid rotation_xyz_milli_deg")
+        }
+        return v
+    }
+    v = _rotation_z_milli_deg_value(m)
+    if v == nil { return [0, 0, 0] }
+    if _is_int(v) == false { return oren_err(4, ctx + ": invalid rotation_z_milli_deg") }
+    return [0, 0, v]
+}
+
+fn _has_rotation_milli_deg(m) {
+    if m["rotation_xyz_milli_deg"] != nil || m["rotate_xyz_milli_deg"] != nil ||
+       m["rotation_z_milli_deg"] != nil || m["rotate_z_milli_deg"] != nil { return true }
+    var transform = m["transform"]
+    return transform != nil && (
+        transform["rotation_xyz_milli_deg"] != nil || transform["rotate_xyz_milli_deg"] != nil ||
+        transform["rotation_z_milli_deg"] != nil || transform["rotate_z_milli_deg"] != nil
+    )
 }
 
 fn _has_mesh_transform(m) {
-    return _has_scale_xyz_milli(m) || _has_rotation_z_milli_deg(m)
+    return _has_scale_xyz_milli(m) || _has_rotation_milli_deg(m)
+}
+
+fn _sincos_milli_deg(v) {
+    if v == 0 { return [0.0, 1.0] }
+    var rad = math.radians(f64(v) / 1000.0)
+    return math.sincos(rad)
 }
 
 fn _mesh_transform(m, ctx) {
     var sx = _scale_axis_milli(m, 0, ctx); if oren_is_err(sx) { return sx }
     var sy = _scale_axis_milli(m, 1, ctx); if oren_is_err(sy) { return sy }
     var sz = _scale_axis_milli(m, 2, ctx); if oren_is_err(sz) { return sz }
-    var rz = _rotation_z_milli_deg(m, ctx); if oren_is_err(rz) { return rz }
-    if rz == 0 { return [sx, sy, sz, false, 0.0, 1.0] }
-    var rad = math.radians(f64(rz) / 1000.0)
-    var sc = math.sincos(rad)
-    if oren_is_err(sc) { return sc }
-    return [sx, sy, sz, true, sc[0], sc[1]]
+    var r = _rotation_xyz_milli_deg(m, ctx); if oren_is_err(r) { return r }
+    if r[0] == 0 && r[1] == 0 && r[2] == 0 { return [sx, sy, sz, false, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0] }
+    var scx = _sincos_milli_deg(r[0]); if oren_is_err(scx) { return scx }
+    var scy = _sincos_milli_deg(r[1]); if oren_is_err(scy) { return scy }
+    var scz = _sincos_milli_deg(r[2]); if oren_is_err(scz) { return scz }
+    return [sx, sy, sz, true, scx[0], scx[1], scy[0], scy[1], scz[0], scz[1]]
 }
 
 fn _scaled_i32(v, scale, ctx) {
@@ -331,12 +358,28 @@ fn _store_transformed_xyz_values(out, off, x, y, z, xf, ctx) {
     var yy = _scaled_i32(y, xf[1], ctx + ".y"); if oren_is_err(yy) { return yy }
     var zz = _scaled_i32(z, xf[2], ctx + ".z"); if oren_is_err(zz) { return zz }
     if xf[3] {
-        var rx = _round_i32(f64(xx) * xf[5] - f64(yy) * xf[4], ctx + ".x")
+        var fx = f64(xx)
+        var fy = f64(yy)
+        var fz = f64(zz)
+        var fy1 = fy * xf[5] - fz * xf[4]
+        var fz1 = fy * xf[4] + fz * xf[5]
+        fy = fy1
+        fz = fz1
+        var fx2 = fx * xf[7] + fz * xf[6]
+        var fz2 = 0.0 - fx * xf[6] + fz * xf[7]
+        fx = fx2
+        fz = fz2
+        var fx3 = fx * xf[9] - fy * xf[8]
+        var fy3 = fx * xf[8] + fy * xf[9]
+        var rx = _round_i32(fx3, ctx + ".x")
         if oren_is_err(rx) { return rx }
-        var ry = _round_i32(f64(xx) * xf[4] + f64(yy) * xf[5], ctx + ".y")
+        var ry = _round_i32(fy3, ctx + ".y")
         if oren_is_err(ry) { return ry }
+        var rz = _round_i32(fz, ctx + ".z")
+        if oren_is_err(rz) { return rz }
         xx = rx
         yy = ry
+        zz = rz
     }
     return _store_xyz_values(out, off, xx, yy, zz, ctx)
 }
