@@ -14,6 +14,7 @@ import ints "std:ints"
 import math "std:math"
 import raw "std:buffer/raw"
 import shapes "std:ui/scene3d_shapes"
+import shape_grids "std:ui/scene3d_shapes_grid"
 import ui_color "std:ui/color"
 
 fn _is_int(v) {
@@ -756,10 +757,10 @@ fn _asset_mesh(m) {
             tris = _pack_prisms_xy(m["prisms_xy"], "ui.scene3d mesh.prisms_xy")
             transform_generated = true
         } else if m["heightfields_xy"] != nil {
-            tris = shapes.pack_heightfields_xy(m["heightfields_xy"], "ui.scene3d mesh.heightfields_xy")
+            tris = shape_grids.pack_heightfields_xy(m["heightfields_xy"], "ui.scene3d mesh.heightfields_xy")
             transform_generated = true
         } else if m["surfaces_xyz"] != nil {
-            tris = shapes.pack_surfaces_xyz(m["surfaces_xyz"], "ui.scene3d mesh.surfaces_xyz")
+            tris = shape_grids.pack_surfaces_xyz(m["surfaces_xyz"], "ui.scene3d mesh.surfaces_xyz")
             transform_generated = true
         } else if m["planes_xy"] != nil {
             tris = shapes.pack_planes_xy(m["planes_xy"], "ui.scene3d mesh.planes_xy")

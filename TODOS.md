@@ -49,6 +49,9 @@ design evidence lives under `project-doc/`.
 	  elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, partial
   `sectors_xy`/`arc_bands_xy`, and curved generated solids before
   byte-native packing, including translation-only generated meshes.
+- Scene3D generated mesh packers are split across focused helper modules so
+  package-format growth does not push `std:ui/scene3d` or one shape helper over
+  the source-line guard.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.
 - `std:env` now provides app-facing capability-gated environment get/fallback,

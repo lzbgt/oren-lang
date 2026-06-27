@@ -502,10 +502,11 @@ Facts from the 2026-05-28 implementation pass:
 	  regular `regular_polygons_xy`, `stars_xy`, circular `discs_xy`/`rings_xy`,
 	  elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, partial `sectors_xy`/`arc_bands_xy`, bounded `cylinders_z`,
   `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle
-  `triangles_xyz_rgba` colors. Curved solid packers now live in the
-  dedicated `std:ui/scene3d_shapes` helper module, keeping the retained-scene
-  orchestration file small enough for continued package-format expansion
-  without changing the public JSON schema or renderer ABI.
+  `triangles_xyz_rgba` colors. Procedural mesh packers now live in focused
+  helpers (`std:ui/scene3d_shapes` for flat/solid shapes and
+  `std:ui/scene3d_shapes_grid` for heightfield/surface grids), keeping the
+  retained-scene orchestration and shape helpers small enough for continued
+  package-format expansion without changing the public JSON schema or renderer ABI.
   Material authoring accepts `color` or
   `base_color` plus optional `opacity_milli`, `roughness_milli`, and
   `metallic_milli`, lowering the v0 renderer-visible output to deterministic

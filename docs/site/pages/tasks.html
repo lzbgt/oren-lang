@@ -381,8 +381,9 @@
 <p>	     shorthand, and <code>translation_xyz</code> for JSON coordinate and generated primitive meshes, plus</p>
 <p>	     <code>cylinders_z</code>/<code>cones_z</code>/<code>spheres_xyz</code>/<code>ellipsoids_xyz</code>/<code>toruses_xyz</code>/<code>capsules_z</code> authoring that lower to existing</p>
 <p>	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.</p>
-<p>	     Curved solid packers are split into <code>std:ui/scene3d_shapes</code> so broader</p>
-<p>	     package formats can keep growing without pushing <code>std:ui/scene3d</code> toward</p>
+<p>	     Procedural mesh packers are split into focused <code>std:ui/scene3d_shapes</code></p>
+<p>	     and <code>std:ui/scene3d_shapes_grid</code> helpers so broader package formats can</p>
+<p>	     keep growing without pushing <code>std:ui/scene3d</code> or one shape helper toward</p>
 <p>	     the source-line guardrail.</p>
 <ul>
 <li>2026-06-01: first <code>OrenAVMPackageStore</code> slices exist and are verified:</li>

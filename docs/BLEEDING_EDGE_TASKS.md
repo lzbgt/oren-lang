@@ -311,8 +311,9 @@ This file is the concise task view. Detailed implementation status lives in
 	     shorthand, and `translation_xyz` for JSON coordinate and generated primitive meshes, plus
 	     `cylinders_z`/`cones_z`/`spheres_xyz`/`ellipsoids_xyz`/`toruses_xyz`/`capsules_z` authoring that lower to existing
 	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
-	     Curved solid packers are split into `std:ui/scene3d_shapes` so broader
-	     package formats can keep growing without pushing `std:ui/scene3d` toward
+	     Procedural mesh packers are split into focused `std:ui/scene3d_shapes`
+	     and `std:ui/scene3d_shapes_grid` helpers so broader package formats can
+	     keep growing without pushing `std:ui/scene3d` or one shape helper toward
 	     the source-line guardrail.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:
      manifest schema/ABI/hash validation, capability/budget/time config derivation,
