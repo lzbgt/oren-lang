@@ -498,7 +498,8 @@ Facts from the 2026-05-28 implementation pass:
   `rotation_xyz_milli_deg` Euler rotation and `rotation_z_milli_deg`
   shorthand, and `translation_xyz`, compact `boxes_xyz` cuboid primitives,
   `prisms_xy` extruded polygon solids, bounded `heightfields_xy` terrain grids,
-  bounded `cylinders_z`, `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle
+  bounded `surfaces_xyz` arbitrary surface grids, bounded `cylinders_z`,
+  `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle
   `triangles_xyz_rgba` colors. Curved solid packers now live in the
   dedicated `std:ui/scene3d_shapes` helper module, keeping the retained-scene
   orchestration file small enough for continued package-format expansion
