@@ -545,6 +545,163 @@ fn pack_paths_xy(paths, ctx) {
     return out
 }
 
+fn _angle_milli(shape, primary, fallback, label, ctx) {
+    var angle = shape[primary]
+    if angle == nil { angle = shape[fallback] }
+    if _is_int(angle) == false {
+        return oren_err(4, ctx + ": " + label + " angle must be i32 milli-degrees")
+    }
+    return angle
+}
+
+fn _angle_coord(center, radius, angle_milli_deg, axis) {
+    var angle = math.tau() * f64(angle_milli_deg) / 360000.0
+    var unit = math.cos(angle)
+    if axis == 1 { unit = math.sin(angle) }
+    var rounded = math.round(f64(center) + f64(radius) * unit)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _angle_span(shape, ctx) {
+    var start = _angle_milli(shape, "start_angle_milli_deg", "start_milli_deg", "start", ctx)
+    if oren_is_err(start) { return start }
+    var end = _angle_milli(shape, "end_angle_milli_deg", "end_milli_deg", "end", ctx)
+    if oren_is_err(end) { return end }
+    if end <= start { return oren_err(4, ctx + ": end angle must be greater than start angle") }
+    if end - start > 360000 { return oren_err(4, ctx + ": angle span must be <= 360000 milli-degrees") }
+    return [start, end]
+}
+
+fn _sector_triangle_count(sectors, ctx) {
+    if sectors == nil { return oren_err(4, ctx + ": missing sectors_xy") }
+    var ns = oren_list_len(sectors)
+    if oren_is_err(ns) { return oren_err(4, ctx + ": sectors_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < ns {
+        var sector = sectors[i]
+        if sector == nil { return oren_err(4, ctx + ": sector must be object") }
+        var center = _center_xy(sector, "sector", ctx)
+        if oren_is_err(center) { return center }
+        var radius = _radius(sector, "sector", ctx)
+        if oren_is_err(radius) { return radius }
+        var span = _angle_span(sector, ctx)
+        if oren_is_err(span) { return span }
+        var z = _flat_z(sector, "sector", ctx)
+        if oren_is_err(z) { return z }
+        var segments = _segments(sector, "sector", 1, ctx)
+        if oren_is_err(segments) { return segments }
+        total = total + segments
+        i = i + 1
+    }
+    if total > 2048 { return oren_err(4, ctx + ": sectors exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_sectors_xy(sectors, ctx) {
+    var tri_count = _sector_triangle_count(sectors, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var si = 0
+    var ns = oren_list_len(sectors)
+    while si < ns {
+        var sector = sectors[si]
+        var center = _center_xy(sector, "sector", ctx)
+        var radius = _radius(sector, "sector", ctx)
+        var span = _angle_span(sector, ctx)
+        var z = _flat_z(sector, "sector", ctx)
+        var segments = _segments(sector, "sector", 1, ctx)
+        var seg = 0
+        while seg < segments {
+            var a0 = span[0] + (span[1] - span[0]) * seg / segments
+            var a1 = span[0] + (span[1] - span[0]) * (seg + 1) / segments
+            var x0 = _angle_coord(center[0], radius, a0, 0)
+            var y0 = _angle_coord(center[1], radius, a0, 1)
+            var x1 = _angle_coord(center[0], radius, a1, 0)
+            var y1 = _angle_coord(center[1], radius, a1, 1)
+            var rc = _store_triangle(out, off, center[0], center[1], z, x0, y0, z, x1, y1, z, ctx + ".sector")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            seg = seg + 1
+        }
+        si = si + 1
+    }
+    return out
+}
+
+fn _arc_band_triangle_count(arcs, ctx) {
+    if arcs == nil { return oren_err(4, ctx + ": missing arc_bands_xy") }
+    var na = oren_list_len(arcs)
+    if oren_is_err(na) { return oren_err(4, ctx + ": arc_bands_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < na {
+        var arc = arcs[i]
+        if arc == nil { return oren_err(4, ctx + ": arc band must be object") }
+        var center = _center_xy(arc, "arc band", ctx)
+        if oren_is_err(center) { return center }
+        var inner = _ring_radius(arc, "inner_radius", "radius_inner", "inner", ctx)
+        if oren_is_err(inner) { return inner }
+        var outer = _ring_radius(arc, "outer_radius", "radius_outer", "outer", ctx)
+        if oren_is_err(outer) { return outer }
+        if outer <= inner { return oren_err(4, ctx + ": arc band outer radius must be greater than inner radius") }
+        var span = _angle_span(arc, ctx)
+        if oren_is_err(span) { return span }
+        var z = _flat_z(arc, "arc band", ctx)
+        if oren_is_err(z) { return z }
+        var segments = _segments(arc, "arc band", 1, ctx)
+        if oren_is_err(segments) { return segments }
+        total = total + segments * 2
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": arc bands exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_arc_bands_xy(arcs, ctx) {
+    var tri_count = _arc_band_triangle_count(arcs, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ai = 0
+    var na = oren_list_len(arcs)
+    while ai < na {
+        var arc = arcs[ai]
+        var center = _center_xy(arc, "arc band", ctx)
+        var inner = _ring_radius(arc, "inner_radius", "radius_inner", "inner", ctx)
+        var outer = _ring_radius(arc, "outer_radius", "radius_outer", "outer", ctx)
+        var span = _angle_span(arc, ctx)
+        var z = _flat_z(arc, "arc band", ctx)
+        var segments = _segments(arc, "arc band", 1, ctx)
+        var seg = 0
+        while seg < segments {
+            var a0 = span[0] + (span[1] - span[0]) * seg / segments
+            var a1 = span[0] + (span[1] - span[0]) * (seg + 1) / segments
+            var ox0 = _angle_coord(center[0], outer, a0, 0)
+            var oy0 = _angle_coord(center[1], outer, a0, 1)
+            var ox1 = _angle_coord(center[0], outer, a1, 0)
+            var oy1 = _angle_coord(center[1], outer, a1, 1)
+            var ix0 = _angle_coord(center[0], inner, a0, 0)
+            var iy0 = _angle_coord(center[1], inner, a0, 1)
+            var ix1 = _angle_coord(center[0], inner, a1, 0)
+            var iy1 = _angle_coord(center[1], inner, a1, 1)
+            var rc = _store_triangle(out, off, ox0, oy0, z, ox1, oy1, z, ix1, iy1, z, ctx + ".arc0")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_triangle(out, off, ox0, oy0, z, ix1, iy1, z, ix0, iy0, z, ctx + ".arc1")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            seg = seg + 1
+        }
+        ai = ai + 1
+    }
+    return out
+}
+
 fn _cylinders_triangle_count(cylinders, ctx) {
     if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
     var nc = oren_list_len(cylinders)

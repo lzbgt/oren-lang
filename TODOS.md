@@ -45,7 +45,8 @@ design evidence lives under `project-doc/`.
   for `triangles_xyz`, `quads_xyz`, `vertices_xyz`, `triangles_xyz_rgba`,
   `boxes_xyz`, `prisms_xy`, bounded `heightfields_xy` terrain grids, bounded
   `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, flat `polygons_xy`,
-  circular `discs_xy`/`rings_xy`, thick `segments_xy`/`paths_xy`, and curved generated solids before
+  circular `discs_xy`/`rings_xy`, thick `segments_xy`/`paths_xy`, partial
+  `sectors_xy`/`arc_bands_xy`, and curved generated solids before
   byte-native packing, including translation-only generated meshes.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.

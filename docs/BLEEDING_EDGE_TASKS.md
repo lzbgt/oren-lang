@@ -298,7 +298,7 @@ This file is the concise task view. Detailed implementation status lives in
 	     Scene3D package assets now include compact `boxes_xyz` cuboid authoring,
 	     `prisms_xy` extruded polygon authoring, bounded `heightfields_xy` terrain grids,
 	     bounded `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, flat `polygons_xy`,
-	     circular `discs_xy`/`rings_xy`, thick `segments_xy`/`paths_xy`, and
+	     circular `discs_xy`/`rings_xy`, thick `segments_xy`/`paths_xy`, partial `sectors_xy`/`arc_bands_xy`, and
 	     glTF 2.0 JSON and GLB source lowering with URI/BIN buffers, sparse accessors, static `POSITION` and `COLOR_0` morph target weights, baked skinning through `JOINTS_n`/`WEIGHTS_n` and inverse bind matrices, sampled `gltf_animation` / `gltf_sample_time_milli` node translation/rotation/scale/morph-weight animations, material colors multiplied by `COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix hierarchy selection,
 	     Wavefront OBJ, binary-or-ASCII STL source lowering, inline ASCII STL
 	     text lowering, binary-or-ASCII PLY source lowering,
