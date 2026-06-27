@@ -37,19 +37,22 @@ fn open(spec, timeout_ms): Session {
     return oren_vnet_session_open(clean, timeout_ms)
 }
 
+fn _open_host_port(scheme, host, port, timeout_ms): Session {
+    var authority = neturl.authority_from_host_port(host, port)
+    if oren_is_err(authority) { return authority }
+    return open(scheme + "://" + authority, timeout_ms)
+}
+
 fn open_tcp(host, port, timeout_ms): Session {
-    if host == nil { return oren_err(4, "std:net/avm/socket.open_tcp: host is nil") }
-    return open("tcp://" + host + ":" + oren_int_to_string(port), timeout_ms)
+    return _open_host_port("tcp", host, port, timeout_ms)
 }
 
 fn listen_tcp(host, port, timeout_ms): Session {
-    if host == nil { return oren_err(4, "std:net/avm/socket.listen_tcp: host is nil") }
-    return open("tcp-listen://" + host + ":" + oren_int_to_string(port), timeout_ms)
+    return _open_host_port("tcp-listen", host, port, timeout_ms)
 }
 
 fn open_udp(host, port, timeout_ms): Session {
-    if host == nil { return oren_err(4, "std:net/avm/socket.open_udp: host is nil") }
-    return open("udp://" + host + ":" + oren_int_to_string(port), timeout_ms)
+    return _open_host_port("udp", host, port, timeout_ms)
 }
 
 fn write(session_id, data, timeout_ms) {

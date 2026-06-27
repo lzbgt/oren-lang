@@ -308,8 +308,9 @@ Facts from the 2026-05-28 implementation pass:
   same endpoint interpretation across host and virtual NET providers; authority
   parsing now handles query-only targets and bracketed IPv6 structure while
   rejecting userinfo explicitly, canonical HTTP/WebSocket origin/same-origin
-  helpers normalize host case plus default ports, and generic endpoint-origin
-  plus host-or-origin allow-list helpers cover TCP/UDP/WebSocket session policy
+  helpers normalize host case plus default ports, and generic endpoint-origin,
+  host/port authority construction, plus host-or-origin allow-list helpers cover
+  TCP/UDP/WebSocket session policy
   lists. Native and AVM HTTP request opts route structured `query` /
   `append_query` pairs through the shared request-target
   composer, native HTTP/WebSocket Host headers preserve parsed authority, and
@@ -554,11 +555,12 @@ Facts from the 2026-05-28 implementation pass:
   exact-size `u8_buf` builders and emits color hex digits through string slices,
   `std:net/avm/http` has request/response helpers, pure `std:net/url` shares
   byte-level percent/query parsing, authority extraction, query-only target
-  handling, canonical origin comparison, and request-target composition across
+  handling, canonical origin comparison, host/port authority construction, and
+  request-target composition across
   native and AVM-safe code, and native/AVM HTTP request opts consume those
   structured query builders while
   native HTTP/WebSocket Host headers preserve parsed authority and native wire
-  requests plus AVM virtual-provider specs strip fragments at the NET boundary,
+  requests plus AVM HTTP/session specs strip fragments at the NET boundary,
   with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct

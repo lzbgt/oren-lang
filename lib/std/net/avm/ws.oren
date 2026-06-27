@@ -5,6 +5,7 @@
 
 import events "std:avm/events"
 import socket "std:net/avm/socket"
+import neturl "std:net/url"
 
 struct Session {
     id
@@ -32,10 +33,12 @@ fn connect_spec(spec, timeout_ms): Session {
 
 fn connect(host, port, path, timeout_ms): Session {
     if host == nil { return oren_err(4, "std:net/avm/ws.connect: host is nil") }
+    var authority = neturl.authority_from_host_port(host, port)
+    if oren_is_err(authority) { return authority }
     var p = path
     if p == nil || p == "" { p = "/" }
     if oren_string_slice(p, 0, 1) != "/" { p = "/" + p }
-    return connect_spec("ws://" + host + ":" + oren_int_to_string(port) + p, timeout_ms)
+    return connect_spec("ws://" + authority + p, timeout_ms)
 }
 
 fn send(session_id, data, timeout_ms) {

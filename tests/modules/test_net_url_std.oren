@@ -72,6 +72,11 @@ if !oren_is_err(neturl.origin("ftp://example.com")) { fail(86) }
 if neturl.endpoint_origin("tcp://LOCALHOST:7000/path") != "tcp://localhost:7000" { fail(87) }
 if neturl.endpoint_origin("http://Example.com:80/a") != "http://example.com" { fail(88) }
 if neturl.endpoint_origin("tcp-listen://[::1]:9000") != "tcp-listen://[::1]:9000" { fail(89) }
+if neturl.authority_from_host_port("LOCALHOST", 7000) != "localhost:7000" { fail(122) }
+if neturl.authority_from_host_port("::1", 9000) != "[::1]:9000" { fail(123) }
+if neturl.authority_from_host_port("[2001:DB8::1]", 443) != "[2001:db8::1]:443" { fail(124) }
+if !oren_is_err(neturl.authority_from_host_port("[::1]:9000", 1)) { fail(125) }
+if !oren_is_err(neturl.authority_from_host_port("localhost", 70000)) { fail(126) }
 if neturl.allowed_by_host_or_origin("tcp://127.0.0.1:7000", ["tcp://127.0.0.1:7000"]) != true { fail(134) }
 if neturl.allowed_by_host_or_origin("tcp://127.0.0.1:7000", ["tcp://127.0.0.1:7001"]) != false { fail(135) }
 if neturl.allowed_by_host_or_origin("udp://LOCALHOST:5300", ["localhost"]) != true { fail(136) }

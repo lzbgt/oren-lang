@@ -390,8 +390,9 @@
 <p>  same endpoint interpretation across host and virtual NET providers; authority</p>
 <p>  parsing now handles query-only targets and bracketed IPv6 structure while</p>
 <p>  rejecting userinfo explicitly, canonical HTTP/WebSocket origin/same-origin</p>
-<p>  helpers normalize host case plus default ports, and generic endpoint-origin</p>
-<p>  plus host-or-origin allow-list helpers cover TCP/UDP/WebSocket session policy</p>
+<p>  helpers normalize host case plus default ports, and generic endpoint-origin,</p>
+<p>  host/port authority construction, plus host-or-origin allow-list helpers cover</p>
+<p>  TCP/UDP/WebSocket session policy</p>
 <p>  lists. Native and AVM HTTP request opts route structured <code>query</code> /</p>
 <p>  <code>append_query</code> pairs through the shared request-target</p>
 <p>  composer, native HTTP/WebSocket Host headers preserve parsed authority, and</p>
@@ -660,11 +661,12 @@
 <p>  exact-size <code>u8_buf</code> builders and emits color hex digits through string slices,</p>
 <p>  <code>std:net/avm/http</code> has request/response helpers, pure <code>std:net/url</code> shares</p>
 <p>  byte-level percent/query parsing, authority extraction, query-only target</p>
-<p>  handling, canonical origin comparison, and request-target composition across</p>
+<p>  handling, canonical origin comparison, host/port authority construction, and</p>
+<p>  request-target composition across</p>
 <p>  native and AVM-safe code, and native/AVM HTTP request opts consume those</p>
 <p>  structured query builders while</p>
 <p>  native HTTP/WebSocket Host headers preserve parsed authority and native wire</p>
-<p>  requests plus AVM virtual-provider specs strip fragments at the NET boundary,</p>
+<p>  requests plus AVM HTTP/session specs strip fragments at the NET boundary,</p>
 <p>  with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>

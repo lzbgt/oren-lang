@@ -171,6 +171,14 @@ fn _has_colon(s) {
     return 0
 }
 
+fn _is_bracketed_host(s) {
+    var n = oren_string_len(s)
+    if n < 2 { return 0 }
+    if _byte_at(s, 0) != 91 { return 0 } // '['
+    if _byte_at(s, n - 1) != 93 { return 0 } // ']'
+    return 1
+}
+
 fn _scheme_separator_pos(s) {
     var n = oren_string_len(s)
     var i = 0
@@ -204,6 +212,30 @@ fn _origin_from_parts(scheme, host, port) {
         return _concat5(prefix, "[", host_l, "]", port_s)
     }
     return _concat3(prefix, host_l, port_s)
+}
+
+fn authority_from_host_port(host, port) {
+    if oren_type_tag(host) != 4 { return oren_err(4, "url.authority_from_host_port: host must be string") }
+    if port <= 0 || port > 65535 { return oren_err(4, "url.authority_from_host_port: invalid port") }
+    var n = oren_string_len(host)
+    if n <= 0 { return oren_err(4, "url.authority_from_host_port: host is empty") }
+    var port_s = ":" + oren_int_to_string(port)
+    if _is_bracketed_host(host) == 1 {
+        if n <= 2 { return oren_err(4, "url.authority_from_host_port: host is empty") }
+        var inner = oren_string_slice(host, 1, n - 1)
+        if inner == 0 { return oren_err(4, "url.authority_from_host_port: host slice failed") }
+        var inner_l = _lower_ascii(inner)
+        if oren_is_err(inner_l) { return inner_l }
+        return _concat5("[", inner_l, "]", port_s, "")
+    }
+    if _byte_at(host, 0) == 91 { return oren_err(4, "url.authority_from_host_port: invalid bracketed host") }
+    if _find_byte(host, 0, 93) >= 0 { return oren_err(4, "url.authority_from_host_port: invalid bracketed host") } // ']'
+    var host_l = _lower_ascii(host)
+    if oren_is_err(host_l) { return host_l }
+    if _has_colon(host_l) == 1 {
+        return _concat5("[", host_l, "]", port_s, "")
+    }
+    return _concat3(host_l, port_s, "")
 }
 
 fn _origin_from_endpoint_parts(scheme, host, port, has_port) {

@@ -1,5 +1,6 @@
 import http "std:net/avm/http"
 import socket "std:net/avm/socket"
+import neturl "std:net/url"
 
 fn fail(msg) {
     print("FAIL")
@@ -35,6 +36,7 @@ fn main() {
     if socket.clean_spec("tcp://127.0.0.1:7/path?x=1#frag") != "tcp://127.0.0.1:7/path?x=1" { fail("unexpected clean tcp spec") }
     if socket.clean_spec("udp://[::1]:53#frag") != "udp://[::1]:53" { fail("unexpected clean udp spec") }
     if !oren_is_err(socket.clean_spec("tcp://::1:7")) { fail("unexpected valid bare ipv6 spec") }
+    if socket.clean_spec("tcp://" + neturl.authority_from_host_port("::1", 7)) != "tcp://[::1]:7" { fail("unexpected ipv6 tcp spec") }
     oren_exit(0)
 }
 
