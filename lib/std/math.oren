@@ -99,6 +99,32 @@ fn lerp(a: f64, b: f64, t: f64) {
     return a + step
 }
 
+fn inverse_lerp(a: f64, b: f64, x: f64) {
+    if is_nan(a) || is_nan(b) || is_nan(x) { return oren_err(4, "inverse_lerp: NaN") }
+    if !is_finite(a) || !is_finite(b) || !is_finite(x) { return oren_err(4, "inverse_lerp: non-finite") }
+    if a == b { return oren_err(4, "inverse_lerp: a == b") }
+    var out: f64 = (x - a) / (b - a)
+    return out
+}
+
+fn remap(in0: f64, in1: f64, out0: f64, out1: f64, x: f64) {
+    if is_nan(out0) || is_nan(out1) { return oren_err(4, "remap: NaN") }
+    if !is_finite(out0) || !is_finite(out1) { return oren_err(4, "remap: non-finite") }
+    var t = inverse_lerp(in0, in1, x)
+    if oren_is_err(t) { return t }
+    return lerp(out0, out1, t)
+}
+
+fn remap_clamped(in0: f64, in1: f64, out0: f64, out1: f64, x: f64) {
+    if is_nan(out0) || is_nan(out1) { return oren_err(4, "remap_clamped: NaN") }
+    if !is_finite(out0) || !is_finite(out1) { return oren_err(4, "remap_clamped: non-finite") }
+    var t0 = inverse_lerp(in0, in1, x)
+    if oren_is_err(t0) { return t0 }
+    var t = saturate(t0)
+    if oren_is_err(t) { return t }
+    return lerp(out0, out1, t)
+}
+
 fn smoothstep(edge0: f64, edge1: f64, x: f64) {
     if is_nan(edge0) || is_nan(edge1) || is_nan(x) { return oren_err(4, "smoothstep: NaN") }
     if edge1 <= edge0 { return oren_err(4, "smoothstep: edge1 <= edge0") }

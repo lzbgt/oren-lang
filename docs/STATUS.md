@@ -781,8 +781,9 @@ Working evidence:
   bit helpers, C/C++ classification and ordered-comparison aliases (`isnan`,
   `isinf`, `isfinite`, `isnormal`, `fpclassify`, `isunordered`, `isgreater`,
   `isgreaterequal`, `isless`, `islessequal`, `islessgreater`) plus `nan`,
-  NaN-aware `fabs` / `fmin` / `fmax`, finite `lerp`, `clamp`, `saturate`,
-  `smoothstep`, `smootherstep`, overflow-aware `midpoint`,
+  NaN-aware `fabs` / `fmin` / `fmax`, finite `lerp`, `inverse_lerp`,
+  `remap`, `remap_clamped`, `clamp`, `saturate`, `smoothstep`,
+  `smootherstep`, overflow-aware `midpoint`,
   normal/subnormal classification, rounding, integer rounding aliases
   `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,
   `modf`, public ties-to-even
@@ -801,7 +802,8 @@ Working evidence:
   `tests/avm/test_std_math_exp_log.oren`, and
   `tests/avm/test_std_math_trig.oren` are now in the curated `make test-avm`
   set, so the iOS AVM path proves core predicates/rounding/fmod/remainder/remquo/sign
-  helpers, integer rounding aliases, NaN-aware `fabs`/`fmin`/`fmax`, finite `lerp`,
+  helpers, integer rounding aliases, NaN-aware `fabs`/`fmin`/`fmax`, finite
+  `lerp`, range mapping helpers `inverse_lerp`/`remap`/`remap_clamped`,
   graphics interpolation helpers `clamp`/`saturate`/`smoothstep`/`smootherstep`,
   overflow-aware `midpoint`, public ties-to-even rounding aliases, degree/radian conversion,
   normal/subnormal/`fpclassify` classification,

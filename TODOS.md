@@ -96,8 +96,9 @@ design evidence lives under `project-doc/`.
   aliases (`isgreater`, `isgreaterequal`, `isless`, `islessequal`,
   `islessgreater`), `fpclassify`, and `nan()`, backed by AVM and module-level
   backend fixtures.
-- `std:math` now includes deterministic graphics interpolation helpers
-  `clamp`, `saturate`, `smoothstep`, and `smootherstep`, backed by native/C/
+- `std:math` now includes deterministic graphics interpolation and range-mapping
+  helpers `clamp`, `saturate`, `lerp`, `inverse_lerp`, `remap`,
+  `remap_clamped`, `smoothstep`, and `smootherstep`, backed by native/C/
   bytecode and AVM fixtures.
 - `std:bytes`, `std:buffer`, `std:strings`, `std:list`, `std:linalg`,
   `std:iter`, `std:crypto`, `std:ui`, and checked
