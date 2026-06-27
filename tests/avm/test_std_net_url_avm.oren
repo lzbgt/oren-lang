@@ -13,11 +13,24 @@ fn check(u, scheme, host, port, path, code) {
     if u["path"] != path { fail(code + 4) }
 }
 
+fn check_auth(u, authority, path_only, query, target, code) {
+    if oren_is_err(u) { fail(code) }
+    if u["authority"] != authority { fail(code + 1) }
+    if u["path_only"] != path_only { fail(code + 2) }
+    if u["query"] != query { fail(code + 3) }
+    if u["request_target"] != target { fail(code + 4) }
+}
+
 fn main() {
     check(neturl.parse_http("http://example.com"), "http", "example.com", 80, "/", 10)
     check(neturl.parse_http("https://example.com:8443/a/b?q=1"), "https", "example.com", 8443, "/a/b?q=1", 20)
     check(neturl.parse_ws("ws://127.0.0.1:9000/chat"), "ws", "127.0.0.1", 9000, "/chat", 30)
     check(neturl.parse("wss://example.org"), "wss", "example.org", 443, "/", 40)
+    check_auth(neturl.parse_http("http://example.com?x=1#frag"), "example.com", "/", "x=1", "/?x=1", 90)
+    check_auth(neturl.parse_http("http://[::1]:8080/a?b=1"), "[::1]:8080", "/a", "b=1", "/a?b=1", 100)
+    var ip6 = neturl.parse_ws("ws://[2001:db8::1]/chat")
+    check(ip6, "ws", "2001:db8::1", 80, "/chat", 110)
+    check_auth(ip6, "[2001:db8::1]", "/chat", "", "/chat", 120)
 
     var u = neturl.parse_http("https://example.com:8443/a/b?q=hello+world&x=%2B#frag")
     if oren_is_err(u) { fail(50) }
@@ -49,6 +62,10 @@ fn main() {
     if !oren_is_err(neturl.parse_ws("http://example.com")) { fail(71) }
     if !oren_is_err(neturl.parse_http("http:///missing")) { fail(72) }
     if !oren_is_err(neturl.parse_http("http://example.com:0")) { fail(73) }
+    if !oren_is_err(neturl.parse_http("http://user:pass@example.com/")) { fail(130) }
+    if !oren_is_err(neturl.parse_http("http://::1/")) { fail(131) }
+    if !oren_is_err(neturl.parse_http("http://[::1")) { fail(132) }
+    if !oren_is_err(neturl.parse_http("http://example.com:65536/")) { fail(133) }
 
     print("avm std net url OK")
     oren_exit(0)

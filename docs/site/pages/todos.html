@@ -83,12 +83,13 @@
 <ul>
 <li><code>std:net/url</code> now provides pure HTTP/WebSocket URL parsing, request-target</li>
 </ul>
-<p>  path/query splitting, percent encode/decode, query param get/list, and exact-size</p>
+<p>  path/query splitting, authority extraction, bracketed-IPv6 structure, explicit</p>
+<p>  userinfo rejection, percent encode/decode, query param get/list, and exact-size</p>
 <p>  query building/replacement/appending shared by native <code>std:net/http</code>, native</p>
 <p>  <code>std:net/ws</code>, and AVM-safe app code; native and AVM HTTP request opts now route</p>
 <p>  structured <code>query</code> / <code>append_query</code> pairs through the same composer, while</p>
-<p>  native wire requests and AVM virtual-provider specs strip URL fragments at the</p>
-<p>  NET boundary.</p>
+<p>  native HTTP/WebSocket Host headers preserve parsed authority and native wire</p>
+<p>  requests plus AVM virtual-provider specs strip URL fragments at the NET boundary.</p>
 <ul>
 <li><code>std:path</code> now provides pure slash-separated VFS/package path split, normalize,</li>
 </ul>

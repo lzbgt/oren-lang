@@ -129,12 +129,12 @@ fn _parse_http_url(url) {
     return neturl.parse_http_record(url)
 }
 
-fn _build_get_request(host, path) {
+fn _build_get_request(authority, path) {
     // Minimal HTTP/1.1 request (connection-close).
     //
     // Prefer `+` for string concatenation (native backend lowers to `oren_add`).
     // This avoids manual lifetime management of intermediate concat results.
-    return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+    return "GET " + path + " HTTP/1.1\r\nHost: " + authority + "\r\nConnection: close\r\n\r\n"
 }
 
 fn _url_with_opts(url, opts, ctx) {
@@ -395,12 +395,14 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     var is_tls = 0
     if pu["scheme"] == "https" { is_tls = 1 }
     var host = pu["host"]
+    var authority = pu["authority"]
     var port = pu["port"]
     var path = pu["request_target"]
 
     var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
     if rh["ok"] != 1 {
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "http.request: " + rh["err"]}
     }
@@ -411,6 +413,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     if owned_ip == 1 { free(ip) }
     if fd < 0 {
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "http.request: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
@@ -431,6 +434,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
             // Best-effort: ensure fd isn't leaked on providers that don't close on failure.
             tcp.close_raw(fd)
             free(host)
+            free(authority)
             free(path)
             return {"ok": 0, "err": "http.request: " + oren_err_msg(cr)}
         }
@@ -438,6 +442,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
         if tls_conn == 0 {
             tcp.close_raw(fd)
             free(host)
+            free(authority)
             free(path)
             return {"ok": 0, "err": "http.request: tls.wrap_client returned nil conn"}
         }
@@ -446,8 +451,9 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
         // `tls_opts["pin_cert_sha256_hex"]` is provided (see docs/DESIGN.md#tls-provider-availability).
     }
 
-    var req = _build_get_request(host, path)
+    var req = _build_get_request(authority, path)
     free(host)
+    free(authority)
     free(path)
     if req == 0 {
         if is_tls == 1 { tls.close_raw(tls_conn) } else { tcp.close_raw(fd) }

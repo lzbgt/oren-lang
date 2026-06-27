@@ -15,10 +15,15 @@ fn check(u, scheme, host, port, path, code) {
 }
 
 check(http._parse_http_url("https://host.test:9443/p"), "https", "host.test", 9443, "/p", 10)
+var http_authority = http._parse_http_url("https://host.test:9443/p")
+if http_authority["authority"] != "host.test:9443" { fail(16) }
+if http._build_get_request(http_authority["authority"], http_authority["request_target"]) != "GET /p HTTP/1.1\r\nHost: host.test:9443\r\nConnection: close\r\n\r\n" { fail(17) }
 check(ws._parse_ws_url("wss://socket.test/chat"), "wss", "socket.test", 443, "/chat", 20)
 check(ws._parse_url_record("ws://127.0.0.1:9000"), "ws", "127.0.0.1", 9000, "/", 30)
 var ws_wire_url = ws._parse_url_record("ws://socket.test/chat?room=1#frag")
 if ws_wire_url["request_target"] != "/chat?room=1" { fail(31) }
+var ws_ip6 = ws._parse_url_record("ws://[::1]:9000/chat")
+if ws_ip6["host"] != "::1" || ws_ip6["authority"] != "[::1]:9000" || ws_ip6["request_target"] != "/chat" { fail(32) }
 
 var replaced = http._url_with_opts("http://host.test/search?old=1#frag", {"query": [["q", "hello world"]]}, "test")
 if replaced != "http://host.test/search?q=hello%20world#frag" { fail(35) }
@@ -27,10 +32,12 @@ if appended != "http://host.test/search?old=1&q=hello%20world#frag" { fail(36) }
 if !oren_is_err(http._url_with_opts("http://host.test/search", {"query": [["bad"]]}, "test")) { fail(37) }
 var wire_url = http._parse_http_url("http://host.test/search?old=1#frag")
 if wire_url["request_target"] != "/search?old=1" { fail(38) }
+var query_only = http._parse_http_url("http://host.test?old=1#frag")
+if query_only["host"] != "host.test" || query_only["path"] != "/?old=1#frag" || query_only["request_target"] != "/?old=1" { fail(39) }
 
 var public_url = ws.parse_url("wss://example.org/x")
 if oren_is_err(public_url) { fail(40) }
-if public_url["scheme"] != "wss" || public_url["host"] != "example.org" || public_url["port"] != 443 || public_url["path"] != "/x" || public_url["request_target"] != "/x" { fail(41) }
+if public_url["scheme"] != "wss" || public_url["host"] != "example.org" || public_url["authority"] != "example.org" || public_url["port"] != 443 || public_url["path"] != "/x" || public_url["request_target"] != "/x" { fail(41) }
 
 print("module net_url_consumers_native OK")
 exit(0)

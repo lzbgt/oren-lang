@@ -68,6 +68,15 @@ fn _find_byte(s, start, want) {
     return -1
 }
 
+fn _find_byte_before(s, start, end, want) {
+    var i = start
+    while i < end {
+        if _byte_at(s, i) == want { return i }
+        i = i + 1
+    }
+    return -1
+}
+
 fn _path_query_end(s, start) {
     var hash = _find_byte(s, start, 35) // '#'
     if hash >= 0 { return hash }
@@ -77,6 +86,16 @@ fn _path_query_end(s, start) {
 fn _slice_or_empty(s, start, end) {
     if end < start { end = start }
     return oren_string_slice(s, start, end)
+}
+
+fn _path_from_url_suffix(url, start) {
+    var n = oren_string_len(url)
+    if start >= n { return oren_string_slice("/", 0, 1) }
+    var b = _byte_at(url, start)
+    if b == 47 { return oren_string_slice(url, start, n) } // '/'
+    var suffix = oren_string_slice(url, start, n)
+    if suffix == 0 { return 0 }
+    return _concat3("/", suffix, "")
 }
 
 fn _write_string(outp, off, s) {
@@ -401,54 +420,65 @@ fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
     }
 
     var ul = oren_string_len(url)
-    var slash = -1
+    var auth_end = -1
     var i = pos
     while i < ul {
-        if _byte_at(url, i) == 47 { slash = i; break } // '/'
+        var ab = _byte_at(url, i)
+        if ab == 47 || ab == 63 || ab == 35 { auth_end = i; break } // '/', '?', '#'
         i = i + 1
     }
-    if slash == -1 { slash = ul }
+    if auth_end == -1 { auth_end = ul }
+    if auth_end <= pos { return {"ok": 0, "err": "missing host"} }
+    if _find_byte_before(url, pos, auth_end, 64) >= 0 { return {"ok": 0, "err": "userinfo is not supported"} } // '@'
 
-    var colon = -1
-    i = pos
-    while i < slash {
-        if _byte_at(url, i) == 58 { colon = i; break } // ':'
-        i = i + 1
+    var host_start = pos
+    var host_end = auth_end
+    var port_start = -1
+
+    if _byte_at(url, pos) == 91 { // '['
+        var close = _find_byte_before(url, pos + 1, auth_end, 93) // ']'
+        if close < 0 { return {"ok": 0, "err": "unterminated IPv6 host"} }
+        if close <= pos + 1 { return {"ok": 0, "err": "missing host"} }
+        host_start = pos + 1
+        host_end = close
+        if close + 1 < auth_end {
+            if _byte_at(url, close + 1) != 58 { return {"ok": 0, "err": "invalid IPv6 authority"} }
+            port_start = close + 2
+            if port_start >= auth_end { return {"ok": 0, "err": "invalid port"} }
+        }
+    } else {
+        var colon = _find_byte_before(url, pos, auth_end, 58) // ':'
+        if colon >= 0 {
+            if _find_byte_before(url, colon + 1, auth_end, 58) >= 0 {
+                return {"ok": 0, "err": "IPv6 host must be bracketed"}
+            }
+            host_end = colon
+            port_start = colon + 1
+            if port_start >= auth_end { return {"ok": 0, "err": "invalid port"} }
+        }
     }
 
-    var host_end = slash
-    if colon != -1 { host_end = colon }
-    if host_end <= pos { return {"ok": 0, "err": "missing host"} }
+    if host_end <= host_start { return {"ok": 0, "err": "missing host"} }
 
-    var host = oren_string_slice(url, pos, host_end)
+    var host = oren_string_slice(url, host_start, host_end)
     if host == 0 { return {"ok": 0, "err": "host slice failed"} }
 
     var port = default_port_a
     if scheme == scheme_b { port = default_port_b }
-    if colon != -1 {
-        var port_s = oren_string_slice(url, colon + 1, slash)
+    if port_start != -1 {
+        var port_s = oren_string_slice(url, port_start, auth_end)
         if port_s == 0 {
             return {"ok": 0, "err": "port slice failed"}
         }
         var pv = _parse_positive_int(port_s)
-        if pv <= 0 {
+        if pv <= 0 || pv > 65535 {
             return {"ok": 0, "err": "invalid port"}
         }
         port = pv
     }
 
-    var path = nil
-    if slash < ul {
-        path = oren_string_slice(url, slash, ul)
-        if path == 0 {
-            return {"ok": 0, "err": "path slice failed"}
-        }
-    } else {
-        path = oren_string_slice("/", 0, 1)
-        if path == 0 {
-            return {"ok": 0, "err": "path alloc failed"}
-        }
-    }
+    var path = _path_from_url_suffix(url, auth_end)
+    if path == 0 { return {"ok": 0, "err": "path slice failed"} }
 
     var clean_path = path_part(path)
     if oren_is_err(clean_path) { return {"ok": 0, "err": "path parse failed"} }
@@ -456,8 +486,10 @@ fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
     if oren_is_err(query) { return {"ok": 0, "err": "query parse failed"} }
     var wire_target = request_target(path)
     if oren_is_err(wire_target) { return {"ok": 0, "err": "request-target parse failed"} }
+    var authority = oren_string_slice(url, pos, auth_end)
+    if authority == 0 { return {"ok": 0, "err": "authority slice failed"} }
 
-    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path, "path_only": clean_path, "query": query, "request_target": wire_target}
+    return {"ok": 1, "scheme": scheme, "host": host, "authority": authority, "port": port, "path": path, "path_only": clean_path, "query": query, "request_target": wire_target}
 }
 
 fn _err_from_record(r, fallback) {
@@ -477,7 +509,7 @@ fn parse_ws_record(url) {
 fn parse_http(url) {
     var r = parse_http_record(url)
     if r["ok"] == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
+        return {"scheme": r["scheme"], "host": r["host"], "authority": r["authority"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
     }
     return _err_from_record(r, "url.parse_http failed")
 }
@@ -485,7 +517,7 @@ fn parse_http(url) {
 fn parse_ws(url) {
     var r = parse_ws_record(url)
     if r["ok"] == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
+        return {"scheme": r["scheme"], "host": r["host"], "authority": r["authority"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
     }
     return _err_from_record(r, "url.parse_ws failed")
 }
@@ -493,11 +525,11 @@ fn parse_ws(url) {
 fn parse(url) {
     var h = parse_http_record(url)
     if h["ok"] == 1 {
-        return {"scheme": h["scheme"], "host": h["host"], "port": h["port"], "path": h["path"], "path_only": h["path_only"], "query": h["query"], "request_target": h["request_target"]}
+        return {"scheme": h["scheme"], "host": h["host"], "authority": h["authority"], "port": h["port"], "path": h["path"], "path_only": h["path_only"], "query": h["query"], "request_target": h["request_target"]}
     }
     var w = parse_ws_record(url)
     if w["ok"] == 1 {
-        return {"scheme": w["scheme"], "host": w["host"], "port": w["port"], "path": w["path"], "path_only": w["path_only"], "query": w["query"], "request_target": w["request_target"]}
+        return {"scheme": w["scheme"], "host": w["host"], "authority": w["authority"], "port": w["port"], "path": w["path"], "path_only": w["path_only"], "query": w["query"], "request_target": w["request_target"]}
     }
     return _err_from_record(h, "url.parse failed")
 }

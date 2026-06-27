@@ -303,10 +303,13 @@ Facts from the 2026-05-28 implementation pass:
 - `std:net/url` provides pure HTTP/WebSocket URL parsing shared by native
   `std:net/http`, native `std:net/ws`, and AVM-safe app code. It keeps parsing
   separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the
-  same endpoint interpretation across host and virtual NET providers; native and
-  AVM HTTP request opts route structured `query` / `append_query` pairs through
-  the shared request-target composer, while native wire requests and AVM
-  virtual-provider specs strip URL fragments at the NET boundary.
+  same endpoint interpretation across host and virtual NET providers; authority
+  parsing now handles query-only targets and bracketed IPv6 structure while
+  rejecting userinfo explicitly. Native and AVM HTTP request opts route
+  structured `query` / `append_query` pairs through the shared request-target
+  composer, native HTTP/WebSocket Host headers preserve parsed authority, and
+  native wire requests plus AVM virtual-provider specs strip URL fragments at
+  the NET boundary.
 - `std:path` provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and
   extension helpers. It deliberately stays separate from host filesystem APIs so
@@ -363,10 +366,11 @@ Facts from the 2026-05-28 implementation pass:
   `std:env` now names capability-gated environment reads with get/fallback,
   presence, require, and truthy helpers while leaving host ENV access, AVM
   record/replay, and capsule policy under runtime control.
-  `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing, path/query
-  splitting, percent encode/decode, query param get/list, and exact-size query
-  building/replacement/appending for native and AVM-safe NET code without opening
-  sockets or touching host network state.
+  `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing, authority
+  extraction, query-only request targets, bracketed-IPv6 structure, explicit
+  userinfo rejection, path/query splitting, percent encode/decode, query param
+  get/list, and exact-size query building/replacement/appending for native and
+  AVM-safe NET code without opening sockets or touching host network state.
   `std:path` now centralizes pure slash-path normalization, joining, containment,
   and traversal-safe `join_under` for VFS and package assets without touching
   host filesystem state.
@@ -538,10 +542,11 @@ Facts from the 2026-05-28 implementation pass:
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
   exact-size `u8_buf` builders and emits color hex digits through string slices,
   `std:net/avm/http` has request/response helpers, pure `std:net/url` shares
-  byte-level percent/query parsing and request-target composition across native
-  and AVM-safe code, and native/AVM HTTP request opts consume those structured
-  query builders while native wire requests and AVM virtual-provider specs strip
-  fragments at the NET boundary,
+  byte-level percent/query parsing, authority extraction, query-only target
+  handling, and request-target composition across native and AVM-safe code, and
+  native/AVM HTTP request opts consume those structured query builders while
+  native HTTP/WebSocket Host headers preserve parsed authority and native wire
+  requests plus AVM virtual-provider specs strip fragments at the NET boundary,
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`

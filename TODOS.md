@@ -41,12 +41,13 @@ design evidence lives under `project-doc/`.
 - `std:env` now provides app-facing capability-gated environment get/fallback,
   presence, require, and truthy helpers over the existing runtime ENV policy surface.
 - `std:net/url` now provides pure HTTP/WebSocket URL parsing, request-target
-  path/query splitting, percent encode/decode, query param get/list, and exact-size
+  path/query splitting, authority extraction, bracketed-IPv6 structure, explicit
+  userinfo rejection, percent encode/decode, query param get/list, and exact-size
   query building/replacement/appending shared by native `std:net/http`, native
   `std:net/ws`, and AVM-safe app code; native and AVM HTTP request opts now route
   structured `query` / `append_query` pairs through the same composer, while
-  native wire requests and AVM virtual-provider specs strip URL fragments at the
-  NET boundary.
+  native HTTP/WebSocket Host headers preserve parsed authority and native wire
+  requests plus AVM virtual-provider specs strip URL fragments at the NET boundary.
 - `std:path` now provides pure slash-separated VFS/package path split, normalize,
   join, boundary-checked `join_under`, containment, dirname, basename, and extension
   helpers shared by AVM and desktop SDK code.

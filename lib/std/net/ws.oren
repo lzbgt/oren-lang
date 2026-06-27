@@ -123,7 +123,7 @@ fn _parse_url_record(url) {
 fn parse_url(url) {
     var r = _parse_url_record(url)
     if oren_map_get_str(r, "ok") == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
+        return {"scheme": r["scheme"], "host": r["host"], "authority": r["authority"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"], "request_target": r["request_target"]}
     }
     return _err_from_record(r, "ws.parse_url failed")
 }
@@ -397,12 +397,14 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
     if pu["scheme"] == "wss" { is_tls = 1 }
 
     var host = pu["host"]
+    var authority = pu["authority"]
     var port = pu["port"]
     var path = pu["request_target"]
 
     var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
     if oren_map_get_str(rh, "ok") != 1 {
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: " + oren_map_get_str(rh, "err")}
     }
@@ -413,6 +415,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
     if owned_ip == 1 { free(ip) }
     if fd < 0 {
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
@@ -433,6 +436,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
             // Best-effort: ensure fd isn't leaked on providers that don't close on failure.
             tcp.close_raw(fd)
             free(host)
+            free(authority)
             free(path)
             return {"ok": 0, "err": "ws.connect: " + oren_err_msg(cr)}
         }
@@ -440,6 +444,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
         if tls_conn == 0 {
             tcp.close_raw(fd)
             free(host)
+            free(authority)
             free(path)
             return {"ok": 0, "err": "ws.connect: tls.wrap_client returned nil conn"}
         }
@@ -452,15 +457,14 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
     if oren_map_get_str(kr, "ok") != 1 {
         _io_close(conn)
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: " + oren_map_get_str(kr, "err")}
     }
     var key = oren_map_get_str(kr, "v")
-    var hostport = host + ":" + oren_int_to_string(port)
-    var req = "GET " + path + " HTTP/1.1\r\nHost: " + hostport +
+    var req = "GET " + path + " HTTP/1.1\r\nHost: " + authority +
               "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + key +
               "\r\nSec-WebSocket-Version: 13\r\n\r\n"
-    free(hostport)
 
     var wr = _io_write_from(conn, req, oren_string_len(req), timeout_ms)
     free(req)
@@ -468,6 +472,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
         _io_close(conn)
         free(key)
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: write failed (errno=" + oren_int_to_string(0 - wr) + ")"}
     }
@@ -477,6 +482,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
         _io_close(conn)
         free(key)
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: " + oren_map_get_str(hdr, "err")}
     }
@@ -488,6 +494,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
         _io_close(conn)
         free(key)
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: expected HTTP 101"}
     }
@@ -498,6 +505,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
         _io_close(conn)
         free(key)
         free(host)
+        free(authority)
         free(path)
         return {"ok": 0, "err": "ws.connect: missing Sec-WebSocket-Accept"}
     }
@@ -511,6 +519,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
     if ok != true {
         _io_close(conn)
         free(host)
+        free(authority)
         free(path)
         // Keep diagnostics short: base64 accept values are small (28 chars).
         var msg = "ws.connect: accept mismatch (got=" + got_accept + " want=" + want_accept + ")"
@@ -522,6 +531,7 @@ fn _connect_record(url, timeout_ms, resolver, opts) {
     free(got_accept)
     free(want_accept)
     free(host)
+    free(authority)
     free(path)
     return {"ok": 1, "conn": conn}
 }
