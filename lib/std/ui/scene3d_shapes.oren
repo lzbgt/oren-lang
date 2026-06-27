@@ -109,6 +109,106 @@ fn _xyz_point(v, label, ctx) {
     return v
 }
 
+fn _line_width(shape, label, ctx) {
+    var width = shape["width"]
+    if width == nil { width = shape["width_milli"] }
+    if width == nil { width = 1 }
+    if _is_int(width) == false || width <= 0 {
+        return oren_err(4, ctx + ": " + label + " width must be positive i32")
+    }
+    return width
+}
+
+fn _segment_point(seg, primary, fallback, label, ctx) {
+    var point = seg[primary]
+    if point == nil { point = seg[fallback] }
+    return _xy_pair(point, label, ctx)
+}
+
+fn _line_offset(dx, dy, width, axis, ctx) {
+    var len = math.sqrt(f64(dx) * f64(dx) + f64(dy) * f64(dy))
+    if oren_is_err(len) || len <= 0.0 { return oren_err(4, ctx + ": line segment must be nonzero") }
+    var scale = f64(width) * 0.5 / len
+    var v = (0.0 - f64(dy)) * scale
+    if axis == 1 { v = f64(dx) * scale }
+    var rounded = math.round(v)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _ramp_z(ramp, primary, fallback, label, ctx) {
+    var z = ramp[primary]
+    if z == nil { z = ramp[fallback] }
+    if _is_int(z) == false { return oren_err(4, ctx + ": " + label + " must be i32") }
+    return z
+}
+
+fn _ramps_xy_triangle_count(ramps, ctx) {
+    if ramps == nil { return oren_err(4, ctx + ": missing ramps_xy") }
+    var nr = oren_list_len(ramps)
+    if oren_is_err(nr) { return oren_err(4, ctx + ": ramps_xy must be list") }
+    var i = 0
+    while i < nr {
+        var ramp = ramps[i]
+        if ramp == nil { return oren_err(4, ctx + ": ramp must be object") }
+        var p0 = _segment_point(ramp, "from", "start", "ramp from", ctx)
+        if oren_is_err(p0) { return p0 }
+        var p1 = _segment_point(ramp, "to", "end", "ramp to", ctx)
+        if oren_is_err(p1) { return p1 }
+        if p0[0] == p1[0] && p0[1] == p1[1] { return oren_err(4, ctx + ": ramp must be nonzero") }
+        var width = _line_width(ramp, "ramp", ctx)
+        if oren_is_err(width) { return width }
+        var z0 = _ramp_z(ramp, "z_from", "start_z", "z_from", ctx)
+        if oren_is_err(z0) { return z0 }
+        var z1 = _ramp_z(ramp, "z_to", "end_z", "z_to", ctx)
+        if oren_is_err(z1) { return z1 }
+        var ox = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 0, ctx)
+        if oren_is_err(ox) { return ox }
+        var oy = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 1, ctx)
+        if oren_is_err(oy) { return oy }
+        if ox == 0 && oy == 0 { return oren_err(4, ctx + ": ramp width rounds to zero") }
+        i = i + 1
+    }
+    if nr * 2 > 4096 { return oren_err(4, ctx + ": ramps exceed mesh3d triangle budget") }
+    return nr * 2
+}
+
+fn pack_ramps_xy(ramps, ctx) {
+    var tri_count = _ramps_xy_triangle_count(ramps, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var i = 0
+    var nr = oren_list_len(ramps)
+    while i < nr {
+        var ramp = ramps[i]
+        var p0 = _segment_point(ramp, "from", "start", "ramp from", ctx)
+        var p1 = _segment_point(ramp, "to", "end", "ramp to", ctx)
+        var width = _line_width(ramp, "ramp", ctx)
+        var z0 = _ramp_z(ramp, "z_from", "start_z", "z_from", ctx)
+        var z1 = _ramp_z(ramp, "z_to", "end_z", "z_to", ctx)
+        var ox = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 0, ctx)
+        var oy = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 1, ctx)
+        var ax = p0[0] + ox
+        var ay = p0[1] + oy
+        var bx = p1[0] + ox
+        var by = p1[1] + oy
+        var cx = p1[0] - ox
+        var cy = p1[1] - oy
+        var dxp = p0[0] - ox
+        var dyp = p0[1] - oy
+        var rc = _store_triangle(out, off, ax, ay, z0, bx, by, z1, cx, cy, z1, ctx + ".ramp0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, ax, ay, z0, cx, cy, z1, dxp, dyp, z0, ctx + ".ramp1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        i = i + 1
+    }
+    return out
+}
+
 fn _wall_points(wall) {
     var points = wall["points"]
     if points == nil { points = wall["points_xy"] }
