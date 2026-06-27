@@ -109,6 +109,75 @@ fn _xyz_point(v, label, ctx) {
     return v
 }
 
+fn _wall_points(wall) {
+    var points = wall["points"]
+    if points == nil { points = wall["points_xy"] }
+    return points
+}
+
+fn _walls_xy_triangle_count(walls, ctx) {
+    if walls == nil { return oren_err(4, ctx + ": missing walls_xy") }
+    var nw = oren_list_len(walls)
+    if oren_is_err(nw) { return oren_err(4, ctx + ": walls_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < nw {
+        var wall = walls[i]
+        if wall == nil { return oren_err(4, ctx + ": wall must be object") }
+        var points = _wall_points(wall)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || n < 2 || n > 128 { return oren_err(4, ctx + ": wall points must contain 2..128 [x,y] entries") }
+        var z0 = _z(wall, "z_min", "min_z", ctx + ".z_min")
+        if oren_is_err(z0) { return z0 }
+        var z1 = _z(wall, "z_max", "max_z", ctx + ".z_max")
+        if oren_is_err(z1) { return z1 }
+        if z1 <= z0 { return oren_err(4, ctx + ": wall z_max must be greater than z_min") }
+        var j = 0
+        while j < n {
+            var rc = _xy_pair(points[j], "wall point", ctx)
+            if oren_is_err(rc) { return rc }
+            if j > 0 && points[j - 1][0] == points[j][0] && points[j - 1][1] == points[j][1] {
+                return oren_err(4, ctx + ": wall segment must be nonzero")
+            }
+            j = j + 1
+        }
+        total = total + (n - 1) * 2
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": walls exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_walls_xy(walls, ctx) {
+    var tri_count = _walls_xy_triangle_count(walls, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var wi = 0
+    var nw = oren_list_len(walls)
+    while wi < nw {
+        var wall = walls[wi]
+        var points = _wall_points(wall)
+        var z0 = _z(wall, "z_min", "min_z", ctx + ".z_min")
+        var z1 = _z(wall, "z_max", "max_z", ctx + ".z_max")
+        var i = 1
+        while i < oren_list_len(points) {
+            var p0 = points[i - 1]
+            var p1 = points[i]
+            var rc = _store_triangle(out, off, p0[0], p0[1], z0, p1[0], p1[1], z0, p1[0], p1[1], z1, ctx + ".wall0")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_triangle(out, off, p0[0], p0[1], z0, p1[0], p1[1], z1, p0[0], p0[1], z1, ctx + ".wall1")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            i = i + 1
+        }
+        wi = wi + 1
+    }
+    return out
+}
+
 fn _cylinders_triangle_count(cylinders, ctx) {
     if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
     var nc = oren_list_len(cylinders)
