@@ -808,6 +808,9 @@ fn _asset_mesh(m) {
         } else if m["ramps_xy"] != nil {
             tris = shapes.pack_ramps_xy(m["ramps_xy"], "ui.scene3d mesh.ramps_xy")
             transform_generated = true
+        } else if m["solid_ramps_xy"] != nil {
+            tris = shapes.pack_solid_ramps_xy(m["solid_ramps_xy"], "ui.scene3d mesh.solid_ramps_xy")
+            transform_generated = true
         } else if m["stairs_xy"] != nil {
             tris = shapes.pack_stairs_xy(m["stairs_xy"], "ui.scene3d mesh.stairs_xy")
             transform_generated = true
