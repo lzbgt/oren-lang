@@ -143,6 +143,14 @@ fn _ramp_z(ramp, primary, fallback, label, ctx) {
     return z
 }
 
+fn _interp_i32(a, b, step, steps, ctx) {
+    var rounded = math.round(f64(a) + (f64(b - a) * f64(step) / f64(steps)))
+    if oren_is_err(rounded) { return rounded }
+    var out = ints.i32(rounded)
+    if oren_is_err(out) { return oren_err(4, ctx + ": interpolated coordinate out of range") }
+    return out
+}
+
 fn _ramps_xy_triangle_count(ramps, ctx) {
     if ramps == nil { return oren_err(4, ctx + ": missing ramps_xy") }
     var nr = oren_list_len(ramps)
@@ -205,6 +213,113 @@ fn pack_ramps_xy(ramps, ctx) {
         if oren_is_err(rc) { return rc }
         off = off + 36
         i = i + 1
+    }
+    return out
+}
+
+fn _stairs_steps(stair, ctx) {
+    var steps = stair["steps"]
+    if steps == nil { steps = stair["count"] }
+    if _is_int(steps) == false || steps < 1 || steps > 128 {
+        return oren_err(4, ctx + ": stair steps must be 1..128")
+    }
+    return steps
+}
+
+fn _stairs_xy_triangle_count(stairs, ctx) {
+    if stairs == nil { return oren_err(4, ctx + ": missing stairs_xy") }
+    var ns = oren_list_len(stairs)
+    if oren_is_err(ns) { return oren_err(4, ctx + ": stairs_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < ns {
+        var stair = stairs[i]
+        if stair == nil { return oren_err(4, ctx + ": stair must be object") }
+        var p0 = _segment_point(stair, "from", "start", "stair from", ctx)
+        if oren_is_err(p0) { return p0 }
+        var p1 = _segment_point(stair, "to", "end", "stair to", ctx)
+        if oren_is_err(p1) { return p1 }
+        if p0[0] == p1[0] && p0[1] == p1[1] { return oren_err(4, ctx + ": stair run must be nonzero") }
+        var width = _line_width(stair, "stair", ctx)
+        if oren_is_err(width) { return width }
+        var z0 = _ramp_z(stair, "z_from", "start_z", "z_from", ctx)
+        if oren_is_err(z0) { return z0 }
+        var z1 = _ramp_z(stair, "z_to", "end_z", "z_to", ctx)
+        if oren_is_err(z1) { return z1 }
+        if z0 == z1 { return oren_err(4, ctx + ": stair z_to must differ from z_from") }
+        var steps = _stairs_steps(stair, ctx)
+        if oren_is_err(steps) { return steps }
+        var ox = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 0, ctx)
+        if oren_is_err(ox) { return ox }
+        var oy = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 1, ctx)
+        if oren_is_err(oy) { return oy }
+        if ox == 0 && oy == 0 { return oren_err(4, ctx + ": stair width rounds to zero") }
+        total = total + steps * 4
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": stairs exceed mesh3d triangle budget") }
+    return total
+}
+
+fn _store_stair_step(out, off, px0, py0, px1, py1, ox, oy, z0, z1, ctx) {
+    var lx0 = px0 + ox
+    var ly0 = py0 + oy
+    var rx0 = px0 - ox
+    var ry0 = py0 - oy
+    var lx1 = px1 + ox
+    var ly1 = py1 + oy
+    var rx1 = px1 - ox
+    var ry1 = py1 - oy
+    var rc = _store_triangle(out, off, lx0, ly0, z0, rx0, ry0, z0, rx0, ry0, z1, ctx + ".riser0")
+    if oren_is_err(rc) { return rc }
+    off = off + 36
+    rc = _store_triangle(out, off, lx0, ly0, z0, rx0, ry0, z1, lx0, ly0, z1, ctx + ".riser1")
+    if oren_is_err(rc) { return rc }
+    off = off + 36
+    rc = _store_triangle(out, off, lx0, ly0, z1, lx1, ly1, z1, rx1, ry1, z1, ctx + ".tread0")
+    if oren_is_err(rc) { return rc }
+    off = off + 36
+    return _store_triangle(out, off, lx0, ly0, z1, rx1, ry1, z1, rx0, ry0, z1, ctx + ".tread1")
+}
+
+fn pack_stairs_xy(stairs, ctx) {
+    var tri_count = _stairs_xy_triangle_count(stairs, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var si = 0
+    var ns = oren_list_len(stairs)
+    while si < ns {
+        var stair = stairs[si]
+        var p0 = _segment_point(stair, "from", "start", "stair from", ctx)
+        var p1 = _segment_point(stair, "to", "end", "stair to", ctx)
+        var width = _line_width(stair, "stair", ctx)
+        var z0 = _ramp_z(stair, "z_from", "start_z", "z_from", ctx)
+        var z1 = _ramp_z(stair, "z_to", "end_z", "z_to", ctx)
+        var steps = _stairs_steps(stair, ctx)
+        var ox = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 0, ctx)
+        var oy = _line_offset(p1[0] - p0[0], p1[1] - p0[1], width, 1, ctx)
+        var step = 1
+        while step <= steps {
+            var px0 = _interp_i32(p0[0], p1[0], step - 1, steps, ctx)
+            if oren_is_err(px0) { return px0 }
+            var py0 = _interp_i32(p0[1], p1[1], step - 1, steps, ctx)
+            if oren_is_err(py0) { return py0 }
+            var px1 = _interp_i32(p0[0], p1[0], step, steps, ctx)
+            if oren_is_err(px1) { return px1 }
+            var py1 = _interp_i32(p0[1], p1[1], step, steps, ctx)
+            if oren_is_err(py1) { return py1 }
+            var sz0 = _interp_i32(z0, z1, step - 1, steps, ctx)
+            if oren_is_err(sz0) { return sz0 }
+            var sz1 = _interp_i32(z0, z1, step, steps, ctx)
+            if oren_is_err(sz1) { return sz1 }
+            var rc = _store_stair_step(out, off, px0, py0, px1, py1, ox, oy, sz0, sz1, ctx + ".stair")
+            if oren_is_err(rc) { return rc }
+            off = off + 144
+            step = step + 1
+        }
+        si = si + 1
     }
     return out
 }
