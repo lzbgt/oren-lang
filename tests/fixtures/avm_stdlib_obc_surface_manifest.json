@@ -187,6 +187,8 @@
       "probes": [
         "var parsed_url = net_url.parse_http(\"https://example.com:8443/a\")",
         "if oren_is_err(parsed_url) || parsed_url[\"scheme\"] != \"https\" || parsed_url[\"host\"] != \"example.com\" || parsed_url[\"port\"] != 8443 || parsed_url[\"path\"] != \"/a\" { fail(107) }",
+        "if net_url.query_get(\"/search?q=hello+world&x=%2B\", \"q\") != \"hello world\" { fail(109) }",
+        "if net_url.build_query([[\"q\", \"hello world\"], [\"x\", \"+\"]]) != \"q=hello%20world&x=%2B\" { fail(110) }",
         "if !oren_is_err(net_url.parse_ws(\"http://example.com\")) { fail(108) }"
       ]
     },

@@ -456,8 +456,10 @@
 <p>  <code>std:env</code> now names capability-gated environment reads with get/fallback,</p>
 <p>  presence, require, and truthy helpers while leaving host ENV access, AVM</p>
 <p>  record/replay, and capsule policy under runtime control.</p>
-<p>  <code>std:net/url</code> now centralizes pure HTTP/WebSocket endpoint parsing for native</p>
-<p>  and AVM-safe NET code without opening sockets or touching host network state.</p>
+<p>  <code>std:net/url</code> now centralizes pure HTTP/WebSocket endpoint parsing, path/query</p>
+<p>  splitting, percent encode/decode, query param get/list, and exact-size query</p>
+<p>  building for native and AVM-safe NET code without opening sockets or touching</p>
+<p>  host network state.</p>
 <p>  <code>std:path</code> now centralizes pure slash-path normalization, joining, containment,</p>
 <p>  and traversal-safe <code>join_under</code> for VFS and package assets without touching</p>
 <p>  host filesystem state.</p>
@@ -638,7 +640,8 @@
 <p>  <code>std:ui/color</code> parses hex colors directly from ASCII string bytes,</p>
 <p>  <code>std:ui/scene3d</code> lowers coordinate/face/quad/color package assets through</p>
 <p>  exact-size <code>u8_buf</code> builders and emits color hex digits through string slices,</p>
-<p>  <code>std:net/avm/http</code> has request/response helpers,</p>
+<p>  <code>std:net/avm/http</code> has request/response helpers, pure <code>std:net/url</code> shares</p>
+<p>  byte-level percent/query handling across native and AVM-safe code,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
 <p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>

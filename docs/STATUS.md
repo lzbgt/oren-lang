@@ -360,8 +360,10 @@ Facts from the 2026-05-28 implementation pass:
   `std:env` now names capability-gated environment reads with get/fallback,
   presence, require, and truthy helpers while leaving host ENV access, AVM
   record/replay, and capsule policy under runtime control.
-  `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing for native
-  and AVM-safe NET code without opening sockets or touching host network state.
+  `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing, path/query
+  splitting, percent encode/decode, query param get/list, and exact-size query
+  building for native and AVM-safe NET code without opening sockets or touching
+  host network state.
   `std:path` now centralizes pure slash-path normalization, joining, containment,
   and traversal-safe `join_under` for VFS and package assets without touching
   host filesystem state.
@@ -532,7 +534,8 @@ Facts from the 2026-05-28 implementation pass:
   `std:ui/color` parses hex colors directly from ASCII string bytes,
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
   exact-size `u8_buf` builders and emits color hex digits through string slices,
-  `std:net/avm/http` has request/response helpers,
+  `std:net/avm/http` has request/response helpers, pure `std:net/url` shares
+  byte-level percent/query handling across native and AVM-safe code,
   native `std:net/http` caches typed response body bytes for `.bytes()` on
   content-length and chunked responses, `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`

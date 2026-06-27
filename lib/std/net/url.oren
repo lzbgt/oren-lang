@@ -4,6 +4,8 @@
 // does not perform DNS, socket, TLS, or host I/O; callers decide which runtime
 // capability backend handles the parsed endpoint.
 
+import raw "std:buffer/raw"
+
 fn _byte_at(s, i) {
     return oren_string_byte_at_unchecked(s, i) & 255
 }
@@ -35,6 +37,252 @@ fn _parse_positive_int(s) {
     }
     if acc <= 0 { return -1 }
     return acc
+}
+
+fn _hex_value(b) {
+    if b >= 48 && b <= 57 { return b - 48 }
+    if b >= 65 && b <= 70 { return b - 55 }
+    if b >= 97 && b <= 102 { return b - 87 }
+    return -1
+}
+
+fn _hex_digit(n) {
+    return oren_string_byte_at_unchecked("0123456789ABCDEF", n & 15) & 255
+}
+
+fn _is_unreserved(b) {
+    if b >= 48 && b <= 57 { return true }
+    if b >= 65 && b <= 90 { return true }
+    if b >= 97 && b <= 122 { return true }
+    if b == 45 || b == 46 || b == 95 || b == 126 { return true } // - . _ ~
+    return false
+}
+
+fn _find_byte(s, start, want) {
+    var n = oren_string_len(s)
+    var i = start
+    while i < n {
+        if _byte_at(s, i) == want { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn _path_query_end(s, start) {
+    var hash = _find_byte(s, start, 35) // '#'
+    if hash >= 0 { return hash }
+    return oren_string_len(s)
+}
+
+fn _slice_or_empty(s, start, end) {
+    if end < start { end = start }
+    return oren_string_slice(s, start, end)
+}
+
+fn path_part(target) {
+    if target == nil { return oren_err(4, "url.path_part: target is nil") }
+    var end = _path_query_end(target, 0)
+    var q = _find_byte(target, 0, 63) // '?'
+    if q >= 0 && q < end { end = q }
+    if end == 0 { return "/" }
+    return _slice_or_empty(target, 0, end)
+}
+
+fn query_part(target) {
+    if target == nil { return oren_err(4, "url.query_part: target is nil") }
+    var end = _path_query_end(target, 0)
+    var q = _find_byte(target, 0, 63) // '?'
+    if q < 0 || q >= end { return "" }
+    return _slice_or_empty(target, q + 1, end)
+}
+
+fn encode_component(s) {
+    if oren_type_tag(s) != 4 { return oren_err(4, "url.encode_component: s must be string") }
+    var n = oren_string_len(s)
+    var extra = 0
+    var i = 0
+    while i < n {
+        if _is_unreserved(_byte_at(s, i)) == false { extra = extra + 2 }
+        i = i + 1
+    }
+    if extra == 0 { return s }
+    var out = raw.u8_new_uninit(n + extra)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    var j = 0
+    i = 0
+    while i < n {
+        var b = _byte_at(s, i)
+        if _is_unreserved(b) {
+            ptr_set_byte(p + j, b)
+            j = j + 1
+        } else {
+            ptr_set_byte(p + j, 37) // '%'
+            ptr_set_byte(p + j + 1, _hex_digit((b >> 4) & 15))
+            ptr_set_byte(p + j + 2, _hex_digit(b & 15))
+            j = j + 3
+        }
+        i = i + 1
+    }
+    return oren_string_from_bytes_slice(out, 0, n + extra)
+}
+
+fn _decode_component(s, plus_as_space, ctx) {
+    if oren_type_tag(s) != 4 { return oren_err(4, ctx + ": s must be string") }
+    var n = oren_string_len(s)
+    var out_n = 0
+    var i = 0
+    while i < n {
+        var b = _byte_at(s, i)
+        if b == 37 {
+            if i + 2 >= n { return oren_err(4, ctx + ": truncated percent escape") }
+            var hi = _hex_value(_byte_at(s, i + 1))
+            var lo = _hex_value(_byte_at(s, i + 2))
+            if hi < 0 || lo < 0 { return oren_err(4, ctx + ": invalid percent escape") }
+            i = i + 3
+        } else {
+            i = i + 1
+        }
+        out_n = out_n + 1
+    }
+    if out_n == n && plus_as_space == false { return s }
+    var out = raw.u8_new_uninit(out_n)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    var j = 0
+    i = 0
+    while i < n {
+        var b2 = _byte_at(s, i)
+        if b2 == 37 {
+            var hi2 = _hex_value(_byte_at(s, i + 1))
+            var lo2 = _hex_value(_byte_at(s, i + 2))
+            ptr_set_byte(p + j, ((hi2 << 4) | lo2) & 255)
+            i = i + 3
+        } else {
+            if plus_as_space && b2 == 43 { b2 = 32 }
+            ptr_set_byte(p + j, b2)
+            i = i + 1
+        }
+        j = j + 1
+    }
+    return oren_string_from_bytes_slice(out, 0, out_n)
+}
+
+fn decode_component(s) {
+    return _decode_component(s, false, "url.decode_component")
+}
+
+fn decode_query_component(s) {
+    return _decode_component(s, true, "url.decode_query_component")
+}
+
+fn query_params(target) {
+    var q = query_part(target)
+    if oren_is_err(q) { return q }
+    var n = oren_string_len(q)
+    var out = []
+    var start = 0
+    while start <= n {
+        var amp = start
+        while amp < n && _byte_at(q, amp) != 38 { amp = amp + 1 } // '&'
+        if amp > start {
+            var eq = start
+            while eq < amp && _byte_at(q, eq) != 61 { eq = eq + 1 } // '='
+            var raw_k = _slice_or_empty(q, start, eq)
+            var raw_v = ""
+            if eq < amp { raw_v = _slice_or_empty(q, eq + 1, amp) }
+            var k = decode_query_component(raw_k)
+            if oren_is_err(k) { return k }
+            var v = decode_query_component(raw_v)
+            if oren_is_err(v) { return v }
+            oren_list_push(out, [k, v])
+        }
+        if amp >= n { break }
+        start = amp + 1
+    }
+    return out
+}
+
+fn query_get(target, name) {
+    var ps = query_params(target)
+    if oren_is_err(ps) { return ps }
+    var n = oren_list_len(ps)
+    var i = 0
+    while i < n {
+        var p = ps[i]
+        if p[0] == name { return p[1] }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _encoded_len(s) {
+    if oren_type_tag(s) != 4 { return oren_err(4, "url.build_query: pair values must be strings") }
+    var n = oren_string_len(s)
+    var out = 0
+    var i = 0
+    while i < n {
+        if _is_unreserved(_byte_at(s, i)) { out = out + 1 } else { out = out + 3 }
+        i = i + 1
+    }
+    return out
+}
+
+fn _write_encoded(outp, off, s) {
+    var n = oren_string_len(s)
+    var j = off
+    var i = 0
+    while i < n {
+        var b = _byte_at(s, i)
+        if _is_unreserved(b) {
+            ptr_set_byte(outp + j, b)
+            j = j + 1
+        } else {
+            ptr_set_byte(outp + j, 37)
+            ptr_set_byte(outp + j + 1, _hex_digit((b >> 4) & 15))
+            ptr_set_byte(outp + j + 2, _hex_digit(b & 15))
+            j = j + 3
+        }
+        i = i + 1
+    }
+    return j
+}
+
+fn build_query(pairs) {
+    if oren_type_tag(pairs) != 6 { return oren_err(4, "url.build_query: pairs must be list") }
+    var n = oren_list_len(pairs)
+    var total = 0
+    var i = 0
+    while i < n {
+        var p = pairs[i]
+        if oren_type_tag(p) != 6 || oren_list_len(p) < 2 { return oren_err(4, "url.build_query: each pair must be [key, value]") }
+        var kl = _encoded_len(p[0])
+        if oren_is_err(kl) { return kl }
+        var vl = _encoded_len(p[1])
+        if oren_is_err(vl) { return vl }
+        total = total + kl + 1 + vl
+        if i > 0 { total = total + 1 }
+        i = i + 1
+    }
+    if total == 0 { return "" }
+    var out = raw.u8_new_uninit(total)
+    if oren_is_err(out) { return out }
+    var outp = oren_buf_data_ptr_unchecked(out)
+    var j = 0
+    i = 0
+    while i < n {
+        if i > 0 {
+            ptr_set_byte(outp + j, 38) // '&'
+            j = j + 1
+        }
+        var pair = pairs[i]
+        j = _write_encoded(outp, j, pair[0])
+        ptr_set_byte(outp + j, 61) // '='
+        j = j + 1
+        j = _write_encoded(outp, j, pair[1])
+        i = i + 1
+    }
+    return oren_string_from_bytes_slice(out, 0, total)
 }
 
 fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
@@ -104,7 +352,12 @@ fn _parse_two_schemes(url, scheme_a, default_port_a, scheme_b, default_port_b) {
         }
     }
 
-    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
+    var clean_path = path_part(path)
+    if oren_is_err(clean_path) { return {"ok": 0, "err": "path parse failed"} }
+    var query = query_part(path)
+    if oren_is_err(query) { return {"ok": 0, "err": "query parse failed"} }
+
+    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path, "path_only": clean_path, "query": query}
 }
 
 fn _err_from_record(r, fallback) {
@@ -124,7 +377,7 @@ fn parse_ws_record(url) {
 fn parse_http(url) {
     var r = parse_http_record(url)
     if r["ok"] == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"]}
     }
     return _err_from_record(r, "url.parse_http failed")
 }
@@ -132,7 +385,7 @@ fn parse_http(url) {
 fn parse_ws(url) {
     var r = parse_ws_record(url)
     if r["ok"] == 1 {
-        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"], "path_only": r["path_only"], "query": r["query"]}
     }
     return _err_from_record(r, "url.parse_ws failed")
 }
@@ -140,11 +393,11 @@ fn parse_ws(url) {
 fn parse(url) {
     var h = parse_http_record(url)
     if h["ok"] == 1 {
-        return {"scheme": h["scheme"], "host": h["host"], "port": h["port"], "path": h["path"]}
+        return {"scheme": h["scheme"], "host": h["host"], "port": h["port"], "path": h["path"], "path_only": h["path_only"], "query": h["query"]}
     }
     var w = parse_ws_record(url)
     if w["ok"] == 1 {
-        return {"scheme": w["scheme"], "host": w["host"], "port": w["port"], "path": w["path"]}
+        return {"scheme": w["scheme"], "host": w["host"], "port": w["port"], "path": w["path"], "path_only": w["path_only"], "query": w["query"]}
     }
     return _err_from_record(h, "url.parse failed")
 }
