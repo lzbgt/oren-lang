@@ -602,6 +602,56 @@ fn main() {
     assert_eq(_px(polygon_buf, 4, 2, 1, 1), 204)
     assert_eq(_px(polygon_buf, 4, 2, 1, 2), 68)
 
+    var from_discs = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 145,
+                "discs_xy": [
+                    {"center": [2, 2], "radius": 1, "z": 1, "segments": 4}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#4488cc"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 145}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_discs) == false)
+    assert_eq(from_discs[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_discs[0]["triangles"]), 144)
+    assert_eq(_i32_at(from_discs[0]["triangles"], 0), 3)
+    assert_eq(_i32_at(from_discs[0]["triangles"], 4), 2)
+    assert_eq(_i32_at(from_discs[0]["triangles"], 8), 6)
+    assert_true(ui_cmds.validate(from_discs, 6, 6, {"strict_bounds": true}) == 0)
+    var disc_buf = ui_raster.rasterize(from_discs, 6, 6, {"strict_bounds": true})
+    assert_true(oren_is_err(disc_buf) == false)
+    assert_eq(_px(disc_buf, 6, 3, 2, 0), 68)
+    assert_eq(_px(disc_buf, 6, 3, 2, 1), 136)
+    assert_eq(_px(disc_buf, 6, 3, 2, 2), 204)
+
+    var from_rings = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 146,
+                "rings_xy": [
+                    {"center": [3, 3], "inner_radius": 1, "outer_radius": 2, "z": 1, "segments": 4}
+                ],
+                "color": "#cc8844"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 146}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_rings) == false)
+    assert_eq(from_rings[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_rings[0]["triangles"]), 288)
+    assert_eq(_i32_at(from_rings[0]["triangles"], 0), 5)
+    assert_eq(_i32_at(from_rings[0]["triangles"], 4), 3)
+    assert_eq(_i32_at(from_rings[0]["triangles"], 8), 1)
+    assert_true(ui_cmds.validate(from_rings, 7, 7, {"strict_bounds": true}) == 0)
+
     var from_cylinders = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -955,6 +1005,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"surfaces_xyz\":[{\"vertices\":[[[0,0,0],[1,0,0]],[[0,1,0]]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"planes_xy\":[{\"origin\":[0,0,0],\"size\":[0,1]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"polygons_xy\":[{\"points\":[[0,0],[1,0]]}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"discs_xy\":[{\"center\":[0,0],\"radius\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"rings_xy\":[{\"center\":[0,0],\"inner_radius\":1,\"outer_radius\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cylinders_z\":[{\"center\":[0,0],\"radius\":1,\"z_min\":0,\"z_max\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cones_z\":[{\"center\":[0,0],\"radius\":0,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"spheres_xyz\":[{\"center\":[0,0,0],\"radius\":1,\"segments\":4,\"rings\":1}],\"color\":\"#ffffff\"}]}")) == true)
