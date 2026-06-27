@@ -59,6 +59,10 @@ var s1 = math.sin(x)
 if oren_is_err(s1) { fail(31, "sin returned err") }
 var c1 = math.cos(x)
 if oren_is_err(c1) { fail(32, "cos returned err") }
+var sc1 = math.sincos(x)
+if oren_is_err(sc1) { fail(300, "sincos returned err") }
+assert_close(sc1[0], s1, 0.0, 301, "sincos sin matches")
+assert_close(sc1[1], c1, 0.0, 302, "sincos cos matches")
 var s2 = math.sin(xp)
 if oren_is_err(s2) { fail(33, "sin x+tau returned err") }
 var c2 = math.cos(xp)
@@ -87,6 +91,10 @@ var hs2 = math.sin(huge_next)
 if oren_is_err(hs2) { fail(43, "huge sin x+tau returned err") }
 var hc1 = math.cos(huge)
 if oren_is_err(hc1) { fail(44, "huge cos returned err") }
+var hsc = math.sincos(huge)
+if oren_is_err(hsc) { fail(303, "huge sincos returned err") }
+assert_close(hsc[0], hs1, 0.0, 304, "huge sincos sin matches")
+assert_close(hsc[1], hc1, 0.0, 305, "huge sincos cos matches")
 var hc2 = math.cos(huge_next)
 if oren_is_err(hc2) { fail(45, "huge cos x+tau returned err") }
 assert_close(hs1, hs2, 1e-4, 46, "huge sin periodicity")
@@ -100,6 +108,7 @@ assert_close(hcn, hc1, 1e-8, 51, "huge cos even symmetry")
 
 assert_true(oren_is_err(math.sin(math.inf())), 60, "sin(inf) must err")
 assert_true(oren_is_err(math.cos(math.inf())), 61, "cos(inf) must err")
+assert_true(oren_is_err(math.sincos(math.inf())), 69, "sincos(inf) must err")
 assert_true(oren_is_err(math.atan(0.0 / 0.0)), 62, "atan(NaN) must err")
 assert_true(oren_is_err(math.tan(math.inf())), 63, "tan(inf) must err")
 assert_true(oren_is_err(math.tan(0.0 / 0.0)), 64, "tan(NaN) must err")

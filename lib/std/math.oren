@@ -1547,6 +1547,14 @@ fn cos(x: f64) {
     return sr
 }
 
+fn sincos(x: f64) {
+    var s = sin(x)
+    if oren_is_err(s) { return s }
+    var c = cos(x)
+    if oren_is_err(c) { return c }
+    return [s, c]
+}
+
 fn tan(x: f64) {
     if is_nan(x) { return oren_err(4, "tan: NaN") }
     if is_inf(x) { return oren_err(4, "tan: inf") }

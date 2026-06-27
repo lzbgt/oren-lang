@@ -1631,6 +1631,19 @@ run_step_checked "math inverse trig smoke (bytecode)" "$math_inverse_trig_log" \
   "$compiler" test "$math_inverse_trig_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_inverse_trig_log"
 
+echo "== math huge trig smoke (native/C/bytecode) =="
+math_trig_huge_src="tests/modules/test_math_trig_huge.oren"
+math_trig_huge_log="build/logs/${compiler_base}_math_trig_huge.log"
+rm -f "$math_trig_huge_log" 2>/dev/null || true
+
+run_step_checked "math huge trig smoke (native)" "$math_trig_huge_log" \
+  "$compiler" test "$math_trig_huge_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math huge trig smoke (C)" "$math_trig_huge_log" \
+  "$compiler" test "$math_trig_huge_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math huge trig smoke (bytecode)" "$math_trig_huge_log" \
+  "$compiler" test "$math_trig_huge_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_trig_huge_log"
+
 echo "== math hyperbolic smoke (native/C/bytecode) =="
 math_hyperbolic_src="tests/modules/test_math_hyperbolic.oren"
 math_hyperbolic_log="build/logs/${compiler_base}_math_hyperbolic.log"

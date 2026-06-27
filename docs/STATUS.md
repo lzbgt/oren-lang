@@ -765,7 +765,7 @@ Working evidence:
   `cbrt`, `hypot`, `hypot3`, `powi`, `pow`, `power`, `pow2i`,
   `ldexp`, `frexp`, `scalbn`, `scalbln`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,
-  `tan`, `atan`, `atan2`, `asin`, `acos`, `erf`, and `erfc`.
+  `sincos`, `tan`, `atan`, `atan2`, `asin`, `acos`, `erf`, and `erfc`.
 - `pow` / `power` cover the app-visible cases `power(2,-1)` and
   `power(2,4.3)` through deterministic integer-exponent and
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
@@ -781,11 +781,11 @@ Working evidence:
   pow, `modf`, `frexp`/`ldexp`/`scalbn` decomposition and scaling, `cbrt`, `hypot`/`hypot3`,
   exp/log/log2/log10, cancellation-aware `expm1`/`log1p`, hyperbolic
   `sinh`/`cosh`/`tanh`, and inverse hyperbolic `asinh`/`acosh`/`atanh`,
-  approximate real-valued error functions `erf`/`erfc`, finite sin/cos/tan reduction, quadrant `atan2`,
+  approximate real-valued error functions `erf`/`erfc`, finite sin/cos/sincos/tan reduction, quadrant `atan2`,
   inverse-trig `asin`/`acos`, and
   non-finite error behavior in bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity
-  vector and is release-gated in AVM. The earlier 2^53 assertion was invalid:
+  vector and is release-gated in AVM plus native quick. The earlier 2^53 assertion was invalid:
   at that magnitude `x + tau` rounds to `x + 6`, not `x + 2pi`, so it tested
   floating-point addition granularity rather than trig periodicity.
 

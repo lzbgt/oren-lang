@@ -32,6 +32,10 @@ var s1 = math.sin(x)
 if oren_is_err(s1) { fail(11, "sin(x) returned Err for huge x") }
 var c1 = math.cos(x)
 if oren_is_err(c1) { fail(12, "cos(x) returned Err for huge x") }
+var sc1 = math.sincos(x)
+if oren_is_err(sc1) { fail(15, "sincos(x) returned Err for huge x") }
+assert_close(sc1[0], s1, 0.0, 16, "sincos huge sin")
+assert_close(sc1[1], c1, 0.0, 17, "sincos huge cos")
 
 var s2 = math.sin(xp)
 if oren_is_err(s2) { fail(13, "sin(x+tau) returned Err for huge x") }
@@ -52,6 +56,12 @@ assert_close(sn, 0.0 - s1, 1e-8, 31, "sin odd symmetry failed")
 var cn = math.cos(0.0 - x)
 if oren_is_err(cn) { fail(32, "cos(-x) returned Err") }
 assert_close(cn, c1, 1e-8, 33, "cos even symmetry failed")
+
+var sc_q = math.sincos(TAU / 4.0)
+if oren_is_err(sc_q) { fail(40, "sincos(tau/4) returned Err") }
+assert_close(sc_q[0], 1.0, 1e-10, 41, "sincos quarter-turn sin")
+assert_close(sc_q[1], 0.0, 1e-10, 42, "sincos quarter-turn cos")
+assert_true(oren_is_err(math.sincos(math.inf())), 43, "sincos(inf) must err")
 
 print("module math_trig_huge OK")
 exit(0)
