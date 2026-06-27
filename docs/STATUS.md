@@ -305,8 +305,10 @@ Facts from the 2026-05-28 implementation pass:
   separate from DNS, socket, TLS, and host-network policy so SDKs can reuse the
   same endpoint interpretation across host and virtual NET providers; authority
   parsing now handles query-only targets and bracketed IPv6 structure while
-  rejecting userinfo explicitly. Native and AVM HTTP request opts route
-  structured `query` / `append_query` pairs through the shared request-target
+  rejecting userinfo explicitly, and canonical origin/same-origin helpers
+  normalize host case plus default ports for SDK allow-list checks. Native and
+  AVM HTTP request opts route structured `query` / `append_query` pairs through
+  the shared request-target
   composer, native HTTP/WebSocket Host headers preserve parsed authority, and
   native wire requests plus AVM virtual-provider specs strip URL fragments at
   the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals
@@ -369,9 +371,10 @@ Facts from the 2026-05-28 implementation pass:
   record/replay, and capsule policy under runtime control.
   `std:net/url` now centralizes pure HTTP/WebSocket endpoint parsing, authority
   extraction, query-only request targets, bracketed-IPv6 structure, explicit
-  userinfo rejection, path/query splitting, percent encode/decode, query param
-  get/list, and exact-size query building/replacement/appending for native and
-  AVM-safe NET code without opening sockets or touching host network state.
+  userinfo rejection, canonical origin/same-origin helpers, path/query splitting,
+  percent encode/decode, query param get/list, and exact-size query
+  building/replacement/appending for native and AVM-safe NET code without
+  opening sockets or touching host network state.
   Native IPv4/DNS-A connectors fail fast on IPv6 literals until an IPv6-capable
   connector is added.
   `std:path` now centralizes pure slash-path normalization, joining, containment,
@@ -546,8 +549,9 @@ Facts from the 2026-05-28 implementation pass:
   exact-size `u8_buf` builders and emits color hex digits through string slices,
   `std:net/avm/http` has request/response helpers, pure `std:net/url` shares
   byte-level percent/query parsing, authority extraction, query-only target
-  handling, and request-target composition across native and AVM-safe code, and
-  native/AVM HTTP request opts consume those structured query builders while
+  handling, canonical origin comparison, and request-target composition across
+  native and AVM-safe code, and native/AVM HTTP request opts consume those
+  structured query builders while
   native HTTP/WebSocket Host headers preserve parsed authority and native wire
   requests plus AVM virtual-provider specs strip fragments at the NET boundary,
   with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,

@@ -42,10 +42,11 @@ design evidence lives under `project-doc/`.
   presence, require, and truthy helpers over the existing runtime ENV policy surface.
 - `std:net/url` now provides pure HTTP/WebSocket URL parsing, request-target
   path/query splitting, authority extraction, bracketed-IPv6 structure, explicit
-  userinfo rejection, percent encode/decode, query param get/list, and exact-size
-  query building/replacement/appending shared by native `std:net/http`, native
-  `std:net/ws`, and AVM-safe app code; native and AVM HTTP request opts now route
-  structured `query` / `append_query` pairs through the same composer, while
+  userinfo rejection, canonical origin/same-origin helpers, percent encode/decode,
+  query param get/list, and exact-size query building/replacement/appending shared
+  by native `std:net/http`, native `std:net/ws`, and AVM-safe app code; native
+  and AVM HTTP request opts now route structured `query` / `append_query` pairs
+  through the same composer, while
   native HTTP/WebSocket Host headers preserve parsed authority and native wire
   requests plus AVM virtual-provider specs strip URL fragments at the NET boundary.
   Native IPv4/DNS-A connectors now reject IPv6 literals explicitly instead of

@@ -61,6 +61,13 @@ if neturl.with_query("/search?old=1#frag", [["q", "hello world"]]) != "/search?q
 if neturl.with_query("/search?old=1#frag", []) != "/search#frag" { fail(69) }
 if neturl.append_query("/search?old=1#frag", [["q", "hello world"]]) != "/search?old=1&q=hello%20world#frag" { fail(74) }
 if neturl.append_query("/search?#frag", [["q", "x"]]) != "/search?q=x#frag" { fail(75) }
+if neturl.origin("https://EXAMPLE.com:443/a?x=1#frag") != "https://example.com" { fail(80) }
+if neturl.origin("http://example.com:8080/a") != "http://example.com:8080" { fail(81) }
+if neturl.origin("ws://[2001:DB8::1]:9000/chat") != "ws://[2001:db8::1]:9000" { fail(82) }
+if neturl.same_origin("https://example.com/a", "https://EXAMPLE.com:443/b?x=1") != true { fail(83) }
+if neturl.same_origin("https://example.com", "http://example.com") != false { fail(84) }
+if neturl.same_origin("wss://[::1]/a", "wss://[::1]:443/b") != true { fail(85) }
+if !oren_is_err(neturl.origin("ftp://example.com")) { fail(86) }
 
 if !oren_is_err(neturl.parse_http("ftp://example.com")) { fail(70) }
 if !oren_is_err(neturl.parse_ws("http://example.com")) { fail(71) }

@@ -138,6 +138,58 @@ fn _concat5(a, b, c, d, e) {
     return oren_string_from_bytes_slice(out, 0, na + nb + nc + nd + ne)
 }
 
+fn _lower_ascii(s) {
+    var n = oren_string_len(s)
+    var changed = 0
+    var i = 0
+    while i < n {
+        var b = _byte_at(s, i)
+        if b >= 65 && b <= 90 { changed = 1; break }
+        i = i + 1
+    }
+    if changed == 0 { return s }
+    var out = raw.u8_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    i = 0
+    while i < n {
+        var b2 = _byte_at(s, i)
+        if b2 >= 65 && b2 <= 90 { b2 = b2 + 32 }
+        ptr_set_byte(p + i, b2)
+        i = i + 1
+    }
+    return oren_string_from_bytes_slice(out, 0, n)
+}
+
+fn _has_colon(s) {
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        if _byte_at(s, i) == 58 { return 1 } // ':'
+        i = i + 1
+    }
+    return 0
+}
+
+fn _default_port_for_scheme(scheme) {
+    if scheme == "https" || scheme == "wss" { return 443 }
+    return 80
+}
+
+fn _origin_from_parts(scheme, host, port) {
+    var host_l = _lower_ascii(host)
+    if oren_is_err(host_l) { return host_l }
+    var prefix = scheme + "://"
+    var port_s = ""
+    if port != _default_port_for_scheme(scheme) {
+        port_s = ":" + oren_int_to_string(port)
+    }
+    if _has_colon(host_l) == 1 {
+        return _concat5(prefix, "[", host_l, "]", port_s)
+    }
+    return _concat3(prefix, host_l, port_s)
+}
+
 fn path_part(target) {
     if target == nil { return oren_err(4, "url.path_part: target is nil") }
     var end = _path_query_end(target, 0)
@@ -532,4 +584,18 @@ fn parse(url) {
         return {"scheme": w["scheme"], "host": w["host"], "authority": w["authority"], "port": w["port"], "path": w["path"], "path_only": w["path_only"], "query": w["query"], "request_target": w["request_target"]}
     }
     return _err_from_record(h, "url.parse failed")
+}
+
+fn origin(url) {
+    var r = parse(url)
+    if oren_is_err(r) { return r }
+    return _origin_from_parts(r["scheme"], r["host"], r["port"])
+}
+
+fn same_origin(a, b) {
+    var oa = origin(a)
+    if oren_is_err(oa) { return oa }
+    var ob = origin(b)
+    if oren_is_err(ob) { return ob }
+    return oa == ob
 }
