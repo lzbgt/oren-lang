@@ -828,6 +828,123 @@ fn pack_paths_xy(paths, ctx) {
     return out
 }
 
+fn _bezier_points(curve) {
+    var points = curve["points"]
+    if points == nil { points = curve["points_xy"] }
+    return points
+}
+
+fn _bezier_segments(curve, ctx) {
+    var segments = curve["segments"]
+    if segments == nil { segments = 16 }
+    if _is_int(segments) == false || segments < 1 || segments > 96 {
+        return oren_err(4, ctx + ": bezier segments must be 1..96")
+    }
+    return segments
+}
+
+fn _bezier_axis(points, step, segments, axis) {
+    var n = oren_list_len(points)
+    var t = f64(step) / f64(segments)
+    var mt = 1.0 - t
+    var v = 0.0
+    if n == 3 {
+        v = mt * mt * f64(points[0][axis]) +
+            2.0 * mt * t * f64(points[1][axis]) +
+            t * t * f64(points[2][axis])
+    } else {
+        v = mt * mt * mt * f64(points[0][axis]) +
+            3.0 * mt * mt * t * f64(points[1][axis]) +
+            3.0 * mt * t * t * f64(points[2][axis]) +
+            t * t * t * f64(points[3][axis])
+    }
+    var rounded = math.round(v)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _beziers_xy_triangle_count(curves, ctx) {
+    if curves == nil { return oren_err(4, ctx + ": missing beziers_xy") }
+    var nc = oren_list_len(curves)
+    if oren_is_err(nc) { return oren_err(4, ctx + ": beziers_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < nc {
+        var curve = curves[i]
+        if curve == nil { return oren_err(4, ctx + ": bezier must be object") }
+        var points = _bezier_points(curve)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || (n != 3 && n != 4) { return oren_err(4, ctx + ": bezier points must contain 3 or 4 [x,y] entries") }
+        var width = _line_width(curve, "bezier", ctx)
+        if oren_is_err(width) { return width }
+        var z = _flat_z(curve, "bezier", ctx)
+        if oren_is_err(z) { return z }
+        var segments = _bezier_segments(curve, ctx)
+        if oren_is_err(segments) { return segments }
+        var j = 0
+        while j < n {
+            var rc = _xy_pair(points[j], "bezier point", ctx)
+            if oren_is_err(rc) { return rc }
+            j = j + 1
+        }
+        var px = _bezier_axis(points, 0, segments, 0)
+        if oren_is_err(px) { return px }
+        var py = _bezier_axis(points, 0, segments, 1)
+        if oren_is_err(py) { return py }
+        j = 1
+        while j <= segments {
+            var x = _bezier_axis(points, j, segments, 0)
+            if oren_is_err(x) { return x }
+            var y = _bezier_axis(points, j, segments, 1)
+            if oren_is_err(y) { return y }
+            if x == px && y == py { return oren_err(4, ctx + ": bezier segment must be nonzero") }
+            px = x
+            py = y
+            j = j + 1
+        }
+        total = total + segments * 2
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": beziers exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_beziers_xy(curves, ctx) {
+    var tri_count = _beziers_xy_triangle_count(curves, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ci = 0
+    var nc = oren_list_len(curves)
+    while ci < nc {
+        var curve = curves[ci]
+        var points = _bezier_points(curve)
+        var width = _line_width(curve, "bezier", ctx)
+        var z = _flat_z(curve, "bezier", ctx)
+        var segments = _bezier_segments(curve, ctx)
+        var x0 = _bezier_axis(points, 0, segments, 0)
+        if oren_is_err(x0) { return x0 }
+        var y0 = _bezier_axis(points, 0, segments, 1)
+        if oren_is_err(y0) { return y0 }
+        var i = 1
+        while i <= segments {
+            var x1 = _bezier_axis(points, i, segments, 0)
+            if oren_is_err(x1) { return x1 }
+            var y1 = _bezier_axis(points, i, segments, 1)
+            if oren_is_err(y1) { return y1 }
+            var rc = _store_line_segment(out, off, x0, y0, x1, y1, z, width, ctx + ".bezier")
+            if oren_is_err(rc) { return rc }
+            off = off + 72
+            x0 = x1
+            y0 = y1
+            i = i + 1
+        }
+        ci = ci + 1
+    }
+    return out
+}
+
 fn _angle_milli(shape, primary, fallback, label, ctx) {
     var angle = shape[primary]
     if angle == nil { angle = shape[fallback] }
