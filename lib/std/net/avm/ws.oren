@@ -5,7 +5,6 @@
 
 import events "std:avm/events"
 import socket "std:net/avm/socket"
-import neturl "std:net/url"
 
 struct Session {
     id
@@ -28,9 +27,7 @@ fn event_read_write() { return events.event_read_write() }
 
 fn connect_spec(spec, timeout_ms): Session {
     if spec == nil { return oren_err(4, "std:net/avm/ws.connect_spec: spec is nil") }
-    var clean_spec = neturl.without_fragment(spec)
-    if oren_is_err(clean_spec) { return clean_spec }
-    return socket.open(clean_spec, timeout_ms)
+    return socket.open(spec, timeout_ms)
 }
 
 fn connect(host, port, path, timeout_ms): Session {

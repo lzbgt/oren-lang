@@ -240,6 +240,8 @@
       "alias": "net_avm_socket",
       "probes": [
         "if net_avm_socket.poll_read(-1, 0) == nil { fail(67) }",
+        "if net_avm_socket.clean_spec(\"tcp://127.0.0.1:7/a#frag\") != \"tcp://127.0.0.1:7/a\" { fail(68) }",
+        "if !oren_is_err(net_avm_socket.clean_spec(\"tcp://::1:7\")) { fail(69) }",
         "if false { var sock_s = net_avm_socket.open_tcp(\"127.0.0.1\", 9, 1); sock_s.write(bytes.from_string(\"x\"), 1); sock_s.read(1, 1); sock_s.select_read(1); sock_s.close() }"
       ]
     },

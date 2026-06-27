@@ -313,8 +313,8 @@ Facts from the 2026-05-28 implementation pass:
   lists. Native and AVM HTTP request opts route structured `query` /
   `append_query` pairs through the shared request-target
   composer, native HTTP/WebSocket Host headers preserve parsed authority, and
-  native wire requests plus AVM virtual-provider specs strip URL fragments at
-  the NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals
+  native wire requests plus AVM HTTP/session specs strip URL fragments at the
+  NET boundary. Native IPv4/DNS-A connectors now reject IPv6 literals
   explicitly instead of treating them as hostnames, and iOS runtime/package URL
   fetch plus live session allow-lists accept canonical origins in addition to
   legacy host entries.

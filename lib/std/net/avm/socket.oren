@@ -3,6 +3,8 @@
 // This is the low-level OBC socket-like surface: programs see only virtual
 // session ids. The host app owns real sockets, allowlists, readiness, and budgets.
 
+import neturl "std:net/url"
+
 struct Session {
     id
 }
@@ -20,9 +22,19 @@ trait VirtualSocketSession {
     fn close(self);
 }
 
+fn clean_spec(spec) {
+    if spec == nil { return oren_err(4, "std:net/avm/socket.clean_spec: spec is nil") }
+    var clean = neturl.without_fragment(spec)
+    if oren_is_err(clean) { return clean }
+    var origin = neturl.endpoint_origin(clean)
+    if oren_is_err(origin) { return origin }
+    return clean
+}
+
 fn open(spec, timeout_ms): Session {
-    if spec == nil { return oren_err(4, "std:net/avm/socket.open: spec is nil") }
-    return oren_vnet_session_open(spec, timeout_ms)
+    var clean = clean_spec(spec)
+    if oren_is_err(clean) { return clean }
+    return oren_vnet_session_open(clean, timeout_ms)
 }
 
 fn open_tcp(host, port, timeout_ms): Session {
