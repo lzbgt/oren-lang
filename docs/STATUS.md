@@ -92,7 +92,7 @@ Facts from the 2026-05-28 implementation pass:
   `sleep_ms` blocks the AVM worker on wall-clock time and `now_unix_ns` uses host
   realtime. Hosts must run this off the UI thread.
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
-  app-facing modules such as `std:sys`, `std:fs`, `std:proc`, `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
+  app-facing modules such as `std:sys`, `std:env`, `std:fs`, `std:proc`, `std:time`, `std:timer`, `std:ui/avm`, `std:linalg`,
   `std:cbor`, `std:yaml`, `std:regex`, `std:encoding/base64`,
   `std:crypto/pem`, `std:crypto/sha1`, `std:crypto/sha256`, and
   `std:crypto/x509`.
@@ -342,6 +342,9 @@ Facts from the 2026-05-28 implementation pass:
   fixed-period timer-watch maps that compose with `std:avm/events.select`.
   `std:sys` exposes the pure AVM capability-domain id/name/mask helpers and
   default embedder domain mask so packages and hosts do not duplicate policy constants.
+  `std:env` now names capability-gated environment reads with get/fallback,
+  presence, require, and truthy helpers while leaving host ENV access, AVM
+  record/replay, and capsule policy under runtime control.
   `std:fs` now names the capability-gated FS operations with explicit text,
   byte-native `u8_buf`, legacy byte-list, exists, directory-list, and chmod helpers
   while leaving host/VFS selection, allow-prefixes, record/replay, and IO budgets

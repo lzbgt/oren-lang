@@ -38,6 +38,8 @@ design evidence lives under `project-doc/`.
   compiler-in-AVM smoke paths through `make verify-libavm-ios`.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.
+- `std:env` now provides app-facing capability-gated environment get/fallback,
+  presence, require, and truthy helpers over the existing runtime ENV policy surface.
 - `std:fs` now provides app-facing capability-gated text, byte-native `u8_buf`,
   legacy byte-list, exists, directory-list, and chmod facade helpers over the
   existing runtime FS policy surface.

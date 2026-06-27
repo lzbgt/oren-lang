@@ -1,0 +1,28 @@
+import env "../../lib/std/env.oren"
+
+fn fail(code) {
+    print("module env_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+var key = "OREN_STD_ENV_PROBE"
+var missing = "OREN_STD_ENV_MISSING"
+
+if env.get(key) != "ok" { fail(1) }
+if env.has(key) != true { fail(2) }
+if env.get_or(key, "fallback") != "ok" { fail(3) }
+if env.require(key) != "ok" { fail(4) }
+if env.truthy(key) != true { fail(5) }
+
+if env.get(missing) != nil { fail(10) }
+if env.has(missing) != false { fail(11) }
+if env.get_or(missing, "fallback") != "fallback" { fail(12) }
+if !oren_is_err(env.require(missing)) { fail(13) }
+if env.truthy(missing) != false { fail(14) }
+
+if env.truthy("OREN_STD_ENV_ZERO") != false { fail(20) }
+if env.truthy("OREN_STD_ENV_FALSE") != false { fail(21) }
+if env.truthy("OREN_STD_ENV_EMPTY") != false { fail(22) }
+
+print("module env_std OK")
+exit(0)

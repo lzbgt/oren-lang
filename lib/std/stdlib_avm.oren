@@ -16,6 +16,7 @@
 import buffer "std:buffer"
 import bytes "std:bytes"
 import cbor "std:cbor"
+import env "std:env"
 import fs "std:fs"
 import casts "std:casts"
 import ints "std:ints"

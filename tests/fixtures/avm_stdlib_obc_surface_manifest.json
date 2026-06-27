@@ -43,6 +43,15 @@
       ]
     },
     {
+      "module": "std:env",
+      "alias": "env",
+      "probes": [
+        "if env.get_or(\"__avm_stdlib_surface_missing_env_probe__\", \"fallback\") != \"fallback\" { fail(104) }",
+        "if env.has(\"__avm_stdlib_surface_missing_env_probe__\") != false { fail(105) }",
+        "if env.truthy(\"__avm_stdlib_surface_missing_env_probe__\") != false { fail(106) }"
+      ]
+    },
+    {
       "module": "std:fs",
       "alias": "fs",
       "probes": [

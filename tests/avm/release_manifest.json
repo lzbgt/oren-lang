@@ -123,6 +123,16 @@
     {"path": "tests/avm/test_std_time_avm.oren"},
     {"path": "tests/avm/test_std_timer_avm.oren"},
     {"path": "tests/avm/test_std_sys_avm.oren"},
+    {
+      "path": "tests/avm/test_std_env_avm.oren",
+      "env": {
+        "AVM_STD_ENV_PROBE": "ok",
+        "AVM_STD_ENV_ZERO": "0",
+        "AVM_STD_ENV_FALSE": "false",
+        "AVM_STD_ENV_EMPTY": ""
+      },
+      "avm_args": ["--deny-by-default", "--allow-domains", "0,6,7", "--print-run-json"]
+    },
     {"path": "tests/avm/test_time_rng_deterministic.oren"},
     {"path": "tests/avm/test_time_rng_record_replay_mem.oren"},
     {

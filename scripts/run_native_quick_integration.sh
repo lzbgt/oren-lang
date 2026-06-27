@@ -1454,6 +1454,22 @@ run_step_checked "std sys smoke (bytecode)" "$sys_std_log" \
   "$compiler" test "$sys_std_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$sys_std_log"
 
+echo "== std env smoke (native/C/bytecode) =="
+env_std_src="tests/modules/test_env_std.oren"
+env_std_log="build/logs/${compiler_base}_std_env.log"
+rm -f "$env_std_log" 2>/dev/null || true
+
+run_step_checked "std env smoke (native)" "$env_std_log" \
+  env OREN_STD_ENV_PROBE=ok OREN_STD_ENV_ZERO=0 OREN_STD_ENV_FALSE=false OREN_STD_ENV_EMPTY= \
+  "$compiler" test "$env_std_src" --backend native --platform "$platform" --no-cache
+run_step_checked "std env smoke (C)" "$env_std_log" \
+  env OREN_STD_ENV_PROBE=ok OREN_STD_ENV_ZERO=0 OREN_STD_ENV_FALSE=false OREN_STD_ENV_EMPTY= \
+  "$compiler" test "$env_std_src" --backend c --platform "$platform" --no-cache
+run_step_checked "std env smoke (bytecode)" "$env_std_log" \
+  env OREN_STD_ENV_PROBE=ok OREN_STD_ENV_ZERO=0 OREN_STD_ENV_FALSE=false OREN_STD_ENV_EMPTY= \
+  "$compiler" test "$env_std_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$env_std_log"
+
 echo "== std fs smoke (native/C/bytecode) =="
 fs_std_src="tests/modules/test_fs_std.oren"
 fs_std_log="build/logs/${compiler_base}_std_fs.log"
