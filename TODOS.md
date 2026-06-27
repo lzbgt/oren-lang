@@ -44,7 +44,7 @@ design evidence lives under `project-doc/`.
   (with `rotation_z_milli_deg` shorthand), and `translation_xyz` transforms
   for `triangles_xyz`, `quads_xyz`, `vertices_xyz`, `triangles_xyz_rgba`,
   `boxes_xyz`, `prisms_xy`, bounded `heightfields_xy` terrain grids, bounded
-  `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, flat `polygons_xy`,
+  `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
   circular `discs_xy`/`rings_xy`, thick `segments_xy`/`paths_xy`, partial
   `sectors_xy`/`arc_bands_xy`, and curved generated solids before
   byte-native packing, including translation-only generated meshes.

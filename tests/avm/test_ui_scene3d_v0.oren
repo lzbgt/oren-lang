@@ -752,6 +752,34 @@ fn main() {
     assert_eq(_i32_at(from_arc_bands[0]["triangles"], 8), 1)
     assert_true(ui_cmds.validate(from_arc_bands, 6, 6, {"strict_bounds": true}) == 0)
 
+    var from_rounded_rects = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 151,
+                "rounded_rects_xy": [
+                    {"min": [1, 1], "max": [5, 5], "radius": 1, "corner_segments": 1, "z": 1}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#88cc44"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 151}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_rounded_rects) == false)
+    assert_eq(from_rounded_rects[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_rounded_rects[0]["triangles"]), 288)
+    assert_eq(_i32_at(from_rounded_rects[0]["triangles"], 0), 4)
+    assert_eq(_i32_at(from_rounded_rects[0]["triangles"], 4), 3)
+    assert_eq(_i32_at(from_rounded_rects[0]["triangles"], 8), 6)
+    assert_true(ui_cmds.validate(from_rounded_rects, 7, 7, {"strict_bounds": true}) == 0)
+    var rounded_rect_buf = ui_raster.rasterize(from_rounded_rects, 7, 7, {"strict_bounds": true})
+    assert_true(oren_is_err(rounded_rect_buf) == false)
+    assert_eq(_px(rounded_rect_buf, 7, 4, 3, 0), 136)
+    assert_eq(_px(rounded_rect_buf, 7, 4, 3, 1), 204)
+    assert_eq(_px(rounded_rect_buf, 7, 4, 3, 2), 68)
+
     var from_cylinders = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -1111,6 +1139,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"paths_xy\":[{\"points\":[[0,0],[0,0]],\"width\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"sectors_xy\":[{\"center\":[0,0],\"radius\":1,\"start_milli_deg\":90000,\"end_milli_deg\":0}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"arc_bands_xy\":[{\"center\":[0,0],\"inner_radius\":2,\"outer_radius\":1,\"start_milli_deg\":0,\"end_milli_deg\":90000}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"rounded_rects_xy\":[{\"min\":[0,0],\"max\":[2,2],\"radius\":2}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"rounded_rects_xy\":[{\"min\":[0,0],\"max\":[4,4],\"radius\":1,\"corner_segments\":0}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cylinders_z\":[{\"center\":[0,0],\"radius\":1,\"z_min\":0,\"z_max\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"cones_z\":[{\"center\":[0,0],\"radius\":0,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"spheres_xyz\":[{\"center\":[0,0,0],\"radius\":1,\"segments\":4,\"rings\":1}],\"color\":\"#ffffff\"}]}")) == true)

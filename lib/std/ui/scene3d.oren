@@ -785,6 +785,9 @@ fn _asset_mesh(m) {
         } else if m["arc_bands_xy"] != nil {
             tris = shapes.pack_arc_bands_xy(m["arc_bands_xy"], "ui.scene3d mesh.arc_bands_xy")
             transform_generated = true
+        } else if m["rounded_rects_xy"] != nil {
+            tris = shapes.pack_rounded_rects_xy(m["rounded_rects_xy"], "ui.scene3d mesh.rounded_rects_xy")
+            transform_generated = true
         } else if m["cylinders_z"] != nil {
             tris = shapes.pack_cylinders_z(m["cylinders_z"], "ui.scene3d mesh.cylinders_z")
             transform_generated = true

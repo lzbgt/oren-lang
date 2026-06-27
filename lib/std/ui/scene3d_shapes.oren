@@ -702,6 +702,111 @@ fn pack_arc_bands_xy(arcs, ctx) {
     return out
 }
 
+fn _rounded_rect_segments(rect, ctx) {
+    var segments = rect["corner_segments"]
+    if segments == nil { segments = rect["segments"] }
+    if segments == nil { segments = 4 }
+    if _is_int(segments) == false || segments < 1 || segments > 24 {
+        return oren_err(4, ctx + ": rounded rect corner_segments must be 1..24")
+    }
+    return segments
+}
+
+fn _rounded_rect_radius(rect, bounds, ctx) {
+    var radius = rect["radius"]
+    if radius == nil { radius = rect["corner_radius"] }
+    if radius == nil { radius = rect["radius_xy"] }
+    if _is_int(radius) == false || radius <= 0 {
+        return oren_err(4, ctx + ": rounded rect radius must be positive i32")
+    }
+    var max_radius = (bounds[2] - bounds[0]) / 2
+    var y_radius = (bounds[3] - bounds[1]) / 2
+    if y_radius < max_radius { max_radius = y_radius }
+    if radius > max_radius { return oren_err(4, ctx + ": rounded rect radius exceeds half extent") }
+    return radius
+}
+
+fn _rounded_rect_vertex(bounds, radius, corner_segments, index, axis) {
+    var points_per_corner = corner_segments + 1
+    var corner = index / points_per_corner
+    var step = index - corner * points_per_corner
+    var cx = bounds[2] - radius
+    var cy = bounds[3] - radius
+    var start = 0
+    if corner == 1 {
+        cx = bounds[0] + radius
+        cy = bounds[3] - radius
+        start = 90000
+    } else if corner == 2 {
+        cx = bounds[0] + radius
+        cy = bounds[1] + radius
+        start = 180000
+    } else if corner == 3 {
+        cx = bounds[2] - radius
+        cy = bounds[1] + radius
+        start = 270000
+    }
+    var angle = start + 90000 * step / corner_segments
+    return _angle_coord(cx, radius, angle, axis)
+}
+
+fn _rounded_rects_triangle_count(rects, ctx) {
+    if rects == nil { return oren_err(4, ctx + ": missing rounded_rects_xy") }
+    var nr = oren_list_len(rects)
+    if oren_is_err(nr) { return oren_err(4, ctx + ": rounded_rects_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < nr {
+        var rect = rects[i]
+        if rect == nil { return oren_err(4, ctx + ": rounded rect must be object") }
+        var bounds = _plane_xy_bounds(rect, ctx)
+        if oren_is_err(bounds) { return bounds }
+        var radius = _rounded_rect_radius(rect, bounds, ctx)
+        if oren_is_err(radius) { return radius }
+        var segments = _rounded_rect_segments(rect, ctx)
+        if oren_is_err(segments) { return segments }
+        total = total + (segments + 1) * 4
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": rounded rects exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_rounded_rects_xy(rects, ctx) {
+    var tri_count = _rounded_rects_triangle_count(rects, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ri = 0
+    var nr = oren_list_len(rects)
+    while ri < nr {
+        var rect = rects[ri]
+        var bounds = _plane_xy_bounds(rect, ctx)
+        var radius = _rounded_rect_radius(rect, bounds, ctx)
+        var segments = _rounded_rect_segments(rect, ctx)
+        var z = bounds[4]
+        var cx = (bounds[0] + bounds[2]) / 2
+        var cy = (bounds[1] + bounds[3]) / 2
+        var points = (segments + 1) * 4
+        var i = 0
+        while i < points {
+            var next_i = i + 1
+            if next_i == points { next_i = 0 }
+            var x0 = _rounded_rect_vertex(bounds, radius, segments, i, 0)
+            var y0 = _rounded_rect_vertex(bounds, radius, segments, i, 1)
+            var x1 = _rounded_rect_vertex(bounds, radius, segments, next_i, 0)
+            var y1 = _rounded_rect_vertex(bounds, radius, segments, next_i, 1)
+            var rc = _store_triangle(out, off, cx, cy, z, x0, y0, z, x1, y1, z, ctx + ".rounded_rect")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            i = i + 1
+        }
+        ri = ri + 1
+    }
+    return out
+}
+
 fn _cylinders_triangle_count(cylinders, ctx) {
     if cylinders == nil { return oren_err(4, ctx + ": missing cylinders_z") }
     var nc = oren_list_len(cylinders)
