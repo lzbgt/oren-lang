@@ -499,7 +499,8 @@ Facts from the 2026-05-28 implementation pass:
   shorthand, and `translation_xyz`, compact `boxes_xyz` cuboid primitives,
   `prisms_xy` extruded polygon solids, bounded `heightfields_xy` terrain grids,
 	  bounded `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
-	  regular `regular_polygons_xy`, `stars_xy`, circular `discs_xy`/`rings_xy`, thick `segments_xy`/`paths_xy`, partial `sectors_xy`/`arc_bands_xy`, bounded `cylinders_z`,
+	  regular `regular_polygons_xy`, `stars_xy`, circular `discs_xy`/`rings_xy`,
+	  elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, partial `sectors_xy`/`arc_bands_xy`, bounded `cylinders_z`,
   `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle
   `triangles_xyz_rgba` colors. Curved solid packers now live in the
   dedicated `std:ui/scene3d_shapes` helper module, keeping the retained-scene

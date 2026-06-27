@@ -311,6 +311,155 @@ fn pack_discs_xy(discs, ctx) {
     return out
 }
 
+fn _radii_xy(shape, primary, fallback, label, ctx) {
+    var radii = shape[primary]
+    if radii == nil { radii = shape[fallback] }
+    radii = _xy_pair(radii, label + " radii", ctx)
+    if oren_is_err(radii) { return radii }
+    if radii[0] <= 0 || radii[1] <= 0 {
+        return oren_err(4, ctx + ": " + label + " radii must be positive i32")
+    }
+    return radii
+}
+
+fn _ellipse_coord(center, radius_x, radius_y, segments, index, axis) {
+    var angle = math.tau() * f64(index) / f64(segments)
+    var radius = radius_x
+    var unit = math.cos(angle)
+    if axis == 1 {
+        radius = radius_y
+        unit = math.sin(angle)
+    }
+    var rounded = math.round(f64(center) + f64(radius) * unit)
+    if oren_is_err(rounded) { return rounded }
+    return ints.i32(rounded)
+}
+
+fn _ellipses_xy_triangle_count(ellipses, ctx) {
+    if ellipses == nil { return oren_err(4, ctx + ": missing ellipses_xy") }
+    var ne = oren_list_len(ellipses)
+    if oren_is_err(ne) { return oren_err(4, ctx + ": ellipses_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < ne {
+        var ellipse = ellipses[i]
+        if ellipse == nil { return oren_err(4, ctx + ": ellipse must be object") }
+        var center = _center_xy(ellipse, "ellipse", ctx)
+        if oren_is_err(center) { return center }
+        var radii = _radii_xy(ellipse, "radii", "radii_xy", "ellipse", ctx)
+        if oren_is_err(radii) { return radii }
+        var z = _flat_z(ellipse, "ellipse", ctx)
+        if oren_is_err(z) { return z }
+        var segments = _segments(ellipse, "ellipse", 3, ctx)
+        if oren_is_err(segments) { return segments }
+        total = total + segments
+        i = i + 1
+    }
+    if total > 2048 { return oren_err(4, ctx + ": ellipses exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_ellipses_xy(ellipses, ctx) {
+    var tri_count = _ellipses_xy_triangle_count(ellipses, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ei = 0
+    var ne = oren_list_len(ellipses)
+    while ei < ne {
+        var ellipse = ellipses[ei]
+        var center = _center_xy(ellipse, "ellipse", ctx)
+        var radii = _radii_xy(ellipse, "radii", "radii_xy", "ellipse", ctx)
+        var z = _flat_z(ellipse, "ellipse", ctx)
+        var segments = _segments(ellipse, "ellipse", 3, ctx)
+        var seg = 0
+        while seg < segments {
+            var next_seg = seg + 1
+            if next_seg == segments { next_seg = 0 }
+            var ax = _ellipse_coord(center[0], radii[0], radii[1], segments, seg, 0)
+            var ay = _ellipse_coord(center[1], radii[0], radii[1], segments, seg, 1)
+            var bx = _ellipse_coord(center[0], radii[0], radii[1], segments, next_seg, 0)
+            var by = _ellipse_coord(center[1], radii[0], radii[1], segments, next_seg, 1)
+            var rc = _store_triangle(out, off, center[0], center[1], z, ax, ay, z, bx, by, z, ctx + ".ellipse")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            seg = seg + 1
+        }
+        ei = ei + 1
+    }
+    return out
+}
+
+fn _ellipse_rings_xy_triangle_count(rings, ctx) {
+    if rings == nil { return oren_err(4, ctx + ": missing ellipse_rings_xy") }
+    var nr = oren_list_len(rings)
+    if oren_is_err(nr) { return oren_err(4, ctx + ": ellipse_rings_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < nr {
+        var ring = rings[i]
+        if ring == nil { return oren_err(4, ctx + ": ellipse ring must be object") }
+        var center = _center_xy(ring, "ellipse ring", ctx)
+        if oren_is_err(center) { return center }
+        var inner = _radii_xy(ring, "inner_radii", "radii_inner", "ellipse ring inner", ctx)
+        if oren_is_err(inner) { return inner }
+        var outer = _radii_xy(ring, "outer_radii", "radii_outer", "ellipse ring outer", ctx)
+        if oren_is_err(outer) { return outer }
+        if outer[0] <= inner[0] || outer[1] <= inner[1] {
+            return oren_err(4, ctx + ": ellipse ring outer radii must be greater than inner radii")
+        }
+        var z = _flat_z(ring, "ellipse ring", ctx)
+        if oren_is_err(z) { return z }
+        var segments = _segments(ring, "ellipse ring", 3, ctx)
+        if oren_is_err(segments) { return segments }
+        total = total + segments * 2
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": ellipse rings exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_ellipse_rings_xy(rings, ctx) {
+    var tri_count = _ellipse_rings_xy_triangle_count(rings, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var ri = 0
+    var nr = oren_list_len(rings)
+    while ri < nr {
+        var ring = rings[ri]
+        var center = _center_xy(ring, "ellipse ring", ctx)
+        var inner = _radii_xy(ring, "inner_radii", "radii_inner", "ellipse ring inner", ctx)
+        var outer = _radii_xy(ring, "outer_radii", "radii_outer", "ellipse ring outer", ctx)
+        var z = _flat_z(ring, "ellipse ring", ctx)
+        var segments = _segments(ring, "ellipse ring", 3, ctx)
+        var seg = 0
+        while seg < segments {
+            var next_seg = seg + 1
+            if next_seg == segments { next_seg = 0 }
+            var ox0 = _ellipse_coord(center[0], outer[0], outer[1], segments, seg, 0)
+            var oy0 = _ellipse_coord(center[1], outer[0], outer[1], segments, seg, 1)
+            var ox1 = _ellipse_coord(center[0], outer[0], outer[1], segments, next_seg, 0)
+            var oy1 = _ellipse_coord(center[1], outer[0], outer[1], segments, next_seg, 1)
+            var ix0 = _ellipse_coord(center[0], inner[0], inner[1], segments, seg, 0)
+            var iy0 = _ellipse_coord(center[1], inner[0], inner[1], segments, seg, 1)
+            var ix1 = _ellipse_coord(center[0], inner[0], inner[1], segments, next_seg, 0)
+            var iy1 = _ellipse_coord(center[1], inner[0], inner[1], segments, next_seg, 1)
+            var rc = _store_triangle(out, off, ox0, oy0, z, ox1, oy1, z, ix1, iy1, z, ctx + ".ellipse_ring0")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            rc = _store_triangle(out, off, ox0, oy0, z, ix1, iy1, z, ix0, iy0, z, ctx + ".ellipse_ring1")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            seg = seg + 1
+        }
+        ri = ri + 1
+    }
+    return out
+}
+
 fn _regular_polygons_xy_triangle_count(polys, ctx) {
     if polys == nil { return oren_err(4, ctx + ": missing regular_polygons_xy") }
     var np = oren_list_len(polys)
