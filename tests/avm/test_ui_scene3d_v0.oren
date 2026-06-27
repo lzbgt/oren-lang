@@ -630,6 +630,56 @@ fn main() {
     assert_eq(_px(disc_buf, 6, 3, 2, 1), 136)
     assert_eq(_px(disc_buf, 6, 3, 2, 2), 204)
 
+    var from_regular_polygons = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 152,
+                "regular_polygons_xy": [
+                    {"center": [2, 2], "radius": 1, "sides": 4, "z": 1}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#cc4488"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 152}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_regular_polygons) == false)
+    assert_eq(from_regular_polygons[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_regular_polygons[0]["triangles"]), 144)
+    assert_eq(_i32_at(from_regular_polygons[0]["triangles"], 0), 3)
+    assert_eq(_i32_at(from_regular_polygons[0]["triangles"], 4), 2)
+    assert_eq(_i32_at(from_regular_polygons[0]["triangles"], 8), 6)
+    assert_true(ui_cmds.validate(from_regular_polygons, 6, 6, {"strict_bounds": true}) == 0)
+    var regular_polygon_buf = ui_raster.rasterize(from_regular_polygons, 6, 6, {"strict_bounds": true})
+    assert_true(oren_is_err(regular_polygon_buf) == false)
+    assert_eq(_px(regular_polygon_buf, 6, 3, 2, 0), 204)
+    assert_eq(_px(regular_polygon_buf, 6, 3, 2, 1), 68)
+    assert_eq(_px(regular_polygon_buf, 6, 3, 2, 2), 136)
+
+    var from_stars = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 153,
+                "stars_xy": [
+                    {"center": [3, 3], "inner_radius": 1, "outer_radius": 2, "points": 4, "z": 1}
+                ],
+                "color": "#4488cc"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 153}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_stars) == false)
+    assert_eq(from_stars[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_stars[0]["triangles"]), 288)
+    assert_eq(_i32_at(from_stars[0]["triangles"], 0), 3)
+    assert_eq(_i32_at(from_stars[0]["triangles"], 4), 3)
+    assert_eq(_i32_at(from_stars[0]["triangles"], 8), 1)
+    assert_true(ui_cmds.validate(from_stars, 7, 7, {"strict_bounds": true}) == 0)
+
     var from_rings = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -1134,6 +1184,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"planes_xy\":[{\"origin\":[0,0,0],\"size\":[0,1]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"polygons_xy\":[{\"points\":[[0,0],[1,0]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"discs_xy\":[{\"center\":[0,0],\"radius\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"regular_polygons_xy\":[{\"center\":[0,0],\"radius\":1,\"sides\":2}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"stars_xy\":[{\"center\":[0,0],\"inner_radius\":2,\"outer_radius\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"rings_xy\":[{\"center\":[0,0],\"inner_radius\":1,\"outer_radius\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"segments_xy\":[{\"from\":[0,0],\"to\":[0,0],\"width\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"paths_xy\":[{\"points\":[[0,0],[0,0]],\"width\":1}],\"color\":\"#ffffff\"}]}")) == true)

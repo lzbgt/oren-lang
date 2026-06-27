@@ -311,6 +311,140 @@ fn pack_discs_xy(discs, ctx) {
     return out
 }
 
+fn _regular_polygons_xy_triangle_count(polys, ctx) {
+    if polys == nil { return oren_err(4, ctx + ": missing regular_polygons_xy") }
+    var np = oren_list_len(polys)
+    if oren_is_err(np) { return oren_err(4, ctx + ": regular_polygons_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < np {
+        var poly = polys[i]
+        if poly == nil { return oren_err(4, ctx + ": regular polygon must be object") }
+        var center = _center_xy(poly, "regular polygon", ctx)
+        if oren_is_err(center) { return center }
+        var radius = _radius(poly, "regular polygon", ctx)
+        if oren_is_err(radius) { return radius }
+        var z = _flat_z(poly, "regular polygon", ctx)
+        if oren_is_err(z) { return z }
+        var sides = poly["sides"]
+        if sides == nil { sides = poly["segments"] }
+        if _is_int(sides) == false || sides < 3 || sides > 96 {
+            return oren_err(4, ctx + ": regular polygon sides must be 3..96")
+        }
+        total = total + sides
+        i = i + 1
+    }
+    if total > 2048 { return oren_err(4, ctx + ": regular polygons exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_regular_polygons_xy(polys, ctx) {
+    var tri_count = _regular_polygons_xy_triangle_count(polys, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var pi = 0
+    var np = oren_list_len(polys)
+    while pi < np {
+        var poly = polys[pi]
+        var center = _center_xy(poly, "regular polygon", ctx)
+        var radius = _radius(poly, "regular polygon", ctx)
+        var z = _flat_z(poly, "regular polygon", ctx)
+        var sides = poly["sides"]
+        if sides == nil { sides = poly["segments"] }
+        var side = 0
+        while side < sides {
+            var next_side = side + 1
+            if next_side == sides { next_side = 0 }
+            var ax = _circle_coord(center[0], radius, sides, side, 0)
+            var ay = _circle_coord(center[1], radius, sides, side, 1)
+            var bx = _circle_coord(center[0], radius, sides, next_side, 0)
+            var by = _circle_coord(center[1], radius, sides, next_side, 1)
+            var rc = _store_triangle(out, off, center[0], center[1], z, ax, ay, z, bx, by, z, ctx + ".regular_polygon")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            side = side + 1
+        }
+        pi = pi + 1
+    }
+    return out
+}
+
+fn _star_points(star, ctx) {
+    var n = star["points"]
+    if n == nil { n = 5 }
+    if _is_int(n) == false || n < 3 || n > 48 {
+        return oren_err(4, ctx + ": star points must be 3..48")
+    }
+    return n
+}
+
+fn _stars_xy_triangle_count(stars, ctx) {
+    if stars == nil { return oren_err(4, ctx + ": missing stars_xy") }
+    var ns = oren_list_len(stars)
+    if oren_is_err(ns) { return oren_err(4, ctx + ": stars_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < ns {
+        var star = stars[i]
+        if star == nil { return oren_err(4, ctx + ": star must be object") }
+        var center = _center_xy(star, "star", ctx)
+        if oren_is_err(center) { return center }
+        var inner = _ring_radius(star, "inner_radius", "radius_inner", "inner", ctx)
+        if oren_is_err(inner) { return inner }
+        var outer = _ring_radius(star, "outer_radius", "radius_outer", "outer", ctx)
+        if oren_is_err(outer) { return outer }
+        if outer <= inner { return oren_err(4, ctx + ": star outer radius must be greater than inner radius") }
+        var z = _flat_z(star, "star", ctx)
+        if oren_is_err(z) { return z }
+        var points = _star_points(star, ctx)
+        if oren_is_err(points) { return points }
+        total = total + points * 2
+        i = i + 1
+    }
+    if total > 2048 { return oren_err(4, ctx + ": stars exceed mesh3d triangle budget") }
+    return total
+}
+
+fn pack_stars_xy(stars, ctx) {
+    var tri_count = _stars_xy_triangle_count(stars, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var si = 0
+    var ns = oren_list_len(stars)
+    while si < ns {
+        var star = stars[si]
+        var center = _center_xy(star, "star", ctx)
+        var inner = _ring_radius(star, "inner_radius", "radius_inner", "inner", ctx)
+        var outer = _ring_radius(star, "outer_radius", "radius_outer", "outer", ctx)
+        var z = _flat_z(star, "star", ctx)
+        var points = _star_points(star, ctx)
+        var vertices = points * 2
+        var vi = 0
+        while vi < vertices {
+            var next_vi = vi + 1
+            if next_vi == vertices { next_vi = 0 }
+            var ar = outer
+            if vi % 2 == 1 { ar = inner }
+            var br = outer
+            if next_vi % 2 == 1 { br = inner }
+            var ax = _circle_coord(center[0], ar, vertices, vi, 0)
+            var ay = _circle_coord(center[1], ar, vertices, vi, 1)
+            var bx = _circle_coord(center[0], br, vertices, next_vi, 0)
+            var by = _circle_coord(center[1], br, vertices, next_vi, 1)
+            var rc = _store_triangle(out, off, center[0], center[1], z, ax, ay, z, bx, by, z, ctx + ".star")
+            if oren_is_err(rc) { return rc }
+            off = off + 36
+            vi = vi + 1
+        }
+        si = si + 1
+    }
+    return out
+}
+
 fn _ring_radius(ring, primary, fallback, label, ctx) {
     var radius = ring[primary]
     if radius == nil { radius = ring[fallback] }
