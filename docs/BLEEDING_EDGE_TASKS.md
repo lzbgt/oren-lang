@@ -375,7 +375,7 @@ This file is the concise task view. Detailed implementation status lives in
      `fdim`, `nextafter`/`nexttoward`, `pow` / `power` for integer, negative, fractional
      positive-base, infinity edge, and negative-base real-domain cases,
      `cbrt` with normal/subnormal/`fpclassify` classification and sign/non-finite coverage,
-     finite `lerp`, range mapping helpers `inverse_lerp`, `remap`, and
+     tolerance predicates `isclose`/`isclose_abs`, finite `lerp`, range mapping helpers `inverse_lerp`, `remap`, and
      `remap_clamped`, graphics scalar/interpolation helpers `sign`, `step`,
      `fract`, `clamp`, `saturate`, `smoothstep`, and `smootherstep`,
      overflow-aware `midpoint`,

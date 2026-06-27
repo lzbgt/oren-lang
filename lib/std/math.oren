@@ -66,6 +66,30 @@ fn fmax(a: f64, b: f64): f64 {
     return b
 }
 
+fn isclose_abs(a: f64, b: f64, abs_tol: f64) {
+    if is_nan(abs_tol) { return oren_err(4, "isclose_abs: NaN tolerance") }
+    if !is_finite(abs_tol) || abs_tol < 0.0 { return oren_err(4, "isclose_abs: invalid tolerance") }
+    if a == b { return true }
+    if is_nan(a) || is_nan(b) { return false }
+    if !is_finite(a) || !is_finite(b) { return false }
+    var d: f64 = fabs(a - b)
+    return d <= abs_tol
+}
+
+fn isclose(a: f64, b: f64, rel_tol: f64, abs_tol: f64) {
+    if is_nan(rel_tol) || is_nan(abs_tol) { return oren_err(4, "isclose: NaN tolerance") }
+    if !is_finite(rel_tol) || !is_finite(abs_tol) || rel_tol < 0.0 || abs_tol < 0.0 {
+        return oren_err(4, "isclose: invalid tolerance")
+    }
+    if a == b { return true }
+    if is_nan(a) || is_nan(b) { return false }
+    if !is_finite(a) || !is_finite(b) { return false }
+    var scale: f64 = fmax(fabs(a), fabs(b))
+    var tol: f64 = fmax(rel_tol * scale, abs_tol)
+    var d: f64 = fabs(a - b)
+    return d <= tol
+}
+
 fn clamp_f(x: f64, lo: f64, hi: f64) {
     if x < lo { return lo }
     if x > hi { return hi }

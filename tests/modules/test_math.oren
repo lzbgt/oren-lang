@@ -98,6 +98,15 @@ assert_eq(math.fmin(math.nan(), 2.0), 2.0, 92)
 assert_eq(math.fmin(2.0, math.nan()), 2.0, 93)
 assert_eq(math.fmax(math.nan(), 2.0), 2.0, 94)
 assert_eq(math.fmax(2.0, math.nan()), 2.0, 95)
+assert_true(math.isclose(1000000.0, 1000000.5, 1e-6, 0.0), 157)
+assert_true(!math.isclose(1000000.0, 1000002.0, 1e-6, 0.0), 158)
+assert_true(math.isclose_abs(0.00000001, 0.0, 0.00000002), 159)
+assert_true(!math.isclose_abs(0.00000003, 0.0, 0.00000002), 160)
+assert_true(math.isclose(math.inf(), math.inf(), 0.0, 0.0), 161)
+assert_true(!math.isclose(math.inf(), 1.0, 1.0, 1.0), 162)
+assert_true(!math.isclose(math.nan(), math.nan(), 1.0, 1.0), 163)
+assert_true(oren_is_err(math.isclose(1.0, 1.0, 0.0 - 1.0, 0.0)), 164)
+assert_true(oren_is_err(math.isclose_abs(1.0, 1.0, math.inf())), 165)
 
 // NaN predicate (IEEE-ish). 0.0/0.0 should yield NaN.
 var nanv = 0.0 / 0.0
