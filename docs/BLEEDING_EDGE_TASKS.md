@@ -313,7 +313,8 @@ This file is the concise task view. Detailed implementation status lives in
 	     `cylinders_z`/`cones_z`/`spheres_xyz`/`ellipsoids_xyz`/`toruses_xyz`/`capsules_z` authoring that lower to existing
 	     byte-native triangle mesh records for AVM/iOS without renderer ABI changes.
 	     Procedural mesh packers are split into focused `std:ui/scene3d_shapes_flat`,
-	     `std:ui/scene3d_shapes`, and `std:ui/scene3d_shapes_grid` helpers so broader package formats can
+	     `std:ui/scene3d_shapes`, `std:ui/scene3d_shapes_arch`, and
+	     `std:ui/scene3d_shapes_grid` helpers so broader package formats can
 	     keep growing without pushing `std:ui/scene3d` or one shape helper toward
 	     the source-line guardrail.
    - 2026-06-01: first `OrenAVMPackageStore` slices exist and are verified:

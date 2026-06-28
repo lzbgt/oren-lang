@@ -51,8 +51,8 @@ design evidence lives under `project-doc/`.
 	  `sectors_xy`/`arc_bands_xy`, sloped `ramps_xy`, solid `solid_ramps_xy`, curb `curbs_xy`, stepped `stairs_xy`, gable `gable_roofs_xy`, polygon-footprint `pyramids_xy`, vertical `walls_xy`, closed `rooms_xy`, and curved generated solids before
   byte-native packing, including translation-only generated meshes.
 - Scene3D generated mesh packers are split across focused helpers
-  (`std:ui/scene3d_shapes_flat`, `std:ui/scene3d_shapes`, and
-  `std:ui/scene3d_shapes_grid`) so package-format growth does not push
+  (`std:ui/scene3d_shapes_flat`, `std:ui/scene3d_shapes`,
+  `std:ui/scene3d_shapes_arch`, and `std:ui/scene3d_shapes_grid`) so package-format growth does not push
   `std:ui/scene3d` or one shape helper over the source-line guard.
 - `std:sys` now provides pure AVM capability-domain id/name/mask helpers plus
   the default embedder domain mask, and is covered by the stdlib OBC surface gate.
