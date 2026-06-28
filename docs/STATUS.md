@@ -801,7 +801,7 @@ Working evidence:
   pure finite `std:math/vec2` length/distance/dot/cross/normalize/angle/rotate plus add/sub/scale/lerp/project/reject/reflect helpers,
   pure finite `std:math/vec3` length/distance/dot/cross/normalize/angle-between plus add/sub/scale/lerp/project/reject/reflect helpers,
   pure finite `std:math/quat` identity/length/normalize/conjugate/dot/inverse/multiply/axis-angle/vector-rotation/nlerp/slerp helpers,
-  pure finite row-major `std:math/mat4` identity/translation/scale/quaternion-rotation/TRS-composition/orthographic-projection/look-at/multiply/point/vector transforms,
+  pure finite row-major `std:math/mat4` identity/translation/scale/quaternion-rotation/TRS-composition/orthographic/perspective projection/look-at/multiply/point/vector transforms,
   overflow-aware `midpoint`,
   normal/subnormal classification, rounding, integer rounding aliases
   `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,

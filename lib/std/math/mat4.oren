@@ -141,6 +141,34 @@ fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) 
     ]
 }
 
+fn perspective(fov_y_radians: f64, aspect: f64, near_z: f64, far_z: f64) {
+    var fov_ok = _finite_scalar(fov_y_radians, "mat4.perspective")
+    if oren_is_err(fov_ok) { return fov_ok }
+    var aspect_ok = _finite_scalar(aspect, "mat4.perspective")
+    if oren_is_err(aspect_ok) { return aspect_ok }
+    var depth_ok = _finite_scalar(near_z, "mat4.perspective")
+    if oren_is_err(depth_ok) { return depth_ok }
+    depth_ok = _finite_scalar(far_z, "mat4.perspective")
+    if oren_is_err(depth_ok) { return depth_ok }
+    if fov_y_radians <= 0.0 { return oren_err(4, "mat4.perspective: invalid fov") }
+    if fov_y_radians >= math.pi() { return oren_err(4, "mat4.perspective: invalid fov") }
+    if aspect <= 0.0 { return oren_err(4, "mat4.perspective: invalid aspect") }
+    if near_z <= 0.0 { return oren_err(4, "mat4.perspective: invalid depth") }
+    if far_z <= near_z { return oren_err(4, "mat4.perspective: invalid depth") }
+    var tan_half0 = math.tan(fov_y_radians * 0.5)
+    if oren_is_err(tan_half0) { return tan_half0 }
+    var tan_half: f64 = tan_half0
+    if tan_half == 0.0 { return oren_err(4, "mat4.perspective: invalid fov") }
+    var f: f64 = 1.0 / tan_half
+    var depth: f64 = far_z - near_z
+    return [
+        f / aspect, 0.0, 0.0, 0.0,
+        0.0, f, 0.0, 0.0,
+        0.0, 0.0, 0.0 - (far_z + near_z) / depth, 0.0 - (2.0 * far_z * near_z) / depth,
+        0.0, 0.0, 0.0 - 1.0, 0.0
+    ]
+}
+
 fn look_at(eye_x: f64, eye_y: f64, eye_z: f64, target_x: f64, target_y: f64, target_z: f64, up_x: f64, up_y: f64, up_z: f64) {
     var et = _finite6(eye_x, eye_y, eye_z, target_x, target_y, target_z, "mat4.look_at")
     if oren_is_err(et) { return et }
