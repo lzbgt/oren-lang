@@ -1,6 +1,10 @@
 package orenlsp
 
-import "oren/pkg/ast"
+import (
+	"strings"
+
+	"oren/pkg/ast"
+)
 
 func collectFunctionReturnTypes(program *ast.Program, prefix string, types map[string]typeInfo, params map[string]map[string]string) map[string]string {
 	out := map[string]string{}
@@ -445,10 +449,63 @@ func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, function
 		existing := out[fnName][param.Value]
 		if existing == "" || existing == typeName {
 			out[fnName][param.Value] = typeName
+			mergeCallParamFieldTypes(fnName, param.Value, typeName, inferExpressionFieldTypes(arg, env, stack), env, out, conflicts)
 			continue
 		}
 		delete(out[fnName], param.Value)
+		deleteCallParamFieldTypes(param.Value, out[fnName])
 		conflicts[paramKey] = true
+	}
+}
+
+func mergeCallParamFieldTypes(fnName, paramName, typeName string, fields map[string]string, env memberTypeEnv, out map[string]map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || typeName == "" {
+		return
+	}
+	if out[fnName] == nil {
+		out[fnName] = map[string]string{}
+	}
+	if info, ok := env.Types[typeName]; ok {
+		for _, field := range orderedTypeFields(info) {
+			fieldName := field.Symbol.Name
+			if fieldName == "" || fields[fieldName] != "" {
+				continue
+			}
+			paramField := inferredFieldKey(paramName, fieldName)
+			if out[fnName][paramField] != "" {
+				delete(out[fnName], paramField)
+				conflicts[fnName+"\x00"+paramField] = true
+			}
+		}
+	}
+	for field, typeName := range fields {
+		if field == "" || typeName == "" {
+			continue
+		}
+		paramField := inferredFieldKey(paramName, field)
+		conflictKey := fnName + "\x00" + paramField
+		if conflicts[conflictKey] {
+			continue
+		}
+		existing := out[fnName][paramField]
+		if existing == "" || existing == typeName {
+			out[fnName][paramField] = typeName
+			continue
+		}
+		delete(out[fnName], paramField)
+		conflicts[conflictKey] = true
+	}
+}
+
+func deleteCallParamFieldTypes(paramName string, params map[string]string) {
+	if paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "."
+	for key := range params {
+		if strings.HasPrefix(key, prefix) {
+			delete(params, key)
+		}
 	}
 }
 

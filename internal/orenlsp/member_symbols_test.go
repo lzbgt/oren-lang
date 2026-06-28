@@ -349,6 +349,142 @@ func TestServerNavigationUsesFactoryReturnFieldChains(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesCallSiteParameterFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Inner { x, y }",
+		"struct Outer { inner, label }",
+		"struct Other { z }",
+		"fn unknown() { return 0 }",
+		"fn use_outer(o) {",
+		"  var c = o.inner.",
+		"  return o.inner.x",
+		"}",
+		"fn identity_outer(o) {",
+		"  return o",
+		"}",
+		"fn use_conflict(o) {",
+		"  return o.inner.x",
+		"}",
+		"var good = Outer(Inner(1, 2), \"a\")",
+		"var alias = good",
+		"var weak = Outer(unknown(), \"b\")",
+		"var bad = Outer(Other(9), \"c\")",
+		"var a = use_outer(alias)",
+		"var b = use_outer(Outer(Inner(3, 4), \"d\"))",
+		"var c = use_conflict(good)",
+		"var d = use_conflict(bad)",
+		"var e = identity_outer(good)",
+		"fn main() {",
+		"  var from_return = e.inner.",
+		"  return e.inner.y + weak.inner.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-call-param-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      231,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 5, "character": len([]rune(lines[5]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      232,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": strings.Index(lines[6], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      233,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      234,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 12, "character": strings.Index(lines[12], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      235,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 24, "character": len([]rune(lines[24]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      236,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": strings.Index(lines[25], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      237,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": strings.Index(lines[25], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 231)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("call-site parameter field-chain completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 232)["result"].([]any), uri, 0, 15, 16)
+	assertLocations(t, messageByID(t, msgs, 233)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 6, Character: strings.Index(lines[6], ".x") + 1}, End: position{Line: 6, Character: strings.Index(lines[6], ".x") + 2}}},
+	})
+	defs := messageByID(t, msgs, 234)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("conflicting call-site parameter field-chain definition=%#v want none", defs)
+	}
+	returned := messageByID(t, msgs, 235)["result"].([]any)
+	if !hasCompletion(returned, "x", 5) || !hasCompletion(returned, "y", 5) || hasCompletion(returned, "z", 5) {
+		t.Fatalf("returned parameter field-chain completion mismatch: %#v", returned)
+	}
+	assertDefinition(t, messageByID(t, msgs, 236)["result"].([]any), uri, 0, 18, 19)
+	defs = messageByID(t, msgs, 237)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("weak call-site field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesReturnIfExpressionReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

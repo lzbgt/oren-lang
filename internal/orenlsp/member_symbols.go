@@ -979,6 +979,11 @@ func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, st
 
 func inferExpressionFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map[string]string) map[string]string {
 	switch expr := expr.(type) {
+	case *ast.Identifier:
+		if !validMemberIdentifier(expr) {
+			return nil
+		}
+		return inferredFieldTypes(expr.Value, stack)
 	case *ast.CallExpression:
 		if fields := functionFieldTypesForCall(expr, env); len(fields) != 0 {
 			return fields
@@ -1175,6 +1180,25 @@ func copyInferredFieldTypes(dst, src string, stack []map[string]string) {
 			}
 		}
 	}
+}
+
+func inferredFieldTypes(name string, stack []map[string]string) map[string]string {
+	if name == "" || len(stack) == 0 {
+		return nil
+	}
+	prefix := name + "."
+	out := map[string]string{}
+	for _, frame := range stack {
+		for key, typeName := range frame {
+			if strings.HasPrefix(key, prefix) && typeName != "" {
+				out[strings.TrimPrefix(key, prefix)] = typeName
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func setInferredNameType(name, typeName string, stack []map[string]string) {
