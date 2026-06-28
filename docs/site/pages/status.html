@@ -120,12 +120,14 @@
 <p>	  persist root/global metadata sidecars and lazily derive them from legacy metadata</p>
 <p>	  once, so hot unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
 <p>	  rebuilding the runtime object or walking the legacy globals map in the hot apply</p>
-<p>	  path. x64 function/body phase markers now show the next concrete bottleneck:</p>
-<p>	  synthesized <code>__top_level__</code> global initializer emission. Non-negative integer</p>
-<p>	  literal globals are now materialized directly in <code>.data</code>, reducing the unified</p>
-<p>	  compiler <code>__top_level__</code> body from 361 to 168 ops in the local trace; the remaining</p>
-<p>	  measured work is safe string-literal global data relocation instead of runtime</p>
-<p>	  string pointer stores.</p>
+<p>	  path. x64 function/body phase markers now show synthesized <code>__top_level__</code></p>
+<p>	  global initializer emission precisely. Non-negative integer literal globals are</p>
+<p>	  materialized directly in <code>.data</code>, and string literal globals now use data-to-data</p>
+<p>	  pointer fixups patched by ELF/PE emitters. Local unified compiler tracing reduced</p>
+<p>	  <code>__top_level__</code> from 361 ops to 168 after integer folding, then to 59 after string</p>
+<p>	  relocation. The next measured x64 self-host targets are zero-result lambda</p>
+<p>	  collection over the full statement set (<code>x64.codegen.lambdas.done lambdas=0</code>) and</p>
+<p>	  compact bool/nil singleton global initialization for the remaining runtime stores.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

@@ -138,13 +138,16 @@
 <p>				     sidecars and lazily derive them from legacy metadata once, so direct</p>
 <p>				     unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
 <p>				     rebuilding the runtime object or walking the legacy globals map in the</p>
-<p>				     hot apply path. x64 function/body phase markers now narrow the next</p>
-<p>				     throughput target to synthesized <code>__top_level__</code> global initializer</p>
-<p>				     emission. Non-negative integer literal globals are materialized</p>
-<p>				     directly in <code>.data</code>, reducing the unified compiler <code>__top_level__</code></p>
-<p>				     body from 361 to 168 ops locally; the remaining measured work is safe</p>
-<p>				     string-literal global data relocation instead of runtime string pointer</p>
-<p>				     stores.</p>
+<p>				     hot apply path. x64 function/body phase markers now narrow synthesized</p>
+<p>				     <code>__top_level__</code> global initializer emission precisely. Non-negative</p>
+<p>				     integer literal globals are materialized directly in <code>.data</code>, and</p>
+<p>				     string literal globals now use ELF/PE-patched data-to-data pointer</p>
+<p>				     fixups. Local unified compiler tracing reduced <code>__top_level__</code> from</p>
+<p>				     361 ops to 168 after integer folding, then to 59 after string</p>
+<p>				     relocation. The next concrete throughput targets are zero-result</p>
+<p>				     lambda collection over the full statement set</p>
+<p>				     (<code>x64.codegen.lambdas.done lambdas=0</code>) and compact bool/nil singleton</p>
+<p>				     global initialization for the remaining runtime stores.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

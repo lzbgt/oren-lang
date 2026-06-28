@@ -819,24 +819,40 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         var fi = 0
         while fi < oren_list_len(fx) {
             var f0 = fx[fi]
-            if f0 != nil && f0["type"] == "data_fnobj_code_ptr" {
-                var nm0 = f0["name"]
-                var fn_off0 = _elf_x64_lookup_fn(ctx, functions, nm0)
-                if fn_off0 == nil {
-                    print("x64 elf: internal: relocation requested for missing function: " + nm0)
-                    oren_exit(1)
+            if f0 != nil {
+                if f0["type"] == "data_fnobj_code_ptr" {
+                    var nm0 = f0["name"]
+                    var fn_off0 = _elf_x64_lookup_fn(ctx, functions, nm0)
+                    if fn_off0 == nil {
+                        print("x64 elf: internal: relocation requested for missing function: " + nm0)
+                        oren_exit(1)
+                    }
+                    var data_off0 = f0["data_off"]
+                    if data_off0 == nil {
+                        print("x64 elf: internal: relocation missing data_off for " + nm0)
+                        oren_exit(1)
+                    }
+                    var r_offset1 = base + data_file_off + data_off0
+                    var r_info1 = 0 * 4294967296 + rela_type_relative
+                    var add1 = text_base + fn_off0
+                    push_u64_le(rela, r_offset1)
+                    push_u64_le(rela, r_info1)
+                    push_u64_le(rela, add1)
+                } else if f0["type"] == "data_data_ptr" {
+                    var data_off1 = f0["data_off"]
+                    if data_off1 == nil {
+                        print("x64 elf: internal: data-data relocation missing data_off")
+                        oren_exit(1)
+                    }
+                    var target_data_off1 = f0["target_data_off"]
+                    if oren_type_tag(target_data_off1) == 0 { target_data_off1 = 0 }
+                    var r_offset2 = base + data_file_off + data_off1
+                    var r_info2 = 0 * 4294967296 + rela_type_relative
+                    var add2 = base + data_file_off + target_data_off1
+                    push_u64_le(rela, r_offset2)
+                    push_u64_le(rela, r_info2)
+                    push_u64_le(rela, add2)
                 }
-                var data_off0 = f0["data_off"]
-                if data_off0 == nil {
-                    print("x64 elf: internal: relocation missing data_off for " + nm0)
-                    oren_exit(1)
-                }
-                var r_offset1 = base + data_file_off + data_off0
-                var r_info1 = 0 * 4294967296 + rela_type_relative
-                var add1 = text_base + fn_off0
-                push_u64_le(rela, r_offset1)
-                push_u64_le(rela, r_info1)
-                push_u64_le(rela, add1)
             }
             fi = fi + 1
         }
@@ -1185,6 +1201,13 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
                     }
                     oren_exit(1)
                 }
+            } else if ft == "data_data_ptr" {
+                var dt_slot = oren_type_tag(f["data_off"])
+                var dt_target = oren_type_tag(f["target_data_off"])
+                if (dt_slot != 1 && dt_slot != 0) || (dt_target != 1 && dt_target != 0) {
+                    print("x64 elf: invalid fixup(data_data_ptr)")
+                    oren_exit(1)
+                }
             } else if ft == "rip_code_lea" || ft == "rip_code_call" {
                 if oren_type_tag(f["pos"]) != 1 || f["name"] == nil {
                     print("x64 elf: invalid fixup(" + ft + ") pos/name")
@@ -1268,6 +1291,19 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             } else {
                 var addr = text_base + target_off2
                 _elf_patch_u64_le_ptr(datap, data_off3, addr)
+            }
+        }
+        else if f["type"] == "data_data_ptr" {
+            // Patch a u64 slot in `.data` to point at another offset in `.data`.
+            // ET_DYN uses an R_X86_64_RELATIVE relocation emitted while building `.rela.dyn`.
+            var data_offp = f["data_off"]
+            if oren_type_tag(data_offp) == 0 { data_offp = 0 }
+            var target_data_offp = f["target_data_off"]
+            if oren_type_tag(target_data_offp) == 0 { target_data_offp = 0 }
+            if is_shared_lib == true {
+                _elf_patch_u64_le_ptr(datap, data_offp, 0)
+            } else {
+                _elf_patch_u64_le_ptr(datap, data_offp, text_base + data_base_off + target_data_offp)
             }
         }
         else if f["type"] == "rip_code_lea" {

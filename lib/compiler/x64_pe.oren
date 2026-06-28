@@ -1075,6 +1075,13 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             var addr = image_base + text_rva + target_off2
             set_u64_le(data, data_off2, addr)
         }
+        if f["type"] == "data_data_ptr" {
+            var data_offp = f["data_off"]
+            var target_data_offp = f["target_data_off"]
+            if oren_type_tag(data_offp) == 0 { data_offp = 0 }
+            if oren_type_tag(target_data_offp) == 0 { target_data_offp = 0 }
+            set_u64_le(data, data_offp, image_base + data_rva + target_data_offp)
+        }
         if f["type"] == "rip_code_lea" {
             // lea r64, [rip+disp32] where target is a function entry in .text.
             var disp_pos3 = f["pos"]

@@ -50,6 +50,23 @@ fn _x64_direct_data_int_init(ctx, expr) {
     return _x64_parse_simple_nonneg_decimal_int(expr["value"])
 }
 
+fn _x64_direct_data_string_init(ctx, expr) {
+    if expr == nil || expr["type"] != "String" { return nil }
+    var s = expr["value"]
+    if s == nil || oren_is_string(s) != true {
+        var tok = expr["token"]
+        if tok != nil {
+            var lit = tok["literal"]
+            if lit != nil && oren_is_string(lit) == true { s = lit }
+        }
+    }
+    if s == nil { s = "" }
+    if oren_is_string(s) != true { return nil }
+    var off = _data_add_cstr0(ctx, s)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return off
+}
+
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Collect top-level `var` declarations as globals and build the statement list to run
     // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
@@ -122,8 +139,8 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         i = i + 1
     }
 
-    // Allocate user global slots. Literal integer globals can be materialized directly in
-    // `.data`, avoiding hundreds of runtime top-level stores during self-hosted compiler
+    // Allocate user global slots. Literal integer/string globals can be materialized directly
+    // in `.data`, avoiding hundreds of runtime top-level stores during self-hosted compiler
     // emission. Non-literal initializers still execute in source order below.
     ctx["global_init_in_data"] = {}
     i = 0
@@ -135,13 +152,24 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 err(ctx, "x64 native v0: duplicate global var " + nm2)
                 return nil
             }
-            var init2 = _x64_direct_data_int_init(ctx, st2["value"])
-            var init_val2 = 0
-            if oren_type_tag(init2) != 0 {
-                init_val2 = init2
+            var off2 = 0
+            var have_off2 = false
+            var init_int2 = _x64_direct_data_int_init(ctx, st2["value"])
+            if oren_type_tag(init_int2) != 0 {
+                off2 = _data_add_u64(ctx, init_int2)
+                have_off2 = true
                 ctx["global_init_in_data"][nm2] = true
             }
-            var off2 = _data_add_u64(ctx, init_val2)
+            if have_off2 != true {
+                var init_str2 = _x64_direct_data_string_init(ctx, st2["value"])
+                if oren_type_tag(init_str2) != 0 {
+                    off2 = _data_add_u64(ctx, 0)
+                    have_off2 = true
+                    oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_str2})
+                    ctx["global_init_in_data"][nm2] = true
+                }
+            }
+            if have_off2 != true { off2 = _data_add_u64(ctx, 0) }
             // Store as offset+1 so a real offset of 0 is representable while still using `nil`
             // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm2] = off2 + 1
