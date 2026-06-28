@@ -433,7 +433,7 @@ This file is the concise task view. Detailed implementation status lives in
     definition/hover/reference navigation with direct variable-alias propagation,
     direct named factory-return inference, consistent direct call-site parameter
     inference with conflict invalidation, direct parameter-return propagation,
-    consistent conditional branch return inference, unknown-assignment invalidation,
+    consistent conditional branch return and assignment inference, unknown-assignment invalidation,
     and conservative prepare/rename workspace
     edits for exact scoped parameters and same-document typed fields, plus
     full-document semantic-token classification for declarations/references/literals/operators and parser-derived
@@ -441,7 +441,7 @@ This file is the concise task view. Detailed implementation status lives in
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and
     a smoke verifier for manifest/grammar/config/entrypoint integrity.
-  - Remaining work is richer member inference beyond direct constructor/alias/factory/call-site/parameter-return/conditional-return evidence.
+  - Remaining work is richer member inference beyond direct constructor/alias/factory/call-site/parameter-return/conditional-branch evidence.
 
 ## Closed/Do-Not-Repeat Families
 

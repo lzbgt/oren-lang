@@ -281,6 +281,7 @@ func collectInferredExpressionTypesUntil(expr ast.Expression, pos position, env 
 		collectInferredExpressionTypesUntil(expr.Condition, pos, env, stack)
 		collectInferredBlockTypesUntil(expr.Consequence, pos, env, stack)
 		collectInferredBlockTypesUntil(expr.Alternative, pos, env, stack)
+		applyIfBranchAssignmentEffects(expr, env, stack)
 	case *ast.CallExpression:
 		collectInferredExpressionTypesUntil(expr.Function, pos, env, stack)
 		for _, arg := range expr.Arguments {
@@ -496,16 +497,127 @@ func inferExpressionReturnType(expr ast.Expression, env memberTypeEnv, stack *[]
 			return ""
 		}
 		consequence := inferBlockReturnType(expr.Consequence, env, stack)
-		if consequence == "" {
-			return ""
-		}
 		alternative := inferBlockReturnType(expr.Alternative, env, stack)
-		if alternative == "" || alternative != consequence {
-			return ""
+		if consequence != "" && alternative != "" && consequence == alternative {
+			return consequence
 		}
-		return consequence
+		applyIfBranchAssignmentEffects(expr, env, stack)
 	}
 	return ""
+}
+
+func applyIfBranchAssignmentEffects(expr *ast.IfExpression, env memberTypeEnv, stack *[]map[string]string) {
+	if expr == nil || expr.Consequence == nil || expr.Alternative == nil || stack == nil {
+		return
+	}
+	consequence := collectBranchAssignmentEffects(expr.Consequence, env, *stack)
+	alternative := collectBranchAssignmentEffects(expr.Alternative, env, *stack)
+	for name, typeName := range mergeBranchAssignmentEffects(consequence, alternative) {
+		setInferredNameType(name, typeName, *stack)
+	}
+}
+
+func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv, stack []map[string]string) map[string]string {
+	effects := map[string]string{}
+	if block == nil {
+		return effects
+	}
+	localStack := append([]map[string]string{}, stack...)
+	localStack = append(localStack, map[string]string{})
+	for _, stmt := range block.Statements {
+		collectStatementAssignmentEffects(stmt, env, &localStack, effects)
+	}
+	return effects
+}
+
+func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string, effects map[string]string) {
+	switch stmt := stmt.(type) {
+	case *ast.VarStatement:
+		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+	case *ast.AssignStatement:
+		if !validMemberIdentifier(stmt.Name) {
+			return
+		}
+		typeName := inferExpressionType(stmt.Value, env, *stack)
+		effects[stmt.Name.Value] = typeName
+		setInferredNameType(stmt.Name.Value, typeName, *stack)
+	case *ast.ExpressionStatement:
+		collectExpressionAssignmentEffects(stmt.Expression, env, stack, effects)
+	case *ast.BlockStatement:
+		localStack := append(*stack, map[string]string{})
+		for _, nested := range stmt.Statements {
+			collectStatementAssignmentEffects(nested, env, &localStack, effects)
+		}
+	case *ast.ForStatement:
+		collectStatementAssignmentEffects(stmt.Init, env, stack, effects)
+		collectExpressionAssignmentEffects(stmt.Condition, env, stack, effects)
+		collectStatementAssignmentEffects(stmt.Post, env, stack, effects)
+	case *ast.SetStatement:
+		collectExpressionAssignmentEffects(stmt.Left, env, stack, effects)
+		collectExpressionAssignmentEffects(stmt.Value, env, stack, effects)
+	case *ast.ReturnStatement:
+		collectExpressionAssignmentEffects(stmt.ReturnValue, env, stack, effects)
+	}
+}
+
+func collectExpressionAssignmentEffects(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string, effects map[string]string) {
+	switch expr := expr.(type) {
+	case *ast.IfExpression:
+		if expr.Consequence == nil || expr.Alternative == nil {
+			return
+		}
+		for name, typeName := range mergeBranchAssignmentEffects(
+			collectBranchAssignmentEffects(expr.Consequence, env, *stack),
+			collectBranchAssignmentEffects(expr.Alternative, env, *stack),
+		) {
+			effects[name] = typeName
+			setInferredNameType(name, typeName, *stack)
+		}
+	case *ast.PrefixExpression:
+		collectExpressionAssignmentEffects(expr.Right, env, stack, effects)
+	case *ast.InfixExpression:
+		collectExpressionAssignmentEffects(expr.Left, env, stack, effects)
+		collectExpressionAssignmentEffects(expr.Right, env, stack, effects)
+	case *ast.SpawnExpression:
+		collectExpressionAssignmentEffects(expr.Call, env, stack, effects)
+	case *ast.CallExpression:
+		collectExpressionAssignmentEffects(expr.Function, env, stack, effects)
+		for _, arg := range expr.Arguments {
+			collectExpressionAssignmentEffects(arg, env, stack, effects)
+		}
+	case *ast.MemberExpression:
+		collectExpressionAssignmentEffects(expr.Left, env, stack, effects)
+	case *ast.ArrayLiteral:
+		for _, elem := range expr.Elements {
+			collectExpressionAssignmentEffects(elem, env, stack, effects)
+		}
+	case *ast.IndexExpression:
+		collectExpressionAssignmentEffects(expr.Left, env, stack, effects)
+		collectExpressionAssignmentEffects(expr.Index, env, stack, effects)
+	case *ast.HashLiteral:
+		for key, value := range expr.Pairs {
+			collectExpressionAssignmentEffects(key, env, stack, effects)
+			collectExpressionAssignmentEffects(value, env, stack, effects)
+		}
+	}
+}
+
+func mergeBranchAssignmentEffects(consequence, alternative map[string]string) map[string]string {
+	merged := map[string]string{}
+	for name, consequenceType := range consequence {
+		alternativeType, ok := alternative[name]
+		if ok && consequenceType != "" && consequenceType == alternativeType {
+			merged[name] = consequenceType
+			continue
+		}
+		merged[name] = ""
+	}
+	for name := range alternative {
+		if _, ok := consequence[name]; !ok {
+			merged[name] = ""
+		}
+	}
+	return merged
 }
 
 func collectFunctionParamStatementTypes(stmt ast.Statement, env memberTypeEnv, functions map[string]*ast.FunctionLiteral, stack *[]map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
@@ -560,6 +672,7 @@ func collectFunctionParamExpressionTypes(expr ast.Expression, env memberTypeEnv,
 		collectFunctionParamExpressionTypes(expr.Condition, env, functions, stack, out, conflicts)
 		collectFunctionParamBlockTypes(expr.Consequence, env, functions, stack, out, conflicts)
 		collectFunctionParamBlockTypes(expr.Alternative, env, functions, stack, out, conflicts)
+		applyIfBranchAssignmentEffects(expr, env, stack)
 	case *ast.FunctionLiteral:
 		*stack = append(*stack, inferredParamFrame(expr, env))
 		collectFunctionParamBlockTypes(expr.Body, env, functions, stack, out, conflicts)
@@ -682,6 +795,7 @@ func collectTypedMemberExpression(expr ast.Expression, uri string, env memberTyp
 		collectTypedMemberExpression(expr.Condition, uri, env, stack, index)
 		collectTypedMemberBlock(expr.Consequence, uri, env, stack, index)
 		collectTypedMemberBlock(expr.Alternative, uri, env, stack, index)
+		applyIfBranchAssignmentEffects(expr, env, stack)
 	case *ast.FunctionLiteral:
 		*stack = append(*stack, inferredParamFrame(expr, env))
 		collectTypedMemberBlock(expr.Body, uri, env, stack, index)
@@ -782,12 +896,19 @@ func setInferredVarType(ident *ast.Identifier, typeName string, stack []map[stri
 	if !validMemberIdentifier(ident) || len(stack) == 0 {
 		return
 	}
-	scope := stack[len(stack)-1]
-	if typeName == "" {
-		delete(scope, ident.Value)
+	setInferredNameType(ident.Value, typeName, stack)
+}
+
+func setInferredNameType(name, typeName string, stack []map[string]string) {
+	if name == "" || len(stack) == 0 {
 		return
 	}
-	scope[ident.Value] = typeName
+	scope := stack[len(stack)-1]
+	if typeName == "" {
+		delete(scope, name)
+		return
+	}
+	scope[name] = typeName
 }
 
 func inferredParamFrame(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
