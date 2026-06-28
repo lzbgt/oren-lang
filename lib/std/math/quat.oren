@@ -1,0 +1,103 @@
+import math "std:math"
+
+fn _finite4(x: f64, y: f64, z: f64, w: f64, ctx) {
+    if math.is_nan(x) || math.is_nan(y) || math.is_nan(z) || math.is_nan(w) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) || !math.is_finite(y) || !math.is_finite(z) || !math.is_finite(w) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite3(x: f64, y: f64, z: f64, ctx) {
+    if math.is_nan(x) || math.is_nan(y) || math.is_nan(z) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) || !math.is_finite(y) || !math.is_finite(z) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite_scalar(x: f64, ctx) {
+    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn identity() {
+    return [0.0, 0.0, 0.0, 1.0]
+}
+
+fn length_sq(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "quat.length_sq")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = x * x + y * y + z * z + w * w
+    return out
+}
+
+fn length(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "quat.length")
+    if oren_is_err(ok) { return ok }
+    return math.hypot(math.hypot(x, y), math.hypot(z, w))
+}
+
+fn normalize(x: f64, y: f64, z: f64, w: f64) {
+    var l0 = length(x, y, z, w)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return oren_err(4, "quat.normalize: zero length") }
+    return [x / l, y / l, z / l, w / l]
+}
+
+fn normalize_or_identity(x: f64, y: f64, z: f64, w: f64) {
+    var l0 = length(x, y, z, w)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return identity() }
+    return [x / l, y / l, z / l, w / l]
+}
+
+fn conjugate(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "quat.conjugate")
+    if oren_is_err(ok) { return ok }
+    return [0.0 - x, 0.0 - y, 0.0 - z, w]
+}
+
+fn mul(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var a = _finite4(ax, ay, az, aw, "quat.mul")
+    if oren_is_err(a) { return a }
+    var b = _finite4(bx, by, bz, bw, "quat.mul")
+    if oren_is_err(b) { return b }
+    var x: f64 = aw * bx + ax * bw + ay * bz - az * by
+    var y: f64 = aw * by - ax * bz + ay * bw + az * bx
+    var z: f64 = aw * bz + ax * by - ay * bx + az * bw
+    var w: f64 = aw * bw - ax * bx - ay * by - az * bz
+    return [x, y, z, w]
+}
+
+fn from_axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
+    var ok = _finite3(ax, ay, az, "quat.from_axis_angle")
+    if oren_is_err(ok) { return ok }
+    var ar = _finite_scalar(radians, "quat.from_axis_angle")
+    if oren_is_err(ar) { return ar }
+    var l0 = math.hypot3(ax, ay, az)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return oren_err(4, "quat.from_axis_angle: zero axis") }
+    var half: f64 = radians * 0.5
+    var s: f64 = math.sin(half)
+    var c: f64 = math.cos(half)
+    return [ax / l * s, ay / l * s, az / l * s, c]
+}
+
+fn rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
+    var q = normalize(qx, qy, qz, qw)
+    if oren_is_err(q) { return q }
+    var ok = _finite3(vx, vy, vz, "quat.rotate_vec3")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = q[0]
+    var y: f64 = q[1]
+    var z: f64 = q[2]
+    var w: f64 = q[3]
+    var tx: f64 = 2.0 * (y * vz - z * vy)
+    var ty: f64 = 2.0 * (z * vx - x * vz)
+    var tz: f64 = 2.0 * (x * vy - y * vx)
+    var rx: f64 = vx + w * tx + (y * tz - z * ty)
+    var ry: f64 = vy + w * ty + (z * tx - x * tz)
+    var rz: f64 = vz + w * tz + (x * ty - y * tx)
+    return [rx, ry, rz]
+}

@@ -385,6 +385,7 @@ This file is the concise task view. Detailed implementation status lives in
      angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
      pure finite `std:math/vec2` helpers including projection/rejection/reflection,
      pure finite `std:math/vec3` helpers including projection/rejection/reflection,
+     pure finite `std:math/quat` helpers for axis-angle and vector rotation,
      overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,

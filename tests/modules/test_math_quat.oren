@@ -1,0 +1,61 @@
+import quat "../../lib/std/math/quat.oren"
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math quat FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var id = quat.identity()
+assert_close(id[0], 0.0, 0.0, 10, "identity x")
+assert_close(id[3], 1.0, 0.0, 11, "identity w")
+assert_close(quat.length_sq(0.0, 0.0, 0.0, 2.0), 4.0, 0.0, 12, "length_sq")
+assert_close(quat.length(0.0, 0.0, 0.0, 2.0), 2.0, 1e-12, 13, "length")
+
+var n = quat.normalize(0.0, 0.0, 0.0, 2.0)
+assert_true(!oren_is_err(n), 20, "normalize ok")
+assert_close(n[3], 1.0, 0.0, 21, "normalize w")
+
+var zi = quat.normalize_or_identity(0.0, 0.0, 0.0, 0.0)
+assert_true(!oren_is_err(zi), 22, "normalize_or_identity ok")
+assert_close(zi[3], 1.0, 0.0, 23, "normalize_or_identity w")
+
+var c = quat.conjugate(1.0, 2.0, 3.0, 4.0)
+assert_true(!oren_is_err(c), 30, "conjugate ok")
+assert_close(c[0], 0.0 - 1.0, 0.0, 31, "conjugate x")
+assert_close(c[3], 4.0, 0.0, 32, "conjugate w")
+
+var qz = quat.from_axis_angle(0.0, 0.0, 1.0, math.pi() / 2.0)
+assert_true(!oren_is_err(qz), 40, "axis angle ok")
+var v = quat.rotate_vec3(qz[0], qz[1], qz[2], qz[3], 1.0, 0.0, 0.0)
+assert_true(!oren_is_err(v), 41, "rotate ok")
+assert_close(v[0], 0.0, 1e-9, 42, "rotate x")
+assert_close(v[1], 1.0, 1e-9, 43, "rotate y")
+assert_close(v[2], 0.0, 1e-9, 44, "rotate z")
+
+var qx = quat.from_axis_angle(1.0, 0.0, 0.0, math.pi() / 2.0)
+assert_true(!oren_is_err(qx), 50, "axis angle x ok")
+var qxy = quat.mul(qz[0], qz[1], qz[2], qz[3], qx[0], qx[1], qx[2], qx[3])
+assert_true(!oren_is_err(qxy), 51, "mul ok")
+assert_close(quat.length(qxy[0], qxy[1], qxy[2], qxy[3]), 1.0, 1e-9, 52, "mul length")
+
+assert_true(oren_is_err(quat.normalize(0.0, 0.0, 0.0, 0.0)), 60, "normalize zero errors")
+assert_true(oren_is_err(quat.from_axis_angle(0.0, 0.0, 0.0, 1.0)), 61, "axis zero errors")
+assert_true(oren_is_err(quat.from_axis_angle(0.0, 0.0, 1.0, math.inf())), 62, "axis angle inf errors")
+assert_true(oren_is_err(quat.rotate_vec3(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0)), 63, "rotate zero quat errors")
+assert_true(oren_is_err(quat.rotate_vec3(0.0, 0.0, 0.0, 1.0, math.nan(), 0.0, 0.0)), 64, "rotate nan vector errors")
+
+print("module math quat OK")
+exit(0)
