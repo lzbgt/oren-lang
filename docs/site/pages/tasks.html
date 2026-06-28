@@ -160,10 +160,13 @@
 <p>								     build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm</p>
 <p>								     probe still reduces <code>link.parse_modules</code> from about 17.8s to about 0.42s</p>
 <p>								     with <code>cache_hit=1</code> on both imported std modules when serial prewarm is</p>
-<p>								     explicitly enabled. A capped full x64 self-host trace now completes module</p>
-<p>								     parsing through <code>lib/compiler/compiler.oren</code> and reaches</p>
-<p>								     <code>link.abi_layout.done</code> at about 160s; the next concrete throughput target is</p>
-<p>								     optimizer time after ABI layout.</p>
+<p>								     explicitly enabled. Capped full x64 self-host traces now complete module</p>
+<p>								     parsing through <code>lib/compiler/compiler.oren</code> and reach</p>
+<p>								     <code>link.abi_layout.done</code> at about 160s. Optimizer phase logs now include</p>
+<p>								     bounded <code>optimizer.progress</code> entries, and a 180s probe reached statement</p>
+<p>								     index 1460 of 3065 inside x64 native emitter functions such as</p>
+<p>								     <code>_x64_symtab_push_unique</code>; the next concrete throughput target is optimizer</p>
+<p>								     throughput for those x64-heavy function definitions.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

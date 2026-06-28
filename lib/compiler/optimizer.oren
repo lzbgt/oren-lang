@@ -84,6 +84,25 @@ fn _optimizer_function_name(fun_expr) {
     return nm
 }
 
+fn _optimizer_progress_interval() {
+    var v = oren_env("OREN_OPTIMIZER_PROGRESS_INTERVAL")
+    if v == nil || v == "" { return 25 }
+    if v == "0" || v == "false" { return 0 }
+    var n = parse_int(v)
+    if n < 0 { return 25 }
+    return n
+}
+
+fn _optimizer_stmt_progress_name(stmt) {
+    if stmt == nil { return "<nil>" }
+    if stmt["type"] == "ExprStmt" && stmt["expr"] != nil && stmt["expr"]["type"] == "Function" {
+        return _optimizer_function_name(stmt["expr"])
+    }
+    var t = stmt["type"]
+    if t == nil || t == "" { return "<unknown>" }
+    return t
+}
+
 fn _optimizer_hot_update(hot, pass, fn_name, ns) {
     if hot == nil || pass == nil || ns == nil || ns <= 0 { return nil }
     if ns < 1000000 { return nil }
@@ -177,9 +196,29 @@ fn lower_linked_program_in_place(linked) {
     var list_candidate_count = 0
     var t_sub = 0
     var hot = {}
+    var progress_interval = 0
+    if profile_phases { progress_interval = _optimizer_progress_interval() }
     _optimizer_list_pass_profile_reset(profile_phases)
     if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(ss_len)) }
     while i < ss_len {
+        if profile_phases && progress_interval > 0 {
+            var should_progress = false
+            if i == 0 { should_progress = true }
+            else if i + 1 == ss_len { should_progress = true }
+            else if i - (i / progress_interval) * progress_interval == 0 { should_progress = true }
+            if should_progress {
+                var stp = ss[i]
+                var st_type = "<nil>"
+                if stp != nil && stp["type"] != nil { st_type = stp["type"] }
+                _optimizer_phase_log_append(phase_log_path, "optimizer.progress",
+                    "index=" + oren_int_to_string(i) +
+                    " total=" + oren_int_to_string(ss_len) +
+                    " funcs_seen=" + oren_int_to_string(fn_count) +
+                    " type=" + st_type +
+                    " name=" + _optimizer_stmt_progress_name(stp),
+                    phase_t0)
+            }
+        }
         if trace_opt && i == 0 { print("[opt] fold first stmt type=" + ss[i]["type"]) }
         if profile_phases { t_sub = oren_time_now_ns() }
         fold_stmt(ss[i], nn_env)
