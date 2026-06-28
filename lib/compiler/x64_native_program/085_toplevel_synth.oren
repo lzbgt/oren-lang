@@ -43,6 +43,13 @@ fn _x64_trace_global_slots(ctx, label) {
     return nil
 }
 
+fn _x64_direct_data_int_init(ctx, expr) {
+    // Only side-effect-free non-negative integer literals are safe to remove from
+    // __top_level__; all other global initializers must keep source-order runtime execution.
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    return _x64_parse_simple_nonneg_decimal_int(expr["value"])
+}
+
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Collect top-level `var` declarations as globals and build the statement list to run
     // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
@@ -115,7 +122,10 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         i = i + 1
     }
 
-    // Allocate user global slots and defer their initializers into __top_level__.
+    // Allocate user global slots. Literal integer globals can be materialized directly in
+    // `.data`, avoiding hundreds of runtime top-level stores during self-hosted compiler
+    // emission. Non-literal initializers still execute in source order below.
+    ctx["global_init_in_data"] = {}
     i = 0
     while i < oren_list_len(user_vars) {
         var st2 = user_vars[i]
@@ -125,7 +135,13 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 err(ctx, "x64 native v0: duplicate global var " + nm2)
                 return nil
             }
-            var off2 = _data_add_u64(ctx, 0)
+            var init2 = _x64_direct_data_int_init(ctx, st2["value"])
+            var init_val2 = 0
+            if oren_type_tag(init2) != 0 {
+                init_val2 = init2
+                ctx["global_init_in_data"][nm2] = true
+            }
+            var off2 = _data_add_u64(ctx, init_val2)
             // Store as offset+1 so a real offset of 0 is representable while still using `nil`
             // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm2] = off2 + 1
@@ -133,6 +149,8 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off2) }
             if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], false) }
             if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm2] = _x64_expr_is_floaty(ctx, st2["value"]) }
+            if ctx["globals_inty"] != nil { ctx["globals_inty"][nm2] = _x64_expr_is_inty(ctx, st2["value"]) }
+            if ctx["globals_int_const"] != nil { ctx["globals_int_const"][nm2] = _x64_expr_int_const(ctx, st2["value"]) }
         }
         i = i + 1
     }
@@ -147,9 +165,17 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     while j < oren_list_len(user_ordered) {
         var stx = user_ordered[j]
         if stx != nil && stx["type"] == "Var" {
-            var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
-            init_assign["__oren_top_level_global_init"] = true
-            oren_list_push(top_stmts, init_assign)
+            var skip_init = false
+            var stx_name = stx["name"]
+            if stx_name != nil && ctx["global_init_in_data"] != nil &&
+               ctx["global_init_in_data"][stx_name["value"]] == true {
+                skip_init = true
+            }
+            if skip_init != true {
+                var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
+                init_assign["__oren_top_level_global_init"] = true
+                oren_list_push(top_stmts, init_assign)
+            }
         } else {
             oren_list_push(top_stmts, stx)
         }

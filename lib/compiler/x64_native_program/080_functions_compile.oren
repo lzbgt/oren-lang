@@ -37,6 +37,17 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if trace_fn != nil && trace_fn != "" {
         if core.string_eq_bytes(trace_fn, name) { trace_this = true }
     }
+    var phase_log = nil
+    if ctx != nil { phase_log = ctx["phase_log"] }
+    var phase_this = false
+    if phase_log != nil {
+        if name == "__top_level__" || trace_this == true { phase_this = true }
+    }
+    var phase_start = 0
+    if phase_this {
+        phase_start = oren_time_now_ns()
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.start", "name=" + name)
+    }
     var t_stage = 0
     if trace_this { t_stage = oren_time_now_ns(); print("[x64_fn] start name=" + name) }
     // Expose the current function name to lowering passes (used for small, explicit
@@ -52,6 +63,14 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     var ops = _analyze_supported_fn_body(ctx, fn_node)
     if ops == nil { return nil }
+    if phase_this {
+        var ops_n_phase = 0
+        if ops != nil { ops_n_phase = oren_list_len(ops) }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.analyze.done",
+            "name=" + name +
+            " ops=" + oren_int_to_string(ops_n_phase) +
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+    }
     if trace_this {
         var dt = (oren_time_now_ns() - t_stage) / 1000000
         var ops_n = 0
@@ -117,6 +136,12 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
     if local_next < 0 { return nil }
+    if phase_this {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.locals.done",
+            "name=" + name +
+            " locals=" + oren_int_to_string(oren_map_len(locals)) +
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+    }
     if trace_this {
         var dt0 = (oren_time_now_ns() - t_stage) / 1000000
         print("[x64_fn] collect_locals done ms=" + oren_int_to_string(dt0))
@@ -292,6 +317,13 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     var frame_size = locals_size + save_bytes + call_area
     if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
+    if phase_this {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.frame.done",
+            "name=" + name +
+            " frame_bytes=" + oren_int_to_string(frame_size) +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+    }
 
     // Spill callee-saved regs into a dedicated region below locals (above call-area).
     var si = 0
@@ -394,9 +426,31 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         }
     }
     if trace_emit_ops { ctx["trace_emit_ops"] = true }
+    if phase_this {
+        ctx["emit_ops_phase_log"] = phase_log
+        ctx["emit_ops_phase_name"] = name
+        ctx["emit_ops_phase_stride"] = 50
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.start",
+            "name=" + name +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+            " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+    }
     _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    if phase_this {
+        ctx["emit_ops_phase_log"] = nil
+        ctx["emit_ops_phase_name"] = nil
+        ctx["emit_ops_phase_stride"] = nil
+    }
     if trace_emit_ops { ctx["trace_emit_ops"] = nil }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if phase_this {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.done",
+            "name=" + name +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+            " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+    }
     if trace_this {
         var dt1 = (oren_time_now_ns() - t_stage) / 1000000
         print("[x64_fn] emit_ops done ms=" + oren_int_to_string(dt1))
@@ -430,6 +484,13 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     bytes_extend(ctx["code"], insn_ret())
 
     _patch_local_fixups(ctx, labels, local_fixups)
+    if phase_this {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.done",
+            "name=" + name +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+            " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+    }
     if trace_this {
         var dt2 = (oren_time_now_ns() - t_stage) / 1000000
         print("[x64_fn] patch_fixups done ms=" + oren_int_to_string(dt2))

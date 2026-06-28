@@ -210,9 +210,28 @@ fn _x64_expr_is_inty(ctx, expr) {
     return false
 }
 
+fn _x64_parse_simple_nonneg_decimal_int(s) {
+    if s == nil { return nil }
+    var n = oren_string_len(s)
+    if n <= 0 { return nil }
+    // Keep this fast path bounded and defer large/qualified literals to intparse.
+    if n > 18 { return nil }
+    var out = 0
+    var i = 0
+    while i < n {
+        var c = oren_string_byte_at_unchecked(s, i) & 255
+        if c < 48 || c > 57 { return nil }
+        out = out * 10 + (c - 48)
+        i = i + 1
+    }
+    return out
+}
+
 fn _x64_expr_int_const(ctx, expr) {
     if expr == nil { return nil }
     if expr["type"] == "Integer" {
+        var fast = _x64_parse_simple_nonneg_decimal_int(expr["value"])
+        if fast != nil { return fast }
         var n = intparse.parse_int_lit(expr["value"])
         if oren_is_err(n) { _x64_err_invalid_int_lit(ctx, expr["value"]); return nil }
         return n

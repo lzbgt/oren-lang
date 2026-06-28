@@ -122,6 +122,19 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         trace_stride = core.parse_int_decimal(oren_env("OREN_TRACE_X64_EMIT_OPS_STRIDE"), trace_stride)
         if trace_stride < 1 { trace_stride = 1 }
     }
+    var phase_log = nil
+    var phase_name = nil
+    var phase_stride = 0
+    var phase_outer = false
+    if ctx != nil {
+        phase_log = ctx["emit_ops_phase_log"]
+        phase_name = ctx["emit_ops_phase_name"]
+        var stride_enc = ctx["emit_ops_phase_stride"]
+        if oren_type_tag(stride_enc) != 0 { phase_stride = stride_enc }
+    }
+    if phase_log != nil && phase_name != nil && phase_stride > 0 && loop_cond_label == nil && loop_end_label == nil {
+        phase_outer = true
+    }
     if trace { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
     var j = 0
     var charge_basic_block_next = true
@@ -148,6 +161,22 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 loc = " @" + tok["file"] + ":" + oren_int_to_string(tok["line"])
             }
             print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
+        }
+        if phase_outer && core.int_mod(j, phase_stride) == 0 {
+            var opk_phase = op["op"]
+            if opk_phase == nil { opk_phase = "?" }
+            var loc_phase = ""
+            var tok_phase = op["tok"]
+            if tok_phase != nil && tok_phase["file"] != nil && tok_phase["line"] != nil {
+                loc_phase = " file=" + tok_phase["file"] + " line=" + oren_int_to_string(tok_phase["line"])
+            }
+            _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.progress",
+                "name=" + phase_name +
+                " i=" + oren_int_to_string(j) +
+                " total=" + oren_int_to_string(n) +
+                " op=" + opk_phase +
+                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+                loc_phase)
         }
         _linetab_record_tok(ctx, op["tok"])
         var dynamic_note_pos = nil
@@ -219,20 +248,28 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
                 if oren_type_tag(goff_enc) == 0 { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
                 var goff = goff_enc - 1
-                var global_floaty = _x64_expr_is_floaty(ctx, op["expr"])
-                if op["__oren_top_level_global_init"] == true &&
-                   ctx["globals_floaty"] != nil &&
-                   ctx["globals_floaty"][name] == true {
-                    global_floaty = true
-                }
-                if ctx["globals_floaty"] != nil {
-                    ctx["globals_floaty"][name] = global_floaty
-                }
-                if ctx["globals_inty"] != nil {
-                    ctx["globals_inty"][name] = _x64_expr_is_inty(ctx, op["expr"]) && global_floaty != true
-                }
-                if ctx["globals_int_const"] != nil {
-                    ctx["globals_int_const"][name] = _x64_expr_int_const(ctx, op["expr"])
+                if op["__oren_top_level_global_init"] != true {
+                    var meta_expr = op["expr"]
+                    var global_floaty = false
+                    var global_inty = false
+                    var global_const = nil
+                    if meta_expr != nil && meta_expr["type"] == "Integer" {
+                        global_inty = true
+                        global_const = _x64_expr_int_const(ctx, meta_expr)
+                    } else {
+                        global_floaty = _x64_expr_is_floaty(ctx, meta_expr)
+                        if global_floaty != true { global_inty = _x64_expr_is_inty(ctx, meta_expr) }
+                        global_const = _x64_expr_int_const(ctx, meta_expr)
+                    }
+                    if ctx["globals_floaty"] != nil {
+                        ctx["globals_floaty"][name] = global_floaty
+                    }
+                    if ctx["globals_inty"] != nil {
+                        ctx["globals_inty"][name] = global_inty
+                    }
+                    if ctx["globals_int_const"] != nil {
+                        ctx["globals_int_const"][name] = global_const
+                    }
                 }
 
                 // r10 = &global_slot ; *(u64*)r10 = rax
