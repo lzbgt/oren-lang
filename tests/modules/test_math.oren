@@ -107,6 +107,15 @@ assert_true(!math.isclose(math.inf(), 1.0, 1.0, 1.0), 162)
 assert_true(!math.isclose(math.nan(), math.nan(), 1.0, 1.0), 163)
 assert_true(oren_is_err(math.isclose(1.0, 1.0, 0.0 - 1.0, 0.0)), 164)
 assert_true(oren_is_err(math.isclose_abs(1.0, 1.0, math.inf())), 165)
+var copy_neg = math.copysign(1.0, 0.0 - 1.0)
+assert_eq(copy_neg, 0.0 - 1.0, 166)
+assert_true(math.signbit(copy_neg), 167)
+var copy_pos = math.copysign(0.0 - 1.0, 0.0)
+assert_eq(copy_pos, 1.0, 168)
+assert_true(!math.signbit(copy_pos), 169)
+var copy_nan = math.copysign(math.nan(), 0.0 - 1.0)
+assert_true(math.is_nan(copy_nan), 170)
+assert_true(math.signbit(copy_nan), 171)
 
 // NaN predicate (IEEE-ish). 0.0/0.0 should yield NaN.
 var nanv = 0.0 / 0.0
