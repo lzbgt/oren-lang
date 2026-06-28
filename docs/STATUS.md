@@ -904,8 +904,9 @@ Working evidence:
   constructor-inferred same-file and direct-import-alias struct/class field
   definition/hover/reference navigation with direct variable-alias propagation,
   direct named factory-return inference, direct typed constructor/factory
-  expression receiver field navigation, consistent direct call-site parameter
-  inference with conflict invalidation, direct parameter-return propagation,
+  expression receiver field navigation plus constructor-field receiver chain
+  inference, consistent direct call-site parameter inference with conflict
+  invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
   unknown-assignment invalidation,
   and conservative prepare/rename workspace edits for exact scoped parameters and
@@ -914,7 +915,7 @@ Working evidence:
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
-  constructor/alias/factory-expression/call-site/parameter-return/conditional-branch evidence remains.
+  constructor/alias/factory-expression/constructed-field/call-site/parameter-return/conditional-branch evidence remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

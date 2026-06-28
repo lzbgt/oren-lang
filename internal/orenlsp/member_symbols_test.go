@@ -166,3 +166,81 @@ func TestServerNavigationUsesExpressionReceiverFields(t *testing.T) {
 		{URI: uri, Range: diagnosticRange{Start: position{Line: 5, Character: 38}, End: position{Line: 5, Character: 39}}},
 	})
 }
+
+func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Inner { x }",
+		"struct Outer { inner }",
+		"fn main() {",
+		"  var nested = Outer(Inner(2)).inner",
+		"  return Outer(Inner(1)).inner.x + nested.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-member-constructed-field.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      301,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 4, "character": 31},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      302,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 4, "character": 42},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      303,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      304,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 1, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertDefinition(t, messageByID(t, msgs, 301)["result"].([]any), uri, 0, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 302)["result"].([]any), uri, 0, 15, 16)
+	assertLocations(t, messageByID(t, msgs, 303)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 4, Character: 31}, End: position{Line: 4, Character: 32}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 4, Character: 42}, End: position{Line: 4, Character: 43}}},
+	})
+	assertLocations(t, messageByID(t, msgs, 304)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 1, Character: 15}, End: position{Line: 1, Character: 20}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 3, Character: 31}, End: position{Line: 3, Character: 36}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 4, Character: 25}, End: position{Line: 4, Character: 30}}},
+	})
+}

@@ -869,8 +869,52 @@ func inferExpressionType(expr ast.Expression, env memberTypeEnv, stack []map[str
 				return typeName
 			}
 		}
+	case *ast.MemberExpression:
+		return inferConstructedFieldType(expr, env, stack)
 	}
 	return ""
+}
+
+func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, stack []map[string]string) string {
+	if expr == nil || !validMemberIdentifier(expr.Property) {
+		return ""
+	}
+	call, ok := expr.Left.(*ast.CallExpression)
+	if !ok {
+		return ""
+	}
+	typeName := inferExpressionType(call, env, stack)
+	info, ok := env.Types[typeName]
+	if !ok {
+		return ""
+	}
+	fieldIndex := constructorFieldIndex(info, expr.Property.Value)
+	if fieldIndex < 0 || fieldIndex >= len(call.Arguments) {
+		return ""
+	}
+	return inferExpressionType(call.Arguments[fieldIndex], env, stack)
+}
+
+func constructorFieldIndex(info typeInfo, fieldName string) int {
+	if fieldName == "" {
+		return -1
+	}
+	fields := make([]resolvedSymbol, 0, len(info.Fields))
+	for _, field := range info.Fields {
+		fields = append(fields, field)
+	}
+	sort.Slice(fields, func(i, j int) bool {
+		if fields[i].Symbol.Range.Start.Line == fields[j].Symbol.Range.Start.Line {
+			return fields[i].Symbol.Range.Start.Character < fields[j].Symbol.Range.Start.Character
+		}
+		return fields[i].Symbol.Range.Start.Line < fields[j].Symbol.Range.Start.Line
+	})
+	for i, field := range fields {
+		if field.Symbol.Name == fieldName {
+			return i
+		}
+	}
+	return -1
 }
 
 func constructorTypeKey(expr ast.Expression) string {
