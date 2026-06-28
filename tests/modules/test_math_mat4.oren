@@ -1,0 +1,68 @@
+import mat4 "../../lib/std/math/mat4.oren"
+import quat "../../lib/std/math/quat.oren"
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math mat4 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var id = mat4.identity()
+assert_close(id[0], 1.0, 0.0, 10, "identity xx")
+assert_close(id[15], 1.0, 0.0, 11, "identity ww")
+
+var tr = mat4.translation(3.0, 4.0, 5.0)
+assert_true(!oren_is_err(tr), 20, "translation ok")
+var tp = mat4.transform_point3(tr, 1.0, 2.0, 3.0)
+assert_true(!oren_is_err(tp), 21, "translation point ok")
+assert_close(tp[0], 4.0, 0.0, 22, "translation x")
+assert_close(tp[1], 6.0, 0.0, 23, "translation y")
+assert_close(tp[2], 8.0, 0.0, 24, "translation z")
+var tv = mat4.transform_vec3(tr, 1.0, 2.0, 3.0)
+assert_true(!oren_is_err(tv), 25, "translation vector ok")
+assert_close(tv[0], 1.0, 0.0, 26, "vector ignores translation")
+
+var sc = mat4.scale(2.0, 3.0, 4.0)
+assert_true(!oren_is_err(sc), 30, "scale ok")
+var sp = mat4.transform_point3(sc, 1.0, 2.0, 3.0)
+assert_true(!oren_is_err(sp), 31, "scale point ok")
+assert_close(sp[0], 2.0, 0.0, 32, "scale x")
+assert_close(sp[1], 6.0, 0.0, 33, "scale y")
+assert_close(sp[2], 12.0, 0.0, 34, "scale z")
+
+var ts = mat4.mul(tr, sc)
+assert_true(!oren_is_err(ts), 40, "mul ok")
+var tsp = mat4.transform_point3(ts, 1.0, 2.0, 3.0)
+assert_true(!oren_is_err(tsp), 41, "mul point ok")
+assert_close(tsp[0], 5.0, 0.0, 42, "mul x")
+assert_close(tsp[1], 10.0, 0.0, 43, "mul y")
+assert_close(tsp[2], 17.0, 0.0, 44, "mul z")
+
+var qz = quat.from_axis_angle(0.0, 0.0, 1.0, math.pi() / 2.0)
+assert_true(!oren_is_err(qz), 50, "quat ok")
+var rz = mat4.from_quat(qz[0], qz[1], qz[2], qz[3])
+assert_true(!oren_is_err(rz), 51, "from_quat ok")
+var rp = mat4.transform_point3(rz, 1.0, 0.0, 0.0)
+assert_true(!oren_is_err(rp), 52, "rot point ok")
+assert_close(rp[0], 0.0, 1e-9, 53, "rot x")
+assert_close(rp[1], 1.0, 1e-9, 54, "rot y")
+
+assert_true(oren_is_err(mat4.translation(math.inf(), 0.0, 0.0)), 60, "translation inf errors")
+assert_true(oren_is_err(mat4.from_quat(0.0, 0.0, 0.0, 0.0)), 61, "from_quat zero errors")
+assert_true(oren_is_err(mat4.mul([1.0], id)), 62, "mul length errors")
+assert_true(oren_is_err(mat4.transform_point3([1.0], 0.0, 0.0, 0.0)), 63, "point length errors")
+
+print("module math mat4 OK")
+exit(0)

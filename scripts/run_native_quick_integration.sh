@@ -1696,6 +1696,19 @@ run_step_checked "math quat smoke (bytecode)" "$math_quat_log" \
   "$compiler" test "$math_quat_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_quat_log"
 
+echo "== math mat4 smoke (native/C/bytecode) =="
+math_mat4_src="tests/modules/test_math_mat4.oren"
+math_mat4_log="build/logs/${compiler_base}_math_mat4.log"
+rm -f "$math_mat4_log" 2>/dev/null || true
+
+run_step_checked "math mat4 smoke (native)" "$math_mat4_log" \
+  "$compiler" test "$math_mat4_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math mat4 smoke (C)" "$math_mat4_log" \
+  "$compiler" test "$math_mat4_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math mat4 smoke (bytecode)" "$math_mat4_log" \
+  "$compiler" test "$math_mat4_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_mat4_log"
+
 echo "== math vec2 smoke (native/C/bytecode) =="
 math_vec2_src="tests/modules/test_math_vec2.oren"
 math_vec2_log="build/logs/${compiler_base}_math_vec2.log"

@@ -1,0 +1,44 @@
+@myorg.tag(name="avm-std-math-mat4")
+
+import mat4 "../../lib/std/math/mat4.oren"
+import quat "../../lib/std/math/quat.oren"
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("avm std math mat4 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+var tr = mat4.translation(3.0, 4.0, 5.0)
+assert_true(!oren_is_err(tr), 10, "translation ok")
+var tp = mat4.transform_point3(tr, 1.0, 2.0, 3.0)
+assert_true(!oren_is_err(tp), 11, "point ok")
+assert_close(tp[0], 4.0, 0.0, 12, "point x")
+assert_close(tp[2], 8.0, 0.0, 13, "point z")
+
+var qz = quat.from_axis_angle(0.0, 0.0, 1.0, math.pi() / 2.0)
+assert_true(!oren_is_err(qz), 20, "quat ok")
+var rz = mat4.from_quat(qz[0], qz[1], qz[2], qz[3])
+assert_true(!oren_is_err(rz), 21, "from_quat ok")
+var rp = mat4.transform_vec3(rz, 1.0, 0.0, 0.0)
+assert_true(!oren_is_err(rp), 22, "rot vector ok")
+assert_close(rp[0], 0.0, 1e-9, 23, "rot x")
+assert_close(rp[1], 1.0, 1e-9, 24, "rot y")
+
+assert_true(oren_is_err(mat4.from_quat(0.0, 0.0, 0.0, 0.0)), 30, "from_quat zero errors")
+assert_true(oren_is_err(mat4.transform_point3([1.0], 0.0, 0.0, 0.0)), 31, "point length errors")
+
+print("avm std math mat4 OK")
+exit(0)

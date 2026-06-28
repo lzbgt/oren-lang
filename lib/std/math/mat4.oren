@@ -1,0 +1,176 @@
+import math "std:math"
+import quat "std:math/quat"
+
+fn _finite_scalar(x: f64, ctx) {
+    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite3(x: f64, y: f64, z: f64, ctx) {
+    var a = _finite_scalar(x, ctx)
+    if oren_is_err(a) { return a }
+    var b = _finite_scalar(y, ctx)
+    if oren_is_err(b) { return b }
+    return _finite_scalar(z, ctx)
+}
+
+fn _check(m, ctx) {
+    if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
+    var i = 0
+    while i < 16 {
+        var ok = _finite_scalar(m[i], ctx)
+        if oren_is_err(ok) { return ok }
+        i = i + 1
+    }
+    return 0
+}
+
+fn identity() {
+    return [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn translation(tx: f64, ty: f64, tz: f64) {
+    var ok = _finite3(tx, ty, tz, "mat4.translation")
+    if oren_is_err(ok) { return ok }
+    return [
+        1.0, 0.0, 0.0, tx,
+        0.0, 1.0, 0.0, ty,
+        0.0, 0.0, 1.0, tz,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn scale(sx: f64, sy: f64, sz: f64) {
+    var ok = _finite3(sx, sy, sz, "mat4.scale")
+    if oren_is_err(ok) { return ok }
+    return [
+        sx, 0.0, 0.0, 0.0,
+        0.0, sy, 0.0, 0.0,
+        0.0, 0.0, sz, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn from_quat(x: f64, y: f64, z: f64, w: f64) {
+    var q = quat.normalize(x, y, z, w)
+    if oren_is_err(q) { return q }
+    var qx: f64 = q[0]
+    var qy: f64 = q[1]
+    var qz: f64 = q[2]
+    var qw: f64 = q[3]
+    var xx: f64 = qx * qx
+    var yy: f64 = qy * qy
+    var zz: f64 = qz * qz
+    var xy: f64 = qx * qy
+    var xz: f64 = qx * qz
+    var yz: f64 = qy * qz
+    var wx: f64 = qw * qx
+    var wy: f64 = qw * qy
+    var wz: f64 = qw * qz
+    return [
+        1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0,
+        2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0,
+        2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn _cell(a, b, r, c) {
+    var base = r * 4
+    var a0: f64 = a[base]
+    var a1: f64 = a[base + 1]
+    var a2: f64 = a[base + 2]
+    var a3: f64 = a[base + 3]
+    var b0: f64 = b[c]
+    var b1: f64 = b[4 + c]
+    var b2: f64 = b[8 + c]
+    var b3: f64 = b[12 + c]
+    var out: f64 = a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3
+    return out
+}
+
+fn mul(a, b) {
+    var ca = _check(a, "mat4.mul")
+    if oren_is_err(ca) { return ca }
+    var cb = _check(b, "mat4.mul")
+    if oren_is_err(cb) { return cb }
+    var c00: f64 = _cell(a, b, 0, 0)
+    var c01: f64 = _cell(a, b, 0, 1)
+    var c02: f64 = _cell(a, b, 0, 2)
+    var c03: f64 = _cell(a, b, 0, 3)
+    var c10: f64 = _cell(a, b, 1, 0)
+    var c11: f64 = _cell(a, b, 1, 1)
+    var c12: f64 = _cell(a, b, 1, 2)
+    var c13: f64 = _cell(a, b, 1, 3)
+    var c20: f64 = _cell(a, b, 2, 0)
+    var c21: f64 = _cell(a, b, 2, 1)
+    var c22: f64 = _cell(a, b, 2, 2)
+    var c23: f64 = _cell(a, b, 2, 3)
+    var c30: f64 = _cell(a, b, 3, 0)
+    var c31: f64 = _cell(a, b, 3, 1)
+    var c32: f64 = _cell(a, b, 3, 2)
+    var c33: f64 = _cell(a, b, 3, 3)
+    return [
+        c00, c01, c02, c03,
+        c10, c11, c12, c13,
+        c20, c21, c22, c23,
+        c30, c31, c32, c33
+    ]
+}
+
+fn transform_point3(m, x: f64, y: f64, z: f64) {
+    var cm = _check(m, "mat4.transform_point3")
+    if oren_is_err(cm) { return cm }
+    var ok = _finite3(x, y, z, "mat4.transform_point3")
+    if oren_is_err(ok) { return ok }
+    var m0: f64 = m[0]
+    var m1: f64 = m[1]
+    var m2: f64 = m[2]
+    var m3: f64 = m[3]
+    var m4: f64 = m[4]
+    var m5: f64 = m[5]
+    var m6: f64 = m[6]
+    var m7: f64 = m[7]
+    var m8: f64 = m[8]
+    var m9: f64 = m[9]
+    var m10: f64 = m[10]
+    var m11: f64 = m[11]
+    var m12: f64 = m[12]
+    var m13: f64 = m[13]
+    var m14: f64 = m[14]
+    var m15: f64 = m[15]
+    var ox: f64 = m0 * x + m1 * y + m2 * z + m3
+    var oy: f64 = m4 * x + m5 * y + m6 * z + m7
+    var oz: f64 = m8 * x + m9 * y + m10 * z + m11
+    var ow: f64 = m12 * x + m13 * y + m14 * z + m15
+    if ow == 0.0 { return oren_err(4, "mat4.transform_point3: zero w") }
+    if ow == 1.0 { return [ox, oy, oz] }
+    return [ox / ow, oy / ow, oz / ow]
+}
+
+fn transform_vec3(m, x: f64, y: f64, z: f64) {
+    var cm = _check(m, "mat4.transform_vec3")
+    if oren_is_err(cm) { return cm }
+    var ok = _finite3(x, y, z, "mat4.transform_vec3")
+    if oren_is_err(ok) { return ok }
+    var m0: f64 = m[0]
+    var m1: f64 = m[1]
+    var m2: f64 = m[2]
+    var m4: f64 = m[4]
+    var m5: f64 = m[5]
+    var m6: f64 = m[6]
+    var m8: f64 = m[8]
+    var m9: f64 = m[9]
+    var m10: f64 = m[10]
+    return [
+        m0 * x + m1 * y + m2 * z,
+        m4 * x + m5 * y + m6 * z,
+        m8 * x + m9 * y + m10 * z
+    ]
+}
