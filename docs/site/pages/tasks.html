@@ -247,7 +247,8 @@
 <p>     continuation/header-block and DATA response buffering now uses amortized</p>
 <p>     <code>u8_buf</code> accumulators, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
-<p>     exact-size writes. <code>std:strings</code> prefix/suffix/search/equality</p>
+<p>     exact-size writes; Base64 decode also rejects interior padding before</p>
+<p>     returning exact-size <code>u8_buf</code> decoded bytes. <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text</p>
 <p>     encoding/decode byte carriers, and full regex</p>
 <p>     pattern/text matching now use direct string</p>

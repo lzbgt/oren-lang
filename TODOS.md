@@ -34,6 +34,8 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
+- Base64 decode now rejects interior padding and third-character padding without
+  fourth-character padding while keeping decoded output as exact-size `u8_buf`.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

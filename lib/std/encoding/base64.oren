@@ -210,6 +210,12 @@ fn decode_bytes(s) {
         if v0 < 0 || v1 < 0 { return oren_err(4, "base64.decode_bytes: invalid base64") }
         if v0 == -1 || v1 == -1 { return oren_err(4, "base64.decode_bytes: padding in first 2 chars") }
         if v2 < -1 || v3 < -1 { return oren_err(4, "base64.decode_bytes: invalid base64") }
+        if (v2 == -1 || v3 == -1) && g + 1 < groups {
+            return oren_err(4, "base64.decode_bytes: padding before final group")
+        }
+        if v2 == -1 && v3 != -1 {
+            return oren_err(4, "base64.decode_bytes: invalid padding")
+        }
 
         var triple = (v0 << 18) | (v1 << 12)
         if v2 >= 0 { triple = triple | (v2 << 6) }
