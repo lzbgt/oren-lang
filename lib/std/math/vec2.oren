@@ -1,0 +1,93 @@
+import math "std:math"
+
+fn _finite2(x: f64, y: f64, ctx) {
+    if math.is_nan(x) || math.is_nan(y) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) || !math.is_finite(y) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite4(ax: f64, ay: f64, bx: f64, by: f64, ctx) {
+    var a = _finite2(ax, ay, ctx)
+    if oren_is_err(a) { return a }
+    return _finite2(bx, by, ctx)
+}
+
+fn length_sq(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.length_sq")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = x * x + y * y
+    return out
+}
+
+fn length(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.length")
+    if oren_is_err(ok) { return ok }
+    return math.hypot(x, y)
+}
+
+fn distance_sq(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.distance_sq")
+    if oren_is_err(ok) { return ok }
+    var dx: f64 = bx - ax
+    var dy: f64 = by - ay
+    var out: f64 = dx * dx + dy * dy
+    return out
+}
+
+fn distance(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.distance")
+    if oren_is_err(ok) { return ok }
+    return math.hypot(bx - ax, by - ay)
+}
+
+fn dot(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.dot")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = ax * bx + ay * by
+    return out
+}
+
+fn cross(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.cross")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = ax * by - ay * bx
+    return out
+}
+
+fn normalize(x: f64, y: f64) {
+    var l0 = length(x, y)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return oren_err(4, "vec2.normalize: zero length") }
+    return [x / l, y / l]
+}
+
+fn normalize_or_zero(x: f64, y: f64) {
+    var l0 = length(x, y)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return [0.0, 0.0] }
+    return [x / l, y / l]
+}
+
+fn angle(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.angle")
+    if oren_is_err(ok) { return ok }
+    return math.atan2(y, x)
+}
+
+fn from_angle(rad: f64) {
+    if math.is_nan(rad) { return oren_err(4, "vec2.from_angle: NaN") }
+    if !math.is_finite(rad) { return oren_err(4, "vec2.from_angle: non-finite") }
+    return [math.cos(rad), math.sin(rad)]
+}
+
+fn rotate(x: f64, y: f64, rad: f64) {
+    var ok = _finite2(x, y, "vec2.rotate")
+    if oren_is_err(ok) { return ok }
+    if math.is_nan(rad) { return oren_err(4, "vec2.rotate: NaN") }
+    if !math.is_finite(rad) { return oren_err(4, "vec2.rotate: non-finite") }
+    var c: f64 = math.cos(rad)
+    var s: f64 = math.sin(rad)
+    return [x * c - y * s, x * s + y * c]
+}

@@ -1,0 +1,56 @@
+import vec2 "../../lib/std/math/vec2.oren"
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math vec2 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_close(vec2.length_sq(3.0, 4.0), 25.0, 1e-12, 10, "length_sq")
+assert_close(vec2.length(3.0, 4.0), 5.0, 1e-12, 11, "length")
+assert_close(vec2.distance_sq(1.0, 2.0, 4.0, 6.0), 25.0, 1e-12, 12, "distance_sq")
+assert_close(vec2.distance(1.0, 2.0, 4.0, 6.0), 5.0, 1e-12, 13, "distance")
+assert_close(vec2.dot(1.0, 2.0, 3.0, 4.0), 11.0, 1e-12, 14, "dot")
+assert_close(vec2.cross(1.0, 0.0, 0.0, 1.0), 1.0, 1e-12, 15, "cross positive")
+assert_close(vec2.cross(0.0, 1.0, 1.0, 0.0), 0.0 - 1.0, 1e-12, 16, "cross negative")
+
+var n = vec2.normalize(3.0, 4.0)
+assert_true(!oren_is_err(n), 20, "normalize ok")
+assert_close(n[0], 0.6, 1e-12, 21, "normalize x")
+assert_close(n[1], 0.8, 1e-12, 22, "normalize y")
+
+var z = vec2.normalize_or_zero(0.0, 0.0)
+assert_true(!oren_is_err(z), 23, "normalize_or_zero ok")
+assert_close(z[0], 0.0, 0.0, 24, "normalize_or_zero x")
+assert_close(z[1], 0.0, 0.0, 25, "normalize_or_zero y")
+
+assert_close(vec2.angle(0.0, 1.0), math.pi() / 2.0, 1e-12, 30, "angle up")
+var u = vec2.from_angle(math.pi() / 2.0)
+assert_true(!oren_is_err(u), 31, "from_angle ok")
+assert_close(u[0], 0.0, 1e-12, 32, "from_angle x")
+assert_close(u[1], 1.0, 1e-12, 33, "from_angle y")
+
+var r = vec2.rotate(1.0, 0.0, math.pi() / 2.0)
+assert_true(!oren_is_err(r), 34, "rotate ok")
+assert_close(r[0], 0.0, 1e-12, 35, "rotate x")
+assert_close(r[1], 1.0, 1e-12, 36, "rotate y")
+
+assert_true(oren_is_err(vec2.normalize(0.0, 0.0)), 40, "normalize zero errors")
+assert_true(oren_is_err(vec2.length(math.inf(), 1.0)), 41, "length inf errors")
+assert_true(oren_is_err(vec2.dot(1.0, 2.0, math.nan(), 4.0)), 42, "dot nan errors")
+assert_true(oren_is_err(vec2.rotate(1.0, 0.0, math.inf())), 43, "rotate inf angle errors")
+
+print("module math vec2 OK")
+exit(0)

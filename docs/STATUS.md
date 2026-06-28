@@ -798,6 +798,7 @@ Working evidence:
   `remap`, `remap_clamped`, `clamp`, `saturate`, `smoothstep`,
   `smootherstep`, graphics scalar helpers `sign`, `step`, `fract`,
   angle wrapping/interpolation helpers,
+  pure finite `std:math/vec2` length/distance/dot/cross/normalize/angle/rotate helpers,
   overflow-aware `midpoint`,
   normal/subnormal classification, rounding, integer rounding aliases
   `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,
@@ -822,6 +823,7 @@ Working evidence:
   `lerp`, range mapping helpers `inverse_lerp`/`remap`/`remap_clamped`,
   graphics scalar/interpolation helpers `sign`/`step`/`fract`/`clamp`/`saturate`/`smoothstep`/`smootherstep`,
   angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
+  pure finite `std:math/vec2` helpers,
   overflow-aware `midpoint`, public ties-to-even rounding aliases, degree/radian conversion,
   normal/subnormal/`fpclassify` classification,
   `ilogb`/`logb`, `fdim`, `nextafter`/`nexttoward`,

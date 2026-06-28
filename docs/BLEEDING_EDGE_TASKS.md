@@ -383,6 +383,7 @@ This file is the concise task view. Detailed implementation status lives in
      `remap_clamped`, graphics scalar/interpolation helpers `sign`, `step`,
      `fract`, `clamp`, `saturate`, `smoothstep`, and `smootherstep`,
      angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
+     pure finite `std:math/vec2` helpers,
      overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
