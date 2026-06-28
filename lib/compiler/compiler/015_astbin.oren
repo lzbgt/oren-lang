@@ -1114,6 +1114,11 @@ fn _astbin_guess_pool_cap_for_v2(v) {
 }
 
 fn astbin_encode_v2(v) {
+    var trace = false
+    var v_trace = oren_env("OREN_TRACE_ASTBIN")
+    if v_trace != nil && v_trace != "" && v_trace != "0" && v_trace != "false" { trace = true }
+    var t0 = 0
+    if trace { t0 = oren_time_now_ns() }
     // Build string pool (deterministic discovery order).
     var pool = []
     // Use the cross-backend capacity constructor (native runtime maps treat 0 as nil internally).
@@ -1125,7 +1130,9 @@ fn astbin_encode_v2(v) {
         // (Safe on an empty map; it just allocates the table.)
         oren_map_build_finalize_unchecked(pool_idx_map, pool_cap)
     }
+    if trace { print("[astbin] encode_v2 pool_cap=" + oren_int_to_string(pool_cap)) }
     _astbin_collect_strings(v, pool_idx_map, pool)
+    if trace { print("[astbin] encode_v2 collect done +" + oren_int_to_string((oren_time_now_ns() - t0) / 1000000) + "ms pool=" + oren_int_to_string(oren_list_len(pool))) }
 
     // Header:
     //   [9][uvarint pool_n][pool strings...][root value...]
@@ -1140,6 +1147,7 @@ fn astbin_encode_v2(v) {
     }
 
     var body_n = _astbin_size_v2(v, pool_idx_map)
+    if trace { print("[astbin] encode_v2 size done +" + oren_int_to_string((oren_time_now_ns() - t0) / 1000000) + "ms header=" + oren_int_to_string(header_n) + " body=" + oren_int_to_string(body_n)) }
     var total_n = header_n + body_n
     var buf = oren_u8_buf_new(total_n)
     var data_ptr = oren_buf_data_ptr_unchecked(buf)
@@ -1151,6 +1159,8 @@ fn astbin_encode_v2(v) {
         off = _astbin_write_string_ptr(data_ptr, off, pool[si])
         si = iadd(si, 1)
     }
+    if trace { print("[astbin] encode_v2 pool write done +" + oren_int_to_string((oren_time_now_ns() - t0) / 1000000) + "ms") }
     off = _astbin_write_value_v2_ptr(buf, data_ptr, off, v, pool_idx_map)
+    if trace { print("[astbin] encode_v2 done +" + oren_int_to_string((oren_time_now_ns() - t0) / 1000000) + "ms bytes=" + oren_int_to_string(total_n)) }
     return buf
 }

@@ -212,7 +212,8 @@ fn _ml_parse_jobs() {
 // Design:
 // - Cache stores *post-prepare* module programs (after cfg/rename/serde_json lowering),
 //   keyed by:
-//     - compiler signature (argv[0] path + size + mtime_ns)
+//     - compiler signature (argv[0] path + size + mtime_ns by default, or explicit
+//       OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG for controlled profiling/prewarm runs)
 //     - config platform tuple (os/arch/platform)
 //     - module path + prefix (stable)
 //     - expanded source fingerprint (after @include expansion)
@@ -275,7 +276,7 @@ fn _ml_modcache_serial_write_min_ms() {
     // entries from serial/thread builds.
     var v = oren_env("OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS")
     if v != nil && v != "" {
-        if v == "0" || v == "false" { return -1 }
+        if v == "false" { return -1 }
         return _ml_parse_nonneg_decimal_default(v, 250)
     }
     return -1
@@ -324,6 +325,11 @@ fn _ml_sanitize_path_component(s) {
 
 fn _ml_modcache_compiler_sig() {
     if _ML_MODCACHE_COMPILER_SIG != nil { return _ML_MODCACHE_COMPILER_SIG }
+    var sig_env = oren_env("OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG")
+    if sig_env != nil && sig_env != "" {
+        _ML_MODCACHE_COMPILER_SIG = _ml_sanitize_path_component("env_" + sig_env)
+        return _ML_MODCACHE_COMPILER_SIG
+    }
     var sig = "unknown"
     var args = oren_args()
     if args != nil && oren_list_len(args) > 0 {

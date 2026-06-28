@@ -249,8 +249,31 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     if cache_path != nil && profile_parse && _ml_modcache_enabled() == true {
         var min_ms = _ml_modcache_serial_write_min_ms()
         if min_ms >= 0 && parse_ms + prepare_ms >= min_ms {
+            var cache_write_phase_log = _ml_phase_log_path()
+            var cache_write_t0 = 0
+            if cache_write_phase_log != nil {
+                cache_write_t0 = oren_time_now_ns()
+                _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.start",
+                    "path=" + full +
+                    " min_ms=" + oren_int_to_string(min_ms) +
+                    " parse_ms=" + oren_int_to_string(parse_ms) +
+                    " prepare_ms=" + oren_int_to_string(prepare_ms),
+                    cache_write_t0)
+            }
             var bs_serial = astbin_encode(prog)
+            if cache_write_phase_log != nil {
+                _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.encode.done",
+                    "path=" + full +
+                    " bytes=" + oren_int_to_string(oren_buf_len(bs_serial)),
+                    cache_write_t0)
+            }
             _ml_modcache_write_bytes(cache_path, bs_serial)
+            if cache_write_phase_log != nil {
+                _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.done",
+                    "path=" + full +
+                    " bytes=" + oren_int_to_string(oren_buf_len(bs_serial)),
+                    cache_write_t0)
+            }
         }
     }
     return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "parse_prefix_ms": parse_prefix_ms, "parse_stmt_ms": parse_stmt_ms, "parse_lower_ms": parse_lower_ms, "parse_yield_validate_ms": parse_yield_validate_ms, "parse_advance_ms": parse_advance_ms, "parse_hot1_ms": parse_hot1_ms, "parse_hot1_label": parse_hot1_label, "parse_hot2_ms": parse_hot2_ms, "parse_hot2_label": parse_hot2_label, "parse_hot3_ms": parse_hot3_ms, "parse_hot3_label": parse_hot3_label, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}

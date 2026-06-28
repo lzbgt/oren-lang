@@ -103,9 +103,14 @@ Facts from the 2026-05-28 implementation pass:
 	  Phase logs now include `link.parse_module.start` so capped self-host probes
 	  show the active module even when a module does not finish before timeout.
 	  Serial/thread module ASTBIN writes are explicit prewarm work via
-	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; cache reads and fork-worker
-	  writes remain enabled, but phase logging no longer implicitly spends cold
-	  build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm
+	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` now means "write every
+	  parsed module" and `false` disables serial writes. Cache reads and fork-worker
+	  writes remain enabled, and explicit serial writes now log cache-write
+	  start/encode/done phases, but phase logging no longer implicitly spends cold
+	  build time encoding compiler-shaped ASTs. Module cache directories still default
+	  to the compiler executable signature, and controlled prewarm/profiling runs can
+	  set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2 rebuilds.
+	  A focused no-artifact-cache warm
 	  probe still drops `link.parse_modules` from about 17.8s to about 0.42s with
 	  `cache_hit=1` on both imported std modules when serial prewarm is explicitly
 	  enabled. Synthetic string-global probes show opt-in direct string slots can
