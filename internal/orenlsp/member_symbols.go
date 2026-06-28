@@ -21,10 +21,11 @@ type typeInfo struct {
 }
 
 type memberTypeEnv struct {
-	Types     map[string]typeInfo
-	Functions map[string]string
-	Params    map[string]map[string]string
-	Prefix    string
+	Types          map[string]typeInfo
+	Functions      map[string]string
+	FunctionFields map[string]map[string]string
+	Params         map[string]map[string]string
+	Prefix         string
 }
 
 func typedMemberSymbolAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) (resolvedSymbol, bool) {
@@ -181,7 +182,7 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 	if program == nil {
 		return nil, memberTypeEnv{}
 	}
-	env := memberTypeEnv{Types: collectTypeInfos(program, uri, "")}
+	env := memberTypeEnv{Types: collectTypeInfos(program, uri, ""), FunctionFields: map[string]map[string]string{}}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
 		if alias == "" {
@@ -203,9 +204,27 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 			env.Functions[key] = typeName
 		}
 	}
+	for key, fields := range collectFunctionReturnFieldTypes(program, "", env) {
+		env.FunctionFields[key] = fields
+	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		importEnv := env
+		importEnv.Prefix = alias + "."
+		for key, fields := range collectFunctionReturnFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionFields[key] = fields
+		}
+	}
 	env.Params = collectFunctionParamTypes(program, env)
 	for key, typeName := range collectFunctionReturnTypes(program, "", env.Types, env.Params) {
 		env.Functions[key] = typeName
+	}
+	for key, fields := range collectFunctionReturnFieldTypes(program, "", env) {
+		env.FunctionFields[key] = fields
 	}
 	return program, env
 }
@@ -636,6 +655,30 @@ func collectFunctionReturnTypes(program *ast.Program, prefix string, types map[s
 	return out
 }
 
+func collectFunctionReturnFieldTypes(program *ast.Program, prefix string, env memberTypeEnv) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if program == nil {
+		return out
+	}
+	env.Prefix = prefix
+	if env.FunctionFields == nil {
+		env.FunctionFields = map[string]map[string]string{}
+	}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn == nil || fn.Name == "" {
+			continue
+		}
+		fields := inferFunctionReturnFieldTypes(fn, env)
+		if len(fields) != 0 {
+			key := prefix + fn.Name
+			out[key] = fields
+			env.FunctionFields[key] = fields
+		}
+	}
+	return out
+}
+
 func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv) map[string]map[string]string {
 	out := map[string]map[string]string{}
 	if program == nil {
@@ -678,6 +721,12 @@ func inferFunctionReturnType(fn *ast.FunctionLiteral, env memberTypeEnv) string 
 	return inferBlockReturnType(fn.Body, env, &stack)
 }
 
+func inferFunctionReturnFieldTypes(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
+	var stack []map[string]string
+	stack = append(stack, inferredParamFrame(fn, env))
+	return inferBlockReturnFieldTypes(fn.Body, env, &stack)
+}
+
 func inferBlockReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) string {
 	if block == nil {
 		return ""
@@ -697,6 +746,31 @@ func inferBlockReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[
 		}
 		if inferred != next {
 			return ""
+		}
+	}
+	return inferred
+}
+
+func inferBlockReturnFieldTypes(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) map[string]string {
+	if block == nil {
+		return nil
+	}
+	*stack = append(*stack, map[string]string{})
+	defer func() { *stack = (*stack)[:len(*stack)-1] }()
+
+	var inferred map[string]string
+	for _, stmt := range block.Statements {
+		next := inferStatementReturnFieldTypes(stmt, env, stack)
+		if len(next) == 0 {
+			continue
+		}
+		if inferred == nil {
+			inferred = cloneFieldTypes(next)
+			continue
+		}
+		inferred = mergeFieldTypeFacts(inferred, next)
+		if len(inferred) == 0 {
+			return nil
 		}
 	}
 	return inferred
@@ -728,6 +802,32 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 	return ""
 }
 
+func inferStatementReturnFieldTypes(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string) map[string]string {
+	switch stmt := stmt.(type) {
+	case *ast.VarStatement:
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+	case *ast.AssignStatement:
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+	case *ast.ReturnStatement:
+		return inferExpressionFieldTypes(stmt.ReturnValue, env, *stack)
+	case *ast.ExpressionStatement:
+		return inferExpressionReturnFieldTypes(stmt.Expression, env, stack)
+	case *ast.BlockStatement:
+		return inferBlockReturnFieldTypes(stmt, env, stack)
+	case *ast.WhileStatement:
+		return inferBlockReturnFieldTypes(stmt.Body, env, stack)
+	case *ast.ForStatement:
+		if stmt.Init != nil {
+			_ = inferStatementReturnFieldTypes(stmt.Init, env, stack)
+		}
+		if stmt.Post != nil {
+			_ = inferStatementReturnFieldTypes(stmt.Post, env, stack)
+		}
+		return inferBlockReturnFieldTypes(stmt.Body, env, stack)
+	}
+	return nil
+}
+
 func inferExpressionReturnType(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string) string {
 	switch expr := expr.(type) {
 	case *ast.IfExpression:
@@ -737,6 +837,17 @@ func inferExpressionReturnType(expr ast.Expression, env memberTypeEnv, stack *[]
 		applyIfBranchAssignmentEffects(expr, env, stack)
 	}
 	return ""
+}
+
+func inferExpressionReturnFieldTypes(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string) map[string]string {
+	switch expr := expr.(type) {
+	case *ast.IfExpression:
+		if fields := inferIfExpressionFieldTypes(expr, env, *stack); len(fields) != 0 {
+			return fields
+		}
+		applyIfBranchAssignmentEffects(expr, env, stack)
+	}
+	return nil
 }
 
 func applyIfBranchAssignmentEffects(expr *ast.IfExpression, env memberTypeEnv, stack *[]map[string]string) {
@@ -1309,6 +1420,9 @@ func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, st
 	if !ok {
 		return ""
 	}
+	if fields := functionFieldTypesForCall(call, env); len(fields) != 0 {
+		return fields[expr.Property.Value]
+	}
 	typeName := inferExpressionType(call, env, stack)
 	info, ok := env.Types[typeName]
 	if !ok {
@@ -1319,6 +1433,92 @@ func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, st
 		return ""
 	}
 	return inferExpressionType(call.Arguments[fieldIndex], env, stack)
+}
+
+func inferExpressionFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map[string]string) map[string]string {
+	switch expr := expr.(type) {
+	case *ast.CallExpression:
+		if fields := functionFieldTypesForCall(expr, env); len(fields) != 0 {
+			return fields
+		}
+		typeName := inferExpressionType(expr, env, stack)
+		info, ok := env.Types[typeName]
+		if !ok {
+			return nil
+		}
+		out := map[string]string{}
+		fields := orderedTypeFields(info)
+		for i, field := range fields {
+			if i >= len(expr.Arguments) {
+				break
+			}
+			fieldType := inferExpressionType(expr.Arguments[i], env, stack)
+			if fieldType != "" {
+				out[field.Symbol.Name] = fieldType
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	case *ast.IfExpression:
+		return inferIfExpressionFieldTypes(expr, env, stack)
+	}
+	return nil
+}
+
+func inferIfExpressionFieldTypes(expr *ast.IfExpression, env memberTypeEnv, stack []map[string]string) map[string]string {
+	if expr == nil || expr.Consequence == nil || expr.Alternative == nil {
+		return nil
+	}
+	consequenceStack := cloneTypeStack(stack)
+	consequence := inferBlockReturnFieldTypes(expr.Consequence, env, &consequenceStack)
+	alternativeStack := cloneTypeStack(stack)
+	alternative := inferBlockReturnFieldTypes(expr.Alternative, env, &alternativeStack)
+	return mergeFieldTypeFacts(consequence, alternative)
+}
+
+func functionFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
+	if call == nil || len(env.FunctionFields) == 0 {
+		return nil
+	}
+	typeKey := constructorTypeKey(call.Function)
+	if typeKey == "" {
+		return nil
+	}
+	if fields := env.FunctionFields[typeKey]; len(fields) != 0 {
+		return fields
+	}
+	if env.Prefix != "" {
+		return env.FunctionFields[env.Prefix+typeKey]
+	}
+	return nil
+}
+
+func cloneFieldTypes(fields map[string]string) map[string]string {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(fields))
+	for name, typeName := range fields {
+		if typeName != "" {
+			out[name] = typeName
+		}
+	}
+	return out
+}
+
+func mergeFieldTypeFacts(a, b map[string]string) map[string]string {
+	if len(a) == 0 || len(b) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for name, typeA := range a {
+		if typeA != "" && b[name] == typeA {
+			out[name] = typeA
+		}
+	}
+	return out
 }
 
 func constructorFieldIndex(info typeInfo, fieldName string) int {
@@ -1388,6 +1588,10 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	if !ok {
 		return
 	}
+	if fields := functionFieldTypesForCall(call, env); len(fields) != 0 {
+		setInferredFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		return
+	}
 	info, ok := env.Types[typeName]
 	if !ok {
 		return
@@ -1400,6 +1604,17 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 		fieldType := inferExpressionType(call.Arguments[i], env, stack)
 		if fieldType != "" {
 			stack[len(stack)-1][inferredFieldKey(ident.Value, field.Symbol.Name)] = fieldType
+		}
+	}
+}
+
+func setInferredFieldTypes(name string, fields map[string]string, scope map[string]string) {
+	if name == "" || len(fields) == 0 || len(scope) == 0 {
+		return
+	}
+	for field, typeName := range fields {
+		if field != "" && typeName != "" {
+			scope[inferredFieldKey(name, field)] = typeName
 		}
 	}
 }

@@ -905,7 +905,7 @@ Working evidence:
   definition/hover/reference navigation with nested shadowing,
   constructor-inferred same-file and direct-import-alias struct/class field
   definition/hover/reference navigation with direct variable-alias propagation,
-  direct named factory-return inference including `return if/else` expression branches, direct typed constructor/factory
+  direct named factory-return inference including `return if/else` expression branches plus factory-return field-chain evidence, direct typed constructor/factory
   expression receiver field navigation/completion plus constructor-field
   and constructor-bound variable/alias field-chain inference/completion, homogeneous list/hash indexed receiver evidence for field navigation and direct literal completions,
   list `for-in` loop element receiver evidence for field navigation/references and call-site parameter propagation,
@@ -920,7 +920,7 @@ Working evidence:
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
-  constructor/alias/factory-expression/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/conditional-branch/return-if/indexed-container/list-for-in/scoped-completion evidence remains.
+  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/conditional-branch/return-if/indexed-container/list-for-in/scoped-completion evidence remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

@@ -244,6 +244,111 @@ func TestServerNavigationUsesConstructorBoundFieldChains(t *testing.T) {
 	assertDefinition(t, messageByID(t, msgs, 214)["result"].([]any), uri, 2, 15, 16)
 }
 
+func TestServerNavigationUsesFactoryReturnFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Inner { x, y }",
+		"struct Outer { inner, label }",
+		"struct Other { x }",
+		"fn make_outer() {",
+		"  return Outer(Inner(1, 2), \"a\")",
+		"}",
+		"fn choose_outer(ok) {",
+		"  return if ok {",
+		"    return Outer(Inner(3, 4), \"b\")",
+		"  } else {",
+		"    return Outer(Inner(5, 6), \"c\")",
+		"  }",
+		"}",
+		"fn conflict(ok) {",
+		"  return if ok {",
+		"    return Outer(Inner(7, 8), \"d\")",
+		"  } else {",
+		"    return Outer(Other(9), \"e\")",
+		"  }",
+		"}",
+		"fn main() {",
+		"  var direct = make_outer().inner.",
+		"  var outer = make_outer()",
+		"  var chosen = choose_outer(true)",
+		"  var conflicted = conflict(true)",
+		"  return make_outer().inner.x + outer.inner.y + chosen.inner.x + conflicted.inner.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-member-factory-return-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      221,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 21, "character": 35},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      222,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": 28},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      223,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": 44},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      224,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": 61},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      225,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": 82},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 221)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) {
+		t.Fatalf("factory-return field-chain completion missing Inner fields: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 222)["result"].([]any), uri, 0, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 223)["result"].([]any), uri, 0, 18, 19)
+	assertDefinition(t, messageByID(t, msgs, 224)["result"].([]any), uri, 0, 15, 16)
+	defs := messageByID(t, msgs, 225)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("conflicting factory-return field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesReturnIfExpressionReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{
