@@ -259,6 +259,120 @@ func TestServerNavigationUsesReturnIfExpressionReceiverFields(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesIndexedContainerReceiverFields(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Point { x, y }",
+		"struct Other { z }",
+		"fn main() {",
+		"  var points = [Point(1, 2), Point(3, 4)]",
+		"  var by = {\"home\": Point(5, 6), \"away\": Point(7, 8)}",
+		"  var mixed = [Point(1, 2), Other(9)]",
+		"  var c0 = [Point(1, 2), Point(3, 4)][0].",
+		"  var c1 = {\"home\": Point(5, 6), \"away\": Point(7, 8)}[\"home\"].",
+		"  return points[1].x + by[\"away\"].y + mixed[0].z",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-indexed-container.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      701,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": strings.LastIndex(lines[6], ".") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      702,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": strings.LastIndex(lines[7], ".") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      703,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 8, "character": strings.Index(lines[8], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      704,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 8, "character": strings.Index(lines[8], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      705,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 8, "character": strings.Index(lines[8], ".z") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	listItems := messageByID(t, msgs, 701)["result"].([]any)
+	if !hasCompletion(listItems, "x", 5) || !hasCompletion(listItems, "y", 5) || hasCompletion(listItems, "z", 5) {
+		t.Fatalf("indexed list completion mismatch: %#v", listItems)
+	}
+	mapItems := messageByID(t, msgs, 702)["result"].([]any)
+	if !hasCompletion(mapItems, "x", 5) || !hasCompletion(mapItems, "y", 5) || hasCompletion(mapItems, "z", 5) {
+		t.Fatalf("indexed map completion mismatch: %#v", mapItems)
+	}
+	assertDefinition(t, messageByID(t, msgs, 703)["result"].([]any), uri, 0, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 704)["result"].([]any), uri, 0, 18, 19)
+	defs := messageByID(t, msgs, 705)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed indexed container definition=%#v want none", defs)
+	}
+}
+
+func TestInferExpressionTypeUsesIndexedContainers(t *testing.T) {
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"struct Other { z }",
+		"",
+	}, "\n")
+	_, env := typedMemberAnalysisEnv(text, "file:///infer-indexed-container.oren", nil, nil)
+	stack := []map[string]string{{"points": inferredListPrefix + "Point", "by": inferredMapPrefix + "Point"}}
+	if got := inferExpressionType(parseMemberReceiverExpression("points[0]"), env, stack); got != "Point" {
+		t.Fatalf("points[0] inferred type=%q want Point", got)
+	}
+	if got := inferExpressionType(parseMemberReceiverExpression("by[\"home\"]"), env, stack); got != "Point" {
+		t.Fatalf("by[home] inferred type=%q want Point", got)
+	}
+	if got := inferExpressionType(parseMemberReceiverExpression("[Point(1, 2), Point(3, 4)][0]"), env, nil); got != "Point" {
+		t.Fatalf("literal list indexed type=%q want Point", got)
+	}
+	if got := inferExpressionType(parseMemberReceiverExpression("[Point(1, 2), Other(9)][0]"), env, nil); got != "" {
+		t.Fatalf("mixed literal list indexed type=%q want empty", got)
+	}
+}
+
 func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

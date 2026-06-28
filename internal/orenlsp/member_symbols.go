@@ -71,9 +71,40 @@ func typedMemberCompletionItemsAt(text, uri string, pos position, importedDocs [
 		typeName = inferredReceiverExpressionTypeAt(program, receiver, pos, env)
 	}
 	if typeName == "" {
+		recoveryText := textWithCompletionLinesBlanked(text, pos.Line)
+		if recoveryText != text {
+			recoveryProgram, recoveryEnv := typedMemberAnalysisEnv(recoveryText, uri, importedDocs, aliasByURI)
+			typeName = inferredReceiverExpressionTypeAt(recoveryProgram, receiver, pos, recoveryEnv)
+			env = recoveryEnv
+		}
+	}
+	if typeName == "" {
 		return []completionItem{}, true
 	}
 	return memberCompletionItemsForType(env, typeName, partial), true
+}
+
+func textWithCompletionLinesBlanked(text string, line int) string {
+	if line < 0 {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	if line >= len(lines) {
+		return text
+	}
+	changed := false
+	for i, textLine := range lines {
+		if i == line || strings.HasSuffix(strings.TrimSpace(textLine), ".") {
+			if lines[i] != "" {
+				lines[i] = ""
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return text
+	}
+	return strings.Join(lines, "\n")
 }
 
 func memberCompletionItemsForType(env memberTypeEnv, typeName, partial string) []completionItem {
@@ -932,6 +963,73 @@ func inferExpressionType(expr ast.Expression, env memberTypeEnv, stack []map[str
 		return inferConstructedFieldType(expr, env, stack)
 	case *ast.IfExpression:
 		return inferIfExpressionType(expr, env, stack)
+	case *ast.ArrayLiteral:
+		return inferArrayLiteralType(expr, env, stack)
+	case *ast.HashLiteral:
+		return inferHashLiteralType(expr, env, stack)
+	case *ast.IndexExpression:
+		return inferIndexedExpressionType(expr, env, stack)
+	}
+	return ""
+}
+
+const (
+	inferredListPrefix = "[]"
+	inferredMapPrefix  = "{}"
+)
+
+func inferArrayLiteralType(expr *ast.ArrayLiteral, env memberTypeEnv, stack []map[string]string) string {
+	if expr == nil || len(expr.Elements) == 0 {
+		return ""
+	}
+	elemType := ""
+	for _, elem := range expr.Elements {
+		next := inferExpressionType(elem, env, stack)
+		if next == "" {
+			return ""
+		}
+		if elemType == "" {
+			elemType = next
+			continue
+		}
+		if elemType != next {
+			return ""
+		}
+	}
+	return inferredListPrefix + elemType
+}
+
+func inferHashLiteralType(expr *ast.HashLiteral, env memberTypeEnv, stack []map[string]string) string {
+	if expr == nil || len(expr.Pairs) == 0 {
+		return ""
+	}
+	valueType := ""
+	for _, value := range expr.Pairs {
+		next := inferExpressionType(value, env, stack)
+		if next == "" {
+			return ""
+		}
+		if valueType == "" {
+			valueType = next
+			continue
+		}
+		if valueType != next {
+			return ""
+		}
+	}
+	return inferredMapPrefix + valueType
+}
+
+func inferIndexedExpressionType(expr *ast.IndexExpression, env memberTypeEnv, stack []map[string]string) string {
+	if expr == nil {
+		return ""
+	}
+	containerType := inferExpressionType(expr.Left, env, stack)
+	if strings.HasPrefix(containerType, inferredListPrefix) {
+		return strings.TrimPrefix(containerType, inferredListPrefix)
+	}
+	if strings.HasPrefix(containerType, inferredMapPrefix) {
+		return strings.TrimPrefix(containerType, inferredMapPrefix)
 	}
 	return ""
 }
