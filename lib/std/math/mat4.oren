@@ -15,6 +15,12 @@ fn _finite3(x: f64, y: f64, z: f64, ctx) {
     return _finite_scalar(z, ctx)
 }
 
+fn _finite6(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, ctx) {
+    var x = _finite3(a, b, c, ctx)
+    if oren_is_err(x) { return x }
+    return _finite3(d, e, f, ctx)
+}
+
 fn _check(m, ctx) {
     if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
     var i = 0
@@ -77,6 +83,103 @@ fn from_quat(x: f64, y: f64, z: f64, w: f64) {
         1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0,
         2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0,
         2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn compose_trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f64, sy: f64, sz: f64) {
+    var t = _finite3(tx, ty, tz, "mat4.compose_trs")
+    if oren_is_err(t) { return t }
+    var s = _finite3(sx, sy, sz, "mat4.compose_trs")
+    if oren_is_err(s) { return s }
+    var q = quat.normalize(qx0, qy0, qz0, qw0)
+    if oren_is_err(q) { return q }
+    var qx: f64 = q[0]
+    var qy: f64 = q[1]
+    var qz: f64 = q[2]
+    var qw: f64 = q[3]
+    var xx: f64 = qx * qx
+    var yy: f64 = qy * qy
+    var zz: f64 = qz * qz
+    var xy: f64 = qx * qy
+    var xz: f64 = qx * qz
+    var yz: f64 = qy * qz
+    var wx: f64 = qw * qx
+    var wy: f64 = qw * qy
+    var wz: f64 = qw * qz
+    var r00: f64 = 1.0 - 2.0 * (yy + zz)
+    var r01: f64 = 2.0 * (xy - wz)
+    var r02: f64 = 2.0 * (xz + wy)
+    var r10: f64 = 2.0 * (xy + wz)
+    var r11: f64 = 1.0 - 2.0 * (xx + zz)
+    var r12: f64 = 2.0 * (yz - wx)
+    var r20: f64 = 2.0 * (xz - wy)
+    var r21: f64 = 2.0 * (yz + wx)
+    var r22: f64 = 1.0 - 2.0 * (xx + yy)
+    return [
+        r00 * sx, r01 * sy, r02 * sz, tx,
+        r10 * sx, r11 * sy, r12 * sz, ty,
+        r20 * sx, r21 * sy, r22 * sz, tz,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
+    var ok = _finite6(left, right, bottom, top, near_z, far_z, "mat4.ortho")
+    if oren_is_err(ok) { return ok }
+    var rl: f64 = right - left
+    var tb: f64 = top - bottom
+    var fnz: f64 = far_z - near_z
+    if rl == 0.0 { return oren_err(4, "mat4.ortho: zero width") }
+    if tb == 0.0 { return oren_err(4, "mat4.ortho: zero height") }
+    if fnz == 0.0 { return oren_err(4, "mat4.ortho: zero depth") }
+    return [
+        2.0 / rl, 0.0, 0.0, 0.0 - (right + left) / rl,
+        0.0, 2.0 / tb, 0.0, 0.0 - (top + bottom) / tb,
+        0.0, 0.0, (0.0 - 2.0) / fnz, 0.0 - (far_z + near_z) / fnz,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn look_at(eye_x: f64, eye_y: f64, eye_z: f64, target_x: f64, target_y: f64, target_z: f64, up_x: f64, up_y: f64, up_z: f64) {
+    var et = _finite6(eye_x, eye_y, eye_z, target_x, target_y, target_z, "mat4.look_at")
+    if oren_is_err(et) { return et }
+    var up = _finite3(up_x, up_y, up_z, "mat4.look_at")
+    if oren_is_err(up) { return up }
+    var fx0: f64 = target_x - eye_x
+    var fy0: f64 = target_y - eye_y
+    var fz0: f64 = target_z - eye_z
+    var fl0 = math.hypot3(fx0, fy0, fz0)
+    if oren_is_err(fl0) { return fl0 }
+    var fl: f64 = fl0
+    if fl == 0.0 { return oren_err(4, "mat4.look_at: zero forward") }
+    var fx: f64 = fx0 / fl
+    var fy: f64 = fy0 / fl
+    var fz: f64 = fz0 / fl
+    var ul0 = math.hypot3(up_x, up_y, up_z)
+    if oren_is_err(ul0) { return ul0 }
+    var ul: f64 = ul0
+    if ul == 0.0 { return oren_err(4, "mat4.look_at: zero up") }
+    var ux0: f64 = up_x / ul
+    var uy0: f64 = up_y / ul
+    var uz0: f64 = up_z / ul
+    var sx0: f64 = fy * uz0 - fz * uy0
+    var sy0: f64 = fz * ux0 - fx * uz0
+    var sz0: f64 = fx * uy0 - fy * ux0
+    var sl0 = math.hypot3(sx0, sy0, sz0)
+    if oren_is_err(sl0) { return sl0 }
+    var sl: f64 = sl0
+    if sl == 0.0 { return oren_err(4, "mat4.look_at: parallel up") }
+    var sx1: f64 = sx0 / sl
+    var sy1: f64 = sy0 / sl
+    var sz1: f64 = sz0 / sl
+    var ux: f64 = sy1 * fz - sz1 * fy
+    var uy: f64 = sz1 * fx - sx1 * fz
+    var uz: f64 = sx1 * fy - sy1 * fx
+    return [
+        sx1, sy1, sz1, 0.0 - (sx1 * eye_x + sy1 * eye_y + sz1 * eye_z),
+        ux, uy, uz, 0.0 - (ux * eye_x + uy * eye_y + uz * eye_z),
+        0.0 - fx, 0.0 - fy, 0.0 - fz, fx * eye_x + fy * eye_y + fz * eye_z,
         0.0, 0.0, 0.0, 1.0
     ]
 }

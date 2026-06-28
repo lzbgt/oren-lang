@@ -37,8 +37,28 @@ assert_true(!oren_is_err(rp), 22, "rot vector ok")
 assert_close(rp[0], 0.0, 1e-9, 23, "rot x")
 assert_close(rp[1], 1.0, 1e-9, 24, "rot y")
 
+var trs = mat4.compose_trs(10.0, 20.0, 30.0, qz[0], qz[1], qz[2], qz[3], 2.0, 3.0, 4.0)
+assert_true(!oren_is_err(trs), 25, "compose_trs ok")
+var trsp = mat4.transform_point3(trs, 1.0, 0.0, 0.0)
+assert_true(!oren_is_err(trsp), 26, "compose point ok")
+assert_close(trsp[1], 22.0, 1e-9, 27, "compose y")
+
+var op = mat4.ortho(0.0 - 2.0, 2.0, 0.0 - 4.0, 4.0, 1.0, 11.0)
+assert_true(!oren_is_err(op), 28, "ortho ok")
+var onear = mat4.transform_point3(op, 2.0, 4.0, 0.0 - 1.0)
+assert_true(!oren_is_err(onear), 29, "ortho point ok")
+assert_close(onear[2], 0.0 - 1.0, 1e-12, 32, "ortho near")
+
+var view = mat4.look_at(0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+assert_true(!oren_is_err(view), 33, "look_at ok")
+var vp = mat4.transform_point3(view, 0.0, 0.0, 0.0)
+assert_true(!oren_is_err(vp), 34, "look_at point ok")
+assert_close(vp[2], 0.0 - 5.0, 1e-12, 35, "look_at z")
+
 assert_true(oren_is_err(mat4.from_quat(0.0, 0.0, 0.0, 0.0)), 30, "from_quat zero errors")
 assert_true(oren_is_err(mat4.transform_point3([1.0], 0.0, 0.0, 0.0)), 31, "point length errors")
+assert_true(oren_is_err(mat4.ortho(1.0, 1.0, 0.0, 1.0, 0.0, 1.0)), 36, "ortho zero width errors")
+assert_true(oren_is_err(mat4.look_at(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)), 37, "look_at zero forward errors")
 
 print("avm std math mat4 OK")
 exit(0)

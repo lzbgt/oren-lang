@@ -159,7 +159,17 @@
         "if oren_is_err(m4ts) { fail(81) }",
         "var m4v = math_mat4.transform_vec3(m4ts, 1.0, 1.0, 1.0)",
         "if oren_is_err(m4v) { fail(82) }",
-        "assert_close(m4v[1], 3.0, 1e-12, 83)"
+        "assert_close(m4v[1], 3.0, 1e-12, 83)",
+        "var m4o = math_mat4.ortho(-2.0, 2.0, -4.0, 4.0, 1.0, 11.0)",
+        "if oren_is_err(m4o) { fail(84) }",
+        "var m4op = math_mat4.transform_point3(m4o, 2.0, 4.0, -1.0)",
+        "if oren_is_err(m4op) { fail(85) }",
+        "assert_close(m4op[2], -1.0, 1e-12, 86)",
+        "var m4view = math_mat4.look_at(0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)",
+        "if oren_is_err(m4view) { fail(87) }",
+        "var m4vp = math_mat4.transform_point3(m4view, 0.0, 0.0, 0.0)",
+        "if oren_is_err(m4vp) { fail(88) }",
+        "assert_close(m4vp[2], -5.0, 1e-12, 89)"
       ]
     },
     {
