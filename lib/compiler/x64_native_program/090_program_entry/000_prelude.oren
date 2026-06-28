@@ -390,6 +390,7 @@ fn _x64_new_ctx(linked, platform) {
     ctx["globals_floaty"] = {}
     ctx["globals_inty"] = {}
     ctx["globals_int_const"] = {}
+    ctx["globals_data_const"] = {}
     ctx["global_root_names"] = []
     ctx["global_root_offsets"] = []
     ctx["global_root_is_runtime"] = []

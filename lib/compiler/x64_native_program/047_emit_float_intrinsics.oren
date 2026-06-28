@@ -247,6 +247,22 @@ fn _x64_expr_int_const(ctx, expr) {
             if oren_type_tag(v2) != 0 { return v2 }
         }
     }
+    if expr["type"] == "Member" {
+        var resolved = _x64_ns_resolve(ctx, expr)
+        if resolved != nil {
+            var name2 = resolved["name"]
+            if ctx != nil && ctx["globals_int_const"] != nil {
+                var v3 = ctx["globals_int_const"][name2]
+                if oren_type_tag(v3) != 0 { return v3 }
+            }
+        }
+    }
+    if expr["type"] == "Prefix" {
+        var rhs = _x64_expr_int_const(ctx, expr["right"])
+        if oren_type_tag(rhs) == 0 { return nil }
+        if expr["op"] == "-" { return 0 - rhs }
+        if expr["op"] == "+" { return rhs }
+    }
     return nil
 }
 

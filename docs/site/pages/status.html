@@ -121,17 +121,18 @@
 <p>	  once, so hot unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
 <p>	  rebuilding the runtime object or walking the legacy globals map in the hot apply</p>
 <p>	  path. x64 function/body phase markers now show synthesized <code>__top_level__</code></p>
-<p>	  global initializer emission precisely. Non-negative integer literals, string</p>
-<p>	  literals, and nil/bool singleton globals are now materialized directly in <code>.data</code>.</p>
-<p>	  Unified self-host traces showed direct string relocation costs about 89s in</p>
+<p>	  global initializer emission precisely. Integer constants (including signed</p>
+<p>	  prefix literals and namespace aliases), string literals/string aliases, and</p>
+<p>	  nil/bool singleton globals are now materialized directly in <code>.data</code>. Unified</p>
+<p>	  self-host traces showed direct string relocation costs about 89s in</p>
 <p>	  <code>x64.codegen.top_globals.user_slots</code> but reduces the normal <code>__top_level__</code></p>
-<p>	  body from roughly 165s to about 66s; adding singleton data pointers reduced</p>
-<p>	  <code>__top_level__</code> further from 58 to 33 statements and body emission to about</p>
-<p>	  50s. Zero-result lambda collection now uses a compile-time preflight and skips</p>
-<p>	  the full statement walk when there are no local function/lambda candidates.</p>
-<p>	  The next measured x64 self-host target is the remaining non-literal</p>
-<p>	  <code>__top_level__</code> initializers, especially lexer/compiler top-level map/list</p>
-<p>	  construction, before post-entry user-function codegen.</p>
+<p>	  body from roughly 165s to about 66s; singleton data pointers reduced it from</p>
+<p>	  58 to 33 statements and about 50s, and scalar/alias constants then reduced it</p>
+<p>	  to 8 statements. Zero-result lambda collection now uses a compile-time</p>
+<p>	  preflight and skips the full statement walk when there are no local</p>
+<p>	  function/lambda candidates. The next measured x64 self-host target is the</p>
+<p>	  remaining true <code>__top_level__</code> map/list globals before post-entry</p>
+<p>	  user-function codegen.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

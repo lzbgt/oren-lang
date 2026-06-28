@@ -44,10 +44,12 @@ fn _x64_trace_global_slots(ctx, label) {
 }
 
 fn _x64_direct_data_int_init(ctx, expr) {
-    // Only side-effect-free non-negative integer literals are safe to remove from
-    // __top_level__; all other global initializers must keep source-order runtime execution.
-    if expr == nil || expr["type"] != "Integer" { return nil }
-    return _x64_parse_simple_nonneg_decimal_int(expr["value"])
+    // Only side-effect-free integer constants are safe to remove from __top_level__.
+    // This includes signed literals and namespace aliases to globals whose constant fact
+    // has already been established in source order.
+    if expr == nil { return nil }
+    if expr["type"] != "Integer" && expr["type"] != "Identifier" && expr["type"] != "Member" && expr["type"] != "Prefix" { return nil }
+    return _x64_expr_int_const(ctx, expr)
 }
 
 fn _x64_direct_data_string_init(ctx, expr) {
@@ -83,6 +85,22 @@ fn _x64_direct_data_singleton_init(ctx, expr) {
         return bool_enc - 1
     }
     return nil
+}
+
+fn _x64_direct_data_ptr_const_init(ctx, expr) {
+    if ctx == nil || expr == nil { return nil }
+    var name = nil
+    if expr["type"] == "Identifier" {
+        name = expr["value"]
+    } else if expr["type"] == "Member" {
+        var resolved = _x64_ns_resolve(ctx, expr)
+        if resolved != nil { name = resolved["name"] }
+    }
+    if name == nil { return nil }
+    var enc = nil
+    if ctx["globals_data_const"] != nil { enc = ctx["globals_data_const"][name] }
+    if oren_type_tag(enc) == 0 { return nil }
+    return enc - 1
 }
 
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
@@ -207,6 +225,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             var fact_floaty2 = false
             var fact_inty2 = false
             var fact_const2 = nil
+            var fact_data_const2 = nil
             var init_int2 = _x64_direct_data_int_init(ctx, st2["value"])
             if oren_type_tag(init_int2) != 0 {
                 off2 = _data_add_u64(ctx, init_int2)
@@ -221,6 +240,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     off2 = _data_add_u64(ctx, 0)
                     have_off2 = true
                     oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_str2})
+                    fact_data_const2 = init_str2
                     ctx["global_init_in_data"][nm2] = true
                 }
             }
@@ -230,6 +250,17 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     off2 = _data_add_u64(ctx, 0)
                     have_off2 = true
                     oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_singleton2})
+                    fact_data_const2 = init_singleton2
+                    ctx["global_init_in_data"][nm2] = true
+                }
+            }
+            if have_off2 != true {
+                var init_ptr2 = _x64_direct_data_ptr_const_init(ctx, st2["value"])
+                if oren_type_tag(init_ptr2) != 0 {
+                    off2 = _data_add_u64(ctx, 0)
+                    have_off2 = true
+                    oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_ptr2})
+                    fact_data_const2 = init_ptr2
                     ctx["global_init_in_data"][nm2] = true
                 }
             }
@@ -248,6 +279,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm2] = fact_floaty2 }
             if ctx["globals_inty"] != nil { ctx["globals_inty"][nm2] = fact_inty2 }
             if ctx["globals_int_const"] != nil { ctx["globals_int_const"][nm2] = fact_const2 }
+            if ctx["globals_data_const"] != nil && oren_type_tag(fact_data_const2) != 0 { ctx["globals_data_const"][nm2] = fact_data_const2 + 1 }
         }
         i = i + 1
     }

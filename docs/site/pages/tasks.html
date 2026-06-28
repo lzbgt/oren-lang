@@ -139,18 +139,18 @@
 <p>				     unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
 <p>				     rebuilding the runtime object or walking the legacy globals map in the</p>
 <p>					     hot apply path. x64 function/body phase markers now narrow synthesized</p>
-<p>					     <code>__top_level__</code> global initializer emission precisely. Non-negative</p>
-<p>					     integer literals, string literals, and nil/bool singleton globals are</p>
-<p>					     materialized directly in <code>.data</code>. Unified self-host traces showed direct</p>
-<p>					     string relocation costs about 89s in <code>x64.codegen.top_globals.user_slots</code></p>
-<p>					     but reduces normal <code>__top_level__</code> body emission from roughly 165s to</p>
-<p>					     about 66s; singleton data pointers then reduced <code>__top_level__</code> from 58</p>
-<p>					     to 33 statements and body emission to about 50s. Zero-result lambda</p>
-<p>					     collection now skips the full statement walk when no local function/lambda</p>
-<p>					     candidates were found. The next concrete throughput target is the</p>
-<p>					     remaining non-literal <code>__top_level__</code> initializers, especially</p>
-<p>					     lexer/compiler top-level map/list construction, before post-entry</p>
-<p>					     user-function codegen.</p>
+<p>					     <code>__top_level__</code> global initializer emission precisely. Integer constants</p>
+<p>					     (including signed prefix literals and namespace aliases), string</p>
+<p>					     literals/string aliases, and nil/bool singleton globals are materialized</p>
+<p>					     directly in <code>.data</code>. Unified self-host traces showed direct string</p>
+<p>					     relocation costs about 89s in <code>x64.codegen.top_globals.user_slots</code> but</p>
+<p>					     reduces normal <code>__top_level__</code> body emission from roughly 165s to about</p>
+<p>					     66s; singleton data pointers reduced it from 58 to 33 statements and</p>
+<p>					     about 50s, and scalar/alias constants then reduced it to 8 statements.</p>
+<p>					     Zero-result lambda collection now skips the full statement walk when no</p>
+<p>					     local function/lambda candidates were found. The next concrete throughput</p>
+<p>					     target is the remaining true <code>__top_level__</code> map/list globals before</p>
+<p>					     post-entry user-function codegen.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
