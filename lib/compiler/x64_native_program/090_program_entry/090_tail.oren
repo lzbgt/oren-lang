@@ -20,6 +20,8 @@ fn native_compile_program_x64(linked, platform) {
     // - Keep x64's existing intrinsics for now; as we converge, we will progressively replace
     //   intrinsic implementations with calls into injected runtime functions.
     var trace_sum = oren_env("OREN_TRACE_X64_COMPILE_SUMMARY") != nil
+    var phase_log = _x64_program_phase_log_path()
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.enter", "") }
     // Bounded progress tracing for large cross-target builds (prints every N functions).
     var trace_prog = false
     var v_prog = oren_env("OREN_TRACE_X64_COMPILE_PROGRESS")
@@ -144,6 +146,7 @@ fn native_compile_program_x64(linked, platform) {
     if trace_prog { print("[x64_compile] ctx init") }
     var ctx = _x64_new_ctx(linked, platform)
     if trace_prog { print("[x64_compile] ctx init done") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ctx.done", "") }
 
     // Runtime injection (default-on; see comment at top of function).
     //
@@ -185,6 +188,11 @@ fn native_compile_program_x64(linked, platform) {
         print("[x64_compile] rtobj done used=" + u0)
     }
     if trace_sum { t_rtobj_done = oren_time_now_ns() }
+    if phase_log != nil {
+        var used_rtobj_s0 = "0"
+        if used_rtobj == true { used_rtobj_s0 = "1" }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj.done", "used=" + used_rtobj_s0 + " path=" + runtime_path)
+    }
 
     var bun = nil
     var runtime_stmts = []
@@ -221,6 +229,15 @@ fn native_compile_program_x64(linked, platform) {
         pprune.prune_runtime_os_branches_in_linked_program_in_place(linked2, platform)
         if trace_prog { print("[x64_compile] runtime prune done") }
     }
+    if phase_log != nil {
+        var rt_stmts_n0 = 0
+        var user_stmts_n0 = 0
+        if runtime_stmts != nil { rt_stmts_n0 = oren_list_len(runtime_stmts) }
+        if user_stmts != nil { user_stmts_n0 = oren_list_len(user_stmts) }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.runtime_prepare.done",
+            "runtime_stmts=" + oren_int_to_string(rt_stmts_n0) +
+            " user_stmts=" + oren_int_to_string(user_stmts_n0))
+    }
 
     // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
     // so Tier‑1 native backends share the same nested-function semantics.
@@ -256,6 +273,11 @@ fn native_compile_program_x64(linked, platform) {
     var tci = 0
     while tci < oren_list_len(type_ctors) { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
     if trace_prog { print("[x64_compile] type constructors done count=" + oren_int_to_string(oren_list_len(type_ctors))) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fnmeta.done",
+            "fns=" + oren_int_to_string(oren_list_len(fns)) +
+            " type_ctors=" + oren_int_to_string(oren_list_len(type_ctors)))
+    }
     // Rolling parity with other backends:
     // - `fn main()` is optional; if absent, only `__top_level__` runs.
     var has_main = false
@@ -312,6 +334,10 @@ fn native_compile_program_x64(linked, platform) {
         ltc = ltc + 1
     }
     if trace_prog { print("[x64_compile] collect lambdas done defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.lambdas.done",
+            "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+    }
 
 
     var dbg_lam = oren_env("OREN_DEBUG_X64_LAMBDAS")
@@ -378,6 +404,10 @@ fn native_compile_program_x64(linked, platform) {
         lj = lj + 1
     }
     if trace_prog { print("[x64_compile] lambda wrappers done count=" + oren_int_to_string(oren_list_len(wrappers))) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.prepare.done",
+            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+    }
 
     // --- Panic symbolication (best-effort) ---
     //
@@ -1202,6 +1232,10 @@ fn native_compile_program_x64(linked, platform) {
     }
     if trace_sum { t_entry_done = oren_time_now_ns() }
     if trace_prog { print("[x64_compile] entry stub done") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
 
     // --- functions ---
     // Compile the synthesized top-level initializer function first so:
@@ -1220,11 +1254,16 @@ fn native_compile_program_x64(linked, platform) {
         if trace_prog { print("[x64_compile] rtobj code splice done") }
     }
     if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj_code.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
 
     if trace_prog { print("[x64_compile] compile __top_level__") }
     _compile_function_v0(ctx, top_fn, platform)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     if trace_sum { t_top_done = oren_time_now_ns() }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
 
     var i1 = 0
     var fns_n = oren_list_len(fns)
@@ -1250,9 +1289,18 @@ fn native_compile_program_x64(linked, platform) {
                 _x64_slow_fn_top_push(top_slow, top_slow_n, dt_ms2, nm1)
             }
         }
+        if phase_log != nil && i1 > 0 && core.int_mod(i1, 250) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.progress",
+                "i=" + oren_int_to_string(i1) + " total=" + oren_int_to_string(fns_n))
+        }
         i1 = i1 + 1
     }
     if trace_sum { t_fns_done = oren_time_now_ns() }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.done",
+            "fns=" + oren_int_to_string(fns_n) +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
     if trace_top_slow {
         var k = 0
         while k < oren_list_len(top_slow) {
@@ -1286,6 +1334,10 @@ fn native_compile_program_x64(linked, platform) {
         j1 = j1 + 1
     }
     if trace_sum { t_wrappers_done = oren_time_now_ns() }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.wrappers.done",
+            "wrappers=" + oren_int_to_string(wrappers_n))
+    }
 
     // Ensure any missing fnwraps are synthesized and compiled.
     //
@@ -1332,6 +1384,12 @@ fn native_compile_program_x64(linked, platform) {
         }
     }
     if trace_sum { t_fnwrap_done = oren_time_now_ns() }
+    if phase_log != nil {
+        var fnwrap_needed_n = 0
+        if need2 != nil { fnwrap_needed_n = oren_map_len(need2) }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fnwrap.done",
+            "needed=" + oren_int_to_string(fnwrap_needed_n))
+    }
 
     // --- FFI stubs ---
     //
@@ -1345,6 +1403,7 @@ fn native_compile_program_x64(linked, platform) {
     _emit_panic_helper_fn_if_needed_x64(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     if trace_sum { t_panic_done = oren_time_now_ns() }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.panic_helper.done", "") }
 
 
     var dbg_lam2 = oren_env("OREN_DEBUG_X64_LAMBDAS")
@@ -1378,6 +1437,14 @@ fn native_compile_program_x64(linked, platform) {
     // - backend-emitted literal cstrs (panic helpers, etc)
     _data_finalize_cstr0_table(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if phase_log != nil {
+        var fx_n0 = 0
+        if ctx["fixups"] != nil { fx_n0 = oren_list_len(ctx["fixups"]) }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+            " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
+            " fixups=" + oren_int_to_string(fx_n0))
+    }
 
     if trace_sum {
         t_finalize_done = oren_time_now_ns()

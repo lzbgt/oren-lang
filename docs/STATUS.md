@@ -62,13 +62,19 @@ Facts from the 2026-05-28 implementation pass:
   This keeps the default compile-only platform gate from looking hung on slow
   cross-target cold builds while still checking x64 fixture output under explicit
   stage1/stage2 timeout floors.
-  Compiler entrypoints now use the single `oren.oren` root: import-level
-  `@cfg(arch=...)` prunes inactive backend imports before opening target files,
-  so x64 compiler artifacts select lightweight arm64 backend stubs without the
-  former `oren_x64.oren` / `compiler_x64.oren` wrapper files.
-  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
-  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
-  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
+	  Compiler entrypoints now use the single `oren.oren` root: import-level
+	  `@cfg(arch=...)` prunes inactive backend imports before opening target files,
+	  so x64 compiler artifacts select lightweight arm64 backend stubs without the
+	  former `oren_x64.oren` / `compiler_x64.oren` wrapper files.
+	  x64 native emit now writes `build.native.emit.*`, `x64.codegen.*`, and
+	  `x64.elf.*` milestones into `OREN_TRACE_BUILD_PHASES_PATH`; cache-hit
+	  profiling shows tiny x64 builds spend their remaining emit time in cached
+	  runtime-object ELF fixup replay, so the next throughput slice is byte-native
+	  persistent x64 rtobj fixup sidecars or equivalent prepatched cached calls
+	  without forcing expensive first-use cache rebuilds.
+	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
+	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
+	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
   leg of the native NET matrix keeps the 10s stage1 hang guard but uses a 900s
   stage2 cross-build floor because active cross-target self-hosted NET/HTTP2
   fixture compiles exceeded both the generic 120s stage2 floor and a 300s trial

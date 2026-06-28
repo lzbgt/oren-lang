@@ -63,13 +63,19 @@ This file is the concise task view. Detailed implementation status lives in
      Linux/Windows x64 runtime-object seeds through an explicit bounded
      cross-compiler compatibility probe, avoiding slow stage2 cold-build
      prewarm hangs while preserving stage2 output checks.
-     The compiler now uses `oren.oren` as the single root for x64 self-host
-     compiler artifacts as well: import-level `@cfg(arch=...)` prunes inactive
-     backend imports during dependency discovery, replacing the former
-     `oren_x64.oren` / `compiler_x64.oren` wrapper files while preserving
-     lightweight arm64 backend stubs for x64 compiler builds.
-     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
-     when a compatible stage2 runtime-hash seed is missing, so local NET/native
+	     The compiler now uses `oren.oren` as the single root for x64 self-host
+	     compiler artifacts as well: import-level `@cfg(arch=...)` prunes inactive
+	     backend imports during dependency discovery, replacing the former
+	     `oren_x64.oren` / `compiler_x64.oren` wrapper files while preserving
+	     lightweight arm64 backend stubs for x64 compiler builds.
+	     x64 native emit now contributes build/codegen/ELF milestones to
+	     `OREN_TRACE_BUILD_PHASES_PATH`; current cache-hit profiling isolates the
+	     remaining tiny-build latency to cached runtime-object ELF fixup replay
+	     (runtime calls and RIP-data patches), making byte-native persistent x64
+	     rtobj fixup sidecars or prepatched cached calls the next concrete
+	     throughput task.
+	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
+	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
      seed probes. The ARM64 Linux Docker NET leg still keeps the 10s stage1 hang
      guard, but uses a 900s stage2 cross-build floor because active self-hosted

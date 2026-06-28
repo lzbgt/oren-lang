@@ -1136,7 +1136,10 @@ fn compiler_main() {
 			                    t_emit1 = oren_time_now_ns()
 			                    print("[build] native emit start (x64) target=" + target)
 			                }
-					                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
+			                if trace_phase_path != nil {
+			                    _build_phase_log_append(trace_phase_path, "build.native.emit.start", "arch=x64 target=" + target, t_sum0)
+			                }
+						                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
 					                    print("native backend (x64): exports are not implemented for target: " + target)
 					                    print("  requested: --export / @ffi.export")
 					                    oren_exit(1)
@@ -1151,12 +1154,15 @@ fn compiler_main() {
 		                        oren_exit(1)
 		                    }
 	                }
-                if trace_build {
-                    var dt_emit1 = oren_time_now_ns() - t_emit1
-                    print("[build] native emit done +" + oren_int_to_string(dt_emit1 / 1000000) + "ms")
-                }
-                if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
-            } else {
+	                if trace_build {
+	                    var dt_emit1 = oren_time_now_ns() - t_emit1
+	                    print("[build] native emit done +" + oren_int_to_string(dt_emit1 / 1000000) + "ms")
+	                }
+	                if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
+	                if trace_phase_path != nil {
+	                    _build_phase_log_append(trace_phase_path, "build.native.emit.done", "arch=x64 target=" + target, t_sum0)
+	                }
+	            } else {
                 print("native backend unsupported arch: " + arch)
                 oren_exit(1)
             }

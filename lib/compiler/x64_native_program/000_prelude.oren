@@ -22,6 +22,22 @@ import abi "native_abi.oren"
 			import nstat "native_stat_abi.oren"
 	import nops "native_ops_v0.oren"
 
+fn _x64_program_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _x64_program_phase_log_append(path, phase, detail) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(oren_time_now_ns())
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
