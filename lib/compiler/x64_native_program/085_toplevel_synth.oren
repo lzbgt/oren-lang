@@ -108,6 +108,9 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             // Store as offset+1 so a real offset of 0 is representable while still using `nil`
             // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm] = off0 + 1
+            if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
+            if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
+            if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
         }
         i = i + 1
     }
@@ -126,6 +129,9 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             // Store as offset+1 so a real offset of 0 is representable while still using `nil`
             // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm2] = off2 + 1
+            if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm2) }
+            if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off2) }
+            if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], false) }
             if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm2] = _x64_expr_is_floaty(ctx, st2["value"]) }
         }
         i = i + 1

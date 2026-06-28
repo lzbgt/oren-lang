@@ -74,11 +74,16 @@ This file is the concise task view. Detailed implementation status lives in
 		     patches, code-lea patches, and function-object pointers. Local
 		     steady-state probing reduced cached runtime-object ELF replay from
 		     roughly 31s to about 0.53s; remaining tiny-build emit time is now in
-		     local/entry ELF fixups and final binary assembly. A direct unified
-		     `oren.oren` x64 self-host native compile now gets through rtobj load
-		     quickly but remains CPU-active after `x64.codegen.prepare.done`; the
-		     next concrete throughput target is finer post-prepare x64 codegen
-		     phase instrumentation followed by the largest measured emitter fix.
+			     local/entry ELF fixups and final binary assembly. x64 now records
+			     global-root name/offset/runtime lists in compiler ctx and new
+			     runtime-object metadata, then emits entry root registration through
+			     one offset-table loop instead of one `lea+call` sequence per root.
+			     A direct unified `oren.oren` x64 self-host native compile with the
+			     existing legacy cache now reaches `x64.rtobj.apply_data.rootmeta.done`
+			     and remains CPU-active in the legacy globals-map fallback; the next
+			     concrete throughput target is a sidecar/migration path for x64
+			     runtime-object root/global metadata that avoids runtime-object rebuild
+			     and avoids legacy globals-map walking in hot builds.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

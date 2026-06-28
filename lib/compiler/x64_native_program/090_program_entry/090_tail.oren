@@ -578,6 +578,9 @@ fn native_compile_program_x64(linked, platform) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     }
     if trace_prog { print("[x64_compile] debug metadata setup done") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.metadata.done", "")
+    }
 
     // --- Stack safety (call depth guard; Tier‑1 parity) ---
     //
@@ -678,6 +681,10 @@ fn native_compile_program_x64(linked, platform) {
     if entry_total > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_total)) }
     var scratch_base = entry_shadow + entry_stack_args + entry_align_pad
     if trace_prog { print("[x64_compile] entry prologue done") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.prologue.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
 
     if platform != nil && platform["os"] == "windows"  {
         if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win begin") }
@@ -803,6 +810,10 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: runtime_init ok")
     }
     if trace_prog { print("[x64_compile] runtime init call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.runtime_init.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // Register embedded string literals once at startup (Tier‑1 performance).
     //
@@ -844,6 +855,10 @@ fn native_compile_program_x64(linked, platform) {
       }
     }
     if trace_prog { print("[x64_compile] cstr0 table call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.cstr0_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
     //
@@ -894,6 +909,10 @@ fn native_compile_program_x64(linked, platform) {
       }
     }
     if trace_prog { print("[x64_compile] debug-info call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.dbginfo_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // native_runtime_set_args(argc, argv)
     if platform != nil && platform["os"] == "windows" {
@@ -910,6 +929,10 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: set_args ok")
     }
     if trace_prog { print("[x64_compile] set args call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.args.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // Windows: convert Win32 env block -> POSIX envp (Tier‑1 parity).
     //
@@ -957,6 +980,10 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: set_envp ok")
     }
     if trace_prog { print("[x64_compile] set envp call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.envp.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // native_runtime_capsule_init() (env + capsule init).
     //
@@ -983,25 +1010,39 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
     }
     if trace_prog { print("[x64_compile] gc mode call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.gc_mode.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // Register global slots as GC roots (native parity with C backend).
     // Do this after GC mode init so native_gc_register_root is active.
+    //
+    // Do not emit one `lea + call + fixup` sequence per global. Large self-hosted
+    // compilers have thousands of globals, and that old strategy made x64 entry
+    // generation/fixups dominate compile time. Match arm64: write root offsets to
+    // `.data` and emit one tiny runtime loop over that table.
     var gmap = ctx["globals"]
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
-    if gmap != nil {
-        if trace_prog { print("[x64_compile] global root registration start") }
+    var root_offsets = []
+    var roots_scanned = 0
+    var root_count = 0
+    var arg_reg = 7 // rdi
+    var name_reg = 6 // rsi
+    if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // rcx
+    if platform != nil && platform["os"] == "windows" { name_reg = 2 } // rdx
+    if trace_prog { print("[x64_compile] global root registration start") }
+    var root_names_src = ctx["global_root_names"]
+    var root_offsets_src = ctx["global_root_offsets"]
+    var root_runtime_src = ctx["global_root_is_runtime"]
+    if root_names_src != nil && root_offsets_src != nil &&
+       oren_list_len(root_names_src) == oren_list_len(root_offsets_src) {
         var gi = 0
-        var pair = [nil, nil]
-        var arg_reg = 7 // rdi
-        var name_reg = 6 // rsi
-        if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // rcx
-        if platform != nil && platform["os"] == "windows" { name_reg = 2 } // rdx
-        while 1 {
-            var okg = oren_iter_next_entry(gmap, gi, pair)
-            if okg == 0 { break }
-            var gname = pair[0]
+        while gi < oren_list_len(root_offsets_src) {
+            roots_scanned = roots_scanned + 1
+            var gname = root_names_src[gi]
             if gname == "g_gc_reuse_bad_list_last_ptr" ||
                gname == "g_find_cache_ptr0" ||
                gname == "g_find_cache_ptr1" ||
@@ -1010,9 +1051,51 @@ fn native_compile_program_x64(linked, platform) {
                 gi = gi + 1
                 continue
             }
+            var is_runtime_root = false
+            if root_runtime_src != nil && gi < oren_list_len(root_runtime_src) {
+                if root_runtime_src[gi] == true { is_runtime_root = true }
+            } else if gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+                is_runtime_root = true
+            }
+            if skip_runtime_globals != nil && skip_runtime_globals != 0 && is_runtime_root == true {
+                gi = gi + 1
+                continue
+            }
+            var off = root_offsets_src[gi]
+            if trace_root_names != nil && trace_root_names != 0 && gname != nil {
+                var name_off = _data_add_cstr0(ctx, gname)
+                var lea_ptr_pos = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0))
+                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_ptr_pos + 3, "data_off": off})
+                var lea_name_pos = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(name_reg, 0))
+                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_name_pos + 3, "data_off": name_off})
+                var call_name_pos = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_call_rel32(0))
+                oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_name_pos, "name": "native_gc_register_root_name"})
+            }
+            oren_list_push(root_offsets, off)
+            gi = gi + 1
+        }
+    } else if gmap != nil {
+        var gi2 = 0
+        var pair = [nil, nil]
+        while 1 {
+            var okg = oren_iter_next_entry(gmap, gi2, pair)
+            if okg == 0 { break }
+            roots_scanned = roots_scanned + 1
+            var gname = pair[0]
+            if gname == "g_gc_reuse_bad_list_last_ptr" ||
+               gname == "g_find_cache_ptr0" ||
+               gname == "g_find_cache_ptr1" ||
+               gname == "g_find_cache_node0" ||
+               gname == "g_find_cache_node1" {
+                gi2 = gi2 + 1
+                continue
+            }
             if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
                gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
-                gi = gi + 1
+                gi2 = gi2 + 1
                 continue
             }
             var off_enc = pair[1]
@@ -1030,16 +1113,66 @@ fn native_compile_program_x64(linked, platform) {
                     bytes_extend(ctx["code"], insn_call_rel32(0))
                     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_name_pos, "name": "native_gc_register_root_name"})
                 }
-                var lea_pos = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
-                var call_root_pos = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_call_rel32(0))
-                oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_root_pos, "name": "native_gc_register_root"})
+                oren_list_push(root_offsets, off)
             }
-            gi = gi + 1
+            gi2 = gi2 + 1
         }
-        if trace_prog { print("[x64_compile] global root registration done count=" + oren_int_to_string(gi)) }
+    }
+    root_count = oren_list_len(root_offsets)
+    if root_count > 0 {
+        while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        var root_table_off = bytes_len(ctx["data"])
+        var ri = 0
+        while ri < root_count {
+            push_u64_le(ctx["data"], root_offsets[ri])
+            ri = ri + 1
+        }
+
+        var labels_roots = {}
+        var fixups_roots = []
+        var l_roots_loop = _new_label(ctx, "global_roots_loop")
+        var l_roots_done = _new_label(ctx, "global_roots_done")
+
+        // scratch[0] = cursor, scratch[8] = remaining, scratch[16] = data_base.
+        var lea_roots_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0)) // r10 = &root_table[0]
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_roots_pos + 3, "data_off": root_table_off})
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(11, root_count)) // r11 = remaining
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10)) // r12 = data_base
+        bytes_extend(ctx["code"], insn_sub_r64_imm32(12, core.int_mod(root_table_off, 4294967296)))
+        _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+        _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
+        _emit_mov_mrsp_r64(ctx, scratch_base + 16, 12)
+
+        _emit_label(ctx, labels_roots, l_roots_loop)
+        _emit_mov_r64_mrsp(ctx, 11, scratch_base + 8)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+        _emit_jcc_to_label(ctx, fixups_roots, "e", l_roots_done)
+
+        _emit_mov_r64_mrsp(ctx, 10, scratch_base + 0)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(13, 10)) // r13 = root offset
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+        _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+        bytes_extend(ctx["code"], insn_sub_r64_imm32(11, 1))
+        _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
+
+        _emit_mov_r64_mrsp(ctx, 12, scratch_base + 16)
+        bytes_extend(ctx["code"], insn_add_r64_r64(12, 13)) // r12 = root pointer
+        bytes_extend(ctx["code"], insn_mov_r64_r64(arg_reg, 12))
+        var call_root_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_root_pos, "name": "native_gc_register_root"})
+        _emit_jmp_to_label(ctx, fixups_roots, l_roots_loop)
+
+        _emit_label(ctx, labels_roots, l_roots_done)
+        _patch_local_fixups(ctx, labels_roots, fixups_roots)
+    }
+    if trace_prog { print("[x64_compile] global root registration done count=" + oren_int_to_string(roots_scanned)) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.global_roots.done",
+            "scanned=" + oren_int_to_string(roots_scanned) +
+            " roots=" + oren_int_to_string(root_count) +
+            " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
 
     // Register main thread for GC/stack safety (allow skip for bisecting entry crashes).
@@ -1080,6 +1213,10 @@ fn native_compile_program_x64(linked, platform) {
             _emit_windows_write_cstr(ctx, "ENTRY: register_thread skip")
         }
     }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.register_thread.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     // Run top-level statements (including non-constant global initializers) before `main`.
     //
@@ -1102,6 +1239,10 @@ fn native_compile_program_x64(linked, platform) {
             _emit_windows_write_cstr(ctx, "ENTRY: top_level skip")
         }
     }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.top_level_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
 
     if is_dll != true && is_so != true && has_main && skip_main != true {
         var call_pos = bytes_len(ctx["code"])
@@ -1114,6 +1255,10 @@ fn native_compile_program_x64(linked, platform) {
             _emit_windows_write_cstr(ctx, "ENTRY: main skip")
         }
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.main_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
 
     if platform != nil && platform["os"] == "windows" {
@@ -1422,14 +1567,17 @@ fn native_compile_program_x64(linked, platform) {
     // Fill the symtab now that `ctx["functions"]` contains final offsets.
     _data_finalize_symtab(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.symtab.done", "") }
 
     // Fill the linetab now that code offsets are stable.
     _data_finalize_linetab(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.linetab.done", "") }
 
     // Fill the debug-info table now that code offsets are stable (debug builds only).
     _data_finalize_dbginfo_table(ctx, platform)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.dbginfo.done", "") }
 
     // Finalize the embedded-string table after all codegen so it includes:
     // - user literals
@@ -1437,6 +1585,7 @@ fn native_compile_program_x64(linked, platform) {
     // - backend-emitted literal cstrs (panic helpers, etc)
     _data_finalize_cstr0_table(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.cstr0.done", "") }
     if phase_log != nil {
         var fx_n0 = 0
         if ctx["fixups"] != nil { fx_n0 = oren_list_len(ctx["fixups"]) }

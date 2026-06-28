@@ -390,6 +390,9 @@ fn _x64_new_ctx(linked, platform) {
     ctx["globals_floaty"] = {}
     ctx["globals_inty"] = {}
     ctx["globals_int_const"] = {}
+    ctx["global_root_names"] = []
+    ctx["global_root_offsets"] = []
+    ctx["global_root_is_runtime"] = []
     // Named function declarations (name -> arity) collected before codegen.
     ctx["func_arity"] = {}
     // Named function varargs mapping (name -> fixed param count). Presence means varargs.
@@ -437,6 +440,9 @@ fn _x64_new_ctx(linked, platform) {
     // - runtime object compilation/cache
     var g_storage_slot_off = _data_add_u64(ctx, 0)
     if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
+    if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], "g_storage") }
+    if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], g_storage_slot_off) }
+    if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], false) }
     var boot_off = _data_add_zeros(ctx, 512)
     ctx["boot_globals_storage_off_enc"] = boot_off + 1
     if trace_ctx { print("[x64_ctx] boot globals ok") }

@@ -130,11 +130,16 @@
 <p>		     patches, code-lea patches, and function-object pointers. Local</p>
 <p>		     steady-state probing reduced cached runtime-object ELF replay from</p>
 <p>		     roughly 31s to about 0.53s; remaining tiny-build emit time is now in</p>
-<p>		     local/entry ELF fixups and final binary assembly. A direct unified</p>
-<p>		     <code>oren.oren</code> x64 self-host native compile now gets through rtobj load</p>
-<p>		     quickly but remains CPU-active after <code>x64.codegen.prepare.done</code>; the</p>
-<p>		     next concrete throughput target is finer post-prepare x64 codegen</p>
-<p>		     phase instrumentation followed by the largest measured emitter fix.</p>
+<p>			     local/entry ELF fixups and final binary assembly. x64 now records</p>
+<p>			     global-root name/offset/runtime lists in compiler ctx and new</p>
+<p>			     runtime-object metadata, then emits entry root registration through</p>
+<p>			     one offset-table loop instead of one <code>lea+call</code> sequence per root.</p>
+<p>			     A direct unified <code>oren.oren</code> x64 self-host native compile with the</p>
+<p>			     existing legacy cache now reaches <code>x64.rtobj.apply_data.rootmeta.done</code></p>
+<p>			     and remains CPU-active in the legacy globals-map fallback; the next</p>
+<p>			     concrete throughput target is a sidecar/migration path for x64</p>
+<p>			     runtime-object root/global metadata that avoids runtime-object rebuild</p>
+<p>			     and avoids legacy globals-map walking in hot builds.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
