@@ -827,11 +827,7 @@ func addTypedMemberRef(expr *ast.MemberExpression, uri string, env memberTypeEnv
 	if expr == nil || !validMemberIdentifier(expr.Property) {
 		return
 	}
-	left, ok := expr.Left.(*ast.Identifier)
-	if !ok || !validMemberIdentifier(left) {
-		return
-	}
-	typeName := lookupInferredVarType(left.Value, stack)
+	typeName := inferExpressionType(expr.Left, env, stack)
 	if typeName == "" {
 		return
 	}
