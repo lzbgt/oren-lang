@@ -8,12 +8,11 @@ fn _data_add_cstr_newline(ctx, s) {
     // Avoid allocating an intermediate `list<int>` for large compiler workloads.
     // Append bytes (excluding NUL), then newline+NUL.
     var n = oren_string_len(s)
-    if n > 1048576 { n = 1048576 } // safety cap
-    var i = 0
-    while i < n {
-        bytes_push(ctx["data"], oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
+    if n > 1048576 {
+        s = oren_string_slice(s, 0, 1048576)
+        n = 1048576
+    } // safety cap
+    bytes_extend_string(ctx["data"], s)
     // Append newline and NUL for tooling visibility.
     bytes_push(ctx["data"], 10)
     bytes_push(ctx["data"], 0)
@@ -73,12 +72,11 @@ fn _data_add_cstr0(ctx, s) {
     var off = bytes_len(ctx["data"])
     // Append bytes including trailing NUL (cstr0).
     var n0 = oren_string_len(s)
-    if n0 > 1048576 { n0 = 1048576 } // safety cap
-    var i0 = 0
-    while i0 < n0 {
-        bytes_push(ctx["data"], oren_string_byte_at_unchecked(s, i0) & 255)
-        i0 = i0 + 1
-    }
+    if n0 > 1048576 {
+        s = oren_string_slice(s, 0, 1048576)
+        n0 = 1048576
+    } // safety cap
+    bytes_extend_string(ctx["data"], s)
     bytes_push(ctx["data"], 0)
     ctx["cstr0_offs"][s] = off + 1
     // Track the unique byte offsets so the entry stub can register all literals once at startup

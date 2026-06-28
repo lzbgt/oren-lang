@@ -50,23 +50,6 @@ fn _x64_direct_data_int_init(ctx, expr) {
     return _x64_parse_simple_nonneg_decimal_int(expr["value"])
 }
 
-fn _x64_direct_data_string_init(ctx, expr) {
-    if expr == nil || expr["type"] != "String" { return nil }
-    var s = expr["value"]
-    if s == nil || oren_is_string(s) != true {
-        var tok = expr["token"]
-        if tok != nil {
-            var lit = tok["literal"]
-            if lit != nil && oren_is_string(lit) == true { s = lit }
-        }
-    }
-    if s == nil { s = "" }
-    if oren_is_string(s) != true { return nil }
-    var off = _data_add_cstr0(ctx, s)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    return off
-}
-
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Collect top-level `var` declarations as globals and build the statement list to run
     // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
@@ -78,6 +61,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     //   startup order is deterministic and matches arm64.
     // - Disallow top-level executable statements in the injected runtime.
     if ctx == nil { return nil }
+    var phase_log = ctx["phase_log"]
 
     var declared = ctx["declared_functions"]
     var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
@@ -91,6 +75,12 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     if user_vars == nil { user_vars = [] }
     if user_exec == nil { user_exec = [] }
     if user_ordered == nil { user_ordered = [] }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.split.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
+            " user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
+            " user_ordered=" + oren_int_to_string(oren_list_len(user_ordered)))
+    }
 
     if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
     var runtime_globals = ctx["runtime_globals"]
@@ -138,49 +128,81 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         }
         i = i + 1
     }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.runtime_slots.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
+            " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
+    }
 
-    // Allocate user global slots. Literal integer/string globals can be materialized directly
-    // in `.data`, avoiding hundreds of runtime top-level stores during self-hosted compiler
-    // emission. Non-literal initializers still execute in source order below.
+    // Allocate user global slots. Literal integer globals can be materialized directly in
+    // `.data`; string globals intentionally stay in source-order runtime initialization
+    // because direct string data materialization was measured to dominate x64 self-host compile time.
     ctx["global_init_in_data"] = {}
+    var user_global_seen = {}
     i = 0
     while i < oren_list_len(user_vars) {
         var st2 = user_vars[i]
         if st2 != nil {
+            if phase_log != nil && core.int_mod(i, 50) == 0 {
+                var value_ty2 = "nil"
+                if st2["value"] != nil && st2["value"]["type"] != nil { value_ty2 = st2["value"]["type"] }
+                var loc2 = ""
+                var tok2 = st2["token"]
+                if tok2 != nil && tok2["file"] != nil && tok2["line"] != nil {
+                    loc2 = " file=" + tok2["file"] + " line=" + oren_int_to_string(tok2["line"])
+                }
+                _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.user_slots.progress",
+                    "i=" + oren_int_to_string(i) +
+                    " total=" + oren_int_to_string(oren_list_len(user_vars)) +
+                    " value=" + value_ty2 +
+                    loc2)
+            }
             var nm2 = st2["name"]["value"]
-            if ctx["globals"] != nil && ctx["globals"][nm2] != nil {
+            if user_global_seen[nm2] != nil {
                 err(ctx, "x64 native v0: duplicate global var " + nm2)
+                return nil
+            }
+            user_global_seen[nm2] = true
+            if oren_list_len(runtime_vars) > 0 && runtime_globals != nil && runtime_globals[nm2] != nil {
+                err(ctx, "x64 native v0: global var shadows runtime global " + nm2)
                 return nil
             }
             var off2 = 0
             var have_off2 = false
+            var fact_floaty2 = false
+            var fact_inty2 = false
+            var fact_const2 = nil
             var init_int2 = _x64_direct_data_int_init(ctx, st2["value"])
             if oren_type_tag(init_int2) != 0 {
                 off2 = _data_add_u64(ctx, init_int2)
                 have_off2 = true
+                fact_inty2 = true
+                fact_const2 = init_int2
                 ctx["global_init_in_data"][nm2] = true
             }
-            if have_off2 != true {
-                var init_str2 = _x64_direct_data_string_init(ctx, st2["value"])
-                if oren_type_tag(init_str2) != 0 {
-                    off2 = _data_add_u64(ctx, 0)
-                    have_off2 = true
-                    oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_str2})
-                    ctx["global_init_in_data"][nm2] = true
-                }
-            }
             if have_off2 != true { off2 = _data_add_u64(ctx, 0) }
+            if have_off2 != true {
+                fact_floaty2 = _x64_expr_is_floaty(ctx, st2["value"])
+                fact_inty2 = _x64_expr_is_inty(ctx, st2["value"])
+                fact_const2 = _x64_expr_int_const(ctx, st2["value"])
+            }
             // Store as offset+1 so a real offset of 0 is representable while still using `nil`
             // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm2] = off2 + 1
             if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm2) }
             if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off2) }
             if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], false) }
-            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm2] = _x64_expr_is_floaty(ctx, st2["value"]) }
-            if ctx["globals_inty"] != nil { ctx["globals_inty"][nm2] = _x64_expr_is_inty(ctx, st2["value"]) }
-            if ctx["globals_int_const"] != nil { ctx["globals_int_const"][nm2] = _x64_expr_int_const(ctx, st2["value"]) }
+            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm2] = fact_floaty2 }
+            if ctx["globals_inty"] != nil { ctx["globals_inty"][nm2] = fact_inty2 }
+            if ctx["globals_int_const"] != nil { ctx["globals_int_const"][nm2] = fact_const2 }
         }
         i = i + 1
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.user_slots.done",
+            "user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
+            " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
+            " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
 
     _x64_trace_global_slots(ctx, "after_prepare_globals")
@@ -208,6 +230,10 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             oren_list_push(top_stmts, stx)
         }
         j = j + 1
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.top_stmts.done",
+            "top_stmts=" + oren_int_to_string(oren_list_len(top_stmts)))
     }
 
     var top_len = oren_list_len(top_stmts)
@@ -266,7 +292,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         while k < slice_to { oren_list_push(sliced, top_stmts[k]); k = k + 1 }
         top_stmts = sliced
     }
-    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
+    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts), "top_stmt_count": oren_list_len(top_stmts)}
 }
 
 fn _x64_extract_type_constructors_v0(ctx, linked) {

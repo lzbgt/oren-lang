@@ -138,16 +138,18 @@
 <p>				     sidecars and lazily derive them from legacy metadata once, so direct</p>
 <p>				     unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
 <p>				     rebuilding the runtime object or walking the legacy globals map in the</p>
-<p>				     hot apply path. x64 function/body phase markers now narrow synthesized</p>
-<p>				     <code>__top_level__</code> global initializer emission precisely. Non-negative</p>
-<p>				     integer literal globals are materialized directly in <code>.data</code>, and</p>
-<p>				     string literal globals now use ELF/PE-patched data-to-data pointer</p>
-<p>				     fixups. Local unified compiler tracing reduced <code>__top_level__</code> from</p>
-<p>				     361 ops to 168 after integer folding, then to 59 after string</p>
-<p>				     relocation. The next concrete throughput targets are zero-result</p>
-<p>				     lambda collection over the full statement set</p>
-<p>				     (<code>x64.codegen.lambdas.done lambdas=0</code>) and compact bool/nil singleton</p>
-<p>				     global initialization for the remaining runtime stores.</p>
+<p>					     hot apply path. x64 function/body phase markers now narrow synthesized</p>
+<p>					     <code>__top_level__</code> global initializer emission precisely. Non-negative</p>
+<p>					     integer literal globals are materialized directly in <code>.data</code>; string</p>
+<p>					     literal globals remain source-order runtime initializers because direct</p>
+<p>					     string data relocation measured <code>x64.codegen.top_globals.user_slots</code></p>
+<p>					     at roughly 96s in unified self-host traces. With string data init</p>
+<p>					     disabled, the same pass measured under 1s and <code>__top_level__</code> stays at</p>
+<p>					     167 ops. Zero-result lambda collection now skips the full statement walk</p>
+<p>					     when no local function/lambda candidates were found. The next concrete</p>
+<p>					     throughput target is post-entry user-function codegen after</p>
+<p>					     <code>x64.codegen.top.done</code>, plus a future bulk string-table design before</p>
+<p>					     string globals can safely move back into <code>.data</code>.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

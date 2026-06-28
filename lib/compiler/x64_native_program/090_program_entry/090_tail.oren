@@ -290,9 +290,11 @@ fn native_compile_program_x64(linked, platform) {
     // - the name is reserved (globals can't shadow it)
     // - direct calls can resolve to backend-emitted stubs
     if trace_prog { print("[x64_compile] ffi decls start") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.start", "") }
     _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     if trace_prog { print("[x64_compile] ffi decls done") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.done", "") }
 
     // --- Global vars + top-level statements (Tier‑1 convergence) ---
     //
@@ -301,9 +303,16 @@ fn native_compile_program_x64(linked, platform) {
     //
     // We scan after function collection so we can reject global names that shadow functions.
     if trace_prog { print("[x64_compile] top-level globals start") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.start", "") }
     var top_info = _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts)
     if top_info == nil { return ctx }
     if trace_prog { print("[x64_compile] top-level globals done") }
+    if phase_log != nil {
+        var top_ops = 0
+        if top_info["top_stmt_count"] != nil { top_ops = top_info["top_stmt_count"] }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.done",
+            "top_stmts=" + oren_int_to_string(top_ops))
+    }
 
     // Collect lambdas (anonymous Function nodes with name="") from the full statement set
     // that will actually be compiled.
@@ -318,26 +327,34 @@ fn native_compile_program_x64(linked, platform) {
     // - x64 synthesizes type constructors.
     var stmts_all = linked2["statements"]
     if stmts_all == nil { stmts_all = [] }
-    if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
-    var li = 0
-    while li < oren_list_len(stmts_all) {
-        callable.collect_lambdas_in_statement(ctx, stmts_all[li])
-        li = li + 1
-    }
-    // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
-    if top_info["top_level_fn"] != nil {
-        callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
-    }
-    // Also scan synthesized type constructors (not present in `linked2["statements"]`).
-    var ltc = 0
-    while ltc < oren_list_len(type_ctors) {
-        callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
-        ltc = ltc + 1
+    var lambda_scan_skipped = false
+    if ctx["_native_has_lambda_candidates"] == true {
+        if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
+        var li = 0
+        while li < oren_list_len(stmts_all) {
+            callable.collect_lambdas_in_statement(ctx, stmts_all[li])
+            li = li + 1
+        }
+        // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
+        if top_info["top_level_fn"] != nil {
+            callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
+        }
+        // Also scan synthesized type constructors (not present in `linked2["statements"]`).
+        var ltc = 0
+        while ltc < oren_list_len(type_ctors) {
+            callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
+            ltc = ltc + 1
+        }
+    } else {
+        lambda_scan_skipped = true
+        if trace_prog { print("[x64_compile] collect lambdas skipped (no candidates)") }
     }
     if trace_prog { print("[x64_compile] collect lambdas done defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
     if phase_log != nil {
+        var lambda_extra = ""
+        if lambda_scan_skipped { lambda_extra = " skipped=1" }
         _x64_program_phase_log_append(phase_log, "x64.codegen.lambdas.done",
-            "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+            "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])) + lambda_extra)
     }
 
 

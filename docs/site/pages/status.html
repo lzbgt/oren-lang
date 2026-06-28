@@ -122,12 +122,15 @@
 <p>	  rebuilding the runtime object or walking the legacy globals map in the hot apply</p>
 <p>	  path. x64 function/body phase markers now show synthesized <code>__top_level__</code></p>
 <p>	  global initializer emission precisely. Non-negative integer literal globals are</p>
-<p>	  materialized directly in <code>.data</code>, and string literal globals now use data-to-data</p>
-<p>	  pointer fixups patched by ELF/PE emitters. Local unified compiler tracing reduced</p>
-<p>	  <code>__top_level__</code> from 361 ops to 168 after integer folding, then to 59 after string</p>
-<p>	  relocation. The next measured x64 self-host targets are zero-result lambda</p>
-<p>	  collection over the full statement set (<code>x64.codegen.lambdas.done lambdas=0</code>) and</p>
-<p>	  compact bool/nil singleton global initialization for the remaining runtime stores.</p>
+<p>	  materialized directly in <code>.data</code>; string literal globals intentionally remain</p>
+<p>	  source-order runtime initializers because direct string data relocation measured</p>
+<p>	  <code>x64.codegen.top_globals.user_slots</code> at roughly 96s in unified self-host traces.</p>
+<p>	  With string data init disabled, the same top-global pass measured under 1s and</p>
+<p>	  <code>__top_level__</code> stays at 167 ops. Zero-result lambda collection now uses a</p>
+<p>	  compile-time preflight and skips the full statement walk when there are no local</p>
+<p>	  function/lambda candidates. The next measured x64 self-host target is post-entry</p>
+<p>	  user-function codegen after <code>x64.codegen.top.done</code>, plus a future bulk string-table</p>
+<p>	  design before string globals can move back into <code>.data</code>.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>
