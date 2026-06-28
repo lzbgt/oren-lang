@@ -81,16 +81,17 @@ Facts from the 2026-05-28 implementation pass:
 	  once, so hot unified `oren.oren` x64 self-host builds can adopt root lists without
 	  rebuilding the runtime object or walking the legacy globals map in the hot apply
 	  path. x64 function/body phase markers now show synthesized `__top_level__`
-	  global initializer emission precisely. Non-negative integer literal globals are
-	  materialized directly in `.data`; string literal globals intentionally remain
-	  source-order runtime initializers because direct string data relocation measured
-	  `x64.codegen.top_globals.user_slots` at roughly 96s in unified self-host traces.
-	  With string data init disabled, the same top-global pass measured under 1s and
-	  `__top_level__` stays at 167 ops. Zero-result lambda collection now uses a
-	  compile-time preflight and skips the full statement walk when there are no local
-	  function/lambda candidates. The next measured x64 self-host target is post-entry
-	  user-function codegen after `x64.codegen.top.done`, plus a future bulk string-table
-	  design before string globals can move back into `.data`.
+	  global initializer emission precisely. Non-negative integer literals, string
+	  literals, and nil/bool singleton globals are now materialized directly in `.data`.
+	  Unified self-host traces showed direct string relocation costs about 89s in
+	  `x64.codegen.top_globals.user_slots` but reduces the normal `__top_level__`
+	  body from roughly 165s to about 66s; adding singleton data pointers reduced
+	  `__top_level__` further from 58 to 33 statements and body emission to about
+	  50s. Zero-result lambda collection now uses a compile-time preflight and skips
+	  the full statement walk when there are no local function/lambda candidates.
+	  The next measured x64 self-host target is the remaining non-literal
+	  `__top_level__` initializers, especially lexer/compiler top-level map/list
+	  construction, before post-entry user-function codegen.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

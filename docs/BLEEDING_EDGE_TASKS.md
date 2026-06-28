@@ -84,16 +84,17 @@ This file is the concise task view. Detailed implementation status lives in
 				     rebuilding the runtime object or walking the legacy globals map in the
 					     hot apply path. x64 function/body phase markers now narrow synthesized
 					     `__top_level__` global initializer emission precisely. Non-negative
-					     integer literal globals are materialized directly in `.data`; string
-					     literal globals remain source-order runtime initializers because direct
-					     string data relocation measured `x64.codegen.top_globals.user_slots`
-					     at roughly 96s in unified self-host traces. With string data init
-					     disabled, the same pass measured under 1s and `__top_level__` stays at
-					     167 ops. Zero-result lambda collection now skips the full statement walk
-					     when no local function/lambda candidates were found. The next concrete
-					     throughput target is post-entry user-function codegen after
-					     `x64.codegen.top.done`, plus a future bulk string-table design before
-					     string globals can safely move back into `.data`.
+					     integer literals, string literals, and nil/bool singleton globals are
+					     materialized directly in `.data`. Unified self-host traces showed direct
+					     string relocation costs about 89s in `x64.codegen.top_globals.user_slots`
+					     but reduces normal `__top_level__` body emission from roughly 165s to
+					     about 66s; singleton data pointers then reduced `__top_level__` from 58
+					     to 33 statements and body emission to about 50s. Zero-result lambda
+					     collection now skips the full statement walk when no local function/lambda
+					     candidates were found. The next concrete throughput target is the
+					     remaining non-literal `__top_level__` initializers, especially
+					     lexer/compiler top-level map/list construction, before post-entry
+					     user-function codegen.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

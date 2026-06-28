@@ -140,16 +140,17 @@
 <p>				     rebuilding the runtime object or walking the legacy globals map in the</p>
 <p>					     hot apply path. x64 function/body phase markers now narrow synthesized</p>
 <p>					     <code>__top_level__</code> global initializer emission precisely. Non-negative</p>
-<p>					     integer literal globals are materialized directly in <code>.data</code>; string</p>
-<p>					     literal globals remain source-order runtime initializers because direct</p>
-<p>					     string data relocation measured <code>x64.codegen.top_globals.user_slots</code></p>
-<p>					     at roughly 96s in unified self-host traces. With string data init</p>
-<p>					     disabled, the same pass measured under 1s and <code>__top_level__</code> stays at</p>
-<p>					     167 ops. Zero-result lambda collection now skips the full statement walk</p>
-<p>					     when no local function/lambda candidates were found. The next concrete</p>
-<p>					     throughput target is post-entry user-function codegen after</p>
-<p>					     <code>x64.codegen.top.done</code>, plus a future bulk string-table design before</p>
-<p>					     string globals can safely move back into <code>.data</code>.</p>
+<p>					     integer literals, string literals, and nil/bool singleton globals are</p>
+<p>					     materialized directly in <code>.data</code>. Unified self-host traces showed direct</p>
+<p>					     string relocation costs about 89s in <code>x64.codegen.top_globals.user_slots</code></p>
+<p>					     but reduces normal <code>__top_level__</code> body emission from roughly 165s to</p>
+<p>					     about 66s; singleton data pointers then reduced <code>__top_level__</code> from 58</p>
+<p>					     to 33 statements and body emission to about 50s. Zero-result lambda</p>
+<p>					     collection now skips the full statement walk when no local function/lambda</p>
+<p>					     candidates were found. The next concrete throughput target is the</p>
+<p>					     remaining non-literal <code>__top_level__</code> initializers, especially</p>
+<p>					     lexer/compiler top-level map/list construction, before post-entry</p>
+<p>					     user-function codegen.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
