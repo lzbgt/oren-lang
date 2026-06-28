@@ -16,8 +16,7 @@ set -euo pipefail
 #
 # Env:
 #   OREN_SELFHOST_BUILD_TIMEOUT_SECS (default: 240)
-#   OREN_SELFHOST_SRC (default: oren_x64.oren) override self-host compiler source
-#     - set to `oren.oren` to force the full multi-target compiler graph
+#   OREN_SELFHOST_SRC (default: oren.oren) override self-host compiler source
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -42,8 +41,7 @@ Examples:
 
 Env:
   OREN_SELFHOST_BUILD_TIMEOUT_SECS (default: 240)
-  OREN_SELFHOST_SRC (default: oren_x64.oren)
-    - set to `oren.oren` to force the full multi-target compiler graph
+  OREN_SELFHOST_SRC (default: oren.oren)
 EOF
 }
 
@@ -176,7 +174,7 @@ fi
 #
 # Override to force the full compiler program:
 #   OREN_SELFHOST_SRC=oren.oren ./scripts/verify_native_x64_selfhost_compile_only.sh
-SRC="${OREN_SELFHOST_SRC:-oren_x64.oren}"
+SRC="${OREN_SELFHOST_SRC:-oren.oren}"
 if [[ ! -f "$SRC" ]]; then
   echo "WARN: missing selfhost source '$SRC'; falling back to oren.oren" >&2
   SRC="oren.oren"

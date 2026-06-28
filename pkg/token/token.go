@@ -41,6 +41,7 @@ const (
 	BITAND   = "&"
 	BITOR    = "|"
 	BITXOR   = "^"
+	AT       = "@"
 
 	// Delimiters
 	DOT       = "."

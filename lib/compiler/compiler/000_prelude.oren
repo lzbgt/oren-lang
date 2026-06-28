@@ -1,6 +1,12 @@
 import renamer "renamer.oren"
+@cfg(arch="arm64")
 import arm64_macho "arm64_macho.oren"
+@cfg(arch="arm64")
 import arm64_elf "arm64_elf.oren"
+@cfg(arch="x64")
+import arm64_macho "arm64_macho_stub.oren"
+@cfg(arch="x64")
+import arm64_elf "arm64_elf_stub.oren"
 import x64_elf "x64_elf.oren"
 import x64_pe "x64_pe.oren"
 import codegen_bytecode "codegen_bytecode.oren"

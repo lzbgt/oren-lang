@@ -1,4 +1,0 @@
-import compiler "lib/compiler/compiler_x64.oren"
-
-compiler.compiler_main()
-

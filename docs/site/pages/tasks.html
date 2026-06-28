@@ -119,6 +119,11 @@
 <p>     Linux/Windows x64 runtime-object seeds through an explicit bounded</p>
 <p>     cross-compiler compatibility probe, avoiding slow stage2 cold-build</p>
 <p>     prewarm hangs while preserving stage2 output checks.</p>
+<p>     The compiler now uses <code>oren.oren</code> as the single root for x64 self-host</p>
+<p>     compiler artifacts as well: import-level <code>@cfg(arch=...)</code> prunes inactive</p>
+<p>     backend imports during dependency discovery, replacing the former</p>
+<p>     <code>oren_x64.oren</code> / <code>compiler_x64.oren</code> wrapper files while preserving</p>
+<p>     lightweight arm64 backend stubs for x64 compiler builds.</p>
 <p>     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

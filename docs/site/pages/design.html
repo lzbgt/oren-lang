@@ -535,6 +535,7 @@ make stage2     # stage2 self-host</code></pre>
 <li>Keep <code>@cfg</code> at the boundary; tests should share a core and hide platform glue behind tiny <code>@cfg</code> wrappers.</li>
 <li>Prefer portable stdlib APIs over per-file <code>@cfg</code> where possible.</li>
 <li>Use <code>@cfg</code> primarily for FFI bindings, constants, and syscall layout differences.</li>
+<li>Import-level <code>@cfg</code> is supported for platform/build-profile selectors, and dependency discovery prunes inactive imports before opening their target files.</li>
 </ul>
 <h3 id="avm-tooling">AVM tooling</h3>
 <p><code>./avm</code> includes disassembly and trace tooling. Run <code>./avm --help</code> for the current CLI surface.</p>

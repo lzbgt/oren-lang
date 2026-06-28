@@ -1,0 +1,3 @@
+fn cfg_import_value() {
+    return 64
+}

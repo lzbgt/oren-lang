@@ -495,6 +495,7 @@ Rules of thumb:
 - Keep `@cfg` at the boundary; tests should share a core and hide platform glue behind tiny `@cfg` wrappers.
 - Prefer portable stdlib APIs over per-file `@cfg` where possible.
 - Use `@cfg` primarily for FFI bindings, constants, and syscall layout differences.
+- Import-level `@cfg` is supported for platform/build-profile selectors, and dependency discovery prunes inactive imports before opening their target files.
 
 ### AVM tooling
 

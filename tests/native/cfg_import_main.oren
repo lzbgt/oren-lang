@@ -1,0 +1,9 @@
+@cfg(arch="arm64")
+import missing "cfg_import_missing_arm64_dep.oren"
+
+@cfg(arch="x64")
+import dep "cfg_import_x64_dep.oren"
+
+fn main() {
+    print(dep.cfg_import_value())
+}

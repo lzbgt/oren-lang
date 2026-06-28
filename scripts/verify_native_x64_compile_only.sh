@@ -159,6 +159,7 @@ PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
 PTR_I32_LE_SRC="tests/native/ptr_i32_le_native.oren"
 CFG_OS_SRC="tests/native/cfg_os_select.oren"
+CFG_IMPORT_SRC="tests/native/cfg_import_main.oren"
 NET_TLS_HTTP2_SMOKE_SRC="tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren"
 
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
@@ -443,6 +444,9 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_linux"
   check_elf_x64 "build/tmp/cfg_os_${tag}_x64_linux"
 
+  build_one "$compiler" x64-linux "$CFG_IMPORT_SRC" "build/tmp/cfg_import_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/cfg_import_${tag}_x64_linux"
+
   build_one "$compiler" x64-linux "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_ok_${tag}_x64_linux"
 
@@ -515,6 +519,9 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/cfg_os_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$CFG_IMPORT_SRC" "build/tmp/cfg_import_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/cfg_import_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_k32_${tag}_x64_windows.exe"

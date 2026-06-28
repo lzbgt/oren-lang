@@ -134,11 +134,6 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
     var loc = _tok_loc(tok)
     var trace = oren_env("OREN_TRACE_CFG") != nil
 
-    if stmt_type == "Import" {
-        cfg_error(loc + ": @cfg is not supported on import yet (stage2 fast import scan cannot respect it); gate declarations inside the module instead")
-        return false
-    }
-
     var os = nil
     var arch = nil
     var debug_mode = false
@@ -336,11 +331,6 @@ fn _cfg_eval_debug_attr(cfg_attr, config, stmt_type, want_debug) {
     var tok = _attr_token(cfg_attr)
     var loc = _tok_loc(tok)
 
-    if stmt_type == "Import" {
-        cfg_error(loc + ": @debug/@release is not supported on import yet (stage2 fast import scan cannot respect it); gate declarations inside the module instead")
-        return false
-    }
-
     var debug_mode = false
     if config != nil {
         var dbg = config["debug"]
@@ -355,6 +345,41 @@ fn _cfg_eval_debug_attr(cfg_attr, config, stmt_type, want_debug) {
 
     if want_debug == true { return debug_mode == true }
     return debug_mode != true
+}
+
+fn import_attrs_keep(attrs, config) {
+    // Used by the fast import scanner before the full AST exists. Preserve any
+    // ambient cfg error list owned by normal program lowering.
+    var prev_errs = CFG_ERRS
+    CFG_ERRS = nil
+    var keep = true
+    var i = 0
+    while attrs != nil && i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if _is_attr_name(a, "oren.cfg") {
+            if _cfg_eval_one(a, config, "Import") != true {
+                keep = false
+                break
+            }
+        } else if _is_attr_name(a, "oren.debug") {
+            if _cfg_eval_debug_attr(a, config, "Import", true) != true {
+                keep = false
+                break
+            }
+        } else if _is_attr_name(a, "oren.release") {
+            if _cfg_eval_debug_attr(a, config, "Import", false) != true {
+                keep = false
+                break
+            }
+        }
+        i = i + 1
+    }
+    var out = {"ok": true, "keep": keep}
+    if CFG_ERRS != nil && oren_list_len(CFG_ERRS) > 0 {
+        out = {"ok": false, "keep": false, "err": CFG_ERRS[0]}
+    }
+    CFG_ERRS = prev_errs
+    return out
 }
 
 fn _cfg_stmt_keep(stmt, config) {

@@ -58,8 +58,7 @@ Env overrides:
   OREN_REMOTE_X64_WIN_ROOT       (default: C:\Users\<user>\tmp_oren) remote Windows staging root
   OREN_REMOTE_X64_WSL_ROOT       (default: /mnt/c/Users/<user>/tmp_oren) remote WSL staging root
   OREN_REMOTE_X64_SSH_ROOT       (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
-  OREN_SELFHOST_SRC (default: oren_x64.oren) override the compiler source built for x64
-    - set to `oren.oren` to force the full multi-target compiler graph
+  OREN_SELFHOST_SRC (default: oren.oren) override the compiler source built for x64
   OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS (default: 1200)
   OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS (default: 120)
   OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS (default: 30)
@@ -340,7 +339,7 @@ remote_wsl_preflight() {
 #
 # Override to force the full compiler program:
 #   OREN_SELFHOST_SRC=oren.oren ./scripts/verify_selfhost_x64_compiler.sh
-SELFHOST_SRC="${OREN_SELFHOST_SRC:-oren_x64.oren}"
+SELFHOST_SRC="${OREN_SELFHOST_SRC:-oren.oren}"
 if [[ ! -f "$SELFHOST_SRC" ]]; then
   echo "WARN: missing selfhost source '$SELFHOST_SRC'; falling back to oren.oren" >&2
   SELFHOST_SRC="oren.oren"

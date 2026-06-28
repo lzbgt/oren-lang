@@ -5,6 +5,7 @@ max_lines="${OREN_SOURCE_LINE_MAX:-2000}"
 fail=0
 
 while IFS= read -r -d '' path; do
+  [[ -f "$path" ]] || continue
   lines="$(wc -l <"$path" | tr -d ' ')"
   if [[ "$lines" -gt "$max_lines" ]]; then
     printf 'FAIL: %s has %s lines (max %s)\n' "$path" "$lines" "$max_lines" >&2

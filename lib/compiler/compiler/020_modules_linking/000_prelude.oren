@@ -431,6 +431,121 @@ fn _ml_scan_match_kw_import(src_s, idx, safe) {
     return true
 }
 
+fn _ml_scan_normalize_attr_name(name) {
+    if name == "cfg" { return "oren.cfg" }
+    if name == "debug" { return "oren.debug" }
+    if name == "release" { return "oren.release" }
+    return name
+}
+
+fn _ml_scan_parse_attr_name(src, i, n, safe) {
+    var start = i
+    if i >= n || !_ml_scan_is_ident_start(_ml_scan_char_at(src, i, safe)) { return {"ok": false, "err": "expected attribute name"} }
+    i = i + 1
+    while i < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, i, safe)) { i = i + 1 }
+    var name = oren_string_slice(src, start, i)
+    while i < n && _ml_scan_char_at(src, i, safe) == "." {
+        i = i + 1
+        if i >= n || !_ml_scan_is_ident_start(_ml_scan_char_at(src, i, safe)) { return {"ok": false, "err": "expected attribute name segment"} }
+        var seg0 = i
+        i = i + 1
+        while i < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, i, safe)) { i = i + 1 }
+        name = name + "." + oren_string_slice(src, seg0, i)
+    }
+    return {"ok": true, "name": _ml_scan_normalize_attr_name(name), "i": i}
+}
+
+fn _ml_scan_parse_attr_string(src, i, n, safe) {
+    if i >= n || _ml_scan_char_at(src, i, safe) != "\"" { return {"ok": false, "err": "expected string literal"} }
+    i = i + 1
+    var start = i
+    while i < n {
+        var ch = _ml_scan_char_at(src, i, safe)
+        if ch == "\"" {
+            return {"ok": true, "value": {"type": "String", "value": oren_string_slice(src, start, i)}, "i": i + 1}
+        }
+        if ch == "\\" { return {"ok": false, "err": "escaped import @cfg strings are not supported by the fast scanner"} }
+        if ch == "\n" { return {"ok": false, "err": "unterminated import @cfg string"} }
+        i = i + 1
+    }
+    return {"ok": false, "err": "unterminated import @cfg string"}
+}
+
+fn _ml_scan_match_word(src, idx, word, safe) {
+    var n = oren_string_len(src)
+    var wn = oren_string_len(word)
+    if idx + wn > n { return false }
+    var i = 0
+    while i < wn {
+        if _ml_scan_char_at(src, idx + i, safe) != _ml_scan_char_at(word, i, safe) { return false }
+        i = i + 1
+    }
+    if idx + wn < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, idx + wn, safe)) { return false }
+    return true
+}
+
+fn _ml_scan_parse_attr_value(src, i, n, safe) {
+    if i < n && _ml_scan_char_at(src, i, safe) == "\"" { return _ml_scan_parse_attr_string(src, i, n, safe) }
+    if _ml_scan_match_word(src, i, "true", safe) { return {"ok": true, "value": {"type": "Boolean", "value": true}, "i": i + 4} }
+    if _ml_scan_match_word(src, i, "false", safe) { return {"ok": true, "value": {"type": "Boolean", "value": false}, "i": i + 5} }
+    return {"ok": false, "err": "import @cfg attrs support string and boolean literals"}
+}
+
+fn _ml_scan_parse_import_attr(src, i, n, safe) {
+    if i >= n || _ml_scan_char_at(src, i, safe) != "@" { return {"ok": false, "err": "expected @"} }
+    i = i + 1
+    var nr = _ml_scan_parse_attr_name(src, i, n, safe)
+    if nr["ok"] != true { return nr }
+    var name = nr["name"]
+    i = nr["i"]
+    if name != "oren.cfg" && name != "oren.debug" && name != "oren.release" { return {"ok": true, "tracked": false, "i": i} }
+    var args = []
+    while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) && _ml_scan_char_at(src, i, safe) != "\n" { i = i + 1 }
+    if i < n && _ml_scan_char_at(src, i, safe) == "(" {
+        i = i + 1
+        while i < n {
+            while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) && _ml_scan_char_at(src, i, safe) != "\n" { i = i + 1 }
+            if i < n && _ml_scan_char_at(src, i, safe) == ")" { i = i + 1; break }
+            if i >= n || _ml_scan_char_at(src, i, safe) == "\n" { return {"ok": false, "err": "unterminated import @cfg args"} }
+            var key = nil
+            if _ml_scan_is_ident_start(_ml_scan_char_at(src, i, safe)) {
+                var k0 = i
+                i = i + 1
+                while i < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, i, safe)) { i = i + 1 }
+                var after_key = i
+                while after_key < n && _ml_scan_is_ws(_ml_scan_char_at(src, after_key, safe)) && _ml_scan_char_at(src, after_key, safe) != "\n" { after_key = after_key + 1 }
+                if after_key < n && _ml_scan_char_at(src, after_key, safe) == "=" {
+                    key = oren_string_slice(src, k0, i)
+                    i = after_key + 1
+                    while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) && _ml_scan_char_at(src, i, safe) != "\n" { i = i + 1 }
+                } else {
+                    i = k0
+                }
+            }
+            var vr = _ml_scan_parse_attr_value(src, i, n, safe)
+            if vr["ok"] != true { return vr }
+            oren_list_push(args, {"key": key, "value": vr["value"]})
+            i = vr["i"]
+            while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) && _ml_scan_char_at(src, i, safe) != "\n" { i = i + 1 }
+            if i < n && _ml_scan_char_at(src, i, safe) == "," {
+                i = i + 1
+                continue
+            }
+            if i < n && _ml_scan_char_at(src, i, safe) == ")" {
+                i = i + 1
+                break
+            }
+            return {"ok": false, "err": "expected ',' or ')' in import @cfg args"}
+        }
+    }
+    return {"ok": true, "tracked": true, "attr": {"type": "Attr", "name": name, "args": args}, "i": i}
+}
+
+fn _ml_scan_import_attrs_keep(attrs, config) {
+    if attrs == nil || oren_list_len(attrs) == 0 { return {"ok": true, "keep": true} }
+    return cfg_lowering.import_attrs_keep(attrs, config)
+}
+
 fn _ml_include_list_if_aggregator(full_path) {
     // Detect "include aggregator" files like `lib/compiler/compiler.oren`:
     // - contain one or more `// @include "..."` directives
@@ -692,6 +807,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
     var n = oren_string_len(src)
     var i = 0
     var at_bol = true
+    var pending_attrs = []
 
     while i < n {
         var ch = _ml_scan_char_at(src, i, safe)
@@ -722,8 +838,27 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
         if at_bol {
             // Skip leading indentation at BOL.
             if ch == " " || ch == "\t" || ch == "\r" { i = i + 1; continue }
+            if ch == "@" {
+                var ar = _ml_scan_parse_import_attr(src, i, n, safe)
+                if ar["ok"] != true {
+                    var ae = ar["err"]
+                    if ae == nil { ae = "invalid import attribute" }
+                    return {"ok": false, "err": "scan_imports: " + ae + " in " + full_path}
+                }
+                if ar["tracked"] == true { oren_list_push(pending_attrs, ar["attr"]) }
+                i = ar["i"]
+                while i < n && _ml_scan_char_at(src, i, safe) != "\n" { i = i + 1 }
+                continue
+            }
             // Fast path: import lines tend to be at BOL; check keyword.
             if _ml_scan_match_kw_import(src, i, safe) {
+                var kr = _ml_scan_import_attrs_keep(pending_attrs, config)
+                pending_attrs = []
+                if kr["ok"] != true {
+                    var ke = kr["err"]
+                    if ke == nil { ke = "invalid import @cfg" }
+                    return {"ok": false, "err": "scan_imports: " + ke + " in " + full_path}
+                }
                 i = i + 6
                 // Skip ws
                 while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) {
@@ -774,8 +909,12 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
                 }
                 var path = oren_string_slice(src, p0, i)
                 i = i + 1
-                oren_list_push(imports, {"alias": alias, "path": path})
-                if trace { print("[import_scan] import alias=" + alias + " path=" + path) }
+                if kr["keep"] == true {
+                    oren_list_push(imports, {"alias": alias, "path": path})
+                    if trace { print("[import_scan] import alias=" + alias + " path=" + path) }
+                } else {
+                    if trace { print("[import_scan] skip import alias=" + alias + " path=" + path) }
+                }
                 // Consume rest of line quickly.
                 while i < n && _ml_scan_char_at(src, i, safe) != "\n" {
                     i = i + 1
@@ -783,6 +922,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
                 continue
             }
             // Non-import at BOL => keep scanning but treat as "not at bol" for this line.
+            pending_attrs = []
             at_bol = false
             i = i + 1
             continue

@@ -7,6 +7,7 @@ import (
 	"oren/pkg/parser"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -144,6 +145,13 @@ func (t *Transpiler) loadModule(importerDir, importPath string) (*moduleInfo, er
 		if !ok {
 			continue
 		}
+		keep, err := importAttrsKeep(imp.Attrs)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", absPath, err)
+		}
+		if !keep {
+			continue
+		}
 		if _, exists := mod.AliasToPrefix[imp.Name.Value]; exists {
 			return nil, fmt.Errorf("duplicate import alias %q in %s", imp.Name.Value, absPath)
 		}
@@ -174,6 +182,139 @@ func (t *Transpiler) loadModule(importerDir, importPath string) (*moduleInfo, er
 		t.moduleOrder = append(t.moduleOrder, mod)
 	}
 	return mod, nil
+}
+
+func bootstrapArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x64"
+	case "arm64":
+		return "arm64"
+	default:
+		return runtime.GOARCH
+	}
+}
+
+func bootstrapOS() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macos"
+	default:
+		return runtime.GOOS
+	}
+}
+
+func importAttrsKeep(attrs []ast.Attribute) (bool, error) {
+	keep := true
+	for _, attr := range attrs {
+		switch attr.Name {
+		case "oren.cfg":
+			ok, err := evalImportCfg(attr)
+			if err != nil {
+				return false, err
+			}
+			if !ok {
+				keep = false
+			}
+		case "oren.debug":
+			keep = false
+		case "oren.release":
+		default:
+		}
+	}
+	return keep, nil
+}
+
+func evalImportCfg(attr ast.Attribute) (bool, error) {
+	if len(attr.Args) == 0 {
+		return false, fmt.Errorf("@cfg on import requires a selector")
+	}
+	arch := bootstrapArch()
+	osName := bootstrapOS()
+	platform := arch + "-" + osName
+	if len(attr.Args) == 1 && attr.Args[0].Key == "" {
+		s, ok := attr.Args[0].Value.(string)
+		if !ok {
+			return false, fmt.Errorf("@cfg positional import selector must be a string")
+		}
+		switch s {
+		case arch, osName, platform:
+			return true, nil
+		case "debug":
+			return false, nil
+		case "release":
+			return true, nil
+		default:
+			return false, nil
+		}
+	}
+	for _, arg := range attr.Args {
+		s, isString := arg.Value.(string)
+		switch arg.Key {
+		case "arch":
+			if !isString {
+				return false, fmt.Errorf("@cfg(arch=...) import selector must be a string")
+			}
+			if !csvContains(s, arch) {
+				return false, nil
+			}
+		case "os":
+			if !isString {
+				return false, fmt.Errorf("@cfg(os=...) import selector must be a string")
+			}
+			if !csvContains(s, osName) {
+				return false, nil
+			}
+		case "platform":
+			if !isString {
+				return false, fmt.Errorf("@cfg(platform=...) import selector must be a string")
+			}
+			if !csvContains(s, platform) {
+				return false, nil
+			}
+		case "not_arch":
+			if !isString {
+				return false, fmt.Errorf("@cfg(not_arch=...) import selector must be a string")
+			}
+			if csvContains(s, arch) {
+				return false, nil
+			}
+		case "not_os":
+			if !isString {
+				return false, fmt.Errorf("@cfg(not_os=...) import selector must be a string")
+			}
+			if csvContains(s, osName) {
+				return false, nil
+			}
+		case "not_platform":
+			if !isString {
+				return false, fmt.Errorf("@cfg(not_platform=...) import selector must be a string")
+			}
+			if csvContains(s, platform) {
+				return false, nil
+			}
+		case "debug":
+			v, ok := arg.Value.(bool)
+			if !ok {
+				return false, fmt.Errorf("@cfg(debug=...) import selector must be a bool")
+			}
+			if v {
+				return false, nil
+			}
+		default:
+			return false, fmt.Errorf("@cfg import selector has unsupported key %q", arg.Key)
+		}
+	}
+	return true, nil
+}
+
+func csvContains(csv, want string) bool {
+	for _, part := range strings.Split(csv, ",") {
+		if strings.TrimSpace(part) == want {
+			return true
+		}
+	}
+	return false
 }
 
 func collectTopLevelRenameMap(program *ast.Program, prefix string) (map[string]string, error) {

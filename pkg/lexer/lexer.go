@@ -85,6 +85,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.MINUS, l.ch, startLine, startCol)
 	case '~':
 		tok = newToken(token.TILDE, l.ch, startLine, startCol)
+	case '@':
+		tok = newToken(token.AT, l.ch, startLine, startCol)
 	case '!':
 		if l.peekChar() == '=' {
 			ch := l.ch

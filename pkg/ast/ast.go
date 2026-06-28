@@ -95,12 +95,23 @@ type ExpressionStatement struct {
 	Expression Expression
 }
 
+type Attribute struct {
+	Name string
+	Args []AttributeArg
+}
+
+type AttributeArg struct {
+	Key   string
+	Value interface{}
+}
+
 // ImportStatement
 // import <name> "<path>"
 type ImportStatement struct {
 	Token token.Token // the 'import' token
 	Name  *Identifier
 	Path  string
+	Attrs []Attribute
 }
 
 func (is *ImportStatement) statementNode()       {}
