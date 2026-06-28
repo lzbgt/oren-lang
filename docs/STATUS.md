@@ -800,7 +800,7 @@ Working evidence:
   angle wrapping/interpolation helpers,
   pure finite `std:math/vec2` length/distance/dot/cross/normalize/angle/rotate plus add/sub/scale/lerp/project/reject/reflect helpers,
   pure finite `std:math/vec3` length/distance/dot/cross/normalize/angle-between plus add/sub/scale/lerp/project/reject/reflect helpers,
-  pure finite `std:math/quat` identity/length/normalize/conjugate/multiply/axis-angle/vector-rotation helpers,
+  pure finite `std:math/quat` identity/length/normalize/conjugate/dot/inverse/multiply/axis-angle/vector-rotation/nlerp/slerp helpers,
   overflow-aware `midpoint`,
   normal/subnormal classification, rounding, integer rounding aliases
   `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,

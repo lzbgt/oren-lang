@@ -57,6 +57,23 @@ fn conjugate(x: f64, y: f64, z: f64, w: f64) {
     return [0.0 - x, 0.0 - y, 0.0 - z, w]
 }
 
+fn dot(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var a = _finite4(ax, ay, az, aw, "quat.dot")
+    if oren_is_err(a) { return a }
+    var b = _finite4(bx, by, bz, bw, "quat.dot")
+    if oren_is_err(b) { return b }
+    var out: f64 = ax * bx + ay * by + az * bz + aw * bw
+    return out
+}
+
+fn inverse(x: f64, y: f64, z: f64, w: f64) {
+    var ls0 = length_sq(x, y, z, w)
+    if oren_is_err(ls0) { return ls0 }
+    var ls: f64 = ls0
+    if ls == 0.0 { return oren_err(4, "quat.inverse: zero length") }
+    return [(0.0 - x) / ls, (0.0 - y) / ls, (0.0 - z) / ls, w / ls]
+}
+
 fn mul(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var a = _finite4(ax, ay, az, aw, "quat.mul")
     if oren_is_err(a) { return a }
@@ -100,4 +117,78 @@ fn rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
     var ry: f64 = vy + w * ty + (z * tx - x * tz)
     var rz: f64 = vz + w * tz + (x * ty - y * tx)
     return [rx, ry, rz]
+}
+
+fn nlerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, t: f64) {
+    var a = _finite4(ax, ay, az, aw, "quat.nlerp")
+    if oren_is_err(a) { return a }
+    var b = _finite4(bx, by, bz, bw, "quat.nlerp")
+    if oren_is_err(b) { return b }
+    var ot = _finite_scalar(t, "quat.nlerp")
+    if oren_is_err(ot) { return ot }
+    var d0 = dot(ax, ay, az, aw, bx, by, bz, bw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var sx: f64 = bx
+    var sy: f64 = by
+    var sz: f64 = bz
+    var sw: f64 = bw
+    if d < 0.0 {
+        sx = 0.0 - sx
+        sy = 0.0 - sy
+        sz = 0.0 - sz
+        sw = 0.0 - sw
+    }
+    var x: f64 = ax + (sx - ax) * t
+    var y: f64 = ay + (sy - ay) * t
+    var z: f64 = az + (sz - az) * t
+    var w: f64 = aw + (sw - aw) * t
+    return normalize(x, y, z, w)
+}
+
+fn slerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, t: f64) {
+    var qa = normalize(ax, ay, az, aw)
+    if oren_is_err(qa) { return qa }
+    var qb = normalize(bx, by, bz, bw)
+    if oren_is_err(qb) { return qb }
+    var ot = _finite_scalar(t, "quat.slerp")
+    if oren_is_err(ot) { return ot }
+    var qax: f64 = qa[0]
+    var qay: f64 = qa[1]
+    var qaz: f64 = qa[2]
+    var qaw: f64 = qa[3]
+    var qbx: f64 = qb[0]
+    var qby: f64 = qb[1]
+    var qbz: f64 = qb[2]
+    var qbw: f64 = qb[3]
+    var d0 = dot(qax, qay, qaz, qaw, qbx, qby, qbz, qbw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d < 0.0 {
+        d = 0.0 - d
+        qbx = 0.0 - qbx
+        qby = 0.0 - qby
+        qbz = 0.0 - qbz
+        qbw = 0.0 - qbw
+    }
+    if d > 0.9995 {
+        return nlerp(qax, qay, qaz, qaw, qbx, qby, qbz, qbw, t)
+    }
+    var dc = math.clamp(d, 0.0 - 1.0, 1.0)
+    if oren_is_err(dc) { return dc }
+    var dcl: f64 = dc
+    var theta0 = math.acos(dcl)
+    if oren_is_err(theta0) { return theta0 }
+    var th0: f64 = theta0
+    var theta: f64 = th0 * t
+    var sin_theta: f64 = math.sin(theta)
+    var sin_theta0: f64 = math.sin(th0)
+    if sin_theta0 == 0.0 { return nlerp(qax, qay, qaz, qaw, qbx, qby, qbz, qbw, t) }
+    var s1: f64 = sin_theta / sin_theta0
+    var s0: f64 = math.cos(theta) - dcl * s1
+    var x: f64 = s0 * qax + s1 * qbx
+    var y: f64 = s0 * qay + s1 * qby
+    var z: f64 = s0 * qaz + s1 * qbz
+    var w: f64 = s0 * qaw + s1 * qbw
+    return normalize(x, y, z, w)
 }
