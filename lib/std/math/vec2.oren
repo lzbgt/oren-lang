@@ -12,6 +12,48 @@ fn _finite4(ax: f64, ay: f64, bx: f64, by: f64, ctx) {
     return _finite2(bx, by, ctx)
 }
 
+fn _finite_scalar(x: f64, ctx) {
+    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn add(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.add")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax + bx
+    var y: f64 = ay + by
+    return [x, y]
+}
+
+fn sub(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.sub")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax - bx
+    var y: f64 = ay - by
+    return [x, y]
+}
+
+fn scale(x: f64, y: f64, s: f64) {
+    var ok = _finite2(x, y, "vec2.scale")
+    if oren_is_err(ok) { return ok }
+    var os = _finite_scalar(s, "vec2.scale")
+    if oren_is_err(os) { return os }
+    var ox: f64 = x * s
+    var oy: f64 = y * s
+    return [ox, oy]
+}
+
+fn lerp(ax: f64, ay: f64, bx: f64, by: f64, t: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.lerp")
+    if oren_is_err(ok) { return ok }
+    var ot = _finite_scalar(t, "vec2.lerp")
+    if oren_is_err(ot) { return ot }
+    var x: f64 = ax + (bx - ax) * t
+    var y: f64 = ay + (by - ay) * t
+    return [x, y]
+}
+
 fn length_sq(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.length_sq")
     if oren_is_err(ok) { return ok }
@@ -68,6 +110,39 @@ fn normalize_or_zero(x: f64, y: f64) {
     var l: f64 = l0
     if l == 0.0 { return [0.0, 0.0] }
     return [x / l, y / l]
+}
+
+fn project(ax: f64, ay: f64, bx: f64, by: f64) {
+    var d0 = dot(bx, by, bx, by)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d == 0.0 { return oren_err(4, "vec2.project: zero target") }
+    var n0 = dot(ax, ay, bx, by)
+    if oren_is_err(n0) { return n0 }
+    var n: f64 = n0
+    var s: f64 = n / d
+    return scale(bx, by, s)
+}
+
+fn reject(ax: f64, ay: f64, bx: f64, by: f64) {
+    var p = project(ax, ay, bx, by)
+    if oren_is_err(p) { return p }
+    var px: f64 = p[0]
+    var py: f64 = p[1]
+    return sub(ax, ay, px, py)
+}
+
+fn reflect(x: f64, y: f64, nx: f64, ny: f64) {
+    var n = normalize(nx, ny)
+    if oren_is_err(n) { return n }
+    var ux: f64 = n[0]
+    var uy: f64 = n[1]
+    var d0 = dot(x, y, ux, uy)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var rx: f64 = x - 2.0 * d * ux
+    var ry: f64 = y - 2.0 * d * uy
+    return [rx, ry]
 }
 
 fn angle(x: f64, y: f64) {

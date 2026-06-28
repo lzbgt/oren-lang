@@ -12,6 +12,52 @@ fn _finite6(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, ctx) {
     return _finite3(bx, by, bz, ctx)
 }
 
+fn _finite_scalar(x: f64, ctx) {
+    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn add(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.add")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax + bx
+    var y: f64 = ay + by
+    var z: f64 = az + bz
+    return [x, y, z]
+}
+
+fn sub(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.sub")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax - bx
+    var y: f64 = ay - by
+    var z: f64 = az - bz
+    return [x, y, z]
+}
+
+fn scale(x: f64, y: f64, z: f64, s: f64) {
+    var ok = _finite3(x, y, z, "vec3.scale")
+    if oren_is_err(ok) { return ok }
+    var os = _finite_scalar(s, "vec3.scale")
+    if oren_is_err(os) { return os }
+    var ox: f64 = x * s
+    var oy: f64 = y * s
+    var oz: f64 = z * s
+    return [ox, oy, oz]
+}
+
+fn lerp(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, t: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.lerp")
+    if oren_is_err(ok) { return ok }
+    var ot = _finite_scalar(t, "vec3.lerp")
+    if oren_is_err(ot) { return ot }
+    var x: f64 = ax + (bx - ax) * t
+    var y: f64 = ay + (by - ay) * t
+    var z: f64 = az + (bz - az) * t
+    return [x, y, z]
+}
+
 fn length_sq(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.length_sq")
     if oren_is_err(ok) { return ok }
@@ -68,6 +114,42 @@ fn normalize_or_zero(x: f64, y: f64, z: f64) {
     var l: f64 = l0
     if l == 0.0 { return [0.0, 0.0, 0.0] }
     return [x / l, y / l, z / l]
+}
+
+fn project(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var d0 = dot(bx, by, bz, bx, by, bz)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d == 0.0 { return oren_err(4, "vec3.project: zero target") }
+    var n0 = dot(ax, ay, az, bx, by, bz)
+    if oren_is_err(n0) { return n0 }
+    var n: f64 = n0
+    var s: f64 = n / d
+    return scale(bx, by, bz, s)
+}
+
+fn reject(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var p = project(ax, ay, az, bx, by, bz)
+    if oren_is_err(p) { return p }
+    var px: f64 = p[0]
+    var py: f64 = p[1]
+    var pz: f64 = p[2]
+    return sub(ax, ay, az, px, py, pz)
+}
+
+fn reflect(x: f64, y: f64, z: f64, nx: f64, ny: f64, nz: f64) {
+    var n = normalize(nx, ny, nz)
+    if oren_is_err(n) { return n }
+    var ux: f64 = n[0]
+    var uy: f64 = n[1]
+    var uz: f64 = n[2]
+    var d0 = dot(x, y, z, ux, uy, uz)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var rx: f64 = x - 2.0 * d * ux
+    var ry: f64 = y - 2.0 * d * uy
+    var rz: f64 = z - 2.0 * d * uz
+    return [rx, ry, rz]
 }
 
 fn angle_between(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {

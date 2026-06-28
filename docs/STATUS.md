@@ -798,8 +798,8 @@ Working evidence:
   `remap`, `remap_clamped`, `clamp`, `saturate`, `smoothstep`,
   `smootherstep`, graphics scalar helpers `sign`, `step`, `fract`,
   angle wrapping/interpolation helpers,
-  pure finite `std:math/vec2` length/distance/dot/cross/normalize/angle/rotate helpers,
-  pure finite `std:math/vec3` length/distance/dot/cross/normalize/angle-between helpers,
+  pure finite `std:math/vec2` length/distance/dot/cross/normalize/angle/rotate plus add/sub/scale/lerp/project/reject/reflect helpers,
+  pure finite `std:math/vec3` length/distance/dot/cross/normalize/angle-between plus add/sub/scale/lerp/project/reject/reflect helpers,
   overflow-aware `midpoint`,
   normal/subnormal classification, rounding, integer rounding aliases
   `lround`/`llround`/`lrint`/`llrint`, `fmod`, nearest-even `remainder`/`remquo`,
