@@ -294,6 +294,11 @@ fn decode_bytes(s) {
         if v2 == -1 && v3 != -1 {
             return oren_err(4, "base64.decode_bytes: invalid padding")
         }
+        if v2 == -1 {
+            if (v1 & 15) != 0 { return oren_err(4, "base64.decode_bytes: nonzero padding bits") }
+        } else if v3 == -1 {
+            if (v2 & 3) != 0 { return oren_err(4, "base64.decode_bytes: nonzero padding bits") }
+        }
 
         var triple = (v0 << 18) | (v1 << 12)
         if v2 >= 0 { triple = triple | (v2 << 6) }
@@ -401,6 +406,7 @@ fn decode_url_bytes(s) {
     if rem == 2 {
         var r0 = _b64url_val(_str_byte(s, si))
         var r1 = _b64url_val(_str_byte(s, si + 1))
+        if (r1 & 15) != 0 { return oren_err(4, "base64.decode_url_bytes: nonzero padding bits") }
         var triple2 = (r0 << 18) | (r1 << 12)
         var rc2 = _store_decoded_triple(out, outi, out_len, triple2, 1)
         if oren_is_err(rc2) { return rc2 }
@@ -408,6 +414,7 @@ fn decode_url_bytes(s) {
         var r20 = _b64url_val(_str_byte(s, si))
         var r21 = _b64url_val(_str_byte(s, si + 1))
         var r22 = _b64url_val(_str_byte(s, si + 2))
+        if (r22 & 3) != 0 { return oren_err(4, "base64.decode_url_bytes: nonzero padding bits") }
         var triple3 = (r20 << 18) | (r21 << 12) | (r22 << 6)
         var rc3 = _store_decoded_triple(out, outi, out_len, triple3, 2)
         if oren_is_err(rc3) { return rc3 }

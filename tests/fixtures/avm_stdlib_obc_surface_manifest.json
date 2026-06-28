@@ -348,7 +348,8 @@
         "if bytes.len(b64) != 1 || bytes.get_u8(b64, 0) != 77 { fail(25) }",
         "if base64.encode_url(bytes.pack([251, 255, 255])) != \"-___\" { fail(26) }",
         "var b64u = \"TWE\".base64_url_bytes()",
-        "if oren_is_err(b64u) || b64u.text() != \"Ma\" { fail(27) }"
+        "if oren_is_err(b64u) || b64u.text() != \"Ma\" { fail(27) }",
+        "if !oren_is_err(base64.decode_url(\"TR\")) { fail(28) }"
       ]
     },
     {

@@ -787,9 +787,9 @@
 <p>			  <code>ppm.write_rgba_ppm</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
 <p>	  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now write exact-size <code>u8_buf</code> output instead of materializing an</p>
-<p>	  intermediate Oren list, and their decode paths reject malformed padding or</p>
-<p>	  third-character padding without fourth-character padding before returning</p>
-<p>	  exact-size <code>u8_buf</code> decoded bytes. NET cleanup now covers native and AVM session</p>
+<p>		  intermediate Oren list, and their decode paths reject malformed padding,</p>
+<p>		  third-character padding without fourth-character padding, and nonzero</p>
+<p>		  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. NET cleanup now covers native and AVM session</p>
 <p>		  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
 <p>		  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
 <p>		  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>

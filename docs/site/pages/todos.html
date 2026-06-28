@@ -71,8 +71,9 @@
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>
-<p>  fourth-character padding while keeping decoded output as exact-size <code>u8_buf</code>;</p>
-<p>  Base64URL encode/decode now uses the same direct byte-buffer path.</p>
+<p>  fourth-character padding plus nonzero trailing pad bits while keeping decoded</p>
+<p>  output as exact-size <code>u8_buf</code>; Base64URL encode/decode now uses the same</p>
+<p>  direct byte-buffer path.</p>
 <ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>

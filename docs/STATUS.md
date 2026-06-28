@@ -681,9 +681,9 @@ Facts from the 2026-05-28 implementation pass:
 			  `ppm.write_rgba_ppm`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
 	  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now write exact-size `u8_buf` output instead of materializing an
-	  intermediate Oren list, and their decode paths reject malformed padding or
-	  third-character padding without fourth-character padding before returning
-	  exact-size `u8_buf` decoded bytes. NET cleanup now covers native and AVM session
+		  intermediate Oren list, and their decode paths reject malformed padding,
+		  third-character padding without fourth-character padding, and nonzero
+		  trailing pad bits before returning exact-size `u8_buf` decoded bytes. NET cleanup now covers native and AVM session
 		  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,
 		  `.write_from(...)`, `.send_to(...)`, `.recv_from_into(...)`,
 		  TLS certificate/ALPN methods, and `.close()`, native WebSocket records
