@@ -7,6 +7,56 @@
 import raw "std:buffer/raw"
 import shapes "std:ui/scene3d_shapes"
 
+fn _post_points(post) {
+    var points = post["points"]
+    if points == nil { points = post["points_xy"] }
+    if points == nil { points = post["centers"] }
+    if points == nil { points = post["centers_xy"] }
+    return points
+}
+
+fn _post_width(post, ctx) {
+    var width = post["width"]
+    if width == nil { width = post["width_milli"] }
+    if width == nil { return oren_err(4, ctx + ": post width is required") }
+    if shapes._is_int(width) == false || width <= 0 {
+        return oren_err(4, ctx + ": post width must be positive i32")
+    }
+    return width
+}
+
+fn _posts_xy_triangle_count(posts, ctx) {
+    if posts == nil { return oren_err(4, ctx + ": missing posts_xy") }
+    var np = oren_list_len(posts)
+    if oren_is_err(np) { return oren_err(4, ctx + ": posts_xy must be list") }
+    var total = 0
+    var i = 0
+    while i < np {
+        var post = posts[i]
+        if post == nil { return oren_err(4, ctx + ": post must be object") }
+        var points = _post_points(post)
+        var n = oren_list_len(points)
+        if oren_is_err(n) || n < 1 || n > 512 { return oren_err(4, ctx + ": post points must contain 1..512 [x,y] entries") }
+        var width = _post_width(post, ctx)
+        if oren_is_err(width) { return width }
+        var z0 = shapes._z(post, "z_min", "min_z", ctx + ".z_min")
+        if oren_is_err(z0) { return z0 }
+        var z1 = shapes._z(post, "z_max", "max_z", ctx + ".z_max")
+        if oren_is_err(z1) { return z1 }
+        if z1 <= z0 { return oren_err(4, ctx + ": post z_max must be greater than z_min") }
+        var j = 0
+        while j < n {
+            var rc = shapes._xy_pair(points[j], "post point", ctx)
+            if oren_is_err(rc) { return rc }
+            j = j + 1
+        }
+        total = total + n * 12
+        i = i + 1
+    }
+    if total > 4096 { return oren_err(4, ctx + ": posts exceed mesh3d triangle budget") }
+    return total
+}
+
 fn _curb_points(curb) {
     var points = curb["points"]
     if points == nil { points = curb["points_xy"] }
@@ -253,6 +303,32 @@ fn _store_post(out, off, p, width, z0, z1, ctx) {
     var y0 = p[1] - half
     var y1 = p[1] + (width - half)
     return _store_box(out, off, x0, y0, z0, x1, y1, z1, ctx)
+}
+
+fn pack_posts_xy(posts, ctx) {
+    var tri_count = _posts_xy_triangle_count(posts, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var pi = 0
+    var np = oren_list_len(posts)
+    while pi < np {
+        var post = posts[pi]
+        var points = _post_points(post)
+        var width = _post_width(post, ctx)
+        var z0 = shapes._z(post, "z_min", "min_z", ctx + ".z_min")
+        var z1 = shapes._z(post, "z_max", "max_z", ctx + ".z_max")
+        var i = 0
+        while i < oren_list_len(points) {
+            var rc = _store_post(out, off, points[i], width, z0, z1, ctx + ".post")
+            if oren_is_err(rc) { return rc }
+            off = off + 432
+            i = i + 1
+        }
+        pi = pi + 1
+    }
+    return out
 }
 
 fn _fences_xy_triangle_count(fences, ctx) {
