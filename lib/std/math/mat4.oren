@@ -21,6 +21,16 @@ fn _finite6(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, ctx) {
     return _finite3(d, e, f, ctx)
 }
 
+fn _viewport(viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64, ctx) {
+    var ok = _finite3(viewport_x, viewport_y, viewport_w, ctx)
+    if oren_is_err(ok) { return ok }
+    ok = _finite_scalar(viewport_h, ctx)
+    if oren_is_err(ok) { return ok }
+    if viewport_w <= 0.0 { return oren_err(4, ctx + ": invalid viewport width") }
+    if viewport_h <= 0.0 { return oren_err(4, ctx + ": invalid viewport height") }
+    return 0
+}
+
 fn _check(m, ctx) {
     if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
     var i = 0
@@ -431,4 +441,54 @@ fn transform_vec3(m, x: f64, y: f64, z: f64) {
         m4 * x + m5 * y + m6 * z,
         m8 * x + m9 * y + m10 * z
     ]
+}
+
+fn project_point3(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.project_point3")
+    if oren_is_err(vp) { return vp }
+    var p = transform_point3(m, x, y, z)
+    if oren_is_err(p) { return p }
+    var px: f64 = p[0]
+    var py: f64 = p[1]
+    var pz: f64 = p[2]
+    var ok = _finite3(px, py, pz, "mat4.project_point3")
+    if oren_is_err(ok) { return ok }
+    var depth: f64 = (pz + 1.0) * 0.5
+    if depth < 0.0 {
+        if depth < -1e-9 { return oren_err(4, "mat4.project_point3: invalid depth") }
+        depth = 0.0
+    }
+    if depth > 1.0 {
+        if depth > 1.000000001 { return oren_err(4, "mat4.project_point3: invalid depth") }
+        depth = 1.0
+    }
+    return [
+        viewport_x + (px + 1.0) * viewport_w * 0.5,
+        viewport_y + (py + 1.0) * viewport_h * 0.5,
+        depth
+    ]
+}
+
+fn unproject_point3(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.unproject_point3")
+    if oren_is_err(vp) { return vp }
+    var ok = _finite3(win_x, win_y, 0.0, "mat4.unproject_point3")
+    if oren_is_err(ok) { return ok }
+    ok = _finite_scalar(win_z, "mat4.unproject_point3")
+    if oren_is_err(ok) { return ok }
+    var depth: f64 = win_z
+    if depth < 0.0 {
+        if depth < -1e-9 { return oren_err(4, "mat4.unproject_point3: invalid depth") }
+        depth = 0.0
+    }
+    if depth > 1.0 {
+        if depth > 1.000000001 { return oren_err(4, "mat4.unproject_point3: invalid depth") }
+        depth = 1.0
+    }
+    var ndc_x: f64 = (win_x - viewport_x) * 2.0 / viewport_w - 1.0
+    var ndc_y: f64 = (win_y - viewport_y) * 2.0 / viewport_h - 1.0
+    var ndc_z: f64 = depth * 2.0 - 1.0
+    var inv = inverse(m)
+    if oren_is_err(inv) { return inv }
+    return transform_point3(inv, ndc_x, ndc_y, ndc_z)
 }

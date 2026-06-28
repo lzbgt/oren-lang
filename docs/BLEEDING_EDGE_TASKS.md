@@ -386,7 +386,7 @@ This file is the concise task view. Detailed implementation status lives in
      pure finite `std:math/vec2` helpers including projection/rejection/reflection,
      pure finite `std:math/vec3` helpers including projection/rejection/reflection,
      pure finite `std:math/quat` helpers for axis-angle rotation, inverse, and interpolation,
-     pure finite row-major `std:math/mat4` algebra, transform, orthographic/frustum/perspective projection, and view helpers,
+     pure finite row-major `std:math/mat4` algebra, transform, orthographic/frustum/perspective projection, screen project/unproject, and view helpers,
      overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
