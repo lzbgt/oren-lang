@@ -43,6 +43,20 @@ var trsp = mat4.transform_point3(trs, 1.0, 0.0, 0.0)
 assert_true(!oren_is_err(trsp), 26, "compose point ok")
 assert_close(trsp[1], 22.0, 1e-9, 27, "compose y")
 
+var det_trs = mat4.determinant(trs)
+assert_true(!oren_is_err(det_trs), 42, "determinant ok")
+var det_trs_v: f64 = det_trs
+assert_close(det_trs_v, 24.0, 1e-9, 43, "determinant trs")
+var inv_trs = mat4.inverse(trs)
+assert_true(!oren_is_err(inv_trs), 44, "inverse ok")
+var recovered = mat4.transform_point3(inv_trs, trsp[0], trsp[1], trsp[2])
+assert_true(!oren_is_err(recovered), 45, "inverse point ok")
+assert_close(recovered[0], 1.0, 1e-9, 46, "inverse point x")
+assert_close(recovered[1], 0.0, 1e-9, 47, "inverse point y")
+var tt = mat4.transpose(tr)
+assert_true(!oren_is_err(tt), 48, "transpose ok")
+assert_close(tt[12], 3.0, 0.0, 49, "transpose tx")
+
 var op = mat4.ortho(0.0 - 2.0, 2.0, 0.0 - 4.0, 4.0, 1.0, 11.0)
 assert_true(!oren_is_err(op), 28, "ortho ok")
 var onear = mat4.transform_point3(op, 2.0, 4.0, 0.0 - 1.0)
@@ -66,6 +80,7 @@ assert_true(oren_is_err(mat4.transform_point3([1.0], 0.0, 0.0, 0.0)), 31, "point
 assert_true(oren_is_err(mat4.ortho(1.0, 1.0, 0.0, 1.0, 0.0, 1.0)), 36, "ortho zero width errors")
 assert_true(oren_is_err(mat4.look_at(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)), 37, "look_at zero forward errors")
 assert_true(oren_is_err(mat4.perspective(1.0, 1.0, 10.0, 1.0)), 41, "perspective depth errors")
+assert_true(oren_is_err(mat4.inverse(mat4.scale(0.0, 1.0, 1.0))), 50, "inverse singular errors")
 
 print("avm std math mat4 OK")
 exit(0)

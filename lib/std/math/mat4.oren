@@ -255,6 +255,115 @@ fn mul(a, b) {
     ]
 }
 
+fn transpose(m) {
+    var cm = _check(m, "mat4.transpose")
+    if oren_is_err(cm) { return cm }
+    return [
+        m[0], m[4], m[8], m[12],
+        m[1], m[5], m[9], m[13],
+        m[2], m[6], m[10], m[14],
+        m[3], m[7], m[11], m[15]
+    ]
+}
+
+fn determinant(m) {
+    var cm = _check(m, "mat4.determinant")
+    if oren_is_err(cm) { return cm }
+    var m0: f64 = m[0]
+    var m1: f64 = m[1]
+    var m2: f64 = m[2]
+    var m3: f64 = m[3]
+    var m4: f64 = m[4]
+    var m5: f64 = m[5]
+    var m6: f64 = m[6]
+    var m7: f64 = m[7]
+    var m8: f64 = m[8]
+    var m9: f64 = m[9]
+    var m10: f64 = m[10]
+    var m11: f64 = m[11]
+    var m12: f64 = m[12]
+    var m13: f64 = m[13]
+    var m14: f64 = m[14]
+    var m15: f64 = m[15]
+    var c0: f64 = m5 * m10 * m15
+    c0 = c0 - m5 * m11 * m14
+    c0 = c0 - m9 * m6 * m15
+    c0 = c0 + m9 * m7 * m14
+    c0 = c0 + m13 * m6 * m11
+    c0 = c0 - m13 * m7 * m10
+    var c1: f64 = 0.0 - m4 * m10 * m15
+    c1 = c1 + m4 * m11 * m14
+    c1 = c1 + m8 * m6 * m15
+    c1 = c1 - m8 * m7 * m14
+    c1 = c1 - m12 * m6 * m11
+    c1 = c1 + m12 * m7 * m10
+    var c2: f64 = m4 * m9 * m15
+    c2 = c2 - m4 * m11 * m13
+    c2 = c2 - m8 * m5 * m15
+    c2 = c2 + m8 * m7 * m13
+    c2 = c2 + m12 * m5 * m11
+    c2 = c2 - m12 * m7 * m9
+    var c3: f64 = 0.0 - m4 * m9 * m14
+    c3 = c3 + m4 * m10 * m13
+    c3 = c3 + m8 * m5 * m14
+    c3 = c3 - m8 * m6 * m13
+    c3 = c3 - m12 * m5 * m10
+    c3 = c3 + m12 * m6 * m9
+    var out: f64 = m0 * c0 + m1 * c1 + m2 * c2 + m3 * c3
+    if !math.is_finite(out) { return oren_err(4, "mat4.determinant: non-finite") }
+    return out
+}
+
+fn inverse(m) {
+    var cm = _check(m, "mat4.inverse")
+    if oren_is_err(cm) { return cm }
+    var m0: f64 = m[0]
+    var m1: f64 = m[1]
+    var m2: f64 = m[2]
+    var m3: f64 = m[3]
+    var m4: f64 = m[4]
+    var m5: f64 = m[5]
+    var m6: f64 = m[6]
+    var m7: f64 = m[7]
+    var m8: f64 = m[8]
+    var m9: f64 = m[9]
+    var m10: f64 = m[10]
+    var m11: f64 = m[11]
+    var m12: f64 = m[12]
+    var m13: f64 = m[13]
+    var m14: f64 = m[14]
+    var m15: f64 = m[15]
+    var inv0: f64 = m5 * m10 * m15 - m5 * m11 * m14 - m9 * m6 * m15 + m9 * m7 * m14 + m13 * m6 * m11 - m13 * m7 * m10
+    var inv4: f64 = 0.0 - m4 * m10 * m15 + m4 * m11 * m14 + m8 * m6 * m15 - m8 * m7 * m14 - m12 * m6 * m11 + m12 * m7 * m10
+    var inv8: f64 = m4 * m9 * m15 - m4 * m11 * m13 - m8 * m5 * m15 + m8 * m7 * m13 + m12 * m5 * m11 - m12 * m7 * m9
+    var inv12: f64 = 0.0 - m4 * m9 * m14 + m4 * m10 * m13 + m8 * m5 * m14 - m8 * m6 * m13 - m12 * m5 * m10 + m12 * m6 * m9
+    var det: f64 = m0 * inv0 + m1 * inv4 + m2 * inv8 + m3 * inv12
+    if !math.is_finite(det) { return oren_err(4, "mat4.inverse: non-finite determinant") }
+    if det == 0.0 { return oren_err(4, "mat4.inverse: singular") }
+    var inv1: f64 = 0.0 - m1 * m10 * m15 + m1 * m11 * m14 + m9 * m2 * m15 - m9 * m3 * m14 - m13 * m2 * m11 + m13 * m3 * m10
+    var inv5: f64 = m0 * m10 * m15 - m0 * m11 * m14 - m8 * m2 * m15 + m8 * m3 * m14 + m12 * m2 * m11 - m12 * m3 * m10
+    var inv9: f64 = 0.0 - m0 * m9 * m15 + m0 * m11 * m13 + m8 * m1 * m15 - m8 * m3 * m13 - m12 * m1 * m11 + m12 * m3 * m9
+    var inv13: f64 = m0 * m9 * m14 - m0 * m10 * m13 - m8 * m1 * m14 + m8 * m2 * m13 + m12 * m1 * m10 - m12 * m2 * m9
+    var inv2: f64 = m1 * m6 * m15 - m1 * m7 * m14 - m5 * m2 * m15 + m5 * m3 * m14 + m13 * m2 * m7 - m13 * m3 * m6
+    var inv6: f64 = 0.0 - m0 * m6 * m15 + m0 * m7 * m14 + m4 * m2 * m15 - m4 * m3 * m14 - m12 * m2 * m7 + m12 * m3 * m6
+    var inv10: f64 = m0 * m5 * m15 - m0 * m7 * m13 - m4 * m1 * m15 + m4 * m3 * m13 + m12 * m1 * m7 - m12 * m3 * m5
+    var inv14: f64 = 0.0 - m0 * m5 * m14 + m0 * m6 * m13 + m4 * m1 * m14 - m4 * m2 * m13 - m12 * m1 * m6 + m12 * m2 * m5
+    var inv3: f64 = 0.0 - m1 * m6 * m11 + m1 * m7 * m10 + m5 * m2 * m11 - m5 * m3 * m10 - m9 * m2 * m7 + m9 * m3 * m6
+    var inv7: f64 = m0 * m6 * m11 - m0 * m7 * m10 - m4 * m2 * m11 + m4 * m3 * m10 + m8 * m2 * m7 - m8 * m3 * m6
+    var inv11: f64 = 0.0 - m0 * m5 * m11 + m0 * m7 * m9 + m4 * m1 * m11 - m4 * m3 * m9 - m8 * m1 * m7 + m8 * m3 * m5
+    var inv15: f64 = m0 * m5 * m10 - m0 * m6 * m9 - m4 * m1 * m10 + m4 * m2 * m9 + m8 * m1 * m6 - m8 * m2 * m5
+    var inv_det: f64 = 1.0 / det
+    var out = [
+        inv0 * inv_det, inv1 * inv_det, inv2 * inv_det, inv3 * inv_det,
+        inv4 * inv_det, inv5 * inv_det, inv6 * inv_det, inv7 * inv_det,
+        inv8 * inv_det, inv9 * inv_det, inv10 * inv_det, inv11 * inv_det,
+        inv12 * inv_det, inv13 * inv_det, inv14 * inv_det, inv15 * inv_det
+    ]
+    var ok = _check(out, "mat4.inverse")
+    if oren_is_err(ok) { return ok }
+    return out
+}
+
 fn transform_point3(m, x: f64, y: f64, z: f64) {
     var cm = _check(m, "mat4.transform_point3")
     if oren_is_err(cm) { return cm }

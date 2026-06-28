@@ -126,6 +126,7 @@ fn _x64_expr_is_floaty(ctx, expr) {
             if _x64_name_is_or_has_suffix(nm, "asin", "_asin") { return true }
             if _x64_name_is_or_has_suffix(nm, "acos", "_acos") { return true }
             if _x64_name_is_or_has_suffix(nm, "hypot", "_hypot") { return true }
+            if _x64_name_is_or_has_suffix(nm, "determinant", "_determinant") { return true }
             if _x64_name_is_or_has_suffix(nm, "dot_f32", "_dot_f32") { return true }
             if _x64_name_is_or_has_suffix(nm, "dot_f64", "_dot_f64") { return true }
             if _x64_name_is_or_has_suffix(nm, "dot_f32_buf", "_dot_f32_buf") { return true }

@@ -707,6 +707,7 @@ fn native_expr_is_floaty(ctx, expr) {
             if native_name_is_or_has_suffix(nm, "asin", "_asin") { return true }
             if native_name_is_or_has_suffix(nm, "acos", "_acos") { return true }
             if native_name_is_or_has_suffix(nm, "hypot", "_hypot") { return true }
+            if native_name_is_or_has_suffix(nm, "determinant", "_determinant") { return true }
         }
         return false
     }

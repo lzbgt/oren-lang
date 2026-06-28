@@ -175,7 +175,20 @@
         "var m4pfar = math_mat4.transform_point3(m4persp, 0.0, 0.0, -11.0)",
         "if oren_is_err(m4pfar) { fail(91) }",
         "assert_close(m4pfar[2], 1.0, 1e-9, 92)",
-        "if !oren_is_err(math_mat4.perspective(1.0, 1.0, 10.0, 1.0)) { fail(93) }"
+        "if !oren_is_err(math_mat4.perspective(1.0, 1.0, 10.0, 1.0)) { fail(93) }",
+        "var m4det = math_mat4.determinant(m4ts)",
+        "if oren_is_err(m4det) { fail(94) }",
+        "assert_close(m4det, 24.0, 1e-9, 95)",
+        "var m4inv = math_mat4.inverse(m4ts)",
+        "if oren_is_err(m4inv) { fail(96) }",
+        "var m4id = math_mat4.mul(m4inv, m4ts)",
+        "if oren_is_err(m4id) { fail(97) }",
+        "assert_close(m4id[0], 1.0, 1e-9, 98)",
+        "assert_close(m4id[3], 0.0, 1e-9, 99)",
+        "var m4tt = math_mat4.transpose(m4t)",
+        "if oren_is_err(m4tt) { fail(100) }",
+        "assert_close(m4tt[12], 3.0, 1e-12, 101)",
+        "if !oren_is_err(math_mat4.inverse(math_mat4.scale(0.0, 1.0, 1.0))) { fail(102) }"
       ]
     },
     {
