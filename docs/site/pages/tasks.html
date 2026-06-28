@@ -170,8 +170,10 @@
 <p>								     parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and</p>
 <p>								     reach x64 native emit. With direct string globals disabled,</p>
 <p>								     <code>top_globals.user_slots</code> finishes in under a second; opt-in direct-string</p>
-<p>								     probes now have direct string appends and slot counters, but compiler-shaped</p>
-<p>								     traces still show a per-slot direct data-path cliff. The next concrete</p>
+<p>								     probes now have direct string appends, slot counters, path/substep slow-slot</p>
+<p>								     records, positive-only scalar fact metadata, and demand-driven data-constant</p>
+<p>								     alias metadata, but compiler-shaped traces still show a per-slot direct</p>
+<p>								     metadata/root bookkeeping cliff. The next concrete</p>
 <p>								     throughput target remains post-<code>__top_level__</code> x64 user-function codegen</p>
 <p>								     with direct string globals disabled, plus deeper direct-data tracing before</p>
 <p>								     changing that default.</p>

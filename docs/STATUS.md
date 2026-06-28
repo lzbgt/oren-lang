@@ -111,8 +111,12 @@ Facts from the 2026-05-28 implementation pass:
 	  enabled. Synthetic string-global probes show opt-in direct string slots can
 	  remove `__top_level__` assignment work on small programs. Compiler-shaped
 	  self-host probes still show a per-slot direct string `.data` cliff, now isolated
-	  to the direct data path rather than the synthesized assignment body, so direct
-	  string globals remain opt-in. Capped full x64 self-host traces now complete module parsing
+	  to direct global metadata/root bookkeeping rather than the synthesized assignment
+	  body, so direct string globals remain opt-in. x64 top-global metadata now avoids
+	  the extra skip map, records only positive scalar facts, and records data-constant
+	  facts only for globals that can feed top-level pointer aliases; slow-slot records
+	  include direct path plus init/allocation/fixup/metadata substep timing. Capped
+	  full x64 self-host traces now complete module parsing
 	  through `lib/compiler/compiler.oren`, finish the optimizer, and reach x64
 	  native emit. With direct string globals disabled, `top_globals.user_slots`
 	  finishes in under a second; the next measured target is post-`__top_level__`

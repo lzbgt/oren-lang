@@ -114,8 +114,10 @@ This file is the concise task view. Detailed implementation status lives in
 								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
 								     reach x64 native emit. With direct string globals disabled,
 								     `top_globals.user_slots` finishes in under a second; opt-in direct-string
-								     probes now have direct string appends and slot counters, but compiler-shaped
-								     traces still show a per-slot direct data-path cliff. The next concrete
+								     probes now have direct string appends, slot counters, path/substep slow-slot
+								     records, positive-only scalar fact metadata, and demand-driven data-constant
+								     alias metadata, but compiler-shaped traces still show a per-slot direct
+								     metadata/root bookkeeping cliff. The next concrete
 								     throughput target remains post-`__top_level__` x64 user-function codegen
 								     with direct string globals disabled, plus deeper direct-data tracing before
 								     changing that default.
