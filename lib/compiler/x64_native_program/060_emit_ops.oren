@@ -135,6 +135,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
     if phase_log != nil && phase_name != nil && phase_stride > 0 && loop_cond_label == nil && loop_end_label == nil {
         phase_outer = true
     }
+    var top_string_fast_candidates = 0
+    var top_string_fast_hits = 0
+    var top_string_fast_miss_type = 0
     if trace { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
     var j = 0
     var charge_basic_block_next = true
@@ -236,10 +239,15 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["locals_int_const"] != nil {
                 ctx["locals_int_const"][op["name"]] = _x64_expr_int_const(ctx, op["expr"])
             }
-            if op["__oren_top_level_global_init"] == true &&
-               oren_type_tag(off2) == 0 &&
+            var top_string_fast_candidate = false
+            if op["__oren_top_level_global_init"] == true && oren_type_tag(off2) == 0 {
+                top_string_fast_candidate = true
+                top_string_fast_candidates = top_string_fast_candidates + 1
+            }
+            if top_string_fast_candidate == true &&
                op["expr"] != nil &&
                op["expr"]["type"] == "String" {
+                top_string_fast_hits = top_string_fast_hits + 1
                 var name_fast = op["name"]
                 var goff_enc_fast = nil
                 if ctx["globals"] != nil { goff_enc_fast = ctx["globals"][name_fast] }
@@ -264,6 +272,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
                 j = j + 1
                 continue
+            }
+            if top_string_fast_candidate == true {
+                top_string_fast_miss_type = top_string_fast_miss_type + 1
             }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -447,6 +458,13 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             }
         }
         j = j + 1
+    }
+    if phase_outer {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.summary",
+            "name=" + phase_name +
+            " top_string_candidates=" + oren_int_to_string(top_string_fast_candidates) +
+            " top_string_hits=" + oren_int_to_string(top_string_fast_hits) +
+            " top_string_miss_type=" + oren_int_to_string(top_string_fast_miss_type))
     }
     return nil
 }

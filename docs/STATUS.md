@@ -87,8 +87,9 @@ Facts from the 2026-05-28 implementation pass:
 	  explicit opt-in via `OREN_X64_GLOBAL_STRINGS_IN_DATA=1` because capped
 	  self-host probes showed it still dominates `x64.codegen.top_globals.user_slots`.
 	  Default string literal global assignments instead use a non-dedup byte-native
-	  cstr append path inside synthesized `__top_level__`, with a focused x64
-	  top-level string-global fixture in the compile-only gate. Zero-result lambda
+	  cstr append path inside synthesized `__top_level__`. Phase summaries count
+	  top-level string fast-path candidates/hits, and a focused x64
+	  top-level string-global fixture stays in the compile-only gate. Zero-result lambda
 	  collection now uses a compile-time
 	  preflight and skips the full statement walk when there are no local
 	  function/lambda candidates. Empty map/list globals remain in

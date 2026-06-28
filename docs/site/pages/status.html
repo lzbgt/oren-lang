@@ -127,8 +127,9 @@
 <p>	  explicit opt-in via <code>OREN_X64_GLOBAL_STRINGS_IN_DATA=1</code> because capped</p>
 <p>	  self-host probes showed it still dominates <code>x64.codegen.top_globals.user_slots</code>.</p>
 <p>	  Default string literal global assignments instead use a non-dedup byte-native</p>
-<p>	  cstr append path inside synthesized <code>__top_level__</code>, with a focused x64</p>
-<p>	  top-level string-global fixture in the compile-only gate. Zero-result lambda</p>
+<p>	  cstr append path inside synthesized <code>__top_level__</code>. Phase summaries count</p>
+<p>	  top-level string fast-path candidates/hits, and a focused x64</p>
+<p>	  top-level string-global fixture stays in the compile-only gate. Zero-result lambda</p>
 <p>	  collection now uses a compile-time</p>
 <p>	  preflight and skips the full statement walk when there are no local</p>
 <p>	  function/lambda candidates. Empty map/list globals remain in</p>

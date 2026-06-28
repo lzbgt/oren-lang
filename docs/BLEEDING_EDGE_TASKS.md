@@ -88,10 +88,11 @@ This file is the concise task view. Detailed implementation status lives in
 				     singleton globals are materialized directly in `.data`; string global
 				     `.data` relocation is explicit opt-in via `OREN_X64_GLOBAL_STRINGS_IN_DATA=1`
 				     because capped self-host probes still show it dominating
-				     `x64.codegen.top_globals.user_slots`. Default string literal global
-				     assignments instead use a non-dedup byte-native cstr append path inside
-				     synthesized `__top_level__`, guarded by a focused x64 top-level
-				     string-global compile fixture.
+					     `x64.codegen.top_globals.user_slots`. Default string literal global
+					     assignments instead use a non-dedup byte-native cstr append path inside
+					     synthesized `__top_level__`. Phase summaries count top-level string
+					     fast-path candidates/hits, guarded by a focused x64 top-level
+					     string-global compile fixture.
 							     Zero-result lambda collection now skips the full statement walk when no
 							     local function/lambda candidates were found. Empty map/list globals stay
 							     in `__top_level__` until static mutable container headers have an explicit

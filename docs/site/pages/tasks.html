@@ -144,10 +144,11 @@
 <p>				     singleton globals are materialized directly in <code>.data</code>; string global</p>
 <p>				     <code>.data</code> relocation is explicit opt-in via <code>OREN_X64_GLOBAL_STRINGS_IN_DATA=1</code></p>
 <p>				     because capped self-host probes still show it dominating</p>
-<p>				     <code>x64.codegen.top_globals.user_slots</code>. Default string literal global</p>
-<p>				     assignments instead use a non-dedup byte-native cstr append path inside</p>
-<p>				     synthesized <code>__top_level__</code>, guarded by a focused x64 top-level</p>
-<p>				     string-global compile fixture.</p>
+<p>					     <code>x64.codegen.top_globals.user_slots</code>. Default string literal global</p>
+<p>					     assignments instead use a non-dedup byte-native cstr append path inside</p>
+<p>					     synthesized <code>__top_level__</code>. Phase summaries count top-level string</p>
+<p>					     fast-path candidates/hits, guarded by a focused x64 top-level</p>
+<p>					     string-global compile fixture.</p>
 <p>							     Zero-result lambda collection now skips the full statement walk when no</p>
 <p>							     local function/lambda candidates were found. Empty map/list globals stay</p>
 <p>							     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
