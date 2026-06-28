@@ -105,7 +105,7 @@ fn native_compile_program_x64(linked, platform) {
     // Optional bounded slow-fn tracking (diagnostic):
     // - enables a per-function compile timer in the main loop (adds overhead)
     // - keeps only the top N slowest functions and prints after the loop
-    var trace_top_slow = oren_env("OREN_TRACE_X64_TOP_SLOW_FNS") != nil
+    var trace_top_slow = oren_env("OREN_TRACE_X64_TOP_SLOW_FNS") != nil || phase_log != nil
     var top_slow_n = 20
     var top_slow_min_ms = 50
     if trace_top_slow {
@@ -1430,6 +1430,10 @@ fn native_compile_program_x64(linked, platform) {
 
     var i1 = 0
     var fns_n = oren_list_len(fns)
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.start",
+            "fns=" + oren_int_to_string(fns_n))
+    }
     while i1 < fns_n {
         var fn1 = fns[i1]
         var nm1 = nil
@@ -1454,7 +1458,10 @@ fn native_compile_program_x64(linked, platform) {
         }
         if phase_log != nil && i1 > 0 && core.int_mod(i1, 250) == 0 {
             _x64_program_phase_log_append(phase_log, "x64.codegen.fns.progress",
-                "i=" + oren_int_to_string(i1) + " total=" + oren_int_to_string(fns_n))
+                "i=" + oren_int_to_string(i1) +
+                " total=" + oren_int_to_string(fns_n) +
+                " name=" + nm1 +
+                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
         }
         i1 = i1 + 1
     }
@@ -1472,6 +1479,12 @@ fn native_compile_program_x64(linked, platform) {
                 print("[x64_compile] top_slow_fn[" + oren_int_to_string(k) +
                       "] ms=" + oren_int_to_string(it["ms"]) +
                       " name=" + it["name"])
+                if phase_log != nil {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow",
+                        "rank=" + oren_int_to_string(k) +
+                        " ms=" + oren_int_to_string(it["ms"]) +
+                        " name=" + it["name"])
+                }
             }
             k = k + 1
         }

@@ -90,8 +90,13 @@ Facts from the 2026-05-28 implementation pass:
 	  58 to 33 statements and about 50s, and scalar/alias constants then reduced it
 	  to 8 statements. Zero-result lambda collection now uses a compile-time
 	  preflight and skips the full statement walk when there are no local
-	  function/lambda candidates. The next measured x64 self-host target is the
-	  remaining true `__top_level__` map/list globals before post-entry
+	  function/lambda candidates. Empty map/list globals remain in
+	  `__top_level__` because static mutable container headers need an explicit
+	  heap/GC ABI before direct `.data` materialization is safe. Phase logs now
+	  persist bounded slow-function rankings under `OREN_TRACE_BUILD_PHASES_PATH`.
+	  A capped unified x64 self-host probe then showed warm `oren.oren` builds still
+	  timing out before native emit with per-module `cache_hit=0`; the next measured
+	  x64 self-host target is link/parse cache recovery before post-top-level
 	  user-function codegen.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from

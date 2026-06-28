@@ -90,11 +90,15 @@ This file is the concise task view. Detailed implementation status lives in
 					     relocation costs about 89s in `x64.codegen.top_globals.user_slots` but
 					     reduces normal `__top_level__` body emission from roughly 165s to about
 					     66s; singleton data pointers reduced it from 58 to 33 statements and
-					     about 50s, and scalar/alias constants then reduced it to 8 statements.
-					     Zero-result lambda collection now skips the full statement walk when no
-					     local function/lambda candidates were found. The next concrete throughput
-					     target is the remaining true `__top_level__` map/list globals before
-					     post-entry user-function codegen.
+						     about 50s, and scalar/alias constants then reduced it to 8 statements.
+						     Zero-result lambda collection now skips the full statement walk when no
+						     local function/lambda candidates were found. Empty map/list globals stay
+						     in `__top_level__` until static mutable container headers have an explicit
+						     heap/GC ABI. Bounded slow-function rankings now persist in
+						     `OREN_TRACE_BUILD_PHASES_PATH` logs, but capped unified x64 self-host
+						     probes still timed out before native emit with per-module `cache_hit=0`.
+						     The next concrete throughput target is link/parse cache recovery before
+						     post-top-level user-function codegen.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
