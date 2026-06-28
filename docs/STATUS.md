@@ -120,12 +120,17 @@ Facts from the 2026-05-28 implementation pass:
 	  body, so direct string globals remain opt-in. x64 top-global metadata now avoids
 	  the extra skip map, records only positive scalar facts, and records data-constant
 	  facts only for globals that can feed top-level pointer aliases; slow-slot records
-	  include direct path plus init/allocation/fixup/metadata substep timing. Capped
-	  full x64 self-host traces now complete module parsing
-	  through `lib/compiler/compiler.oren`, finish the optimizer, and reach x64
-	  native emit. With direct string globals disabled, `top_globals.user_slots`
-	  finishes in under a second; the next measured target is post-`__top_level__`
-	  x64 user-function codegen throughput.
+	  include direct path plus init/allocation/fixup/metadata substep timing. The
+	  synthesized `__top_level__` string-global assignment fast path now runs before
+	  generic expression validation and local fact updates, so literal string globals
+	  bypass the slow generic assignment path. Capped full x64 self-host traces now
+	  complete module parsing through `lib/compiler/compiler.oren`, finish the optimizer,
+	  and reach x64 native emit. With direct string globals disabled,
+	  `top_globals.user_slots` finishes in under a second. A forced
+	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS=0` prewarm trace now shows
+	  `link.parse_module.cache_write.start` can stall on the first compiler-shaped
+	  module, so the next measured target is byte-native ASTBIN encode/write throughput
+	  before relying on warm-cache full self-host profiles.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

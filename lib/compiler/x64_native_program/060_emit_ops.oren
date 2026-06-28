@@ -228,17 +228,6 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         } else if op["op"] == "assign_i32" {
             var off2 = locals[op["name"]]
-            _expr_int_check(ctx, op["expr"], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            if ctx["locals_floaty"] != nil {
-                ctx["locals_floaty"][op["name"]] = _x64_expr_is_floaty(ctx, op["expr"])
-            }
-            if ctx["locals_inty"] != nil {
-                ctx["locals_inty"][op["name"]] = _x64_expr_is_inty(ctx, op["expr"])
-            }
-            if ctx["locals_int_const"] != nil {
-                ctx["locals_int_const"][op["name"]] = _x64_expr_int_const(ctx, op["expr"])
-            }
             var top_string_fast_candidate = false
             if op["__oren_top_level_global_init"] == true && oren_type_tag(off2) == 0 {
                 top_string_fast_candidate = true
@@ -275,6 +264,17 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             }
             if top_string_fast_candidate == true {
                 top_string_fast_miss_type = top_string_fast_miss_type + 1
+            }
+            _expr_int_check(ctx, op["expr"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["locals_floaty"] != nil && top_string_fast_candidate != true {
+                ctx["locals_floaty"][op["name"]] = _x64_expr_is_floaty(ctx, op["expr"])
+            }
+            if ctx["locals_inty"] != nil && top_string_fast_candidate != true {
+                ctx["locals_inty"][op["name"]] = _x64_expr_is_inty(ctx, op["expr"])
+            }
+            if ctx["locals_int_const"] != nil && top_string_fast_candidate != true {
+                ctx["locals_int_const"][op["name"]] = _x64_expr_int_const(ctx, op["expr"])
             }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }

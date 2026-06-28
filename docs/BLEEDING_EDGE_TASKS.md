@@ -122,10 +122,14 @@ This file is the concise task view. Detailed implementation status lives in
 								     probes now have direct string appends, slot counters, path/substep slow-slot
 								     records, positive-only scalar fact metadata, and demand-driven data-constant
 								     alias metadata, but compiler-shaped traces still show a per-slot direct
-								     metadata/root bookkeeping cliff. The next concrete
-								     throughput target remains post-`__top_level__` x64 user-function codegen
-								     with direct string globals disabled, plus deeper direct-data tracing before
-								     changing that default.
+								     metadata/root bookkeeping cliff. The synthesized `__top_level__`
+								     string-global assignment fast path now runs before generic expression
+								     validation and local fact updates, so literal string globals bypass the
+								     slow generic assignment path. A forced
+								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS=0` prewarm trace now stalls
+								     after `link.parse_module.cache_write.start` on the first compiler-shaped
+								     module, so the next concrete throughput target is byte-native ASTBIN
+								     encode/write before warm-cache full self-host profiling can be trusted.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
