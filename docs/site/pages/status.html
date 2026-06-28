@@ -107,11 +107,17 @@
 <p>	  so x64 compiler artifacts select lightweight arm64 backend stubs without the</p>
 <p>	  former <code>oren_x64.oren</code> / <code>compiler_x64.oren</code> wrapper files.</p>
 <p>	  x64 native emit now writes <code>build.native.emit.*</code>, <code>x64.codegen.*</code>, and</p>
-<p>	  <code>x64.elf.*</code> milestones into <code>OREN_TRACE_BUILD_PHASES_PATH</code>; cache-hit</p>
-<p>	  profiling shows tiny x64 builds spend their remaining emit time in cached</p>
-<p>	  runtime-object ELF fixup replay, so the next throughput slice is byte-native</p>
-<p>	  persistent x64 rtobj fixup sidecars or equivalent prepatched cached calls</p>
-<p>	  without forcing expensive first-use cache rebuilds.</p>
+<p>	  <code>x64.elf.*</code> milestones into <code>OREN_TRACE_BUILD_PHASES_PATH</code>. Cached x64</p>
+<p>	  runtime-object fixups now have persistent byte-native u64 sidecars for</p>
+<p>	  runtime call/RIP-data/code-lea/function-object fixups. A steady-state tiny</p>
+<p>	  Linux x64 compile with sidecar hits completed in about 2.4s locally; cached</p>
+<p>	  runtime-object ELF replay dropped from roughly 31s to about 0.53s. Remaining</p>
+<p>	  x64 tiny-build emit time is now dominated by local/entry ELF fixups and final</p>
+<p>	  binary assembly rather than runtime-object replay. A direct unified</p>
+<p>	  <code>oren.oren</code> x64 self-host native compile no longer spends material time in</p>
+<p>	  runtime-object load/replay, but still stayed CPU-active past six minutes</p>
+<p>	  after <code>x64.codegen.prepare.done</code>; the next measured self-host task is finer</p>
+<p>	  x64 codegen phase instrumentation and optimization after wrapper preparation.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

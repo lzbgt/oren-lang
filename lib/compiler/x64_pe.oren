@@ -48,44 +48,69 @@ fn _pe_rtobj_decode_enc0(enc) {
     return 0
 }
 
-fn _pe_x64_string_eq(a, b) {
-    if a == nil && b == nil { return true }
-    if a == nil || b == nil { return false }
-    if oren_type_tag(a) != 4 { return false }
-    if oren_type_tag(b) != 4 { return false }
-    var la = oren_string_len(a)
-    var lb = oren_string_len(b)
-    if la != lb { return false }
+fn _pe_read_u64_le_u8(ub, off) {
+    if ub == nil { return 0 }
+    if oren_is_u8_buf(ub) != true { return 0 }
+    var n = oren_buf_len(ub)
+    if off < 0 || off + 8 > n { return 0 }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return 0 }
+    var b0 = ptr_get_byte(iadd(p, off + 0)) & 255
+    var b1 = ptr_get_byte(iadd(p, off + 1)) & 255
+    var b2 = ptr_get_byte(iadd(p, off + 2)) & 255
+    var b3 = ptr_get_byte(iadd(p, off + 3)) & 255
+    var b4 = ptr_get_byte(iadd(p, off + 4)) & 255
+    var b5 = ptr_get_byte(iadd(p, off + 5)) & 255
+    var b6 = ptr_get_byte(iadd(p, off + 6)) & 255
+    var b7 = ptr_get_byte(iadd(p, off + 7)) & 255
+    return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216 +
+        b4 * 4294967296 + b5 * 1099511627776 + b6 * 281474976710656 + b7 * 72057594037927936
+}
+
+fn _pe_u64_sidecar_count(ub) {
+    if ub == nil { return 0 }
+    if oren_is_u8_buf(ub) != true { return 0 }
+    var n = oren_buf_len(ub)
+    if n <= 0 { return 0 }
+    return n / 8
+}
+
+fn _pe_x64_runtime_fn_lookup_map(ctx, base) {
+    if ctx == nil { return nil }
+    var cached = ctx["runtime_x64_fn_offsets_lookup"]
+    if cached != nil { return cached }
+    var comp = ctx["runtime_x64_fn_offsets_compact"]
+    if comp == nil { return nil }
+    var names = comp["names"]
+    if names == nil { return nil }
+    var offs = comp["offs_enc"]
+    var out = {}
     var i = 0
-    while i < la {
-        var ba = oren_string_byte_at_unchecked(a, i) & 255
-        var bb = oren_string_byte_at_unchecked(b, i) & 255
-        if ba != bb { return false }
+    var n = oren_list_len(names)
+    while i < n {
+        var nm = names[i]
+        if nm != nil && nm != "" {
+            var off_enc = nil
+            if offs != nil { off_enc = offs[i] }
+            out[nm] = base + _pe_rtobj_decode_enc0(off_enc)
+        }
         i = i + 1
     }
-    return true
+    ctx["runtime_x64_fn_offsets_lookup"] = out
+    return out
 }
 
 fn _pe_x64_lookup_fn(ctx, functions, name) {
     var target = nil
     if name != nil && functions != nil { target = functions[name] }
-    if target != nil { return target }
+    if oren_type_tag(target) != 0 { return target }
     if ctx == nil || name == nil { return nil }
-    var comp = ctx["runtime_x64_fn_offsets_compact"]
     var base = ctx["runtime_x64_fn_offsets_base_code"]
     if base == nil { base = 0 }
-    if comp != nil {
-        var names = comp["names"]
-        var offs = comp["offs_enc"]
-        var i = 0
-        while names != nil && i < oren_list_len(names) {
-            if _pe_x64_string_eq(names[i], name) {
-                var off_enc = nil
-                if offs != nil { off_enc = offs[i] }
-                return base + _pe_rtobj_decode_enc0(off_enc)
-            }
-            i = i + 1
-        }
+    var compact_lookup = _pe_x64_runtime_fn_lookup_map(ctx, base)
+    if compact_lookup != nil {
+        var off0 = compact_lookup[name]
+        if oren_type_tag(off0) != 0 { return off0 }
     }
     var enc_map = ctx["runtime_x64_fn_offsets_enc"]
     if enc_map != nil {
@@ -93,6 +118,18 @@ fn _pe_x64_lookup_fn(ctx, functions, name) {
         if oren_type_tag(enc) == 1 && enc > 0 { return base + (enc - 1) }
     }
     return nil
+}
+
+fn _pe_x64_lookup_fn_target_u8(ctx, functions, target_u8, names, i) {
+    var base = 0
+    if ctx != nil && ctx["runtime_x64_fn_offsets_base_code"] != nil { base = ctx["runtime_x64_fn_offsets_base_code"] }
+    if target_u8 != nil {
+        var enc = _pe_read_u64_le_u8(target_u8, i * 8)
+        if enc > 0 { return base + enc - 1 }
+    }
+    var name = nil
+    if names != nil { name = names[i] }
+    return _pe_x64_lookup_fn(ctx, functions, name)
 }
 
 fn _pe_apply_x64_rtobj_rip_data_fixups(code, poss, offs, rtbase, text_rva, data_rva) {
@@ -114,6 +151,25 @@ fn _pe_apply_x64_rtobj_rip_data_fixups(code, poss, offs, rtbase, text_rva, data_
     return nil
 }
 
+fn _pe_apply_x64_rtobj_rip_data_fixups_u8(code, poss_u8, offs_u8, rtbase, text_rva, data_rva) {
+    if poss_u8 == nil { return false }
+    var n = _pe_u64_sidecar_count(poss_u8)
+    var i = 0
+    while i < n {
+        var disp_pos = rtbase + _pe_read_u64_le_u8(poss_u8, i * 8)
+        var data_off = 0
+        if offs_u8 != nil { data_off = _pe_read_u64_le_u8(offs_u8, i * 8) }
+        var insn_start = disp_pos - 3
+        var next_rip = text_rva + (insn_start + 7)
+        var target_rva = data_rva + data_off
+        var disp = target_rva - next_rip
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(code, disp_pos, disp)
+        i = i + 1
+    }
+    return true
+}
+
 fn _pe_apply_x64_rtobj_call_fixups(ctx, code, poss, names, rtbase, functions) {
     if poss == nil { return nil }
     var n = oren_list_len(poss)
@@ -133,6 +189,27 @@ fn _pe_apply_x64_rtobj_call_fixups(ctx, code, poss, names, rtbase, functions) {
         i = i + 1
     }
     return nil
+}
+
+fn _pe_apply_x64_rtobj_call_fixups_u8(ctx, code, poss_u8, target_u8, names, rtbase, functions) {
+    if poss_u8 == nil { return false }
+    var n = _pe_u64_sidecar_count(poss_u8)
+    var i = 0
+    while i < n {
+        var target = _pe_x64_lookup_fn_target_u8(ctx, functions, target_u8, names, i)
+        if target == nil {
+            var name = ""
+            if names != nil { name = names[i] }
+            print("x64 pe: undefined function " + name)
+            oren_exit(1)
+        }
+        var pos = rtbase + _pe_read_u64_le_u8(poss_u8, i * 8)
+        var disp = target - (pos + 5)
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(code, pos + 1, disp)
+        i = i + 1
+    }
+    return true
 }
 
 fn _pe_apply_x64_rtobj_code_lea_fixups(ctx, code, poss, names, rtbase, functions, text_rva) {
@@ -159,6 +236,30 @@ fn _pe_apply_x64_rtobj_code_lea_fixups(ctx, code, poss, names, rtbase, functions
     return nil
 }
 
+fn _pe_apply_x64_rtobj_code_lea_fixups_u8(ctx, code, poss_u8, target_u8, names, rtbase, functions, text_rva) {
+    if poss_u8 == nil { return false }
+    var n = _pe_u64_sidecar_count(poss_u8)
+    var i = 0
+    while i < n {
+        var target = _pe_x64_lookup_fn_target_u8(ctx, functions, target_u8, names, i)
+        if target == nil {
+            var name = ""
+            if names != nil { name = names[i] }
+            print("x64 pe: undefined function " + name)
+            oren_exit(1)
+        }
+        var disp_pos = rtbase + _pe_read_u64_le_u8(poss_u8, i * 8)
+        var insn_start = disp_pos - 3
+        var next_rip = text_rva + (insn_start + 7)
+        var target_rva = text_rva + target
+        var disp = target_rva - next_rip
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(code, disp_pos, disp)
+        i = i + 1
+    }
+    return true
+}
+
 fn _pe_apply_x64_rtobj_fnobj_fixups(ctx, data, offs, names, functions, image_base, text_rva) {
     if offs == nil { return nil }
     var n = oren_list_len(offs)
@@ -178,19 +279,53 @@ fn _pe_apply_x64_rtobj_fnobj_fixups(ctx, data, offs, names, functions, image_bas
     return nil
 }
 
+fn _pe_apply_x64_rtobj_fnobj_fixups_u8(ctx, data, offs_u8, target_u8, names, functions, image_base, text_rva) {
+    if offs_u8 == nil { return false }
+    var n = _pe_u64_sidecar_count(offs_u8)
+    var i = 0
+    while i < n {
+        var target = _pe_x64_lookup_fn_target_u8(ctx, functions, target_u8, names, i)
+        if target == nil {
+            var name = ""
+            if names != nil { name = names[i] }
+            print("x64 pe: undefined function " + name)
+            oren_exit(1)
+        }
+        var data_off = _pe_read_u64_le_u8(offs_u8, i * 8)
+        set_u64_le(data, data_off, image_base + text_rva + target)
+        i = i + 1
+    }
+    return true
+}
+
 fn _pe_apply_x64_rtobj_compact_fixups(ctx, code, data, functions, image_base, text_rva, data_rva) {
     if ctx == nil { return nil }
     var fx = ctx["runtime_x64_fixups_compact"]
     if fx == nil { return nil }
+    var fx_u8 = ctx["runtime_x64_fixups_compact_u8"]
     var rtbase = ctx["runtime_x64_fixups_base_code"]
     if rtbase == nil { rtbase = 0 }
-    _pe_apply_x64_rtobj_call_fixups(ctx, code, fx["call_pos_enc"], fx["call_name"], rtbase, functions)
-    _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_lea_pos_enc"], fx["rip_data_lea_data_off_enc"], rtbase, text_rva, data_rva)
-    _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_lea_rsi_pos_enc"], fx["rip_data_lea_rsi_data_off_enc"], rtbase, text_rva, data_rva)
-    _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_mov_rax_pos_enc"], fx["rip_data_mov_rax_data_off_enc"], rtbase, text_rva, data_rva)
-    _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_rdata_lea_pos_enc"], fx["rip_rdata_lea_data_off_enc"], rtbase, text_rva, data_rva)
-    _pe_apply_x64_rtobj_fnobj_fixups(ctx, data, fx["data_fnobj_code_ptr_data_off_enc"], fx["data_fnobj_code_ptr_name"], functions, image_base, text_rva)
-    _pe_apply_x64_rtobj_code_lea_fixups(ctx, code, fx["rip_code_lea_pos_enc"], fx["rip_code_lea_name"], rtbase, functions, text_rva)
+    var used_u8_call = false
+    if fx_u8 != nil { used_u8_call = _pe_apply_x64_rtobj_call_fixups_u8(ctx, code, fx_u8["x64_call_pos_u8"], fx_u8["x64_call_target_u8"], fx["call_name"], rtbase, functions) }
+    if used_u8_call != true { _pe_apply_x64_rtobj_call_fixups(ctx, code, fx["call_pos_enc"], fx["call_name"], rtbase, functions) }
+    var used_u8_data = false
+    if fx_u8 != nil { used_u8_data = _pe_apply_x64_rtobj_rip_data_fixups_u8(code, fx_u8["x64_rip_data_pos_u8"], fx_u8["x64_rip_data_off_u8"], rtbase, text_rva, data_rva) }
+    if used_u8_data != true { _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_lea_pos_enc"], fx["rip_data_lea_data_off_enc"], rtbase, text_rva, data_rva) }
+    var used_u8_data_rsi = false
+    if fx_u8 != nil { used_u8_data_rsi = _pe_apply_x64_rtobj_rip_data_fixups_u8(code, fx_u8["x64_rip_data_rsi_pos_u8"], fx_u8["x64_rip_data_rsi_off_u8"], rtbase, text_rva, data_rva) }
+    if used_u8_data_rsi != true { _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_lea_rsi_pos_enc"], fx["rip_data_lea_rsi_data_off_enc"], rtbase, text_rva, data_rva) }
+    var used_u8_mov = false
+    if fx_u8 != nil { used_u8_mov = _pe_apply_x64_rtobj_rip_data_fixups_u8(code, fx_u8["x64_rip_mov_rax_pos_u8"], fx_u8["x64_rip_mov_rax_off_u8"], rtbase, text_rva, data_rva) }
+    if used_u8_mov != true { _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_mov_rax_pos_enc"], fx["rip_data_mov_rax_data_off_enc"], rtbase, text_rva, data_rva) }
+    var used_u8_rdata = false
+    if fx_u8 != nil { used_u8_rdata = _pe_apply_x64_rtobj_rip_data_fixups_u8(code, fx_u8["x64_rip_rdata_pos_u8"], fx_u8["x64_rip_rdata_off_u8"], rtbase, text_rva, data_rva) }
+    if used_u8_rdata != true { _pe_apply_x64_rtobj_rip_data_fixups(code, fx["rip_rdata_lea_pos_enc"], fx["rip_rdata_lea_data_off_enc"], rtbase, text_rva, data_rva) }
+    var used_u8_fnobj = false
+    if fx_u8 != nil { used_u8_fnobj = _pe_apply_x64_rtobj_fnobj_fixups_u8(ctx, data, fx_u8["x64_fnobj_data_off_u8"], fx_u8["x64_fnobj_target_u8"], fx["data_fnobj_code_ptr_name"], functions, image_base, text_rva) }
+    if used_u8_fnobj != true { _pe_apply_x64_rtobj_fnobj_fixups(ctx, data, fx["data_fnobj_code_ptr_data_off_enc"], fx["data_fnobj_code_ptr_name"], functions, image_base, text_rva) }
+    var used_u8_code = false
+    if fx_u8 != nil { used_u8_code = _pe_apply_x64_rtobj_code_lea_fixups_u8(ctx, code, fx_u8["x64_code_lea_pos_u8"], fx_u8["x64_code_lea_target_u8"], fx["rip_code_lea_name"], rtbase, functions, text_rva) }
+    if used_u8_code != true { _pe_apply_x64_rtobj_code_lea_fixups(ctx, code, fx["rip_code_lea_pos_enc"], fx["rip_code_lea_name"], rtbase, functions, text_rva) }
     return nil
 }
 

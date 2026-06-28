@@ -255,12 +255,13 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
         if trace { print("[x64_rtobj_apply] function offsets done count=" + oren_int_to_string(idxf)) }
     }
 
-    var x64_fx_compact = meta["x64_fixups_compact"]
-    if x64_fx_compact != nil {
-        ctx["runtime_x64_fixups_compact"] = x64_fx_compact
-        ctx["runtime_x64_fixups_base_code"] = base_code
-        _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
-        if trace { print("[x64_rtobj_apply] compact fixups attached") }
+        var x64_fx_compact = meta["x64_fixups_compact"]
+        if x64_fx_compact != nil {
+            ctx["runtime_x64_fixups_compact"] = x64_fx_compact
+            if meta["fixups_compact_u8"] != nil { ctx["runtime_x64_fixups_compact_u8"] = meta["fixups_compact_u8"] }
+            ctx["runtime_x64_fixups_base_code"] = base_code
+            _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
+            if trace { print("[x64_rtobj_apply] compact fixups attached") }
     }
 
     // Merge runtime fixups (pos encoded as +1; adjust by base_code).

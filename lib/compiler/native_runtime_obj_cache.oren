@@ -796,10 +796,24 @@ fn rtobj_paths(cache_dir, key) {
         "fix_adr_data_pos": dir + "/fix_adr_data_pos.u8",
         "fix_adr_data_off": dir + "/fix_adr_data_off.u8",
         "fix_adr_data_reg": dir + "/fix_adr_data_reg.u8",
-        "fix_adr_code_pos": dir + "/fix_adr_code_pos.u8",
-        "fix_adr_code_target": dir + "/fix_adr_code_target.u8",
-        "fix_adr_code_reg": dir + "/fix_adr_code_reg.u8",
-        "cstr0_offsets": dir + "/cstr0_offsets.u8",
+            "fix_adr_code_pos": dir + "/fix_adr_code_pos.u8",
+            "fix_adr_code_target": dir + "/fix_adr_code_target.u8",
+            "fix_adr_code_reg": dir + "/fix_adr_code_reg.u8",
+            "fix_x64_call_pos": dir + "/fix_x64_call_pos.u8",
+            "fix_x64_call_target": dir + "/fix_x64_call_target.u8",
+            "fix_x64_rip_data_pos": dir + "/fix_x64_rip_data_pos.u8",
+            "fix_x64_rip_data_off": dir + "/fix_x64_rip_data_off.u8",
+            "fix_x64_rip_data_rsi_pos": dir + "/fix_x64_rip_data_rsi_pos.u8",
+            "fix_x64_rip_data_rsi_off": dir + "/fix_x64_rip_data_rsi_off.u8",
+            "fix_x64_rip_mov_rax_pos": dir + "/fix_x64_rip_mov_rax_pos.u8",
+            "fix_x64_rip_mov_rax_off": dir + "/fix_x64_rip_mov_rax_off.u8",
+            "fix_x64_rip_rdata_pos": dir + "/fix_x64_rip_rdata_pos.u8",
+            "fix_x64_rip_rdata_off": dir + "/fix_x64_rip_rdata_off.u8",
+            "fix_x64_fnobj_data_off": dir + "/fix_x64_fnobj_data_off.u8",
+            "fix_x64_fnobj_target": dir + "/fix_x64_fnobj_target.u8",
+            "fix_x64_code_lea_pos": dir + "/fix_x64_code_lea_pos.u8",
+            "fix_x64_code_lea_target": dir + "/fix_x64_code_lea_target.u8",
+            "cstr0_offsets": dir + "/cstr0_offsets.u8",
         "debug_blob": dir + "/debug_blob.u8",
         "debug_patch_pos": dir + "/debug_patch_pos.u8",
         "debug_start": dir + "/debug_start.u8",
@@ -912,13 +926,69 @@ fn _rtobj_build_fixups_compact_u8_sidecars(fx, fn_offs_enc) {
         out["adr_code_target_u8"] = _rtobj_build_fixups_compact_target_u8_from_names(fx["adr_code_name"], fn_offs_enc)
         if out["adr_code_target_u8"] != nil { any = true }
     }
-    if fx["adr_code_reg_enc"] != nil {
-        out["adr_code_reg_u8"] = _rtobj_encode_reg_u64_sidecar_from_enc_list(fx["adr_code_reg_enc"])
-        if out["adr_code_reg_u8"] != nil { any = true }
+        if fx["adr_code_reg_enc"] != nil {
+            out["adr_code_reg_u8"] = _rtobj_encode_reg_u64_sidecar_from_enc_list(fx["adr_code_reg_enc"])
+            if out["adr_code_reg_u8"] != nil { any = true }
+        }
+        if fx["call_pos_enc"] != nil {
+            out["x64_call_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["call_pos_enc"])
+            if out["x64_call_pos_u8"] != nil { any = true }
+        }
+        if fx["call_name"] != nil {
+            out["x64_call_target_u8"] = _rtobj_build_fixups_compact_target_u8_from_names(fx["call_name"], fn_offs_enc)
+            if out["x64_call_target_u8"] != nil { any = true }
+        }
+        if fx["rip_data_lea_pos_enc"] != nil {
+            out["x64_rip_data_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_data_lea_pos_enc"])
+            if out["x64_rip_data_pos_u8"] != nil { any = true }
+        }
+        if fx["rip_data_lea_data_off_enc"] != nil {
+            out["x64_rip_data_off_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_data_lea_data_off_enc"])
+            if out["x64_rip_data_off_u8"] != nil { any = true }
+        }
+        if fx["rip_data_lea_rsi_pos_enc"] != nil {
+            out["x64_rip_data_rsi_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_data_lea_rsi_pos_enc"])
+            if out["x64_rip_data_rsi_pos_u8"] != nil { any = true }
+        }
+        if fx["rip_data_lea_rsi_data_off_enc"] != nil {
+            out["x64_rip_data_rsi_off_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_data_lea_rsi_data_off_enc"])
+            if out["x64_rip_data_rsi_off_u8"] != nil { any = true }
+        }
+        if fx["rip_data_mov_rax_pos_enc"] != nil {
+            out["x64_rip_mov_rax_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_data_mov_rax_pos_enc"])
+            if out["x64_rip_mov_rax_pos_u8"] != nil { any = true }
+        }
+        if fx["rip_data_mov_rax_data_off_enc"] != nil {
+            out["x64_rip_mov_rax_off_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_data_mov_rax_data_off_enc"])
+            if out["x64_rip_mov_rax_off_u8"] != nil { any = true }
+        }
+        if fx["rip_rdata_lea_pos_enc"] != nil {
+            out["x64_rip_rdata_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_rdata_lea_pos_enc"])
+            if out["x64_rip_rdata_pos_u8"] != nil { any = true }
+        }
+        if fx["rip_rdata_lea_data_off_enc"] != nil {
+            out["x64_rip_rdata_off_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_rdata_lea_data_off_enc"])
+            if out["x64_rip_rdata_off_u8"] != nil { any = true }
+        }
+        if fx["data_fnobj_code_ptr_data_off_enc"] != nil {
+            out["x64_fnobj_data_off_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["data_fnobj_code_ptr_data_off_enc"])
+            if out["x64_fnobj_data_off_u8"] != nil { any = true }
+        }
+        if fx["data_fnobj_code_ptr_name"] != nil {
+            out["x64_fnobj_target_u8"] = _rtobj_build_fixups_compact_target_u8_from_names(fx["data_fnobj_code_ptr_name"], fn_offs_enc)
+            if out["x64_fnobj_target_u8"] != nil { any = true }
+        }
+        if fx["rip_code_lea_pos_enc"] != nil {
+            out["x64_code_lea_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["rip_code_lea_pos_enc"])
+            if out["x64_code_lea_pos_u8"] != nil { any = true }
+        }
+        if fx["rip_code_lea_name"] != nil {
+            out["x64_code_lea_target_u8"] = _rtobj_build_fixups_compact_target_u8_from_names(fx["rip_code_lea_name"], fn_offs_enc)
+            if out["x64_code_lea_target_u8"] != nil { any = true }
+        }
+        if any != true { return nil }
+        return out
     }
-    if any != true { return nil }
-    return out
-}
 
 fn rtobj_load_fixups_compact_u8_sidecars(cache_dir, key) {
     if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
@@ -939,11 +1009,39 @@ fn rtobj_load_fixups_compact_u8_sidecars(cache_dir, key) {
     if acp != nil { out["adr_code_pos_u8"] = acp; any = true }
     var act = _rtobj_load_u64_u8_sidecar(paths["fix_adr_code_target"])
     if act != nil { out["adr_code_target_u8"] = act; any = true }
-    var acr = _rtobj_load_u64_u8_sidecar(paths["fix_adr_code_reg"])
-    if acr != nil { out["adr_code_reg_u8"] = acr; any = true }
-    if any != true { return nil }
-    return out
-}
+        var acr = _rtobj_load_u64_u8_sidecar(paths["fix_adr_code_reg"])
+        if acr != nil { out["adr_code_reg_u8"] = acr; any = true }
+        var xc = _rtobj_load_u64_u8_sidecar(paths["fix_x64_call_pos"])
+        if xc != nil { out["x64_call_pos_u8"] = xc; any = true }
+        var xct = _rtobj_load_u64_u8_sidecar(paths["fix_x64_call_target"])
+        if xct != nil { out["x64_call_target_u8"] = xct; any = true }
+        var xrdp = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_data_pos"])
+        if xrdp != nil { out["x64_rip_data_pos_u8"] = xrdp; any = true }
+        var xrdo = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_data_off"])
+        if xrdo != nil { out["x64_rip_data_off_u8"] = xrdo; any = true }
+        var xrsip = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_data_rsi_pos"])
+        if xrsip != nil { out["x64_rip_data_rsi_pos_u8"] = xrsip; any = true }
+        var xrsio = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_data_rsi_off"])
+        if xrsio != nil { out["x64_rip_data_rsi_off_u8"] = xrsio; any = true }
+        var xmvp = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_mov_rax_pos"])
+        if xmvp != nil { out["x64_rip_mov_rax_pos_u8"] = xmvp; any = true }
+        var xmvo = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_mov_rax_off"])
+        if xmvo != nil { out["x64_rip_mov_rax_off_u8"] = xmvo; any = true }
+        var xrrp = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_rdata_pos"])
+        if xrrp != nil { out["x64_rip_rdata_pos_u8"] = xrrp; any = true }
+        var xrro = _rtobj_load_u64_u8_sidecar(paths["fix_x64_rip_rdata_off"])
+        if xrro != nil { out["x64_rip_rdata_off_u8"] = xrro; any = true }
+        var xfd = _rtobj_load_u64_u8_sidecar(paths["fix_x64_fnobj_data_off"])
+        if xfd != nil { out["x64_fnobj_data_off_u8"] = xfd; any = true }
+        var xft = _rtobj_load_u64_u8_sidecar(paths["fix_x64_fnobj_target"])
+        if xft != nil { out["x64_fnobj_target_u8"] = xft; any = true }
+        var xcp = _rtobj_load_u64_u8_sidecar(paths["fix_x64_code_lea_pos"])
+        if xcp != nil { out["x64_code_lea_pos_u8"] = xcp; any = true }
+        var xcat = _rtobj_load_u64_u8_sidecar(paths["fix_x64_code_lea_target"])
+        if xcat != nil { out["x64_code_lea_target_u8"] = xcat; any = true }
+        if any != true { return nil }
+        return out
+    }
 
 fn rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fx_u8) {
     if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
@@ -956,10 +1054,24 @@ fn rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fx_u8) {
     if fx_u8["adr_data_data_off_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_data_off"], fx_u8["adr_data_data_off_u8"]) }
     if fx_u8["adr_data_reg_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_data_reg"], fx_u8["adr_data_reg_u8"]) }
     if fx_u8["adr_code_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_pos"], fx_u8["adr_code_pos_u8"]) }
-    if fx_u8["adr_code_target_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_target"], fx_u8["adr_code_target_u8"]) }
-    if fx_u8["adr_code_reg_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_reg"], fx_u8["adr_code_reg_u8"]) }
-    return nil
-}
+        if fx_u8["adr_code_target_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_target"], fx_u8["adr_code_target_u8"]) }
+        if fx_u8["adr_code_reg_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_reg"], fx_u8["adr_code_reg_u8"]) }
+        if fx_u8["x64_call_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_call_pos"], fx_u8["x64_call_pos_u8"]) }
+        if fx_u8["x64_call_target_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_call_target"], fx_u8["x64_call_target_u8"]) }
+        if fx_u8["x64_rip_data_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_data_pos"], fx_u8["x64_rip_data_pos_u8"]) }
+        if fx_u8["x64_rip_data_off_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_data_off"], fx_u8["x64_rip_data_off_u8"]) }
+        if fx_u8["x64_rip_data_rsi_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_data_rsi_pos"], fx_u8["x64_rip_data_rsi_pos_u8"]) }
+        if fx_u8["x64_rip_data_rsi_off_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_data_rsi_off"], fx_u8["x64_rip_data_rsi_off_u8"]) }
+        if fx_u8["x64_rip_mov_rax_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_mov_rax_pos"], fx_u8["x64_rip_mov_rax_pos_u8"]) }
+        if fx_u8["x64_rip_mov_rax_off_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_mov_rax_off"], fx_u8["x64_rip_mov_rax_off_u8"]) }
+        if fx_u8["x64_rip_rdata_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_rdata_pos"], fx_u8["x64_rip_rdata_pos_u8"]) }
+        if fx_u8["x64_rip_rdata_off_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_rip_rdata_off"], fx_u8["x64_rip_rdata_off_u8"]) }
+        if fx_u8["x64_fnobj_data_off_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_fnobj_data_off"], fx_u8["x64_fnobj_data_off_u8"]) }
+        if fx_u8["x64_fnobj_target_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_fnobj_target"], fx_u8["x64_fnobj_target_u8"]) }
+        if fx_u8["x64_code_lea_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_code_lea_pos"], fx_u8["x64_code_lea_pos_u8"]) }
+        if fx_u8["x64_code_lea_target_u8"] != nil { _rtobj_write_atomic(paths["fix_x64_code_lea_target"], fx_u8["x64_code_lea_target_u8"]) }
+        return nil
+    }
 
 fn _rtobj_fixups_compact_u8_sidecars_complete(fx, fx_u8) {
     if fx == nil || fx_u8 == nil { return false }
@@ -972,13 +1084,41 @@ fn _rtobj_fixups_compact_u8_sidecars_complete(fx, fx_u8) {
         if fx_u8["adr_data_data_off_u8"] == nil { return false }
         if fx_u8["adr_data_reg_u8"] == nil { return false }
     }
-    if fx["adr_code_pos_enc"] != nil {
-        if fx_u8["adr_code_pos_u8"] == nil { return false }
-        if fx["adr_code_name"] != nil && fx_u8["adr_code_target_u8"] == nil { return false }
-        if fx_u8["adr_code_reg_u8"] == nil { return false }
+        if fx["adr_code_pos_enc"] != nil {
+            if fx_u8["adr_code_pos_u8"] == nil { return false }
+            if fx["adr_code_name"] != nil && fx_u8["adr_code_target_u8"] == nil { return false }
+            if fx_u8["adr_code_reg_u8"] == nil { return false }
+        }
+        if fx["call_pos_enc"] != nil {
+            if fx_u8["x64_call_pos_u8"] == nil { return false }
+            if fx["call_name"] != nil && fx_u8["x64_call_target_u8"] == nil { return false }
+        }
+        if fx["rip_data_lea_pos_enc"] != nil {
+            if fx_u8["x64_rip_data_pos_u8"] == nil { return false }
+            if fx_u8["x64_rip_data_off_u8"] == nil { return false }
+        }
+        if fx["rip_data_lea_rsi_pos_enc"] != nil {
+            if fx_u8["x64_rip_data_rsi_pos_u8"] == nil { return false }
+            if fx_u8["x64_rip_data_rsi_off_u8"] == nil { return false }
+        }
+        if fx["rip_data_mov_rax_pos_enc"] != nil {
+            if fx_u8["x64_rip_mov_rax_pos_u8"] == nil { return false }
+            if fx_u8["x64_rip_mov_rax_off_u8"] == nil { return false }
+        }
+        if fx["rip_rdata_lea_pos_enc"] != nil {
+            if fx_u8["x64_rip_rdata_pos_u8"] == nil { return false }
+            if fx_u8["x64_rip_rdata_off_u8"] == nil { return false }
+        }
+        if fx["data_fnobj_code_ptr_data_off_enc"] != nil {
+            if fx_u8["x64_fnobj_data_off_u8"] == nil { return false }
+            if fx["data_fnobj_code_ptr_name"] != nil && fx_u8["x64_fnobj_target_u8"] == nil { return false }
+        }
+        if fx["rip_code_lea_pos_enc"] != nil {
+            if fx_u8["x64_code_lea_pos_u8"] == nil { return false }
+            if fx["rip_code_lea_name"] != nil && fx_u8["x64_code_lea_target_u8"] == nil { return false }
+        }
+        return true
     }
-    return true
-}
 
 fn _rtobj_build_cstr0_offsets_u8_from_enc(cstr0_list_enc) {
     if cstr0_list_enc == nil { return nil }
@@ -1268,12 +1408,14 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
 
     meta["code_u8"] = code
     meta["data_tail_u8"] = data_tail
-    var fixups_compact_u8 = rtobj_load_fixups_compact_u8_sidecars(seed_dir, key)
-    if meta["fixups_compact"] != nil && _rtobj_fixups_compact_u8_sidecars_complete(meta["fixups_compact"], fixups_compact_u8) != true {
-        fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
-        if fixups_compact_u8 != nil {
-            rtobj_store_fixups_compact_u8_sidecars(seed_dir, key, fixups_compact_u8)
-        }
+        var seed_fixups_compact = meta["fixups_compact"]
+        if seed_fixups_compact == nil { seed_fixups_compact = meta["x64_fixups_compact"] }
+        var fixups_compact_u8 = rtobj_load_fixups_compact_u8_sidecars(seed_dir, key)
+        if seed_fixups_compact != nil && _rtobj_fixups_compact_u8_sidecars_complete(seed_fixups_compact, fixups_compact_u8) != true {
+            fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(seed_fixups_compact, meta["fn_offs_enc"])
+            if fixups_compact_u8 != nil {
+                rtobj_store_fixups_compact_u8_sidecars(seed_dir, key, fixups_compact_u8)
+            }
     }
     if fixups_compact_u8 != nil { meta["fixups_compact_u8"] = fixups_compact_u8 }
     var cstr0_offsets_u8 = rtobj_load_cstr0_offsets_sidecar(seed_dir, key)
@@ -1408,12 +1550,14 @@ fn rtobj_load(cache_dir, key) {
             if trace { print("[rtobj] load fixups_compact sidecar hit") }
         }
     }
-    var fixups_compact_u8 = rtobj_load_fixups_compact_u8_sidecars(cache_dir, key)
-    if meta["fixups_compact"] != nil && _rtobj_fixups_compact_u8_sidecars_complete(meta["fixups_compact"], fixups_compact_u8) != true {
-        fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
-        if fixups_compact_u8 != nil {
-            rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8)
-            if trace { print("[rtobj] load fixups_compact_u8 sidecars rebuilt") }
+        var load_fixups_compact = meta["fixups_compact"]
+        if load_fixups_compact == nil { load_fixups_compact = meta["x64_fixups_compact"] }
+        var fixups_compact_u8 = rtobj_load_fixups_compact_u8_sidecars(cache_dir, key)
+        if load_fixups_compact != nil && _rtobj_fixups_compact_u8_sidecars_complete(load_fixups_compact, fixups_compact_u8) != true {
+            fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(load_fixups_compact, meta["fn_offs_enc"])
+            if fixups_compact_u8 != nil {
+                rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8)
+                if trace { print("[rtobj] load fixups_compact_u8 sidecars rebuilt") }
         }
     } else if fixups_compact_u8 != nil {
         if trace { print("[rtobj] load fixups_compact_u8 sidecars hit") }
@@ -1488,16 +1632,24 @@ fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8, cstr0_offsets_u8) {
         t0 = oren_time_now_ns()
     }
     _rtobj_write_atomic(paths["meta_check"], meta_check)
-    if meta["fixups_compact"] != nil {
-        rtobj_store_fixups_compact_sidecar(cache_dir, key, meta["fixups_compact"])
-        var fixups_compact_u8_store = meta["fixups_compact_u8"]
-        if fixups_compact_u8_store == nil {
-            fixups_compact_u8_store = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
+        if meta["fixups_compact"] != nil {
+            rtobj_store_fixups_compact_sidecar(cache_dir, key, meta["fixups_compact"])
+            var fixups_compact_u8_store = meta["fixups_compact_u8"]
+            if fixups_compact_u8_store == nil {
+                fixups_compact_u8_store = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
+            }
+            if fixups_compact_u8_store != nil {
+                rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8_store)
+            }
+        } else if meta["x64_fixups_compact"] != nil {
+            var x64_fixups_compact_u8_store = meta["fixups_compact_u8"]
+            if x64_fixups_compact_u8_store == nil {
+                x64_fixups_compact_u8_store = _rtobj_build_fixups_compact_u8_sidecars(meta["x64_fixups_compact"], meta["fn_offs_enc"])
+            }
+            if x64_fixups_compact_u8_store != nil {
+                rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, x64_fixups_compact_u8_store)
+            }
         }
-        if fixups_compact_u8_store != nil {
-            rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8_store)
-        }
-    }
     if cstr0_offsets_u8 != nil {
         rtobj_store_cstr0_offsets_sidecar(cache_dir, key, cstr0_offsets_u8)
     }

@@ -68,12 +68,17 @@ This file is the concise task view. Detailed implementation status lives in
 	     backend imports during dependency discovery, replacing the former
 	     `oren_x64.oren` / `compiler_x64.oren` wrapper files while preserving
 	     lightweight arm64 backend stubs for x64 compiler builds.
-	     x64 native emit now contributes build/codegen/ELF milestones to
-	     `OREN_TRACE_BUILD_PHASES_PATH`; current cache-hit profiling isolates the
-	     remaining tiny-build latency to cached runtime-object ELF fixup replay
-	     (runtime calls and RIP-data patches), making byte-native persistent x64
-	     rtobj fixup sidecars or prepatched cached calls the next concrete
-	     throughput task.
+		     x64 native emit now contributes build/codegen/ELF milestones to
+		     `OREN_TRACE_BUILD_PHASES_PATH`. Cached x64 runtime-object fixups now
+		     persist byte-native u64 sidecars for runtime call targets, RIP-data
+		     patches, code-lea patches, and function-object pointers. Local
+		     steady-state probing reduced cached runtime-object ELF replay from
+		     roughly 31s to about 0.53s; remaining tiny-build emit time is now in
+		     local/entry ELF fixups and final binary assembly. A direct unified
+		     `oren.oren` x64 self-host native compile now gets through rtobj load
+		     quickly but remains CPU-active after `x64.codegen.prepare.done`; the
+		     next concrete throughput target is finer post-prepare x64 codegen
+		     phase instrumentation followed by the largest measured emitter fix.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
