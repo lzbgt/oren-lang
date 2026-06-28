@@ -85,6 +85,37 @@ fn _data_add_cstr0(ctx, s) {
     return off
 }
 
+fn _data_add_cstr0_nodedup(ctx, s) {
+    // Fast path for compiler-synthesized top-level string global assignments.
+    //
+    // The normal `_data_add_cstr0` path deduplicates by string key, which is useful for binary
+    // size but is expensive inside the synthesized `__top_level__` body. These globals are
+    // source-order constants, so appending directly is safe; the startup cstr0 table still tracks
+    // each pointer once.
+    if ctx == nil { return 0 }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+    if s == nil || s == 0 { s = "" }
+    if oren_is_string(s) != true {
+        var tn = oren_type_name(s)
+        err(ctx, "x64 native v0: _data_add_cstr0_nodedup expects string, got " + tn)
+        return 0
+    }
+    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = bytes_len(ctx["data"])
+    var n0 = oren_string_len(s)
+    if n0 > 1048576 {
+        s = oren_string_slice(s, 0, 1048576)
+        n0 = 1048576
+    }
+    var sb0 = oren_bytes_from_string(s)
+    if oren_is_err(sb0) { err(ctx, "x64 native v0: string-to-bytes failed for cstr0 global"); return off }
+    bytes_extend_u8_buf(ctx["data"], sb0)
+    bytes_push(ctx["data"], 0)
+    oren_list_push(ctx["cstr0_list"], off)
+    return off
+}
+
 fn _data_finalize_cstr0_table(ctx) {
     // Build a compact table of all unique embedded C-string literals so the program entry stub can
     // register them once via `oren_init_static_cstr0_table` (native runtime).

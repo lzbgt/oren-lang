@@ -122,13 +122,14 @@
 <p>	  rebuilding the runtime object or walking the legacy globals map in the hot apply</p>
 <p>	  path. x64 function/body phase markers now show synthesized <code>__top_level__</code></p>
 <p>	  global initializer emission precisely. Integer constants (including signed</p>
-<p>	  prefix literals and namespace aliases), string literals/string aliases, and</p>
-<p>	  nil/bool singleton globals are now materialized directly in <code>.data</code>. Unified</p>
-<p>	  self-host traces showed direct string relocation costs about 89s in</p>
-<p>	  <code>x64.codegen.top_globals.user_slots</code> but reduces the normal <code>__top_level__</code></p>
-<p>	  body from roughly 165s to about 66s; singleton data pointers reduced it from</p>
-<p>	  58 to 33 statements and about 50s, and scalar/alias constants then reduced it</p>
-<p>	  to 8 statements. Zero-result lambda collection now uses a compile-time</p>
+<p>	  prefix literals and namespace aliases) plus nil/bool singleton globals are</p>
+<p>	  now materialized directly in <code>.data</code>; string global <code>.data</code> relocation is</p>
+<p>	  explicit opt-in via <code>OREN_X64_GLOBAL_STRINGS_IN_DATA=1</code> because capped</p>
+<p>	  self-host probes showed it still dominates <code>x64.codegen.top_globals.user_slots</code>.</p>
+<p>	  Default string literal global assignments instead use a non-dedup byte-native</p>
+<p>	  cstr append path inside synthesized <code>__top_level__</code>, with a focused x64</p>
+<p>	  top-level string-global fixture in the compile-only gate. Zero-result lambda</p>
+<p>	  collection now uses a compile-time</p>
 <p>	  preflight and skips the full statement walk when there are no local</p>
 <p>	  function/lambda candidates. Empty map/list globals remain in</p>
 <p>	  <code>__top_level__</code> because static mutable container headers need an explicit</p>
@@ -143,12 +144,10 @@
 <p>	  probe still drops <code>link.parse_modules</code> from about 17.8s to about 0.42s with</p>
 <p>	  <code>cache_hit=1</code> on both imported std modules when serial prewarm is explicitly</p>
 <p>	  enabled. Capped full x64 self-host traces now complete module parsing</p>
-<p>	  through <code>lib/compiler/compiler.oren</code> and reach <code>link.abi_layout.done</code> at</p>
-<p>	  about 160s. Optimizer phase logs include bounded <code>optimizer.progress</code></p>
-<p>	  entries, and a 180s probe reached statement index 1460 of 3065, inside</p>
-<p>	  x64 native emitter functions such as <code>_x64_symtab_push_unique</code>; the next</p>
-<p>	  measured target is optimizer throughput for those x64-heavy function</p>
-<p>	  definitions.</p>
+<p>	  through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and reach x64</p>
+<p>	  native emit. With direct string globals disabled, <code>top_globals.user_slots</code></p>
+<p>	  finishes in under a second; the next measured target is post-<code>__top_level__</code></p>
+<p>	  x64 user-function codegen throughput.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

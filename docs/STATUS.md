@@ -82,13 +82,14 @@ Facts from the 2026-05-28 implementation pass:
 	  rebuilding the runtime object or walking the legacy globals map in the hot apply
 	  path. x64 function/body phase markers now show synthesized `__top_level__`
 	  global initializer emission precisely. Integer constants (including signed
-	  prefix literals and namespace aliases), string literals/string aliases, and
-	  nil/bool singleton globals are now materialized directly in `.data`. Unified
-	  self-host traces showed direct string relocation costs about 89s in
-	  `x64.codegen.top_globals.user_slots` but reduces the normal `__top_level__`
-	  body from roughly 165s to about 66s; singleton data pointers reduced it from
-	  58 to 33 statements and about 50s, and scalar/alias constants then reduced it
-	  to 8 statements. Zero-result lambda collection now uses a compile-time
+	  prefix literals and namespace aliases) plus nil/bool singleton globals are
+	  now materialized directly in `.data`; string global `.data` relocation is
+	  explicit opt-in via `OREN_X64_GLOBAL_STRINGS_IN_DATA=1` because capped
+	  self-host probes showed it still dominates `x64.codegen.top_globals.user_slots`.
+	  Default string literal global assignments instead use a non-dedup byte-native
+	  cstr append path inside synthesized `__top_level__`, with a focused x64
+	  top-level string-global fixture in the compile-only gate. Zero-result lambda
+	  collection now uses a compile-time
 	  preflight and skips the full statement walk when there are no local
 	  function/lambda candidates. Empty map/list globals remain in
 	  `__top_level__` because static mutable container headers need an explicit
@@ -103,12 +104,10 @@ Facts from the 2026-05-28 implementation pass:
 	  probe still drops `link.parse_modules` from about 17.8s to about 0.42s with
 	  `cache_hit=1` on both imported std modules when serial prewarm is explicitly
 	  enabled. Capped full x64 self-host traces now complete module parsing
-	  through `lib/compiler/compiler.oren` and reach `link.abi_layout.done` at
-	  about 160s. Optimizer phase logs include bounded `optimizer.progress`
-	  entries, and a 180s probe reached statement index 1460 of 3065, inside
-	  x64 native emitter functions such as `_x64_symtab_push_unique`; the next
-	  measured target is optimizer throughput for those x64-heavy function
-	  definitions.
+	  through `lib/compiler/compiler.oren`, finish the optimizer, and reach x64
+	  native emit. With direct string globals disabled, `top_globals.user_slots`
+	  finishes in under a second; the next measured target is post-`__top_level__`
+	  x64 user-function codegen throughput.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

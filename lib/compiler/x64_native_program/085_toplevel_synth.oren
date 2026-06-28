@@ -64,9 +64,16 @@ fn _x64_direct_data_string_init(ctx, expr) {
     }
     if s == nil { s = "" }
     if oren_is_string(s) != true { return nil }
-    var off = _data_add_cstr0(ctx, s)
+    var off = _data_add_cstr0_nodedup(ctx, s)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     return off
+}
+
+fn _x64_direct_data_string_globals_enabled() {
+    var v = oren_env("OREN_X64_GLOBAL_STRINGS_IN_DATA")
+    if v == nil || v == "" { return false }
+    if x64_env_str_eq(v, "0") || x64_env_str_eq(v, "false") { return false }
+    return true
 }
 
 fn _x64_direct_data_singleton_init(ctx, expr) {
@@ -187,10 +194,12 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
     }
 
-    // Allocate user global slots. Literal integer/string/singleton globals can be
-    // materialized directly in `.data`; this keeps synthesized __top_level__ small and
-    // avoids slow per-assignment x64 runtime-store emission during unified self-host builds.
+    // Allocate user global slots. Literal integer/singleton/alias globals can be
+    // materialized directly in `.data`. Direct string globals stay opt-in because measured
+    // self-host probes show slot-time string data relocation is slower than emitting the
+    // synthesized `__top_level__` assignments through the dedicated string fast path.
     ctx["global_init_in_data"] = {}
+    var direct_string_globals = _x64_direct_data_string_globals_enabled()
     var user_global_seen = {}
     i = 0
     while i < oren_list_len(user_vars) {
@@ -234,7 +243,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 fact_const2 = init_int2
                 ctx["global_init_in_data"][nm2] = true
             }
-            if have_off2 != true {
+            if have_off2 != true && direct_string_globals == true {
                 var init_str2 = _x64_direct_data_string_init(ctx, st2["value"])
                 if oren_type_tag(init_str2) != 0 {
                     off2 = _data_add_u64(ctx, 0)
@@ -284,10 +293,13 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         i = i + 1
     }
     if phase_log != nil {
+        var direct_string_globals_label = "false"
+        if direct_string_globals == true { direct_string_globals_label = "true" }
         _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.user_slots.done",
             "user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
             " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
-            " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+            " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])) +
+            " direct_string_globals=" + direct_string_globals_label)
     }
 
     _x64_trace_global_slots(ctx, "after_prepare_globals")

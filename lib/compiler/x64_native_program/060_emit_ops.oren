@@ -236,6 +236,35 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["locals_int_const"] != nil {
                 ctx["locals_int_const"][op["name"]] = _x64_expr_int_const(ctx, op["expr"])
             }
+            if op["__oren_top_level_global_init"] == true &&
+               oren_type_tag(off2) == 0 &&
+               op["expr"] != nil &&
+               op["expr"]["type"] == "String" {
+                var name_fast = op["name"]
+                var goff_enc_fast = nil
+                if ctx["globals"] != nil { goff_enc_fast = ctx["globals"][name_fast] }
+                if oren_type_tag(goff_enc_fast) == 0 { err(ctx, "x64 native v0: assign unknown var " + name_fast); return nil }
+                var s_fast = op["expr"]["value"]
+                if s_fast == nil || oren_is_string(s_fast) != true {
+                    var tok_fast = op["expr"]["token"]
+                    if tok_fast != nil && tok_fast["literal"] != nil && oren_is_string(tok_fast["literal"]) == true {
+                        s_fast = tok_fast["literal"]
+                    }
+                }
+                if s_fast == nil { s_fast = "" }
+                var cstr_off_fast = _data_add_cstr0_nodedup(ctx, s_fast)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                var lea_lit_fast = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_lit_fast + 3, "data_off": cstr_off_fast})
+                var goff_fast = goff_enc_fast - 1
+                var lea_slot_fast = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_fast + 3, "data_off": goff_fast})
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+                j = j + 1
+                continue
+            }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 

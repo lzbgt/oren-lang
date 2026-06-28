@@ -1,0 +1,21 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates top-level string globals compile through the synthesized __top_level__ path
+// - validates the resulting string pointers are byte-addressable and NUL-terminated
+//
+// Run on real x86_64 hosts via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_top_level_string_globals_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_top_level_string_globals_main.oren
+
+var GLOBAL_HELLO = "hello"
+var GLOBAL_ALIAS = "world"
+
+fn main() {
+    if ptr_get_byte(GLOBAL_HELLO) != 104 { return 1 }          // 'h'
+    if ptr_get_byte(iadd(GLOBAL_HELLO, 4)) != 111 { return 2 } // 'o'
+    if ptr_get_byte(iadd(GLOBAL_HELLO, 5)) != 0 { return 3 }
+
+    if ptr_get_byte(GLOBAL_ALIAS) != 119 { return 4 }          // 'w'
+    if ptr_get_byte(iadd(GLOBAL_ALIAS, 4)) != 100 { return 5 } // 'd'
+    if ptr_get_byte(iadd(GLOBAL_ALIAS, 5)) != 0 { return 6 }
+    return 0
+}

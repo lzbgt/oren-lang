@@ -82,15 +82,16 @@ This file is the concise task view. Detailed implementation status lives in
 				     sidecars and lazily derive them from legacy metadata once, so direct
 				     unified `oren.oren` x64 self-host builds can adopt root lists without
 				     rebuilding the runtime object or walking the legacy globals map in the
-					     hot apply path. x64 function/body phase markers now narrow synthesized
-					     `__top_level__` global initializer emission precisely. Integer constants
-					     (including signed prefix literals and namespace aliases), string
-					     literals/string aliases, and nil/bool singleton globals are materialized
-					     directly in `.data`. Unified self-host traces showed direct string
-					     relocation costs about 89s in `x64.codegen.top_globals.user_slots` but
-					     reduces normal `__top_level__` body emission from roughly 165s to about
-					     66s; singleton data pointers reduced it from 58 to 33 statements and
-						     about 50s, and scalar/alias constants then reduced it to 8 statements.
+				     hot apply path. x64 function/body phase markers now narrow synthesized
+				     `__top_level__` global initializer emission precisely. Integer constants
+				     (including signed prefix literals and namespace aliases) plus nil/bool
+				     singleton globals are materialized directly in `.data`; string global
+				     `.data` relocation is explicit opt-in via `OREN_X64_GLOBAL_STRINGS_IN_DATA=1`
+				     because capped self-host probes still show it dominating
+				     `x64.codegen.top_globals.user_slots`. Default string literal global
+				     assignments instead use a non-dedup byte-native cstr append path inside
+				     synthesized `__top_level__`, guarded by a focused x64 top-level
+				     string-global compile fixture.
 							     Zero-result lambda collection now skips the full statement walk when no
 							     local function/lambda candidates were found. Empty map/list globals stay
 							     in `__top_level__` until static mutable container headers have an explicit
@@ -105,12 +106,10 @@ This file is the concise task view. Detailed implementation status lives in
 								     probe still reduces `link.parse_modules` from about 17.8s to about 0.42s
 								     with `cache_hit=1` on both imported std modules when serial prewarm is
 								     explicitly enabled. Capped full x64 self-host traces now complete module
-								     parsing through `lib/compiler/compiler.oren` and reach
-								     `link.abi_layout.done` at about 160s. Optimizer phase logs now include
-								     bounded `optimizer.progress` entries, and a 180s probe reached statement
-								     index 1460 of 3065 inside x64 native emitter functions such as
-								     `_x64_symtab_push_unique`; the next concrete throughput target is optimizer
-								     throughput for those x64-heavy function definitions.
+								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
+								     reach x64 native emit. With direct string globals disabled,
+								     `top_globals.user_slots` finishes in under a second; the next concrete
+								     throughput target is post-`__top_level__` x64 user-function codegen.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

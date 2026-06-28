@@ -138,15 +138,16 @@
 <p>				     sidecars and lazily derive them from legacy metadata once, so direct</p>
 <p>				     unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
 <p>				     rebuilding the runtime object or walking the legacy globals map in the</p>
-<p>					     hot apply path. x64 function/body phase markers now narrow synthesized</p>
-<p>					     <code>__top_level__</code> global initializer emission precisely. Integer constants</p>
-<p>					     (including signed prefix literals and namespace aliases), string</p>
-<p>					     literals/string aliases, and nil/bool singleton globals are materialized</p>
-<p>					     directly in <code>.data</code>. Unified self-host traces showed direct string</p>
-<p>					     relocation costs about 89s in <code>x64.codegen.top_globals.user_slots</code> but</p>
-<p>					     reduces normal <code>__top_level__</code> body emission from roughly 165s to about</p>
-<p>					     66s; singleton data pointers reduced it from 58 to 33 statements and</p>
-<p>						     about 50s, and scalar/alias constants then reduced it to 8 statements.</p>
+<p>				     hot apply path. x64 function/body phase markers now narrow synthesized</p>
+<p>				     <code>__top_level__</code> global initializer emission precisely. Integer constants</p>
+<p>				     (including signed prefix literals and namespace aliases) plus nil/bool</p>
+<p>				     singleton globals are materialized directly in <code>.data</code>; string global</p>
+<p>				     <code>.data</code> relocation is explicit opt-in via <code>OREN_X64_GLOBAL_STRINGS_IN_DATA=1</code></p>
+<p>				     because capped self-host probes still show it dominating</p>
+<p>				     <code>x64.codegen.top_globals.user_slots</code>. Default string literal global</p>
+<p>				     assignments instead use a non-dedup byte-native cstr append path inside</p>
+<p>				     synthesized <code>__top_level__</code>, guarded by a focused x64 top-level</p>
+<p>				     string-global compile fixture.</p>
 <p>							     Zero-result lambda collection now skips the full statement walk when no</p>
 <p>							     local function/lambda candidates were found. Empty map/list globals stay</p>
 <p>							     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
@@ -161,12 +162,10 @@
 <p>								     probe still reduces <code>link.parse_modules</code> from about 17.8s to about 0.42s</p>
 <p>								     with <code>cache_hit=1</code> on both imported std modules when serial prewarm is</p>
 <p>								     explicitly enabled. Capped full x64 self-host traces now complete module</p>
-<p>								     parsing through <code>lib/compiler/compiler.oren</code> and reach</p>
-<p>								     <code>link.abi_layout.done</code> at about 160s. Optimizer phase logs now include</p>
-<p>								     bounded <code>optimizer.progress</code> entries, and a 180s probe reached statement</p>
-<p>								     index 1460 of 3065 inside x64 native emitter functions such as</p>
-<p>								     <code>_x64_symtab_push_unique</code>; the next concrete throughput target is optimizer</p>
-<p>								     throughput for those x64-heavy function definitions.</p>
+<p>								     parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and</p>
+<p>								     reach x64 native emit. With direct string globals disabled,</p>
+<p>								     <code>top_globals.user_slots</code> finishes in under a second; the next concrete</p>
+<p>								     throughput target is post-<code>__top_level__</code> x64 user-function codegen.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
