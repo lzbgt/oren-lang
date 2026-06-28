@@ -78,12 +78,14 @@ This file is the concise task view. Detailed implementation status lives in
 			     global-root name/offset/runtime lists in compiler ctx and new
 			     runtime-object metadata, then emits entry root registration through
 			     one offset-table loop instead of one `lea+call` sequence per root.
-			     A direct unified `oren.oren` x64 self-host native compile with the
-			     existing legacy cache now reaches `x64.rtobj.apply_data.rootmeta.done`
-			     and remains CPU-active in the legacy globals-map fallback; the next
-			     concrete throughput target is a sidecar/migration path for x64
-			     runtime-object root/global metadata that avoids runtime-object rebuild
-			     and avoids legacy globals-map walking in hot builds.
+			     Cached x64 runtime-object entries now persist root/global metadata
+			     sidecars and lazily derive them from legacy metadata once, so direct
+			     unified `oren.oren` x64 self-host builds can adopt root lists without
+			     rebuilding the runtime object or walking the legacy globals map in the
+			     hot apply path. The next concrete throughput target is finer
+			     post-`x64.codegen.rtobj_code.done` instrumentation/optimization: the
+			     unified compile now clears cached rtobj data application, then spends
+			     minutes later in x64 user-code/fixup emission without a narrower marker.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

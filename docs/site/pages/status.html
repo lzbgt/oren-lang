@@ -116,12 +116,14 @@
 <p>	  binary assembly rather than runtime-object replay. x64 now tracks global root</p>
 <p>	  names/offsets/runtime flags in ctx and new runtime-object metadata, then emits</p>
 <p>	  entry root registration through one byte-native offset table loop instead of</p>
-<p>	  one <code>lea+call</code> sequence per global. A direct unified <code>oren.oren</code> x64 self-host</p>
-<p>	  native compile with the existing legacy cache now reaches cached runtime-object</p>
-<p>	  data apply and stays CPU-active in the legacy globals-map fallback after</p>
-<p>	  <code>x64.rtobj.apply_data.rootmeta.done</code>; the next measured self-host task is a</p>
-<p>	  sidecar/migration path for x64 runtime-object root/global metadata that avoids</p>
-<p>	  rebuilding the runtime object or walking the legacy globals map in hot builds.</p>
+<p>	  one <code>lea+call</code> sequence per global. Cached x64 runtime-object entries now also</p>
+<p>	  persist root/global metadata sidecars and lazily derive them from legacy metadata</p>
+<p>	  once, so hot unified <code>oren.oren</code> x64 self-host builds can adopt root lists without</p>
+<p>	  rebuilding the runtime object or walking the legacy globals map in the hot apply</p>
+<p>	  path. The next measured self-host task is finer post-<code>x64.codegen.rtobj_code.done</code></p>
+<p>	  instrumentation/optimization; the unified compile now clears cached rtobj data</p>
+<p>	  application and then spends minutes later in x64 user-code/fixup emission without</p>
+<p>	  a narrower phase marker.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

@@ -813,6 +813,7 @@ fn rtobj_paths(cache_dir, key) {
             "fix_x64_fnobj_target": dir + "/fix_x64_fnobj_target.u8",
             "fix_x64_code_lea_pos": dir + "/fix_x64_code_lea_pos.u8",
             "fix_x64_code_lea_target": dir + "/fix_x64_code_lea_target.u8",
+            "rootmeta": dir + "/rootmeta.astbin",
             "cstr0_offsets": dir + "/cstr0_offsets.u8",
         "debug_blob": dir + "/debug_blob.u8",
         "debug_patch_pos": dir + "/debug_patch_pos.u8",
@@ -839,6 +840,107 @@ fn rtobj_store_fixups_compact_sidecar(cache_dir, key, fixups_compact) {
     var bs = astbin.astbin_encode(fixups_compact)
     if bs == nil { return nil }
     _rtobj_write_atomic(paths["fixups_compact"], bs)
+    return nil
+}
+
+fn _rtobj_rootmeta_valid(rootmeta) {
+    if rootmeta == nil { return false }
+    var names = rootmeta["global_root_names"]
+    var offsets = rootmeta["global_root_offsets"]
+    var is_runtime = rootmeta["global_root_is_runtime"]
+    if names == nil || offsets == nil || is_runtime == nil { return false }
+    var n = oren_list_len(names)
+    if oren_list_len(offsets) != n { return false }
+    if oren_list_len(is_runtime) != n { return false }
+    return true
+}
+
+fn _rtobj_rootmeta_from_meta_fields(meta) {
+    if meta == nil { return nil }
+    var rootmeta = {
+        "global_root_names": meta["global_root_names"],
+        "global_root_offsets": meta["global_root_offsets"],
+        "global_root_is_runtime": meta["global_root_is_runtime"]
+    }
+    if _rtobj_rootmeta_valid(rootmeta) != true { return nil }
+    return rootmeta
+}
+
+fn _rtobj_build_rootmeta_from_globals(globals) {
+    // Legacy x64 rtobj cache entries predate explicit root lists. Derive a compact
+    // sidecar once, then future loads can adopt globals/root lists without walking
+    // the globals map in the hot apply path.
+    if globals == nil { return nil }
+    var names = []
+    var offsets = []
+    var is_runtime = []
+    var idx = 0
+    var pair = [nil, nil]
+    while 1 {
+        var ok = oren_iter_next_entry(globals, idx, pair)
+        if ok == 0 { break }
+        var name = pair[0]
+        var off_enc = pair[1]
+        if name != nil && oren_type_tag(off_enc) == 1 {
+            oren_list_push(names, name)
+            oren_list_push(offsets, off_enc - 1)
+            if name == "g_storage" { oren_list_push(is_runtime, false) }
+            else { oren_list_push(is_runtime, true) }
+        }
+        idx = idx + 1
+    }
+    return {
+        "global_root_names": names,
+        "global_root_offsets": offsets,
+        "global_root_is_runtime": is_runtime
+    }
+}
+
+fn rtobj_load_rootmeta_sidecar(cache_dir, key) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    var bs = oren_read_u8_buf(paths["rootmeta"])
+    if oren_is_err(bs) { return nil }
+    var rootmeta = astbin.astbin_decode(bs)
+    if _rtobj_rootmeta_valid(rootmeta) != true { return nil }
+    return rootmeta
+}
+
+fn rtobj_store_rootmeta_sidecar(cache_dir, key, rootmeta) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    if _rtobj_rootmeta_valid(rootmeta) != true { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    _ensure_dir(paths["dir"])
+    var bs = astbin.astbin_encode(rootmeta)
+    if bs == nil { return nil }
+    _rtobj_write_atomic(paths["rootmeta"], bs)
+    return nil
+}
+
+fn _rtobj_attach_rootmeta_from_sidecar_or_meta(cache_dir, key, meta, build_from_legacy) {
+    if meta == nil { return nil }
+    var rootmeta = rtobj_load_rootmeta_sidecar(cache_dir, key)
+    if rootmeta != nil {
+        meta["global_root_names"] = rootmeta["global_root_names"]
+        meta["global_root_offsets"] = rootmeta["global_root_offsets"]
+        meta["global_root_is_runtime"] = rootmeta["global_root_is_runtime"]
+        return rootmeta
+    }
+    rootmeta = _rtobj_rootmeta_from_meta_fields(meta)
+    if rootmeta != nil {
+        rtobj_store_rootmeta_sidecar(cache_dir, key, rootmeta)
+        return rootmeta
+    }
+    if build_from_legacy == true {
+        rootmeta = _rtobj_build_rootmeta_from_globals(meta["globals"])
+        if rootmeta != nil {
+            rtobj_store_rootmeta_sidecar(cache_dir, key, rootmeta)
+            meta["global_root_names"] = rootmeta["global_root_names"]
+            meta["global_root_offsets"] = rootmeta["global_root_offsets"]
+            meta["global_root_is_runtime"] = rootmeta["global_root_is_runtime"]
+            return rootmeta
+        }
+    }
     return nil
 }
 
@@ -1418,6 +1520,10 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
             }
     }
     if fixups_compact_u8 != nil { meta["fixups_compact_u8"] = fixups_compact_u8 }
+    var rootmeta_seed = _rtobj_attach_rootmeta_from_sidecar_or_meta(seed_dir, key, meta, true)
+    if trace && rootmeta_seed != nil {
+        print("[rtobj] seed rootmeta ready roots=" + oren_int_to_string(oren_list_len(rootmeta_seed["global_root_offsets"])))
+    }
     var cstr0_offsets_u8 = rtobj_load_cstr0_offsets_sidecar(seed_dir, key)
     if cstr0_offsets_u8 == nil && meta["cstr0_list_enc"] != nil {
         cstr0_offsets_u8 = _rtobj_build_cstr0_offsets_u8_from_enc(meta["cstr0_list_enc"])
@@ -1459,6 +1565,7 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
         _rtobj_write_atomic(dst["code"], code)
         _rtobj_write_atomic(dst["data_tail"], data_tail)
         if fixups_compact_u8 != nil { rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8) }
+        if rootmeta_seed != nil { rtobj_store_rootmeta_sidecar(cache_dir, key, rootmeta_seed) }
         if cstr0_offsets_u8 != nil { _rtobj_write_atomic(dst["cstr0_offsets"], cstr0_offsets_u8) }
         if debug_blob_u8 != nil && debug_patch_pos_u8 != nil {
             rtobj_store_debug_sidecars(cache_dir, key, debug_blob_u8, debug_patch_pos_u8, debug_start_u8, debug_end_u8)
@@ -1563,6 +1670,10 @@ fn rtobj_load(cache_dir, key) {
         if trace { print("[rtobj] load fixups_compact_u8 sidecars hit") }
     }
     if fixups_compact_u8 != nil { meta["fixups_compact_u8"] = fixups_compact_u8 }
+    var rootmeta_load = _rtobj_attach_rootmeta_from_sidecar_or_meta(cache_dir, key, meta, true)
+    if trace && rootmeta_load != nil {
+        print("[rtobj] load rootmeta sidecar ready roots=" + oren_int_to_string(oren_list_len(rootmeta_load["global_root_offsets"])))
+    }
     var cstr0_offsets_u8 = rtobj_load_cstr0_offsets_sidecar(cache_dir, key)
     if cstr0_offsets_u8 == nil && meta["cstr0_list_enc"] != nil {
         cstr0_offsets_u8 = _rtobj_build_cstr0_offsets_u8_from_enc(meta["cstr0_list_enc"])
@@ -1650,6 +1761,8 @@ fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8, cstr0_offsets_u8) {
                 rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, x64_fixups_compact_u8_store)
             }
         }
+    var rootmeta_store = _rtobj_rootmeta_from_meta_fields(meta)
+    if rootmeta_store != nil { rtobj_store_rootmeta_sidecar(cache_dir, key, rootmeta_store) }
     if cstr0_offsets_u8 != nil {
         rtobj_store_cstr0_offsets_sidecar(cache_dir, key, cstr0_offsets_u8)
     }
