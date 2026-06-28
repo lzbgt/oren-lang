@@ -128,8 +128,12 @@
 <p>	  self-host probes showed it still dominates <code>x64.codegen.top_globals.user_slots</code>.</p>
 <p>	  Default string literal global assignments instead use a non-dedup byte-native</p>
 <p>	  cstr append path inside synthesized <code>__top_level__</code>. Phase summaries count</p>
-<p>	  top-level string fast-path candidates/hits, and a focused x64</p>
-<p>	  top-level string-global fixture stays in the compile-only gate. Zero-result lambda</p>
+<p>	  top-level string fast-path candidates/hits plus direct global-slot path</p>
+<p>	  counts. Setting <code>OREN_TRACE_X64_TOP_GLOBAL_SLOT_SLOW_MS</code> records bounded</p>
+<p>	  per-slot slow entries for opt-in <code>.data</code> relocation probes, and a focused x64</p>
+<p>	  top-level string-global fixture stays in the compile-only gate. The no-dedup</p>
+<p>	  cstr append path now writes string bytes directly into the data builder instead</p>
+<p>	  of allocating a temporary byte buffer. Zero-result lambda</p>
 <p>	  collection now uses a compile-time</p>
 <p>	  preflight and skips the full statement walk when there are no local</p>
 <p>	  function/lambda candidates. Empty map/list globals remain in</p>
@@ -144,7 +148,11 @@
 <p>	  build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm</p>
 <p>	  probe still drops <code>link.parse_modules</code> from about 17.8s to about 0.42s with</p>
 <p>	  <code>cache_hit=1</code> on both imported std modules when serial prewarm is explicitly</p>
-<p>	  enabled. Capped full x64 self-host traces now complete module parsing</p>
+<p>	  enabled. Synthetic string-global probes show opt-in direct string slots can</p>
+<p>	  remove <code>__top_level__</code> assignment work on small programs. Compiler-shaped</p>
+<p>	  self-host probes still show a per-slot direct string <code>.data</code> cliff, now isolated</p>
+<p>	  to the direct data path rather than the synthesized assignment body, so direct</p>
+<p>	  string globals remain opt-in. Capped full x64 self-host traces now complete module parsing</p>
 <p>	  through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and reach x64</p>
 <p>	  native emit. With direct string globals disabled, <code>top_globals.user_slots</code></p>
 <p>	  finishes in under a second; the next measured target is post-<code>__top_level__</code></p>

@@ -147,8 +147,12 @@
 <p>					     <code>x64.codegen.top_globals.user_slots</code>. Default string literal global</p>
 <p>					     assignments instead use a non-dedup byte-native cstr append path inside</p>
 <p>					     synthesized <code>__top_level__</code>. Phase summaries count top-level string</p>
-<p>					     fast-path candidates/hits, guarded by a focused x64 top-level</p>
-<p>					     string-global compile fixture.</p>
+<p>					     fast-path candidates/hits plus direct global-slot path counts, and</p>
+<p>					     <code>OREN_TRACE_X64_TOP_GLOBAL_SLOT_SLOW_MS</code> enables bounded per-slot</p>
+<p>					     slow records for opt-in <code>.data</code> relocation probes. The no-dedup</p>
+<p>					     cstr append path now extends the data builder directly from strings</p>
+<p>					     instead of allocating temporary byte buffers. A focused x64</p>
+<p>					     top-level string-global compile fixture guards the fast path.</p>
 <p>							     Zero-result lambda collection now skips the full statement walk when no</p>
 <p>							     local function/lambda candidates were found. Empty map/list globals stay</p>
 <p>							     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
@@ -165,8 +169,12 @@
 <p>								     explicitly enabled. Capped full x64 self-host traces now complete module</p>
 <p>								     parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and</p>
 <p>								     reach x64 native emit. With direct string globals disabled,</p>
-<p>								     <code>top_globals.user_slots</code> finishes in under a second; the next concrete</p>
-<p>								     throughput target is post-<code>__top_level__</code> x64 user-function codegen.</p>
+<p>								     <code>top_globals.user_slots</code> finishes in under a second; opt-in direct-string</p>
+<p>								     probes now have direct string appends and slot counters, but compiler-shaped</p>
+<p>								     traces still show a per-slot direct data-path cliff. The next concrete</p>
+<p>								     throughput target remains post-<code>__top_level__</code> x64 user-function codegen</p>
+<p>								     with direct string globals disabled, plus deeper direct-data tracing before</p>
+<p>								     changing that default.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

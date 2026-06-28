@@ -108,9 +108,7 @@ fn _data_add_cstr0_nodedup(ctx, s) {
         s = oren_string_slice(s, 0, 1048576)
         n0 = 1048576
     }
-    var sb0 = oren_bytes_from_string(s)
-    if oren_is_err(sb0) { err(ctx, "x64 native v0: string-to-bytes failed for cstr0 global"); return off }
-    bytes_extend_u8_buf(ctx["data"], sb0)
+    bytes_extend_string(ctx["data"], s)
     bytes_push(ctx["data"], 0)
     oren_list_push(ctx["cstr0_list"], off)
     return off

@@ -91,8 +91,12 @@ This file is the concise task view. Detailed implementation status lives in
 					     `x64.codegen.top_globals.user_slots`. Default string literal global
 					     assignments instead use a non-dedup byte-native cstr append path inside
 					     synthesized `__top_level__`. Phase summaries count top-level string
-					     fast-path candidates/hits, guarded by a focused x64 top-level
-					     string-global compile fixture.
+					     fast-path candidates/hits plus direct global-slot path counts, and
+					     `OREN_TRACE_X64_TOP_GLOBAL_SLOT_SLOW_MS` enables bounded per-slot
+					     slow records for opt-in `.data` relocation probes. The no-dedup
+					     cstr append path now extends the data builder directly from strings
+					     instead of allocating temporary byte buffers. A focused x64
+					     top-level string-global compile fixture guards the fast path.
 							     Zero-result lambda collection now skips the full statement walk when no
 							     local function/lambda candidates were found. Empty map/list globals stay
 							     in `__top_level__` until static mutable container headers have an explicit
@@ -109,8 +113,12 @@ This file is the concise task view. Detailed implementation status lives in
 								     explicitly enabled. Capped full x64 self-host traces now complete module
 								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
 								     reach x64 native emit. With direct string globals disabled,
-								     `top_globals.user_slots` finishes in under a second; the next concrete
-								     throughput target is post-`__top_level__` x64 user-function codegen.
+								     `top_globals.user_slots` finishes in under a second; opt-in direct-string
+								     probes now have direct string appends and slot counters, but compiler-shaped
+								     traces still show a per-slot direct data-path cliff. The next concrete
+								     throughput target remains post-`__top_level__` x64 user-function codegen
+								     with direct string globals disabled, plus deeper direct-data tracing before
+								     changing that default.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

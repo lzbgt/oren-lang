@@ -88,8 +88,12 @@ Facts from the 2026-05-28 implementation pass:
 	  self-host probes showed it still dominates `x64.codegen.top_globals.user_slots`.
 	  Default string literal global assignments instead use a non-dedup byte-native
 	  cstr append path inside synthesized `__top_level__`. Phase summaries count
-	  top-level string fast-path candidates/hits, and a focused x64
-	  top-level string-global fixture stays in the compile-only gate. Zero-result lambda
+	  top-level string fast-path candidates/hits plus direct global-slot path
+	  counts. Setting `OREN_TRACE_X64_TOP_GLOBAL_SLOT_SLOW_MS` records bounded
+	  per-slot slow entries for opt-in `.data` relocation probes, and a focused x64
+	  top-level string-global fixture stays in the compile-only gate. The no-dedup
+	  cstr append path now writes string bytes directly into the data builder instead
+	  of allocating a temporary byte buffer. Zero-result lambda
 	  collection now uses a compile-time
 	  preflight and skips the full statement walk when there are no local
 	  function/lambda candidates. Empty map/list globals remain in
@@ -104,7 +108,11 @@ Facts from the 2026-05-28 implementation pass:
 	  build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm
 	  probe still drops `link.parse_modules` from about 17.8s to about 0.42s with
 	  `cache_hit=1` on both imported std modules when serial prewarm is explicitly
-	  enabled. Capped full x64 self-host traces now complete module parsing
+	  enabled. Synthetic string-global probes show opt-in direct string slots can
+	  remove `__top_level__` assignment work on small programs. Compiler-shaped
+	  self-host probes still show a per-slot direct string `.data` cliff, now isolated
+	  to the direct data path rather than the synthesized assignment body, so direct
+	  string globals remain opt-in. Capped full x64 self-host traces now complete module parsing
 	  through `lib/compiler/compiler.oren`, finish the optimizer, and reach x64
 	  native emit. With direct string globals disabled, `top_globals.user_slots`
 	  finishes in under a second; the next measured target is post-`__top_level__`

@@ -201,10 +201,22 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     ctx["global_init_in_data"] = {}
     var direct_string_globals = _x64_direct_data_string_globals_enabled()
     var user_global_seen = {}
+    var slot_direct_int = 0
+    var slot_direct_string = 0
+    var slot_direct_singleton = 0
+    var slot_direct_alias = 0
+    var slot_zero_runtime = 0
+    var slot_slow_ms = 0
+    var v_slot_slow = oren_env("OREN_TRACE_X64_TOP_GLOBAL_SLOT_SLOW_MS")
+    if v_slot_slow != nil && v_slot_slow != "" {
+        slot_slow_ms = core.parse_int_decimal(v_slot_slow, slot_slow_ms)
+    }
     i = 0
     while i < oren_list_len(user_vars) {
         var st2 = user_vars[i]
         if st2 != nil {
+            var slot_start_ns = 0
+            if phase_log != nil && slot_slow_ms > 0 { slot_start_ns = oren_time_now_ns() }
             if phase_log != nil && core.int_mod(i, 50) == 0 {
                 var value_ty2 = "nil"
                 if st2["value"] != nil && st2["value"]["type"] != nil { value_ty2 = st2["value"]["type"] }
@@ -242,6 +254,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 fact_inty2 = true
                 fact_const2 = init_int2
                 ctx["global_init_in_data"][nm2] = true
+                slot_direct_int = slot_direct_int + 1
             }
             if have_off2 != true && direct_string_globals == true {
                 var init_str2 = _x64_direct_data_string_init(ctx, st2["value"])
@@ -251,6 +264,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_str2})
                     fact_data_const2 = init_str2
                     ctx["global_init_in_data"][nm2] = true
+                    slot_direct_string = slot_direct_string + 1
                 }
             }
             if have_off2 != true {
@@ -261,6 +275,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_singleton2})
                     fact_data_const2 = init_singleton2
                     ctx["global_init_in_data"][nm2] = true
+                    slot_direct_singleton = slot_direct_singleton + 1
                 }
             }
             if have_off2 != true {
@@ -271,9 +286,13 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_ptr2})
                     fact_data_const2 = init_ptr2
                     ctx["global_init_in_data"][nm2] = true
+                    slot_direct_alias = slot_direct_alias + 1
                 }
             }
-            if have_off2 != true { off2 = _data_add_u64(ctx, 0) }
+            if have_off2 != true {
+                off2 = _data_add_u64(ctx, 0)
+                slot_zero_runtime = slot_zero_runtime + 1
+            }
             if have_off2 != true {
                 fact_floaty2 = _x64_expr_is_floaty(ctx, st2["value"])
                 fact_inty2 = _x64_expr_is_inty(ctx, st2["value"])
@@ -289,6 +308,24 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             if ctx["globals_inty"] != nil { ctx["globals_inty"][nm2] = fact_inty2 }
             if ctx["globals_int_const"] != nil { ctx["globals_int_const"][nm2] = fact_const2 }
             if ctx["globals_data_const"] != nil && oren_type_tag(fact_data_const2) != 0 { ctx["globals_data_const"][nm2] = fact_data_const2 + 1 }
+            if phase_log != nil && slot_slow_ms > 0 {
+                var slot_elapsed_ms = (oren_time_now_ns() - slot_start_ns) / 1000000
+                if slot_elapsed_ms >= slot_slow_ms {
+                    var slow_ty = "nil"
+                    if st2["value"] != nil && st2["value"]["type"] != nil { slow_ty = st2["value"]["type"] }
+                    var slow_loc = ""
+                    var slow_tok = st2["token"]
+                    if slow_tok != nil && slow_tok["file"] != nil && slow_tok["line"] != nil {
+                        slow_loc = " file=" + slow_tok["file"] + " line=" + oren_int_to_string(slow_tok["line"])
+                    }
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.user_slot.slow",
+                        "i=" + oren_int_to_string(i) +
+                        " ms=" + oren_int_to_string(slot_elapsed_ms) +
+                        " name=" + nm2 +
+                        " value=" + slow_ty +
+                        slow_loc)
+                }
+            }
         }
         i = i + 1
     }
@@ -299,7 +336,12 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             "user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
             " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
             " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])) +
-            " direct_string_globals=" + direct_string_globals_label)
+            " direct_string_globals=" + direct_string_globals_label +
+            " direct_int=" + oren_int_to_string(slot_direct_int) +
+            " direct_string=" + oren_int_to_string(slot_direct_string) +
+            " direct_singleton=" + oren_int_to_string(slot_direct_singleton) +
+            " direct_alias=" + oren_int_to_string(slot_direct_alias) +
+            " runtime_zero=" + oren_int_to_string(slot_zero_runtime))
     }
 
     _x64_trace_global_slots(ctx, "after_prepare_globals")
