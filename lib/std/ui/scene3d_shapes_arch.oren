@@ -157,6 +157,69 @@ fn _fence_z(fence, primary, fallback, default_value, label, ctx) {
     return z
 }
 
+fn _fence_rails(fence) {
+    return fence["rails"]
+}
+
+fn _fence_rail_count(fence, ctx) {
+    var rails = _fence_rails(fence)
+    if rails == nil { return 1 }
+    var count = oren_list_len(rails)
+    if oren_is_err(count) || count < 1 || count > 8 {
+        return oren_err(4, ctx + ": fence rails must contain 1..8 entries")
+    }
+    return count
+}
+
+fn _fence_rail_at(fence, index) {
+    var rails = _fence_rails(fence)
+    if rails == nil { return nil }
+    return rails[index]
+}
+
+fn _fence_rail_width(fence, rail, ctx) {
+    if rail == nil { return _fence_width(fence, "rail_width", "rail_width_milli", "rail", ctx) }
+    var width = rail["width"]
+    if width == nil { width = rail["width_milli"] }
+    if width == nil { return _fence_width(fence, "rail_width", "rail_width_milli", "rail", ctx) }
+    if shapes._is_int(width) == false || width <= 0 {
+        return oren_err(4, ctx + ": rail width must be positive i32")
+    }
+    return width
+}
+
+fn _fence_rail_z_min(fence, rail, fence_z0, ctx) {
+    if rail == nil { return _fence_z(fence, "rail_z_min", "rail_min_z", fence_z0, "rail_z_min", ctx) }
+    var z = rail["z_min"]
+    if z == nil { z = rail["min_z"] }
+    if z == nil { return _fence_z(fence, "rail_z_min", "rail_min_z", fence_z0, "rail_z_min", ctx) }
+    if shapes._is_int(z) == false { return oren_err(4, ctx + ": rail z_min must be i32") }
+    return z
+}
+
+fn _fence_rail_z_max(fence, rail, fence_z1, ctx) {
+    if rail == nil { return _fence_z(fence, "rail_z_max", "rail_max_z", fence_z1, "rail_z_max", ctx) }
+    var z = rail["z_max"]
+    if z == nil { z = rail["max_z"] }
+    if z == nil { return _fence_z(fence, "rail_z_max", "rail_max_z", fence_z1, "rail_z_max", ctx) }
+    if shapes._is_int(z) == false { return oren_err(4, ctx + ": rail z_max must be i32") }
+    return z
+}
+
+fn _validate_fence_rail(fence, rail, fence_z0, fence_z1, ctx) {
+    if _fence_rails(fence) != nil && rail == nil { return oren_err(4, ctx + ": fence rail must be object") }
+    var width = _fence_rail_width(fence, rail, ctx)
+    if oren_is_err(width) { return width }
+    var z0 = _fence_rail_z_min(fence, rail, fence_z0, ctx)
+    if oren_is_err(z0) { return z0 }
+    var z1 = _fence_rail_z_max(fence, rail, fence_z1, ctx)
+    if oren_is_err(z1) { return z1 }
+    if z1 <= z0 || z0 < fence_z0 || z1 > fence_z1 {
+        return oren_err(4, ctx + ": fence rail z range must be inside z_min..z_max")
+    }
+    return 0
+}
+
 fn _store_box(out, off, x0, y0, z0, x1, y1, z1, ctx) {
     var rc = shapes._store_triangle(out, off + 0, x0, y0, z0, x1, y0, z0, x1, y1, z0, ctx + ".bottom0")
     if oren_is_err(rc) { return rc }
@@ -206,19 +269,19 @@ fn _fences_xy_triangle_count(fences, ctx) {
         if oren_is_err(n) || n < 2 || n > 128 { return oren_err(4, ctx + ": fence points must contain 2..128 [x,y] entries") }
         var post_width = _fence_width(fence, "post_width", "post_width_milli", "post", ctx)
         if oren_is_err(post_width) { return post_width }
-        var rail_width = _fence_width(fence, "rail_width", "rail_width_milli", "rail", ctx)
-        if oren_is_err(rail_width) { return rail_width }
         var z0 = shapes._z(fence, "z_min", "min_z", ctx + ".z_min")
         if oren_is_err(z0) { return z0 }
         var z1 = shapes._z(fence, "z_max", "max_z", ctx + ".z_max")
         if oren_is_err(z1) { return z1 }
         if z1 <= z0 { return oren_err(4, ctx + ": fence z_max must be greater than z_min") }
-        var rail_z0 = _fence_z(fence, "rail_z_min", "rail_min_z", z0, "rail_z_min", ctx)
-        if oren_is_err(rail_z0) { return rail_z0 }
-        var rail_z1 = _fence_z(fence, "rail_z_max", "rail_max_z", z1, "rail_z_max", ctx)
-        if oren_is_err(rail_z1) { return rail_z1 }
-        if rail_z1 <= rail_z0 || rail_z0 < z0 || rail_z1 > z1 {
-            return oren_err(4, ctx + ": fence rail z range must be inside z_min..z_max")
+        var rail_count = _fence_rail_count(fence, ctx)
+        if oren_is_err(rail_count) { return rail_count }
+        var ri = 0
+        while ri < rail_count {
+            var rail = _fence_rail_at(fence, ri)
+            var rail_rc = _validate_fence_rail(fence, rail, z0, z1, ctx + ".rail")
+            if oren_is_err(rail_rc) { return rail_rc }
+            ri = ri + 1
         }
         var j = 0
         while j < n {
@@ -228,15 +291,21 @@ fn _fences_xy_triangle_count(fences, ctx) {
                 var p0 = points[j - 1]
                 var p1 = points[j]
                 if p0[0] == p1[0] && p0[1] == p1[1] { return oren_err(4, ctx + ": fence segment must be nonzero") }
-                var ox = shapes._line_offset(p1[0] - p0[0], p1[1] - p0[1], rail_width, 0, ctx)
-                if oren_is_err(ox) { return ox }
-                var oy = shapes._line_offset(p1[0] - p0[0], p1[1] - p0[1], rail_width, 1, ctx)
-                if oren_is_err(oy) { return oy }
-                if ox == 0 && oy == 0 { return oren_err(4, ctx + ": fence rail width rounds to zero") }
+                ri = 0
+                while ri < rail_count {
+                    var rail_width = _fence_rail_width(fence, _fence_rail_at(fence, ri), ctx)
+                    if oren_is_err(rail_width) { return rail_width }
+                    var ox = shapes._line_offset(p1[0] - p0[0], p1[1] - p0[1], rail_width, 0, ctx)
+                    if oren_is_err(ox) { return ox }
+                    var oy = shapes._line_offset(p1[0] - p0[0], p1[1] - p0[1], rail_width, 1, ctx)
+                    if oren_is_err(oy) { return oy }
+                    if ox == 0 && oy == 0 { return oren_err(4, ctx + ": fence rail width rounds to zero") }
+                    ri = ri + 1
+                }
             }
             j = j + 1
         }
-        total = total + ((n * 12) + ((n - 1) * 12))
+        total = total + ((n * 12) + ((n - 1) * 12 * rail_count))
         i = i + 1
     }
     if total > 4096 { return oren_err(4, ctx + ": fences exceed mesh3d triangle budget") }
@@ -255,20 +324,29 @@ fn pack_fences_xy(fences, ctx) {
         var fence = fences[fi]
         var points = _fence_points(fence)
         var post_width = _fence_width(fence, "post_width", "post_width_milli", "post", ctx)
-        var rail_width = _fence_width(fence, "rail_width", "rail_width_milli", "rail", ctx)
         var z0 = shapes._z(fence, "z_min", "min_z", ctx + ".z_min")
         var z1 = shapes._z(fence, "z_max", "max_z", ctx + ".z_max")
-        var rail_z0 = _fence_z(fence, "rail_z_min", "rail_min_z", z0, "rail_z_min", ctx)
-        var rail_z1 = _fence_z(fence, "rail_z_max", "rail_max_z", z1, "rail_z_max", ctx)
+        var rail_count = _fence_rail_count(fence, ctx)
         var i = 0
         while i < oren_list_len(points) {
             var rc = _store_post(out, off, points[i], post_width, z0, z1, ctx + ".post")
             if oren_is_err(rc) { return rc }
             off = off + 432
             if i > 0 {
-                rc = _store_curb_segment(out, off, points[i - 1], points[i], rail_width, rail_z0, rail_z1, ctx + ".rail")
-                if oren_is_err(rc) { return rc }
-                off = off + 432
+                var ri = 0
+                while ri < rail_count {
+                    var rail = _fence_rail_at(fence, ri)
+                    var rail_width = _fence_rail_width(fence, rail, ctx)
+                    if oren_is_err(rail_width) { return rail_width }
+                    var rail_z0 = _fence_rail_z_min(fence, rail, z0, ctx)
+                    if oren_is_err(rail_z0) { return rail_z0 }
+                    var rail_z1 = _fence_rail_z_max(fence, rail, z1, ctx)
+                    if oren_is_err(rail_z1) { return rail_z1 }
+                    rc = _store_curb_segment(out, off, points[i - 1], points[i], rail_width, rail_z0, rail_z1, ctx + ".rail")
+                    if oren_is_err(rc) { return rc }
+                    off = off + 432
+                    ri = ri + 1
+                }
             }
             i = i + 1
         }
