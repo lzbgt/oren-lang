@@ -1,0 +1,88 @@
+import math "std:math"
+
+fn _finite3(x: f64, y: f64, z: f64, ctx) {
+    if math.is_nan(x) || math.is_nan(y) || math.is_nan(z) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) || !math.is_finite(y) || !math.is_finite(z) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite6(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, ctx) {
+    var a = _finite3(ax, ay, az, ctx)
+    if oren_is_err(a) { return a }
+    return _finite3(bx, by, bz, ctx)
+}
+
+fn length_sq(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.length_sq")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = x * x + y * y + z * z
+    return out
+}
+
+fn length(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.length")
+    if oren_is_err(ok) { return ok }
+    return math.hypot3(x, y, z)
+}
+
+fn distance_sq(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.distance_sq")
+    if oren_is_err(ok) { return ok }
+    var dx: f64 = bx - ax
+    var dy: f64 = by - ay
+    var dz: f64 = bz - az
+    var out: f64 = dx * dx + dy * dy + dz * dz
+    return out
+}
+
+fn distance(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.distance")
+    if oren_is_err(ok) { return ok }
+    return math.hypot3(bx - ax, by - ay, bz - az)
+}
+
+fn dot(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.dot")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = ax * bx + ay * by + az * bz
+    return out
+}
+
+fn cross(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.cross")
+    if oren_is_err(ok) { return ok }
+    return [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx]
+}
+
+fn normalize(x: f64, y: f64, z: f64) {
+    var l0 = length(x, y, z)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return oren_err(4, "vec3.normalize: zero length") }
+    return [x / l, y / l, z / l]
+}
+
+fn normalize_or_zero(x: f64, y: f64, z: f64) {
+    var l0 = length(x, y, z)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return [0.0, 0.0, 0.0] }
+    return [x / l, y / l, z / l]
+}
+
+fn angle_between(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var la0 = length(ax, ay, az)
+    if oren_is_err(la0) { return la0 }
+    var lb0 = length(bx, by, bz)
+    if oren_is_err(lb0) { return lb0 }
+    var la: f64 = la0
+    var lb: f64 = lb0
+    if la == 0.0 || lb == 0.0 { return oren_err(4, "vec3.angle_between: zero length") }
+    var d0 = dot(ax, ay, az, bx, by, bz)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var c = math.clamp(d / (la * lb), 0.0 - 1.0, 1.0)
+    if oren_is_err(c) { return c }
+    var cf: f64 = c
+    return math.acos(cf)
+}

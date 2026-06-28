@@ -1696,6 +1696,19 @@ run_step_checked "math vec2 smoke (bytecode)" "$math_vec2_log" \
   "$compiler" test "$math_vec2_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_vec2_log"
 
+echo "== math vec3 smoke (native/C/bytecode) =="
+math_vec3_src="tests/modules/test_math_vec3.oren"
+math_vec3_log="build/logs/${compiler_base}_math_vec3.log"
+rm -f "$math_vec3_log" 2>/dev/null || true
+
+run_step_checked "math vec3 smoke (native)" "$math_vec3_log" \
+  "$compiler" test "$math_vec3_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math vec3 smoke (C)" "$math_vec3_log" \
+  "$compiler" test "$math_vec3_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math vec3 smoke (bytecode)" "$math_vec3_log" \
+  "$compiler" test "$math_vec3_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_vec3_log"
+
 echo "== module integration suite (native + bytecode) =="
 module_integration_src="tests/modules/test_integration_suite.oren"
 module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"

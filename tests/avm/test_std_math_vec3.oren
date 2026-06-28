@@ -1,0 +1,41 @@
+@myorg.tag(name="avm-std-math-vec3")
+
+import vec3 "../../lib/std/math/vec3.oren"
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("avm std math vec3 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_close(vec3.length(2.0, 3.0, 6.0), 7.0, 1e-12, 10, "length")
+assert_close(vec3.distance(1.0, 2.0, 3.0, 3.0, 6.0, 9.0), math.sqrt(56.0), 1e-12, 11, "distance")
+assert_close(vec3.dot(1.0, 2.0, 3.0, 4.0, 5.0, 6.0), 32.0, 1e-12, 12, "dot")
+
+var c = vec3.cross(1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+assert_true(!oren_is_err(c), 20, "cross ok")
+assert_close(c[2], 1.0, 0.0, 21, "cross z")
+
+var n = vec3.normalize(2.0, 3.0, 6.0)
+assert_true(!oren_is_err(n), 30, "normalize ok")
+assert_close(n[0], 2.0 / 7.0, 1e-12, 31, "normalize x")
+assert_close(n[2], 6.0 / 7.0, 1e-12, 32, "normalize z")
+
+assert_close(vec3.angle_between(1.0, 0.0, 0.0, 0.0, 1.0, 0.0), math.pi() / 2.0, 1e-12, 40, "angle right")
+assert_true(oren_is_err(vec3.normalize(0.0, 0.0, 0.0)), 50, "normalize zero errors")
+assert_true(oren_is_err(vec3.length(math.inf(), 1.0, 0.0)), 51, "length inf errors")
+
+print("avm std math vec3 OK")
+exit(0)

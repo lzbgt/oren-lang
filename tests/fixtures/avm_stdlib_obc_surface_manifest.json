@@ -140,6 +140,17 @@
       ]
     },
     {
+      "module": "std:math/vec3",
+      "alias": "math_vec3",
+      "probes": [
+        "assert_close(math_vec3.length(2.0, 3.0, 6.0), 7.0, 1e-12, 62)",
+        "assert_close(math_vec3.dot(1.0, 2.0, 3.0, 4.0, 5.0, 6.0), 32.0, 1e-12, 63)",
+        "var v3c = math_vec3.cross(1.0, 0.0, 0.0, 0.0, 1.0, 0.0)",
+        "if oren_is_err(v3c) { fail(64) }",
+        "assert_close(v3c[2], 1.0, 1e-12, 65)"
+      ]
+    },
+    {
       "module": "std:proc",
       "alias": "proc",
       "probes": [
