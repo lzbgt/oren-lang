@@ -557,13 +557,8 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 func inferExpressionReturnType(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string) string {
 	switch expr := expr.(type) {
 	case *ast.IfExpression:
-		if expr.Consequence == nil || expr.Alternative == nil {
-			return ""
-		}
-		consequence := inferBlockReturnType(expr.Consequence, env, stack)
-		alternative := inferBlockReturnType(expr.Alternative, env, stack)
-		if consequence != "" && alternative != "" && consequence == alternative {
-			return consequence
+		if typeName := inferIfExpressionType(expr, env, *stack); typeName != "" {
+			return typeName
 		}
 		applyIfBranchAssignmentEffects(expr, env, stack)
 	}
@@ -935,8 +930,36 @@ func inferExpressionType(expr ast.Expression, env memberTypeEnv, stack []map[str
 		}
 	case *ast.MemberExpression:
 		return inferConstructedFieldType(expr, env, stack)
+	case *ast.IfExpression:
+		return inferIfExpressionType(expr, env, stack)
 	}
 	return ""
+}
+
+func inferIfExpressionType(expr *ast.IfExpression, env memberTypeEnv, stack []map[string]string) string {
+	if expr == nil || expr.Consequence == nil || expr.Alternative == nil {
+		return ""
+	}
+	consequenceStack := cloneTypeStack(stack)
+	consequence := inferBlockReturnType(expr.Consequence, env, &consequenceStack)
+	alternativeStack := cloneTypeStack(stack)
+	alternative := inferBlockReturnType(expr.Alternative, env, &alternativeStack)
+	if consequence != "" && alternative != "" && consequence == alternative {
+		return consequence
+	}
+	return ""
+}
+
+func cloneTypeStack(stack []map[string]string) []map[string]string {
+	out := make([]map[string]string, len(stack))
+	for i, frame := range stack {
+		next := make(map[string]string, len(frame))
+		for name, typeName := range frame {
+			next[name] = typeName
+		}
+		out[i] = next
+	}
+	return out
 }
 
 func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, stack []map[string]string) string {

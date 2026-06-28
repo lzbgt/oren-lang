@@ -167,6 +167,98 @@ func TestServerNavigationUsesExpressionReceiverFields(t *testing.T) {
 	})
 }
 
+func TestServerNavigationUsesReturnIfExpressionReceiverFields(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"struct Other { z }",
+		"fn choose(ok) {",
+		"  return if ok {",
+		"    return Point(1, 2)",
+		"  } else {",
+		"    return Point(3, 4)",
+		"  }",
+		"}",
+		"fn choose_conflict(ok) {",
+		"  return if ok {",
+		"    return Point(1, 2)",
+		"  } else {",
+		"    return Other(9)",
+		"  }",
+		"}",
+		"fn main() {",
+		"  var p = choose(true).",
+		"  return choose(true).x + choose_conflict(true).z",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-member-return-if-expression.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      251,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 17, "character": 23},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      252,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 18, "character": 22},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      253,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      254,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 18, "character": 48},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 251)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("return-if completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 252)["result"].([]any), uri, 0, 15, 16)
+	assertLocations(t, messageByID(t, msgs, 253)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 18, Character: 22}, End: position{Line: 18, Character: 23}}},
+	})
+	defs := messageByID(t, msgs, 254)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("conflicting return-if member definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{
