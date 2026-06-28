@@ -220,8 +220,9 @@ fn _ml_parse_jobs() {
 //
 // Safety notes:
 // - Fork-parallel workers always write the cache because they already astbin-encode.
-// - Serial/thread parsing writes only phase-profiled modules whose parse+prepare time crosses
-//   OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS, avoiding steady-state encode overhead.
+// - Serial/thread parsing writes only when OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS
+//   is set. Cold ASTBIN encoding can dominate compiler-shaped modules, so phase logging
+//   must not implicitly turn into cache prewarming.
 var _ML_MODCACHE_COMPILER_SIG = nil
 var _ML_MODCACHE_TRACE_CNT = 0
 
@@ -269,15 +270,15 @@ fn _ml_parse_nonneg_decimal_default(s, fallback) {
 }
 
 fn _ml_modcache_serial_write_min_ms() {
-    // Serial parsing avoids ASTBIN encoding by default. When phase profiling is
-    // active, persist expensive module parses so later compiler processes can
-    // reuse the post-prepare AST without forcing fork-parallel parse workers.
+    // Serial parsing avoids ASTBIN encoding by default. Set this env to a
+    // non-negative millisecond threshold to explicitly prewarm module ASTBIN
+    // entries from serial/thread builds.
     var v = oren_env("OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS")
     if v != nil && v != "" {
         if v == "0" || v == "false" { return -1 }
         return _ml_parse_nonneg_decimal_default(v, 250)
     }
-    return 250
+    return -1
 }
 
 fn _ml_fnv1a63_string(s, basis) {

@@ -137,6 +137,7 @@
 
     // Optimizer baseline (safe, conservative).
     if trace_passes { print("[trace] pass: optimizer") }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.optimizer.start", "", t0) }
     optimizer.lower_linked_program_in_place(linked)
     if trace_phases {
         var dt9 = oren_time_now_ns() - t0

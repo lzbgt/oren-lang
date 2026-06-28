@@ -94,14 +94,20 @@ This file is the concise task view. Detailed implementation status lives in
 							     Zero-result lambda collection now skips the full statement walk when no
 							     local function/lambda candidates were found. Empty map/list globals stay
 							     in `__top_level__` until static mutable container headers have an explicit
-							     heap/GC ABI. Bounded slow-function rankings now persist in
-							     `OREN_TRACE_BUILD_PHASES_PATH` logs. Phase-profiled serial/thread module
-							     parsing now persists expensive post-prepare ASTBIN entries without forcing
-							     fork-parallel parsing; a focused no-artifact-cache warm probe reduced
-							     `link.parse_modules` from about 17.8s to about 0.42s with `cache_hit=1`
-							     on both imported std modules. The next concrete throughput target is
-							     extending that cache recovery evidence to the full unified compiler graph
-							     before post-top-level user-function codegen.
+								     heap/GC ABI. Bounded slow-function rankings now persist in
+								     `OREN_TRACE_BUILD_PHASES_PATH` logs. Phase logs also include
+								     `link.parse_module.start`, so capped self-host probes identify the active
+								     module even when it does not finish before timeout. Serial/thread module
+								     ASTBIN writes are now explicit prewarm work via
+								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; cache reads and fork-worker
+								     writes remain enabled, but phase logging no longer implicitly spends cold
+								     build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm
+								     probe still reduces `link.parse_modules` from about 17.8s to about 0.42s
+								     with `cache_hit=1` on both imported std modules when serial prewarm is
+								     explicitly enabled. A capped full x64 self-host trace now completes module
+								     parsing through `lib/compiler/compiler.oren` and reaches
+								     `link.abi_layout.done` at about 160s; the next concrete throughput target is
+								     optimizer time after ABI layout.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

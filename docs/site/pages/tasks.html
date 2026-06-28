@@ -150,14 +150,20 @@
 <p>							     Zero-result lambda collection now skips the full statement walk when no</p>
 <p>							     local function/lambda candidates were found. Empty map/list globals stay</p>
 <p>							     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
-<p>							     heap/GC ABI. Bounded slow-function rankings now persist in</p>
-<p>							     <code>OREN_TRACE_BUILD_PHASES_PATH</code> logs. Phase-profiled serial/thread module</p>
-<p>							     parsing now persists expensive post-prepare ASTBIN entries without forcing</p>
-<p>							     fork-parallel parsing; a focused no-artifact-cache warm probe reduced</p>
-<p>							     <code>link.parse_modules</code> from about 17.8s to about 0.42s with <code>cache_hit=1</code></p>
-<p>							     on both imported std modules. The next concrete throughput target is</p>
-<p>							     extending that cache recovery evidence to the full unified compiler graph</p>
-<p>							     before post-top-level user-function codegen.</p>
+<p>								     heap/GC ABI. Bounded slow-function rankings now persist in</p>
+<p>								     <code>OREN_TRACE_BUILD_PHASES_PATH</code> logs. Phase logs also include</p>
+<p>								     <code>link.parse_module.start</code>, so capped self-host probes identify the active</p>
+<p>								     module even when it does not finish before timeout. Serial/thread module</p>
+<p>								     ASTBIN writes are now explicit prewarm work via</p>
+<p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; cache reads and fork-worker</p>
+<p>								     writes remain enabled, but phase logging no longer implicitly spends cold</p>
+<p>								     build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm</p>
+<p>								     probe still reduces <code>link.parse_modules</code> from about 17.8s to about 0.42s</p>
+<p>								     with <code>cache_hit=1</code> on both imported std modules when serial prewarm is</p>
+<p>								     explicitly enabled. A capped full x64 self-host trace now completes module</p>
+<p>								     parsing through <code>lib/compiler/compiler.oren</code> and reaches</p>
+<p>								     <code>link.abi_layout.done</code> at about 160s; the next concrete throughput target is</p>
+<p>								     optimizer time after ABI layout.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

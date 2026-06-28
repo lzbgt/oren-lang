@@ -134,12 +134,17 @@
 <p>	  <code>__top_level__</code> because static mutable container headers need an explicit</p>
 <p>	  heap/GC ABI before direct <code>.data</code> materialization is safe. Phase logs now</p>
 <p>	  persist bounded slow-function rankings under <code>OREN_TRACE_BUILD_PHASES_PATH</code>.</p>
-<p>	  Phase-profiled serial/thread module parsing now persists expensive</p>
-<p>	  post-prepare ASTBIN entries without forcing fork-parallel parsing; a focused</p>
-<p>	  no-artifact-cache warm probe dropped <code>link.parse_modules</code> from about 17.8s</p>
-<p>	  to about 0.42s with <code>cache_hit=1</code> on both imported std modules. The next</p>
-<p>	  measured x64 self-host target is applying that cache recovery to the full</p>
-<p>	  unified compiler graph before post-top-level user-function codegen.</p>
+<p>	  Phase logs now include <code>link.parse_module.start</code> so capped self-host probes</p>
+<p>	  show the active module even when a module does not finish before timeout.</p>
+<p>	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; cache reads and fork-worker</p>
+<p>	  writes remain enabled, but phase logging no longer implicitly spends cold</p>
+<p>	  build time encoding compiler-shaped ASTs. A focused no-artifact-cache warm</p>
+<p>	  probe still drops <code>link.parse_modules</code> from about 17.8s to about 0.42s with</p>
+<p>	  <code>cache_hit=1</code> on both imported std modules when serial prewarm is explicitly</p>
+<p>	  enabled. A capped full x64 self-host trace now completes module parsing</p>
+<p>	  through <code>lib/compiler/compiler.oren</code> and reaches <code>link.abi_layout.done</code> at</p>
+<p>	  about 160s; the next measured target is optimizer time after ABI layout.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

@@ -646,6 +646,13 @@ fn _ml_parse_discovered_modules_serial(config) {
             }
             var mod_t0 = 0
             if phase_log_path != nil { mod_t0 = oren_time_now_ns() }
+            if phase_log_path != nil {
+                _ml_phase_log_append(phase_log_path, "link.parse_module.start",
+                    "path=" + m["path"] +
+                    " index=" + oren_int_to_string(i) +
+                    " total=" + oren_int_to_string(oren_list_len(MODULE_ORDER)),
+                    mod_t0)
+            }
             var rr = _ml_parse_and_prepare_module_result(m["path"], m["prefix"], config)
             if rr["ok"] != true {
                 print("Failed to parse module: " + m["path"])
