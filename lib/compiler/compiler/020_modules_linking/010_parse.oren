@@ -67,6 +67,21 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     return {"ok": true}
 }
 
+fn _ml_modcache_write_bytes(cache_path, bs) {
+    if cache_path == nil || bs == nil { return false }
+    if _ml_modcache_enabled() != true { return false }
+    ensure_dir(dirname(cache_path))
+    var tmpc = cache_path + ".tmp"
+    var wc = oren_write_bytes(tmpc, bs)
+    if oren_is_err(wc) { return false }
+    oren_rename(tmpc, cache_path)
+    if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+        _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+        print("[modcache] wrote " + cache_path)
+    }
+    return true
+}
+
 fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     // Parse a module (including include-aggregators), then apply per-module passes:
     // - rename (namespace prefixing)
@@ -229,8 +244,15 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     var prep = _ml_prepare_module_program_in_place(full, prefix, prog, config)
     if profile_parse { prepare_ms = prepare_ms + ((oren_time_now_ns() - t_part) / 1000000) }
     if prep["ok"] != true { return prep }
-    // Note: cache write happens in parse workers (when fork-parallel is enabled) to avoid
-    // extra astbin encoding work in the serial/thread parse paths.
+    // Serial/thread parse paths avoid ASTBIN encoding by default. Under phase profiling,
+    // persist expensive module parses so later compiler processes can reuse the cache.
+    if cache_path != nil && profile_parse && _ml_modcache_enabled() == true {
+        var min_ms = _ml_modcache_serial_write_min_ms()
+        if min_ms >= 0 && parse_ms + prepare_ms >= min_ms {
+            var bs_serial = astbin_encode(prog)
+            _ml_modcache_write_bytes(cache_path, bs_serial)
+        }
+    }
     return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "parse_prefix_ms": parse_prefix_ms, "parse_stmt_ms": parse_stmt_ms, "parse_lower_ms": parse_lower_ms, "parse_yield_validate_ms": parse_yield_validate_ms, "parse_advance_ms": parse_advance_ms, "parse_hot1_ms": parse_hot1_ms, "parse_hot1_label": parse_hot1_label, "parse_hot2_ms": parse_hot2_ms, "parse_hot2_label": parse_hot2_label, "parse_hot3_ms": parse_hot3_ms, "parse_hot3_label": parse_hot3_label, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
 }
 
@@ -313,16 +335,7 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
 
         // Best-effort: persist a stable module cache copy (for reuse across separate compiler processes).
         if cache_path != nil && _ml_modcache_enabled() == true {
-            ensure_dir(dirname(cache_path))
-            var tmpc = cache_path + ".tmp"
-            var wc = oren_write_bytes(tmpc, bs)
-            if !oren_is_err(wc) {
-                oren_rename(tmpc, cache_path)
-            }
-            if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
-                _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
-                print("[modcache] wrote " + cache_path)
-            }
+            _ml_modcache_write_bytes(cache_path, bs)
         } else {
             if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
                 _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1

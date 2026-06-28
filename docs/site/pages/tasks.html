@@ -147,14 +147,17 @@
 <p>					     reduces normal <code>__top_level__</code> body emission from roughly 165s to about</p>
 <p>					     66s; singleton data pointers reduced it from 58 to 33 statements and</p>
 <p>						     about 50s, and scalar/alias constants then reduced it to 8 statements.</p>
-<p>						     Zero-result lambda collection now skips the full statement walk when no</p>
-<p>						     local function/lambda candidates were found. Empty map/list globals stay</p>
-<p>						     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
-<p>						     heap/GC ABI. Bounded slow-function rankings now persist in</p>
-<p>						     <code>OREN_TRACE_BUILD_PHASES_PATH</code> logs, but capped unified x64 self-host</p>
-<p>						     probes still timed out before native emit with per-module <code>cache_hit=0</code>.</p>
-<p>						     The next concrete throughput target is link/parse cache recovery before</p>
-<p>						     post-top-level user-function codegen.</p>
+<p>							     Zero-result lambda collection now skips the full statement walk when no</p>
+<p>							     local function/lambda candidates were found. Empty map/list globals stay</p>
+<p>							     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
+<p>							     heap/GC ABI. Bounded slow-function rankings now persist in</p>
+<p>							     <code>OREN_TRACE_BUILD_PHASES_PATH</code> logs. Phase-profiled serial/thread module</p>
+<p>							     parsing now persists expensive post-prepare ASTBIN entries without forcing</p>
+<p>							     fork-parallel parsing; a focused no-artifact-cache warm probe reduced</p>
+<p>							     <code>link.parse_modules</code> from about 17.8s to about 0.42s with <code>cache_hit=1</code></p>
+<p>							     on both imported std modules. The next concrete throughput target is</p>
+<p>							     extending that cache recovery evidence to the full unified compiler graph</p>
+<p>							     before post-top-level user-function codegen.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

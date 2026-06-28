@@ -94,10 +94,12 @@ Facts from the 2026-05-28 implementation pass:
 	  `__top_level__` because static mutable container headers need an explicit
 	  heap/GC ABI before direct `.data` materialization is safe. Phase logs now
 	  persist bounded slow-function rankings under `OREN_TRACE_BUILD_PHASES_PATH`.
-	  A capped unified x64 self-host probe then showed warm `oren.oren` builds still
-	  timing out before native emit with per-module `cache_hit=0`; the next measured
-	  x64 self-host target is link/parse cache recovery before post-top-level
-	  user-function codegen.
+	  Phase-profiled serial/thread module parsing now persists expensive
+	  post-prepare ASTBIN entries without forcing fork-parallel parsing; a focused
+	  no-artifact-cache warm probe dropped `link.parse_modules` from about 17.8s
+	  to about 0.42s with `cache_hit=1` on both imported std modules. The next
+	  measured x64 self-host target is applying that cache recovery to the full
+	  unified compiler graph before post-top-level user-function codegen.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
