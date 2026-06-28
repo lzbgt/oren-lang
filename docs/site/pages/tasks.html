@@ -234,7 +234,8 @@
 <p>     <code>&quot;a: 1\n&quot;.yaml().text()</code>, <code>cbor.cint(7).bytes().cbor()</code>, and</p>
 <p>     <code>&quot;hi&quot;.bytes().text()</code> through stdlib source and OBC metadata.</p>
 <p>     Base64 and crypto hashes now follow the same rule with</p>
-<p>     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
+<p>     <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>,</p>
+<p>     <code>&quot;TWE&quot;.base64_url_bytes().text()</code>, and</p>
 <p>     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
 <p>     path on exact-size <code>u8_buf</code> output; plain UI <code>text</code> frame commands now also</p>
 <p>     write string bytes directly into OGF0 payloads, and UI color parsing reads</p>
@@ -247,7 +248,7 @@
 <p>     continuation/header-block and DATA response buffering now uses amortized</p>
 <p>     <code>u8_buf</code> accumulators, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
-<p>     exact-size writes; Base64 decode also rejects interior padding before</p>
+<p>     exact-size writes; Base64/Base64URL decode also rejects malformed padding before</p>
 <p>     returning exact-size <code>u8_buf</code> decoded bytes. <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text</p>
 <p>     encoding/decode byte carriers, and full regex</p>
@@ -261,7 +262,7 @@
 <p>     WebSocket header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
 <p>     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy</p>
 <p>     through <code>oren_memcpy</code> after validation;</p>
-<p>     Base64</p>
+<p>     Base64/Base64URL</p>
 <p>     decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>     output and software raster clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>

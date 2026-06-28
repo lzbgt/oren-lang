@@ -166,7 +166,8 @@ This file is the concise task view. Detailed implementation status lives in
      `"a: 1\n".yaml().text()`, `cbor.cint(7).bytes().cbor()`, and
      `"hi".bytes().text()` through stdlib source and OBC metadata.
      Base64 and crypto hashes now follow the same rule with
-     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
+     `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`,
+     `"TWE".base64_url_bytes().text()`, and
      `bytes.from_string("abc").sha256_hex()` while keeping the byte hot
      path on exact-size `u8_buf` output; plain UI `text` frame commands now also
      write string bytes directly into OGF0 payloads, and UI color parsing reads
@@ -179,7 +180,7 @@ This file is the concise task view. Detailed implementation status lives in
      continuation/header-block and DATA response buffering now uses amortized
      `u8_buf` accumulators, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
-     exact-size writes; Base64 decode also rejects interior padding before
+     exact-size writes; Base64/Base64URL decode also rejects malformed padding before
      returning exact-size `u8_buf` decoded bytes. `std:strings` prefix/suffix/search/equality
      and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
      encoding/decode byte carriers, and full regex
@@ -193,7 +194,7 @@ This file is the concise task view. Detailed implementation status lives in
      WebSocket header slices plus unmasked frame payloads copy with `oren_memcpy`;
      DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy
      through `oren_memcpy` after validation;
-     Base64
+     Base64/Base64URL
      decode/encode writes exact-size output buffers directly, PPM header/body
      output and software raster clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
      caches typed response body bytes for `.bytes()` on content-length and

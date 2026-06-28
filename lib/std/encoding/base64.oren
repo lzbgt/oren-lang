@@ -8,17 +8,21 @@
 // - `encode(input_bytes)` / `input_bytes.base64()` -> string
 // - `decode(b64_string)` / `b64_string.base64_bytes()` -> bytes (u8_buf)
 // - `decode_strict(b64_string)` / `b64_string.base64_bytes_strict()` -> bytes
+// - `encode_url(input_bytes)` / `input_bytes.base64_url()` -> unpadded Base64URL string
+// - `decode_url(b64url_string)` / `b64url_string.base64_url_bytes()` -> bytes
 
 import bytesm "std:bytes"
 import raw "std:buffer/raw"
 
 trait Base64Bytes {
     fn base64(self);
+    fn base64_url(self);
 }
 
 trait Base64Text {
     fn base64_bytes(self): bytes;
     fn base64_bytes_strict(self): bytes;
+    fn base64_url_bytes(self): bytes;
 }
 
 fn _str_byte(s, i) {
@@ -32,6 +36,14 @@ fn _b64_table_ptr() {
 fn _b64_char(idx) {
     // idx in [0..63] => ASCII byte code
     return _str_byte(_b64_table_ptr(), idx)
+}
+
+fn _b64url_table_ptr() {
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+}
+
+fn _b64url_char(idx) {
+    return _str_byte(_b64url_table_ptr(), idx)
 }
 
 fn b64_is_ws(c) {
@@ -107,6 +119,63 @@ fn encode_bytes(input_bytes) {
 
 fn encode(input_bytes) { return encode_bytes(input_bytes) }
 
+fn encode_url_bytes(input_bytes) {
+    if input_bytes == nil {
+        input_bytes = oren_u8_buf_new(0)
+    }
+
+    var n = bytesm.len(input_bytes)
+    if oren_is_err(n) { return oren_err(4, "base64.encode_url_bytes: input must be list<int> or u8_buf") }
+
+    var out_len = (n / 3) * 4
+    var rem = n % 3
+    if rem == 1 { out_len = out_len + 2 }
+    if rem == 2 { out_len = out_len + 3 }
+    var out = oren_u8_buf_new_uninit(out_len)
+    if oren_is_err(out) { return out }
+    var i = 0
+    var oi = 0
+    while i < n {
+        var b0 = bytesm.get_u8(input_bytes, i)
+        if oren_is_err(b0) { return b0 }
+        var b1 = 0
+        var b2 = 0
+        var have1 = 0
+        var have2 = 0
+        if i + 1 < n {
+            b1 = bytesm.get_u8(input_bytes, i + 1)
+            if oren_is_err(b1) { return b1 }
+            have1 = 1
+        }
+        if i + 2 < n {
+            b2 = bytesm.get_u8(input_bytes, i + 2)
+            if oren_is_err(b2) { return b2 }
+            have2 = 1
+        }
+
+        var triple = (b0 << 16) | (b1 << 8) | b2
+        var rc0 = _set_out(out, oi, _b64url_char((triple >> 18) & 63))
+        if oren_is_err(rc0) { return rc0 }
+        var rc1 = _set_out(out, oi + 1, _b64url_char((triple >> 12) & 63))
+        if oren_is_err(rc1) { return rc1 }
+        if have1 == 1 {
+            var rc2 = _set_out(out, oi + 2, _b64url_char((triple >> 6) & 63))
+            if oren_is_err(rc2) { return rc2 }
+        }
+        if have2 == 1 {
+            var rc3 = _set_out(out, oi + 3, _b64url_char(triple & 63))
+            if oren_is_err(rc3) { return rc3 }
+        }
+
+        i = i + 3
+        oi = oi + 4
+    }
+
+    return oren_string_from_bytes_slice(out, 0, out_len)
+}
+
+fn encode_url(input_bytes) { return encode_url_bytes(input_bytes) }
+
 fn _b64_val(c) {
     // Returns:
     // - 0..63 for valid alphabet
@@ -121,6 +190,15 @@ fn _b64_val(c) {
     if c == 43 { return 62 } // '+'
     if c == 47 { return 63 } // '/'
     return -3
+}
+
+fn _b64url_val(c) {
+    if c >= 65 && c <= 90 { return c - 65 } // 'A'..'Z'
+    if c >= 97 && c <= 122 { return 26 + (c - 97) } // 'a'..'z'
+    if c >= 48 && c <= 57 { return 52 + (c - 48) } // '0'..'9'
+    if c == 45 { return 62 } // '-'
+    if c == 95 { return 63 } // '_'
+    return -1
 }
 
 fn _b64_count_clean_chars(s) {
@@ -248,6 +326,97 @@ fn decode_bytes(s) {
 
 fn decode(s): bytes { return decode_bytes(s) }
 
+fn _store_decoded_triple(out, outi, out_len, triple, count) {
+    if count >= 1 && outi < out_len {
+        var rc0 = raw._store_u8_buf_unchecked_direct(out, outi, (triple >> 16) & 255)
+        if oren_is_err(rc0) { return rc0 }
+    }
+    if count >= 2 && outi + 1 < out_len {
+        var rc1 = raw._store_u8_buf_unchecked_direct(out, outi + 1, (triple >> 8) & 255)
+        if oren_is_err(rc1) { return rc1 }
+    }
+    if count >= 3 && outi + 2 < out_len {
+        var rc2 = raw._store_u8_buf_unchecked_direct(out, outi + 2, triple & 255)
+        if oren_is_err(rc2) { return rc2 }
+    }
+    return 0
+}
+
+fn decode_url_bytes(s) {
+    if s == nil { return oren_err(4, "base64.decode_url_bytes: string is nil") }
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return oren_err(4, "base64.decode_url_bytes: s must be string") }
+    if n == 0 { return oren_u8_buf_new_uninit(0) }
+
+    var pad = 0
+    var i = n - 1
+    while i >= 0 && _str_byte(s, i) == 61 {
+        pad = pad + 1
+        i = i - 1
+    }
+    if pad > 2 { return oren_err(4, "base64.decode_url_bytes: invalid padding") }
+    var core_len = n - pad
+    if core_len <= 0 { return oren_err(4, "base64.decode_url_bytes: invalid length") }
+    var j = 0
+    while j < core_len {
+        var cj = _str_byte(s, j)
+        if b64_is_ws(cj) == 1 { return oren_err(4, "base64.decode_url_bytes: whitespace not allowed") }
+        if cj == 61 { return oren_err(4, "base64.decode_url_bytes: padding before end") }
+        if cj == 43 || cj == 47 { return oren_err(4, "base64.decode_url_bytes: standard alphabet not allowed") }
+        if _b64url_val(cj) < 0 { return oren_err(4, "base64.decode_url_bytes: invalid base64url") }
+        j = j + 1
+    }
+    while j < n {
+        if _str_byte(s, j) != 61 { return oren_err(4, "base64.decode_url_bytes: invalid padding") }
+        j = j + 1
+    }
+
+    var rem = core_len % 4
+    if rem == 1 { return oren_err(4, "base64.decode_url_bytes: invalid length") }
+    if pad > 0 {
+        if (n % 4) != 0 { return oren_err(4, "base64.decode_url_bytes: invalid padded length") }
+        if pad == 1 && rem != 3 { return oren_err(4, "base64.decode_url_bytes: invalid padding") }
+        if pad == 2 && rem != 2 { return oren_err(4, "base64.decode_url_bytes: invalid padding") }
+    }
+
+    var out_len = (core_len / 4) * 3
+    if rem == 2 { out_len = out_len + 1 }
+    if rem == 3 { out_len = out_len + 2 }
+    var out = oren_u8_buf_new_uninit(out_len)
+    if oren_is_err(out) { return out }
+
+    var si = 0
+    var outi = 0
+    while si + 4 <= core_len {
+        var v0 = _b64url_val(_str_byte(s, si))
+        var v1 = _b64url_val(_str_byte(s, si + 1))
+        var v2 = _b64url_val(_str_byte(s, si + 2))
+        var v3 = _b64url_val(_str_byte(s, si + 3))
+        var triple = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3
+        var rc = _store_decoded_triple(out, outi, out_len, triple, 3)
+        if oren_is_err(rc) { return rc }
+        si = si + 4
+        outi = outi + 3
+    }
+    if rem == 2 {
+        var r0 = _b64url_val(_str_byte(s, si))
+        var r1 = _b64url_val(_str_byte(s, si + 1))
+        var triple2 = (r0 << 18) | (r1 << 12)
+        var rc2 = _store_decoded_triple(out, outi, out_len, triple2, 1)
+        if oren_is_err(rc2) { return rc2 }
+    } else if rem == 3 {
+        var r20 = _b64url_val(_str_byte(s, si))
+        var r21 = _b64url_val(_str_byte(s, si + 1))
+        var r22 = _b64url_val(_str_byte(s, si + 2))
+        var triple3 = (r20 << 18) | (r21 << 12) | (r22 << 6)
+        var rc3 = _store_decoded_triple(out, outi, out_len, triple3, 2)
+        if oren_is_err(rc3) { return rc3 }
+    }
+    return out
+}
+
+fn decode_url(s): bytes { return decode_url_bytes(s) }
+
 fn decode_bytes_strict(s) {
     // Strict variant: rejects any whitespace (for protocols that require exact base64).
     if s == nil { return oren_err(4, "base64.decode_bytes_strict: string is nil") }
@@ -266,9 +435,11 @@ fn decode_strict(s): bytes { return decode_bytes_strict(s) }
 
 impl Base64Bytes for bytes {
     fn base64(self) { return encode(self) }
+    fn base64_url(self) { return encode_url(self) }
 }
 
 impl Base64Text for string {
     fn base64_bytes(self): bytes { return decode(self) }
     fn base64_bytes_strict(self): bytes { return decode_strict(self) }
+    fn base64_url_bytes(self): bytes { return decode_url(self) }
 }

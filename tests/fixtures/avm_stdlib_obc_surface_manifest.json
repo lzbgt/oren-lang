@@ -345,7 +345,10 @@
         "if bytes.from_string(\"Man\").base64() != \"TWFu\" { fail(23) }",
         "var b64 = \"TQ==\".base64_bytes_strict()",
         "if oren_is_err(b64) { fail(24) }",
-        "if bytes.len(b64) != 1 || bytes.get_u8(b64, 0) != 77 { fail(25) }"
+        "if bytes.len(b64) != 1 || bytes.get_u8(b64, 0) != 77 { fail(25) }",
+        "if base64.encode_url(bytes.pack([251, 255, 255])) != \"-___\" { fail(26) }",
+        "var b64u = \"TWE\".base64_url_bytes()",
+        "if oren_is_err(b64u) || b64u.text() != \"Ma\" { fail(27) }"
       ]
     },
     {

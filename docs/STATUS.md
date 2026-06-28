@@ -607,7 +607,7 @@ Facts from the 2026-05-28 implementation pass:
   and native WebSocket header slices plus unmasked frame payloads copy with
   `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
-  Base64 decode/encode writes exact-size output buffers directly, PPM header/body
+  Base64/Base64URL decode/encode writes exact-size output buffers directly, PPM header/body
   output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, SHA hex helpers and
@@ -634,7 +634,8 @@ Facts from the 2026-05-28 implementation pass:
   Codec and byte APIs now expose trait-backed method surfaces for the rolling
   stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
   `cbor.cint(7).bytes().cbor()`, `"hi".bytes().text()`,
-  `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`, and
+  `"hi".bytes().base64()`, `"aGk=".base64_bytes().text()`,
+  `"TWE".base64_url_bytes().text()`, and
   `bytes.from_string("abc").sha256_hex()` work through source and
   stdlib-OBC metadata paths without explicit local annotations.
   The module renamer now preserves builtin annotation names such as `bytes`
@@ -663,7 +664,7 @@ Facts from the 2026-05-28 implementation pass:
 	  labels use the same native copy path. PEM relaxed decode passes body slices
 	  to Base64 directly, and strict decode concatenates body lines through raw
 	  exact-size `u8_buf` writes instead of a byte list. JSON, YAML, CBOR,
-	  Base64, regex, PEM/X509, `std:time` ISO-8601 UTC parsing, native string
+		  Base64/Base64URL, regex, PEM/X509, `std:time` ISO-8601 UTC parsing, native string
 	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,
 	  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
 	  `std:bytes` helpers, public `std:buffer` facade plus importable
@@ -679,8 +680,8 @@ Facts from the 2026-05-28 implementation pass:
 			  `sha256.hex`, `ui_cmds.validate`, `ui_raster.rasterize`,
 			  `ppm.write_rgba_ppm`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
-	  internals are explicit `*_raw` or private module helpers. Base64 encoding now writes exact-size `u8_buf` output instead of materializing an
-	  intermediate Oren list, and Base64 decode rejects interior padding or
+	  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now write exact-size `u8_buf` output instead of materializing an
+	  intermediate Oren list, and their decode paths reject malformed padding or
 	  third-character padding without fourth-character padding before returning
 	  exact-size `u8_buf` decoded bytes. NET cleanup now covers native and AVM session
 		  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,

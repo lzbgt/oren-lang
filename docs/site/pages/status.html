@@ -713,7 +713,7 @@
 <p>  and native WebSocket header slices plus unmasked frame payloads copy with</p>
 <p>  <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
-<p>  Base64 decode/encode writes exact-size output buffers directly, PPM header/body</p>
+<p>  Base64/Base64URL decode/encode writes exact-size output buffers directly, PPM header/body</p>
 <p>  output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
 <p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, SHA hex helpers and</p>
@@ -740,7 +740,8 @@
 <p>  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
 <p>  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>
 <p>  <code>cbor.cint(7).bytes().cbor()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
-<p>  <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>, and</p>
+<p>  <code>&quot;hi&quot;.bytes().base64()</code>, <code>&quot;aGk=&quot;.base64_bytes().text()</code>,</p>
+<p>  <code>&quot;TWE&quot;.base64_url_bytes().text()</code>, and</p>
 <p>  <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> work through source and</p>
 <p>  stdlib-OBC metadata paths without explicit local annotations.</p>
 <p>  The module renamer now preserves builtin annotation names such as <code>bytes</code></p>
@@ -769,7 +770,7 @@
 <p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
 <p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>	  exact-size <code>u8_buf</code> writes instead of a byte list. JSON, YAML, CBOR,</p>
-<p>	  Base64, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing, native string</p>
+<p>		  Base64/Base64URL, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing, native string</p>
 <p>	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,</p>
 <p>	  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>
 <p>	  <code>std:bytes</code> helpers, public <code>std:buffer</code> facade plus importable</p>
@@ -785,8 +786,8 @@
 <p>			  <code>sha256.hex</code>, <code>ui_cmds.validate</code>, <code>ui_raster.rasterize</code>,</p>
 <p>			  <code>ppm.write_rgba_ppm</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
-<p>	  internals are explicit <code>*_raw</code> or private module helpers. Base64 encoding now writes exact-size <code>u8_buf</code> output instead of materializing an</p>
-<p>	  intermediate Oren list, and Base64 decode rejects interior padding or</p>
+<p>	  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now write exact-size <code>u8_buf</code> output instead of materializing an</p>
+<p>	  intermediate Oren list, and their decode paths reject malformed padding or</p>
 <p>	  third-character padding without fourth-character padding before returning</p>
 <p>	  exact-size <code>u8_buf</code> decoded bytes. NET cleanup now covers native and AVM session</p>
 <p>		  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
