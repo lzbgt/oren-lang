@@ -327,9 +327,9 @@ func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeE
 	}
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.ExpressionStatement:
 		collectInferredExpressionTypesUntil(stmt.Expression, pos, env, stack, text)
 	case *ast.ReturnStatement:
@@ -705,9 +705,9 @@ func inferBlockReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[
 func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string) string {
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		return inferExpressionType(stmt.ReturnValue, env, *stack)
 	case *ast.ExpressionStatement:
@@ -766,14 +766,14 @@ func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv
 func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string, effects map[string]string) {
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
 		if !validMemberIdentifier(stmt.Name) {
 			return
 		}
 		typeName := inferExpressionType(stmt.Value, env, *stack)
 		effects[stmt.Name.Value] = typeName
-		setInferredNameType(stmt.Name.Value, typeName, *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.ExpressionStatement:
 		collectExpressionAssignmentEffects(stmt.Expression, env, stack, effects)
 	case *ast.BlockStatement:
@@ -857,14 +857,14 @@ func collectFunctionParamStatementTypes(stmt ast.Statement, env memberTypeEnv, f
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
 		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		collectFunctionParamExpressionTypes(stmt.ReturnValue, env, functions, stack, out, conflicts)
 	case *ast.ExpressionStatement:
 		collectFunctionParamExpressionTypes(stmt.Expression, env, functions, stack, out, conflicts)
 	case *ast.AssignStatement:
 		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.SetStatement:
 		collectFunctionParamExpressionTypes(stmt.Left, env, functions, stack, out, conflicts)
 		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
@@ -986,14 +986,14 @@ func collectTypedMemberStatement(stmt ast.Statement, uri string, env memberTypeE
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
 		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		collectTypedMemberExpression(stmt.ReturnValue, uri, env, stack, index)
 	case *ast.ExpressionStatement:
 		collectTypedMemberExpression(stmt.Expression, uri, env, stack, index)
 	case *ast.AssignStatement:
 		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
-		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
+		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.SetStatement:
 		collectTypedMemberExpression(stmt.Left, uri, env, stack, index)
 		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
@@ -1300,6 +1300,11 @@ func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, st
 	if expr == nil || !validMemberIdentifier(expr.Property) {
 		return ""
 	}
+	if ident, ok := expr.Left.(*ast.Identifier); ok && validMemberIdentifier(ident) {
+		if typeName := lookupInferredVarType(inferredFieldKey(ident.Value, expr.Property.Value), stack); typeName != "" {
+			return typeName
+		}
+	}
 	call, ok := expr.Left.(*ast.CallExpression)
 	if !ok {
 		return ""
@@ -1320,6 +1325,16 @@ func constructorFieldIndex(info typeInfo, fieldName string) int {
 	if fieldName == "" {
 		return -1
 	}
+	fields := orderedTypeFields(info)
+	for i, field := range fields {
+		if field.Symbol.Name == fieldName {
+			return i
+		}
+	}
+	return -1
+}
+
+func orderedTypeFields(info typeInfo) []resolvedSymbol {
 	fields := make([]resolvedSymbol, 0, len(info.Fields))
 	for _, field := range info.Fields {
 		fields = append(fields, field)
@@ -1330,12 +1345,7 @@ func constructorFieldIndex(info typeInfo, fieldName string) int {
 		}
 		return fields[i].Symbol.Range.Start.Line < fields[j].Symbol.Range.Start.Line
 	})
-	for i, field := range fields {
-		if field.Symbol.Name == fieldName {
-			return i
-		}
-	}
-	return -1
+	return fields
 }
 
 func constructorTypeKey(expr ast.Expression) string {
@@ -1360,16 +1370,66 @@ func setInferredVarType(ident *ast.Identifier, typeName string, stack []map[stri
 	setInferredNameType(ident.Value, typeName, stack)
 }
 
+func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env memberTypeEnv, stack []map[string]string) {
+	if !validMemberIdentifier(ident) || len(stack) == 0 {
+		return
+	}
+	typeName := inferExpressionType(expr, env, stack)
+	setInferredNameType(ident.Value, typeName, stack)
+	clearInferredFieldTypes(ident.Value, stack[len(stack)-1])
+	if typeName == "" {
+		return
+	}
+	call, ok := expr.(*ast.CallExpression)
+	if !ok {
+		return
+	}
+	info, ok := env.Types[typeName]
+	if !ok {
+		return
+	}
+	fields := orderedTypeFields(info)
+	for i, field := range fields {
+		if i >= len(call.Arguments) {
+			break
+		}
+		fieldType := inferExpressionType(call.Arguments[i], env, stack)
+		if fieldType != "" {
+			stack[len(stack)-1][inferredFieldKey(ident.Value, field.Symbol.Name)] = fieldType
+		}
+	}
+}
+
 func setInferredNameType(name, typeName string, stack []map[string]string) {
 	if name == "" || len(stack) == 0 {
 		return
 	}
 	scope := stack[len(stack)-1]
+	clearInferredFieldTypes(name, scope)
 	if typeName == "" {
 		delete(scope, name)
 		return
 	}
 	scope[name] = typeName
+}
+
+func clearInferredFieldTypes(name string, scope map[string]string) {
+	if name == "" || len(scope) == 0 {
+		return
+	}
+	prefix := name + "."
+	for key := range scope {
+		if strings.HasPrefix(key, prefix) {
+			delete(scope, key)
+		}
+	}
+}
+
+func inferredFieldKey(name, field string) string {
+	if name == "" || field == "" {
+		return ""
+	}
+	return name + "." + field
 }
 
 func inferredParamFrame(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
