@@ -174,11 +174,13 @@ func TestServerNavigationUsesConstructorBoundFieldChains(t *testing.T) {
 		"struct Outer { inner, label }",
 		"struct Other { x }",
 		"var outer = Outer(Inner(1, 2), \"a\")",
+		"var alias = outer",
 		"var rebound = Outer(Inner(3, 4), \"b\")",
 		"rebound = Other(9)",
 		"fn main() {",
-		"  var c = outer.inner.",
-		"  return outer.inner.x + rebound.x",
+		"  var c = alias.inner.",
+		"  var nested = alias.inner",
+		"  return alias.inner.x + nested.y + rebound.x",
 		"}",
 		"",
 	}, "\n")
@@ -196,7 +198,7 @@ func TestServerNavigationUsesConstructorBoundFieldChains(t *testing.T) {
 		"method":  "textDocument/completion",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 7, "character": 22},
+			"position":     map[string]any{"line": 8, "character": 22},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{
@@ -205,7 +207,7 @@ func TestServerNavigationUsesConstructorBoundFieldChains(t *testing.T) {
 		"method":  "textDocument/definition",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 8, "character": 21},
+			"position":     map[string]any{"line": 10, "character": 21},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{
@@ -214,7 +216,16 @@ func TestServerNavigationUsesConstructorBoundFieldChains(t *testing.T) {
 		"method":  "textDocument/definition",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 8, "character": 33},
+			"position":     map[string]any{"line": 10, "character": 32},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      214,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 10, "character": 44},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
@@ -229,7 +240,8 @@ func TestServerNavigationUsesConstructorBoundFieldChains(t *testing.T) {
 		t.Fatalf("constructor-bound field-chain completion missing Inner fields: %#v", items)
 	}
 	assertDefinition(t, messageByID(t, msgs, 212)["result"].([]any), uri, 0, 15, 16)
-	assertDefinition(t, messageByID(t, msgs, 213)["result"].([]any), uri, 2, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 213)["result"].([]any), uri, 0, 18, 19)
+	assertDefinition(t, messageByID(t, msgs, 214)["result"].([]any), uri, 2, 15, 16)
 }
 
 func TestServerNavigationUsesReturnIfExpressionReceiverFields(t *testing.T) {

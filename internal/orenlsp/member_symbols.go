@@ -1380,6 +1380,10 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	if typeName == "" {
 		return
 	}
+	if source, ok := expr.(*ast.Identifier); ok && validMemberIdentifier(source) {
+		copyInferredFieldTypes(ident.Value, source.Value, stack)
+		return
+	}
 	call, ok := expr.(*ast.CallExpression)
 	if !ok {
 		return
@@ -1396,6 +1400,22 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 		fieldType := inferExpressionType(call.Arguments[i], env, stack)
 		if fieldType != "" {
 			stack[len(stack)-1][inferredFieldKey(ident.Value, field.Symbol.Name)] = fieldType
+		}
+	}
+}
+
+func copyInferredFieldTypes(dst, src string, stack []map[string]string) {
+	if dst == "" || src == "" || len(stack) == 0 {
+		return
+	}
+	srcPrefix := src + "."
+	dstPrefix := dst + "."
+	scope := stack[len(stack)-1]
+	for _, frame := range stack {
+		for key, typeName := range frame {
+			if strings.HasPrefix(key, srcPrefix) && typeName != "" {
+				scope[dstPrefix+strings.TrimPrefix(key, srcPrefix)] = typeName
+			}
 		}
 	}
 }
