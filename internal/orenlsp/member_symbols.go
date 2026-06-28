@@ -471,6 +471,8 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
 	case *ast.ReturnStatement:
 		return inferExpressionType(stmt.ReturnValue, env, *stack)
+	case *ast.ExpressionStatement:
+		return inferExpressionReturnType(stmt.Expression, env, stack)
 	case *ast.BlockStatement:
 		return inferBlockReturnType(stmt, env, stack)
 	case *ast.WhileStatement:
@@ -483,6 +485,25 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 			_ = inferStatementReturnType(stmt.Post, env, stack)
 		}
 		return inferBlockReturnType(stmt.Body, env, stack)
+	}
+	return ""
+}
+
+func inferExpressionReturnType(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string) string {
+	switch expr := expr.(type) {
+	case *ast.IfExpression:
+		if expr.Consequence == nil || expr.Alternative == nil {
+			return ""
+		}
+		consequence := inferBlockReturnType(expr.Consequence, env, stack)
+		if consequence == "" {
+			return ""
+		}
+		alternative := inferBlockReturnType(expr.Alternative, env, stack)
+		if alternative == "" || alternative != consequence {
+			return ""
+		}
+		return consequence
 	}
 	return ""
 }

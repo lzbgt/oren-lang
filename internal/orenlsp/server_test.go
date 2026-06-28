@@ -1246,6 +1246,87 @@ func TestServerNavigationUsesFactoryReturnFields(t *testing.T) {
 	})
 }
 
+func TestServerNavigationUsesConditionalFactoryReturnFields(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"struct Other { x }",
+		"fn choose_point(flag) {",
+		"  if flag {",
+		"    return Point(1, 2)",
+		"  } else {",
+		"    var p = Point(3, 4)",
+		"    return p",
+		"  }",
+		"}",
+		"fn choose_conflict(flag) {",
+		"  if flag {",
+		"    return Point(1, 2)",
+		"  } else {",
+		"    return Other(9)",
+		"  }",
+		"}",
+		"var p = choose_point(true)",
+		"var c = choose_conflict(true)",
+		"fn main() {",
+		"  return p.x + c.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-member-conditional-return.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      67,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 20, "character": 11},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      68,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 15},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      69,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 20, "character": 17},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertDefinition(t, messageByID(t, msgs, 67)["result"].([]any), uri, 0, 15, 16)
+	assertLocations(t, messageByID(t, msgs, 68)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 20, Character: 11}, End: position{Line: 20, Character: 12}}},
+	})
+	defs := messageByID(t, msgs, 69)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("conflicting conditional return member definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesCallSiteParameterFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{
