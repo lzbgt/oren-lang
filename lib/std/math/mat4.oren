@@ -141,6 +141,24 @@ fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) 
     ]
 }
 
+fn frustum(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
+    var ok = _finite6(left, right, bottom, top, near_z, far_z, "mat4.frustum")
+    if oren_is_err(ok) { return ok }
+    var rl: f64 = right - left
+    var tb: f64 = top - bottom
+    var fnz: f64 = far_z - near_z
+    if rl == 0.0 { return oren_err(4, "mat4.frustum: zero width") }
+    if tb == 0.0 { return oren_err(4, "mat4.frustum: zero height") }
+    if near_z <= 0.0 { return oren_err(4, "mat4.frustum: invalid depth") }
+    if far_z <= near_z { return oren_err(4, "mat4.frustum: invalid depth") }
+    return [
+        (2.0 * near_z) / rl, 0.0, (right + left) / rl, 0.0,
+        0.0, (2.0 * near_z) / tb, (top + bottom) / tb, 0.0,
+        0.0, 0.0, 0.0 - (far_z + near_z) / fnz, 0.0 - (2.0 * far_z * near_z) / fnz,
+        0.0, 0.0, 0.0 - 1.0, 0.0
+    ]
+}
+
 fn perspective(fov_y_radians: f64, aspect: f64, near_z: f64, far_z: f64) {
     var fov_ok = _finite_scalar(fov_y_radians, "mat4.perspective")
     if oren_is_err(fov_ok) { return fov_ok }
