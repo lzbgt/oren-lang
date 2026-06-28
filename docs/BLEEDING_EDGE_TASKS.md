@@ -105,17 +105,20 @@ This file is the concise task view. Detailed implementation status lives in
 								     `link.parse_module.start`, so capped self-host probes identify the active
 								     module even when it does not finish before timeout. Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
-								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` now writes every parsed
-								     module and `false` disables serial writes. Cache reads and fork-worker
-								     writes remain enabled, and explicit serial writes now log cache-write
-								     start/encode/done phases, but phase logging no longer implicitly spends cold
-								     build time encoding compiler-shaped ASTs. Module cache directories still
-								     default to the compiler executable signature, and controlled prewarm/profiling
-								     runs can set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across
-								     stage2 rebuilds. A focused no-artifact-cache warm
-								     probe still reduces `link.parse_modules` from about 17.8s to about 0.42s
-								     with `cache_hit=1` on both imported std modules when serial prewarm is
-								     explicitly enabled. Capped full x64 self-host traces now complete module
+								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
+								     module as a candidate and `false` disables serial-write candidates. Actual
+								     serial ASTBIN writes are guarded behind
+								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1` because forced prewarm
+								     proved generic prepared-module ASTBIN encoding can stall on both std and
+								     compiler-shaped modules before the first encode completion. Cache reads and
+								     fork-worker writes remain enabled, and explicit serial prewarm now logs
+								     cache-write start/skip/encode/done phases. Module cache directories still
+								     default to the compiler executable signature, and controlled profiling runs
+								     can set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across
+								     stage2 rebuilds. A focused forced-prewarm std fixture now completes with
+								     `link.parse_module.cache_write.skip reason=astbin_disabled`, and capped
+								     compiler-root probes skip each cache-write candidate in 0-1 ms instead of
+								     stalling at `cache_write.start`. Capped full x64 self-host traces now complete module
 								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
 								     reach x64 native emit. With direct string globals disabled,
 								     `top_globals.user_slots` finishes in under a second; opt-in direct-string
@@ -125,11 +128,9 @@ This file is the concise task view. Detailed implementation status lives in
 								     metadata/root bookkeeping cliff. The synthesized `__top_level__`
 								     string-global assignment fast path now runs before generic expression
 								     validation and local fact updates, so literal string globals bypass the
-								     slow generic assignment path. A forced
-								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS=0` prewarm trace now stalls
-								     after `link.parse_module.cache_write.start` on the first compiler-shaped
-								     module, so the next concrete throughput target is byte-native ASTBIN
-								     encode/write before warm-cache full self-host profiling can be trusted.
+								     slow generic assignment path. The next concrete throughput target is a
+								     specialized byte-native module-AST encoder/write path before warm-cache full
+								     self-host profiling should rely on serial prewarm writes.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

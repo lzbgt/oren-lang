@@ -260,19 +260,46 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                     " prepare_ms=" + oren_int_to_string(prepare_ms),
                     cache_write_t0)
             }
-            var bs_serial = astbin_encode(prog)
-            if cache_write_phase_log != nil {
-                _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.encode.done",
-                    "path=" + full +
-                    " bytes=" + oren_int_to_string(oren_buf_len(bs_serial)),
-                    cache_write_t0)
+            var skip_reason = nil
+            if _ml_modcache_serial_write_astbin_enabled() != true {
+                skip_reason = "astbin_disabled"
+            } else if _ml_modcache_serial_write_compiler_modules_enabled() != true &&
+                      starts_with(full, "lib/compiler/") {
+                skip_reason = "compiler_module"
             }
-            _ml_modcache_write_bytes(cache_path, bs_serial)
-            if cache_write_phase_log != nil {
-                _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.done",
-                    "path=" + full +
-                    " bytes=" + oren_int_to_string(oren_buf_len(bs_serial)),
-                    cache_write_t0)
+            if skip_reason != nil {
+                if cache_write_phase_log != nil {
+                    _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.skip",
+                        "path=" + full +
+                        " reason=" + skip_reason,
+                        cache_write_t0)
+                }
+            } else {
+                var node_budget = _ml_modcache_serial_write_node_budget()
+                var bs_serial = astbin_encode_v1_stream_budget(prog, node_budget)
+                if bs_serial == nil {
+                    if cache_write_phase_log != nil {
+                        _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.skip",
+                            "path=" + full +
+                            " reason=node_budget" +
+                            " node_budget=" + oren_int_to_string(node_budget),
+                            cache_write_t0)
+                    }
+                } else {
+                    if cache_write_phase_log != nil {
+                        _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.encode.done",
+                            "path=" + full +
+                            " bytes=" + oren_int_to_string(oren_buf_len(bs_serial)),
+                            cache_write_t0)
+                    }
+                    _ml_modcache_write_bytes(cache_path, bs_serial)
+                    if cache_write_phase_log != nil {
+                        _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.done",
+                            "path=" + full +
+                            " bytes=" + oren_int_to_string(oren_buf_len(bs_serial)),
+                            cache_write_t0)
+                    }
+                }
             }
         }
     }

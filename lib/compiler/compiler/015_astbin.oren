@@ -227,6 +227,218 @@ fn _astbin_write_u64_le_v1_ptr(data_ptr, off, x0) {
     return off
 }
 
+// Growable v1 writer used by explicit serial module-cache prewarm.
+//
+// The fixed-size v1 encoder first walks the full AST to compute an exact byte count, then walks
+// again to write. Compiler-shaped modules make that extra traversal expensive enough to block
+// prewarm profiling, so this path writes once into an amortized u8_buf builder.
+fn _astbin_dyn_new(cap0) {
+    var cap = cap0
+    if cap < 4096 { cap = 4096 }
+    var buf = oren_u8_buf_new(cap)
+    if oren_is_err(buf) { oren_fail(1, "astbin dyn: u8_buf alloc failed") }
+    return {"buf": buf, "len": 0, "cap": cap}
+}
+
+fn _astbin_dyn_copy_bytes(dstp, srcp, n) {
+    var i = 0
+    while i < n {
+        ptr_set_byte(iadd(dstp, i), ptr_get_byte(iadd(srcp, i)) & 255)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _astbin_dyn_ensure(b, want) {
+    if want <= b["cap"] { return nil }
+    var new_cap = b["cap"]
+    while new_cap < want { new_cap = new_cap * 2 }
+    var nb = oren_u8_buf_new(new_cap)
+    if oren_is_err(nb) { oren_fail(1, "astbin dyn: u8_buf grow failed") }
+    var used = b["len"]
+    if used > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(b["buf"])
+        var dstp = oren_buf_data_ptr_unchecked(nb)
+        if srcp == 0 || dstp == 0 { oren_fail(1, "astbin dyn: data ptr is nil") }
+        _astbin_dyn_copy_bytes(dstp, srcp, used)
+    }
+    b["buf"] = nb
+    b["cap"] = new_cap
+    return nil
+}
+
+fn _astbin_dyn_push_u8(b, v) {
+    var used = b["len"]
+    _astbin_dyn_ensure(b, used + 1)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "astbin dyn: data ptr is nil") }
+    ptr_set_byte(iadd(dstp, used), v & 255)
+    b["len"] = used + 1
+    return nil
+}
+
+fn _astbin_dyn_push_uvarint(b, x) {
+    var v = x
+    if v < 0 { v = 0 }
+    while v >= 128 {
+        _astbin_dyn_push_u8(b, (v & 127) | 128)
+        v = v >> 7
+    }
+    _astbin_dyn_push_u8(b, v & 127)
+    return nil
+}
+
+fn _astbin_dyn_push_varint_signed(b, x) {
+    var zz = _astbin_zigzag(x)
+    if zz < 0 { zz = 0 }
+    _astbin_dyn_push_uvarint(b, zz)
+    return nil
+}
+
+fn _astbin_dyn_push_u64_le(b, x0) {
+    var x = x0
+    var i = 0
+    while i < 8 {
+        _astbin_dyn_push_u8(b, x & 255)
+        x = x >> 8
+        i = i + 1
+    }
+    return nil
+}
+
+fn _astbin_dyn_push_string(b, s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    _astbin_dyn_push_uvarint(b, n)
+    var used = b["len"]
+    _astbin_dyn_ensure(b, used + n)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "astbin dyn: data ptr is nil") }
+    var i = 0
+    while i < n {
+        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn _astbin_dyn_extend_u8_buf(b, ub) {
+    var n = oren_buf_len(ub)
+    _astbin_dyn_push_uvarint(b, n)
+    var used = b["len"]
+    _astbin_dyn_ensure(b, used + n)
+    if n > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(ub)
+        var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+        if srcp == 0 || dstp == 0 { oren_fail(1, "astbin dyn: data ptr is nil") }
+        _astbin_dyn_copy_bytes(iadd(dstp, used), srcp, n)
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn _astbin_dyn_finalize(b) {
+    var n = b["len"]
+    var out = b["buf"]
+    if n == b["cap"] { return out }
+    var tight = oren_u8_buf_new(n)
+    if oren_is_err(tight) { oren_fail(1, "astbin dyn: finalize alloc failed") }
+    if n > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(out)
+        var dstp = oren_buf_data_ptr_unchecked(tight)
+        if srcp == 0 || dstp == 0 { oren_fail(1, "astbin dyn: data ptr is nil") }
+        _astbin_dyn_copy_bytes(dstp, srcp, n)
+    }
+    return tight
+}
+
+fn _astbin_write_value_v1_dyn(b, v) {
+    if b["aborted"] == true { return nil }
+    var budget = b["budget"]
+    if oren_type_tag(budget) != 0 {
+        if budget <= 0 {
+            b["aborted"] = true
+            return nil
+        }
+        b["budget"] = budget - 1
+    }
+    if oren_type_tag(v) == 0 { _astbin_dyn_push_u8(b, 0); return nil }
+    if v == false { _astbin_dyn_push_u8(b, 1); return nil }
+    if v == true { _astbin_dyn_push_u8(b, 2); return nil }
+    if _astbin_is_list(v) {
+        _astbin_dyn_push_u8(b, 5)
+        var n = oren_list_len(v)
+        _astbin_dyn_push_uvarint(b, n)
+        var i = 0
+        while i < n {
+            _astbin_write_value_v1_dyn(b, v[i])
+            if b["aborted"] == true { return nil }
+            i = i + 1
+        }
+        return nil
+    }
+    if _astbin_is_map(v) {
+        _astbin_dyn_push_u8(b, 6)
+        var n2 = oren_map_len(v)
+        _astbin_dyn_push_uvarint(b, n2)
+        var idx = 0
+        var out_pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(v, idx, out_pair)
+            if ok == 0 { break }
+            var k = out_pair[0]
+            var val = out_pair[1]
+            if oren_type_tag(k) == 0 || k == true || k == false {
+                print("astbin stream: unsupported map key (need int|string), got bool/nil")
+                return nil
+            }
+            _astbin_write_value_v1_dyn(b, k)
+            if b["aborted"] == true { return nil }
+            _astbin_write_value_v1_dyn(b, val)
+            if b["aborted"] == true { return nil }
+            idx = idx + 1
+        }
+        return nil
+    }
+    if _astbin_is_string(v) {
+        _astbin_dyn_push_u8(b, 4)
+        _astbin_dyn_push_string(b, v)
+        return nil
+    }
+    if _astbin_is_u8_buf(v) {
+        _astbin_dyn_push_u8(b, 7)
+        _astbin_dyn_extend_u8_buf(b, v)
+        return nil
+    }
+    if _astbin_is_buf(v) {
+        print("astbin stream: unsupported typed buffer (only u8_buf is supported)")
+        oren_exit(1)
+    }
+    if oren_type_tag(v) == 2 {
+        _astbin_dyn_push_u8(b, 8)
+        _astbin_dyn_push_u64_le(b, oren_f64_to_u64_bits(v + 0.0))
+        return nil
+    }
+    _astbin_dyn_push_u8(b, 3)
+    _astbin_dyn_push_varint_signed(b, v)
+    return nil
+}
+
+fn astbin_encode_v1_stream(v) {
+    var b = _astbin_dyn_new(16384)
+    _astbin_write_value_v1_dyn(b, v)
+    return _astbin_dyn_finalize(b)
+}
+
+fn astbin_encode_v1_stream_budget(v, max_nodes) {
+    var b = _astbin_dyn_new(16384)
+    if max_nodes != nil && max_nodes > 0 { b["budget"] = max_nodes }
+    _astbin_write_value_v1_dyn(b, v)
+    if b["aborted"] == true { return nil }
+    return _astbin_dyn_finalize(b)
+}
+
 fn _astbin_write_value_v1_ptr(buf, data_ptr, off, v) {
     if oren_type_tag(v) == 0 { return _astbin_write_u8_ptr(data_ptr, off, 0) }
     if v == false { return _astbin_write_u8_ptr(data_ptr, off, 1) }

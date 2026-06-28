@@ -161,17 +161,20 @@
 <p>								     <code>link.parse_module.start</code>, so capped self-host probes identify the active</p>
 <p>								     module even when it does not finish before timeout. Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
-<p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> now writes every parsed</p>
-<p>								     module and <code>false</code> disables serial writes. Cache reads and fork-worker</p>
-<p>								     writes remain enabled, and explicit serial writes now log cache-write</p>
-<p>								     start/encode/done phases, but phase logging no longer implicitly spends cold</p>
-<p>								     build time encoding compiler-shaped ASTs. Module cache directories still</p>
-<p>								     default to the compiler executable signature, and controlled prewarm/profiling</p>
-<p>								     runs can set <code>OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG</code> to reuse entries across</p>
-<p>								     stage2 rebuilds. A focused no-artifact-cache warm</p>
-<p>								     probe still reduces <code>link.parse_modules</code> from about 17.8s to about 0.42s</p>
-<p>								     with <code>cache_hit=1</code> on both imported std modules when serial prewarm is</p>
-<p>								     explicitly enabled. Capped full x64 self-host traces now complete module</p>
+<p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
+<p>								     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
+<p>								     serial ASTBIN writes are guarded behind</p>
+<p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code> because forced prewarm</p>
+<p>								     proved generic prepared-module ASTBIN encoding can stall on both std and</p>
+<p>								     compiler-shaped modules before the first encode completion. Cache reads and</p>
+<p>								     fork-worker writes remain enabled, and explicit serial prewarm now logs</p>
+<p>								     cache-write start/skip/encode/done phases. Module cache directories still</p>
+<p>								     default to the compiler executable signature, and controlled profiling runs</p>
+<p>								     can set <code>OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG</code> to reuse entries across</p>
+<p>								     stage2 rebuilds. A focused forced-prewarm std fixture now completes with</p>
+<p>								     <code>link.parse_module.cache_write.skip reason=astbin_disabled</code>, and capped</p>
+<p>								     compiler-root probes skip each cache-write candidate in 0-1 ms instead of</p>
+<p>								     stalling at <code>cache_write.start</code>. Capped full x64 self-host traces now complete module</p>
 <p>								     parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and</p>
 <p>								     reach x64 native emit. With direct string globals disabled,</p>
 <p>								     <code>top_globals.user_slots</code> finishes in under a second; opt-in direct-string</p>
@@ -181,11 +184,9 @@
 <p>								     metadata/root bookkeeping cliff. The synthesized <code>__top_level__</code></p>
 <p>								     string-global assignment fast path now runs before generic expression</p>
 <p>								     validation and local fact updates, so literal string globals bypass the</p>
-<p>								     slow generic assignment path. A forced</p>
-<p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS=0</code> prewarm trace now stalls</p>
-<p>								     after <code>link.parse_module.cache_write.start</code> on the first compiler-shaped</p>
-<p>								     module, so the next concrete throughput target is byte-native ASTBIN</p>
-<p>								     encode/write before warm-cache full self-host profiling can be trusted.</p>
+<p>								     slow generic assignment path. The next concrete throughput target is a</p>
+<p>								     specialized byte-native module-AST encoder/write path before warm-cache full</p>
+<p>								     self-host profiling should rely on serial prewarm writes.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
