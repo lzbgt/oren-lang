@@ -68,13 +68,13 @@ func typedMemberCompletionItemsAt(text, uri string, pos position, importedDocs [
 	program, env := typedMemberAnalysisEnv(text, uri, importedDocs, aliasByURI)
 	typeName := parsedMemberTypeAt(text, uri, pos, importedDocs, aliasByURI)
 	if typeName == "" {
-		typeName = inferredReceiverExpressionTypeAt(program, receiver, pos, env)
+		typeName = inferredReceiverExpressionTypeAt(text, program, receiver, pos, env)
 	}
 	if typeName == "" {
 		recoveryText := textWithCompletionLinesBlanked(text, pos.Line)
 		if recoveryText != text {
 			recoveryProgram, recoveryEnv := typedMemberAnalysisEnv(recoveryText, uri, importedDocs, aliasByURI)
-			typeName = inferredReceiverExpressionTypeAt(recoveryProgram, receiver, pos, recoveryEnv)
+			typeName = inferredReceiverExpressionTypeAt(recoveryText, recoveryProgram, receiver, pos, recoveryEnv)
 			env = recoveryEnv
 		}
 	}
@@ -211,17 +211,17 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 }
 
 func inferredReceiverTypeAt(program *ast.Program, receiver string, pos position, env memberTypeEnv) string {
-	return inferredReceiverExpressionTypeAt(program, receiver, pos, env)
+	return inferredReceiverExpressionTypeAt("", program, receiver, pos, env)
 }
 
-func inferredReceiverExpressionTypeAt(program *ast.Program, receiver string, pos position, env memberTypeEnv) string {
+func inferredReceiverExpressionTypeAt(text string, program *ast.Program, receiver string, pos position, env memberTypeEnv) string {
 	if program == nil || receiver == "" {
 		return ""
 	}
 	var stack []map[string]string
 	stack = append(stack, map[string]string{})
 	for _, stmt := range program.Statements {
-		collectInferredTypesUntil(stmt, pos, env, &stack)
+		collectInferredTypesUntil(stmt, pos, env, &stack, text)
 	}
 	expr := parseMemberReceiverExpression(receiver)
 	if expr == nil {
@@ -321,7 +321,7 @@ func parseMemberReceiverExpression(src string) ast.Expression {
 	return stmt.Value
 }
 
-func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeEnv, stack *[]map[string]string) {
+func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeEnv, stack *[]map[string]string, text string) {
 	if stmt == nil || !statementStartsBeforeOrAt(stmt, pos) {
 		return
 	}
@@ -331,83 +331,90 @@ func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeE
 	case *ast.AssignStatement:
 		setInferredVarType(stmt.Name, inferExpressionType(stmt.Value, env, *stack), *stack)
 	case *ast.ExpressionStatement:
-		collectInferredExpressionTypesUntil(stmt.Expression, pos, env, stack)
+		collectInferredExpressionTypesUntil(stmt.Expression, pos, env, stack, text)
 	case *ast.ReturnStatement:
-		collectInferredExpressionTypesUntil(stmt.ReturnValue, pos, env, stack)
+		collectInferredExpressionTypesUntil(stmt.ReturnValue, pos, env, stack, text)
 	case *ast.SetStatement:
-		collectInferredExpressionTypesUntil(stmt.Left, pos, env, stack)
-		collectInferredExpressionTypesUntil(stmt.Value, pos, env, stack)
+		collectInferredExpressionTypesUntil(stmt.Left, pos, env, stack, text)
+		collectInferredExpressionTypesUntil(stmt.Value, pos, env, stack, text)
 	case *ast.WhileStatement:
-		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack)
-		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
+		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack, text)
+		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack, text)
 	case *ast.ForStatement:
-		collectInferredTypesUntil(stmt.Init, pos, env, stack)
-		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack)
-		collectInferredTypesUntil(stmt.Post, pos, env, stack)
+		collectInferredTypesUntil(stmt.Init, pos, env, stack, text)
+		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack, text)
+		collectInferredTypesUntil(stmt.Post, pos, env, stack, text)
 		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
+			keepForIn := forStatementContainsPosition(text, stmt, pos)
 			*stack = append(*stack, map[string]string{name: typeName})
-			collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
-			*stack = (*stack)[:len(*stack)-1]
+			collectInferredBlockTypesUntil(stmt.Body, pos, env, stack, text)
+			if !keepForIn {
+				*stack = (*stack)[:len(*stack)-1]
+			}
 			return
 		}
-		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
+		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack, text)
 	case *ast.BlockStatement:
-		collectInferredBlockTypesUntil(stmt, pos, env, stack)
+		collectInferredBlockTypesUntil(stmt, pos, env, stack, text)
 	}
 }
 
-func collectInferredBlockTypesUntil(block *ast.BlockStatement, pos position, env memberTypeEnv, stack *[]map[string]string) {
+func collectInferredBlockTypesUntil(block *ast.BlockStatement, pos position, env memberTypeEnv, stack *[]map[string]string, text string) {
 	if block == nil || !tokenStartsBeforeOrAt(block.Token, pos) {
 		return
 	}
 	*stack = append(*stack, map[string]string{})
-	defer func() { *stack = (*stack)[:len(*stack)-1] }()
 	for _, stmt := range block.Statements {
-		collectInferredTypesUntil(stmt, pos, env, stack)
+		collectInferredTypesUntil(stmt, pos, env, stack, text)
+	}
+	if !blockContainsPosition(text, block, pos) {
+		*stack = (*stack)[:len(*stack)-1]
 	}
 }
 
-func collectInferredExpressionTypesUntil(expr ast.Expression, pos position, env memberTypeEnv, stack *[]map[string]string) {
+func collectInferredExpressionTypesUntil(expr ast.Expression, pos position, env memberTypeEnv, stack *[]map[string]string, text string) {
 	switch expr := expr.(type) {
 	case *ast.FunctionLiteral:
 		if expr.Body == nil || !tokenStartsBeforeOrAt(expr.Token, pos) {
 			return
 		}
 		*stack = append(*stack, inferredParamFrame(expr, env))
-		defer func() { *stack = (*stack)[:len(*stack)-1] }()
 		for _, stmt := range expr.Body.Statements {
-			collectInferredTypesUntil(stmt, pos, env, stack)
+			collectInferredTypesUntil(stmt, pos, env, stack, text)
+		}
+		if !blockContainsPosition(text, expr.Body, pos) {
+			*stack = (*stack)[:len(*stack)-1]
 		}
 	case *ast.IfExpression:
-		collectInferredExpressionTypesUntil(expr.Condition, pos, env, stack)
-		collectInferredBlockTypesUntil(expr.Consequence, pos, env, stack)
-		collectInferredBlockTypesUntil(expr.Alternative, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Condition, pos, env, stack, text)
+		collectInferredBlockTypesUntil(expr.Consequence, pos, env, stack, text)
+		collectInferredBlockTypesUntil(expr.Alternative, pos, env, stack, text)
 		applyIfBranchAssignmentEffects(expr, env, stack)
 	case *ast.CallExpression:
-		collectInferredExpressionTypesUntil(expr.Function, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Function, pos, env, stack, text)
 		for _, arg := range expr.Arguments {
-			collectInferredExpressionTypesUntil(arg, pos, env, stack)
+			collectInferredExpressionTypesUntil(arg, pos, env, stack, text)
 		}
 	case *ast.MemberExpression:
-		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack, text)
 	case *ast.PrefixExpression:
-		collectInferredExpressionTypesUntil(expr.Right, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Right, pos, env, stack, text)
 	case *ast.InfixExpression:
-		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack)
-		collectInferredExpressionTypesUntil(expr.Right, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack, text)
+		collectInferredExpressionTypesUntil(expr.Right, pos, env, stack, text)
 	case *ast.SpawnExpression:
-		collectInferredExpressionTypesUntil(expr.Call, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Call, pos, env, stack, text)
 	case *ast.ArrayLiteral:
 		for _, elem := range expr.Elements {
-			collectInferredExpressionTypesUntil(elem, pos, env, stack)
+			collectInferredExpressionTypesUntil(elem, pos, env, stack, text)
 		}
 	case *ast.IndexExpression:
-		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack)
-		collectInferredExpressionTypesUntil(expr.Index, pos, env, stack)
+		collectInferredExpressionTypesUntil(expr.Left, pos, env, stack, text)
+		collectInferredExpressionTypesUntil(expr.Index, pos, env, stack, text)
 	case *ast.HashLiteral:
 		for key, value := range expr.Pairs {
-			collectInferredExpressionTypesUntil(key, pos, env, stack)
-			collectInferredExpressionTypesUntil(value, pos, env, stack)
+			collectInferredExpressionTypesUntil(key, pos, env, stack, text)
+			collectInferredExpressionTypesUntil(value, pos, env, stack, text)
 		}
 	}
 }
@@ -448,6 +455,136 @@ func tokenStartsBeforeOrAt(tok token.Token, pos position) bool {
 		return false
 	}
 	return line < pos.Line || (line == pos.Line && character <= pos.Character)
+}
+
+func blockContainsPosition(text string, block *ast.BlockStatement, pos position) bool {
+	if text == "" || block == nil || !tokenStartsBeforeOrAt(block.Token, pos) {
+		return false
+	}
+	end, ok := matchingBracePosition(text, block.Token)
+	if !ok {
+		return true
+	}
+	return positionBeforeOrEqual(pos, end)
+}
+
+func forStatementContainsPosition(text string, stmt *ast.ForStatement, pos position) bool {
+	if text == "" || stmt == nil || !tokenStartsBeforeOrAt(stmt.Token, pos) {
+		return false
+	}
+	brace, ok := firstBraceAtOrAfterToken(text, stmt.Token)
+	if !ok {
+		return false
+	}
+	end, ok := matchingBracePosition(text, brace)
+	if !ok {
+		return true
+	}
+	return tokenStartsBeforeOrAt(brace, pos) && positionBeforeOrEqual(pos, end)
+}
+
+func firstBraceAtOrAfterToken(text string, start token.Token) (token.Token, bool) {
+	lines := strings.Split(text, "\n")
+	line := start.Line - 1
+	col := start.Column - 1
+	if line < 0 || line >= len(lines) || col < 0 {
+		return token.Token{}, false
+	}
+	inString := rune(0)
+	escaped := false
+	for li := line; li < len(lines); li++ {
+		runes := []rune(lines[li])
+		startCol := 0
+		if li == line {
+			startCol = col
+		}
+		for ci := startCol; ci < len(runes); ci++ {
+			ch := runes[ci]
+			if inString != 0 {
+				if escaped {
+					escaped = false
+					continue
+				}
+				if ch == '\\' {
+					escaped = true
+					continue
+				}
+				if ch == inString {
+					inString = 0
+				}
+				continue
+			}
+			if ch == '/' && ci+1 < len(runes) && runes[ci+1] == '/' {
+				break
+			}
+			if ch == '"' || ch == '\'' {
+				inString = ch
+				continue
+			}
+			if ch == '{' {
+				return token.Token{Type: token.LBRACE, Literal: "{", Line: li + 1, Column: ci + 1}, true
+			}
+		}
+	}
+	return token.Token{}, false
+}
+
+func matchingBracePosition(text string, start token.Token) (position, bool) {
+	lines := strings.Split(text, "\n")
+	line := start.Line - 1
+	col := start.Column - 1
+	if line < 0 || line >= len(lines) || col < 0 {
+		return position{}, false
+	}
+	depth := 0
+	inString := rune(0)
+	escaped := false
+	for li := line; li < len(lines); li++ {
+		runes := []rune(lines[li])
+		startCol := 0
+		if li == line {
+			startCol = col
+		}
+		for ci := startCol; ci < len(runes); ci++ {
+			ch := runes[ci]
+			if inString != 0 {
+				if escaped {
+					escaped = false
+					continue
+				}
+				if ch == '\\' {
+					escaped = true
+					continue
+				}
+				if ch == inString {
+					inString = 0
+				}
+				continue
+			}
+			if ch == '/' && ci+1 < len(runes) && runes[ci+1] == '/' {
+				break
+			}
+			if ch == '"' || ch == '\'' {
+				inString = ch
+				continue
+			}
+			if ch == '{' {
+				depth++
+				continue
+			}
+			if ch == '}' {
+				depth--
+				if depth == 0 {
+					return position{Line: li, Character: ci}, true
+				}
+			}
+		}
+	}
+	return position{}, false
+}
+
+func positionBeforeOrEqual(a, b position) bool {
+	return a.Line < b.Line || (a.Line == b.Line && a.Character <= b.Character)
 }
 
 func collectTypeInfos(program *ast.Program, uri, prefix string) map[string]typeInfo {

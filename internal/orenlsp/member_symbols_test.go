@@ -289,7 +289,7 @@ func TestServerNavigationUsesIndexedContainerReceiverFields(t *testing.T) {
 		"method":  "textDocument/completion",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 6, "character": strings.LastIndex(lines[6], ".") + 1},
+			"position":     map[string]any{"line": 6, "character": len([]rune(lines[6]))},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{
@@ -565,7 +565,7 @@ func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
 
 func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 	var in bytes.Buffer
-	text := strings.Join([]string{
+	lines := []string{
 		"struct Point { x, y }",
 		"struct Inner { x, z }",
 		"struct Outer { inner, other }",
@@ -575,9 +575,16 @@ func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 		"  var factory = make_point().x",
 		"  var nested = Outer(Inner(1), Point(0, 0)).inner.",
 		"  var nested_exact = Outer(Inner(1), Point(0, 0)).inner.x",
+		"  var local = Point(9, 10)",
+		"  var local_comp = local.",
+		"  var points = [Point(1, 2), Point(3, 4)]",
+		"  for p in points {",
+		"    var loop_comp = p.",
+		"  }",
 		"}",
 		"",
-	}, "\n")
+	}
+	text := strings.Join(lines, "\n")
 	uri := "file:///typed-member-expression-completion.oren"
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
@@ -592,7 +599,7 @@ func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 		"method":  "textDocument/completion",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 5, "character": 27},
+			"position":     map[string]any{"line": 5, "character": strings.LastIndex(lines[5], ".") + 1},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{
@@ -601,7 +608,7 @@ func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 		"method":  "textDocument/completion",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 6, "character": 30},
+			"position":     map[string]any{"line": 6, "character": len([]rune(lines[6]))},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{
@@ -610,7 +617,7 @@ func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 		"method":  "textDocument/completion",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 7, "character": 50},
+			"position":     map[string]any{"line": 7, "character": strings.LastIndex(lines[7], ".") + 1},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{
@@ -619,7 +626,25 @@ func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 		"method":  "textDocument/completion",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": uri},
-			"position":     map[string]any{"line": 8, "character": 57},
+			"position":     map[string]any{"line": 8, "character": len([]rune(lines[8]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      405,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 10, "character": strings.LastIndex(lines[10], ".") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      406,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.LastIndex(lines[13], ".") + 1},
 		},
 	})
 	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
@@ -644,5 +669,13 @@ func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
 	nestedExact := messageByID(t, msgs, 404)["result"].([]any)
 	if !hasCompletion(nestedExact, "x", 5) || hasCompletion(nestedExact, "z", 5) {
 		t.Fatalf("constructed-field filtered completion mismatch: %#v", nestedExact)
+	}
+	local := messageByID(t, msgs, 405)["result"].([]any)
+	if !hasCompletion(local, "x", 5) || !hasCompletion(local, "y", 5) || hasCompletion(local, "z", 5) {
+		t.Fatalf("local receiver completion mismatch: %#v", local)
+	}
+	loop := messageByID(t, msgs, 406)["result"].([]any)
+	if !hasCompletion(loop, "x", 5) || !hasCompletion(loop, "y", 5) || hasCompletion(loop, "z", 5) {
+		t.Fatalf("for-in receiver completion mismatch: %#v", loop)
 	}
 }
