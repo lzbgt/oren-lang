@@ -373,6 +373,118 @@ func TestInferExpressionTypeUsesIndexedContainers(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesForInReceiverFields(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Point { x, y }",
+		"struct Other { z }",
+		"fn id(v) { return v }",
+		"fn main() {",
+		"  var points = [Point(1, 2), Point(3, 4)]",
+		"  for p in points {",
+		"    var px = p.x",
+		"    var via = id(p).y",
+		"  }",
+		"  for lit in [Point(5, 6), Point(7, 8)] {",
+		"    var ly = lit.y",
+		"  }",
+		"  for bad in [Point(1, 2), Other(9)] {",
+		"    var bz = bad.z",
+		"  }",
+		"  for key in {\"home\": Point(1, 2)} {",
+		"    var kx = key.x",
+		"  }",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-for-in.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      752,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": strings.Index(lines[6], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      753,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": strings.Index(lines[7], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      754,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 10, "character": strings.Index(lines[10], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      755,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.Index(lines[13], ".z") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      756,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 16, "character": strings.Index(lines[16], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      757,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": strings.Index(lines[0], "x")},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertDefinition(t, messageByID(t, msgs, 752)["result"].([]any), uri, 0, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 753)["result"].([]any), uri, 0, 18, 19)
+	assertDefinition(t, messageByID(t, msgs, 754)["result"].([]any), uri, 0, 18, 19)
+	defs := messageByID(t, msgs, 755)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed for-in member definition=%#v want none", defs)
+	}
+	defs = messageByID(t, msgs, 756)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("map-key for-in member definition=%#v want none", defs)
+	}
+	assertLocations(t, messageByID(t, msgs, 757)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 6, Character: strings.Index(lines[6], ".x") + 1}, End: position{Line: 6, Character: strings.Index(lines[6], ".x") + 2}}},
+	})
+}
+
 func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

@@ -906,6 +906,7 @@ Working evidence:
   direct named factory-return inference including `return if/else` expression branches, direct typed constructor/factory
   expression receiver field navigation/completion plus constructor-field
   receiver chain inference/completion, homogeneous list/hash indexed receiver evidence for field navigation and direct literal completions,
+  list `for-in` loop element receiver evidence for field navigation/references and call-site parameter propagation,
   consistent direct call-site parameter inference with conflict
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
@@ -916,7 +917,7 @@ Working evidence:
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
-  constructor/alias/factory-expression/constructed-field/call-site/parameter-return/conditional-branch/return-if/indexed-container evidence remains.
+  constructor/alias/factory-expression/constructed-field/call-site/parameter-return/conditional-branch/return-if/indexed-container/list-for-in evidence remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

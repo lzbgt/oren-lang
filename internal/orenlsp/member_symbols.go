@@ -344,6 +344,12 @@ func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeE
 		collectInferredTypesUntil(stmt.Init, pos, env, stack)
 		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack)
 		collectInferredTypesUntil(stmt.Post, pos, env, stack)
+		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
+			*stack = append(*stack, map[string]string{name: typeName})
+			collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
+			*stack = (*stack)[:len(*stack)-1]
+			return
+		}
 		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack)
 	case *ast.BlockStatement:
 		collectInferredBlockTypesUntil(stmt, pos, env, stack)
@@ -732,6 +738,12 @@ func collectFunctionParamStatementTypes(stmt ast.Statement, env memberTypeEnv, f
 		collectFunctionParamStatementTypes(stmt.Init, env, functions, stack, out, conflicts)
 		collectFunctionParamExpressionTypes(stmt.Condition, env, functions, stack, out, conflicts)
 		collectFunctionParamStatementTypes(stmt.Post, env, functions, stack, out, conflicts)
+		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
+			*stack = append(*stack, map[string]string{name: typeName})
+			collectFunctionParamBlockTypes(stmt.Body, env, functions, stack, out, conflicts)
+			*stack = (*stack)[:len(*stack)-1]
+			return
+		}
 		collectFunctionParamBlockTypes(stmt.Body, env, functions, stack, out, conflicts)
 	case *ast.BlockStatement:
 		collectFunctionParamBlockTypes(stmt, env, functions, stack, out, conflicts)
@@ -855,6 +867,12 @@ func collectTypedMemberStatement(stmt ast.Statement, uri string, env memberTypeE
 		collectTypedMemberStatement(stmt.Init, uri, env, stack, index)
 		collectTypedMemberExpression(stmt.Condition, uri, env, stack, index)
 		collectTypedMemberStatement(stmt.Post, uri, env, stack, index)
+		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
+			*stack = append(*stack, map[string]string{name: typeName})
+			collectTypedMemberBlock(stmt.Body, uri, env, stack, index)
+			*stack = (*stack)[:len(*stack)-1]
+			return
+		}
 		collectTypedMemberBlock(stmt.Body, uri, env, stack, index)
 	case *ast.BlockStatement:
 		collectTypedMemberBlock(stmt, uri, env, stack, index)
@@ -1032,6 +1050,87 @@ func inferIndexedExpressionType(expr *ast.IndexExpression, env memberTypeEnv, st
 		return strings.TrimPrefix(containerType, inferredMapPrefix)
 	}
 	return ""
+}
+
+func inferForInElementBinding(stmt *ast.ForStatement, env memberTypeEnv, stack []map[string]string) (string, string, bool) {
+	userName, iterable := forInDesugaredBinding(stmt)
+	if userName == "" || iterable == nil {
+		return "", "", false
+	}
+	containerType := inferForInContainerType(stmt, iterable, env, stack)
+	if !strings.HasPrefix(containerType, inferredListPrefix) {
+		return "", "", false
+	}
+	typeName := strings.TrimPrefix(containerType, inferredListPrefix)
+	if typeName == "" {
+		return "", "", false
+	}
+	return userName, typeName, true
+}
+
+func forInDesugaredBinding(stmt *ast.ForStatement) (string, ast.Expression) {
+	if stmt == nil || stmt.Body == nil || len(stmt.Body.Statements) < 4 {
+		return "", nil
+	}
+	bindResult, ok := stmt.Body.Statements[0].(*ast.VarStatement)
+	if !ok || bindResult.Name == nil || bindResult.Name.Value == "" {
+		return "", nil
+	}
+	call, ok := bindResult.Value.(*ast.CallExpression)
+	if !ok || rawIdentifierName(call.Function) != "oren_iter_next" || len(call.Arguments) == 0 {
+		return "", nil
+	}
+	exprStmt, ok := stmt.Body.Statements[3].(*ast.ExpressionStatement)
+	if !ok {
+		return "", nil
+	}
+	guard, ok := exprStmt.Expression.(*ast.IfExpression)
+	if !ok || guard.Consequence == nil || len(guard.Consequence.Statements) == 0 {
+		return "", nil
+	}
+	bindUser, ok := guard.Consequence.Statements[0].(*ast.VarStatement)
+	if !ok || !validMemberIdentifier(bindUser.Name) {
+		return "", nil
+	}
+	indexed, ok := bindUser.Value.(*ast.IndexExpression)
+	if !ok {
+		return "", nil
+	}
+	left, ok := indexed.Left.(*ast.Identifier)
+	if !ok || left.Value != bindResult.Name.Value || literalIntValue(indexed.Index) != 1 {
+		return "", nil
+	}
+	return bindUser.Name.Value, call.Arguments[0]
+}
+
+func inferForInContainerType(stmt *ast.ForStatement, iterable ast.Expression, env memberTypeEnv, stack []map[string]string) string {
+	if indexed, ok := iterable.(*ast.IndexExpression); ok && literalIntValue(indexed.Index) == 0 {
+		if state, ok := indexed.Left.(*ast.Identifier); ok && state.Value != "" {
+			if init, ok := stmt.Init.(*ast.VarStatement); ok && init.Name != nil && init.Name.Value == state.Value {
+				if literal, ok := init.Value.(*ast.ArrayLiteral); ok && len(literal.Elements) > 0 {
+					if typeName := inferExpressionType(literal.Elements[0], env, stack); typeName != "" {
+						return typeName
+					}
+				}
+			}
+		}
+	}
+	return inferExpressionType(iterable, env, stack)
+}
+
+func rawIdentifierName(expr ast.Expression) string {
+	ident, ok := expr.(*ast.Identifier)
+	if !ok {
+		return ""
+	}
+	return ident.Value
+}
+
+func literalIntValue(expr ast.Expression) int64 {
+	if lit, ok := expr.(*ast.IntegerLiteral); ok {
+		return lit.Value
+	}
+	return -1
 }
 
 func inferIfExpressionType(expr *ast.IfExpression, env memberTypeEnv, stack []map[string]string) string {
