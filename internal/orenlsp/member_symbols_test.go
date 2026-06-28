@@ -244,3 +244,87 @@ func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
 		{URI: uri, Range: diagnosticRange{Start: position{Line: 4, Character: 25}, End: position{Line: 4, Character: 30}}},
 	})
 }
+
+func TestServerCompletionUsesExpressionReceiverFields(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"struct Inner { x, z }",
+		"struct Outer { inner, other }",
+		"fn make_point() { return Point(3, 4) }",
+		"fn main() {",
+		"  var direct = Point(1, 2).",
+		"  var factory = make_point().x",
+		"  var nested = Outer(Inner(1), Point(0, 0)).inner.",
+		"  var nested_exact = Outer(Inner(1), Point(0, 0)).inner.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///typed-member-expression-completion.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      401,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 5, "character": 27},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      402,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": 30},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      403,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": 50},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      404,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 8, "character": 57},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	direct := messageByID(t, msgs, 401)["result"].([]any)
+	if !hasCompletion(direct, "x", 5) || !hasCompletion(direct, "y", 5) || hasCompletion(direct, "return", 14) {
+		t.Fatalf("direct expression completion mismatch: %#v", direct)
+	}
+	factory := messageByID(t, msgs, 402)["result"].([]any)
+	if !hasCompletion(factory, "x", 5) || hasCompletion(factory, "y", 5) {
+		t.Fatalf("factory expression completion mismatch: %#v", factory)
+	}
+	nested := messageByID(t, msgs, 403)["result"].([]any)
+	if !hasCompletion(nested, "x", 5) || !hasCompletion(nested, "z", 5) || hasCompletion(nested, "other", 5) {
+		t.Fatalf("constructed-field completion mismatch: %#v", nested)
+	}
+	nestedExact := messageByID(t, msgs, 404)["result"].([]any)
+	if !hasCompletion(nestedExact, "x", 5) || hasCompletion(nestedExact, "z", 5) {
+		t.Fatalf("constructed-field filtered completion mismatch: %#v", nestedExact)
+	}
+}

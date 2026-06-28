@@ -904,8 +904,8 @@ Working evidence:
   constructor-inferred same-file and direct-import-alias struct/class field
   definition/hover/reference navigation with direct variable-alias propagation,
   direct named factory-return inference, direct typed constructor/factory
-  expression receiver field navigation plus constructor-field receiver chain
-  inference, consistent direct call-site parameter inference with conflict
+  expression receiver field navigation/completion plus constructor-field
+  receiver chain inference/completion, consistent direct call-site parameter inference with conflict
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
   unknown-assignment invalidation,

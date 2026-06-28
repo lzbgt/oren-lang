@@ -61,15 +61,14 @@ func typedMemberReferencesAt(text, uri string, pos position, includeDeclaration 
 }
 
 func typedMemberCompletionItemsAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) ([]completionItem, bool) {
-	_, partial, ok := memberCompletionTarget(text, pos)
+	receiver, partial, ok := memberCompletionTarget(text, pos)
 	if !ok {
 		return nil, false
 	}
 	program, env := typedMemberAnalysisEnv(text, uri, importedDocs, aliasByURI)
 	typeName := parsedMemberTypeAt(text, uri, pos, importedDocs, aliasByURI)
 	if typeName == "" {
-		receiver, _, _ := memberCompletionTarget(text, pos)
-		typeName = inferredReceiverTypeAt(program, receiver, pos, env)
+		typeName = inferredReceiverExpressionTypeAt(program, receiver, pos, env)
 	}
 	if typeName == "" {
 		return []completionItem{}, true
@@ -181,6 +180,10 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 }
 
 func inferredReceiverTypeAt(program *ast.Program, receiver string, pos position, env memberTypeEnv) string {
+	return inferredReceiverExpressionTypeAt(program, receiver, pos, env)
+}
+
+func inferredReceiverExpressionTypeAt(program *ast.Program, receiver string, pos position, env memberTypeEnv) string {
 	if program == nil || receiver == "" {
 		return ""
 	}
@@ -189,7 +192,11 @@ func inferredReceiverTypeAt(program *ast.Program, receiver string, pos position,
 	for _, stmt := range program.Statements {
 		collectInferredTypesUntil(stmt, pos, env, &stack)
 	}
-	return lookupInferredVarType(receiver, stack)
+	expr := parseMemberReceiverExpression(receiver)
+	if expr == nil {
+		return ""
+	}
+	return inferExpressionType(expr, env, stack)
 }
 
 func memberCompletionTarget(text string, pos position) (receiver, partial string, ok bool) {
@@ -214,16 +221,73 @@ func memberCompletionTarget(text string, pos position) (receiver, partial string
 		return "", "", false
 	}
 	receiverEnd := partialStart - 1
-	receiverStart := receiverEnd
-	for receiverStart > 0 && isIdentRune(prefix[receiverStart-1]) {
-		receiverStart--
-	}
-	if receiverStart == receiverEnd || !isIdentStart(prefix[receiverStart]) {
+	receiverStart := memberReceiverStart(prefix, receiverEnd)
+	if receiverStart < 0 || receiverStart == receiverEnd {
 		return "", "", false
 	}
-	receiver = string(prefix[receiverStart:receiverEnd])
+	receiver = strings.TrimSpace(string(prefix[receiverStart:receiverEnd]))
 	partial = string(prefix[partialStart:])
 	return receiver, partial, true
+}
+
+func memberReceiverStart(prefix []rune, receiverEnd int) int {
+	i := receiverEnd - 1
+	for i >= 0 && isSpaceRune(prefix[i]) {
+		i--
+	}
+	if i < 0 {
+		return -1
+	}
+	depth := 0
+	start := i + 1
+	for ; i >= 0; i-- {
+		ch := prefix[i]
+		switch ch {
+		case ')', ']', '}':
+			depth++
+		case '(', '[', '{':
+			if depth == 0 {
+				return i + 1
+			}
+			depth--
+		}
+		if depth == 0 && isMemberReceiverBoundary(ch) {
+			return i + 1
+		}
+		start = i
+	}
+	return start
+}
+
+func isMemberReceiverBoundary(ch rune) bool {
+	if isSpaceRune(ch) {
+		return true
+	}
+	switch ch {
+	case '=', '+', '-', '*', '/', '%', '!', '<', '>', '?', ':', ';', ',':
+		return true
+	}
+	return false
+}
+
+func isSpaceRune(ch rune) bool {
+	return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'
+}
+
+func parseMemberReceiverExpression(src string) ast.Expression {
+	src = strings.TrimSpace(src)
+	if src == "" {
+		return nil
+	}
+	program := parser.New(lexer.New("var __oren_lsp_receiver = " + src + "\n")).ParseProgram()
+	if program == nil || len(program.Statements) != 1 {
+		return nil
+	}
+	stmt, ok := program.Statements[0].(*ast.VarStatement)
+	if !ok {
+		return nil
+	}
+	return stmt.Value
 }
 
 func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeEnv, stack *[]map[string]string) {
