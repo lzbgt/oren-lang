@@ -942,6 +942,34 @@ fn main() {
     assert_eq(_i32_at(from_curbs[0]["triangles"], 32), 8)
     assert_true(ui_cmds.validate(from_curbs, 7, 5, {"strict_bounds": true}) == 0)
 
+    var from_fences = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 165,
+                "fences_xy": [
+                    {"points": [[2, 2], [4, 2]], "post_width": 2, "rail_width": 2, "z_min": 0, "z_max": 3, "rail_z_min": 1, "rail_z_max": 2}
+                ],
+                "transform": {"translation_xyz": [1, 0, 0]},
+                "color": "#335577"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 165}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_fences) == false)
+    assert_eq(from_fences[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_fences[0]["triangles"]), 1296)
+    assert_eq(_i32_at(from_fences[0]["triangles"], 0), 2)
+    assert_eq(_i32_at(from_fences[0]["triangles"], 4), 1)
+    assert_eq(_i32_at(from_fences[0]["triangles"], 8), 0)
+    assert_eq(_i32_at(from_fences[0]["triangles"], 432), 4)
+    assert_true(ui_cmds.validate(from_fences, 7, 5, {"strict_bounds": true}) == 0)
+    var fence_buf = ui_raster.rasterize(from_fences, 7, 5, {"strict_bounds": true})
+    assert_true(oren_is_err(fence_buf) == false)
+    assert_eq(_px(fence_buf, 7, 3, 2, 0), 51)
+    assert_eq(_px(fence_buf, 7, 3, 2, 1), 85)
+
     var from_stairs = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -1490,6 +1518,7 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"ramps_xy\":[{\"from\":[0,0],\"to\":[0,0],\"width\":1,\"z_from\":0,\"z_to\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"solid_ramps_xy\":[{\"from\":[0,0],\"to\":[1,0],\"width\":1,\"z_base\":1,\"z_from\":1,\"z_to\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"curbs_xy\":[{\"points\":[[0,0],[0,0]],\"width\":1,\"z_min\":0,\"z_max\":1}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"fences_xy\":[{\"points\":[[0,0],[1,0]],\"post_width\":1,\"rail_width\":1,\"z_min\":0,\"z_max\":1,\"rail_z_min\":1,\"rail_z_max\":2}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"stairs_xy\":[{\"from\":[0,0],\"to\":[1,0],\"width\":1,\"z_from\":0,\"z_to\":1,\"steps\":0}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"gable_roofs_xy\":[{\"from\":[0,0],\"to\":[1,0],\"width\":1,\"z_eave\":1,\"z_ridge\":1}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"pyramids_xy\":[{\"points\":[[0,0],[1,0]],\"z_base\":0,\"apex\":[0,0,1]}],\"color\":\"#ffffff\"}]}")) == true)

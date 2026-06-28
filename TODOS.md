@@ -48,7 +48,7 @@ design evidence lives under `project-doc/`.
 	  `surfaces_xyz` arbitrary surface grids, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
 	  regular `regular_polygons_xy`, `stars_xy`, circular `discs_xy`/`rings_xy`,
 	  elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, sampled `beziers_xy`, partial
-	  `sectors_xy`/`arc_bands_xy`, sloped `ramps_xy`, solid `solid_ramps_xy`, curb `curbs_xy`, stepped `stairs_xy`, gable `gable_roofs_xy`, polygon-footprint `pyramids_xy`, vertical `walls_xy`, closed `rooms_xy`, and curved generated solids before
+	  `sectors_xy`/`arc_bands_xy`, sloped `ramps_xy`, solid `solid_ramps_xy`, curb `curbs_xy`, fence `fences_xy`, stepped `stairs_xy`, gable `gable_roofs_xy`, polygon-footprint `pyramids_xy`, vertical `walls_xy`, closed `rooms_xy`, and curved generated solids before
   byte-native packing, including translation-only generated meshes.
 - Scene3D generated mesh packers are split across focused helpers
   (`std:ui/scene3d_shapes_flat`, `std:ui/scene3d_shapes`,
