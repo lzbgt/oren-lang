@@ -234,6 +234,20 @@
       ]
     },
     {
+      "module": "std:math/vec4",
+      "alias": "math_vec4",
+      "probes": [
+        "assert_close(math_vec4.length(1.0, 2.0, 4.0, 8.0), math.sqrt(85.0), 1e-12, 116)",
+        "assert_close(math_vec4.dot(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0), 70.0, 1e-12, 117)",
+        "var v4n = math_vec4.normalize(1.0, 2.0, 2.0, 4.0)",
+        "if oren_is_err(v4n) { fail(118) }",
+        "assert_close(v4n[3], 0.8, 1e-12, 119)",
+        "var v4r = math_vec4.reflect(1.0, -2.0, 3.0, 4.0, 0.0, 1.0, 0.0, 0.0)",
+        "if oren_is_err(v4r) { fail(120) }",
+        "assert_close(v4r[1], 2.0, 1e-12, 121)"
+      ]
+    },
+    {
       "module": "std:proc",
       "alias": "proc",
       "probes": [

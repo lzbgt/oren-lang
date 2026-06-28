@@ -385,6 +385,7 @@ This file is the concise task view. Detailed implementation status lives in
      angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
      pure finite `std:math/vec2` helpers including projection/rejection/reflection,
      pure finite `std:math/vec3` helpers including projection/rejection/reflection,
+     pure finite `std:math/vec4` helpers including projection/rejection/reflection,
      pure finite `std:math/quat` helpers for axis-angle rotation, inverse, and interpolation,
      pure finite row-major `std:math/mat4` algebra, transform, normal-matrix, normal transform, model-view-projection composition, orthographic/frustum/perspective projection, screen project/unproject, and view helpers,
      overflow-aware `midpoint`,

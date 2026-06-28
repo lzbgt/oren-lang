@@ -1,0 +1,188 @@
+import math "std:math"
+
+fn _finite4(x: f64, y: f64, z: f64, w: f64, ctx) {
+    if math.is_nan(x) || math.is_nan(y) || math.is_nan(z) || math.is_nan(w) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) || !math.is_finite(y) || !math.is_finite(z) || !math.is_finite(w) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite8(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, ctx) {
+    var a = _finite4(ax, ay, az, aw, ctx)
+    if oren_is_err(a) { return a }
+    return _finite4(bx, by, bz, bw, ctx)
+}
+
+fn _finite_scalar(x: f64, ctx) {
+    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn add(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.add")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax + bx
+    var y: f64 = ay + by
+    var z: f64 = az + bz
+    var w: f64 = aw + bw
+    return [x, y, z, w]
+}
+
+fn sub(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.sub")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax - bx
+    var y: f64 = ay - by
+    var z: f64 = az - bz
+    var w: f64 = aw - bw
+    return [x, y, z, w]
+}
+
+fn scale(x: f64, y: f64, z: f64, w: f64, s: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.scale")
+    if oren_is_err(ok) { return ok }
+    var os = _finite_scalar(s, "vec4.scale")
+    if oren_is_err(os) { return os }
+    var ox: f64 = x * s
+    var oy: f64 = y * s
+    var oz: f64 = z * s
+    var ow: f64 = w * s
+    return [ox, oy, oz, ow]
+}
+
+fn lerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, t: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.lerp")
+    if oren_is_err(ok) { return ok }
+    var ot = _finite_scalar(t, "vec4.lerp")
+    if oren_is_err(ot) { return ot }
+    var x: f64 = ax + (bx - ax) * t
+    var y: f64 = ay + (by - ay) * t
+    var z: f64 = az + (bz - az) * t
+    var w: f64 = aw + (bw - aw) * t
+    return [x, y, z, w]
+}
+
+fn length_sq(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.length_sq")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = x * x + y * y + z * z + w * w
+    return out
+}
+
+fn length(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.length")
+    if oren_is_err(ok) { return ok }
+    var ax: f64 = math.fabs(x)
+    var ay: f64 = math.fabs(y)
+    var az: f64 = math.fabs(z)
+    var aw: f64 = math.fabs(w)
+    var m: f64 = ax
+    if ay > m { m = ay }
+    if az > m { m = az }
+    if aw > m { m = aw }
+    if m == 0.0 { return 0.0 }
+    var sx: f64 = x / m
+    var sy: f64 = y / m
+    var sz: f64 = z / m
+    var sw: f64 = w / m
+    var r0 = math.sqrt(sx * sx + sy * sy + sz * sz + sw * sw)
+    if oren_is_err(r0) { return r0 }
+    var r: f64 = r0
+    return m * r
+}
+
+fn distance_sq(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.distance_sq")
+    if oren_is_err(ok) { return ok }
+    var dx: f64 = bx - ax
+    var dy: f64 = by - ay
+    var dz: f64 = bz - az
+    var dw: f64 = bw - aw
+    var out: f64 = dx * dx + dy * dy + dz * dz + dw * dw
+    return out
+}
+
+fn distance(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.distance")
+    if oren_is_err(ok) { return ok }
+    return length(bx - ax, by - ay, bz - az, bw - aw)
+}
+
+fn dot(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.dot")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = ax * bx + ay * by + az * bz + aw * bw
+    return out
+}
+
+fn normalize(x: f64, y: f64, z: f64, w: f64) {
+    var l0 = length(x, y, z, w)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return oren_err(4, "vec4.normalize: zero length") }
+    return [x / l, y / l, z / l, w / l]
+}
+
+fn normalize_or_zero(x: f64, y: f64, z: f64, w: f64) {
+    var l0 = length(x, y, z, w)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return [0.0, 0.0, 0.0, 0.0] }
+    return [x / l, y / l, z / l, w / l]
+}
+
+fn project(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var d0 = dot(bx, by, bz, bw, bx, by, bz, bw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d == 0.0 { return oren_err(4, "vec4.project: zero target") }
+    var n0 = dot(ax, ay, az, aw, bx, by, bz, bw)
+    if oren_is_err(n0) { return n0 }
+    var n: f64 = n0
+    var s: f64 = n / d
+    return scale(bx, by, bz, bw, s)
+}
+
+fn reject(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var p = project(ax, ay, az, aw, bx, by, bz, bw)
+    if oren_is_err(p) { return p }
+    var px: f64 = p[0]
+    var py: f64 = p[1]
+    var pz: f64 = p[2]
+    var pw: f64 = p[3]
+    return sub(ax, ay, az, aw, px, py, pz, pw)
+}
+
+fn reflect(x: f64, y: f64, z: f64, w: f64, nx: f64, ny: f64, nz: f64, nw: f64) {
+    var n = normalize(nx, ny, nz, nw)
+    if oren_is_err(n) { return n }
+    var ux: f64 = n[0]
+    var uy: f64 = n[1]
+    var uz: f64 = n[2]
+    var uw: f64 = n[3]
+    var d0 = dot(x, y, z, w, ux, uy, uz, uw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var rx: f64 = x - 2.0 * d * ux
+    var ry: f64 = y - 2.0 * d * uy
+    var rz: f64 = z - 2.0 * d * uz
+    var rw: f64 = w - 2.0 * d * uw
+    return [rx, ry, rz, rw]
+}
+
+fn angle_between(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var la0 = length(ax, ay, az, aw)
+    if oren_is_err(la0) { return la0 }
+    var lb0 = length(bx, by, bz, bw)
+    if oren_is_err(lb0) { return lb0 }
+    var la: f64 = la0
+    var lb: f64 = lb0
+    if la == 0.0 || lb == 0.0 { return oren_err(4, "vec4.angle_between: zero length") }
+    var d0 = dot(ax, ay, az, aw, bx, by, bz, bw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var c = math.clamp(d / (la * lb), 0.0 - 1.0, 1.0)
+    if oren_is_err(c) { return c }
+    var cf: f64 = c
+    return math.acos(cf)
+}

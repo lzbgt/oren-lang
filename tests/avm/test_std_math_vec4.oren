@@ -1,0 +1,48 @@
+@myorg.tag(name="avm-std-math-vec4")
+
+import vec4 "../../lib/std/math/vec4.oren"
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("avm std math vec4 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg)
+}
+
+assert_close(vec4.length(1.0, 2.0, 4.0, 8.0), math.sqrt(85.0), 1e-12, 10, "length")
+assert_close(vec4.distance(1.0, 2.0, 3.0, 4.0, 3.0, 6.0, 9.0, 12.0), math.sqrt(120.0), 1e-12, 11, "distance")
+assert_close(vec4.dot(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0), 70.0, 1e-12, 12, "dot")
+var a = vec4.add(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)
+assert_true(!oren_is_err(a), 13, "add ok")
+assert_close(a[3], 12.0, 0.0, 14, "add w")
+
+var n = vec4.normalize(1.0, 2.0, 2.0, 4.0)
+assert_true(!oren_is_err(n), 30, "normalize ok")
+assert_close(n[0], 0.2, 1e-12, 31, "normalize x")
+assert_close(n[3], 0.8, 1e-12, 32, "normalize w")
+
+assert_close(vec4.angle_between(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0), math.pi() / 2.0, 1e-12, 40, "angle right")
+var p = vec4.project(3.0, 4.0, 5.0, 6.0, 1.0, 0.0, 0.0, 0.0)
+assert_true(!oren_is_err(p), 41, "project ok")
+assert_close(p[0], 3.0, 0.0, 42, "project x")
+assert_close(p[3], 0.0, 0.0, 43, "project w")
+var rf = vec4.reflect(1.0, 0.0 - 2.0, 3.0, 4.0, 0.0, 1.0, 0.0, 0.0)
+assert_true(!oren_is_err(rf), 44, "reflect ok")
+assert_close(rf[1], 2.0, 0.0, 45, "reflect y")
+assert_true(oren_is_err(vec4.normalize(0.0, 0.0, 0.0, 0.0)), 50, "normalize zero errors")
+assert_true(oren_is_err(vec4.length(math.inf(), 1.0, 0.0, 0.0)), 51, "length inf errors")
+assert_true(oren_is_err(vec4.project(1.0, 2.0, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0)), 52, "project zero errors")
+
+print("avm std math vec4 OK")
+exit(0)
