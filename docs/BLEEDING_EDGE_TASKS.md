@@ -382,6 +382,7 @@ This file is the concise task view. Detailed implementation status lives in
      tolerance predicates `isclose`/`isclose_abs`, finite `lerp`, range mapping helpers `inverse_lerp`, `remap`, and
      `remap_clamped`, graphics scalar/interpolation helpers `sign`, `step`,
      `fract`, `clamp`, `saturate`, `smoothstep`, and `smootherstep`,
+     angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
      overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,

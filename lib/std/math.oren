@@ -1206,6 +1206,53 @@ fn tau() { return 6.283185307179586 }
 fn radians(deg: f64): f64 { return deg * (pi() / 180.0) }
 fn degrees(rad: f64): f64 { return rad * (180.0 / pi()) }
 
+fn wrap(x: f64, lo: f64, hi: f64) {
+    if is_nan(x) || is_nan(lo) || is_nan(hi) { return oren_err(4, "wrap: NaN") }
+    if !is_finite(x) || !is_finite(lo) || !is_finite(hi) { return oren_err(4, "wrap: non-finite") }
+    if hi <= lo { return oren_err(4, "wrap: hi <= lo") }
+    var span: f64 = hi - lo
+    var r = fmod(x - lo, span)
+    if oren_is_err(r) { return r }
+    var out: f64 = r
+    if out < 0.0 { out = out + span }
+    if out >= span { return lo }
+    var final: f64 = lo + out
+    return final
+}
+
+fn wrap_radians(rad: f64) { return wrap(rad, 0.0, tau()) }
+fn wrap_degrees(deg: f64) { return wrap(deg, 0.0, 360.0) }
+
+fn angle_delta_radians(from: f64, to: f64) {
+    var d0 = wrap(to - from + pi(), 0.0, tau())
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var out: f64 = d - pi()
+    return out
+}
+
+fn angle_delta_degrees(from: f64, to: f64) {
+    var d0 = wrap(to - from + 180.0, 0.0, 360.0)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var out: f64 = d - 180.0
+    return out
+}
+
+fn lerp_angle_radians(from: f64, to: f64, t: f64) {
+    var d0 = angle_delta_radians(from, to)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    return lerp(from, from + d, t)
+}
+
+fn lerp_angle_degrees(from: f64, to: f64, t: f64) {
+    var d0 = angle_delta_degrees(from, to)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    return lerp(from, from + d, t)
+}
+
 fn _sin_poly(r: f64) {
     var r2 = r * r
     // Horner, odd polynomial:
