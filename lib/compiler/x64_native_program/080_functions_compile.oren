@@ -475,24 +475,10 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     }
     // Do not instrument the injected runtime itself; it contains the call-depth hooks.
     // If we instrument those functions, we recurse indefinitely.
-    var tok0 = fn_node["token"]
-    var ffile0 = nil
-    if tok0 != nil { ffile0 = tok0["file"] }
+    // Runtime injection and native-callable synthesis tag these functions before x64 codegen;
+    // avoid repeated source-file prefix checks here because this runs once per compiled function.
     if fn_node["__oren_from_runtime"] == true { call_depth_enabled = false }
     if fn_node["__oren_no_call_depth"] == true { call_depth_enabled = false }
-    if ffile0 == "lib/runtime_native.oren" { call_depth_enabled = false }
-    // Also exclude the per-module native runtime sources (the include tree).
-    // These files are part of the injected runtime and must not be call-depth instrumented:
-    // - avoids recursion hazards (runtime helpers call each other heavily during bootstrap)
-    // - avoids large extra stack usage in early init on small default stacks (8MB on many Linuxes/WSL2)
-    if ffile0 != nil {
-        if core.string_has_prefix_bytes(ffile0, "lib/runtime_native/") { call_depth_enabled = false }
-    }
-    if ffile0 == "lib/runtime_native_core.oren" { call_depth_enabled = false }
-    if ffile0 == "lib/runtime_native_capsule.oren" { call_depth_enabled = false }
-    if ffile0 != nil && oren_string_len(ffile0) >= 7 {
-        if core.string_has_prefix_bytes(ffile0, "<native:") { call_depth_enabled = false }
-    }
     if name == "oren_call_depth_enter" { call_depth_enabled = false }
     if name == "oren_call_depth_exit" { call_depth_enabled = false }
     // Never instrument the slow-path helpers either, otherwise:
@@ -503,8 +489,9 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if call_depth_enabled == true {
         // Call runtime hook (no args).
         var pos_enter = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_enter, "name": "oren_call_depth_enter"})
+        bytes_push(ctx["code"], 232) // call rel32
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["call_depth_enter_fixups"], pos_enter)
     }
     // Initialize the loop safepoint throttle tick counter.
     // Keep it deterministic so throttling is consistent across runs (useful for debugging).
@@ -564,8 +551,9 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         if oren_type_tag(off_ret) == 0 { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0) // [tmp] = rax
         var pos_exit = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_exit, "name": "oren_call_depth_exit"})
+        bytes_push(ctx["code"], 232) // call rel32
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["call_depth_exit_fixups"], pos_exit)
         _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret) // rax = [tmp]
     }
     // Restore ABI callee-saved regs (inverse of prologue spill).

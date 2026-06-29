@@ -434,6 +434,25 @@ fn _elf_apply_x64_rtobj_compact_fixups(ctx, codep, datap, functions, text_base, 
     return nil
 }
 
+fn _elf_apply_x64_call_rel32_positions(ctx, codep, functions, name, poss) {
+    if poss == nil { return nil }
+    var target = _elf_x64_lookup_fn(ctx, functions, name)
+    if target == nil {
+        print("x64 elf: undefined function " + name)
+        oren_exit(1)
+    }
+    var i = 0
+    var n = oren_list_len(poss)
+    while i < n {
+        var pos = poss[i]
+        var disp = target - (pos + 5)
+        if disp < 0 { disp = 4294967296 + disp }
+        _elf_patch_u32_le_ptr(codep, pos + 1, disp)
+        i = i + 1
+    }
+    return nil
+}
+
 fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {
     // Emit one Elf64_Phdr (56 bytes) into `p`.
     push_u32_le(p, p_type)
@@ -1164,6 +1183,17 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     var codep = _elf_bytes_data_ptr(code, "code")
     var datap = _elf_bytes_data_ptr(data, "data")
     _elf_apply_x64_rtobj_compact_fixups(ctx, codep, datap, functions, text_base, data_base_off, is_shared_lib)
+    _elf_apply_x64_call_rel32_positions(ctx, codep, functions, "oren_call_depth_enter", ctx["call_depth_enter_fixups"])
+    _elf_apply_x64_call_rel32_positions(ctx, codep, functions, "oren_call_depth_exit", ctx["call_depth_exit_fixups"])
+    if phase_log != nil {
+        var call_depth_enter_n = 0
+        var call_depth_exit_n = 0
+        if ctx["call_depth_enter_fixups"] != nil { call_depth_enter_n = oren_list_len(ctx["call_depth_enter_fixups"]) }
+        if ctx["call_depth_exit_fixups"] != nil { call_depth_exit_n = oren_list_len(ctx["call_depth_exit_fixups"]) }
+        _elf_phase_log_append(phase_log, "x64.elf.call_depth_fixups.done",
+            "enter=" + oren_int_to_string(call_depth_enter_n) +
+            " exit=" + oren_int_to_string(call_depth_exit_n))
+    }
     if phase_log != nil { _elf_phase_log_append(phase_log, "x64.elf.local_fixups.start", "") }
     var i = 0
     while i < oren_list_len(fixups) {

@@ -245,7 +245,13 @@
 <p>					  instruction-builder/user-function emission. A low-register arithmetic</p>
 <p>					  rewrite was rejected after parser and capped-trace evidence showed no safe</p>
 <p>					  throughput win; capped traces can now opt into first-N user-function</p>
-<p>					  phase detail with <code>OREN_TRACE_X64_FNS_DETAIL_LIMIT</code>.</p>
+<p>					  phase detail with <code>OREN_TRACE_X64_FNS_DETAIL_LIMIT</code>. X64 call-depth hook</p>
+<p>					  emission now relies on structural runtime/no-call-depth metadata instead of</p>
+<p>					  repeated source-file prefix checks, writes the fixed <code>call rel32</code> bytes</p>
+<p>					  directly, and stores enter/exit hook relocations as compact position lists</p>
+<p>					  patched by ELF/PE emitters. Follow-up traces also showed that overly fine</p>
+<p>					  per-function phase markers can dominate capped profiles, so detailed</p>
+<p>					  user-function profiling should stay bounded and coarse.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

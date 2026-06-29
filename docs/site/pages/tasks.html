@@ -257,11 +257,17 @@
 <p>													     list/map literal spill slots only when a conservative ops scan finds</p>
 <p>													     list/hash literals; focused frame probes show literal-free <code>__top_level__</code></p>
 <p>													     at <code>literal_slots=0</code> and list-literal <code>main</code> at <code>literal_slots=16</code>,</p>
-<p>													     keeping the remaining active hotspot in real <code>x64_core</code></p>
-<p>													     instruction-builder/user-function emission. A low-register arithmetic</p>
-<p>													     rewrite was rejected after parser and capped-trace evidence showed no safe</p>
-<p>													     throughput win; capped traces can now opt into first-N user-function</p>
-<p>													     phase detail with <code>OREN_TRACE_X64_FNS_DETAIL_LIMIT</code>.</p>
+<p>														     keeping the remaining active hotspot in real <code>x64_core</code></p>
+<p>														     instruction-builder/user-function emission. A low-register arithmetic</p>
+<p>														     rewrite was rejected after parser and capped-trace evidence showed no safe</p>
+<p>														     throughput win; capped traces can now opt into first-N user-function</p>
+<p>														     phase detail with <code>OREN_TRACE_X64_FNS_DETAIL_LIMIT</code>. X64 call-depth hook</p>
+<p>														     emission now uses structural runtime/no-call-depth metadata, direct fixed</p>
+<p>														     <code>call rel32</code> byte appends, and compact enter/exit position lists patched</p>
+<p>														     by ELF/PE emitters instead of per-hook generic fixup maps. Capped</p>
+<p>														     diagnostics also proved that excessive per-function phase markers can</p>
+<p>														     dominate the profile, so the next user-function work should keep tracing</p>
+<p>														     bounded and coarse.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

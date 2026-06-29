@@ -380,6 +380,8 @@ fn _x64_new_ctx(linked, platform) {
     ctx["code"] = bytes_new()
     ctx["data"] = bytes_new()
     ctx["fixups"] = []
+    ctx["call_depth_enter_fixups"] = []
+    ctx["call_depth_exit_fixups"] = []
     ctx["functions"] = {}
     ctx["imports"] = {}
     ctx["import_list"] = []

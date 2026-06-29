@@ -199,11 +199,17 @@ This file is the concise task view. Detailed implementation status lives in
 													     list/map literal spill slots only when a conservative ops scan finds
 													     list/hash literals; focused frame probes show literal-free `__top_level__`
 													     at `literal_slots=0` and list-literal `main` at `literal_slots=16`,
-													     keeping the remaining active hotspot in real `x64_core`
-													     instruction-builder/user-function emission. A low-register arithmetic
-													     rewrite was rejected after parser and capped-trace evidence showed no safe
-													     throughput win; capped traces can now opt into first-N user-function
-													     phase detail with `OREN_TRACE_X64_FNS_DETAIL_LIMIT`.
+														     keeping the remaining active hotspot in real `x64_core`
+														     instruction-builder/user-function emission. A low-register arithmetic
+														     rewrite was rejected after parser and capped-trace evidence showed no safe
+														     throughput win; capped traces can now opt into first-N user-function
+														     phase detail with `OREN_TRACE_X64_FNS_DETAIL_LIMIT`. X64 call-depth hook
+														     emission now uses structural runtime/no-call-depth metadata, direct fixed
+														     `call rel32` byte appends, and compact enter/exit position lists patched
+														     by ELF/PE emitters instead of per-hook generic fixup maps. Capped
+														     diagnostics also proved that excessive per-function phase markers can
+														     dominate the profile, so the next user-function work should keep tracing
+														     bounded and coarse.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
