@@ -108,12 +108,24 @@ fn native_compile_program_x64(linked, platform) {
     var trace_top_slow = oren_env("OREN_TRACE_X64_TOP_SLOW_FNS") != nil || phase_log != nil
     var top_slow_n = 20
     var top_slow_min_ms = 50
+    var top_slow_live = false
+    var top_slow_live_n = 20
+    var top_slow_live_count = 0
     if trace_top_slow {
         top_slow_n = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_N"), top_slow_n)
         top_slow_min_ms = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_MIN_MS"), top_slow_min_ms)
         if top_slow_n < 1 { top_slow_n = 1 }
         if top_slow_n > 100 { top_slow_n = 100 } // bound
         if top_slow_min_ms < 0 { top_slow_min_ms = 0 }
+        top_slow_live_n = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_LIVE_N"), top_slow_n)
+        if top_slow_live_n < 1 { top_slow_live_n = 1 }
+        if top_slow_live_n > 1000 { top_slow_live_n = 1000 }
+        var live_v = oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_LIVE")
+        if live_v != nil && live_v != "" {
+            if core.string_eq_bytes(live_v, "0") != true && core.string_eq_bytes(live_v, "false") != true {
+                top_slow_live = true
+            }
+        }
     }
     var top_slow = []
     var fns_progress_interval = 250
@@ -1474,6 +1486,14 @@ fn native_compile_program_x64(linked, platform) {
             var dt_ms2 = (oren_time_now_ns() - t_fn) / 1000000
             if dt_ms2 >= top_slow_min_ms {
                 _x64_slow_fn_top_push(top_slow, top_slow_n, dt_ms2, nm1)
+                if top_slow_live == true && phase_log != nil && top_slow_live_count < top_slow_live_n {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow_live",
+                        "i=" + oren_int_to_string(i1) +
+                        " total=" + oren_int_to_string(fns_n) +
+                        " ms=" + oren_int_to_string(dt_ms2) +
+                        " name=" + nm1)
+                    top_slow_live_count = top_slow_live_count + 1
+                }
             }
         }
         if phase_log != nil && i1 > 0 && core.int_mod(i1, fns_progress_interval) == 0 {

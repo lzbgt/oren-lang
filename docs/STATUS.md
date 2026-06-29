@@ -211,7 +211,11 @@ Facts from the 2026-05-28 implementation pass:
 					  directly, and stores enter/exit hook relocations as compact position lists
 					  patched by ELF/PE emitters. Follow-up traces also showed that overly fine
 					  per-function phase markers can dominate capped profiles, so detailed
-					  user-function profiling should stay bounded and coarse.
+					  user-function profiling should stay bounded and coarse. Bounded live slow
+					  function markers are now available via
+					  `OREN_TRACE_X64_TOP_SLOW_FNS_LIVE=1`; capped self-host evidence emitted
+					  slow-function names before timeout, with early hot spots including
+					  `scope_push` at about 6.9s and `rename_stmt` at about 12.1s.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

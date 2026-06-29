@@ -209,7 +209,10 @@ This file is the concise task view. Detailed implementation status lives in
 														     by ELF/PE emitters instead of per-hook generic fixup maps. Capped
 														     diagnostics also proved that excessive per-function phase markers can
 														     dominate the profile, so the next user-function work should keep tracing
-														     bounded and coarse.
+														     bounded and coarse. `OREN_TRACE_X64_TOP_SLOW_FNS_LIVE=1` now emits
+														     bounded live slow-function markers before timeout; the proof profile
+														     captured `scope_push` at about 6.9s and `rename_stmt` at about 12.1s as
+														     the next concrete x64 user-function targets.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
