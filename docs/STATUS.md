@@ -215,7 +215,11 @@ Facts from the 2026-05-28 implementation pass:
 					  function markers are now available via
 					  `OREN_TRACE_X64_TOP_SLOW_FNS_LIVE=1`; capped self-host evidence emitted
 					  slow-function names before timeout, with early hot spots including
-					  `scope_push` at about 6.9s and `rename_stmt` at about 12.1s.
+					  `scope_push` at about 6.9s and `rename_stmt` at about 12.1s. The
+					  renamer now uses parent-linked scope frames instead of copying the
+					  scope stack on each push, and `rename_expr` uses the same early-return
+					  shape as `rename_stmt`; the next x64 target is still reducing the
+					  large `rename_stmt`/`rename_expr` bodies.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

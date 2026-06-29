@@ -212,7 +212,10 @@ This file is the concise task view. Detailed implementation status lives in
 														     bounded and coarse. `OREN_TRACE_X64_TOP_SLOW_FNS_LIVE=1` now emits
 														     bounded live slow-function markers before timeout; the proof profile
 														     captured `scope_push` at about 6.9s and `rename_stmt` at about 12.1s as
-														     the next concrete x64 user-function targets.
+														     the next concrete x64 user-function targets. The renamer now uses
+														     parent-linked scope frames instead of copying the whole scope stack on
+														     push, and `rename_expr` uses early-return branches; the remaining target
+														     is the large `rename_stmt`/`rename_expr` x64 body shape.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

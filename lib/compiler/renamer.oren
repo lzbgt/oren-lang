@@ -135,36 +135,33 @@ fn rename_lookup(pairs, name) {
 }
 
 fn scope_has(stack, name) {
-    var i = oren_list_len(stack) - 1
-    while i >= 0 {
-        if stack[i][name] == true { return true }
-        i = i - 1
+    var cur = stack
+    while cur != nil {
+        var decls = cur["decls"]
+        if decls != nil && decls[name] == true { return true }
+        cur = cur["parent"]
     }
     return false
 }
 
 fn scope_declare(stack, name) {
-    var n = oren_list_len(stack)
-    if n == 0 { return nil }
-    stack[n - 1][name] = true
+    if stack == nil { return nil }
+    var decls = stack["decls"]
+    if decls == nil {
+        decls = {}
+        stack["decls"] = decls
+    }
+    decls[name] = true
     return nil
 }
 
 fn scope_push(stack) {
-    var next = []
-    var i = 0
-    var n = oren_list_len(stack)
-    while i < n {
-        oren_list_push(next, stack[i])
-        i = i + 1
-    }
-    oren_list_push(next, {})
-    return next
+    return {"parent": stack, "decls": {}}
 }
 
 fn rename_program_in_place(prog, pairs) {
     var stmts = prog["statements"]
-    var stack = []
+    var stack = nil
     // GC safety (rolling):
     // The compiler stage2 build enables auto-GC and may use bounded conservative stack scanning.
     // During deep recursive renaming, key locals (`prog`, `pairs`, `stack`) can live beyond the
@@ -347,7 +344,8 @@ fn rename_expr(expr, pairs, stack) {
         var new_name = rename_lookup(pairs, value)
         if new_name != "" { expr["value"] = new_name }
         return nil
-    } else if ty == "Function" {
+    }
+    if ty == "Function" {
         var fn_name = expr["name"]
         if fn_name != "" {
             var new_name_fn = rename_lookup(pairs, fn_name)
@@ -370,7 +368,8 @@ fn rename_expr(expr, pairs, stack) {
         }
         rename_stmt(expr["body"], pairs, next, false)
         return nil
-    } else if ty == "Call" {
+    }
+    if ty == "Call" {
         rename_expr(expr["fn"], pairs, stack)
         var args = expr["args"]
         var i2 = 0
@@ -380,19 +379,23 @@ fn rename_expr(expr, pairs, stack) {
             i2 = i2 + 1
         }
         return nil
-    } else if ty == "SpawnExpr" {
+    }
+    if ty == "SpawnExpr" {
         // Expression form: `spawn foo(...)` used in initializers/expressions.
         // Must be renamed so the callee identifier is prefixed correctly.
         rename_expr(expr["call"], pairs, stack)
         return nil
-    } else if ty == "Infix" {
+    }
+    if ty == "Infix" {
         rename_expr(expr["left"], pairs, stack)
         rename_expr(expr["right"], pairs, stack)
         return nil
-    } else if ty == "Prefix" {
+    }
+    if ty == "Prefix" {
         rename_expr(expr["right"], pairs, stack)
         return nil
-    } else if ty == "Hash" {
+    }
+    if ty == "Hash" {
         var pairs_list = expr["pairs"]
         var i3 = 0
         var pairs_n = oren_list_len(pairs_list)
@@ -402,14 +405,17 @@ fn rename_expr(expr, pairs, stack) {
             i3 = i3 + 1
         }
         return nil
-    } else if ty == "Member" {
+    }
+    if ty == "Member" {
         rename_expr(expr["left"], pairs, stack)
         return nil
-    } else if ty == "Index" {
+    }
+    if ty == "Index" {
         rename_expr(expr["left"], pairs, stack)
         rename_expr(expr["index"], pairs, stack)
         return nil
-    } else if ty == "Array" {
+    }
+    if ty == "Array" {
         var elements = expr["elements"]
         var i2 = 0
         var elements_n = oren_list_len(elements)
@@ -418,7 +424,8 @@ fn rename_expr(expr, pairs, stack) {
             i2 = i2 + 1
         }
         return nil
-    } else if ty == "If" {
+    }
+    if ty == "If" {
         rename_expr(expr["cond"], pairs, stack)
         rename_stmt(expr["consq"], pairs, stack, false)
         rename_stmt(expr["alt"], pairs, stack, false)
