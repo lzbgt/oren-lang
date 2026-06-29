@@ -137,17 +137,22 @@ Facts from the 2026-05-28 implementation pass:
 			  globals now lower through a batched x64 op with direct encoded global-slot
 			  offsets, reducing the compiler-shaped `__top_level__` statement count from 123
 			  to 15. `OREN_TRACE_X64_EMIT_OP_SLOW_MS` records bounded slow op summaries,
-			  and the source-order top-level rewrite now records bounded progress plus
-			  `top_stmts.done` counters. A rejected direct `.data` materialization probe
-			  showed `rewrite.progress i=50 elapsed_ms=118312 direct_string=48`, proving
-			  the next fix must batch/stream string data appends rather than simply move
-			  all string literal globals out of `__top_level__`.
+			  source-order top-level rewrite progress, `top_stmts.done` counters, and
+			  in-batch string-global progress. The string-global store emitter now writes
+			  the fixed `lea rax`/`lea r10`/`mov [r10],rax` bytes directly instead of
+			  routing each item through generic instruction encoders, and the batch path
+			  uses direct list indexing plus local data/cstr0 handles. A rejected direct
+			  `.data` materialization probe showed `rewrite.progress i=50 elapsed_ms=118312
+			  direct_string=48`, and the refined batch trace still shows `item=25 count=108
+			  ms=46106 data_ms=0 code_ms=0`; the next fix must target batch loop/runtime
+			  dispatch overhead rather than simply moving all string literal globals out
+			  of `__top_level__` or reworking instruction bytes.
 			  Capped full x64 self-host traces now complete module parsing through
 			  `lib/compiler/compiler.oren`, finish the optimizer, and reach x64 native emit.
 			  With direct string globals disabled, `top_globals.user_slots` finishes in under
-			  a second. The next measured target is byte-native batched string data append
-			  and per-item emitter work inside the batched string-global op before returning
-			  to post-`__top_level__` user-function codegen throughput.
+			  a second. The next measured target is the remaining batch-loop/runtime
+			  dispatch inside the batched string-global op before returning to
+			  post-`__top_level__` user-function codegen throughput.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

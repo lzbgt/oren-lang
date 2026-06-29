@@ -12,6 +12,35 @@ fn _x64_str_eq_bytes_local(a, b) {
     return true
 }
 
+fn _x64_emit_top_string_global_store(ctx, cstr_off, goff) {
+    // Hot path for synthesized top-level string globals:
+    //   lea rax, [rip+cstr]
+    //   lea r10, [rip+slot]
+    //   mov [r10], rax
+    //
+    // Emit fixed bytes directly instead of routing each tiny instruction through the
+    // generic encoder/pool path for every string in large compiler-shaped batches.
+    var code = ctx["code"]
+    var lea_lit = bytes_len(code)
+    bytes_push(code, 72)  // REX.W
+    bytes_push(code, 141) // LEA
+    bytes_push(code, 5)   // ModRM: rax, [rip+disp32]
+    push_u32_le(code, 0)
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_lit + 3, "data_off": cstr_off})
+
+    var lea_slot = bytes_len(code)
+    bytes_push(code, 76)  // REX.W | REX.R for r10
+    bytes_push(code, 141) // LEA
+    bytes_push(code, 21)  // ModRM: r10, [rip+disp32]
+    push_u32_le(code, 0)
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot + 3, "data_off": goff})
+
+    bytes_push(code, 73)  // REX.W | REX.B for [r10]
+    bytes_push(code, 137) // MOV r/m64, r64
+    bytes_push(code, 2)   // ModRM: [r10], rax
+    return nil
+}
+
 fn _x64_list_name_in_fast(list_name, lists) {
     if list_name == nil || lists == nil { return false }
     var i = 0
@@ -250,14 +279,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if trace_op_slow == true { global_string_data_ms = (oren_time_now_ns() - global_string_step_ns) / 1000000 }
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             if trace_op_slow == true { global_string_step_ns = oren_time_now_ns() }
-            var lea_lit_gs = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_lit_gs + 3, "data_off": cstr_off_gs})
             var goff_gs = goff_enc_gs - 1
-            var lea_slot_gs = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_gs + 3, "data_off": goff_gs})
-            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+            _x64_emit_top_string_global_store(ctx, cstr_off_gs, goff_gs)
             if trace_op_slow == true { global_string_code_ms = (oren_time_now_ns() - global_string_step_ns) / 1000000 }
             if trace_op_slow == true {
                 var global_string_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
@@ -285,32 +308,62 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             var batch_off_encs = op["off_encs"]
             var batch_n = 0
             if batch_values != nil { batch_n = oren_list_len(batch_values) }
+            var batch_names_n = 0
+            if batch_names != nil { batch_names_n = oren_list_len(batch_names) }
+            var batch_off_encs_n = 0
+            if batch_off_encs != nil { batch_off_encs_n = oren_list_len(batch_off_encs) }
             var batch_data_ms = 0
             var batch_code_ms = 0
+            if ctx["data"] == nil { ctx["data"] = bytes_new() }
+            if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+            var batch_data_buf = ctx["data"]
+            var batch_cstr0_list = ctx["cstr0_list"]
             var batch_i = 0
             while batch_i < batch_n {
+                if trace_op_slow == true && core.int_mod(batch_i, 25) == 0 {
+                    var batch_progress_ms = (oren_time_now_ns() - op_start_ns) / 1000000
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.batch_progress",
+                        "name=" + phase_name +
+                        " i=" + oren_int_to_string(j) +
+                        " item=" + oren_int_to_string(batch_i) +
+                        " count=" + oren_int_to_string(batch_n) +
+                        " ms=" + oren_int_to_string(batch_progress_ms) +
+                        " data_ms=" + oren_int_to_string(batch_data_ms) +
+                        " code_ms=" + oren_int_to_string(batch_code_ms))
+                }
                 var batch_step_ns = 0
-                var name_b = nil
-                if batch_names != nil && batch_i < oren_list_len(batch_names) { name_b = oren_list_get(batch_names, batch_i) }
                 var goff_enc_b = nil
-                if batch_off_encs != nil && batch_i < oren_list_len(batch_off_encs) { goff_enc_b = oren_list_get(batch_off_encs, batch_i) }
-                if oren_type_tag(goff_enc_b) != 1 && ctx["globals"] != nil { goff_enc_b = ctx["globals"][name_b] }
+                if batch_i < batch_off_encs_n { goff_enc_b = batch_off_encs[batch_i] }
+                var name_b = nil
+                if oren_type_tag(goff_enc_b) != 1 && ctx["globals"] != nil {
+                    if batch_i < batch_names_n { name_b = batch_names[batch_i] }
+                    goff_enc_b = ctx["globals"][name_b]
+                }
                 if oren_type_tag(goff_enc_b) != 1 { err(ctx, "x64 native v0: assign unknown var " + name_b); return nil }
-                var s_b = oren_list_get(batch_values, batch_i)
+                var s_b = batch_values[batch_i]
                 if s_b == nil { s_b = "" }
                 if trace_op_slow == true { batch_step_ns = oren_time_now_ns() }
-                var cstr_off_b = _data_add_cstr0_nodedup(ctx, s_b)
+                if s_b == 0 { s_b = "" }
+                if oren_is_string(s_b) != true {
+                    var tn_b = oren_type_name(s_b)
+                    err(ctx, "x64 native v0: _data_add_cstr0_nodedup expects string, got " + tn_b)
+                    return nil
+                }
+                while core.int_mod(bytes_len(batch_data_buf), 8) != 0 { bytes_push(batch_data_buf, 0) }
+                var cstr_off_b = bytes_len(batch_data_buf)
+                var n0_b = oren_string_len(s_b)
+                if n0_b > 1048576 {
+                    s_b = oren_string_slice(s_b, 0, 1048576)
+                    n0_b = 1048576
+                }
+                bytes_extend_string(batch_data_buf, s_b)
+                bytes_push(batch_data_buf, 0)
+                oren_list_push(batch_cstr0_list, cstr_off_b)
                 if trace_op_slow == true { batch_data_ms = batch_data_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 if trace_op_slow == true { batch_step_ns = oren_time_now_ns() }
-                var lea_lit_b = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_lit_b + 3, "data_off": cstr_off_b})
                 var goff_b = goff_enc_b - 1
-                var lea_slot_b = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_b + 3, "data_off": goff_b})
-                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+                _x64_emit_top_string_global_store(ctx, cstr_off_b, goff_b)
                 if trace_op_slow == true { batch_code_ms = batch_code_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
                 batch_i = batch_i + 1
             }
@@ -365,14 +418,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 if trace_op_slow == true { fast_data_ms = (oren_time_now_ns() - fast_step_ns) / 1000000 }
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 if trace_op_slow == true { fast_step_ns = oren_time_now_ns() }
-                var lea_lit_fast = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_lit_fast + 3, "data_off": cstr_off_fast})
                 var goff_fast = goff_enc_fast - 1
-                var lea_slot_fast = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_fast + 3, "data_off": goff_fast})
-                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+                _x64_emit_top_string_global_store(ctx, cstr_off_fast, goff_fast)
                 if trace_op_slow == true { fast_code_ms = (oren_time_now_ns() - fast_step_ns) / 1000000 }
                 if trace_op_slow == true {
                     var op_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
