@@ -140,8 +140,8 @@
 <p>	  <code>__top_level__</code> because static mutable container headers need an explicit</p>
 <p>	  heap/GC ABI before direct <code>.data</code> materialization is safe. Phase logs now</p>
 <p>	  persist bounded slow-function rankings under <code>OREN_TRACE_BUILD_PHASES_PATH</code>.</p>
-<p>	  Phase logs now include <code>link.parse_module.start</code> so capped self-host probes</p>
-<p>	  show the active module even when a module does not finish before timeout.</p>
+<p>		  Phase logs now include <code>link.parse_module.start</code> so capped self-host probes</p>
+<p>		  show the active module even when a module does not finish before timeout.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
@@ -155,13 +155,15 @@
 <p>		  cache-write start/skip/encode/done phases. Module cache directories still</p>
 <p>		  default to the compiler executable signature, and controlled profiling runs can</p>
 <p>		  set <code>OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG</code> to reuse entries across stage2</p>
-<p>		  rebuilds. Focused no-artifact-cache proof: forced <code>std:list</code> prewarm writes a</p>
-<p>		  35.8 KiB v2 ASTBIN in about 2.45s and the next process warm-hits with</p>
-<p>		  <code>cache_hit=1 parse_ms=0</code>. Generator-import tracing shows <code>std:result</code> encode</p>
-<p>		  drops from about 3.0s to about 1.45s after the one-pass writer. Uncapped <code>std:time</code> improves from about</p>
-<p>		  58s to about 46s but remains pathological, and <code>std:generator</code> still has an</p>
-<p>		  expensive collect phase; the default parse budget therefore still skips these</p>
-<p>		  candidates immediately with <code>reason=parse_budget</code>. Synthetic string-global probes show opt-in direct string slots can</p>
+<p>		  rebuilds. <code>OREN_TRACE_ASTBIN_MODULE_SHAPES=1</code> prints the first bounded</p>
+<p>		  full-vocabulary fallback map shapes for future module-writer profiling.</p>
+<p>		  Focused no-artifact-cache proof: forced generator-import prewarm now writes</p>
+<p>		  <code>std:result</code> in about 26ms, <code>std:time</code> in about 86ms, and <code>std:generator</code></p>
+<p>		  in about 247ms; the next process warm-hits all three with <code>cache_hit=1</code></p>
+<p>		  and <code>parse_ms=0</code>. Trait metadata maps are now covered by known-key</p>
+<p>		  traversal instead of falling through to the full key vocabulary, so the</p>
+<p>		  default parse budget remains a safety guard rather than a workaround for</p>
+<p>		  these std modules. Synthetic string-global probes show opt-in direct string slots can</p>
 <p>	  remove <code>__top_level__</code> assignment work on small programs. Compiler-shaped</p>
 <p>	  self-host probes still show a per-slot direct string <code>.data</code> cliff, now isolated</p>
 <p>	  to direct global metadata/root bookkeeping rather than the synthesized assignment</p>
@@ -170,14 +172,13 @@
 <p>	  facts only for globals that can feed top-level pointer aliases; slow-slot records</p>
 <p>	  include direct path plus init/allocation/fixup/metadata substep timing. The</p>
 <p>	  synthesized <code>__top_level__</code> string-global assignment fast path now runs before</p>
-<p>	  generic expression validation and local fact updates, so literal string globals</p>
+<p>		  generic expression validation and local fact updates, so literal string globals</p>
 <p>		  bypass the slow generic assignment path. Capped full x64 self-host traces now</p>
 <p>		  complete module parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer,</p>
 <p>		  and reach x64 native emit. With direct string globals disabled,</p>
 <p>		  <code>top_globals.user_slots</code> finishes in under a second. The next measured target is</p>
-<p>		  reducing the remaining pathological module-AST collect/write shapes in</p>
-<p>		  <code>std:time</code>/<code>std:generator</code>, before relying on uncapped serial prewarm for full</p>
-<p>		  self-host profiles.</p>
+<p>		  using the recovered warm module-cache path to profile and reduce the</p>
+<p>		  post-<code>__top_level__</code> x64 user-function codegen throughput bottleneck.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

@@ -8,6 +8,8 @@
 var g_astbin_module_keys = nil
 var g_astbin_module_unknown_key_reports = 0
 var g_astbin_module_trace_unknown_keys = nil
+var g_astbin_module_fallback_shape_reports = 0
+var g_astbin_module_trace_fallback_shapes = nil
 
 fn _astbin_module_keys() {
     if g_astbin_module_keys != nil { return g_astbin_module_keys }
@@ -76,10 +78,16 @@ fn _astbin_module_keys_for_map(m) {
     if t == "Spawn" || t == "SpawnExpr" { return ["type", "token", "call"] }
     if t == "Switch" { return ["type", "token", "expr", "cases", "default"] }
     if t == "Attr" { return ["type", "token", "name", "args"] }
+    if m["value"] != nil && (m["attrs"] != nil || m["ann_type"] != nil || m["is_varargs"] != nil) {
+        return ["value", "attrs", "ann_type", "is_varargs"]
+    }
+    if m["name"] != nil && m["params"] != nil { return ["name", "params", "ret_ann_type"] }
+    if m["name"] != nil && m["methods"] != nil { return ["name", "doc", "methods"] }
     if m["key"] != nil || m["value"] != nil { return ["key", "value"] }
     if m["tag"] != nil || m["values"] != nil { return ["tag", "values", "body"] }
     if m["constraints"] != nil { return ["name", "constraints"] }
     if m["fun"] != nil { return ["name", "fun", "captures", "aliases"] }
+    _astbin_module_trace_fallback_shape(m)
     return _astbin_module_keys()
 }
 
@@ -119,6 +127,38 @@ fn _astbin_module_trace_unknown_keys(m, keys) {
         }
         idx = idx + 1
     }
+    return nil
+}
+
+fn _astbin_module_trace_fallback_shapes_enabled() {
+    if g_astbin_module_trace_fallback_shapes != nil { return g_astbin_module_trace_fallback_shapes }
+    var v = oren_env("OREN_TRACE_ASTBIN_MODULE_SHAPES")
+    if v != nil && v != "" && v != "0" && v != "false" {
+        g_astbin_module_trace_fallback_shapes = true
+    } else {
+        g_astbin_module_trace_fallback_shapes = false
+    }
+    return g_astbin_module_trace_fallback_shapes
+}
+
+fn _astbin_module_trace_fallback_shape(m) {
+    if g_astbin_module_fallback_shape_reports >= 32 { return nil }
+    if _astbin_module_trace_fallback_shapes_enabled() != true { return nil }
+    g_astbin_module_fallback_shape_reports = g_astbin_module_fallback_shape_reports + 1
+    var t = m["type"]
+    if _astbin_is_string(t) != true { t = "<none>" }
+    var msg = "[astbin_module] fallback shape type=" + t
+    if m["name"] != nil { msg = msg + " name" }
+    if m["value"] != nil { msg = msg + " value" }
+    if m["params"] != nil { msg = msg + " params" }
+    if m["methods"] != nil { msg = msg + " methods" }
+    if m["fields"] != nil { msg = msg + " fields" }
+    if m["traits"] != nil { msg = msg + " traits" }
+    if m["aliases"] != nil { msg = msg + " aliases" }
+    if m["captures"] != nil { msg = msg + " captures" }
+    if m["k"] != nil { msg = msg + " k" }
+    if m["v"] != nil { msg = msg + " v" }
+    print(msg)
     return nil
 }
 

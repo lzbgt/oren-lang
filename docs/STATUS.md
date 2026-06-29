@@ -100,8 +100,8 @@ Facts from the 2026-05-28 implementation pass:
 	  `__top_level__` because static mutable container headers need an explicit
 	  heap/GC ABI before direct `.data` materialization is safe. Phase logs now
 	  persist bounded slow-function rankings under `OREN_TRACE_BUILD_PHASES_PATH`.
-	  Phase logs now include `link.parse_module.start` so capped self-host probes
-	  show the active module even when a module does not finish before timeout.
+		  Phase logs now include `link.parse_module.start` so capped self-host probes
+		  show the active module even when a module does not finish before timeout.
 		  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
@@ -115,13 +115,15 @@ Facts from the 2026-05-28 implementation pass:
 		  cache-write start/skip/encode/done phases. Module cache directories still
 		  default to the compiler executable signature, and controlled profiling runs can
 		  set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2
-		  rebuilds. Focused no-artifact-cache proof: forced `std:list` prewarm writes a
-		  35.8 KiB v2 ASTBIN in about 2.45s and the next process warm-hits with
-		  `cache_hit=1 parse_ms=0`. Generator-import tracing shows `std:result` encode
-		  drops from about 3.0s to about 1.45s after the one-pass writer. Uncapped `std:time` improves from about
-		  58s to about 46s but remains pathological, and `std:generator` still has an
-		  expensive collect phase; the default parse budget therefore still skips these
-		  candidates immediately with `reason=parse_budget`. Synthetic string-global probes show opt-in direct string slots can
+		  rebuilds. `OREN_TRACE_ASTBIN_MODULE_SHAPES=1` prints the first bounded
+		  full-vocabulary fallback map shapes for future module-writer profiling.
+		  Focused no-artifact-cache proof: forced generator-import prewarm now writes
+		  `std:result` in about 26ms, `std:time` in about 86ms, and `std:generator`
+		  in about 247ms; the next process warm-hits all three with `cache_hit=1`
+		  and `parse_ms=0`. Trait metadata maps are now covered by known-key
+		  traversal instead of falling through to the full key vocabulary, so the
+		  default parse budget remains a safety guard rather than a workaround for
+		  these std modules. Synthetic string-global probes show opt-in direct string slots can
 	  remove `__top_level__` assignment work on small programs. Compiler-shaped
 	  self-host probes still show a per-slot direct string `.data` cliff, now isolated
 	  to direct global metadata/root bookkeeping rather than the synthesized assignment
@@ -130,14 +132,13 @@ Facts from the 2026-05-28 implementation pass:
 	  facts only for globals that can feed top-level pointer aliases; slow-slot records
 	  include direct path plus init/allocation/fixup/metadata substep timing. The
 	  synthesized `__top_level__` string-global assignment fast path now runs before
-	  generic expression validation and local fact updates, so literal string globals
+		  generic expression validation and local fact updates, so literal string globals
 		  bypass the slow generic assignment path. Capped full x64 self-host traces now
 		  complete module parsing through `lib/compiler/compiler.oren`, finish the optimizer,
 		  and reach x64 native emit. With direct string globals disabled,
 		  `top_globals.user_slots` finishes in under a second. The next measured target is
-		  reducing the remaining pathological module-AST collect/write shapes in
-		  `std:time`/`std:generator`, before relying on uncapped serial prewarm for full
-		  self-host profiles.
+		  using the recovered warm module-cache path to profile and reduce the
+		  post-`__top_level__` x64 user-function codegen throughput bottleneck.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

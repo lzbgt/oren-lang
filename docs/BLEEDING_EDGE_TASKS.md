@@ -118,15 +118,16 @@ This file is the concise task view. Detailed implementation status lives in
 									     prewarm now logs cache-write start/skip/encode/done phases. Module cache
 									     directories still default to the compiler executable signature, and
 									     controlled profiling runs can set
-									     `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2
-										     rebuilds. Focused no-artifact-cache proof: forced `std:list` prewarm writes
-										     a 35.8 KiB v2 ASTBIN in about 2.45s and the next process warm-hits with
-										     `cache_hit=1 parse_ms=0`. Generator-import tracing shows `std:result`
-										     encode drops from about 3.0s to about 1.45s after the one-pass writer.
-										     Uncapped `std:time` improves from about 58s to about 46s but remains
-										     pathological, and `std:generator` still has an expensive collect phase; the
-										     default parse budget therefore still skips these candidates immediately
-										     with `reason=parse_budget`. Capped full x64 self-host traces now complete module
+										     `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2
+											     rebuilds. `OREN_TRACE_ASTBIN_MODULE_SHAPES=1` prints the first bounded
+											     full-vocabulary fallback map shapes for future module-writer profiling.
+											     Focused no-artifact-cache proof: forced generator-import prewarm now writes
+											     `std:result` in about 26ms, `std:time` in about 86ms, and `std:generator`
+											     in about 247ms; the next process warm-hits all three with `cache_hit=1`
+											     and `parse_ms=0`. Trait metadata maps are now covered by known-key
+											     traversal instead of falling through to the full key vocabulary, so the
+											     default parse budget remains a safety guard rather than a workaround for
+											     these std modules. Capped full x64 self-host traces now complete module
 								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
 								     reach x64 native emit. With direct string globals disabled,
 								     `top_globals.user_slots` finishes in under a second; opt-in direct-string
@@ -134,12 +135,11 @@ This file is the concise task view. Detailed implementation status lives in
 								     records, positive-only scalar fact metadata, and demand-driven data-constant
 								     alias metadata, but compiler-shaped traces still show a per-slot direct
 								     metadata/root bookkeeping cliff. The synthesized `__top_level__`
-								     string-global assignment fast path now runs before generic expression
-									     validation and local fact updates, so literal string globals bypass the
-										     slow generic assignment path. The next concrete throughput target is
-										     reducing the remaining pathological module-AST collect/write shapes in
-										     `std:time`/`std:generator`, before relying on uncapped serial prewarm for
-										     full self-host profiling.
+									     string-global assignment fast path now runs before generic expression
+										     validation and local fact updates, so literal string globals bypass the
+											     slow generic assignment path. The next concrete throughput target is
+											     using the recovered warm module-cache path to profile and reduce the
+											     post-`__top_level__` x64 user-function codegen throughput bottleneck.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
