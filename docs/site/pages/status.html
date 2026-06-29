@@ -237,8 +237,12 @@
 <p>					  diagnostic past <code>rename_expr</code>. X64 backend instruction emission now</p>
 <p>					  calls <code>x64_core</code> builders directly instead of compiling a duplicate</p>
 <p>					  prelude forwarding layer; the compiler-shaped trace reduced linked x64</p>
-<p>					  functions from 2598 to 2501, with the remaining active hotspot in real</p>
-<p>					  <code>x64_core</code> instruction-builder/user-function emission.</p>
+<p>					  functions from 2598 to 2501. X64 function frames now reserve dedicated</p>
+<p>					  list/map literal spill slots only when a conservative ops scan finds</p>
+<p>					  list/hash literals; focused frame probes show literal-free <code>__top_level__</code></p>
+<p>					  at <code>literal_slots=0</code> and list-literal <code>main</code> at <code>literal_slots=16</code>,</p>
+<p>					  keeping the remaining active hotspot in real <code>x64_core</code></p>
+<p>					  instruction-builder/user-function emission.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

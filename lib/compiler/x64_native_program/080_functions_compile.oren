@@ -25,6 +25,94 @@ fn _x64_tmp_names_init(ctx) {
     return nil
 }
 
+fn _x64_expr_needs_literal_slots(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Array" || t == "Hash" { return true }
+    if t == "Nil" || t == "Boolean" || t == "Integer" || t == "Float" ||
+       t == "String" || t == "Identifier" || t == "IntrTmp" || t == "Function" {
+        return false
+    }
+    if t == "Call" {
+        if _x64_expr_needs_literal_slots(expr["fn"]) == true { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if _x64_expr_needs_literal_slots(args[i]) == true { return true }
+            i = i + 1
+        }
+        if _x64_expr_needs_literal_slots(expr["spread"]) == true { return true }
+        return false
+    }
+    if t == "SpawnExpr" {
+        var call2 = expr["call"]
+        if call2 == nil { return false }
+        if _x64_expr_needs_literal_slots(call2["fn"]) == true { return true }
+        var args2 = call2["args"]
+        var j = 0
+        while args2 != nil && j < oren_list_len(args2) {
+            if _x64_expr_needs_literal_slots(args2[j]) == true { return true }
+            j = j + 1
+        }
+        if _x64_expr_needs_literal_slots(call2["spread"]) == true { return true }
+        return false
+    }
+    if t == "Infix" {
+        if _x64_expr_needs_literal_slots(expr["left"]) == true { return true }
+        return _x64_expr_needs_literal_slots(expr["right"])
+    }
+    if t == "Prefix" { return _x64_expr_needs_literal_slots(expr["right"]) }
+    if t == "Member" { return _x64_expr_needs_literal_slots(expr["left"]) }
+    if t == "Index" {
+        if _x64_expr_needs_literal_slots(expr["left"]) == true { return true }
+        return _x64_expr_needs_literal_slots(expr["index"])
+    }
+    if t == "If" {
+        if _x64_expr_needs_literal_slots(expr["cond"]) == true { return true }
+        var consq = expr["consq"]
+        if consq != nil && _x64_expr_needs_literal_slots(consq["expr"]) == true { return true }
+        var alt = expr["alt"]
+        if alt != nil && _x64_expr_needs_literal_slots(alt["expr"]) == true { return true }
+        return false
+    }
+    // Unknown expression shapes keep the historical frame layout rather than risking
+    // missing literal spill slots if a newer lowering path starts using them.
+    return true
+}
+
+fn _x64_ops_need_literal_slots(ops) {
+    if ops == nil { return false }
+    var i = 0
+    while i < oren_list_len(ops) {
+        var op = ops[i]
+        if op == nil { i = i + 1; continue }
+        var k = op["op"]
+        if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" || k == "print_str_expr" {
+            if _x64_expr_needs_literal_slots(op["expr"]) == true { return true }
+        } else if k == "if" {
+            if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
+            if _x64_ops_need_literal_slots(op["then"]) == true { return true }
+            if _x64_ops_need_literal_slots(op["else"]) == true { return true }
+        } else if k == "while" {
+            if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
+            if _x64_ops_need_literal_slots(op["body"]) == true { return true }
+        } else if k == "for" {
+            if _x64_ops_need_literal_slots(op["init"]) == true { return true }
+            if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
+            if _x64_ops_need_literal_slots(op["post"]) == true { return true }
+            if _x64_ops_need_literal_slots(op["body"]) == true { return true }
+        } else if k == "global_string_init" || k == "global_string_init_batch" ||
+                  k == "global_empty_container_init_batch" || k == "print_cstr" ||
+                  k == "break" || k == "continue" {
+            // These synthetic/simple ops do not evaluate list/hash literal expressions.
+        } else {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
 fn _compile_function_v0(ctx, fn_node, platform) {
     if fn_node == nil { return nil }
     var name = fn_node["name"]
@@ -63,6 +151,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     var ops = _analyze_supported_fn_body(ctx, fn_node)
     if ops == nil { return nil }
+    var needs_literal_slots = _x64_ops_need_literal_slots(ops)
     if phase_this {
         var ops_n_phase = 0
         if ops != nil { ops_n_phase = oren_list_len(ops) }
@@ -217,18 +306,6 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // Cleared/overwritten for each function; used by `_intr_tmp_off`.
     ctx["intr_tmp_base_off"] = nil
 
-    // Bounded debug aid: print frame sizing for one function name.
-    // Example:
-    //   OREN_TRACE_X64_FN_FRAME=oren_string_from_bytes OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1 ...
-    var want_frame = oren_env("OREN_TRACE_X64_FN_FRAME")
-    if want_frame != nil && want_frame != "" && want_frame == name {
-        print("[x64_fn] name=" + name +
-                  " max_call_argc=" + oren_int_to_string(max_call_argc) +
-                  " max_intr=" + oren_int_to_string(max_intr) +
-                  " intr_lim=" + oren_int_to_string(intr_lim) +
-                  " locals_pre_align_bytes=" + oren_int_to_string(local_next - 8))
-    }
-
     // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
     // These slots are addressed via `IntrTmp{idx}` (not string-named locals) to avoid:
     // - per-use `$tmp_intrN` string allocations
@@ -242,23 +319,41 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     intr_bytes = iadd(intr_bytes, intr_bytes) // *8
     local_next = iadd(local_next, intr_bytes)
 
-    // Reserve literal-building spill slots. These must be re-entrant because list/map literals
-    // can be nested (e.g. `[0, 1, [0, 0]]` in for-in lowering).
-    //
-    // Note: `oren_list_push` intrinsic lowering uses `$tmp1..$tmp6`, so we must not depend on
-    // those across nested expression evaluation. Dedicated `$tmp_lit_*` slots avoid clobbering.
-    var ld = 0
-    while ld < 8 {
-        var hn1 = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld)
-        if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
-        locals[hn1] = local_next
-        local_next = local_next + 8
+    var literal_slot_count = 0
+    if needs_literal_slots == true {
+        // Reserve literal-building spill slots. These must be re-entrant because list/map literals
+        // can be nested (e.g. `[0, 1, [0, 0]]` in for-in lowering).
+        //
+        // Note: `oren_list_push` intrinsic lowering uses `$tmp1..$tmp6`, so we must not depend on
+        // those across nested expression evaluation. Dedicated `$tmp_lit_*` slots avoid clobbering.
+        var ld = 0
+        while ld < 8 {
+            var hn1 = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld)
+            if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
+            locals[hn1] = local_next
+            local_next = local_next + 8
+            literal_slot_count = literal_slot_count + 1
 
-        var hn2 = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld)
-        if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
-        locals[hn2] = local_next
-        local_next = local_next + 8
-        ld = ld + 1
+            var hn2 = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld)
+            if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
+            locals[hn2] = local_next
+            local_next = local_next + 8
+            literal_slot_count = literal_slot_count + 1
+            ld = ld + 1
+        }
+    }
+
+    // Bounded debug aid: print frame sizing for one function name.
+    // Example:
+    //   OREN_TRACE_X64_FN_FRAME=oren_string_from_bytes OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1 ...
+    var want_frame = oren_env("OREN_TRACE_X64_FN_FRAME")
+    if want_frame != nil && want_frame != "" && want_frame == name {
+        print("[x64_fn] name=" + name +
+              " max_call_argc=" + oren_int_to_string(max_call_argc) +
+              " max_intr=" + oren_int_to_string(max_intr) +
+              " intr_lim=" + oren_int_to_string(intr_lim) +
+              " literal_slots=" + oren_int_to_string(literal_slot_count) +
+              " locals_pre_align_bytes=" + oren_int_to_string(local_next - 8))
     }
 
     var locals_size = local_next - 8
@@ -321,6 +416,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         _x64_program_phase_log_append(phase_log, "x64.codegen.function.frame.done",
             "name=" + name +
             " frame_bytes=" + oren_int_to_string(frame_size) +
+            " literal_slots=" + oren_int_to_string(literal_slot_count) +
             " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
             " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
     }

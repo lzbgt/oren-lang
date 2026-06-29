@@ -195,8 +195,12 @@ This file is the concise task view. Detailed implementation status lives in
 													     diagnostic past `rename_expr`. X64 backend instruction emission now
 													     calls `x64_core` builders directly instead of compiling a duplicate
 													     prelude forwarding layer; the compiler-shaped trace reduced linked x64
-													     functions from 2598 to 2501, with the remaining active hotspot in real
-													     `x64_core` instruction-builder/user-function emission.
+													     functions from 2598 to 2501. X64 function frames now reserve dedicated
+													     list/map literal spill slots only when a conservative ops scan finds
+													     list/hash literals; focused frame probes show literal-free `__top_level__`
+													     at `literal_slots=0` and list-literal `main` at `literal_slots=16`,
+													     keeping the remaining active hotspot in real `x64_core`
+													     instruction-builder/user-function emission.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
