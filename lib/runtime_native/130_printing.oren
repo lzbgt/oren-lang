@@ -1329,6 +1329,24 @@ fn oren_map_get(m, k) {
     return native_value_nil()
 }
 
+@oren.keep
+fn oren_map_get_int_checked(m, k) {
+    _oren_map_check(m)
+    return _oren_map_get_kind(m, k, 0)
+}
+
+@oren.keep
+fn oren_map_get_str_checked(m, k) {
+    _oren_map_check(m)
+    return _oren_map_get_kind(m, k, 1)
+}
+
+@oren.keep
+fn oren_map_get_checked(m, k) {
+    _oren_map_check(m)
+    return oren_map_get(m, k)
+}
+
 fn oren_map_len(m) {
     if m == 0 { return 0 }
     var node = oren_find_node(m)

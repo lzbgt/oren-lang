@@ -164,7 +164,13 @@ This file is the concise task view. Detailed implementation status lives in
 											     AST string-key lookups and reduced it from roughly 136s to roughly 85s;
 											     broader inferred string-field key kinds are intentionally not enabled
 											     after a capped self-host probe produced a real `map: key is not a string`
-											     panic.
+											     panic. Map-only x64 index lowering now calls checked runtime map helpers
+											     instead of emitting receiver tracking/kind/magic checks per access site.
+											     The capped trace reduced `collect_toplevel_rename_pairs` further to
+											     roughly 16s; parameter-map helpers such as `rename_lookup`, `scope_has`,
+											     and larger `rename_stmt` codegen remain the next measured bottlenecks
+											     because shared compiler source must still link in OBC builds without
+											     native-only map helper calls.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

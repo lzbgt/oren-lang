@@ -199,7 +199,14 @@
 <p>				  trace moved <code>collect_toplevel_rename_pairs</code> through all nested AST</p>
 <p>				  string-key lookups and reduced that function from roughly 136s to roughly</p>
 <p>				  85s, while a broader field-string inference trial was rejected after a</p>
-<p>				  real self-host <code>map: key is not a string</code> panic.</p>
+<p>				  real self-host <code>map: key is not a string</code> panic. Map-only x64 index</p>
+<p>				  lowering now delegates checked map receiver validation to runtime helpers</p>
+<p>				  instead of emitting tracking/kind/magic checks at every access site. The</p>
+<p>				  capped trace reduced <code>collect_toplevel_rename_pairs</code> further to roughly</p>
+<p>				  16s; parameter-map helpers such as <code>rename_lookup</code>, <code>scope_has</code>, and</p>
+<p>				  larger <code>rename_stmt</code> emission remain the next measured user-function</p>
+<p>				  bottlenecks because compiler OBC builds cannot call native-only map</p>
+<p>				  helpers from shared compiler source.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>
