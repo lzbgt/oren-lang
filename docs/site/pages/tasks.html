@@ -212,7 +212,10 @@
 <p>											     compiler-shaped self-host probe reduced synthesized <code>__top_level__</code> body</p>
 <p>											     emission from about 15.5s to about 5.5s and reaches</p>
 <p>											     <code>x64.codegen.top.done</code>, making post-<code>__top_level__</code> x64 user-function</p>
-<p>											     codegen throughput the next measured target.</p>
+<p>											     codegen throughput the next measured target. X64 local labels now use</p>
+<p>											     compact internal keys instead of long function-derived prefixes; capped</p>
+<p>											     self-host traces still stop after <code>x64.codegen.fns.start</code>, so the first</p>
+<p>											     user-function emit path remains the measured bottleneck.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

@@ -299,7 +299,9 @@ fn _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, false_label) {
 fn _new_label(ctx, prefix) {
     if ctx["label_seq"] == nil { ctx["label_seq"] = 0 }
     ctx["label_seq"] = ctx["label_seq"] + 1
-    return prefix + "_" + oren_int_to_string(ctx["label_seq"])
+    // Labels are internal fixup-map keys. Keep them compact so hot x64 emit paths do
+    // not repeatedly concatenate long function-derived prefixes.
+    return "L" + oren_int_to_string(ctx["label_seq"])
 }
 
 fn _emit_label(ctx, labels, name) {

@@ -154,7 +154,10 @@ This file is the concise task view. Detailed implementation status lives in
 											     compiler-shaped self-host probe reduced synthesized `__top_level__` body
 											     emission from about 15.5s to about 5.5s and reaches
 											     `x64.codegen.top.done`, making post-`__top_level__` x64 user-function
-											     codegen throughput the next measured target.
+											     codegen throughput the next measured target. X64 local labels now use
+											     compact internal keys instead of long function-derived prefixes; capped
+											     self-host traces still stop after `x64.codegen.fns.start`, so the first
+											     user-function emit path remains the measured bottleneck.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

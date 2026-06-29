@@ -150,7 +150,10 @@ Facts from the 2026-05-28 implementation pass:
 				  self-host probe reduced synthesized `__top_level__` body emission
 				  from about 15.5s to about 5.5s and reaches `x64.codegen.top.done`,
 				  making post-`__top_level__` user-function codegen throughput the
-				  next measured target.
+				  next measured target. X64 local labels now use compact internal keys
+				  instead of long function-derived prefixes; the capped self-host probe
+				  still times out after `x64.codegen.fns.start`, with the first user
+				  function remaining the active bottleneck.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
