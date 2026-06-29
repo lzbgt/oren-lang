@@ -229,13 +229,20 @@
 <p>												     and larger <code>rename_stmt</code> codegen remain the next measured bottlenecks</p>
 <p>												     because shared compiler source must still link in OBC builds without</p>
 <p>												     native-only map helper calls. Compiler phase logs now append through</p>
-<p>												     <code>oren_append_file</code> instead of reading and rewriting the entire log on</p>
-<p>												     every phase, with matching C runtime and arm64/x64 native <code>O_APPEND</code></p>
-<p>												     support. A capped no-cache self-host trace now reaches</p>
-<p>												     <code>link.optimizer.done</code>, global DCE, and <code>x64.codegen.ctx.done</code>; new</p>
-<p>												     x64 runtime-object hash/cache/seed/build markers show the remaining</p>
-<p>												     cold-cache gap is inside <code>x64.rtobj.build.start</code> before returning to</p>
-<p>												     post-<code>__top_level__</code> user-function codegen throughput.</p>
+<p>													     <code>oren_append_file</code> instead of reading and rewriting the entire log on</p>
+<p>													     every phase, with matching C runtime and arm64/x64 native <code>O_APPEND</code></p>
+<p>													     support. A capped no-cache self-host trace now reaches</p>
+<p>													     <code>link.optimizer.done</code>, global DCE, and <code>x64.codegen.ctx.done</code>; new</p>
+<p>													     x64 runtime-object hash/cache/seed/build markers show the remaining</p>
+<p>													     cold-cache gap is inside <code>x64.rtobj.build.start</code> before returning to</p>
+<p>													     post-<code>__top_level__</code> user-function codegen throughput. X64 function</p>
+<p>													     progress is now configurable with</p>
+<p>													     <code>OREN_TRACE_X64_FNS_PROGRESS_INTERVAL</code>, and the renamer visitor pass</p>
+<p>													     caches AST node type/child lookups plus loop lengths. Focused</p>
+<p>													     no-cache traces reduced <code>collect_toplevel_rename_pairs</code> from the</p>
+<p>													     prior roughly 16s to about 11.4s and <code>scope_push</code> from about 8.6s</p>
+<p>													     to about 5.7s; <code>rename_stmt</code> remains the next measured function</p>
+<p>													     emit bottleneck.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

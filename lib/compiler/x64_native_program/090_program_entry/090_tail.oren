@@ -116,6 +116,12 @@ fn native_compile_program_x64(linked, platform) {
         if top_slow_min_ms < 0 { top_slow_min_ms = 0 }
     }
     var top_slow = []
+    var fns_progress_interval = 250
+    if phase_log != nil {
+        fns_progress_interval = core.parse_int_decimal(oren_env("OREN_TRACE_X64_FNS_PROGRESS_INTERVAL"), fns_progress_interval)
+        if fns_progress_interval < 1 { fns_progress_interval = 1 }
+        if fns_progress_interval > 1000 { fns_progress_interval = 1000 }
+    }
 
     var runtime_path = "lib/runtime_native.oren"
     if platform != nil && platform["capsule"] == true {
@@ -1439,6 +1445,13 @@ fn native_compile_program_x64(linked, platform) {
         var nm1 = nil
         if fn1 != nil { nm1 = fn1["name"] }
         if nm1 == nil || nm1 == "" { nm1 = "?" }
+        if phase_log != nil && (i1 == 0 || core.int_mod(i1, fns_progress_interval) == 0) {
+            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.before",
+                "i=" + oren_int_to_string(i1) +
+                " total=" + oren_int_to_string(fns_n) +
+                " name=" + nm1 +
+                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+        }
         if trace_prog && ((focus_enabled && i1 >= prog_focus_from && i1 < prog_focus_to) ||
                           (prog_stride > 0 && core.int_mod(i1, prog_stride) == 0)) {
             print("[x64_compile] fns " + oren_int_to_string(i1) + "/" + oren_int_to_string(fns_n) + " next=" + nm1)
@@ -1456,7 +1469,7 @@ fn native_compile_program_x64(linked, platform) {
                 _x64_slow_fn_top_push(top_slow, top_slow_n, dt_ms2, nm1)
             }
         }
-        if phase_log != nil && i1 > 0 && core.int_mod(i1, 250) == 0 {
+        if phase_log != nil && i1 > 0 && core.int_mod(i1, fns_progress_interval) == 0 {
             _x64_program_phase_log_append(phase_log, "x64.codegen.fns.progress",
                 "i=" + oren_int_to_string(i1) +
                 " total=" + oren_int_to_string(fns_n) +

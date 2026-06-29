@@ -171,13 +171,20 @@ This file is the concise task view. Detailed implementation status lives in
 												     and larger `rename_stmt` codegen remain the next measured bottlenecks
 												     because shared compiler source must still link in OBC builds without
 												     native-only map helper calls. Compiler phase logs now append through
-												     `oren_append_file` instead of reading and rewriting the entire log on
-												     every phase, with matching C runtime and arm64/x64 native `O_APPEND`
-												     support. A capped no-cache self-host trace now reaches
-												     `link.optimizer.done`, global DCE, and `x64.codegen.ctx.done`; new
-												     x64 runtime-object hash/cache/seed/build markers show the remaining
-												     cold-cache gap is inside `x64.rtobj.build.start` before returning to
-												     post-`__top_level__` user-function codegen throughput.
+													     `oren_append_file` instead of reading and rewriting the entire log on
+													     every phase, with matching C runtime and arm64/x64 native `O_APPEND`
+													     support. A capped no-cache self-host trace now reaches
+													     `link.optimizer.done`, global DCE, and `x64.codegen.ctx.done`; new
+													     x64 runtime-object hash/cache/seed/build markers show the remaining
+													     cold-cache gap is inside `x64.rtobj.build.start` before returning to
+													     post-`__top_level__` user-function codegen throughput. X64 function
+													     progress is now configurable with
+													     `OREN_TRACE_X64_FNS_PROGRESS_INTERVAL`, and the renamer visitor pass
+													     caches AST node type/child lookups plus loop lengths. Focused
+													     no-cache traces reduced `collect_toplevel_rename_pairs` from the
+													     prior roughly 16s to about 11.4s and `scope_push` from about 8.6s
+													     to about 5.7s; `rename_stmt` remains the next measured function
+													     emit bottleneck.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

@@ -179,7 +179,14 @@ Facts from the 2026-05-28 implementation pass:
 					  Additional x64 runtime-object hash/cache/seed/build markers show
 					  cold cache misses stop inside `x64.rtobj.build.start`, so the next
 					  measured target is cold x64 rtobj build internals and then
-					  post-`__top_level__` x64 user-function codegen throughput.
+					  post-`__top_level__` x64 user-function codegen throughput. X64
+					  user-function progress now honors
+					  `OREN_TRACE_X64_FNS_PROGRESS_INTERVAL`, and the module renamer
+					  visitors cache node type/child lookups plus loop lengths. Focused
+					  no-cache traces reduced `collect_toplevel_rename_pairs` from the
+					  prior roughly 16s to about 11.4s and `scope_push` from about 8.6s
+					  to about 5.7s; `rename_stmt` remains the next measured function
+					  emit bottleneck.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
