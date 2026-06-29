@@ -22,6 +22,57 @@ fn _data_add_cstr_newline(ctx, s) {
     return {"off": off, "len": n + 1}
 }
 
+fn _x64_data_cstr_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _data_add_cstr0_cached(ctx, s) {
+    if ctx == nil { return 0 }
+    if s == nil || s == 0 { s = "" }
+    if oren_is_string(s) != true { return _data_add_cstr0(ctx, s) }
+    var names = ctx["x64_cstr0_mru_names"]
+    var offs = ctx["x64_cstr0_mru_offs"]
+    if names == nil || offs == nil {
+        names = []
+        offs = []
+        ctx["x64_cstr0_mru_names"] = names
+        ctx["x64_cstr0_mru_offs"] = offs
+    }
+    var i = 0
+    var n = oren_list_len(names)
+    while i < n {
+        if _x64_data_cstr_eq_bytes(names[i], s) == true { return offs[i] }
+        i = i + 1
+    }
+
+    var off = _data_add_cstr0(ctx, s)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return off }
+    var cap = 32
+    if n < cap {
+        oren_list_push(names, s)
+        oren_list_push(offs, off)
+        return off
+    }
+    var next = ctx["x64_cstr0_mru_next"]
+    if oren_type_tag(next) == 0 { next = 0 }
+    names[next] = s
+    offs[next] = off
+    next = next + 1
+    if next >= cap { next = 0 }
+    ctx["x64_cstr0_mru_next"] = next
+    return off
+}
+
 fn _data_add_cstr0(ctx, s) {
     // Add a NUL-terminated C string to the appended data blob and return its byte offset.
     //

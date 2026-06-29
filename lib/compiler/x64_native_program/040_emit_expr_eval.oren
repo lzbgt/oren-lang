@@ -156,7 +156,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             }
         }
         if s == nil { s = "" }
-        var off = _data_add_cstr0(ctx, s)
+        var off = _data_add_cstr0_cached(ctx, s)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]

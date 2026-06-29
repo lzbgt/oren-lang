@@ -187,9 +187,13 @@ This file is the concise task view. Detailed implementation status lives in
 													     timings only and gates deep fold/list/const counters plus hot-function
 													     rankings behind `OREN_TRACE_OPTIMIZER_DETAIL=1`; the optimizer
 													     summary marker dropped from about 21s to about 2ms in a
-													     compiler-shaped x64 trace. That trace now reaches `rename_stmt`,
-													     which emits in about 64.8s, making renamer statement visitor
-													     helper-splitting the next measured function emit bottleneck.
+													     compiler-shaped x64 trace. X64 string literal lowering now checks a
+													     bounded 32-entry C-string MRU before the existing data dedup map, and
+													     `rename_stmt` now uses independent early-return branches instead of a
+													     nested `else if` chain. The same focused compiler-shaped trace reduced
+													     `rename_stmt` from about 64.8s to about 12.1s and moved the active
+													     diagnostic past `rename_expr` into later user-function emission around
+													     native ABI/codegen helpers.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

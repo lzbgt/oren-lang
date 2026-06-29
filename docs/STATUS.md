@@ -186,12 +186,16 @@ Facts from the 2026-05-28 implementation pass:
 					  no-cache traces reduced `collect_toplevel_rename_pairs` from the
 					  prior roughly 16s to about 11.4s and `scope_push` from about 8.6s
 					  to about 5.7s. Default optimizer phase logging now keeps only
-					  aggregate timings and gates deep fold/list/const counters plus
-					  hot-function rankings behind `OREN_TRACE_OPTIMIZER_DETAIL=1`; the
-					  optimizer summary marker dropped from about 21s to about 2ms in a
-					  compiler-shaped x64 trace. That trace now reaches `rename_stmt`,
-					  which emits in about 64.8s, making renamer statement visitor
-					  helper-splitting the next measured function emit bottleneck.
+						  aggregate timings and gates deep fold/list/const counters plus
+						  hot-function rankings behind `OREN_TRACE_OPTIMIZER_DETAIL=1`; the
+						  optimizer summary marker dropped from about 21s to about 2ms in a
+						  compiler-shaped x64 trace. X64 string literal lowering now checks a
+						  bounded 32-entry C-string MRU before the existing data dedup map, and
+						  `rename_stmt` now uses independent early-return branches instead of a
+						  nested `else if` chain. The same focused compiler-shaped trace reduced
+						  `rename_stmt` from about 64.8s to about 12.1s and moved the active
+						  diagnostic past `rename_expr` into later user-function emission around
+						  native ABI/codegen helpers.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

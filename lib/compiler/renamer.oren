@@ -201,7 +201,8 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
         }
         rename_expr(stmt["value"], pairs, stack)
         return nil
-    } else if ty == "Assign" {
+    }
+    if ty == "Assign" {
         var assign_name = stmt["name"]
         if assign_name != nil {
             var target = assign_name["value"]
@@ -212,19 +213,23 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
         }
         rename_expr(stmt["value"], pairs, stack)
         return nil
-    } else if ty == "Set" {
+    }
+    if ty == "Set" {
         rename_expr(stmt["left"], pairs, stack)
         rename_expr(stmt["value"], pairs, stack)
         return nil
-    } else if ty == "Return" {
+    }
+    if ty == "Return" {
         rename_expr(stmt["value"], pairs, stack)
         return nil
-    } else if ty == "Spawn" {
+    }
+    if ty == "Spawn" {
         // `spawn foo(...)` is represented as a statement containing a call expression.
         // Renaming must recurse into it so intra-module references are prefixed correctly.
         rename_expr(stmt["call"], pairs, stack)
         return nil
-    } else if ty == "Function" {
+    }
+    if ty == "Function" {
         var fn_name = stmt["name"]
         if at_top_level {
             var new_name3 = rename_lookup(pairs, fn_name)
@@ -249,7 +254,8 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
         }
         rename_stmt(stmt["body"], pairs, next, false)
         return nil
-    } else if ty == "Block" {
+    }
+    if ty == "Block" {
         var next2 = scope_push(stack)
         var stmts2 = stmt["stmts"]
         var i2 = 0
@@ -259,7 +265,8 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
             i2 = i2 + 1
         }
         return nil
-    } else if ty == "ExprStmt" {
+    }
+    if ty == "ExprStmt" {
         var expr = stmt["expr"]
         if expr != nil {
             if at_top_level && expr["type"] == "Function" {
@@ -276,23 +283,27 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
             rename_expr(expr, pairs, stack)
         }
         return nil
-    } else if ty == "If" {
+    }
+    if ty == "If" {
         rename_expr(stmt["cond"], pairs, stack)
         rename_stmt(stmt["consq"], pairs, stack, false)
         rename_stmt(stmt["alt"], pairs, stack, false)
         return nil
-    } else if ty == "While" {
+    }
+    if ty == "While" {
         rename_expr(stmt["cond"], pairs, stack)
         rename_stmt(stmt["body"], pairs, stack, false)
         return nil
-    } else if ty == "For" {
+    }
+    if ty == "For" {
         var next3 = scope_push(stack)
         rename_stmt(stmt["init"], pairs, next3, false)
         rename_expr(stmt["cond"], pairs, next3)
         rename_stmt(stmt["post"], pairs, next3, false)
         rename_stmt(stmt["body"], pairs, next3, false)
         return nil
-    } else if ty == "Type" {
+    }
+    if ty == "Type" {
         var type_name = stmt["name"]
         if at_top_level {
             var new_name5 = rename_lookup(pairs, type_name["value"])
@@ -312,7 +323,8 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
             }
         }
         return nil
-    } else if ty == "FFI" {
+    }
+    if ty == "FFI" {
         // Rename the internal stub/function label so module member access works.
         // Do not rewrite `stmt["link_name"]` (external symbol lookup name).
         var ffi_name = stmt["name"]
