@@ -159,6 +159,25 @@ fn scope_push(stack) {
     return {"parent": stack, "decls": {}}
 }
 
+fn rename_function_body(node, pairs, stack) {
+    var next = scope_push(stack)
+    var i = 0
+    var params = node["params"]
+    var params_n = oren_list_len(params)
+    while i < params_n {
+        var param = params[i]
+        if param["ann_type"] != nil {
+            param["ann_type"] = _rename_ann_type(pairs, param["ann_type"])
+        }
+        scope_declare(next, param["value"])
+        i = i + 1
+    }
+    if node["ret_ann_type"] != nil {
+        node["ret_ann_type"] = _rename_ann_type(pairs, node["ret_ann_type"])
+    }
+    rename_stmt(node["body"], pairs, next, false)
+}
+
 fn rename_program_in_place(prog, pairs) {
     var stmts = prog["statements"]
     var stack = nil
@@ -234,22 +253,7 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
         } else {
             if fn_name != "" { scope_declare(stack, fn_name) }
         }
-        var next = scope_push(stack)
-        var i = 0
-        var params = stmt["params"]
-        var params_n = oren_list_len(params)
-        while i < params_n {
-            var param = params[i]
-            if param["ann_type"] != nil {
-                param["ann_type"] = _rename_ann_type(pairs, param["ann_type"])
-            }
-            scope_declare(next, param["value"])
-            i = i + 1
-        }
-        if stmt["ret_ann_type"] != nil {
-            stmt["ret_ann_type"] = _rename_ann_type(pairs, stmt["ret_ann_type"])
-        }
-        rename_stmt(stmt["body"], pairs, next, false)
+        rename_function_body(stmt, pairs, stack)
         return nil
     }
     if ty == "Block" {
@@ -351,22 +355,7 @@ fn rename_expr(expr, pairs, stack) {
             var new_name_fn = rename_lookup(pairs, fn_name)
             if new_name_fn != "" { expr["name"] = new_name_fn }
         }
-        var next = scope_push(stack)
-        var i = 0
-        var params = expr["params"]
-        var params_n = oren_list_len(params)
-        while i < params_n {
-            var param = params[i]
-            if param["ann_type"] != nil {
-                param["ann_type"] = _rename_ann_type(pairs, param["ann_type"])
-            }
-            scope_declare(next, param["value"])
-            i = i + 1
-        }
-        if expr["ret_ann_type"] != nil {
-            expr["ret_ann_type"] = _rename_ann_type(pairs, expr["ret_ann_type"])
-        }
-        rename_stmt(expr["body"], pairs, next, false)
+        rename_function_body(expr, pairs, stack)
         return nil
     }
     if ty == "Call" {
