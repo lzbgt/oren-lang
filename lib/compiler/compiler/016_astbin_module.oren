@@ -170,143 +170,189 @@ fn _astbin_module_string_ref_enc(pool_idx_map, s) {
     return enc - 1
 }
 
-fn _astbin_module_size_string_ref(pool_idx_map, s) {
-    return 1 + _astbin_uvarint_size(_astbin_module_string_ref_enc(pool_idx_map, s))
+fn _astbin_module_dyn_new(cap0) {
+    var cap = cap0
+    if cap < 4096 { cap = 4096 }
+    var buf = oren_u8_buf_new(cap)
+    if oren_is_err(buf) { oren_fail(1, "astbin module dyn: u8_buf alloc failed") }
+    var data_ptr = oren_buf_data_ptr_unchecked(buf)
+    if data_ptr == 0 { oren_fail(1, "astbin module dyn: data ptr is nil") }
+    return {"buf": buf, "len": 0, "cap": cap, "data_ptr": data_ptr}
 }
 
-fn _astbin_module_size_known_map_v2(m, pool_idx_map, budget_ref) {
+fn _astbin_module_dyn_ensure(b, want) {
+    if want <= b["cap"] { return nil }
+    var new_cap = b["cap"]
+    while new_cap < want { new_cap = new_cap * 2 }
+    var nb = oren_u8_buf_new(new_cap)
+    if oren_is_err(nb) { oren_fail(1, "astbin module dyn: u8_buf grow failed") }
+    var used = b["len"]
+    var srcp = b["data_ptr"]
+    var dstp = oren_buf_data_ptr_unchecked(nb)
+    if dstp == 0 { oren_fail(1, "astbin module dyn: data ptr is nil") }
+    if used > 0 { _astbin_dyn_copy_bytes(dstp, srcp, used) }
+    b["buf"] = nb
+    b["cap"] = new_cap
+    b["data_ptr"] = dstp
+    return nil
+}
+
+fn _astbin_module_dyn_push_u8(b, v) {
+    var used = b["len"]
+    _astbin_module_dyn_ensure(b, used + 1)
+    ptr_set_byte(iadd(b["data_ptr"], used), v & 255)
+    b["len"] = used + 1
+    return nil
+}
+
+fn _astbin_module_dyn_push_uvarint(b, x) {
+    var v = x
+    if v < 0 { v = 0 }
+    while v >= 128 {
+        _astbin_module_dyn_push_u8(b, (v & 127) | 128)
+        v = v >> 7
+    }
+    _astbin_module_dyn_push_u8(b, v & 127)
+    return nil
+}
+
+fn _astbin_module_dyn_push_varint_signed(b, x) {
+    var zz = _astbin_zigzag(x)
+    if zz < 0 { zz = 0 }
+    _astbin_module_dyn_push_uvarint(b, zz)
+    return nil
+}
+
+fn _astbin_module_dyn_push_u64_le(b, x0) {
+    var x = x0
+    var i = 0
+    while i < 8 {
+        _astbin_module_dyn_push_u8(b, x & 255)
+        x = x >> 8
+        i = i + 1
+    }
+    return nil
+}
+
+fn _astbin_module_dyn_push_string_raw(b, s) {
+    var n = oren_string_len(s)
+    _astbin_module_dyn_push_uvarint(b, n)
+    var used = b["len"]
+    _astbin_module_dyn_ensure(b, used + n)
+    var dstp = b["data_ptr"]
+    var i = 0
+    while i < n {
+        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn _astbin_module_dyn_extend_u8_buf(b, ub) {
+    var n = oren_buf_len(ub)
+    _astbin_module_dyn_push_uvarint(b, n)
+    var used = b["len"]
+    _astbin_module_dyn_ensure(b, used + n)
+    if n > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(ub)
+        if srcp == 0 { oren_fail(1, "astbin module dyn: source data ptr is nil") }
+        _astbin_dyn_copy_bytes(iadd(b["data_ptr"], used), srcp, n)
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn _astbin_module_dyn_push_string_ref(b, pool_idx_map, s) {
+    _astbin_module_dyn_push_u8(b, 4)
+    _astbin_module_dyn_push_uvarint(b, _astbin_module_string_ref_enc(pool_idx_map, s))
+    return nil
+}
+
+fn _astbin_module_write_known_map_v2_dyn(b, m, pool_idx_map, budget_ref) {
     var keys = _astbin_module_keys_for_map(m)
     var n = _astbin_module_count_known_keys(m, keys)
-    var total = 1 + _astbin_uvarint_size(n)
+    _astbin_module_dyn_push_u8(b, 6)
+    _astbin_module_dyn_push_uvarint(b, n)
     var i = 0
     while i < oren_list_len(keys) {
         var k = keys[i]
         var v = m[k]
         if v != nil {
-            total = total + _astbin_module_size_string_ref(pool_idx_map, k)
-            var child = _astbin_module_size_value_v2(v, pool_idx_map, budget_ref)
-            if child < 0 { return -1 }
-            total = total + child
+            _astbin_module_dyn_push_string_ref(b, pool_idx_map, k)
+            _astbin_module_write_value_v2_dyn(b, v, pool_idx_map, budget_ref)
+            if b["aborted"] == true { return nil }
         }
         i = i + 1
     }
-    return total
+    return nil
 }
 
-fn _astbin_module_size_value_v2(v, pool_idx_map, budget_ref) {
+fn _astbin_module_write_value_v2_dyn(b, v, pool_idx_map, budget_ref) {
+    if b["aborted"] == true { return nil }
     if budget_ref != nil {
         var budget = budget_ref[0]
-        if budget <= 0 { return -1 }
+        if budget <= 0 {
+            b["aborted"] = true
+            return nil
+        }
         budget_ref[0] = budget - 1
     }
-    if oren_type_tag(v) == 0 { return 1 }
-    if v == false { return 1 }
-    if v == true { return 1 }
+    if oren_type_tag(v) == 0 { _astbin_module_dyn_push_u8(b, 0); return nil }
+    if v == false { _astbin_module_dyn_push_u8(b, 1); return nil }
+    if v == true { _astbin_module_dyn_push_u8(b, 2); return nil }
     if _astbin_is_list(v) {
+        _astbin_module_dyn_push_u8(b, 5)
         var n = oren_list_len(v)
-        var total = 1 + _astbin_uvarint_size(n)
+        _astbin_module_dyn_push_uvarint(b, n)
         var i = 0
         while i < n {
-            var child = _astbin_module_size_value_v2(v[i], pool_idx_map, budget_ref)
-            if child < 0 { return -1 }
-            total = total + child
+            _astbin_module_write_value_v2_dyn(b, v[i], pool_idx_map, budget_ref)
+            if b["aborted"] == true { return nil }
             i = i + 1
         }
-        return total
+        return nil
     }
     if _astbin_is_map(v) {
-        return _astbin_module_size_known_map_v2(v, pool_idx_map, budget_ref)
+        _astbin_module_write_known_map_v2_dyn(b, v, pool_idx_map, budget_ref)
+        return nil
     }
     if _astbin_is_string(v) {
-        return _astbin_module_size_string_ref(pool_idx_map, v)
+        _astbin_module_dyn_push_string_ref(b, pool_idx_map, v)
+        return nil
     }
     if _astbin_is_u8_buf(v) {
-        var n2 = oren_buf_len(v)
-        return 1 + _astbin_uvarint_size(n2) + n2
+        _astbin_module_dyn_push_u8(b, 7)
+        _astbin_module_dyn_extend_u8_buf(b, v)
+        return nil
     }
     if _astbin_is_buf(v) {
         print("astbin module v2: unsupported typed buffer (only u8_buf is supported)")
         oren_exit(1)
     }
     if oren_type_tag(v) == 2 {
-        return 1 + 8
+        _astbin_module_dyn_push_u8(b, 8)
+        _astbin_module_dyn_push_u64_le(b, oren_f64_to_u64_bits(v + 0.0))
+        return nil
     }
-    return 1 + _astbin_varint_size_signed(v)
-}
-
-fn _astbin_module_write_string_ref_ptr(data_ptr, off, pool_idx_map, s) {
-    off = _astbin_write_u8_ptr(data_ptr, off, 4)
-    return _astbin_write_uvarint_ptr(data_ptr, off, _astbin_module_string_ref_enc(pool_idx_map, s))
-}
-
-fn _astbin_module_write_known_map_v2_ptr(data_ptr, off, m, pool_idx_map) {
-    var keys = _astbin_module_keys_for_map(m)
-    var n = _astbin_module_count_known_keys(m, keys)
-    off = _astbin_write_u8_ptr(data_ptr, off, 6)
-    off = _astbin_write_uvarint_ptr(data_ptr, off, n)
-    var i = 0
-    while i < oren_list_len(keys) {
-        var k = keys[i]
-        var v = m[k]
-        if v != nil {
-            off = _astbin_module_write_string_ref_ptr(data_ptr, off, pool_idx_map, k)
-            off = _astbin_module_write_value_v2_ptr(data_ptr, off, v, pool_idx_map)
-        }
-        i = i + 1
-    }
-    return off
-}
-
-fn _astbin_module_write_value_v2_ptr(data_ptr, off, v, pool_idx_map) {
-    if oren_type_tag(v) == 0 { return _astbin_write_u8_ptr(data_ptr, off, 0) }
-    if v == false { return _astbin_write_u8_ptr(data_ptr, off, 1) }
-    if v == true { return _astbin_write_u8_ptr(data_ptr, off, 2) }
-    if _astbin_is_list(v) {
-        off = _astbin_write_u8_ptr(data_ptr, off, 5)
-        var n = oren_list_len(v)
-        off = _astbin_write_uvarint_ptr(data_ptr, off, n)
-        var i = 0
-        while i < n {
-            off = _astbin_module_write_value_v2_ptr(data_ptr, off, v[i], pool_idx_map)
-            i = i + 1
-        }
-        return off
-    }
-    if _astbin_is_map(v) {
-        return _astbin_module_write_known_map_v2_ptr(data_ptr, off, v, pool_idx_map)
-    }
-    if _astbin_is_string(v) {
-        return _astbin_module_write_string_ref_ptr(data_ptr, off, pool_idx_map, v)
-    }
-    if _astbin_is_u8_buf(v) {
-        off = _astbin_write_u8_ptr(data_ptr, off, 7)
-        var n2 = oren_buf_len(v)
-        off = _astbin_write_uvarint_ptr(data_ptr, off, n2)
-        if n2 > 0 {
-            var srcp = oren_buf_data_ptr_unchecked(v)
-            if srcp == 0 { oren_fail(1, "astbin module v2: u8_buf data ptr is nil") }
-            _astbin_dyn_copy_bytes(iadd(data_ptr, off), srcp, n2)
-            off = iadd(off, n2)
-        }
-        return off
-    }
-    if _astbin_is_buf(v) {
-        print("astbin module v2: unsupported typed buffer (only u8_buf is supported)")
-        oren_exit(1)
-    }
-    if oren_type_tag(v) == 2 {
-        off = _astbin_write_u8_ptr(data_ptr, off, 8)
-        return _astbin_write_u64_le_ptr(data_ptr, off, oren_f64_to_u64_bits(v + 0.0))
-    }
-    off = _astbin_write_u8_ptr(data_ptr, off, 3)
-    return _astbin_write_varint_signed_ptr(data_ptr, off, v)
+    _astbin_module_dyn_push_u8(b, 3)
+    _astbin_module_dyn_push_varint_signed(b, v)
+    return nil
 }
 
 fn astbin_encode_module_v2_stream_budget(prog, max_nodes) {
+    var trace = false
+    var trace_env = oren_env("OREN_TRACE_ASTBIN_MODULE")
+    if trace_env != nil && trace_env != "" && trace_env != "0" && trace_env != "false" { trace = true }
+    var t0 = 0
+    if trace { t0 = oren_time_now_ns() }
     var pool_idx_map = oren_map_new_cap(4096)
     oren_map_build_finalize_unchecked(pool_idx_map, 4096)
     var pool = []
     _astbin_module_collect_strings(prog, pool_idx_map, pool)
+    if trace {
+        print("[astbin_module] collect done +" + oren_int_to_string((oren_time_now_ns() - t0) / 1000000) + "ms pool=" + oren_int_to_string(oren_list_len(pool)))
+    }
     var pool_n = oren_list_len(pool)
     var header_n = 1 + _astbin_uvarint_size(pool_n)
     var i = 0
@@ -317,25 +363,20 @@ fn astbin_encode_module_v2_stream_budget(prog, max_nodes) {
         i = i + 1
     }
 
-    var budget_ref = nil
-    if max_nodes != nil && max_nodes > 0 { budget_ref = [max_nodes] }
-    var body_n = _astbin_module_size_value_v2(prog, pool_idx_map, budget_ref)
-    if body_n < 0 { return nil }
-    var total_n = header_n + body_n
-    var buf = oren_u8_buf_new(total_n)
-    if oren_is_err(buf) { oren_fail(1, "astbin module v2: u8_buf alloc failed") }
-    var data_ptr = oren_buf_data_ptr_unchecked(buf)
-    if data_ptr == 0 { oren_fail(1, "astbin module v2: data ptr is nil") }
-
-    var off = 0
-    off = _astbin_write_u8_ptr(data_ptr, off, 9)
-    off = _astbin_write_uvarint_ptr(data_ptr, off, pool_n)
+    var b = _astbin_module_dyn_new(header_n + 65536)
+    _astbin_module_dyn_push_u8(b, 9)
+    _astbin_module_dyn_push_uvarint(b, pool_n)
     var j = 0
     while j < pool_n {
-        off = _astbin_write_string_ptr(data_ptr, off, pool[j])
+        _astbin_module_dyn_push_string_raw(b, pool[j])
         j = j + 1
     }
-    off = _astbin_module_write_value_v2_ptr(data_ptr, off, prog, pool_idx_map)
-    if off != total_n { _astbin_fail("module v2 size mismatch", off) }
-    return buf
+    var budget_ref = nil
+    if max_nodes != nil && max_nodes > 0 { budget_ref = [max_nodes] }
+    _astbin_module_write_value_v2_dyn(b, prog, pool_idx_map, budget_ref)
+    if b["aborted"] == true { return nil }
+    if trace {
+        print("[astbin_module] write done +" + oren_int_to_string((oren_time_now_ns() - t0) / 1000000) + "ms total=" + oren_int_to_string(b["len"]))
+    }
+    return _astbin_dyn_finalize(b)
 }

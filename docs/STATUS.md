@@ -106,8 +106,9 @@ Facts from the 2026-05-28 implementation pass:
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
-		  and now use a module-specialized v2 ASTBIN writer with known-key traversal and
-		  exact-size pointer emission. Forced prewarm is bounded by
+		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
+		  one-pass cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase
+		  tracing. Forced prewarm is bounded by
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MAX_PARSE_MS` (default `250`; `0`/`false`
 		  disables the parse-cost ceiling) plus the existing node budget. Cache reads and
 		  fork-worker writes remain enabled, and explicit serial prewarm now logs
@@ -115,11 +116,12 @@ Facts from the 2026-05-28 implementation pass:
 		  default to the compiler executable signature, and controlled profiling runs can
 		  set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2
 		  rebuilds. Focused no-artifact-cache proof: forced `std:list` prewarm writes a
-		  35.8 KiB v2 ASTBIN in about 4.8s and the next process warm-hits with
-		  `cache_hit=1 parse_ms=0` in about 44ms. Broader generator-import proof writes
-		  bounded `std:result`, then skips known expensive `std:time`/`std:generator`
-		  candidates immediately with `reason=parse_budget` instead of spending roughly a
-		  minute in encode. Synthetic string-global probes show opt-in direct string slots can
+		  35.8 KiB v2 ASTBIN in about 2.45s and the next process warm-hits with
+		  `cache_hit=1 parse_ms=0`. Generator-import tracing shows `std:result` encode
+		  drops from about 3.0s to about 1.45s after the one-pass writer. Uncapped `std:time` improves from about
+		  58s to about 46s but remains pathological, and `std:generator` still has an
+		  expensive collect phase; the default parse budget therefore still skips these
+		  candidates immediately with `reason=parse_budget`. Synthetic string-global probes show opt-in direct string slots can
 	  remove `__top_level__` assignment work on small programs. Compiler-shaped
 	  self-host probes still show a per-slot direct string `.data` cliff, now isolated
 	  to direct global metadata/root bookkeeping rather than the synthesized assignment
@@ -133,8 +135,9 @@ Facts from the 2026-05-28 implementation pass:
 		  complete module parsing through `lib/compiler/compiler.oren`, finish the optimizer,
 		  and reach x64 native emit. With direct string globals disabled,
 		  `top_globals.user_slots` finishes in under a second. The next measured target is
-		  reducing the remaining pathological module-AST encode shapes, especially
-		  `std:time`, before relying on uncapped serial prewarm for full self-host profiles.
+		  reducing the remaining pathological module-AST collect/write shapes in
+		  `std:time`/`std:generator`, before relying on uncapped serial prewarm for full
+		  self-host profiles.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

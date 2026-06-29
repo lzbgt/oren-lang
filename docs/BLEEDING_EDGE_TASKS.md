@@ -108,9 +108,10 @@ This file is the concise task view. Detailed implementation status lives in
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
 									     serial ASTBIN writes stay opt-in behind
-									     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1` and now use a
-									     module-specialized v2 ASTBIN writer with known-key traversal and exact-size
-									     pointer emission. Forced prewarm is bounded by
+										     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1` and now use a
+										     module-specialized v2 ASTBIN writer with known-key traversal, one-pass
+										     cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase
+										     tracing. Forced prewarm is bounded by
 									     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MAX_PARSE_MS` (default `250`;
 									     `0`/`false` disables the parse-cost ceiling) plus the existing node budget.
 									     Cache reads and fork-worker writes remain enabled, and explicit serial
@@ -118,12 +119,14 @@ This file is the concise task view. Detailed implementation status lives in
 									     directories still default to the compiler executable signature, and
 									     controlled profiling runs can set
 									     `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2
-									     rebuilds. Focused no-artifact-cache proof: forced `std:list` prewarm writes
-									     a 35.8 KiB v2 ASTBIN in about 4.8s and the next process warm-hits with
-									     `cache_hit=1 parse_ms=0` in about 44ms. Broader generator-import proof
-									     writes bounded `std:result`, then skips known expensive `std:time` and
-									     `std:generator` candidates immediately with `reason=parse_budget` instead
-									     of spending roughly a minute in encode. Capped full x64 self-host traces now complete module
+										     rebuilds. Focused no-artifact-cache proof: forced `std:list` prewarm writes
+										     a 35.8 KiB v2 ASTBIN in about 2.45s and the next process warm-hits with
+										     `cache_hit=1 parse_ms=0`. Generator-import tracing shows `std:result`
+										     encode drops from about 3.0s to about 1.45s after the one-pass writer.
+										     Uncapped `std:time` improves from about 58s to about 46s but remains
+										     pathological, and `std:generator` still has an expensive collect phase; the
+										     default parse budget therefore still skips these candidates immediately
+										     with `reason=parse_budget`. Capped full x64 self-host traces now complete module
 								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
 								     reach x64 native emit. With direct string globals disabled,
 								     `top_globals.user_slots` finishes in under a second; opt-in direct-string
@@ -133,10 +136,10 @@ This file is the concise task view. Detailed implementation status lives in
 								     metadata/root bookkeeping cliff. The synthesized `__top_level__`
 								     string-global assignment fast path now runs before generic expression
 									     validation and local fact updates, so literal string globals bypass the
-									     slow generic assignment path. The next concrete throughput target is
-									     reducing the remaining pathological module-AST encode shapes, especially
-									     `std:time`, before relying on uncapped serial prewarm for full self-host
-									     profiling.
+										     slow generic assignment path. The next concrete throughput target is
+										     reducing the remaining pathological module-AST collect/write shapes in
+										     `std:time`/`std:generator`, before relying on uncapped serial prewarm for
+										     full self-host profiling.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

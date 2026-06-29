@@ -164,9 +164,10 @@
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
 <p>									     serial ASTBIN writes stay opt-in behind</p>
-<p>									     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code> and now use a</p>
-<p>									     module-specialized v2 ASTBIN writer with known-key traversal and exact-size</p>
-<p>									     pointer emission. Forced prewarm is bounded by</p>
+<p>										     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code> and now use a</p>
+<p>										     module-specialized v2 ASTBIN writer with known-key traversal, one-pass</p>
+<p>										     cached-pointer body emission, and <code>OREN_TRACE_ASTBIN_MODULE</code> phase</p>
+<p>										     tracing. Forced prewarm is bounded by</p>
 <p>									     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MAX_PARSE_MS</code> (default <code>250</code>;</p>
 <p>									     <code>0</code>/<code>false</code> disables the parse-cost ceiling) plus the existing node budget.</p>
 <p>									     Cache reads and fork-worker writes remain enabled, and explicit serial</p>
@@ -174,12 +175,14 @@
 <p>									     directories still default to the compiler executable signature, and</p>
 <p>									     controlled profiling runs can set</p>
 <p>									     <code>OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG</code> to reuse entries across stage2</p>
-<p>									     rebuilds. Focused no-artifact-cache proof: forced <code>std:list</code> prewarm writes</p>
-<p>									     a 35.8 KiB v2 ASTBIN in about 4.8s and the next process warm-hits with</p>
-<p>									     <code>cache_hit=1 parse_ms=0</code> in about 44ms. Broader generator-import proof</p>
-<p>									     writes bounded <code>std:result</code>, then skips known expensive <code>std:time</code> and</p>
-<p>									     <code>std:generator</code> candidates immediately with <code>reason=parse_budget</code> instead</p>
-<p>									     of spending roughly a minute in encode. Capped full x64 self-host traces now complete module</p>
+<p>										     rebuilds. Focused no-artifact-cache proof: forced <code>std:list</code> prewarm writes</p>
+<p>										     a 35.8 KiB v2 ASTBIN in about 2.45s and the next process warm-hits with</p>
+<p>										     <code>cache_hit=1 parse_ms=0</code>. Generator-import tracing shows <code>std:result</code></p>
+<p>										     encode drops from about 3.0s to about 1.45s after the one-pass writer.</p>
+<p>										     Uncapped <code>std:time</code> improves from about 58s to about 46s but remains</p>
+<p>										     pathological, and <code>std:generator</code> still has an expensive collect phase; the</p>
+<p>										     default parse budget therefore still skips these candidates immediately</p>
+<p>										     with <code>reason=parse_budget</code>. Capped full x64 self-host traces now complete module</p>
 <p>								     parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer, and</p>
 <p>								     reach x64 native emit. With direct string globals disabled,</p>
 <p>								     <code>top_globals.user_slots</code> finishes in under a second; opt-in direct-string</p>
@@ -189,10 +192,10 @@
 <p>								     metadata/root bookkeeping cliff. The synthesized <code>__top_level__</code></p>
 <p>								     string-global assignment fast path now runs before generic expression</p>
 <p>									     validation and local fact updates, so literal string globals bypass the</p>
-<p>									     slow generic assignment path. The next concrete throughput target is</p>
-<p>									     reducing the remaining pathological module-AST encode shapes, especially</p>
-<p>									     <code>std:time</code>, before relying on uncapped serial prewarm for full self-host</p>
-<p>									     profiling.</p>
+<p>										     slow generic assignment path. The next concrete throughput target is</p>
+<p>										     reducing the remaining pathological module-AST collect/write shapes in</p>
+<p>										     <code>std:time</code>/<code>std:generator</code>, before relying on uncapped serial prewarm for</p>
+<p>										     full self-host profiling.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
