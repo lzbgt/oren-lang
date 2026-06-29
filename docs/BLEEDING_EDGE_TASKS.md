@@ -140,17 +140,17 @@ This file is the concise task view. Detailed implementation status lives in
 										     slow generic assignment path. Consecutive top-level string literal globals
 										     now lower through a batched x64 op with direct encoded global-slot offsets,
 										     reducing the compiler-shaped `__top_level__` statement count from 123 to
-											     15; `OREN_TRACE_X64_EMIT_OP_SLOW_MS` records bounded slow op summaries,
-											     source-order top-level rewrite progress, `top_stmts.done` counters, and
-											     in-batch string-global progress. The string-global store emitter now writes
-											     the fixed `lea rax`/`lea r10`/`mov [r10],rax` bytes directly, and the batch
-											     path uses direct list indexing plus local data/cstr0 handles. A rejected
-											     direct `.data` materialization probe showed
-											     `rewrite.progress i=50 elapsed_ms=118312 direct_string=48`, while the
-											     refined batch trace still shows `item=25 count=108 ms=46106 data_ms=0
-											     code_ms=0`; the next throughput target is the remaining batch-loop/runtime
-											     dispatch inside that op before returning to post-`__top_level__` x64
-											     user-function codegen throughput.
+										     15. A no-slowtrace self-host probe confirmed the old per-item batch loop
+										     still timed out inside `global_string_init_batch`, so the batch now emits
+										     one compact runtime initializer loop over a `.data` table of
+										     `{global_slot_off, cstr_off}` pairs instead of compiling one fixed store
+										     sequence and two fixup maps per string. A focused 140-string x64 fixture
+										     now exits the batch op in about 228ms with one local fixup, but the full
+										     compiler token batch still times out inside value/data materialization.
+										     `OREN_TRACE_X64_STRING_BATCH_PROGRESS=1` now records item-level string
+										     length/data-byte progress; the next target is the compiler-shaped token
+										     batch materialization cliff before returning to post-`__top_level__` x64
+										     user-function codegen throughput.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

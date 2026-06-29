@@ -41,6 +41,59 @@ fn _x64_emit_top_string_global_store(ctx, cstr_off, goff) {
     return nil
 }
 
+fn _x64_emit_top_string_global_batch_loop(ctx, table_off) {
+    // Runtime loop over a `.data` table:
+    //   u64 count; repeated { u64 global_slot_off; u64 cstr_off }
+    //
+    // This keeps compiler-time emission constant-size for large top-level string
+    // batches while preserving source-order initialization after runtime startup.
+    var code = ctx["code"]
+    var lea_base = bytes_len(code)
+    bytes_push(code, 76)  // REX.W | REX.R
+    bytes_push(code, 141) // LEA
+    bytes_push(code, 21)  // r10, [rip+disp32]
+    push_u32_le(code, 0)
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_base + 3, "data_off": table_off})
+
+    // r10 = data_base = table_ptr - table_off
+    bytes_push(code, 73); bytes_push(code, 129); bytes_push(code, 234)
+    push_u32_le(code, table_off)
+
+    // r11 = table_ptr
+    bytes_push(code, 77); bytes_push(code, 137); bytes_push(code, 211)
+    bytes_push(code, 73); bytes_push(code, 129); bytes_push(code, 195)
+    push_u32_le(code, table_off)
+
+    // rcx = count; r11 = first pair
+    bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 11)
+    bytes_push(code, 73); bytes_push(code, 131); bytes_push(code, 195); bytes_push(code, 8)
+
+    var loop_pos = bytes_len(code)
+    bytes_push(code, 72); bytes_push(code, 133); bytes_push(code, 201) // test rcx, rcx
+    var jz_pos = bytes_len(code)
+    bytes_push(code, 15); bytes_push(code, 132); push_u32_le(code, 0)   // jz done
+
+    // rdx = data_base + slot_off
+    bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 3)     // mov rax, [r11]
+    bytes_push(code, 76); bytes_push(code, 137); bytes_push(code, 210)   // mov rdx, r10
+    bytes_push(code, 72); bytes_push(code, 1); bytes_push(code, 194)     // add rdx, rax
+
+    // rax = data_base + cstr_off; [rdx] = rax
+    bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 67); bytes_push(code, 8)
+    bytes_push(code, 76); bytes_push(code, 1); bytes_push(code, 208)     // add rax, r10
+    bytes_push(code, 72); bytes_push(code, 137); bytes_push(code, 2)     // mov [rdx], rax
+
+    bytes_push(code, 73); bytes_push(code, 131); bytes_push(code, 195); bytes_push(code, 16)
+    bytes_push(code, 72); bytes_push(code, 255); bytes_push(code, 201)   // dec rcx
+    var jmp_pos = bytes_len(code)
+    bytes_push(code, 233); push_u32_le(code, 0)                          // jmp loop
+
+    var done_pos = bytes_len(code)
+    set_u32_le(code, jz_pos + 2, done_pos - (jz_pos + 6))
+    set_u32_le(code, jmp_pos + 1, core.int_mod(loop_pos - (jmp_pos + 5), 4294967296))
+    return nil
+}
+
 fn _x64_list_name_in_fast(list_name, lists) {
     if list_name == nil || lists == nil { return false }
     var i = 0
@@ -314,10 +367,26 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if batch_off_encs != nil { batch_off_encs_n = oren_list_len(batch_off_encs) }
             var batch_data_ms = 0
             var batch_code_ms = 0
+            var trace_batch_progress = false
+            var v_trace_batch = oren_env("OREN_TRACE_X64_STRING_BATCH_PROGRESS")
+            if phase_log != nil && phase_name != nil &&
+               v_trace_batch != nil && v_trace_batch != "" &&
+               x64_env_str_eq(v_trace_batch, "0") != true &&
+               x64_env_str_eq(v_trace_batch, "false") != true {
+                trace_batch_progress = true
+                _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.start",
+                    "name=" + phase_name +
+                    " i=" + oren_int_to_string(j) +
+                    " count=" + oren_int_to_string(batch_n) +
+                    " names=" + oren_int_to_string(batch_names_n) +
+                    " off_encs=" + oren_int_to_string(batch_off_encs_n))
+            }
             if ctx["data"] == nil { ctx["data"] = bytes_new() }
             if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
             var batch_data_buf = ctx["data"]
             var batch_cstr0_list = ctx["cstr0_list"]
+            var batch_slot_offs = []
+            var batch_cstr_offs = []
             var batch_i = 0
             while batch_i < batch_n {
                 if trace_op_slow == true && core.int_mod(batch_i, 25) == 0 {
@@ -349,9 +418,18 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                     err(ctx, "x64 native v0: _data_add_cstr0_nodedup expects string, got " + tn_b)
                     return nil
                 }
+                var n0_b = oren_string_len(s_b)
+                if trace_batch_progress == true && core.int_mod(batch_i, 10) == 0 {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.item",
+                        "name=" + phase_name +
+                        " i=" + oren_int_to_string(j) +
+                        " item=" + oren_int_to_string(batch_i) +
+                        " count=" + oren_int_to_string(batch_n) +
+                        " strlen=" + oren_int_to_string(n0_b) +
+                        " data_bytes=" + oren_int_to_string(bytes_len(batch_data_buf)))
+                }
                 while core.int_mod(bytes_len(batch_data_buf), 8) != 0 { bytes_push(batch_data_buf, 0) }
                 var cstr_off_b = bytes_len(batch_data_buf)
-                var n0_b = oren_string_len(s_b)
                 if n0_b > 1048576 {
                     s_b = oren_string_slice(s_b, 0, 1048576)
                     n0_b = 1048576
@@ -361,11 +439,47 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 oren_list_push(batch_cstr0_list, cstr_off_b)
                 if trace_op_slow == true { batch_data_ms = batch_data_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                if trace_op_slow == true { batch_step_ns = oren_time_now_ns() }
                 var goff_b = goff_enc_b - 1
-                _x64_emit_top_string_global_store(ctx, cstr_off_b, goff_b)
-                if trace_op_slow == true { batch_code_ms = batch_code_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
+                oren_list_push(batch_slot_offs, goff_b)
+                oren_list_push(batch_cstr_offs, cstr_off_b)
                 batch_i = batch_i + 1
+            }
+            if trace_batch_progress == true {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.data.done",
+                    "name=" + phase_name +
+                    " i=" + oren_int_to_string(j) +
+                    " count=" + oren_int_to_string(batch_n) +
+                    " data_bytes=" + oren_int_to_string(bytes_len(batch_data_buf)))
+            }
+            var batch_table_step_ns = 0
+            if trace_op_slow == true { batch_table_step_ns = oren_time_now_ns() }
+            while core.int_mod(bytes_len(batch_data_buf), 8) != 0 { bytes_push(batch_data_buf, 0) }
+            var batch_table_off = bytes_len(batch_data_buf)
+            push_u64_le(batch_data_buf, batch_n)
+            var batch_table_i = 0
+            while batch_table_i < batch_n {
+                push_u64_le(batch_data_buf, batch_slot_offs[batch_table_i])
+                push_u64_le(batch_data_buf, batch_cstr_offs[batch_table_i])
+                batch_table_i = batch_table_i + 1
+            }
+            if trace_op_slow == true { batch_data_ms = batch_data_ms + ((oren_time_now_ns() - batch_table_step_ns) / 1000000) }
+            if trace_batch_progress == true {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.table.done",
+                    "name=" + phase_name +
+                    " i=" + oren_int_to_string(j) +
+                    " table_off=" + oren_int_to_string(batch_table_off) +
+                    " data_bytes=" + oren_int_to_string(bytes_len(batch_data_buf)))
+            }
+            var batch_code_step_ns = 0
+            if trace_op_slow == true { batch_code_step_ns = oren_time_now_ns() }
+            _x64_emit_top_string_global_batch_loop(ctx, batch_table_off)
+            if trace_op_slow == true { batch_code_ms = batch_code_ms + ((oren_time_now_ns() - batch_code_step_ns) / 1000000) }
+            if trace_batch_progress == true {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.emit.done",
+                    "name=" + phase_name +
+                    " i=" + oren_int_to_string(j) +
+                    " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+                    " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
             }
             if trace_op_slow == true {
                 var batch_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
