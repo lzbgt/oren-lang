@@ -91,6 +91,12 @@ fn _optimizer_progress_interval() {
     return n
 }
 
+fn _optimizer_detail_profile_enabled() {
+    var v = oren_env("OREN_TRACE_OPTIMIZER_DETAIL")
+    if v == nil || v == "" || v == "0" || v == "false" { return false }
+    return true
+}
+
 fn _optimizer_stmt_progress_name(stmt) {
     if stmt == nil { return "<nil>" }
     if stmt["type"] == "ExprStmt" && stmt["expr"] != nil && stmt["expr"]["type"] == "Function" {
@@ -159,8 +165,10 @@ fn lower_linked_program_in_place(linked) {
     var phase_log_path = _optimizer_phase_log_path()
     var phase_t0 = 0
     var profile_phases = false
+    var profile_detail = false
     if phase_log_path != nil {
         profile_phases = true
+        profile_detail = _optimizer_detail_profile_enabled()
         phase_t0 = oren_time_now_ns()
     }
     var backend = nil
@@ -196,7 +204,7 @@ fn lower_linked_program_in_place(linked) {
     var hot = {}
     var progress_interval = 0
     if profile_phases { progress_interval = _optimizer_progress_interval() }
-    _optimizer_list_pass_profile_reset(profile_phases)
+    _optimizer_list_pass_profile_reset(profile_detail)
     if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(ss_len)) }
     while i < ss_len {
         if profile_phases && progress_interval > 0 {
@@ -229,7 +237,7 @@ fn lower_linked_program_in_place(linked) {
         if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
             var fn_expr = ss[i]["expr"]
             var fn_name = _optimizer_function_name(fn_expr)
-            if profile_phases { _optimizer_hot_update(hot, "fold", fn_name, fold_elapsed) }
+            if profile_detail { _optimizer_hot_update(hot, "fold", fn_name, fold_elapsed) }
             fn_count = fn_count + 1
             // Try to eliminate simple non-tail recursion first (modulo constant), then do plain tail recursion elimination.
             if profile_phases { t_sub = oren_time_now_ns() }
@@ -241,7 +249,7 @@ fn lower_linked_program_in_place(linked) {
             if profile_phases {
                 var tco_mod_elapsed = _optimizer_phase_elapsed(t_sub)
                 tco_mod_ns = tco_mod_ns + tco_mod_elapsed
-                _optimizer_hot_update(hot, "tco_mod", fn_name, tco_mod_elapsed)
+                if profile_detail { _optimizer_hot_update(hot, "tco_mod", fn_name, tco_mod_elapsed) }
             }
             if trace_opt && i == 0 { print("[opt] tco_modconst done") }
             if trace_opt && i == 0 { print("[opt] tco start") }
@@ -250,7 +258,7 @@ fn lower_linked_program_in_place(linked) {
             if profile_phases {
                 var tco_elapsed = _optimizer_phase_elapsed(t_sub)
                 tco_ns = tco_ns + tco_elapsed
-                _optimizer_hot_update(hot, "tco", fn_name, tco_elapsed)
+                if profile_detail { _optimizer_hot_update(hot, "tco", fn_name, tco_elapsed) }
             }
             if trace_opt && i == 0 { print("[opt] tco done") }
             if profile_phases { t_sub = oren_time_now_ns() }
@@ -261,7 +269,7 @@ fn lower_linked_program_in_place(linked) {
             if profile_phases {
                 var for_elapsed = _optimizer_phase_elapsed(t_sub)
                 for_ns = for_ns + for_elapsed
-                _optimizer_hot_update(hot, "for", fn_name, for_elapsed)
+                if profile_detail { _optimizer_hot_update(hot, "for", fn_name, for_elapsed) }
             }
             var lower_allow_empty = true
             var body_may_touch_list = false
@@ -276,7 +284,7 @@ fn lower_linked_program_in_place(linked) {
             if profile_phases {
                 var sink_elapsed = _optimizer_phase_elapsed(t_sub)
                 sink_ns = sink_ns + sink_elapsed
-                _optimizer_hot_update(hot, "sink", fn_name, sink_elapsed)
+                if profile_detail { _optimizer_hot_update(hot, "sink", fn_name, sink_elapsed) }
             }
             if body_may_touch_list {
                 list_candidate_count = list_candidate_count + 1
@@ -285,7 +293,7 @@ fn lower_linked_program_in_place(linked) {
                 if profile_phases {
                     var list_int_elapsed = _optimizer_phase_elapsed(t_sub)
                     list_int_ns = list_int_ns + list_int_elapsed
-                    _optimizer_hot_update(hot, "list_int", fn_name, list_int_elapsed)
+                    if profile_detail { _optimizer_hot_update(hot, "list_int", fn_name, list_int_elapsed) }
                 }
             }
             if profile_phases { t_sub = oren_time_now_ns() }
@@ -300,7 +308,7 @@ fn lower_linked_program_in_place(linked) {
                 if profile_phases {
                     var reserve_elapsed = _optimizer_phase_elapsed(t_sub)
                     reserve_ns = reserve_ns + reserve_elapsed
-                    _optimizer_hot_update(hot, "reserve", fn_name, reserve_elapsed)
+                    if profile_detail { _optimizer_hot_update(hot, "reserve", fn_name, reserve_elapsed) }
                 }
             }
             if profile_phases { t_sub = oren_time_now_ns() }
@@ -314,13 +322,20 @@ fn lower_linked_program_in_place(linked) {
             if profile_phases {
                 var dce_elapsed = _optimizer_phase_elapsed(t_sub)
                 dce_ns = dce_ns + dce_elapsed
-                _optimizer_hot_update(hot, "dce", fn_name, dce_elapsed)
+                if profile_detail { _optimizer_hot_update(hot, "dce", fn_name, dce_elapsed) }
             }
             if trace_opt && i == 0 { print("[opt] dce done") }
         }
         i = i + 1
     }
     if profile_phases {
+        var detail_s = "0"
+        if profile_detail { detail_s = "1" }
+        _optimizer_phase_log_append(phase_log_path, "optimizer.loop.done",
+            "stmts=" + oren_int_to_string(ss_len) +
+            " funcs=" + oren_int_to_string(fn_count) +
+            " detail=" + detail_s,
+            phase_t0)
         var detail = "stmts=" + oren_int_to_string(ss_len) +
             " funcs=" + oren_int_to_string(fn_count) +
             " list_candidates=" + oren_int_to_string(list_candidate_count) +
@@ -338,16 +353,19 @@ fn lower_linked_program_in_place(linked) {
             " arena_ms=" + oren_int_to_string(arena_ns / 1000000) +
             " reserve_ms=" + oren_int_to_string(reserve_ns / 1000000) +
             " const_ms=" + oren_int_to_string(const_ns / 1000000) +
-            " dce_ms=" + oren_int_to_string(dce_ns / 1000000) +
-            _optimizer_hot_detail(hot, "fold") +
-            _optimizer_hot_detail(hot, "tco_mod") +
-            _optimizer_hot_detail(hot, "tco") +
-            _optimizer_hot_detail(hot, "for") +
-            _optimizer_hot_detail(hot, "sink") +
-            _optimizer_hot_detail(hot, "list_int") +
-            _optimizer_hot_detail(hot, "reserve") +
-            _optimizer_hot_detail(hot, "dce") +
-            _optimizer_list_pass_profile_detail()
+            " dce_ms=" + oren_int_to_string(dce_ns / 1000000)
+        if profile_detail {
+            detail = detail +
+                _optimizer_hot_detail(hot, "fold") +
+                _optimizer_hot_detail(hot, "tco_mod") +
+                _optimizer_hot_detail(hot, "tco") +
+                _optimizer_hot_detail(hot, "for") +
+                _optimizer_hot_detail(hot, "sink") +
+                _optimizer_hot_detail(hot, "list_int") +
+                _optimizer_hot_detail(hot, "reserve") +
+                _optimizer_hot_detail(hot, "dce") +
+                _optimizer_list_pass_profile_detail()
+        }
         _optimizer_phase_log_append(phase_log_path, "optimizer.summary", detail, phase_t0)
     }
     return nil
