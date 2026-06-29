@@ -137,13 +137,16 @@ This file is the concise task view. Detailed implementation status lives in
 									     metadata/root bookkeeping cliff. The synthesized `__top_level__`
 									     string-global assignment fast path now runs before generic expression
 									     validation and local fact updates, so literal string globals bypass the
-									     slow generic assignment path. Consecutive top-level string literal globals
-									     now lower through a batched x64 op with direct encoded global-slot offsets,
-									     reducing the compiler-shaped `__top_level__` statement count from 123 to
-									     15; `OREN_TRACE_X64_EMIT_OP_SLOW_MS` records bounded slow op summaries.
-									     The next concrete throughput target is the per-item emitter work inside
-									     that batched string-global op before returning to post-`__top_level__`
-									     x64 user-function codegen throughput.
+										     slow generic assignment path. Consecutive top-level string literal globals
+										     now lower through a batched x64 op with direct encoded global-slot offsets,
+										     reducing the compiler-shaped `__top_level__` statement count from 123 to
+										     15; `OREN_TRACE_X64_EMIT_OP_SLOW_MS` records bounded slow op summaries,
+										     and the source-order top-level rewrite now records bounded progress plus
+										     `top_stmts.done` counters. A rejected direct `.data` materialization probe
+										     showed `rewrite.progress i=50 elapsed_ms=118312 direct_string=48`, proving
+										     the next throughput target is byte-native batched string data append plus
+										     the remaining per-item emitter work inside that op before returning to
+										     post-`__top_level__` x64 user-function codegen throughput.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

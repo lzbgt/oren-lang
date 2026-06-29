@@ -193,13 +193,16 @@
 <p>									     metadata/root bookkeeping cliff. The synthesized <code>__top_level__</code></p>
 <p>									     string-global assignment fast path now runs before generic expression</p>
 <p>									     validation and local fact updates, so literal string globals bypass the</p>
-<p>									     slow generic assignment path. Consecutive top-level string literal globals</p>
-<p>									     now lower through a batched x64 op with direct encoded global-slot offsets,</p>
-<p>									     reducing the compiler-shaped <code>__top_level__</code> statement count from 123 to</p>
-<p>									     15; <code>OREN_TRACE_X64_EMIT_OP_SLOW_MS</code> records bounded slow op summaries.</p>
-<p>									     The next concrete throughput target is the per-item emitter work inside</p>
-<p>									     that batched string-global op before returning to post-<code>__top_level__</code></p>
-<p>									     x64 user-function codegen throughput.</p>
+<p>										     slow generic assignment path. Consecutive top-level string literal globals</p>
+<p>										     now lower through a batched x64 op with direct encoded global-slot offsets,</p>
+<p>										     reducing the compiler-shaped <code>__top_level__</code> statement count from 123 to</p>
+<p>										     15; <code>OREN_TRACE_X64_EMIT_OP_SLOW_MS</code> records bounded slow op summaries,</p>
+<p>										     and the source-order top-level rewrite now records bounded progress plus</p>
+<p>										     <code>top_stmts.done</code> counters. A rejected direct <code>.data</code> materialization probe</p>
+<p>										     showed <code>rewrite.progress i=50 elapsed_ms=118312 direct_string=48</code>, proving</p>
+<p>										     the next throughput target is byte-native batched string data append plus</p>
+<p>										     the remaining per-item emitter work inside that op before returning to</p>
+<p>										     post-<code>__top_level__</code> x64 user-function codegen throughput.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

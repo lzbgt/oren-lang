@@ -436,8 +436,24 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     var pending_string_toks = []
     var j = 0
     var user_var_idx = 0
+    var rewrite_direct_string = 0
+    var rewrite_direct_alias = 0
+    var rewrite_runtime_assign = 0
+    var rewrite_start_ns = 0
+    if phase_log != nil { rewrite_start_ns = oren_time_now_ns() }
     while j < oren_list_len(user_ordered) {
         var stx = user_ordered[j]
+        if phase_log != nil && core.int_mod(j, 50) == 0 {
+            var rewrite_elapsed_ms = 0
+            if rewrite_start_ns != 0 { rewrite_elapsed_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }
+            _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.rewrite.progress",
+                "i=" + oren_int_to_string(j) +
+                " total=" + oren_int_to_string(oren_list_len(user_ordered)) +
+                " elapsed_ms=" + oren_int_to_string(rewrite_elapsed_ms) +
+                " direct_string=" + oren_int_to_string(rewrite_direct_string) +
+                " direct_alias=" + oren_int_to_string(rewrite_direct_alias) +
+                " runtime_assign=" + oren_int_to_string(rewrite_runtime_assign))
+        }
         if stx != nil && stx["type"] == "Var" {
             var skip_init = false
             if user_var_idx < oren_list_len(user_global_init_in_data_flags) &&
@@ -474,6 +490,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     init_assign["__oren_top_level_global_init"] = true
                     if off_encx != nil { init_assign["__oren_global_off_enc"] = off_encx }
                     oren_list_push(top_stmts, init_assign)
+                    rewrite_runtime_assign = rewrite_runtime_assign + 1
                 }
             }
         } else {
@@ -488,8 +505,14 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     }
     _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
     if phase_log != nil {
+        var rewrite_elapsed_done_ms = 0
+        if rewrite_start_ns != 0 { rewrite_elapsed_done_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }
         _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.top_stmts.done",
-            "top_stmts=" + oren_int_to_string(oren_list_len(top_stmts)))
+            "top_stmts=" + oren_int_to_string(oren_list_len(top_stmts)) +
+            " rewrite_ms=" + oren_int_to_string(rewrite_elapsed_done_ms) +
+            " direct_string=" + oren_int_to_string(rewrite_direct_string) +
+            " direct_alias=" + oren_int_to_string(rewrite_direct_alias) +
+            " runtime_assign=" + oren_int_to_string(rewrite_runtime_assign))
     }
 
     var top_len = oren_list_len(top_stmts)
