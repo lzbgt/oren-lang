@@ -300,7 +300,11 @@
 <p>							     x64 user-function emission; <code>rename_function_body</code> parameter traversal was</p>
 <p>							     split into <code>rename_function_params</code>, moving the focused body marker from</p>
 <p>							     roughly 4.9s to about 1.0s while params and statement-list traversal remain</p>
-<p>							     the next renamer body-shape targets.</p>
+<p>							     the next renamer body-shape targets. The x64 main op-emitter loop now</p>
+<p>							     caches the per-op dispatch kind and native gas-mode booleans instead of</p>
+<p>							     repeatedly re-reading map/env state; a broader fast-<code>while</code> prefilter was</p>
+<p>							     rejected because the capped self-host trace showed no material movement</p>
+<p>							     in the first renamer slow markers.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

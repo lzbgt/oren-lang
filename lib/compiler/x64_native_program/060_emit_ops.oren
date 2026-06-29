@@ -264,14 +264,6 @@ fn _x64_native_block_weighted_gas_amount(ops, start) {
     return total
 }
 
-fn _x64_dynamic_emitter_op_should_charge(ctx, op) {
-    if _x64_native_dynamic_emitter_gas_enabled(ctx) != true { return false }
-    if op == nil { return false }
-    var k = op["op"]
-    if k == "if" || k == "while" || k == "for" { return false }
-    return true
-}
-
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
@@ -306,6 +298,12 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
     var top_string_fast_hits = 0
     var top_string_fast_miss_type = 0
     if trace { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
+    var gas_mode = "none"
+    if ctx != nil { gas_mode = _x64_native_gas_accounting_mode(ctx) }
+    var gas_stmt = gas_mode == "stmt"
+    var gas_basic = gas_mode == "basic-block" || gas_mode == "block-weighted"
+    var gas_weighted = gas_mode == "block-weighted"
+    var gas_dynamic = gas_mode == "dynamic-emitter"
     var j = 0
     var charge_basic_block_next = true
     while j < n {
@@ -319,8 +317,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             j = j + 1
             continue
         }
+        var op_kind = op["op"]
         if trace && core.int_mod(j, trace_stride) == 0 {
-            var opk = op["op"]
+            var opk = op_kind
             if opk == nil { opk = "?" }
             var extra = ""
             if opk == "var_i32" || opk == "assign_i32" {
@@ -335,7 +334,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
         }
         if phase_outer && core.int_mod(j, phase_stride) == 0 {
-            var opk_phase = op["op"]
+            var opk_phase = op_kind
             if opk_phase == nil { opk_phase = "?" }
             var loc_phase = ""
             var tok_phase = op["tok"]
@@ -353,20 +352,20 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         _linetab_record_tok(ctx, op["tok"])
         var dynamic_note_pos = nil
         var dynamic_span_start = nil
-        if _x64_dynamic_emitter_op_should_charge(ctx, op) == true {
+        if gas_dynamic == true && op_kind != "if" && op_kind != "while" && op_kind != "for" {
             dynamic_note_pos = _emit_native_gas_note_x64_patchable_u32(ctx)
             dynamic_span_start = bytes_len(ctx["code"])
-        } else if _x64_native_stmt_gas_enabled(ctx) == true {
+        } else if gas_stmt == true {
             _emit_native_gas_note_x64(ctx, 1)
-        } else if _x64_native_basic_block_gas_enabled(ctx) == true && charge_basic_block_next == true {
+        } else if gas_basic == true && charge_basic_block_next == true {
             var block_gas_amount = 1
-            if _x64_native_block_weighted_gas_enabled(ctx) == true {
+            if gas_weighted == true {
                 block_gas_amount = _x64_native_block_weighted_gas_amount(ops, j)
             }
             _emit_native_gas_note_x64(ctx, block_gas_amount)
             charge_basic_block_next = false
         }
-        if op["op"] == "global_string_init_batch" && oren_type_tag(op["table_off"]) == 1 {
+        if op_kind == "global_string_init_batch" && oren_type_tag(op["table_off"]) == 1 {
             var prebuilt_batch_start_ns = 0
             if trace_op_slow == true { prebuilt_batch_start_ns = oren_time_now_ns() }
             _x64_emit_top_string_global_batch_loop(ctx, op["table_off"])
@@ -388,7 +387,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             j = j + 1
             continue
         }
-        if op["op"] == "global_empty_container_init_batch" && oren_type_tag(op["table_off"]) == 1 {
+        if op_kind == "global_empty_container_init_batch" && oren_type_tag(op["table_off"]) == 1 {
             var empty_batch_start_ns = 0
             if trace_op_slow == true { empty_batch_start_ns = oren_time_now_ns() }
             _x64_emit_top_empty_container_batch_loop(ctx, op["table_off"], op["kind"], platform)
@@ -411,7 +410,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             j = j + 1
             continue
         }
-        if op["op"] == "var_i32" {
+        if op_kind == "var_i32" {
             var name = op["name"]
             var off = locals[name]
             if oren_type_tag(off) == 0 {
@@ -440,7 +439,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_mov_mrbp_r64(ctx, 0 - off, 0)
-        } else if op["op"] == "global_string_init" {
+        } else if op_kind == "global_string_init" {
             var global_string_data_ms = 0
             var global_string_code_ms = 0
             var global_string_step_ns = 0
@@ -478,7 +477,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                         loc_gs)
                 }
             }
-        } else if op["op"] == "global_string_init_batch" {
+        } else if op_kind == "global_string_init_batch" {
             var batch_names = op["names"]
             var batch_values = op["values"]
             var batch_off_encs = op["off_encs"]
@@ -695,7 +694,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                         loc_b)
                 }
             }
-        } else if op["op"] == "assign_i32" {
+        } else if op_kind == "assign_i32" {
             var off2 = locals[op["name"]]
             var top_string_fast_candidate = false
             if op["__oren_top_level_global_init"] == true && oren_type_tag(off2) == 0 {
@@ -842,16 +841,16 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 // r10 = &global_slot ; *(u64*)r10 = rax
                 _x64_emit_global_store_rax(ctx, goff)
             }
-        } else if op["op"] == "expr" {
+        } else if op_kind == "expr" {
             // Expression statement: evaluate and discard return value.
             _expr_int_check(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op["op"] == "print_str_expr" {
+        } else if op_kind == "print_str_expr" {
             _emit_print_stmt_str_x64(ctx, locals, op["expr"])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op["op"] == "print_cstr" {
+        } else if op_kind == "print_cstr" {
             if platform != nil && platform["os"] == "linux" {
                 _emit_linux_write_cstr(ctx, op["value"])
             } else if platform != nil && platform["os"] == "windows" {
@@ -860,13 +859,13 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 err(ctx, "x64 native v0: print unsupported on this target")
                 return nil
             }
-        } else if op["op"] == "return" {
+        } else if op_kind == "return" {
             _expr_int_check(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_jmp_to_label(ctx, local_fixups, epilogue_label)
-        } else if op["op"] == "if" {
+        } else if op_kind == "if" {
             var cond = op["cond"]
             var else_label = _new_label(ctx, "if_else")
             var end_label = _new_label(ctx, "if_end")
@@ -880,7 +879,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_ops_in_fn(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_label(ctx, labels, end_label)
-        } else if op["op"] == "while" {
+        } else if op_kind == "while" {
             var fast_lcg = _x64_match_fast_lcg_sum_while(ctx, op, locals)
             if fast_lcg != nil {
                 _emit_fast_lcg_sum_while_x64(ctx, op, fast_lcg, locals, labels, local_fixups, epilogue_label, platform)
@@ -918,7 +917,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 }
             }
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op["op"] == "for" {
+        } else if op_kind == "for" {
             // for init; cond; post { body }
             //
             // Semantics:
@@ -935,13 +934,13 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_label(ctx, labels, cond_label2)
-            if _x64_native_block_weighted_gas_enabled(ctx) == true {
+            if gas_weighted == true {
                 _emit_native_gas_note_x64(ctx, 2)
             }
             _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
             var dynamic_cond_note = nil
             var dynamic_cond_start = nil
-            if _x64_native_dynamic_emitter_gas_enabled(ctx) == true {
+            if gas_dynamic == true {
                 dynamic_cond_note = _emit_native_gas_note_x64_patchable_u32(ctx)
                 dynamic_cond_start = bytes_len(ctx["code"])
             }
@@ -962,10 +961,10 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
 
             _emit_jmp_to_label(ctx, local_fixups, cond_label2)
             _emit_label(ctx, labels, end_label3)
-        } else if op["op"] == "break" {
+        } else if op_kind == "break" {
             if loop_end_label == nil { err(ctx, "x64 native v0: break outside loop"); return nil }
             _emit_jmp_to_label(ctx, local_fixups, loop_end_label)
-        } else if op["op"] == "continue" {
+        } else if op_kind == "continue" {
             if loop_cond_label == nil { err(ctx, "x64 native v0: continue outside loop"); return nil }
             _emit_jmp_to_label(ctx, local_fixups, loop_cond_label)
         } else {
@@ -975,8 +974,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         if dynamic_note_pos != nil && dynamic_span_start != nil {
             _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
         }
-        if _x64_native_basic_block_gas_enabled(ctx) == true {
-            var opk_bb = op["op"]
+        if gas_basic == true {
+            var opk_bb = op_kind
             if opk_bb == "if" || opk_bb == "while" || opk_bb == "for" {
                 charge_basic_block_next = true
             }
@@ -984,7 +983,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         if trace_op_slow == true {
             var generic_op_ms = (oren_time_now_ns() - op_start_ns) / 1000000
             if generic_op_ms >= op_slow_ms {
-                var generic_op_name = op["op"]
+                var generic_op_name = op_kind
                 if generic_op_name == nil { generic_op_name = "?" }
                 var generic_loc = ""
                 var generic_tok = op["tok"]

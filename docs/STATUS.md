@@ -247,7 +247,13 @@ Facts from the 2026-05-28 implementation pass:
 						  emission, and timed out inside renamer/codegen body shape; splitting
 						  `rename_function_params` out of `rename_function_body` moved that function's
 						  focused marker from roughly 4.9s to about 1.0s, while the new params helper
-						  and statement-list traversal remain the measured renamer targets.
+						  and statement-list traversal remain the measured renamer targets. The x64
+						  main op-emitter loop now decodes each op kind once and caches native gas-mode
+						  booleans once per `_emit_ops_in_fn` call instead of re-reading map/env state
+						  at every dispatch edge. A broader fast-`while` prefilter was rejected after a
+						  capped self-host probe showed no material movement in the first renamer slow
+						  markers, so the next target remains real per-function body emission rather
+						  than speculative matcher pruning.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

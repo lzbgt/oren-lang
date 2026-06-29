@@ -287,7 +287,13 @@
 <p>						  emission, and timed out inside renamer/codegen body shape; splitting</p>
 <p>						  <code>rename_function_params</code> out of <code>rename_function_body</code> moved that function&#x27;s</p>
 <p>						  focused marker from roughly 4.9s to about 1.0s, while the new params helper</p>
-<p>						  and statement-list traversal remain the measured renamer targets.</p>
+<p>						  and statement-list traversal remain the measured renamer targets. The x64</p>
+<p>						  main op-emitter loop now decodes each op kind once and caches native gas-mode</p>
+<p>						  booleans once per <code>_emit_ops_in_fn</code> call instead of re-reading map/env state</p>
+<p>						  at every dispatch edge. A broader fast-<code>while</code> prefilter was rejected after a</p>
+<p>						  capped self-host probe showed no material movement in the first renamer slow</p>
+<p>						  markers, so the next target remains real per-function body emission rather</p>
+<p>						  than speculative matcher pruning.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>
