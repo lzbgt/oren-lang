@@ -140,12 +140,12 @@ Facts from the 2026-05-28 implementation pass:
 			  timed out inside `global_string_init_batch`, so the batch now emits one compact
 			  runtime initializer loop over a `.data` table of `{global_slot_off, cstr_off}`
 			  pairs instead of compiling one fixed store sequence and two fixup maps per string.
-			  A focused 140-string x64 fixture now exits the batch op in about 228ms with one
-			  local fixup, but the full compiler token batch still times out inside value/data
-			  materialization. `OREN_TRACE_X64_STRING_BATCH_PROGRESS=1` now records item-level
-			  string length/data-byte progress for that path; the next measured target is the
-			  compiler-shaped token batch value/materialization cliff before returning to
-			  post-`__top_level__` user-function codegen throughput.
+			  `OREN_TRACE_X64_STRING_BATCH_PROGRESS=1` now records item-level
+			  offset/value/length/data substep progress; full self-host traces showed the
+			  compiler-shaped token-batch cliff was encoded-offset lookup, so x64 string
+			  batches now carry decoded slot offsets and keep encoded offsets only as a
+			  fallback. The full self-host probe now reaches `x64.codegen.top.done`, making
+			  post-`__top_level__` user-function codegen throughput the next measured target.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

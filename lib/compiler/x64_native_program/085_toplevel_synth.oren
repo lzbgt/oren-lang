@@ -76,7 +76,7 @@ fn _x64_direct_data_string_globals_enabled() {
     return true
 }
 
-fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, toks) {
+fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_offs, toks) {
     if out_stmts == nil || names == nil || values == nil || off_encs == nil { return nil }
     var n = oren_list_len(names)
     if n <= 0 { return nil }
@@ -88,6 +88,7 @@ fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, toks)
         "names": names,
         "values": values,
         "off_encs": off_encs,
+        "slot_offs": slot_offs,
         "toks": toks,
     })
     return nil
@@ -433,6 +434,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     var pending_string_names = []
     var pending_string_values = []
     var pending_string_off_encs = []
+    var pending_string_slot_offs = []
     var pending_string_toks = []
     var j = 0
     var user_var_idx = 0
@@ -462,10 +464,12 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             }
             user_var_idx = user_var_idx + 1
             if skip_init != true {
-                var off_encx = nil
+                var off_encx = 0
                 if user_var_idx - 1 < oren_list_len(user_global_off_encs) {
                     off_encx = user_global_off_encs[user_var_idx - 1]
                 }
+                if off_encx <= 0 { err(ctx, "x64 native v0: missing top-level global offset"); return nil }
+                var slot_offx = off_encx - 1
                 var vx = stx["value"]
                 if vx != nil && vx["type"] == "String" {
                     var sx = vx["value"]
@@ -479,31 +483,34 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                     oren_list_push(pending_string_names, stx["name"]["value"])
                     oren_list_push(pending_string_values, sx)
                     oren_list_push(pending_string_off_encs, off_encx)
+                    oren_list_push(pending_string_slot_offs, slot_offx)
                     oren_list_push(pending_string_toks, stx["token"])
                 } else {
-                    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
+                    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_slot_offs, pending_string_toks)
                     pending_string_names = []
                     pending_string_values = []
                     pending_string_off_encs = []
+                    pending_string_slot_offs = []
                     pending_string_toks = []
                     var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
                     init_assign["__oren_top_level_global_init"] = true
-                    if off_encx != nil { init_assign["__oren_global_off_enc"] = off_encx }
+                    init_assign["__oren_global_off_enc"] = off_encx
                     oren_list_push(top_stmts, init_assign)
                     rewrite_runtime_assign = rewrite_runtime_assign + 1
                 }
             }
         } else {
-            _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
+            _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_slot_offs, pending_string_toks)
             pending_string_names = []
             pending_string_values = []
             pending_string_off_encs = []
+            pending_string_slot_offs = []
             pending_string_toks = []
             oren_list_push(top_stmts, stx)
         }
         j = j + 1
     }
-    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
+    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_slot_offs, pending_string_toks)
     if phase_log != nil {
         var rewrite_elapsed_done_ms = 0
         if rewrite_start_ns != 0 { rewrite_elapsed_done_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }

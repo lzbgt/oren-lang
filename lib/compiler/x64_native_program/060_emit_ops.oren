@@ -359,12 +359,15 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             var batch_names = op["names"]
             var batch_values = op["values"]
             var batch_off_encs = op["off_encs"]
+            var batch_slot_offs_src = op["slot_offs"]
             var batch_n = 0
             if batch_values != nil { batch_n = oren_list_len(batch_values) }
             var batch_names_n = 0
             if batch_names != nil { batch_names_n = oren_list_len(batch_names) }
             var batch_off_encs_n = 0
             if batch_off_encs != nil { batch_off_encs_n = oren_list_len(batch_off_encs) }
+            var batch_slot_offs_src_n = 0
+            if batch_slot_offs_src != nil { batch_slot_offs_src_n = oren_list_len(batch_slot_offs_src) }
             var batch_data_ms = 0
             var batch_code_ms = 0
             var trace_batch_progress = false
@@ -379,7 +382,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                     " i=" + oren_int_to_string(j) +
                     " count=" + oren_int_to_string(batch_n) +
                     " names=" + oren_int_to_string(batch_names_n) +
-                    " off_encs=" + oren_int_to_string(batch_off_encs_n))
+                    " off_encs=" + oren_int_to_string(batch_off_encs_n) +
+                    " slot_offs=" + oren_int_to_string(batch_slot_offs_src_n))
             }
             if ctx["data"] == nil { ctx["data"] = bytes_new() }
             if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
@@ -401,14 +405,38 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                         " code_ms=" + oren_int_to_string(batch_code_ms))
                 }
                 var batch_step_ns = 0
-                var goff_enc_b = nil
-                if batch_i < batch_off_encs_n { goff_enc_b = batch_off_encs[batch_i] }
-                var name_b = nil
-                if oren_type_tag(goff_enc_b) != 1 && ctx["globals"] != nil {
-                    if batch_i < batch_names_n { name_b = batch_names[batch_i] }
-                    goff_enc_b = ctx["globals"][name_b]
+                var trace_batch_sample = false
+                if trace_batch_progress == true && core.int_mod(batch_i, 10) == 0 {
+                    trace_batch_sample = true
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.item.enter",
+                        "name=" + phase_name +
+                        " i=" + oren_int_to_string(j) +
+                        " item=" + oren_int_to_string(batch_i) +
+                        " count=" + oren_int_to_string(batch_n))
                 }
-                if oren_type_tag(goff_enc_b) != 1 { err(ctx, "x64 native v0: assign unknown var " + name_b); return nil }
+                var goff_b = nil
+                var offset_path = "slot_off"
+                if batch_i < batch_slot_offs_src_n { goff_b = batch_slot_offs_src[batch_i] }
+                if goff_b == nil {
+                    offset_path = "off_enc"
+                    var goff_enc_b = nil
+                    if batch_i < batch_off_encs_n { goff_enc_b = batch_off_encs[batch_i] }
+                    var name_b = nil
+                    if oren_type_tag(goff_enc_b) != 1 && ctx["globals"] != nil {
+                        offset_path = "globals"
+                        if batch_i < batch_names_n { name_b = batch_names[batch_i] }
+                        goff_enc_b = ctx["globals"][name_b]
+                    }
+                    if oren_type_tag(goff_enc_b) != 1 { err(ctx, "x64 native v0: assign unknown var " + name_b); return nil }
+                    goff_b = goff_enc_b - 1
+                }
+                if trace_batch_sample == true {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.item.offset.done",
+                        "name=" + phase_name +
+                        " i=" + oren_int_to_string(j) +
+                        " item=" + oren_int_to_string(batch_i) +
+                        " path=" + offset_path)
+                }
                 var s_b = batch_values[batch_i]
                 if s_b == nil { s_b = "" }
                 if trace_op_slow == true { batch_step_ns = oren_time_now_ns() }
@@ -418,8 +446,14 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                     err(ctx, "x64 native v0: _data_add_cstr0_nodedup expects string, got " + tn_b)
                     return nil
                 }
+                if trace_batch_sample == true {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.item.value.done",
+                        "name=" + phase_name +
+                        " i=" + oren_int_to_string(j) +
+                        " item=" + oren_int_to_string(batch_i))
+                }
                 var n0_b = oren_string_len(s_b)
-                if trace_batch_progress == true && core.int_mod(batch_i, 10) == 0 {
+                if trace_batch_sample == true {
                     _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.item",
                         "name=" + phase_name +
                         " i=" + oren_int_to_string(j) +
@@ -436,10 +470,16 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 }
                 bytes_extend_string(batch_data_buf, s_b)
                 bytes_push(batch_data_buf, 0)
+                if trace_batch_sample == true {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.item.data.done",
+                        "name=" + phase_name +
+                        " i=" + oren_int_to_string(j) +
+                        " item=" + oren_int_to_string(batch_i) +
+                        " data_bytes=" + oren_int_to_string(bytes_len(batch_data_buf)))
+                }
                 oren_list_push(batch_cstr0_list, cstr_off_b)
                 if trace_op_slow == true { batch_data_ms = batch_data_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                var goff_b = goff_enc_b - 1
                 oren_list_push(batch_slot_offs, goff_b)
                 oren_list_push(batch_cstr_offs, cstr_off_b)
                 batch_i = batch_i + 1

@@ -180,12 +180,12 @@
 <p>			  timed out inside <code>global_string_init_batch</code>, so the batch now emits one compact</p>
 <p>			  runtime initializer loop over a <code>.data</code> table of <code>{global_slot_off, cstr_off}</code></p>
 <p>			  pairs instead of compiling one fixed store sequence and two fixup maps per string.</p>
-<p>			  A focused 140-string x64 fixture now exits the batch op in about 228ms with one</p>
-<p>			  local fixup, but the full compiler token batch still times out inside value/data</p>
-<p>			  materialization. <code>OREN_TRACE_X64_STRING_BATCH_PROGRESS=1</code> now records item-level</p>
-<p>			  string length/data-byte progress for that path; the next measured target is the</p>
-<p>			  compiler-shaped token batch value/materialization cliff before returning to</p>
-<p>			  post-<code>__top_level__</code> user-function codegen throughput.</p>
+<p>			  <code>OREN_TRACE_X64_STRING_BATCH_PROGRESS=1</code> now records item-level</p>
+<p>			  offset/value/length/data substep progress; full self-host traces showed the</p>
+<p>			  compiler-shaped token-batch cliff was encoded-offset lookup, so x64 string</p>
+<p>			  batches now carry decoded slot offsets and keep encoded offsets only as a</p>
+<p>			  fallback. The full self-host probe now reaches <code>x64.codegen.top.done</code>, making</p>
+<p>			  post-<code>__top_level__</code> user-function codegen throughput the next measured target.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

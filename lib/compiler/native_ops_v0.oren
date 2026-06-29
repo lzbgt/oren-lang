@@ -403,6 +403,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 "names": st["names"],
                 "values": st["values"],
                 "off_encs": st["off_encs"],
+                "slot_offs": st["slot_offs"],
                 "toks": st["toks"],
             })
             i = i + 1

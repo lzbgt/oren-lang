@@ -145,12 +145,12 @@ This file is the concise task view. Detailed implementation status lives in
 										     one compact runtime initializer loop over a `.data` table of
 										     `{global_slot_off, cstr_off}` pairs instead of compiling one fixed store
 										     sequence and two fixup maps per string. A focused 140-string x64 fixture
-										     now exits the batch op in about 228ms with one local fixup, but the full
-										     compiler token batch still times out inside value/data materialization.
-										     `OREN_TRACE_X64_STRING_BATCH_PROGRESS=1` now records item-level string
-										     length/data-byte progress; the next target is the compiler-shaped token
-										     batch materialization cliff before returning to post-`__top_level__` x64
-										     user-function codegen throughput.
+										     now records item-level offset/value/length/data substep progress. Full
+										     self-host traces showed the compiler-shaped token-batch cliff was
+										     encoded-offset lookup, so string batches now carry decoded slot offsets
+										     with encoded offsets only as a fallback. The full self-host probe now
+										     reaches `x64.codegen.top.done`, making post-`__top_level__` x64
+										     user-function codegen throughput the next measured target.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

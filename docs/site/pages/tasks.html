@@ -203,12 +203,12 @@
 <p>										     one compact runtime initializer loop over a <code>.data</code> table of</p>
 <p>										     <code>{global_slot_off, cstr_off}</code> pairs instead of compiling one fixed store</p>
 <p>										     sequence and two fixup maps per string. A focused 140-string x64 fixture</p>
-<p>										     now exits the batch op in about 228ms with one local fixup, but the full</p>
-<p>										     compiler token batch still times out inside value/data materialization.</p>
-<p>										     <code>OREN_TRACE_X64_STRING_BATCH_PROGRESS=1</code> now records item-level string</p>
-<p>										     length/data-byte progress; the next target is the compiler-shaped token</p>
-<p>										     batch materialization cliff before returning to post-<code>__top_level__</code> x64</p>
-<p>										     user-function codegen throughput.</p>
+<p>										     now records item-level offset/value/length/data substep progress. Full</p>
+<p>										     self-host traces showed the compiler-shaped token-batch cliff was</p>
+<p>										     encoded-offset lookup, so string batches now carry decoded slot offsets</p>
+<p>										     with encoded offsets only as a fallback. The full self-host probe now</p>
+<p>										     reaches <code>x64.codegen.top.done</code>, making post-<code>__top_level__</code> x64</p>
+<p>										     user-function codegen throughput the next measured target.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
