@@ -251,9 +251,9 @@ fn _x64_ffi_windows_dlls(ctx, platform) {
 fn _x64_emit_call_iat_rax(ctx, iat_label) {
     // mov rax, [rip+disp32] (IAT slot) ; call rax
     var mov_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_pos + 3, iat_label)
-    bytes_extend(ctx["code"], insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_call_rax())
     return nil
 }
 
@@ -278,9 +278,9 @@ fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
     bytes_push(ctx["code"], 65) // REX.B
     bytes_push(ctx["code"], 84) // PUSH r12
     // r12 = rcx (sym_ptr)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 1))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 1))
     // sub rsp, 0x20 (shadow space for LoadLibraryA/GetProcAddress)
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(32))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(32))
 
     var labels = {}
     var local_fixups = []
@@ -294,24 +294,24 @@ fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
         // rcx = &dll_cstr0
         var dll_off = _data_add_cstr0(ctx, dll)
         var lea_dll = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": dll_off})
 
         _x64_emit_call_iat_rax(ctx, "IAT_LoadLibraryA")
 
         // if rax == 0: continue
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
         var l_skip = _new_label(ctx, "ffi_resolve_skip")
         _emit_jcc_to_label(ctx, local_fixups, "e", l_skip)
 
         // rcx = hmodule (rax)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
         // rdx = sym_ptr (r12)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 12))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12))
         _x64_emit_call_iat_rax(ctx, "IAT_GetProcAddress")
 
         // if rax != 0: done
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
         _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
 
         _emit_label(ctx, labels, l_skip)
@@ -319,17 +319,17 @@ fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
     }
 
     // unresolved => rax=0
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
 
     // add rsp, 0x20
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(32))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(32))
     // pop r12
     bytes_push(ctx["code"], 65) // REX.B
     bytes_push(ctx["code"], 92) // POP r12
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_ret())
     return name
 }
 
@@ -346,18 +346,18 @@ fn _x64_emit_ffi_stub_linux(ctx, nm) {
 
     ctx["functions"][nm] = bytes_len(ctx["code"])
     // Ensure 16-byte alignment before calling a SysV function (rsp is 8 mod 16 at entry).
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(8))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(8))
     // rdi = &msg_cstr0
     var lea_msg = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(7, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(7, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_msg + 3, "data_off": msg_off})
     var call_panic = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_panic, "name": "oren_panic"})
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(8))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(8))
     // Fallback: return 0 if panic returns (should not happen).
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], core.insn_ret())
     return nil
 }
 
@@ -394,9 +394,9 @@ fn _x64_emit_call_got_rax_linux(ctx, got_off) {
     if ctx == nil { return nil }
     if got_off == nil { return nil }
     var mov_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_mov_rax", "pos": mov_pos + 3, "data_off": got_off})
-    bytes_extend(ctx["code"], insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_call_rax())
     return nil
 }
 
@@ -427,17 +427,17 @@ fn _x64_emit_ffi_resolver_linux64(ctx, platform) {
     ctx["functions"][name] = start
 
     // SysV: stack is 8 mod 16 at entry; align to 16 before calling dlsym.
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(8))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(8))
 
     // rsi = sym_ptr (incoming rdi)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 7))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 7))
     // rdi = RTLD_DEFAULT (NULL)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi=0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, 0)) // edi=0
 
     _x64_emit_call_got_rax_linux(ctx, got_dlsym)
 
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(8))
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(8))
+    bytes_extend(ctx["code"], core.insn_ret())
     return name
 }
 
@@ -465,10 +465,10 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
 
     // lea r10, [&cell]
     var lea_cell0 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell0 + 3, "data_off": cell_off})
     // rax = [r10]
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
 
     var labels = {}
     var local_fixups = []
@@ -476,12 +476,12 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
     var l_fail = _new_label(ctx, "ffi_fail")
 
     // if rax != 0 => tailcall immediately (args still in regs/stack).
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_have)
 
     // Spill incoming SysV arg regs (rdi,rsi,rdx,rcx,r8,r9) to the stack.
     // entry rsp is 8 mod 16; sub 56 makes it 0 mod 16.
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(56))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(56))
     _emit_mov_mrsp_r64(ctx, 0, 7)   // rdi
     _emit_mov_mrsp_r64(ctx, 8, 6)   // rsi
     _emit_mov_mrsp_r64(ctx, 16, 2)  // rdx
@@ -491,22 +491,22 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
 
     // rdi = &sym_cstr0
     var lea_sym = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(7, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(7, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": sym_off})
 
     var call_res = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_res, "name": resolver_name})
 
     // if rax == 0 => panic (unresolved)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
     // Cache fnptr in cell.
     var lea_cell1 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell1 + 3, "data_off": cell_off})
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 0))
 
     // Restore arg regs.
     _emit_mov_r64_mrsp(ctx, 7, 0)
@@ -515,25 +515,25 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
     _emit_mov_r64_mrsp(ctx, 1, 24)
     _emit_mov_r64_mrsp(ctx, 8, 32)
     _emit_mov_r64_mrsp(ctx, 9, 40)
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(56))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(56))
 
     _emit_label(ctx, labels, l_have)
     // Tailcall to target: jmp rax
-    bytes_extend(ctx["code"], insn_jmp_rax())
+    bytes_extend(ctx["code"], core.insn_jmp_rax())
 
     _emit_label(ctx, labels, l_fail)
     // call oren_panic("ffi unresolved: <name>") (does not return)
     // Stack is still aligned (rsp 0 mod 16).
     var lea_msg = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(7, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(7, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_msg + 3, "data_off": msg_off})
     var call_panic = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_panic, "name": "oren_panic"})
     // If panic returns (should not), restore stack and return 0.
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(56))
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(56))
+    bytes_extend(ctx["code"], core.insn_ret())
 
     _patch_local_fixups(ctx, labels, local_fixups)
     return nil
@@ -563,10 +563,10 @@ fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
 
     // lea r10, [&cell]
     var lea_cell0 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell0 + 3, "data_off": cell_off})
     // rax = [r10]
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
 
     var labels = {}
     var local_fixups = []
@@ -574,7 +574,7 @@ fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
     var l_fail = _new_label(ctx, "ffi_fail")
 
     // if rax != 0 => tailcall immediately (args still in regs/stack).
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_have)
 
     // Spill incoming arg regs into the caller-provided shadow space (Windows ABI):
@@ -586,25 +586,25 @@ fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
 
     // Call resolver with proper alignment + shadow:
     // entry rsp is 8 mod 16, so sub 0x28 makes it 0 mod 16.
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(40))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(40))
     // rcx = &sym_cstr0
     var lea_sym = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": sym_off})
     var call_res = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_res, "name": resolver_name})
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(40))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(40))
 
     // if rax == 0 => panic (unresolved)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
     // Cache fnptr in cell.
     var lea_cell1 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell1 + 3, "data_off": cell_off})
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 0))
 
     // Restore arg regs.
     _emit_mov_r64_mrsp(ctx, 1, 8)
@@ -614,21 +614,21 @@ fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
 
     _emit_label(ctx, labels, l_have)
     // Tailcall to target: jmp rax
-    bytes_extend(ctx["code"], insn_jmp_rax())
+    bytes_extend(ctx["code"], core.insn_jmp_rax())
 
     _emit_label(ctx, labels, l_fail)
     // call oren_panic("ffi unresolved: <name>") (does not return)
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(40))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(40))
     var lea_msg = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_msg + 3, "data_off": msg_off})
     var call_panic = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_panic, "name": "oren_panic"})
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(40))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(40))
     // Fallback: return 0 if panic returns (should not happen).
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], core.insn_ret())
 
     _patch_local_fixups(ctx, labels, local_fixups)
     return nil

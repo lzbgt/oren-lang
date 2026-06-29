@@ -17,10 +17,10 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     // Evaluate the string expression into RAX, preserve in r12.
     _emit_eval_int_to_rax(ctx, str_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0)) // r12 = s
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0)) // r12 = s
 
     // Compute len in r8 (strlen). Treat s==0 as empty.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 12))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 12))
     _emit_string_len_from_ptr_x64(ctx, 8, 8)
 
     // Prepare intr temp slots and call the `sys_write` intrinsic to keep
@@ -36,14 +36,14 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // fd=1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
     // ptr=s
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
     _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
     // len=r8
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 8))
     _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
 
     // sys_write(1, s, len)
@@ -62,17 +62,17 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
 
     // fd=1, ptr=&"\n", len=1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
     var lea_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
     _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
 
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
 
     _emit_eval_int_to_rax(ctx, call_write, locals)

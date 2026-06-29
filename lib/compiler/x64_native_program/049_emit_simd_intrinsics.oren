@@ -48,7 +48,7 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     //   XMM2 = load b
 
     // Zero vector accumulator: XOR XMM0, XMM0
-    bytes_extend(ctx["code"], insn_pxor_xmm_xmm(0, 0))
+    bytes_extend(ctx["code"], core.insn_pxor_xmm_xmm(0, 0))
 
     // Load pointers and count
     _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_a) // rcx = a_ptr
@@ -56,36 +56,36 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_n) // r8 = n
 
     // Compute n / 2 (vector iterations) -> R9
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 8))   // r9 = n
-    bytes_extend(ctx["code"], insn_shr_r64_imm8(9, 1))  // r9 >>= 1
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))   // r9 = n
+    bytes_extend(ctx["code"], core.insn_shr_r64_imm8(9, 1))  // r9 >>= 1
 
     // If vector count == 0, skip vector loop
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
     var jmp_vec_end = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_jcc_rel32("e", 0)) // placeholder
+    bytes_extend(ctx["code"], core.insn_jcc_rel32("e", 0)) // placeholder
 
     // Vector loop label
     var vec_loop_label = bytes_len(ctx["code"])
 
     // Load 128 bits from a and b (unaligned)
-    bytes_extend(ctx["code"], insn_movdqu_xmm_m128_disp(1, 1, 0)) // xmm1 = [rcx]
-    bytes_extend(ctx["code"], insn_movdqu_xmm_m128_disp(2, 2, 0)) // xmm2 = [rdx]
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(1, 1, 0)) // xmm1 = [rcx]
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(2, 2, 0)) // xmm2 = [rdx]
 
     // PMULUDQ: multiply low 32-bits of each 64-bit lane
     // xmm1 = xmm1 * xmm2 (unsigned 32->64 bit multiply)
-    bytes_extend(ctx["code"], insn_pmuludq_xmm_xmm(1, 2))
+    bytes_extend(ctx["code"], core.insn_pmuludq_xmm_xmm(1, 2))
 
     // Add to accumulator
-    bytes_extend(ctx["code"], insn_paddq_xmm_xmm(0, 1))
+    bytes_extend(ctx["code"], core.insn_paddq_xmm_xmm(0, 1))
 
     // Advance pointers by 8 bytes (2 i32s)
-    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 8))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(1, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(2, 8))
 
     // Decrement counter and loop
-    bytes_extend(ctx["code"], insn_dec_r64(9))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
-    bytes_extend(ctx["code"], insn_jcc_rel32("ne", 0))
+    bytes_extend(ctx["code"], core.insn_dec_r64(9))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
+    bytes_extend(ctx["code"], core.insn_jcc_rel32("ne", 0))
     // Patch backward jump
     var vec_loop_jmp_loc = bytes_len(ctx["code"]) - 4
     set_u32_le(ctx["code"], vec_loop_jmp_loc, vec_loop_label - (vec_loop_jmp_loc + 4))
@@ -96,38 +96,38 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
 
     // Horizontal sum of XMM0 (2 x 64-bit lanes) -> RAX
     // Move high 64-bit to low: PSHUFD xmm1, xmm0, 0x4E (swap lanes)
-    bytes_extend(ctx["code"], insn_pshufd_xmm_xmm_imm(1, 0, 78)) // 0x4E = 78
-    bytes_extend(ctx["code"], insn_paddq_xmm_xmm(0, 1))
+    bytes_extend(ctx["code"], core.insn_pshufd_xmm_xmm_imm(1, 0, 78)) // 0x4E = 78
+    bytes_extend(ctx["code"], core.insn_paddq_xmm_xmm(0, 1))
     // Now low 64-bit of XMM0 has the sum
 
     // Extract to RAX: MOVQ rax, xmm0
-    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))
 
     // Handle remaining scalar elements (n & 1)
     _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_n) // reload n
-    bytes_extend(ctx["code"], insn_and_r64_imm32(8, 1)) // n & 1
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(8, 1)) // n & 1
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     var jmp_scalar_end = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_jcc_rel32("e", 0))
+    bytes_extend(ctx["code"], core.insn_jcc_rel32("e", 0))
 
     // Scalar tail: process last element if odd count
     _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_a) // reload a_ptr
     _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_b) // reload b_ptr
     // Advance to last element (n-1) - compute offset (n-1)*4
     _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_n) // r8 = n
-    bytes_extend(ctx["code"], insn_dec_r64(8))              // r8 = n-1
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(8, 2))      // r8 *= 4 (byte offset)
-    bytes_extend(ctx["code"], insn_add_r64_r64(1, 8))       // rcx += offset (point to last element)
-    bytes_extend(ctx["code"], insn_add_r64_r64(2, 8))       // rdx += offset
+    bytes_extend(ctx["code"], core.insn_dec_r64(8))              // r8 = n-1
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(8, 2))      // r8 *= 4 (byte offset)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(1, 8))       // rcx += offset (point to last element)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 8))       // rdx += offset
 
     // Load and multiply scalar values (sign-extended)
     // mov r11d, [rcx] (32-bit load) then movsxd r11, r11d
-    bytes_extend(ctx["code"], insn_mov_r32_m64_disp(11, 1, 0)) // r11d = [rcx] (32-bit)
-    bytes_extend(ctx["code"], insn_movsxd_r64_r32(3, 11))      // r3 = sign-extend(r11d)
-    bytes_extend(ctx["code"], insn_mov_r32_m64_disp(11, 2, 0)) // r11d = [rdx] (32-bit)
-    bytes_extend(ctx["code"], insn_movsxd_r64_r32(8, 11))      // r8 = sign-extend(r11d)
-    bytes_extend(ctx["code"], insn_imul_r64_r64(3, 8))         // r3 *= r8
-    bytes_extend(ctx["code"], insn_add_r64_r64(0, 3))          // rax += r3
+    bytes_extend(ctx["code"], core.insn_mov_r32_m64_disp(11, 1, 0)) // r11d = [rcx] (32-bit)
+    bytes_extend(ctx["code"], core.insn_movsxd_r64_r32(3, 11))      // r3 = sign-extend(r11d)
+    bytes_extend(ctx["code"], core.insn_mov_r32_m64_disp(11, 2, 0)) // r11d = [rdx] (32-bit)
+    bytes_extend(ctx["code"], core.insn_movsxd_r64_r32(8, 11))      // r8 = sign-extend(r11d)
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(3, 8))         // r3 *= r8
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 3))          // rax += r3
 
     // Patch scalar skip jump
     var scalar_end_label = bytes_len(ctx["code"])

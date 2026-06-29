@@ -46,20 +46,20 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
     // (`ctx["cur_call_area_bytes"]`, >= 64 on Win64), so we must not mutate RSP here.
 
     // rcx = lpThreadAttributes = NULL
-    bytes_extend(ctx["code"], insn_xor_r64_r64(1, 1))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(1, 1))
     // rdx = dwStackSize = 0
-    bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(2, 2))
     // r8 = lpStartAddress = start
     _intr_load_x64(ctx, 8, tmp_start)
     // r9 = lpParameter = arg
     _intr_load_x64(ctx, 9, tmp_arg)
 
     // dwCreationFlags = 0
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(36, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
     // lpThreadId = NULL
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(40, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(44, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
 
     _emit_call_iat_x64(ctx, "IAT_CreateThread")
 
@@ -94,13 +94,13 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
     var fixups = []
     var l_infinite = _new_label(ctx, "win_wso_infinite")
     var l_after_to = _new_label(ctx, "win_wso_after_to")
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "l", l_infinite)
     // edx = (u32)timeout
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
     _emit_jmp_to_label(ctx, fixups, l_after_to)
     _emit_label(ctx, labels, l_infinite)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 4294967295)) // INFINITE
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 4294967295)) // INFINITE
     _emit_label(ctx, labels, l_after_to)
 
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
@@ -112,20 +112,20 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
     var l_done = _new_label(ctx, "win_wso_done")
 
     // WAIT_OBJECT_0 == 0
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
     // WAIT_TIMEOUT == 258
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 258))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 258))
     _emit_jcc_to_label(ctx, fixups, "e", l_timeout)
     // WAIT_FAILED == 0xFFFFFFFF
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
     // unexpected => fail
     _emit_jmp_to_label(ctx, fixups, l_fail)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_timeout)
@@ -133,8 +133,8 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_fail)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_done)
@@ -169,14 +169,14 @@ fn _emit_intrinsic_sys_win_terminate_thread_windows_x64(ctx, expr, locals, args)
     var fixups = []
     var l_ok = _new_label(ctx, "win_tt_ok")
     var l_done = _new_label(ctx, "win_tt_done")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -206,13 +206,13 @@ fn _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) {
     var fixups = []
     var l_ok = _new_label(ctx, "win_ch_ok")
     var l_done = _new_label(ctx, "win_ch_done")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_set_rax_neg_errno_x64(ctx, 5)
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 

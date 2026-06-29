@@ -66,107 +66,6 @@ fn _x64_add_rip_data32_fixup(ctx, disp_pos, data_label) {
     return nil
 }
 
-fn insn_ret() { return core.insn_ret() }
-fn insn_syscall() { return core.insn_syscall() }
-fn insn_push_rbp() { return core.insn_push_rbp() }
-fn insn_pop_rbp() { return core.insn_pop_rbp() }
-fn insn_push_r64(reg) { return core.insn_push_r64(reg) }
-fn insn_pop_r64(reg) { return core.insn_pop_r64(reg) }
-fn insn_mov_rbp_rsp() { return core.insn_mov_rbp_rsp() }
-fn insn_mov_r64_imm64(reg, imm) { return core.insn_mov_r64_imm64(reg, imm) }
-fn insn_mov_r32_imm32(reg, imm) { return core.insn_mov_r32_imm32(reg, imm) }
-fn insn_cdqe() { return core.insn_cdqe() }
-fn insn_mov_r64_r64(dst, src) { return core.insn_mov_r64_r64(dst, src) }
-fn insn_mov_r32_r32(dst, src) { return core.insn_mov_r32_r32(dst, src) }
-fn insn_call_rel32(disp32) { return core.insn_call_rel32(disp32) }
-fn insn_jmp_rel32(disp32) { return core.insn_jmp_rel32(disp32) }
-fn insn_mov_rax_mrip_disp32(disp32) { return core.insn_mov_rax_mrip_disp32(disp32) }
-fn insn_mov_rax_mrax() { return core.insn_mov_rax_mrax() }
-fn insn_mov_r64_mr64(dst_reg, base_reg) { return core.insn_mov_r64_mr64(dst_reg, base_reg) }
-fn insn_mov_mr64_r64(base_reg, src_reg) { return core.insn_mov_mr64_r64(base_reg, src_reg) }
-fn insn_lock_xadd_mr64_r64(base_reg, src_reg) { return core.insn_lock_xadd_mr64_r64(base_reg, src_reg) }
-fn insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) { return core.insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) }
-fn insn_movzx_r32_mr8(dst_reg, base_reg) { return core.insn_movzx_r32_mr8(dst_reg, base_reg) }
-fn insn_mov_mr8_al(base_reg) { return core.insn_mov_mr8_al(base_reg) }
-fn insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) { return core.insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) }
-fn insn_mov_mr8_al_disp(base_reg, disp) { return core.insn_mov_mr8_al_disp(base_reg, disp) }
-fn insn_mov_r32_mr32_disp(dst_reg, base_reg, disp) { return core.insn_mov_r32_mr32_disp(dst_reg, base_reg, disp) }
-fn insn_mov_mr32_r32_disp(base_reg, disp, src_reg) { return core.insn_mov_mr32_r32_disp(base_reg, disp, src_reg) }
-fn insn_mov_r64_mr64_disp(dst_reg, base_reg, disp) { return core.insn_mov_r64_mr64_disp(dst_reg, base_reg, disp) }
-fn insn_mov_mr64_r64_disp(base_reg, disp, src_reg) { return core.insn_mov_mr64_r64_disp(base_reg, disp, src_reg) }
-fn insn_lea_rsi_rip_disp32(disp32) { return core.insn_lea_rsi_rip_disp32(disp32) }
-fn insn_lea_r64_rip_disp32(reg, disp32) { return core.insn_lea_r64_rip_disp32(reg, disp32) }
-fn insn_lea_r64_rsp_disp8(reg, disp8) { return core.insn_lea_r64_rsp_disp8(reg, disp8) }
-fn insn_call_rax() { return core.insn_call_rax() }
-fn insn_jmp_rax() { return core.insn_jmp_rax() }
-fn insn_sub_rsp_imm8(n) { return core.insn_sub_rsp_imm8(n) }
-fn insn_add_rsp_imm8(n) { return core.insn_add_rsp_imm8(n) }
-fn insn_sub_rsp_imm32(n) { return core.insn_sub_rsp_imm32(n) }
-fn insn_add_rsp_imm32(n) { return core.insn_add_rsp_imm32(n) }
-fn insn_mov_mrsp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrsp_disp8_imm32(disp8, imm32) }
-fn insn_and_rsp_imm8(mask_imm8) { return core.insn_and_rsp_imm8(mask_imm8) }
-fn insn_mov_mrbp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrbp_disp8_imm32(disp8, imm32) }
-fn insn_mov_r32_mrbp_disp8(reg, disp8) { return core.insn_mov_r32_mrbp_disp8(reg, disp8) }
-fn insn_mov_mrbp_disp8_r32(disp8, reg) { return core.insn_mov_mrbp_disp8_r32(disp8, reg) }
-fn insn_mov_r64_mrbp_disp8(reg, disp8) { return core.insn_mov_r64_mrbp_disp8(reg, disp8) }
-fn insn_mov_mrbp_disp8_r64(disp8, reg) { return core.insn_mov_mrbp_disp8_r64(disp8, reg) }
-fn insn_mov_r64_mrbp_disp32(reg, disp32) { return core.insn_mov_r64_mrbp_disp32(reg, disp32) }
-fn insn_mov_mrbp_disp32_r64(disp32, reg) { return core.insn_mov_mrbp_disp32_r64(disp32, reg) }
-fn insn_mov_r64_mrsp_disp8(reg, disp8) { return core.insn_mov_r64_mrsp_disp8(reg, disp8) }
-fn insn_mov_mrsp_disp8_r64(disp8, reg) { return core.insn_mov_mrsp_disp8_r64(disp8, reg) }
-fn insn_mov_mrsp_disp8_r32(disp8, reg) { return core.insn_mov_mrsp_disp8_r32(disp8, reg) }
-fn insn_mov_r64_mrsp_disp32(reg, disp32) { return core.insn_mov_r64_mrsp_disp32(reg, disp32) }
-fn insn_mov_mrsp_disp32_r64(disp32, reg) { return core.insn_mov_mrsp_disp32_r64(disp32, reg) }
-fn insn_add_r32_imm32(reg, imm32) { return core.insn_add_r32_imm32(reg, imm32) }
-fn insn_sub_r32_imm32(reg, imm32) { return core.insn_sub_r32_imm32(reg, imm32) }
-fn insn_add_r32_r32(dst, src) { return core.insn_add_r32_r32(dst, src) }
-fn insn_sub_r32_r32(dst, src) { return core.insn_sub_r32_r32(dst, src) }
-fn insn_cmp_r32_imm32(reg, imm32) { return core.insn_cmp_r32_imm32(reg, imm32) }
-fn insn_cmp_r32_r32(lhs, rhs) { return core.insn_cmp_r32_r32(lhs, rhs) }
-fn insn_add_r64_imm32(reg, imm32) { return core.insn_add_r64_imm32(reg, imm32) }
-fn insn_sub_r64_imm32(reg, imm32) { return core.insn_sub_r64_imm32(reg, imm32) }
-fn insn_add_r64_r64(dst, src) { return core.insn_add_r64_r64(dst, src) }
-fn insn_sub_r64_r64(dst, src) { return core.insn_sub_r64_r64(dst, src) }
-fn insn_cmp_r64_imm32(reg, imm32) { return core.insn_cmp_r64_imm32(reg, imm32) }
-fn insn_cmp_r64_r64(lhs, rhs) { return core.insn_cmp_r64_r64(lhs, rhs) }
-fn insn_jcc_rel32(cc, disp32) { return core.insn_jcc_rel32(cc, disp32) }
-fn insn_setcc_al(cc) { return core.insn_setcc_al(cc) }
-fn insn_imul_r32_imm32(reg, imm32) { return core.insn_imul_r32_imm32(reg, imm32) }
-fn insn_imul_r64_imm32(reg, imm32) { return core.insn_imul_r64_imm32(reg, imm32) }
-fn insn_imul_r64_r64(dst, src) { return core.insn_imul_r64_r64(dst, src) }
-fn insn_mul_r64(reg) { return core.insn_mul_r64(reg) }
-fn insn_and_r64_imm32(reg, imm32) { return core.insn_and_r64_imm32(reg, imm32) }
-fn insn_or_r64_imm32(reg, imm32) { return core.insn_or_r64_imm32(reg, imm32) }
-fn insn_xor_r64_imm32(reg, imm32) { return core.insn_xor_r64_imm32(reg, imm32) }
-fn insn_and_r64_r64(dst, src) { return core.insn_and_r64_r64(dst, src) }
-fn insn_or_r64_r64(dst, src) { return core.insn_or_r64_r64(dst, src) }
-fn insn_xor_r64_r64(dst, src) { return core.insn_xor_r64_r64(dst, src) }
-fn insn_shl_r64_imm8(reg, imm8) { return core.insn_shl_r64_imm8(reg, imm8) }
-fn insn_shr_r64_imm8(reg, imm8) { return core.insn_shr_r64_imm8(reg, imm8) }
-fn insn_shl_r64_cl(reg) { return core.insn_shl_r64_cl(reg) }
-fn insn_shr_r64_cl(reg) { return core.insn_shr_r64_cl(reg) }
-fn insn_movsxd_r64_r32(dst, src) { return core.insn_movsxd_r64_r32(dst, src) }
-fn insn_cqo() { return core.insn_cqo() }
-fn insn_idiv_r64(reg) { return core.insn_idiv_r64(reg) }
-fn insn_div_r64(reg) { return core.insn_div_r64(reg) }
-fn insn_not_r64(reg) { return core.insn_not_r64(reg) }
-fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
-fn insn_movq_xmm_r64(xmm_dst, r_src) { return core.insn_movq_xmm_r64(xmm_dst, r_src) }
-fn insn_movq_r64_xmm(r_dst, xmm_src) { return core.insn_movq_r64_xmm(r_dst, xmm_src) }
-fn insn_movd_xmm_r32(xmm_dst, r_src) { return core.insn_movd_xmm_r32(xmm_dst, r_src) }
-fn insn_movd_r32_xmm(r_dst, xmm_src) { return core.insn_movd_r32_xmm(r_dst, xmm_src) }
-fn insn_movdqu_m128_xmm_disp(base_reg, disp, xmm_src) { return core.insn_movdqu_m128_xmm_disp(base_reg, disp, xmm_src) }
-fn insn_movdqu_xmm_m128_disp(xmm_dst, base_reg, disp) { return core.insn_movdqu_xmm_m128_disp(xmm_dst, base_reg, disp) }
-fn insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) { return core.insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) }
-fn insn_cvttsd2si_r64_xmm(r_dst, xmm_src) { return core.insn_cvttsd2si_r64_xmm(r_dst, xmm_src) }
-fn insn_addsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_addsd_xmm_xmm(xmm_dst, xmm_src) }
-fn insn_subsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_subsd_xmm_xmm(xmm_dst, xmm_src) }
-fn insn_mulsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_mulsd_xmm_xmm(xmm_dst, xmm_src) }
-fn insn_divsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_divsd_xmm_xmm(xmm_dst, xmm_src) }
-fn insn_ucomisd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_ucomisd_xmm_xmm(xmm_dst, xmm_src) }
-fn insn_cvtsd2ss_xmm_xmm(xmm_dst, xmm_src) { return core.insn_cvtsd2ss_xmm_xmm(xmm_dst, xmm_src) }
-fn insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) }
-
 fn err(ctx, msg) {
     // Keep diagnostics bounded: some codegen errors can trigger repeatedly in a single build,
     // and printing every occurrence can produce huge logs (and slow down CI/dev loops).
@@ -245,7 +144,7 @@ fn _as_u32_signed(disp) {
 fn _emit_mov_r64_mrbp(ctx, dst_reg, disp) {
     // mov dst_reg, qword ptr [rbp+disp]
     if _is_i8(disp) {
-        bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(dst_reg, disp))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mrbp_disp8(dst_reg, disp))
         return nil
     }
     var u = _as_u32_signed(disp)
@@ -255,14 +154,14 @@ fn _emit_mov_r64_mrbp(ctx, dst_reg, disp) {
         err(ctx, "x64 native v0: rbp disp32 out of range fn=" + fnm + " disp=" + oren_int_to_string(disp))
         return nil
     }
-    bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp32(dst_reg, u))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mrbp_disp32(dst_reg, u))
     return nil
 }
 
 fn _emit_mov_mrbp_r64(ctx, disp, src_reg) {
     // mov qword ptr [rbp+disp], src_reg
     if _is_i8(disp) {
-        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp, src_reg))
+        bytes_extend(ctx["code"], core.insn_mov_mrbp_disp8_r64(disp, src_reg))
         return nil
     }
     var u = _as_u32_signed(disp)
@@ -272,31 +171,31 @@ fn _emit_mov_mrbp_r64(ctx, disp, src_reg) {
         err(ctx, "x64 native v0: rbp disp32 out of range fn=" + fnm + " disp=" + oren_int_to_string(disp))
         return nil
     }
-    bytes_extend(ctx["code"], insn_mov_mrbp_disp32_r64(u, src_reg))
+    bytes_extend(ctx["code"], core.insn_mov_mrbp_disp32_r64(u, src_reg))
     return nil
 }
 
 fn _emit_mov_r64_mrsp(ctx, dst_reg, disp) {
     // mov dst_reg, qword ptr [rsp+disp]
     if _is_i8(disp) {
-        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(dst_reg, disp))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp8(dst_reg, disp))
         return nil
     }
     var u = _as_u32_signed(disp)
     if u == nil { err(ctx, "x64 native v0: rsp disp32 out of range"); return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(dst_reg, u))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp32(dst_reg, u))
     return nil
 }
 
 fn _emit_mov_mrsp_r64(ctx, disp, src_reg) {
     // mov qword ptr [rsp+disp], src_reg
     if _is_i8(disp) {
-        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(disp, src_reg))
+        bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(disp, src_reg))
         return nil
     }
     var u = _as_u32_signed(disp)
     if u == nil { err(ctx, "x64 native v0: rsp disp32 out of range"); return nil }
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp32_r64(u, src_reg))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp32_r64(u, src_reg))
     return nil
 }
 
@@ -304,19 +203,9 @@ fn _emit_addr_rbp_minus_off_x64(ctx, dst_reg, off) {
     // dst_reg = rbp - off
     // (Used for passing pointers to intrinsic-temp spill slots without mutating RSP.)
     if off == nil { err(ctx, "x64 native v0: addr calc missing off"); return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_r64(dst_reg, 5))
-    bytes_extend(ctx["code"], insn_sub_r64_imm32(dst_reg, off))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(dst_reg, 5))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(dst_reg, off))
     return nil
 }
-
-// SSE2 packed integer operations (for SIMD)
-fn insn_pxor_xmm_xmm(dst, src) { return core.insn_pxor_xmm_xmm(dst, src) }
-fn insn_paddq_xmm_xmm(dst, src) { return core.insn_paddq_xmm_xmm(dst, src) }
-fn insn_pmuludq_xmm_xmm(dst, src) { return core.insn_pmuludq_xmm_xmm(dst, src) }
-fn insn_pshufd_xmm_xmm_imm(dst, src, imm8) { return core.insn_pshufd_xmm_xmm_imm(dst, src, imm8) }
-fn insn_movdqa_xmm_m128_disp(xmm_dst, base_reg, disp) { return core.insn_movdqa_xmm_m128_disp(xmm_dst, base_reg, disp) }
-fn insn_movdqa_m128_xmm_disp(base_reg, disp, xmm_src) { return core.insn_movdqa_m128_xmm_disp(base_reg, disp, xmm_src) }
-fn insn_mov_r32_m64_disp(dst_reg, base_reg, disp) { return core.insn_mov_r32_m64_disp(dst_reg, base_reg, disp) }
-fn insn_dec_r64(reg) { return core.insn_dec_r64(reg) }
 
 fn _is_i32(n) { return n >= -2147483648 && n <= 2147483647 }

@@ -89,23 +89,23 @@ fn _linetab_record_tok(ctx, tok) {
 fn _emit_gc_visible_call_x64(ctx, callee_name) {
     // Spill callee-saved regs so conservative GC sees register-held pointers.
     // Includes Win64 non-volatiles (rdi/rsi) for parity.
-    bytes_extend(ctx["code"], insn_push_r64(3))  // rbx
-    bytes_extend(ctx["code"], insn_push_r64(5))  // rbp
-    bytes_extend(ctx["code"], insn_push_r64(7))  // rdi
-    bytes_extend(ctx["code"], insn_push_r64(6))  // rsi
-    bytes_extend(ctx["code"], insn_push_r64(12)) // r12
-    bytes_extend(ctx["code"], insn_push_r64(13)) // r13
-    bytes_extend(ctx["code"], insn_push_r64(14)) // r14
-    bytes_extend(ctx["code"], insn_push_r64(15)) // r15
+    bytes_extend(ctx["code"], core.insn_push_r64(3))  // rbx
+    bytes_extend(ctx["code"], core.insn_push_r64(5))  // rbp
+    bytes_extend(ctx["code"], core.insn_push_r64(7))  // rdi
+    bytes_extend(ctx["code"], core.insn_push_r64(6))  // rsi
+    bytes_extend(ctx["code"], core.insn_push_r64(12)) // r12
+    bytes_extend(ctx["code"], core.insn_push_r64(13)) // r13
+    bytes_extend(ctx["code"], core.insn_push_r64(14)) // r14
+    bytes_extend(ctx["code"], core.insn_push_r64(15)) // r15
     _emit_call_rel32_named_x64(ctx, callee_name)
-    bytes_extend(ctx["code"], insn_pop_r64(15))
-    bytes_extend(ctx["code"], insn_pop_r64(14))
-    bytes_extend(ctx["code"], insn_pop_r64(13))
-    bytes_extend(ctx["code"], insn_pop_r64(12))
-    bytes_extend(ctx["code"], insn_pop_r64(6))
-    bytes_extend(ctx["code"], insn_pop_r64(7))
-    bytes_extend(ctx["code"], insn_pop_r64(5))
-    bytes_extend(ctx["code"], insn_pop_r64(3))
+    bytes_extend(ctx["code"], core.insn_pop_r64(15))
+    bytes_extend(ctx["code"], core.insn_pop_r64(14))
+    bytes_extend(ctx["code"], core.insn_pop_r64(13))
+    bytes_extend(ctx["code"], core.insn_pop_r64(12))
+    bytes_extend(ctx["code"], core.insn_pop_r64(6))
+    bytes_extend(ctx["code"], core.insn_pop_r64(7))
+    bytes_extend(ctx["code"], core.insn_pop_r64(5))
+    bytes_extend(ctx["code"], core.insn_pop_r64(3))
     return nil
 }
 
@@ -168,7 +168,7 @@ fn _emit_gc_root_pop_count_x64(ctx, count) {
         return nil
     }
     var a0 = a0_enc - 1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(a0, count))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a0, count))
     _emit_call_rel32_named_x64(ctx, "native_gc_root_pop")
     return nil
 }
@@ -176,39 +176,39 @@ fn _emit_gc_root_pop_count_x64(ctx, count) {
 fn _emit_gc_collect_visible_call_x64(ctx, callee_name) {
     // Explicit collection is rare. Spill the full GPR root surface so conservative GC can see
     // caller-saved temporaries that have not been materialized into the frame yet.
-    bytes_extend(ctx["code"], insn_sub_rsp_imm8(8))
-    bytes_extend(ctx["code"], insn_push_r64(0))  // rax
-    bytes_extend(ctx["code"], insn_push_r64(1))  // rcx
-    bytes_extend(ctx["code"], insn_push_r64(2))  // rdx
-    bytes_extend(ctx["code"], insn_push_r64(3))  // rbx
-    bytes_extend(ctx["code"], insn_push_r64(5))  // rbp
-    bytes_extend(ctx["code"], insn_push_r64(6))  // rsi
-    bytes_extend(ctx["code"], insn_push_r64(7))  // rdi
-    bytes_extend(ctx["code"], insn_push_r64(8))  // r8
-    bytes_extend(ctx["code"], insn_push_r64(9))  // r9
-    bytes_extend(ctx["code"], insn_push_r64(10)) // r10
-    bytes_extend(ctx["code"], insn_push_r64(11)) // r11
-    bytes_extend(ctx["code"], insn_push_r64(12)) // r12
-    bytes_extend(ctx["code"], insn_push_r64(13)) // r13
-    bytes_extend(ctx["code"], insn_push_r64(14)) // r14
-    bytes_extend(ctx["code"], insn_push_r64(15)) // r15
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm8(8))
+    bytes_extend(ctx["code"], core.insn_push_r64(0))  // rax
+    bytes_extend(ctx["code"], core.insn_push_r64(1))  // rcx
+    bytes_extend(ctx["code"], core.insn_push_r64(2))  // rdx
+    bytes_extend(ctx["code"], core.insn_push_r64(3))  // rbx
+    bytes_extend(ctx["code"], core.insn_push_r64(5))  // rbp
+    bytes_extend(ctx["code"], core.insn_push_r64(6))  // rsi
+    bytes_extend(ctx["code"], core.insn_push_r64(7))  // rdi
+    bytes_extend(ctx["code"], core.insn_push_r64(8))  // r8
+    bytes_extend(ctx["code"], core.insn_push_r64(9))  // r9
+    bytes_extend(ctx["code"], core.insn_push_r64(10)) // r10
+    bytes_extend(ctx["code"], core.insn_push_r64(11)) // r11
+    bytes_extend(ctx["code"], core.insn_push_r64(12)) // r12
+    bytes_extend(ctx["code"], core.insn_push_r64(13)) // r13
+    bytes_extend(ctx["code"], core.insn_push_r64(14)) // r14
+    bytes_extend(ctx["code"], core.insn_push_r64(15)) // r15
     _emit_call_rel32_named_x64(ctx, callee_name)
-    bytes_extend(ctx["code"], insn_pop_r64(15))
-    bytes_extend(ctx["code"], insn_pop_r64(14))
-    bytes_extend(ctx["code"], insn_pop_r64(13))
-    bytes_extend(ctx["code"], insn_pop_r64(12))
-    bytes_extend(ctx["code"], insn_pop_r64(11))
-    bytes_extend(ctx["code"], insn_pop_r64(10))
-    bytes_extend(ctx["code"], insn_pop_r64(9))
-    bytes_extend(ctx["code"], insn_pop_r64(8))
-    bytes_extend(ctx["code"], insn_pop_r64(7))
-    bytes_extend(ctx["code"], insn_pop_r64(6))
-    bytes_extend(ctx["code"], insn_pop_r64(5))
-    bytes_extend(ctx["code"], insn_pop_r64(3))
-    bytes_extend(ctx["code"], insn_pop_r64(2))
-    bytes_extend(ctx["code"], insn_pop_r64(1))
-    bytes_extend(ctx["code"], insn_pop_r64(0))
-    bytes_extend(ctx["code"], insn_add_rsp_imm8(8))
+    bytes_extend(ctx["code"], core.insn_pop_r64(15))
+    bytes_extend(ctx["code"], core.insn_pop_r64(14))
+    bytes_extend(ctx["code"], core.insn_pop_r64(13))
+    bytes_extend(ctx["code"], core.insn_pop_r64(12))
+    bytes_extend(ctx["code"], core.insn_pop_r64(11))
+    bytes_extend(ctx["code"], core.insn_pop_r64(10))
+    bytes_extend(ctx["code"], core.insn_pop_r64(9))
+    bytes_extend(ctx["code"], core.insn_pop_r64(8))
+    bytes_extend(ctx["code"], core.insn_pop_r64(7))
+    bytes_extend(ctx["code"], core.insn_pop_r64(6))
+    bytes_extend(ctx["code"], core.insn_pop_r64(5))
+    bytes_extend(ctx["code"], core.insn_pop_r64(3))
+    bytes_extend(ctx["code"], core.insn_pop_r64(2))
+    bytes_extend(ctx["code"], core.insn_pop_r64(1))
+    bytes_extend(ctx["code"], core.insn_pop_r64(0))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm8(8))
     return nil
 }
 
@@ -233,7 +233,7 @@ fn _emit_native_gas_note_x64(ctx, amount) {
         return nil
     }
     var a0 = a0_enc - 1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(a0, amount))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a0, amount))
     _emit_call_rel32_named_x64(ctx, "native_runtime_gas_note")
     return nil
 }
@@ -246,7 +246,7 @@ fn _emit_native_gas_note_x64_patchable_u32(ctx) {
     }
     var a0 = a0_enc - 1
     var mov_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(a0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a0, 0))
     _emit_call_rel32_named_x64(ctx, "native_runtime_gas_note")
     if a0 >= 8 { return mov_pos + 2 }
     return mov_pos + 1
@@ -311,11 +311,11 @@ fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask
     // rax = tick
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_tick)
     // tick++
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
     _emit_mov_mrbp_r64(ctx, 0 - off_tick, 0)
     // if ((tick & mask) != 0) goto skip
-    bytes_extend(ctx["code"], insn_and_r64_imm32(0, tick_mask))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, tick_mask))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     var skip = _new_label(ctx, "gc_sp_skip")
     _emit_jcc_to_label(ctx, local_fixups, "ne", skip)
     if _x64_native_dynamic_emitter_gas_enabled(ctx) != true {

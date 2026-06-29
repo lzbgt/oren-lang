@@ -19,19 +19,19 @@ fn _emit_string_len_from_ptr_x64(ctx, ptr_reg, dst_reg) {
     var l_loop = _new_label(ctx, "str_len_loop")
 
     // r11 = ptr
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, ptr_reg))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, ptr_reg))
     // dst = 0  (must happen after capturing ptr, because ptr_reg may alias dst_reg)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_reg, 0))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(dst_reg, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
 
     _emit_label(ctx, labels, l_loop)
     // Use EAX/AL as the loaded-byte temp to avoid clobbering common ABI arg regs.
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 11))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-    bytes_extend(ctx["code"], insn_add_r64_imm32(dst_reg, 1))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(dst_reg, 1))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 1))
     _emit_jmp_to_label(ctx, local_fixups, l_loop)
 
     _emit_label(ctx, labels, l_done)
@@ -60,7 +60,7 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
         _emit_eval_int_to_rax(ctx, expr["right"], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_fast); return nil }
         _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_off)
-        bytes_extend(ctx["code"], insn_add_r64_r64(0, 2))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2))
         _intr_tmp_pop(ctx, base_fast)
         return 1
     }
@@ -97,7 +97,7 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, a0, 0 - tmp_a)
     _emit_mov_r64_mrbp(ctx, a1, 0 - tmp_b)
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_add"})
 
     _intr_tmp_pop(ctx, base)

@@ -13,35 +13,35 @@
 	        // Intended for callback-style OS/library APIs without going through dlsym().
 	        if args == nil || oren_list_len(args) != 1 {
 	            err(ctx, "x64 native v0: oren_code_addr expects 1 arg")
-	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	            return 1
 	        }
 	        var a0 = args[0]
 	        if a0 == nil || a0["type"] != "Identifier" {
 	            err(ctx, "x64 native v0: oren_code_addr expects an Identifier arg")
-	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	            return 1
 	        }
 	        var name = a0["value"]
 	        if name == nil || name == "" {
 	            err(ctx, "x64 native v0: oren_code_addr missing function name")
-	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	            return 1
 	        }
 	        // rax = &name
 	        var lea_pos = bytes_len(ctx["code"])
-	        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+	        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
 	        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": name})
 	        return 1
 	    }
 	    if nm == "get_fp" {
         // Return current frame pointer (RBP) as a raw u64.
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 5)) // rax = rbp
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 5)) // rax = rbp
         return 1
     }
 	    if nm == "get_sp" {
 	        // Return current stack pointer (RSP) as a raw u64.
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 4)) // rax = rsp
+	        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 4)) // rax = rsp
 	        return 1
 	    }
 
@@ -81,39 +81,39 @@
 	        if args == nil || oren_list_len(args) != 3 {
 	            err(ctx, "x64 native v0: oren_ctx_init expects 3 args")
 	            // Return 0 in RAX (best-effort).
-	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	            return 1
 	        }
 
 	        // ctx_ptr -> r10
 	        _emit_eval_int_to_rax(ctx, args[0], locals)
 	        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+	        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
 
 	        // sp -> r11
 	        _emit_eval_int_to_rax(ctx, args[1], locals)
 	        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+	        bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
 
 	        // pc -> r8
 	        _emit_eval_int_to_rax(ctx, args[2], locals)
 	        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+	        bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 0))
 
 	        // ctx[rsp] = sp
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 104, 11))
+	        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(10, 104, 11))
 	        // ctx[rip] = pc
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 112, 8))
+	        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(10, 112, 8))
 
 	        // Return 0
-	        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	        return 1
 	    }
 
 		    if nm == "oren_ctx_switch" {
 		        if args == nil || oren_list_len(args) != 2 {
 		            err(ctx, "x64 native v0: oren_ctx_switch expects 2 args")
-		            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+		            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 		            return 1
 		        }
 
@@ -126,43 +126,43 @@
 		        // `new_ctx` after saving.
 		        //
 		        // Preserve the caller's original RAX across `_emit_eval_int_to_rax`.
-		        bytes_extend(ctx["code"], insn_push_r64(0)) // push rax
+		        bytes_extend(ctx["code"], core.insn_push_r64(0)) // push rax
 
 		        // old_ctx_ptr -> rax
 		        _emit_eval_int_to_rax(ctx, args[0], locals)
 		        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
 
 		        // Save all non-reserved GPRs except RAX (we'll store it from the stack).
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 8, 1))    // rcx
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 16, 2))   // rdx
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 24, 3))   // rbx
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 32, 5))   // rbp
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 40, 7))   // rdi
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 48, 6))   // rsi
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 56, 8))   // r8
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 64, 9))   // r9
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 72, 10))  // r10
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 80, 11))  // r11
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 88, 12))  // r12
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 96, 13))  // r13
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 8, 1))    // rcx
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 16, 2))   // rdx
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 24, 3))   // rbx
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 32, 5))   // rbp
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 40, 7))   // rdi
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 48, 6))   // rsi
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 56, 8))   // r8
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 64, 9))   // r9
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 72, 10))  // r10
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 80, 11))  // r11
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 88, 12))  // r12
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 96, 13))  // r13
 
 		        // Store the caller's original RAX (saved on stack) into ctx[rax]. This balances
 		        // the stack so the saved RSP matches the yield point.
-		        bytes_extend(ctx["code"], insn_pop_r64(8))                  // r8 = orig rax
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 0, 8))  // ctx[rax] = r8
+		        bytes_extend(ctx["code"], core.insn_pop_r64(8))                  // r8 = orig rax
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 0, 8))  // ctx[rax] = r8
 
 		        // ctx[rsp] = rsp
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 104, 4))
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 104, 4))
 
 		        // r8 = &resume_label; ctx[rip] = r8
 		        var lea_pos = bytes_len(ctx["code"])
-		        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(8, 0))
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 112, 8))
+		        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(8, 0))
+		        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 112, 8))
 
 		        // Save SIMD state (XMM0..XMM15).
 		        var xi = 0
 		        while xi < 16 {
-		            bytes_extend(ctx["code"], insn_movdqu_m128_xmm_disp(0, 128 + xi * 16, xi))
+		            bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 128 + xi * 16, xi))
 		            xi = xi + 1
 		        }
 
@@ -172,46 +172,46 @@
 
 		        // Restore regs from new_ctx.
 		        // Use r9 as the restore base pointer, and restore it last.
-		        bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0)) // r9 = new_ctx_ptr
+		        bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0)) // r9 = new_ctx_ptr
 
 		        // Restore SIMD state (XMM0..XMM15).
 		        xi = 0
 		        while xi < 16 {
-		            bytes_extend(ctx["code"], insn_movdqu_xmm_m128_disp(xi, 9, 128 + xi * 16))
+		            bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(xi, 9, 128 + xi * 16))
 		            xi = xi + 1
 		        }
 
 		        // Restore GPRs (do not restore r14/r15 allocator regs; restore r9 base last).
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 9, 8))    // rcx
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(2, 9, 16))   // rdx
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(3, 9, 24))   // rbx
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(5, 9, 32))   // rbp
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(7, 9, 40))   // rdi
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(6, 9, 48))   // rsi
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 9, 72))  // r10
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(11, 9, 80))  // r11
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(12, 9, 88))  // r12
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(13, 9, 96))  // r13
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(1, 9, 8))    // rcx
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(2, 9, 16))   // rdx
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(3, 9, 24))   // rbx
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(5, 9, 32))   // rbp
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(7, 9, 40))   // rdi
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(6, 9, 48))   // rsi
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 9, 72))  // r10
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 9, 80))  // r11
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(12, 9, 88))  // r12
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(13, 9, 96))  // r13
 
 		        // Switch stacks: rsp = new_ctx[rsp]
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 9, 104)) // r8 = rsp
-		        bytes_extend(ctx["code"], insn_mov_r64_r64(4, 8))           // rsp = r8
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 9, 104)) // r8 = rsp
+		        bytes_extend(ctx["code"], core.insn_mov_r64_r64(4, 8))           // rsp = r8
 
 		        // Push target RIP on the new stack, restore clobbered regs, then RET.
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 9, 112)) // r8 = rip
-		        bytes_extend(ctx["code"], insn_push_r64(8))                 // push rip
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 9, 112)) // r8 = rip
+		        bytes_extend(ctx["code"], core.insn_push_r64(8))                 // push rip
 
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 9, 56))  // r8
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(0, 9, 0))   // rax
-		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 9, 64))  // r9
-		        bytes_extend(ctx["code"], insn_ret())
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 9, 56))  // r8
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(0, 9, 0))   // rax
+		        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 9, 64))  // r9
+		        bytes_extend(ctx["code"], core.insn_ret())
 
 		        // Resume label: execution continues here when switched back into this context.
 		        var resume_pos = bytes_len(ctx["code"])
 		        // Patch LEA disp32 (relative to next instruction).
 		        set_u32_le(ctx["code"], lea_pos + 3, resume_pos - (lea_pos + 7))
 	        // Return value (best-effort): 0
-	        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	        return 1
 	    }
 	    if nm == "resolve_symbol" {
@@ -237,7 +237,7 @@
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
 
         // Preserve addr in r10; default return value is "???" in RAX.
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // r10 = addr
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0)) // r10 = addr
 
         // `ctx["symtab_off"]` is stored as `off+1` so offset 0 is representable while still
         // using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
@@ -247,7 +247,7 @@
         var unk_off = _data_add_cstr0(ctx, "???")
         // `unk_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         var lea_unk = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // rax = &"???"
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0)) // rax = &"???"
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
 
         // If symtab is missing (shouldn't happen in Tier‑1 builds), keep "???".
@@ -262,8 +262,8 @@
         var text_base = abi.x64_v0_text_base_addr(platform)
 
         // if addr < text_base => keep "???"
-        bytes_extend(ctx["code"], insn_mov_r64_imm64(11, text_base)) // r11 = text_base
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 11))         // cmp addr, text_base
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(11, text_base)) // r11 = text_base
+        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 11))         // cmp addr, text_base
         var labels = {}
         var fixups = []
         var l_done = _new_label(ctx, "resolve_sym_done")
@@ -272,52 +272,52 @@
         _emit_jcc_to_label(ctx, fixups, "b", l_done)
 
         // off_target (r9) = addr - text_base
-        bytes_extend(ctx["code"], insn_mov_r64_r64(9, 10))
-        bytes_extend(ctx["code"], insn_sub_r64_r64(9, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 10))
+        bytes_extend(ctx["code"], core.insn_sub_r64_r64(9, 11))
 
         // r11 = &symtab (RIP-relative into appended data)
         var lea_sym = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": symtab_off})
 
         // data_base (r8) = symtab_ptr - symtab_off
-        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 11))
-        bytes_extend(ctx["code"], insn_sub_r64_imm32(8, core.int_mod(symtab_off, 4294967296)))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 11))
+        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(8, core.int_mod(symtab_off, 4294967296)))
 
         // count (r10) = *(u64*)symtab_ptr
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 11))
         // entries_base (r11) = symtab_ptr + 8
-        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
         // idx (rcx) = 0
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0))
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
 
         _emit_label(ctx, labels, l_loop)
         // if idx >= count => done
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 10))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(1, 10))
         _emit_jcc_to_label(ctx, fixups, "ge", l_done)
 
         // entry_ptr (rax) = entries_base + idx*8
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
-        bytes_extend(ctx["code"], insn_imul_r64_imm32(0, 8))
-        bytes_extend(ctx["code"], insn_add_r64_r64(0, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 1))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(0, 8))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 11))
         // entry (rax) = *(u64*)entry_ptr
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 0))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 0))
 
         // fn_off (rdx) = low32(entry)
-        bytes_extend(ctx["code"], insn_mov_r32_r32(2, 0))
+        bytes_extend(ctx["code"], core.insn_mov_r32_r32(2, 0))
         // if off_target >= fn_off => match
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 2))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 2))
         _emit_jcc_to_label(ctx, fixups, "ae", l_match)
 
         // idx++
-        bytes_extend(ctx["code"], insn_add_r64_imm32(1, 1))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(1, 1))
         _emit_jmp_to_label(ctx, fixups, l_loop)
 
         _emit_label(ctx, labels, l_match)
         // name_off = high32(entry)
-        bytes_extend(ctx["code"], insn_shr_r64_imm8(0, 32))
+        bytes_extend(ctx["code"], core.insn_shr_r64_imm8(0, 32))
         // rax = data_base + name_off
-        bytes_extend(ctx["code"], insn_add_r64_r64(0, 8))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 8))
         _emit_jmp_to_label(ctx, fixups, l_done)
 
         _emit_label(ctx, labels, l_done)

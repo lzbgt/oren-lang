@@ -12,40 +12,40 @@ fn _emit_windows_write_cstr(ctx, s) {
 
     // Reserve shadow + stack-arg scratch so this helper is self-contained.
     // 0x30 keeps 16B alignment when the caller is already aligned.
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(48))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(48))
 
     // --- GetStdHandle(STD_OUTPUT_HANDLE=-11) ---
     // ecx = 0xFFFFFFF5
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285))
     var mov_iat0 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_call_rax())
 
     // rcx = rax (hStdout)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
 
     // rdx = &data (RIP-relative into the user data blob; mapped as `.data` in PE v0)
     var lea_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": data_off})
 
     // r8d = len
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, nbytes))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, nbytes))
 
     // Stack arg5 (lpOverlapped) = NULL at [rsp+0x20], and bytesWritten at [rsp+0x28].
     //
     // Write 8 bytes of zeros for lpOverlapped (two dwords).
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(36, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
     // r9 = &written
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(9, 40))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40))
 
     // --- WriteFile(...) ---
     var mov_iat1 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_WriteFile")
-    bytes_extend(ctx["code"], insn_call_rax())
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(48))
+    bytes_extend(ctx["code"], core.insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(48))
     return nil
 }

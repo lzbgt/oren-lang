@@ -293,23 +293,23 @@ fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
     // Load/convert A into XMM0.
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
     if _x64_expr_is_floaty(ctx, left_expr) {
-        bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
     } else {
-        bytes_extend(ctx["code"], insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
+        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
     }
 
     // Load/convert B into XMM1.
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_b) // rax = b
     if _x64_expr_is_floaty(ctx, right_expr) {
-        bytes_extend(ctx["code"], insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
     } else {
-        bytes_extend(ctx["code"], insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
+        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
     }
 
-    if op == "+" { bytes_extend(ctx["code"], insn_addsd_xmm_xmm(0, 1)) }
-    else if op == "-" { bytes_extend(ctx["code"], insn_subsd_xmm_xmm(0, 1)) }
-    else if op == "*" { bytes_extend(ctx["code"], insn_mulsd_xmm_xmm(0, 1)) }
-    else if op == "/" { bytes_extend(ctx["code"], insn_divsd_xmm_xmm(0, 1)) }
+    if op == "+" { bytes_extend(ctx["code"], core.insn_addsd_xmm_xmm(0, 1)) }
+    else if op == "-" { bytes_extend(ctx["code"], core.insn_subsd_xmm_xmm(0, 1)) }
+    else if op == "*" { bytes_extend(ctx["code"], core.insn_mulsd_xmm_xmm(0, 1)) }
+    else if op == "/" { bytes_extend(ctx["code"], core.insn_divsd_xmm_xmm(0, 1)) }
     else {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: unsupported float binop op: " + op)
@@ -317,7 +317,7 @@ fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
     }
 
     // Return bits in RAX.
-    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))
     _intr_tmp_pop(ctx, base)
     return nil
 }
@@ -333,13 +333,13 @@ fn _emit_intrinsic_oren_f32_round_x64(ctx, expr, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     // XMM0 = bits -> f64
-    bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))
     // XMM0 = f32(XMM0)
-    bytes_extend(ctx["code"], insn_cvtsd2ss_xmm_xmm(0, 0))
+    bytes_extend(ctx["code"], core.insn_cvtsd2ss_xmm_xmm(0, 0))
     // XMM0 = f64(XMM0)
-    bytes_extend(ctx["code"], insn_cvtss2sd_xmm_xmm(0, 0))
+    bytes_extend(ctx["code"], core.insn_cvtss2sd_xmm_xmm(0, 0))
     // RAX = bits
-    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))
     return nil
 }
 
@@ -356,8 +356,8 @@ fn _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals) {
 
     if _x64_expr_is_floaty(ctx, a0) {
         // xmm0 = bits(rax); rax = (int64)xmm0 (truncate)
-        bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0))
-        bytes_extend(ctx["code"], insn_cvttsd2si_r64_xmm(0, 0))
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))
+        bytes_extend(ctx["code"], core.insn_cvttsd2si_r64_xmm(0, 0))
     }
     return nil
 }
@@ -392,25 +392,25 @@ fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     // Load/convert A into XMM0.
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
     if _x64_expr_is_floaty(ctx, left_expr) {
-        bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
     } else {
-        bytes_extend(ctx["code"], insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
+        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
     }
 
     // Load/convert B into XMM1.
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_b) // rax = b
     if _x64_expr_is_floaty(ctx, right_expr) {
-        bytes_extend(ctx["code"], insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
     } else {
-        bytes_extend(ctx["code"], insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
+        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
     }
 
     // Compare XMM0 vs XMM1 (sets ZF/PF/CF).
-    bytes_extend(ctx["code"], insn_ucomisd_xmm_xmm(0, 1))
+    bytes_extend(ctx["code"], core.insn_ucomisd_xmm_xmm(0, 1))
 
     // Default result = 0 (false).
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     var labels = {}
     var local_fixups = []
@@ -454,8 +454,8 @@ fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     }
 
     _emit_label(ctx, labels, l_true)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
 

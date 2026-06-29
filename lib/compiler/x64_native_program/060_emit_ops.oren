@@ -62,16 +62,16 @@ fn _x64_emit_runtime_alloc0_to_rax(ctx, sym, platform) {
     }
     var a0 = 7 // SysV: rdi
     if platform != nil && platform["os"] == "windows" { a0 = 1 } // Win64: rcx
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(a0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a0, 0))
     _emit_call_rel32_named_x64(ctx, sym)
     return nil
 }
 
 fn _x64_emit_global_store_rax(ctx, goff) {
     var lea_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": goff})
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 0))
     return nil
 }
 
@@ -141,28 +141,28 @@ fn _x64_emit_top_empty_container_batch_loop(ctx, table_off, kind, platform) {
 
     var code = ctx["code"]
     var lea_base = bytes_len(code)
-    bytes_extend(code, insn_lea_r64_rip_disp32(13, 0)) // r13 = table_ptr
+    bytes_extend(code, core.insn_lea_r64_rip_disp32(13, 0)) // r13 = table_ptr
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_base + 3, "data_off": table_off})
 
-    bytes_extend(code, insn_mov_r64_r64(12, 13))       // r12 = table_ptr
-    bytes_extend(code, insn_sub_r64_imm32(12, table_off)) // r12 = data_base
-    bytes_extend(code, insn_mov_r64_mr64(3, 13))       // rbx = count
-    bytes_extend(code, insn_add_r64_imm32(13, 8))      // r13 = first slot offset
+    bytes_extend(code, core.insn_mov_r64_r64(12, 13))       // r12 = table_ptr
+    bytes_extend(code, core.insn_sub_r64_imm32(12, table_off)) // r12 = data_base
+    bytes_extend(code, core.insn_mov_r64_mr64(3, 13))       // rbx = count
+    bytes_extend(code, core.insn_add_r64_imm32(13, 8))      // r13 = first slot offset
 
     var loop_pos = bytes_len(code)
-    bytes_extend(code, insn_cmp_r64_imm32(3, 0))
+    bytes_extend(code, core.insn_cmp_r64_imm32(3, 0))
     var jz_pos = bytes_len(code)
     bytes_push(code, 15); bytes_push(code, 132); push_u32_le(code, 0) // jz done
 
-    bytes_extend(code, insn_mov_r32_imm32(arg0, 0))
+    bytes_extend(code, core.insn_mov_r32_imm32(arg0, 0))
     _emit_call_rel32_named_x64(ctx, sym)
 
-    bytes_extend(code, insn_mov_r64_r64(10, 12))       // r10 = data_base
-    bytes_extend(code, insn_mov_r64_mr64(11, 13))      // r11 = slot_off
-    bytes_extend(code, insn_add_r64_r64(10, 11))       // r10 = &slot
-    bytes_extend(code, insn_mov_mr64_r64(10, 0))       // *slot = rax
-    bytes_extend(code, insn_add_r64_imm32(13, 8))
-    bytes_extend(code, insn_add_r64_imm32(3, 4294967295))
+    bytes_extend(code, core.insn_mov_r64_r64(10, 12))       // r10 = data_base
+    bytes_extend(code, core.insn_mov_r64_mr64(11, 13))      // r11 = slot_off
+    bytes_extend(code, core.insn_add_r64_r64(10, 11))       // r10 = &slot
+    bytes_extend(code, core.insn_mov_mr64_r64(10, 0))       // *slot = rax
+    bytes_extend(code, core.insn_add_r64_imm32(13, 8))
+    bytes_extend(code, core.insn_add_r64_imm32(3, 4294967295))
     var jmp_pos = bytes_len(code)
     bytes_push(code, 233); push_u32_le(code, 0)
 

@@ -44,10 +44,10 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     }
 
     // Default dst = 0.
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_node_reg, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(dst_node_reg, 0))
 
     // ptr == 0 => done
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(ptr_reg, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 0))
     var labels = {}
     var local_fixups = []
     var l_done = _new_label(ctx, "trk_find_done")
@@ -55,7 +55,7 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
 
     // Match runtime safety/perf guard: small integers are not pointers.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(ptr_reg, 4096))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 4096))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_call)
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
@@ -66,12 +66,12 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
         return nil
     }
     var a0 = a0_enc - 1
-    if a0 != ptr_reg { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, ptr_reg)) }
+    if a0 != ptr_reg { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, ptr_reg)) }
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "native_alloc_index_get"})
     // Return value is node pointer in RAX.
-    if dst_node_reg != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(dst_node_reg, 0)) }
+    if dst_node_reg != 0 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(dst_node_reg, 0)) }
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -123,7 +123,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     _emit_mov_r64_mrbp(ctx, a2, 0 - off_kind)
 
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_track_alloc_new"})
 
     // Restore pointer to satisfy legacy helper contract.
@@ -173,7 +173,7 @@ fn _emit_trace_alloc_request_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     _emit_mov_r64_mrbp(ctx, a2, 0 - off_kind)
 
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_alloc_request"})
 
     _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)
@@ -213,10 +213,10 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
 
     _emit_mov_r64_mrbp(ctx, a0, 0 - off_ptr)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(a1, kind_imm))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, kind_imm))
 
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_ensure_tracked"})
 
     // Return value:
@@ -226,7 +226,7 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     // - Still, keep using the return value as the authoritative pointer.
     // - Return register is RAX; copy it into `ptr_reg` when needed.
     if ptr_reg != 0 {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(ptr_reg, 0))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(ptr_reg, 0))
     }
 
     _intr_tmp_pop(ctx, base)

@@ -226,16 +226,19 @@
 <p>					  no-cache traces reduced <code>collect_toplevel_rename_pairs</code> from the</p>
 <p>					  prior roughly 16s to about 11.4s and <code>scope_push</code> from about 8.6s</p>
 <p>					  to about 5.7s. Default optimizer phase logging now keeps only</p>
-<p>						  aggregate timings and gates deep fold/list/const counters plus</p>
-<p>						  hot-function rankings behind <code>OREN_TRACE_OPTIMIZER_DETAIL=1</code>; the</p>
-<p>						  optimizer summary marker dropped from about 21s to about 2ms in a</p>
-<p>						  compiler-shaped x64 trace. X64 string literal lowering now checks a</p>
-<p>						  bounded 32-entry C-string MRU before the existing data dedup map, and</p>
-<p>						  <code>rename_stmt</code> now uses independent early-return branches instead of a</p>
-<p>						  nested <code>else if</code> chain. The same focused compiler-shaped trace reduced</p>
-<p>						  <code>rename_stmt</code> from about 64.8s to about 12.1s and moved the active</p>
-<p>						  diagnostic past <code>rename_expr</code> into later user-function emission around</p>
-<p>						  native ABI/codegen helpers.</p>
+<p>					  aggregate timings and gates deep fold/list/const counters plus</p>
+<p>					  hot-function rankings behind <code>OREN_TRACE_OPTIMIZER_DETAIL=1</code>; the</p>
+<p>					  optimizer summary marker dropped from about 21s to about 2ms in a</p>
+<p>					  compiler-shaped x64 trace. X64 string literal lowering now checks a</p>
+<p>					  bounded 32-entry C-string MRU before the existing data dedup map, and</p>
+<p>					  <code>rename_stmt</code> now uses independent early-return branches instead of a</p>
+<p>					  nested <code>else if</code> chain. The same focused compiler-shaped trace reduced</p>
+<p>					  <code>rename_stmt</code> from about 64.8s to about 12.1s and moved the active</p>
+<p>					  diagnostic past <code>rename_expr</code>. X64 backend instruction emission now</p>
+<p>					  calls <code>x64_core</code> builders directly instead of compiling a duplicate</p>
+<p>					  prelude forwarding layer; the compiler-shaped trace reduced linked x64</p>
+<p>					  functions from 2598 to 2501, with the remaining active hotspot in real</p>
+<p>					  <code>x64_core</code> instruction-builder/user-function emission.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

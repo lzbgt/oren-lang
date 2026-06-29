@@ -192,8 +192,11 @@ This file is the concise task view. Detailed implementation status lives in
 													     `rename_stmt` now uses independent early-return branches instead of a
 													     nested `else if` chain. The same focused compiler-shaped trace reduced
 													     `rename_stmt` from about 64.8s to about 12.1s and moved the active
-													     diagnostic past `rename_expr` into later user-function emission around
-													     native ABI/codegen helpers.
+													     diagnostic past `rename_expr`. X64 backend instruction emission now
+													     calls `x64_core` builders directly instead of compiling a duplicate
+													     prelude forwarding layer; the compiler-shaped trace reduced linked x64
+													     functions from 2598 to 2501, with the remaining active hotspot in real
+													     `x64_core` instruction-builder/user-function emission.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

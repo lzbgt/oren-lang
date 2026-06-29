@@ -29,7 +29,7 @@ fn _emit_call_rel32_3args_x64(ctx, locals, sym, arg0_off, arg1_off, arg2_off) {
     _emit_mov_r64_mrbp(ctx, a1, 0 - arg1_off)
     _emit_mov_r64_mrbp(ctx, a2, 0 - arg2_off)
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
     return nil
 }
@@ -112,7 +112,7 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_cont)
 
     // If container is nil, panic deterministically.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     var labels = {}
     var local_fixups = []
     var l_non_nil = _new_label(ctx, "idx_set_non_nil")
@@ -124,7 +124,7 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
 
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_is_list = _new_label(ctx, "idx_set_is_list")
     var l_is_map = _new_label(ctx, "idx_set_is_map")
     var l_done = _new_label(ctx, "idx_set_done")
@@ -136,12 +136,12 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         _emit_label(ctx, labels, l_trk_ok)
 
         // kind = *(node + 16)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2)) // LIST
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
         _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
     } else if recv_kind == "list_int" {
@@ -151,10 +151,10 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         _emit_label(ctx, labels, l_trk_ok_int)
 
         // kind = *(node + 16)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
         _emit_abort_panic_str(ctx, "index_set recv_kind=list_int but value is not a list_int")
     } else if recv_kind == "map" {
@@ -164,10 +164,10 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         _emit_label(ctx, labels, l_trk_ok2)
 
         // kind = *(node + 16)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3)) // MAP
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 3)) // MAP
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
         _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
     } else {
@@ -178,15 +178,15 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         _emit_label(ctx, labels, l_trk_ok3)
 
         // kind = *(node + 16)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
 
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 3))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
         _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
     }

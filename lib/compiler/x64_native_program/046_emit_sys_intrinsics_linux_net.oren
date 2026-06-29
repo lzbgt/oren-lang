@@ -31,12 +31,12 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         _intr_load_x64(ctx, 7, tmp_dom)
         _intr_load_x64(ctx, 6, tmp_type)
         _intr_load_x64(ctx, 2, tmp_proto)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_socket()))
-        bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_socket()))
+        bytes_extend(ctx["code"], core.insn_syscall())
 
         // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
         if capsule {
-            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = fd
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
             _intr_load_x64(ctx, 6, tmp_dom)
             _intr_load_x64(ctx, 2, tmp_type)
             _intr_load_x64(ctx, 1, tmp_proto)
@@ -74,11 +74,11 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
             _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_connect()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_connect()))
+            bytes_extend(ctx["code"], core.insn_syscall())
 
             if capsule {
-                bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
+                bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
                 _intr_load_x64(ctx, 6, tmp_fd)
                 _intr_load_x64(ctx, 2, tmp_addr)
                 _intr_load_x64(ctx, 1, tmp_len)
@@ -95,11 +95,11 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
             _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_bind()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_bind()))
+            bytes_extend(ctx["code"], core.insn_syscall())
 
             if capsule {
-                bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
+                bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
                 _intr_load_x64(ctx, 6, tmp_fd)
                 _intr_load_x64(ctx, 2, tmp_addr)
                 _intr_load_x64(ctx, 1, tmp_len)
@@ -116,8 +116,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
             _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_getpeername()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getpeername()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         } else {
             if capsule {
                 _intr_load_x64(ctx, 7, tmp_fd)
@@ -129,8 +129,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
             _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_getsockname()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getsockname()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         }
 
         _intr_tmp_pop(ctx, base27)
@@ -160,11 +160,11 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_arg)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_listen()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_listen()))
+            bytes_extend(ctx["code"], core.insn_syscall())
 
             if capsule {
-                bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
+                bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
                 _intr_load_x64(ctx, 6, tmp_fd)
                 _intr_load_x64(ctx, 2, tmp_arg)
                 _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
@@ -178,8 +178,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_arg)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_shutdown()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_shutdown()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         }
 
         _intr_tmp_pop(ctx, base28)
@@ -212,12 +212,12 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         _intr_load_x64(ctx, 7, tmp_fd)
         _intr_load_x64(ctx, 6, tmp_addr)
         _intr_load_x64(ctx, 2, tmp_lenp)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_accept()))
-        bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_accept()))
+        bytes_extend(ctx["code"], core.insn_syscall())
 
         // post: native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) -> newfd
         if capsule {
-            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = newfd
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = newfd
             _intr_load_x64(ctx, 6, tmp_fd)
             _intr_load_x64(ctx, 2, tmp_addr)
             _intr_load_x64(ctx, 1, tmp_lenp)
@@ -261,8 +261,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 2, tmp_opt)
             _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
             _intr_load_x64(ctx, 8, tmp_lenp)  // r8 = optlen_ptr (arg5)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_getsockopt()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getsockopt()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         } else {
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_level)
@@ -276,8 +276,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 2, tmp_opt)
             _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
             _intr_load_x64(ctx, 8, tmp_lenp)  // r8 = optlen
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_setsockopt()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_setsockopt()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         }
 
         _intr_tmp_pop(ctx, base30)
@@ -321,8 +321,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 10, o3) // r10=flags
             _intr_load_x64(ctx, 8, o4)
             _intr_load_x64(ctx, 9, o5)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_sendto()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_sendto()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         } else {
             _intr_load_x64(ctx, 7, o0)
             _intr_load_x64(ctx, 6, o1)
@@ -338,8 +338,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
             _intr_load_x64(ctx, 10, o3)
             _intr_load_x64(ctx, 8, o4)
             _intr_load_x64(ctx, 9, o5)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_recvfrom()))
-            bytes_extend(ctx["code"], insn_syscall())
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_recvfrom()))
+            bytes_extend(ctx["code"], core.insn_syscall())
         }
 
         _intr_tmp_pop(ctx, base31)
@@ -365,12 +365,12 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         }
 
         _intr_load_x64(ctx, 7, tmp_flags)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_epoll_create1()))
-        bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_create1()))
+        bytes_extend(ctx["code"], core.insn_syscall())
 
         // post: native_capsule_sys_epoll_create1_post(epfd) -> epfd
         if capsule {
-            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
             _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_post")
         }
 
@@ -407,8 +407,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         _intr_load_x64(ctx, 6, a1)
         _intr_load_x64(ctx, 2, a2)
         _intr_load_x64(ctx, 10, a3) // arg4
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_epoll_ctl()))
-        bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_ctl()))
+        bytes_extend(ctx["code"], core.insn_syscall())
 
         _intr_tmp_pop(ctx, base33)
         return true
@@ -451,8 +451,8 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         _intr_load_x64(ctx, 10, b3) // timeout_ms
         _intr_load_x64(ctx, 8, b4)  // sigmask_ptr
         _intr_load_x64(ctx, 9, b5)  // sigsetsize
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_epoll_pwait()))
-        bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_pwait()))
+        bytes_extend(ctx["code"], core.insn_syscall())
 
         _intr_tmp_pop(ctx, base34)
         return true

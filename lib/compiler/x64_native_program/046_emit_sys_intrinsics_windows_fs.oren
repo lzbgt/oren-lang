@@ -34,12 +34,12 @@ var WIN64_PATH_SCRATCH_TWO = 4160  // 64 + 4096 (shadow+slack + two buffers)
 fn _emit_win64_path_norm_begin_x64(ctx, scratch_bytes) {
     // Reserve a private call-area + scratch space for a single WinAPI call.
     // Must be 16B-aligned so the called WinAPI sees a properly aligned RSP.
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(scratch_bytes))
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(scratch_bytes))
     return nil
 }
 
 fn _emit_win64_path_norm_end_x64(ctx, scratch_bytes) {
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(scratch_bytes))
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(scratch_bytes))
     return nil
 }
 
@@ -56,14 +56,14 @@ fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
     // Uses/clobbers: r8, r9, r10, r11, eax.
     //
     // r10 = dst_start
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(10, 64))
-    if buf_add != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(10, buf_add)) }
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(10, 64))
+    if buf_add != 0 { bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, buf_add)) }
     // r9 = dst_cursor
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 10))
     // r11 = src_cursor
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, src_reg))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, src_reg))
     // r8 = remaining (leave room for NUL)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, WIN64_PATH_BUF_BYTES - 1))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, WIN64_PATH_BUF_BYTES - 1))
 
     var labels = {}
     var fixups = []
@@ -74,39 +74,39 @@ fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
 
     _emit_label(ctx, labels, l_loop)
     // eax = *src_cursor
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 11))
     // if eax == 0 => done
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_done)
     // if remaining == 0 => trunc (write NUL and finish)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_trunc)
 
     // if eax == '/' => eax = '\\'
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 47))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 47))
     _emit_jcc_to_label(ctx, fixups, "ne", l_store)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 92))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 92))
 
     _emit_label(ctx, labels, l_store)
     // *dst_cursor = al
-    bytes_extend(ctx["code"], insn_mov_mr8_al(9))
+    bytes_extend(ctx["code"], core.insn_mov_mr8_al(9))
     // src_cursor++ ; dst_cursor++ ; remaining--
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(9, 1))
-    bytes_extend(ctx["code"], insn_sub_r64_imm32(8, 1))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 1))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(8, 1))
     _emit_jmp_to_label(ctx, fixups, l_loop)
 
     _emit_label(ctx, labels, l_trunc)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(9))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mr8_al(9))
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_done)
     // Always NUL-terminate (idempotent if already written by trunc branch).
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(9))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mr8_al(9))
     // src_reg = dst_start (r10)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(src_reg, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(src_reg, 10))
 
     _patch_local_fixups(ctx, labels, fixups)
     return nil
@@ -129,14 +129,14 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     var l_done = _new_label(ctx, "win32_err_done")
 
     // ERROR_FILE_NOT_FOUND(2) / ERROR_PATH_NOT_FOUND(3) -> ENOENT(2)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 2))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 2))
     var l_next0 = _new_label(ctx, "win32_err_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 2)
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next0)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 3))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 3))
     var l_next1 = _new_label(ctx, "win32_err_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 2)
@@ -144,7 +144,7 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next1)
 
     // ERROR_ACCESS_DENIED(5) -> EACCES(13)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 5))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 5))
     var l_next2 = _new_label(ctx, "win32_err_next2")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
     _emit_set_rax_neg_errno_x64(ctx, 13)
@@ -152,7 +152,7 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next2)
 
     // ERROR_INVALID_HANDLE(6) -> EBADF(9)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 6))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6))
     var l_next3 = _new_label(ctx, "win32_err_next3")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
     _emit_set_rax_neg_errno_x64(ctx, 9)
@@ -160,7 +160,7 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next3)
 
     // ERROR_SHARING_VIOLATION(32) -> EBUSY(16)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 32))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 32))
     var l_next4 = _new_label(ctx, "win32_err_next4")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next4)
     _emit_set_rax_neg_errno_x64(ctx, 16)
@@ -168,14 +168,14 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next4)
 
     // ERROR_FILE_EXISTS(80) / ERROR_ALREADY_EXISTS(183) -> EEXIST(17)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 80))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 80))
     var l_next5 = _new_label(ctx, "win32_err_next5")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next5)
     _emit_set_rax_neg_errno_x64(ctx, 17)
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next5)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 183))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 183))
     var l_next6 = _new_label(ctx, "win32_err_next6")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next6)
     _emit_set_rax_neg_errno_x64(ctx, 17)
@@ -183,7 +183,7 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next6)
 
     // ERROR_DIR_NOT_EMPTY(145) -> ENOTEMPTY(39)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 145))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 145))
     var l_next7 = _new_label(ctx, "win32_err_next7")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next7)
     _emit_set_rax_neg_errno_x64(ctx, 39)
@@ -191,7 +191,7 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next7)
 
     // ERROR_NOT_SAME_DEVICE(17) -> EXDEV(18)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 17))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 17))
     var l_next8 = _new_label(ctx, "win32_err_next8")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next8)
     _emit_set_rax_neg_errno_x64(ctx, 18)
@@ -243,7 +243,7 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
 
         // rcx = resolved path pointer from pair[0]
         _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11))
     } else {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
     }
@@ -271,7 +271,7 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     // This is a cheap directory probe, and avoids relying on CreateFileA to open directories.
     // INVALID_FILE_ATTRIBUTES (0xFFFFFFFF) indicates failure.
     _emit_call_iat_x64(ctx, "IAT_GetFileAttributesA")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_attr_ok)
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
@@ -281,53 +281,53 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     // If FILE_ATTRIBUTE_DIRECTORY (0x10) is set, emit a directory stat and return rc=0.
     // This is required for mkdir_p on Windows: creating an existing directory returns -EEXIST,
     // and without directory-capable stat, mkdir_p cannot distinguish "dir exists" vs "path is file".
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))    // r10 = attrs
-    bytes_extend(ctx["code"], insn_and_r64_imm32(10, 16)) // r10 &= 0x10
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))    // r10 = attrs
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(10, 16)) // r10 &= 0x10
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_do_file)
 
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
 
     // --- Translate into OrenStatV0 at st_ptr (directory) ---
     _intr_load_x64(ctx, 9, tmp_st)                    // r9 = st_ptr
-    bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8))  // r8 = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8))  // r8 = 0
     var zoff_dir = 0
     while zoff_dir < nstat.oren_stat_v0_size_bytes() {
-        bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, zoff_dir, 8))
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, zoff_dir, 8))
         zoff_dir = zoff_dir + 4
     }
     // mode: directory (approx): 0o040755 = 16877
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 16877))
-    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 16877))
+    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_do_file)
 
     // Restore rcx to the normalized path buffer (Win64 ABI treats rcx as volatile; the
     // prior GetFileAttributesA call may have clobbered it).
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(1, 64))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(1, 64))
 
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 7))          // r8d = share
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 7))          // r8d = share
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
 
     // arg5 creation disposition = OPEN_EXISTING (3)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 3))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 3))
     _emit_mov_mrsp_r64(ctx, 32, 10)
     // arg6 flags/attrs = FILE_ATTRIBUTE_NORMAL (0x80)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 128))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 128))
     _emit_mov_mrsp_r64(ctx, 40, 10)
     // arg7 template = NULL
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
     _emit_mov_mrsp_r64(ctx, 48, 10)
 
     _emit_call_iat_x64(ctx, "IAT_CreateFileA")
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
 
     // if handle == INVALID_HANDLE_VALUE (-1) => fail
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_handle_ok)
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
@@ -338,47 +338,47 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
 
     // --- Translate into OrenStatV0 at st_ptr ---
     _intr_load_x64(ctx, 9, tmp_st)                 // r9 = st_ptr
-    bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // r8 = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8 = 0
     var zoff = 0
     while zoff < nstat.oren_stat_v0_size_bytes() {
-        bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, zoff, 8))
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, zoff, 8))
         zoff = zoff + 4
     }
     // mode: regular file (approx): 0o100644 = 33188
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 33188))
-    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 33188))
+    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
 
     // LARGE_INTEGER out at [rsp+0x28] (reuse call-area; avoid intrinsic temp pointers)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(40, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(44, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(48, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(52, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(48, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(52, 0))
 
     // Reload handle from the spilled slot: intermediate helpers may clobber rax.
     _intr_load_x64(ctx, 1, tmp_handle)                          // rcx = handle
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, 40))     // rdx = &li
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(2, 40))     // rdx = &li
     _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
 
     // If GetFileSizeEx fails, keep size=0 (rolling, still treat stat as success).
     // Load size from li.QuadPart (8 bytes at [rsp+0x28]) into r8.
     _intr_load_x64(ctx, 9, tmp_st) // reload st_ptr (volatile regs are clobbered by WinAPI calls)
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(8, 40))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(9, 8)) // [st_ptr+0] = size
+    bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp8(8, 40))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(9, 8)) // [st_ptr+0] = size
 
     // CloseHandle(handle) (best-effort).
     _intr_load_x64(ctx, 1, tmp_handle) // rcx = handle
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
 
     // rc = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
         _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
         if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
         else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
@@ -404,7 +404,7 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     // fd (with capsule gating)
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre") }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
@@ -425,34 +425,34 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     // rax = fd
     _intr_load_x64(ctx, 0, tmp_fd)
     // if fd == 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     var l_chk1 = _new_label(ctx, "sys_fstat_chk1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_chk1)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967286)) // ecx=-10 STD_INPUT_HANDLE
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967286)) // ecx=-10 STD_INPUT_HANDLE
     _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
     _emit_jmp_to_label(ctx, fixups, l_have_handle)
     _emit_label(ctx, labels, l_chk1)
 
     // if fd == 1
     _intr_load_x64(ctx, 0, tmp_fd)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1))
     var l_chk2 = _new_label(ctx, "sys_fstat_chk2")
     _emit_jcc_to_label(ctx, fixups, "ne", l_chk2)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx=-11 STD_OUTPUT_HANDLE
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285)) // ecx=-11 STD_OUTPUT_HANDLE
     _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
     _emit_jmp_to_label(ctx, fixups, l_have_handle)
     _emit_label(ctx, labels, l_chk2)
 
     // if fd == 2
     _intr_load_x64(ctx, 0, tmp_fd)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 2))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 2))
     var l_else = _new_label(ctx, "sys_fstat_else")
     _emit_jcc_to_label(ctx, fixups, "ne", l_else)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967284)) // ecx=-12 STD_ERROR_HANDLE
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967284)) // ecx=-12 STD_ERROR_HANDLE
     _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
     _emit_jmp_to_label(ctx, fixups, l_have_handle)
     _emit_label(ctx, labels, l_else)
 
@@ -462,9 +462,9 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_have_handle)
 
     // Validate handle != 0 and != INVALID_HANDLE_VALUE (-1)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
     _emit_jmp_to_label(ctx, fixups, l_ok)
 
@@ -483,13 +483,13 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     // LARGE_INTEGER tmp (16B, aligned) in intrinsic temp slots (avoid mutating RSP).
     var off_li0 = _intr_tmp_off(ctx, locals, base + 2)
     if oren_type_tag(off_li0) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 11)) // rcx = handle
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 11)) // rcx = handle
     _emit_addr_rbp_minus_off_x64(ctx, 2, off_li0)         // rdx = &li
     _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_size_ok)
     // size = 0
-    bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_jmp_to_label(ctx, fixups, l_size_done)
     _emit_label(ctx, labels, l_size_ok)
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_li0) // r10 = li.QuadPart
@@ -497,24 +497,24 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
 
     // st_ptr
     _intr_load_x64(ctx, 8, tmp_st) // r8 = st_ptr
-    bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9)) // r9 = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
     var zoff2 = 0
     while zoff2 < nstat.oren_stat_v0_size_bytes() {
-        bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, zoff2, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(8, zoff2, 9))
         zoff2 = zoff2 + 4
     }
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(8, 10)) // size
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(8, 10)) // size
 
     // rc = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_fstat_post(rc) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
     }
 
@@ -547,7 +547,7 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
 
         // rcx = resolved path pointer from pair[0]
         _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11))
     } else {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
     }
@@ -565,22 +565,22 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     var l_done = _new_label(ctx, "sys_unlink_win_done")
 
     // if eax != 0 => ok
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: unlink_post(pair, rc) / rmdir_post(pair, rc) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
         _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
         if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
         else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
@@ -617,10 +617,10 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
 
         // existing = *(u64*)bundle (rcx), new = *(u64*)(bundle+16) (rdx)
         _intr_load_x64(ctx, 11, tmp_bundle)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10)) // rdx = to_ptr
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(2, 10)) // rdx = to_ptr
     } else {
         _intr_load_x64(ctx, 1, tmp_from) // rcx = from
         _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
@@ -631,7 +631,7 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0)                    // rcx = from
     _emit_win64_path_norm_reg_to_buf_x64(ctx, 2, WIN64_PATH_BUF_BYTES)  // rdx = to
     // flags = MOVEFILE_REPLACE_EXISTING (1)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1)) // r8d
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1)) // r8d
     _emit_call_iat_x64(ctx, "IAT_MoveFileExA")
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_TWO)
 
@@ -640,22 +640,22 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     var l_ok = _new_label(ctx, "sys_rename_win_ok")
     var l_done = _new_label(ctx, "sys_rename_win_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_rename_post(bundle, rc) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
         _intr_load_x64(ctx, 1, tmp_bundle)                // rcx = bundle
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
     }
@@ -691,7 +691,7 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
 
         // rcx = resolved path pointer from pair[0]
         _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11))
     } else {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
     }
@@ -700,7 +700,7 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
         // CreateDirectoryA(path, NULL) -> BOOL
         _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
         _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // rdx = NULL
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0)) // rdx = NULL
         _emit_call_iat_x64(ctx, "IAT_CreateDirectoryA")
         _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
     } else {
@@ -709,7 +709,7 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
         // Windows does not have POSIX permission bits. Until we design a real mapping
         // (READONLY attribute, ACL translation, or a VFS-level policy), treat chmod as a
         // no-op that reports success once capsule gating has been enforced by the prehook.
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // BOOL ok sentinel
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // BOOL ok sentinel
     }
 
     // For both mkdir/chmod: BOOL result in eax (nonzero = ok)
@@ -718,22 +718,22 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
     var l_ok = _new_label(ctx, "sys_mkdir_chmod_ok")
     var l_done = _new_label(ctx, "sys_mkdir_chmod_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: mkdir_post(pair, rc) / chmod_post(pair, rc) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
         _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
         if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
         else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }

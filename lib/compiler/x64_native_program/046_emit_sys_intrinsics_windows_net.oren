@@ -14,17 +14,17 @@
 
 fn _emit_call_iat_x64(ctx, data_label) {
     var mov_iat = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat + 3, data_label)
-    bytes_extend(ctx["code"], insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_call_rax())
     return nil
 }
 
 fn _emit_set_rax_neg_errno_x64(ctx, errnum) {
     // rax = -errno
     var imm = 4294967296 - (errnum & 4294967295)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, imm))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     return nil
 }
 
@@ -40,7 +40,7 @@ fn _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsa_get_last_error does not support spread"); return nil }
 
     _emit_call_iat_x64(ctx, "IAT_WSAGetLastError")
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_cdqe())
     return nil
 }
 
@@ -54,7 +54,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     var l_done = _new_label(ctx, "wsa_err_done")
 
     // WSAEWOULDBLOCK(10035) -> EAGAIN(11)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10035))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10035))
     var l_next0 = _new_label(ctx, "wsa_err_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 11)
@@ -62,7 +62,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next0)
 
     // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10036))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10036))
     var l_next1 = _new_label(ctx, "wsa_err_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 115)
@@ -70,7 +70,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next1)
 
     // WSAEALREADY(10037) -> EALREADY(114)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10037))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10037))
     var l_next2 = _new_label(ctx, "wsa_err_next2")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
     _emit_set_rax_neg_errno_x64(ctx, 114)
@@ -78,7 +78,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next2)
 
     // WSAETIMEDOUT(10060) -> ETIMEDOUT(60)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10060))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10060))
     var l_next3 = _new_label(ctx, "wsa_err_next3")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
     _emit_set_rax_neg_errno_x64(ctx, 60)
@@ -86,7 +86,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next3)
 
     // WSAECONNREFUSED(10061) -> ECONNREFUSED(111)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10061))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10061))
     var l_next4 = _new_label(ctx, "wsa_err_next4")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next4)
     _emit_set_rax_neg_errno_x64(ctx, 111)
@@ -94,7 +94,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next4)
 
     // WSAEADDRINUSE(10048) -> EADDRINUSE(98)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10048))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10048))
     var l_next5 = _new_label(ctx, "wsa_err_next5")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next5)
     _emit_set_rax_neg_errno_x64(ctx, 98)
@@ -102,7 +102,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next5)
 
     // WSAEINVAL(10022) -> EINVAL(22)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10022))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10022))
     var l_next6 = _new_label(ctx, "wsa_err_next6")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next6)
     _emit_set_rax_neg_errno_x64(ctx, 22)
@@ -110,7 +110,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next6)
 
     // WSAENOTSOCK(10038) -> ENOTSOCK(88) (Linux number; used only for diagnostics)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10038))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10038))
     var l_next7 = _new_label(ctx, "wsa_err_next7")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next7)
     _emit_set_rax_neg_errno_x64(ctx, 88)
@@ -118,7 +118,7 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     _emit_label(ctx, labels, l_next7)
 
     // WSAECONNRESET(10054) -> ECONNRESET(104)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10054))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10054))
     var l_next8 = _new_label(ctx, "wsa_err_next8")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next8)
     _emit_set_rax_neg_errno_x64(ctx, 104)
@@ -142,7 +142,7 @@ fn _emit_wsa_last_error_to_neg_errno_connect_x64(ctx) {
     var l_done = _new_label(ctx, "wsa_err_connect_done")
 
     // WSAEWOULDBLOCK(10035) -> EINPROGRESS(115)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10035))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10035))
     var l_next0 = _new_label(ctx, "wsa_err_connect_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 115)
@@ -150,7 +150,7 @@ fn _emit_wsa_last_error_to_neg_errno_connect_x64(ctx) {
     _emit_label(ctx, labels, l_next0)
 
     // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10036))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10036))
     var l_next1 = _new_label(ctx, "wsa_err_connect_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 115)
@@ -174,39 +174,39 @@ fn _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx) {
     var l_done = _new_label(ctx, "wsa_to_posix_done")
 
     // if eax == 0 => keep 0
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_done)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10060)) // WSAETIMEDOUT
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10060)) // WSAETIMEDOUT
     var l_next0 = _new_label(ctx, "wsa_to_posix_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 60))
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next0)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10061)) // WSAECONNREFUSED
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10061)) // WSAECONNREFUSED
     var l_next1 = _new_label(ctx, "wsa_to_posix_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 111))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 111))
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next1)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10048)) // WSAEADDRINUSE
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10048)) // WSAEADDRINUSE
     var l_next2 = _new_label(ctx, "wsa_to_posix_next2")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 98))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 98))
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next2)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10022)) // WSAEINVAL
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10022)) // WSAEINVAL
     var l_next3 = _new_label(ctx, "wsa_to_posix_next3")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 22))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 22))
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next3)
 
     // Default: EIO(5)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 5))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 5))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
@@ -226,7 +226,7 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // WSAStartup(MAKEWORD(2,2), wsadata_ptr)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 514)) // ecx = 0x0202
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 514)) // ecx = 0x0202
     _intr_load_x64(ctx, 2, tmp_ws) // rdx = wsadata_ptr
     _emit_call_iat_x64(ctx, "IAT_WSAStartup")
 
@@ -234,14 +234,14 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "wsa_startup_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
     _emit_set_rax_neg_errno_x64(ctx, 5)
     var l_done = _new_label(ctx, "wsa_startup_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
@@ -282,13 +282,13 @@ fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_select_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_select_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_cdqe()) // widen rc to i64
+    bytes_extend(ctx["code"], core.insn_cdqe()) // widen rc to i64
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
@@ -330,7 +330,7 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_socket_ok")
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_socket_done")
@@ -338,7 +338,7 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_ok)
     // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd
     _intr_load_x64(ctx, 2, tmp_dom)
     _intr_load_x64(ctx, 8, tmp_type)
     _intr_load_x64(ctx, 9, tmp_proto)
@@ -384,19 +384,19 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_connect_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_connect_x64(ctx)
     var l_post = _new_label(ctx, "sys_connect_post")
     _emit_jmp_to_label(ctx, fixups, l_post)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_post)
     // post: native_capsule_sys_connect_post(rc, fd, addr, addrlen) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_addr)
     _intr_load_x64(ctx, 9, tmp_len)
@@ -440,16 +440,16 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_bind_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_post = _new_label(ctx, "sys_bind_post")
     _emit_jmp_to_label(ctx, fixups, l_post)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_post)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_addr)
     _intr_load_x64(ctx, 9, tmp_len)
@@ -488,16 +488,16 @@ fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_listen_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_post = _new_label(ctx, "sys_listen_post")
     _emit_jmp_to_label(ctx, fixups, l_post)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_post)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_backlog)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post") }
@@ -540,7 +540,7 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_accept_ok")
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_accept_done")
@@ -548,7 +548,7 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_ok)
     // post: native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) -> newfd
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = newfd
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = newfd
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_addr)
     _intr_load_x64(ctx, 9, tmp_lenp)
@@ -592,14 +592,14 @@ fn _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_getsockname_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_getsockname_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -639,14 +639,14 @@ fn _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_getpeername_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_getpeername_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -691,12 +691,12 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     // level:
     // - OREN_SOL_SOCKET(1) => SOL_SOCKET(65535)
     _intr_load_x64(ctx, 2, tmp_lvl) // rdx = level
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 1))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 1))
     var labels = {}
     var fixups = []
     var l_skip_lvl = _new_label(ctx, "setsockopt_skip_lvl")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 65535))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 65535))
     _emit_label(ctx, labels, l_skip_lvl)
 
     // optname:
@@ -705,22 +705,22 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     // - OREN_SO_KEEPALIVE(9) => SO_KEEPALIVE(8)
     _intr_load_x64(ctx, 8, tmp_opt) // r8 = optname (original)
     var l_opt_done = _new_label(ctx, "setsockopt_opt_done")
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 2))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 2))
     var l_opt_not_reuse = _new_label(ctx, "setsockopt_opt_not_reuse")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_reuse)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4))
     _emit_jmp_to_label(ctx, fixups, l_opt_done)
     _emit_label(ctx, labels, l_opt_not_reuse)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 9))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 9))
     var l_opt_not_keepalive = _new_label(ctx, "setsockopt_opt_not_keepalive")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_keepalive)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 8))
     _emit_jmp_to_label(ctx, fixups, l_opt_done)
     _emit_label(ctx, labels, l_opt_not_keepalive)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 4))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 4))
     var l_opt_not_err = _new_label(ctx, "setsockopt_opt_not_err")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_err)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4103))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4103))
     _emit_label(ctx, labels, l_opt_not_err)
     _emit_label(ctx, labels, l_opt_done)
 
@@ -734,14 +734,14 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     _emit_call_iat_x64(ctx, "IAT_setsockopt")
 
     var l_ok = _new_label(ctx, "setsockopt_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "setsockopt_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -783,32 +783,32 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
 
     // Translate level/optname.
     _intr_load_x64(ctx, 2, tmp_lvl)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 1))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 1))
     var labels = {}
     var fixups = []
     var l_skip_lvl = _new_label(ctx, "getsockopt_skip_lvl")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 65535))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 65535))
     _emit_label(ctx, labels, l_skip_lvl)
 
     _intr_load_x64(ctx, 8, tmp_opt) // r8 = optname (original)
     var l_opt_done = _new_label(ctx, "getsockopt_opt_done")
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 2))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 2))
     var l_opt_not_reuse = _new_label(ctx, "getsockopt_opt_not_reuse")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_reuse)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4))
     _emit_jmp_to_label(ctx, fixups, l_opt_done)
     _emit_label(ctx, labels, l_opt_not_reuse)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 9))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 9))
     var l_opt_not_keepalive = _new_label(ctx, "getsockopt_opt_not_keepalive")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_keepalive)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 8))
     _emit_jmp_to_label(ctx, fixups, l_opt_done)
     _emit_label(ctx, labels, l_opt_not_keepalive)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 4))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 4))
     var l_opt_not_err = _new_label(ctx, "getsockopt_opt_not_err")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_err)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4103))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4103))
     _emit_label(ctx, labels, l_opt_not_err)
     _emit_label(ctx, labels, l_opt_done)
 
@@ -820,7 +820,7 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     _emit_call_iat_x64(ctx, "IAT_getsockopt")
 
     var l_ok = _new_label(ctx, "getsockopt_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "getsockopt_done")
@@ -829,17 +829,17 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_ok)
     // Normalize SO_ERROR to POSIX errno numbers.
     _intr_load_x64(ctx, 11, tmp_opt) // r11 = original optname
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 4)) // OREN_SO_ERROR
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4)) // OREN_SO_ERROR
     var l_skip_norm = _new_label(ctx, "getsockopt_skip_norm")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_norm)
     _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(0, 10, 0)) // eax = *(u32*)optval
+    bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(0, 10, 0)) // eax = *(u32*)optval
     _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx)
-    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(10, 0, 0)) // *(u32*)optval = eax
+    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(10, 0, 0)) // *(u32*)optval = eax
     _emit_label(ctx, labels, l_skip_norm)
 
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -875,14 +875,14 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_shutdown_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_shutdown_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -941,13 +941,13 @@ fn _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_sendto_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_sendto_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -1005,13 +1005,13 @@ fn _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_recvfrom_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_recvfrom_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
@@ -1057,7 +1057,7 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_close_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
     var l_post = _new_label(ctx, "sys_close_post")
 
@@ -1065,24 +1065,24 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd) // rcx = HANDLE
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
     // CloseHandle returns BOOL; if 0 => failure => -EIO
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     var l_ch_ok = _new_label(ctx, "sys_close_ch_ok")
     _emit_jcc_to_label(ctx, fixups, "ne", l_ch_ok)
     _emit_set_rax_neg_errno_x64(ctx, 5)
     _emit_jmp_to_label(ctx, fixups, l_post)
     _emit_label(ctx, labels, l_ch_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_post)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_post)
     // post: native_capsule_sys_close_post(rc, fd) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
     }

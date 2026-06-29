@@ -307,15 +307,15 @@ fn _emit_linux_write_cstr(ctx, s) {
     var nbytes = meta["len"]
 
     // rax = 1 (SYS_write), rdi = 1 (stdout), rsi = &data, rdx = len
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // eax=1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1)) // edi=1
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // eax=1
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, 1)) // edi=1
 
     var lea_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_rsi_rip_disp32(0)) // patch disp32
+    bytes_extend(ctx["code"], core.insn_lea_rsi_rip_disp32(0)) // patch disp32
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea_rsi", "pos": lea_pos + 3, "data_off": data_off})
 
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, nbytes)) // edx=len
-    bytes_extend(ctx["code"], insn_syscall())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, nbytes)) // edx=len
+    bytes_extend(ctx["code"], core.insn_syscall())
     return nil
 }
 

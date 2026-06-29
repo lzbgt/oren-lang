@@ -21,7 +21,7 @@ fn _emit_call_rel32_1arg_x64(ctx, locals, sym, arg0_off) {
     var a0 = a0_enc - 1
     _emit_mov_r64_mrbp(ctx, a0, 0 - arg0_off)
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
     return nil
 }
@@ -40,11 +40,11 @@ fn _emit_call_rel32_4args_x64(ctx, locals, sym, arg0_off, arg1_reg, arg2_imm, ar
     var a2 = a2_enc - 1
     var a3 = a3_enc - 1
     _emit_mov_r64_mrbp(ctx, a0, 0 - arg0_off)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(a1, arg1_reg))
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(a2, arg2_imm))
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(a3, arg3_imm))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(a1, arg1_reg))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(a2, arg2_imm))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(a3, arg3_imm))
     var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
     return nil
 }
@@ -84,9 +84,9 @@ fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_len_done")
 
     // nil => 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_non_nil)
@@ -100,7 +100,7 @@ fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
 
     // tracked?
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_node_ok = _new_label(ctx, "list_len_node_ok")
     var l_node_missing = _new_label(ctx, "list_len_node_missing")
     var l_fallback_magic_ok = _new_label(ctx, "list_len_fallback_magic_ok")
@@ -109,46 +109,46 @@ fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
 
     _emit_label(ctx, labels, l_node_missing)
     // Untracked but valid list header: fallback to magic + count.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     _emit_jcc_to_label(ctx, local_fixups, "e", l_fallback_magic_ok)
     _emit_abort_panic_str(ctx, "list_len on non-list")
     _emit_label(ctx, labels, l_fallback_magic_ok)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_node_ok)
 
     // kind = *(node + 16); accept LIST and LIST_INT.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2)) // LIST
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
     var l_kind_ok = _new_label(ctx, "list_len_kind_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_abort_panic_str(ctx, "list_len on non-list")
     _emit_label(ctx, labels, l_kind_ok)
 
     // magic = *(list + 24)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     var l_magic_ok = _new_label(ctx, "list_len_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_len on non-list")
     _emit_label(ctx, labels, l_magic_ok)
 
     // count = *(list + 0)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -191,9 +191,9 @@ fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_int_len_done")
 
     // nil => 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_non_nil)
@@ -204,7 +204,7 @@ fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
 
     // tracked?
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_node_ok = _new_label(ctx, "list_int_len_node_ok")
     var l_node_missing = _new_label(ctx, "list_int_len_node_missing")
     var l_fallback_magic_ok = _new_label(ctx, "list_int_len_fallback_magic_ok")
@@ -213,44 +213,44 @@ fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
 
     _emit_label(ctx, labels, l_node_missing)
     // Untracked but valid list header: fallback to magic + count.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     _emit_jcc_to_label(ctx, local_fixups, "e", l_fallback_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_len on non-list")
     _emit_label(ctx, labels, l_fallback_magic_ok)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_node_ok)
 
     // kind = *(node + 16)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
     var l_kind_ok = _new_label(ctx, "list_int_len_kind_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_abort_panic_str(ctx, "list_int_len on non-list")
     _emit_label(ctx, labels, l_kind_ok)
 
     // magic = *(list + 24)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     var l_magic_ok = _new_label(ctx, "list_int_len_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_len on non-list")
     _emit_label(ctx, labels, l_magic_ok)
 
     // count = *(list + 0)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -293,16 +293,16 @@ fn _emit_list_int_len_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_int_len_unchecked_done")
 
     // nil => 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_non_nil)
 
     // count = *(list + 0)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -354,7 +354,7 @@ fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_push_done")
 
     // nil => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_push on nil")
     _emit_label(ctx, labels, l_non_nil)
@@ -369,69 +369,69 @@ fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)  // r8  = value
 
     // tracked?
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_node_ok = _new_label(ctx, "list_push_node_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
     _emit_abort_panic_str(ctx, "list_push on non-list")
     _emit_label(ctx, labels, l_node_ok)
 
     // kind = *(node + 16)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2)) // LIST
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
     var l_kind_ok = _new_label(ctx, "list_push_kind_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_abort_panic_str(ctx, "list_push on non-list")
     _emit_label(ctx, labels, l_kind_ok)
 
     // magic = *(list + 24)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     var l_magic_ok = _new_label(ctx, "list_push_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_push on non-list")
     _emit_label(ctx, labels, l_magic_ok)
 
     // count -> r9 ; cap -> r10 ; buf -> r11
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // cap
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0)) // cap
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // buf
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // buf
 
     // if count < cap => fast; else slow runtime call
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
 
     // Slow path: call runtime oren_list_push_unchecked(list, value), then return nil.
     _emit_call_rel32_2args_x64(ctx, locals, "oren_list_push_unchecked", off_list, off_val)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_fast)
     // addr = buf + count*8 (r10)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 9))
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11))
     // *(addr) = value
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))
     // count++ ; *(list) = count
-    bytes_extend(ctx["code"], insn_add_r64_imm32(9, 1))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(2, 9))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 9))
 
     if ctx["trace_native_list_hdr"] != nil {
         var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
@@ -443,17 +443,17 @@ fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
             var a0 = a0_enc - 1
             var a1 = a1_enc - 1
             var a2 = a2_enc - 1
-            if a0 != 2 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 2)) }
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(a1, 4)) // list_push
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(a2, 2)) // LIST
+            if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, 4)) // list_push
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, 2)) // LIST
             var call_pos = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], insn_call_rel32(0))
+            bytes_extend(ctx["code"], core.insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
         }
     }
 
     // return nil
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -507,7 +507,7 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_int_push_done")
 
     // nil => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_push on nil")
     _emit_label(ctx, labels, l_non_nil)
@@ -519,7 +519,7 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)  // r8  = value
 
     // tracked?
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_node_ok = _new_label(ctx, "list_int_push_node_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
     _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 1, 8)
@@ -527,10 +527,10 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_label(ctx, labels, l_node_ok)
 
     // kind = *(node + 16)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
     var l_kind_ok = _new_label(ctx, "list_int_push_kind_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 2, 8)
@@ -538,11 +538,11 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_label(ctx, labels, l_kind_ok)
 
     // magic = *(list + 24)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     var l_magic_ok = _new_label(ctx, "list_int_push_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 3, 8)
@@ -556,41 +556,41 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)  // r8  = value
 
     // count -> r9 ; cap -> r10 ; buf -> r11
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // cap
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0)) // cap
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // buf
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // buf
 
     // if count < cap => fast; else slow runtime call
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
 
     // Slow path: call runtime oren_list_int_push_unchecked(list, value), then return nil.
     _emit_call_rel32_2args_x64(ctx, locals, "oren_list_int_push_unchecked", off_list, off_val)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_fast)
     // addr = buf + count*8 (r10)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 9))
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11))
     // *(addr) = value
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))
     // count++ ; *(list) = count
-    bytes_extend(ctx["code"], insn_add_r64_imm32(9, 1))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(2, 9))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 9))
 
     if ctx["trace_native_list_hdr"] != nil {
         var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
@@ -602,17 +602,17 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
             var a0 = a0_enc - 1
             var a1 = a1_enc - 1
             var a2 = a2_enc - 1
-            if a0 != 2 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 2)) }
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(a1, 7)) // list_int_push
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(a2, 8)) // LIST_INT
+            if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, 7)) // list_int_push
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, 8)) // LIST_INT
             var call_pos = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], insn_call_rel32(0))
+            bytes_extend(ctx["code"], core.insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
         }
     }
 
     // return nil
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -669,7 +669,7 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_int_get_done")
 
     // nil => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_get on nil")
     _emit_label(ctx, labels, l_non_nil)
@@ -681,61 +681,61 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)  // r8  = idx
 
     // tracked?
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_node_ok)
 
     // kind = *(node + 16)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_kind_ok)
 
     // magic = *(list + 24)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_magic_ok)
 
     // count -> r9
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
 
     // idx < 0 => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
     _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
     _emit_label(ctx, labels, l_idx_nonneg)
 
     // idx >= count => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 9))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 9))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_idx_ok)
     _emit_abort_panic_str(ctx, "Index out of bounds")
     _emit_label(ctx, labels, l_idx_ok)
 
     // buf -> r10
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
 
     // addr = buf + idx*8 -> r11
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 8))
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(11, 3))
-    bytes_extend(ctx["code"], insn_add_r64_r64(11, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 8))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(11, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 10))
     // load value -> rax
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -789,7 +789,7 @@ fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_int_get_unchecked_done")
 
     // nil => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_get_unchecked on nil")
     _emit_label(ctx, labels, l_non_nil)
@@ -798,34 +798,34 @@ fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx) // r8 = idx
 
     // count -> r9
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
 
     // idx < 0 => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
     _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
     _emit_label(ctx, labels, l_idx_nonneg)
 
     // idx >= count => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 9))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 9))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_idx_ok)
     _emit_abort_panic_str(ctx, "Index out of bounds")
     _emit_label(ctx, labels, l_idx_ok)
 
     // buf -> r11
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 11))
 
     // addr = buf + idx*8
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 8))
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 8))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11))
 
     // value -> rax
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -891,7 +891,7 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     var l_done = _new_label(ctx, "list_int_set_done")
 
     // nil => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_set on nil")
     _emit_label(ctx, labels, l_non_nil)
@@ -904,26 +904,26 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_val)  // r9  = value
 
     // tracked?
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
     _emit_abort_panic_str(ctx, "list_int_set on non-list")
     _emit_label(ctx, labels, l_node_ok)
 
     // kind = *(node + 16)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_abort_panic_str(ctx, "list_int_set on non-list")
     _emit_label(ctx, labels, l_kind_ok)
 
     // magic = *(list + 24)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_set on non-list")
     _emit_label(ctx, labels, l_magic_ok)
@@ -935,18 +935,18 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_val)  // r9  = value
 
     // count -> r10
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
 
     // idx < 0 => panic
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
     _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
     _emit_label(ctx, labels, l_idx_nonneg)
 
     // idx < count => fast path
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 10))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
 
     // Slow path: call runtime oren_list_int_set(list, idx, value)
@@ -955,20 +955,20 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
 
     _emit_label(ctx, labels, l_fast)
     // buf -> r11
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
 
     // addr = buf + idx*8 -> r10
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 8))
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 8))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11))
     // *(addr) = value
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 9))
     // return value
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 9))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
@@ -1008,35 +1008,35 @@ fn _emit_list_int_reduce_sum_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
     var l_done = _new_label(ctx, "list_int_reduce_sum_slots_unchecked_done")
 
     _emit_mov_r64_mrbp(ctx, 12, 0 - off_list) // r12 = list
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(12, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_non_nil)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0)) // r15 = n
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(15, 0)) // r15 = n
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 12))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 10)) // r12 = ptr
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 12))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(12, 10)) // r12 = ptr
 
-    bytes_extend(ctx["code"], insn_xor_r64_r64(13, 13)) // r13 = sum
-    bytes_extend(ctx["code"], insn_xor_r64_r64(14, 14)) // r14 = i
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(13, 13)) // r13 = sum
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(14, 14)) // r14 = i
 
     _emit_label(ctx, labels, l_cond)
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(14, 15))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(14, 15))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_done)
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 12))
-    bytes_extend(ctx["code"], insn_add_r64_r64(13, 10))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(12, 8))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(14, 1))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 12))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 10))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(14, 1))
     _emit_jmp_to_label(ctx, local_fixups, l_cond)
 
     _emit_label(ctx, labels, l_done)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 13))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 13))
     _patch_local_fixups(ctx, labels, local_fixups)
     _intr_tmp_pop(ctx, base)
     return nil
@@ -1083,58 +1083,58 @@ fn _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_mov_r64_mrbp(ctx, 12, 0 - off_a) // r12 = a
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_b) // r13 = b
 
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(12, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_a_non_nil)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(13, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_b_non_nil)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_b_non_nil)
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
     _emit_label(ctx, labels, l_a_non_nil)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(13, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_lengths_ok)
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
 
     _emit_label(ctx, labels, l_lengths_ok)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(3, 0)) // rbx = na
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(3, 0)) // rbx = na
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 13))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(3, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 13))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(3, 0))
     var l_same_n = _new_label(ctx, "list_int_dot_slots_unchecked_same_n")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_same_n)
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
     _emit_label(ctx, labels, l_same_n)
 
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 12))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 10)) // r12 = pa
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 13))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(13, 10)) // r13 = pb
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 12))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(12, 10)) // r12 = pa
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 13))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(13, 10)) // r13 = pb
 
-    bytes_extend(ctx["code"], insn_xor_r64_r64(14, 14)) // r14 = sum
-    bytes_extend(ctx["code"], insn_xor_r64_r64(15, 15)) // r15 = i
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(14, 14)) // r14 = sum
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(15, 15)) // r15 = i
 
     _emit_label(ctx, labels, l_cond)
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(15, 3))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(15, 3))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_done)
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 12))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 13))
-    bytes_extend(ctx["code"], insn_imul_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(12, 8))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(13, 8))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(15, 1))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 12))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 13))
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(14, 10))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(13, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(15, 1))
     _emit_jmp_to_label(ctx, local_fixups, l_cond)
 
     _emit_label(ctx, labels, l_done)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 14))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 14))
     _patch_local_fixups(ctx, labels, local_fixups)
     _intr_tmp_pop(ctx, base)
     return nil

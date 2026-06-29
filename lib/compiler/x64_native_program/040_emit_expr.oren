@@ -4,20 +4,20 @@ fn _emit_abort_exitcode(ctx, exit_code) {
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
         // ExitProcess(exit_code)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, exit_code)) // mov ecx, imm32
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, exit_code)) // mov ecx, imm32
         var mov_iat_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
+        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
         _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_ExitProcess")
-        bytes_extend(ctx["code"], insn_call_rax())
-        bytes_extend(ctx["code"], insn_ret())
+        bytes_extend(ctx["code"], core.insn_call_rax())
+        bytes_extend(ctx["code"], core.insn_ret())
         return nil
     }
 
     // Linux x86_64: exit_group(exit_code) via syscall (process-wide)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, exit_code)) // mov edi, imm32
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
-    bytes_extend(ctx["code"], insn_syscall())
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, exit_code)) // mov edi, imm32
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    bytes_extend(ctx["code"], core.insn_ret())
     return nil
 }
 
@@ -35,11 +35,11 @@ fn _emit_abort_panic_str(ctx, msg) {
     var platform = ctx["platform"]
     var arg_reg = 7 // SysV: RDI
     if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // Win64: RCX
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0)) // arg = &msg
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(arg_reg, 0)) // arg = &msg
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
     _emit_panic_helper_mark_needed_x64(ctx)
     _emit_call_rel32_named_x64(ctx, _x64_panic_helper_name())
-    bytes_extend(ctx["code"], insn_ret())
+    bytes_extend(ctx["code"], core.insn_ret())
     return nil
 }
 
@@ -87,13 +87,13 @@ fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
     var l_done = _new_label(ctx, "malloc_done")
 
     // if size <= 0 => return 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
 
     // Align up to 16: (size + 15) & ~15
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 15))
-    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 4294967280)) // 0xFFFFFFF0 (-16)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // r11 = aligned size
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 15))
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, 4294967280)) // 0xFFFFFFF0 (-16)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // r11 = aligned size
     // Spill aligned size so slow paths can recompute after syscall/call clobbers volatile regs.
     _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
 
@@ -104,40 +104,40 @@ fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
         var a0m = a0m_enc - 1
         _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp0) // arg0 = aligned size
         _emit_call_rel32_named_x64(ctx, "native_try_reuse")
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
         _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
     }
 
     // candidate_end = heap_ptr + size
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 15)) // r10 = heap_ptr
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11)) // r10 = end
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 15)) // r10 = heap_ptr
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11)) // r10 = end
     // if end <= limit => fast
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 14))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 14))
     _emit_jcc_to_label(ctx, local_fixups, "le", l_fast)
 
     // --- Slow path ---
     // chunk = max(size, 65536)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11)) // r10 = chunk candidate (size)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11)) // r10 = chunk candidate (size)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 65536))
     var l_chunk_ok = _new_label(ctx, "malloc_chunk_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536)) // r10d = 65536
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 65536)) // r10d = 65536
     _emit_label(ctx, labels, l_chunk_ok)
 
     if platform != nil && platform["os"] == "windows" {
         // VirtualAlloc(0, chunk, MEM_COMMIT|MEM_RESERVE=0x3000, PAGE_READWRITE=0x04)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // ecx = 0
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 10))  // rdx = chunk
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4))     // r9d = 4
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0)) // ecx = 0
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 10))  // rdx = chunk
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 4))     // r9d = 4
 
         var mov_iat_va = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
         _x64_add_rip_data32_fixup(ctx, mov_iat_va + 3, "IAT_VirtualAlloc")
-        bytes_extend(ctx["code"], insn_call_rax())
+        bytes_extend(ctx["code"], core.insn_call_rax())
 
         // if rax == 0 => abort
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
         var l_alloc_ok = _new_label(ctx, "malloc_alloc_ok")
         _emit_jcc_to_label(ctx, local_fixups, "ne", l_alloc_ok)
         _emit_abort_exitcode(ctx, 200)
@@ -148,31 +148,31 @@ fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
         _emit_mov_r64_mrbp(ctx, 11, 0 - tmp0) // r11 = size
 
         // Recompute chunk = max(size, 65536) into r10.
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 65536))
         var l_chunk_ok3 = _new_label(ctx, "malloc_chunk_ok3")
         _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok3)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536))
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 65536))
         _emit_label(ctx, labels, l_chunk_ok3)
 
-        bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0))
-        bytes_extend(ctx["code"], insn_add_r64_r64(15, 11))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
-        bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(15, 0))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(15, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(14, 0))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(14, 10))
         _emit_jmp_to_label(ctx, local_fixups, l_done)
     } else {
         // Linux mmap syscall: mmap(0, chunk, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 9)) // eax = SYS_mmap
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 10))  // rsi = chunk
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 3)) // edx = PROT_READ|PROT_WRITE
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 34)) // r10d = MAP_PRIVATE|MAP_ANON (0x22)
-        bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1)) // r8 = -1 (fd)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))  // r9d = 0 (offset)
-        bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 9)) // eax = SYS_mmap
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 10))  // rsi = chunk
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 3)) // edx = PROT_READ|PROT_WRITE
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 34)) // r10d = MAP_PRIVATE|MAP_ANON (0x22)
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(8, -1)) // r8 = -1 (fd)
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))  // r9d = 0 (offset)
+        bytes_extend(ctx["code"], core.insn_syscall())
 
         // if rax < 0 => abort
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
         var l_mmap_ok = _new_label(ctx, "malloc_mmap_ok")
         _emit_jcc_to_label(ctx, local_fixups, "ge", l_mmap_ok)
         _emit_abort_exitcode(ctx, 200)
@@ -180,31 +180,31 @@ fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
 
         // Reload aligned size and recompute chunk into r10 (syscall clobbers rcx/r11).
         _emit_mov_r64_mrbp(ctx, 11, 0 - tmp0) // r11 = size
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 65536))
         var l_chunk_ok2 = _new_label(ctx, "malloc_chunk_ok2")
         _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok2)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536))
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 65536))
         _emit_label(ctx, labels, l_chunk_ok2)
 
         // heap_ptr = base + size; heap_limit = base + chunk
-        bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0))
-        bytes_extend(ctx["code"], insn_add_r64_r64(15, 11))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
-        bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(15, 0))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(15, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(14, 0))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(14, 10))
         _emit_jmp_to_label(ctx, local_fixups, l_done)
     }
 
     // --- Fast path ---
     _emit_label(ctx, labels, l_fast)
     // return old heap_ptr; heap_ptr = candidate_end
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 15))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(15, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 15))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(15, 10))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
         _emit_label(ctx, labels, l_ret0)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_done)
@@ -259,9 +259,9 @@ fn _x64_emit_load_g_storage_ptr_to_reg(ctx, dst_reg) {
     }
     var goff = ctx["globals"][gname] - 1
     var lea_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(dst_reg, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(dst_reg, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": goff})
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(dst_reg, dst_reg))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(dst_reg, dst_reg))
     return nil
 }
 
@@ -269,7 +269,7 @@ fn _x64_emit_load_value_singleton(ctx, dst_reg, off) {
     // Load a runtime value singleton (nil/false/true) into dst_reg.
     // Uses R10 as a scratch base register.
     _x64_emit_load_g_storage_ptr_to_reg(ctx, 10)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(dst_reg, 10, off))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(dst_reg, 10, off))
     return nil
 }
 
@@ -281,11 +281,11 @@ fn _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, falsey_label) {
     //
     // Uses R10/R11 as scratch.
     _x64_emit_load_g_storage_ptr_to_reg(ctx, 10)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(11, 10, 368)) // r11 = nil
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 10, 368)) // r11 = nil
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 11))
     _emit_jcc_to_label(ctx, local_fixups, "e", falsey_label)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(11, 10, 376)) // r11 = false
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 10, 376)) // r11 = false
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 11))
     _emit_jcc_to_label(ctx, local_fixups, "e", falsey_label)
     return nil
 }

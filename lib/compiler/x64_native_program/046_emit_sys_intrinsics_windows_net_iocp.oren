@@ -67,15 +67,15 @@ fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
     // [rsp+32]=flags_ptr, [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
     _intr_load_x64(ctx, 1, tmp_s)
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], insn_sub_r64_imm32(2, tmp_wsabuf_len))
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1))      // r8d = 1
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, tmp_wsabuf_len))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
     _intr_load_x64(ctx, 9, tmp_bytes)                        // r9  = bytes_ptr
     _intr_load_x64(ctx, 10, tmp_flags)
     _emit_mov_mrsp_r64(ctx, 32, 10) // flags_ptr
     _intr_load_x64(ctx, 10, tmp_ov)
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
-    bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
 
     _emit_call_iat_x64(ctx, "IAT_WSARecv")
@@ -88,30 +88,30 @@ fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
     var l_pending_ok = _new_label(ctx, "wsarecv_pending_ok")
     var l_done = _new_label(ctx, "wsarecv_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok) // nonstandard but treat any non -1 as success
 
     _emit_wsa_get_last_error_x64(ctx) // eax = last error
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
     _emit_jcc_to_label(ctx, fixups, "e", l_pending_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_pending_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_wsarecv_post(rc, sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _intr_load_x64(ctx, 2, tmp_s)
         _intr_load_x64(ctx, 8, tmp_buf)
         _intr_load_x64(ctx, 9, tmp_len)
@@ -200,9 +200,9 @@ fn _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) {
     // [rsp+32]=flags_ptr, [rsp+40]=sa_out, [rsp+48]=sa_lenp,
     // [rsp+56]=ov_ptr, [rsp+64]=NULL(completionRoutine)
     _intr_load_x64(ctx, 1, tmp_s)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], insn_sub_r64_imm32(2, tmp_wsabuf_len))
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1)) // r8d = 1
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, tmp_wsabuf_len))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1)) // r8d = 1
     _intr_load_x64(ctx, 9, tmp_bytes)                   // r9 = bytes_ptr
     _intr_load_x64(ctx, 10, tmp_flags)
     _emit_mov_mrsp_r64(ctx, 32, 10)
@@ -212,7 +212,7 @@ fn _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) {
     _emit_mov_mrsp_r64(ctx, 48, 10)
     _intr_load_x64(ctx, 10, tmp_ov)
     _emit_mov_mrsp_r64(ctx, 56, 10)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 64, 10) // completionRoutine=NULL
 
     _emit_call_iat_x64(ctx, "IAT_WSARecvFrom")
@@ -223,30 +223,30 @@ fn _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) {
     var l_pending_ok = _new_label(ctx, "wsarecvfrom_pending_ok")
     var l_done = _new_label(ctx, "wsarecvfrom_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_wsa_get_last_error_x64(ctx)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
     _emit_jcc_to_label(ctx, fixups, "e", l_pending_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_pending_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_wsarecvfrom_post(rc, sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr, sa_out, sa_lenp) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _intr_load_x64(ctx, 2, tmp_s)
         _intr_load_x64(ctx, 8, tmp_buf)
         _intr_load_x64(ctx, 9, tmp_len)
@@ -327,15 +327,15 @@ fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
     // [rsp+32]=flags (DWORD, in low bits), [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
     _intr_load_x64(ctx, 1, tmp_s)
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], insn_sub_r64_imm32(2, tmp_wsabuf_len))
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1))      // r8d = 1
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, tmp_wsabuf_len))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
     _intr_load_x64(ctx, 9, tmp_bytes)                        // r9  = bytes_ptr
     _intr_load_x64(ctx, 0, tmp_flags)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r32(32, 0)) // flags DWORD (eax)
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r32(32, 0)) // flags DWORD (eax)
     _intr_load_x64(ctx, 10, tmp_ov)
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
-    bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
 
     _emit_call_iat_x64(ctx, "IAT_WSASend")
@@ -346,30 +346,30 @@ fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
     var l_pending_ok = _new_label(ctx, "wsasend_pending_ok")
     var l_done = _new_label(ctx, "wsasend_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_wsa_get_last_error_x64(ctx)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
     _emit_jcc_to_label(ctx, fixups, "e", l_pending_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_pending_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_wsasend_post(rc, sock, buf, len, flags, bytes_ptr, overlapped_ptr) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _intr_load_x64(ctx, 2, tmp_s)
         _intr_load_x64(ctx, 8, tmp_buf)
         _intr_load_x64(ctx, 9, tmp_len)
@@ -404,20 +404,20 @@ fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
 
     // pre: native_capsule_sys_fcntl_pre(fd, F_GETFL, 0)
     _intr_load_x64(ctx, 1, tmp_fd)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 0))
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
 
     // WinSock does not expose an equivalent F_GETFL for sockets; return 0 (blocking).
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
     if capsule {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_getfl())) // r8 = cmd
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0)) // r9 = arg
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, labi.posix_fcntl_f_getfl())) // r8 = cmd
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0)) // r9 = arg
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
     }
 
@@ -444,7 +444,7 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
 
     // pre: native_capsule_sys_fcntl_pre(fd, F_SETFL, oren_flags)
     _intr_load_x64(ctx, 1, tmp_fd)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
     _intr_load_x64(ctx, 8, tmp_flags)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
 
@@ -452,38 +452,38 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     //
     // mode is u_long (32-bit). Use the call-area scratch at [rsp+0x20] as storage.
     // Initialize to 0, set to 1 if (flags & OREN_O_NONBLOCK) != 0.
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0)) // mode=0
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0)) // mode=0
     _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
-    bytes_extend(ctx["code"], insn_and_r64_imm32(10, OREN_O_NONBLOCK))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(10, OREN_O_NONBLOCK))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 0))
     var labels = {}
     var fixups = []
     var l_skip = _new_label(ctx, "fcntl_setfl_win_skip")
     _emit_jcc_to_label(ctx, fixups, "e", l_skip)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 1)) // mode=1
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 1)) // mode=1
     _emit_label(ctx, labels, l_skip)
 
     _intr_load_x64(ctx, 1, tmp_fd) // rcx = fd
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 2147772030)) // edx = FIONBIO (0x8004667e)
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(8, 32)) // r8 = &mode
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147772030)) // edx = FIONBIO (0x8004667e)
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(8, 32)) // r8 = &mode
     _emit_call_iat_x64(ctx, "IAT_ioctlsocket")
 
     // If rc == SOCKET_ERROR(-1), map; else return 0.
     var l_ok = _new_label(ctx, "fcntl_setfl_win_ok")
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_post = _new_label(ctx, "fcntl_setfl_win_post")
     _emit_jmp_to_label(ctx, fixups, l_post)
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_post)
     // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
     _intr_load_x64(ctx, 2, tmp_fd)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_setfl()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, labi.posix_fcntl_f_setfl()))
     _intr_load_x64(ctx, 9, tmp_flags) // r9 = original oren flags (debug)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post") }
 
@@ -535,14 +535,14 @@ fn _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, 
     var l_ok = _new_label(ctx, "iocp_create_ok")
     var l_done = _new_label(ctx, "iocp_create_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     // Failure: GetLastError() -> -errno (best-effort mapping).
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
 
     // ERROR_INVALID_PARAMETER(87) -> -EINVAL(22)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 87))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 87))
     var l_next0 = _new_label(ctx, "iocp_create_err_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 22)
@@ -550,7 +550,7 @@ fn _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, 
     _emit_label(ctx, labels, l_next0)
 
     // ERROR_INVALID_HANDLE(6) -> -EBADF(9)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 6))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6))
     var l_next1 = _new_label(ctx, "iocp_create_err_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 9)
@@ -602,18 +602,18 @@ fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, loca
     var l_ok = _new_label(ctx, "iocp_post_ok")
     var l_done = _new_label(ctx, "iocp_post_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 87)) // ERROR_INVALID_PARAMETER
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 87)) // ERROR_INVALID_PARAMETER
     var l_next0 = _new_label(ctx, "iocp_post_err_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 22)
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next0)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 6)) // ERROR_INVALID_HANDLE
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6)) // ERROR_INVALID_HANDLE
     var l_next1 = _new_label(ctx, "iocp_post_err_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 9)
@@ -624,7 +624,7 @@ fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, loca
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
@@ -663,9 +663,9 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
 
     // Stack args (Win64 ABI): [rsp+32] = timeout_ms, [rsp+40] = alertable
     _intr_load_x64(ctx, 0, tmp_timeout)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(32, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(32, 0))
     _intr_load_x64(ctx, 0, tmp_alert)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(40, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(40, 0))
 
     _emit_call_iat_x64(ctx, "IAT_GetQueuedCompletionStatusEx")
     // BOOL in eax (0 => failure; GetLastError() == WAIT_TIMEOUT on timeout)
@@ -676,15 +676,15 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
     var l_timeout = _new_label(ctx, "iocp_gqcsx_timeout")
     var l_done = _new_label(ctx, "iocp_gqcsx_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 258)) // WAIT_TIMEOUT
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 258)) // WAIT_TIMEOUT
     _emit_jcc_to_label(ctx, fixups, "e", l_timeout)
 
     // ERROR_INVALID_PARAMETER(87) -> -EINVAL(22)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 87))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 87))
     var l_next0 = _new_label(ctx, "iocp_gqcsx_err_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 22)
@@ -692,7 +692,7 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
     _emit_label(ctx, labels, l_next0)
 
     // ERROR_INVALID_HANDLE(6) -> -EBADF(9)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 6))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6))
     var l_next1 = _new_label(ctx, "iocp_gqcsx_err_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 9)
@@ -708,7 +708,7 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
@@ -742,23 +742,23 @@ fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
     var l_ok = _new_label(ctx, "iocp_cancel_ok")
     var l_done = _new_label(ctx, "iocp_cancel_done")
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
     // ERROR_NOT_FOUND(1168): nothing to cancel (treat as success for idempotent cancellation).
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 1168))
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 1168))
     var l_not_found = _new_label(ctx, "iocp_cancel_not_found")
     _emit_jcc_to_label(ctx, fixups, "e", l_not_found)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 87)) // ERROR_INVALID_PARAMETER
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 87)) // ERROR_INVALID_PARAMETER
     var l_next0 = _new_label(ctx, "iocp_cancel_err_next0")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 22)
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_next0)
 
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 6)) // ERROR_INVALID_HANDLE
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6)) // ERROR_INVALID_HANDLE
     var l_next1 = _new_label(ctx, "iocp_cancel_err_next1")
     _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 9)
@@ -769,11 +769,11 @@ fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_not_found)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
