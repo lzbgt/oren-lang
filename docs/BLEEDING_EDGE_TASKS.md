@@ -214,11 +214,11 @@ This file is the concise task view. Detailed implementation status lives in
 														     captured `scope_push` at about 6.9s and `rename_stmt` at about 12.1s as
 														     the next concrete x64 user-function targets. The renamer now uses
 														     parent-linked scope frames instead of copying the whole scope stack on
-														     push, `rename_expr` uses early-return branches, and shared function-body
-														     traversal removes duplicated param/return/body code. A focused x64 probe
-														     moved `rename_stmt` from about 199ms to 187ms and `rename_expr` from
-														     about 194ms to 152ms, leaving their branch-dispatch body shape as the
-														     remaining target.
+														     push, `rename_expr` uses early-return branches, and shared child-traversal
+														     helpers remove duplicated function body, statement-list, expression-list,
+														     hash-pair, and type-field loops. Focused x64 probes moved `rename_stmt`
+														     from about 199ms to 118ms and `rename_expr` from about 194ms to 66ms,
+														     leaving the smaller dispatch checks as the remaining target.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

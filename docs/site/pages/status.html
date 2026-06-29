@@ -258,11 +258,11 @@
 <p>					  <code>scope_push</code> at about 6.9s and <code>rename_stmt</code> at about 12.1s. The</p>
 <p>					  renamer now uses parent-linked scope frames instead of copying the</p>
 <p>					  scope stack on each push, and <code>rename_expr</code> uses the same early-return</p>
-<p>					  shape as <code>rename_stmt</code>. A shared function-body traversal helper removes</p>
-<p>					  duplicated param/return/body code from both hot functions; a focused x64</p>
-<p>					  renamer probe moved <code>rename_stmt</code> from about 199ms to 187ms and</p>
-<p>					  <code>rename_expr</code> from about 194ms to 152ms, leaving their branch-dispatch</p>
-<p>					  body shape as the next target.</p>
+<p>					  shape as <code>rename_stmt</code>. Shared child-traversal helpers now remove</p>
+<p>					  duplicated function body, statement-list, expression-list, hash-pair, and</p>
+<p>					  type-field loops from the hot dispatch bodies; focused x64 renamer probes</p>
+<p>					  moved <code>rename_stmt</code> from about 199ms to 118ms and <code>rename_expr</code> from about</p>
+<p>					  194ms to 66ms, leaving the smaller dispatch checks as the next target.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

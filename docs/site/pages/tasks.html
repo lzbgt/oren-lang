@@ -272,11 +272,11 @@
 <p>														     captured <code>scope_push</code> at about 6.9s and <code>rename_stmt</code> at about 12.1s as</p>
 <p>														     the next concrete x64 user-function targets. The renamer now uses</p>
 <p>														     parent-linked scope frames instead of copying the whole scope stack on</p>
-<p>														     push, <code>rename_expr</code> uses early-return branches, and shared function-body</p>
-<p>														     traversal removes duplicated param/return/body code. A focused x64 probe</p>
-<p>														     moved <code>rename_stmt</code> from about 199ms to 187ms and <code>rename_expr</code> from</p>
-<p>														     about 194ms to 152ms, leaving their branch-dispatch body shape as the</p>
-<p>														     remaining target.</p>
+<p>														     push, <code>rename_expr</code> uses early-return branches, and shared child-traversal</p>
+<p>														     helpers remove duplicated function body, statement-list, expression-list,</p>
+<p>														     hash-pair, and type-field loops. Focused x64 probes moved <code>rename_stmt</code></p>
+<p>														     from about 199ms to 118ms and <code>rename_expr</code> from about 194ms to 66ms,</p>
+<p>														     leaving the smaller dispatch checks as the remaining target.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
