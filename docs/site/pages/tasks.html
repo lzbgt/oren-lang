@@ -304,7 +304,14 @@
 <p>							     caches the per-op dispatch kind and native gas-mode booleans instead of</p>
 <p>							     repeatedly re-reading map/env state; a broader fast-<code>while</code> prefilter was</p>
 <p>							     rejected because the capped self-host trace showed no material movement</p>
-<p>							     in the first renamer slow markers.</p>
+<p>							     in the first renamer slow markers. Bounded first-function detail tracing</p>
+<p>							     now defaults to one summary append per function with prologue substep</p>
+<p>							     fields, and x64 computes call-depth-default once per compile loop instead</p>
+<p>							     of probing platform metadata in every user-function prologue. The proof</p>
+<p>							     trace moved normal user-function depth-gate setup from roughly</p>
+<p>							     970-1100ms to 0-5ms; remaining concrete x64 user-function work is the</p>
+<p>							     actual body emission in <code>rename_function_params</code>, <code>rename_stmt_list</code>,</p>
+<p>							     <code>rename_stmt</code>, and <code>rename_expr</code>.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>

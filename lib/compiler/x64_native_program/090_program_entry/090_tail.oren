@@ -1444,8 +1444,10 @@ fn native_compile_program_x64(linked, platform) {
             "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
     }
 
+    var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
+
     if trace_prog { print("[x64_compile] compile __top_level__") }
-    _compile_function_v0(ctx, top_fn, platform)
+    _compile_function_v0(ctx, top_fn, platform, false, call_depth_default_enabled)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     if trace_sum { t_top_done = oren_time_now_ns() }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
@@ -1476,7 +1478,7 @@ fn native_compile_program_x64(linked, platform) {
         if trace_prog || trace_top_slow { t_fn = oren_time_now_ns() }
         if phase_log != nil && i1 < fns_detail_limit { ctx["phase_fn_detail"] = true }
         else { ctx["phase_fn_detail"] = false }
-        _compile_function_v0(ctx, fns[i1], platform)
+        _compile_function_v0(ctx, fns[i1], platform, true, call_depth_default_enabled)
         ctx["phase_fn_detail"] = false
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
         if trace_prog && prog_slow_fn_ms > 0 {
@@ -1545,7 +1547,7 @@ fn native_compile_program_x64(linked, platform) {
             j1 = j1 + 1
             continue
         }
-        _compile_function_v0(ctx, wfn, platform)
+        _compile_function_v0(ctx, wfn, platform, false, call_depth_default_enabled)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
         j1 = j1 + 1
     }
@@ -1588,7 +1590,7 @@ fn native_compile_program_x64(linked, platform) {
                         if ctx["symtab_display"] != nil && ctx["symtab_display"][wname2] == nil {
                             ctx["symtab_display"][wname2] = wname2 + "@<generated>"
                         }
-                        _compile_function_v0(ctx, wfn2, platform)
+                        _compile_function_v0(ctx, wfn2, platform, false, call_depth_default_enabled)
                         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
                     } else {
                         err(ctx, "x64 native v0: failed to synthesize fnwrap for " + fname2)

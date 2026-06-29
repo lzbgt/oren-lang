@@ -194,9 +194,16 @@
 <p>				  from about 15.5s to about 5.5s and reaches <code>x64.codegen.top.done</code>,</p>
 <p>				  making post-<code>__top_level__</code> user-function codegen throughput the</p>
 <p>				  next measured target. X64 local labels now use compact internal keys</p>
-<p>				  instead of long function-derived prefixes; the capped self-host probe</p>
-<p>				  still times out after <code>x64.codegen.fns.start</code>, with the first user</p>
-<p>				  function remaining the active bottleneck. X64 index get/set lowering now</p>
+<p>				  instead of long function-derived prefixes; bounded first-function</p>
+<p>				  detail tracing now emits one summary line per function by default,</p>
+<p>				  with prologue substep timing fields. That trace showed the repeated</p>
+<p>				  pre-body cliff was per-function call-depth platform metadata probing;</p>
+<p>				  x64 now computes the call-depth default once and passes a plain</p>
+<p>				  fast-path boolean for the normal user-function loop. The first</p>
+<p>				  renamer helpers now report depth-gate setup near 0-5ms instead of</p>
+<p>				  roughly 970-1100ms, exposing real body emitters such as</p>
+<p>				  <code>rename_function_params</code>, <code>rename_stmt_list</code>, <code>rename_stmt</code>, and</p>
+<p>				  <code>rename_expr</code> as the next measured targets. X64 index get/set lowering now</p>
 <p>				  skips generic list-dispatch body emission when the shared lowering already</p>
 <p>				  proved <code>recv_kind=&quot;map&quot;</code> or the key is a string literal; the same capped</p>
 <p>				  trace moved <code>collect_toplevel_rename_pairs</code> through all nested AST</p>

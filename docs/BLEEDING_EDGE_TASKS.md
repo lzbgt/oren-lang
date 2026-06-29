@@ -246,7 +246,14 @@ This file is the concise task view. Detailed implementation status lives in
 							     caches the per-op dispatch kind and native gas-mode booleans instead of
 							     repeatedly re-reading map/env state; a broader fast-`while` prefilter was
 							     rejected because the capped self-host trace showed no material movement
-							     in the first renamer slow markers.
+							     in the first renamer slow markers. Bounded first-function detail tracing
+							     now defaults to one summary append per function with prologue substep
+							     fields, and x64 computes call-depth-default once per compile loop instead
+							     of probing platform metadata in every user-function prologue. The proof
+							     trace moved normal user-function depth-gate setup from roughly
+							     970-1100ms to 0-5ms; remaining concrete x64 user-function work is the
+							     actual body emission in `rename_function_params`, `rename_stmt_list`,
+							     `rename_stmt`, and `rename_expr`.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

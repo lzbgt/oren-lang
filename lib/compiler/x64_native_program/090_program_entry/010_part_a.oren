@@ -601,6 +601,7 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
         _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.start",
             "fns=" + oren_int_to_string(oren_list_len(fns)))
     }
+    var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
     var i = 0
     while i < oren_list_len(fns) {
         if phase_log != nil && i > 0 && core.int_mod(i, 250) == 0 {
@@ -610,7 +611,7 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
         }
         var t_decl0 = 0
         if trace_decls { t_decl0 = oren_time_now_ns() }
-        _compile_function_v0(ctx, fns[i], platform)
+        _compile_function_v0(ctx, fns[i], platform, false, call_depth_default_enabled)
         if trace_decls {
             var dt_decl = oren_time_now_ns() - t_decl0
             sum_decl_ns = sum_decl_ns + dt_decl
@@ -720,7 +721,7 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
         }
         var t_decl1 = 0
         if trace_decls { t_decl1 = oren_time_now_ns() }
-        _compile_function_v0(ctx, wrappers[j], platform)
+        _compile_function_v0(ctx, wrappers[j], platform, false, call_depth_default_enabled)
         if trace_decls {
             var dt_decl1 = oren_time_now_ns() - t_decl1
             sum_decl_ns = sum_decl_ns + dt_decl1
