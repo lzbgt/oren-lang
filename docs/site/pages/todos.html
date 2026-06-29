@@ -69,7 +69,7 @@
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
-<li>X64 native index get/set lowering now emits a map-only path for proven map receivers and string-literal keys, then delegates checked map validation to runtime helpers; the measured first renamer bottleneck moved from roughly 136s to roughly 16s.</li>
+<li>X64 native index get/set lowering now emits a map-only path for proven map receivers and string-literal keys, delegates checked map validation to runtime helpers, and delegates unknown dynamic receiver get/set through generic runtime helpers instead of inlining full list+map dispatch at every parameter-local access; focused Linux/Windows compile-only coverage includes dynamic parameter-local index helpers. The measured first renamer bottleneck moved from roughly 136s to roughly 16s before this generic-helper slice, and the newest no-cache self-host trace now exposes optimizer finalization/summary as the next blocker before post-<code>__top_level__</code> user-function codegen profiling.</li>
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>
 <p>  fourth-character padding plus nonzero trailing pad bits while keeping decoded</p>

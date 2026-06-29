@@ -157,16 +157,24 @@ Facts from the 2026-05-28 implementation pass:
 				  skips generic list-dispatch body emission when the shared lowering already
 				  proved `recv_kind="map"` or the key is a string literal; the same capped
 				  trace moved `collect_toplevel_rename_pairs` through all nested AST
-				  string-key lookups and reduced that function from roughly 136s to roughly
-				  85s, while a broader field-string inference trial was rejected after a
-				  real self-host `map: key is not a string` panic. Map-only x64 index
-				  lowering now delegates checked map receiver validation to runtime helpers
-				  instead of emitting tracking/kind/magic checks at every access site. The
-				  capped trace reduced `collect_toplevel_rename_pairs` further to roughly
-				  16s; parameter-map helpers such as `rename_lookup`, `scope_has`, and
-				  larger `rename_stmt` emission remain the next measured user-function
-				  bottlenecks because compiler OBC builds cannot call native-only map
-				  helpers from shared compiler source.
+					  string-key lookups and reduced that function from roughly 136s to roughly
+					  85s, while a broader field-string inference trial was rejected after a
+					  real self-host `map: key is not a string` panic. Map-only x64 index
+					  lowering now delegates checked map receiver validation to runtime helpers
+					  instead of emitting tracking/kind/magic checks at every access site. The
+					  capped trace reduced `collect_toplevel_rename_pairs` further to roughly
+					  16s; parameter-map helpers such as `rename_lookup`, `scope_has`, and
+					  larger `rename_stmt` emission remained the next measured user-function
+					  bottlenecks because compiler OBC builds cannot call native-only map
+					  helpers from shared compiler source. Unknown x64 dynamic index get/set
+					  now delegates to checked generic runtime helpers (`oren_index_get` /
+					  `oren_index_set`) instead of emitting full list+map dispatch bodies at
+					  each parameter-local access; focused Linux/Windows compile-only coverage
+					  now includes a parameter-local dynamic index fixture. The broader
+					  no-cache self-host diagnostic now times out after optimizer progress
+					  reaches the final statement, so optimizer finalization/summary tracing
+					  is the next measured blocker before returning to post-`__top_level__`
+					  x64 user-function codegen throughput.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

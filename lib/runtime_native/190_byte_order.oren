@@ -498,12 +498,18 @@ fn oren_bytes_put_u32_le(bytes, idx, v) {
     return bytes
 }
 
-// Index assignment helper used by the frontend/lowerings that still target
-// `oren_index_set` directly (rolling).
+// Generic index helpers used by frontend/lowerings that still target
+// `oren_index_get` / `oren_index_set` directly (rolling).
 //
 // Semantics (rolling; matches C backend + `tests/native/test_list_append_grow.oren`):
+// - Reads: lists are bounds-checked; maps return nil for missing keys.
 // - Lists: `xs[i] = v` grows `xs` to length `i+1` if needed; new slots become `nil`.
 // - Maps: `m[key] = v` inserts/replaces and returns `v`.
+@oren.keep
+fn oren_index_get(container, index) {
+    return oren_list_get(container, index)
+}
+
 @oren.keep
 fn oren_index_set(container, index, value) {
     if container == 0 {
@@ -525,8 +531,10 @@ fn oren_index_set(container, index, value) {
     }
     var kind = ptr_get(iadd(node, 16))
     if kind == 2 {
-        // Lists: strict in-bounds semantics.
         return oren_list_set(container, index, value)
+    }
+    if kind == list_int_kind() {
+        return oren_list_int_set(container, index, value)
     }
     if kind == 3 {
         // Maps: delegate key-kind selection to `oren_map_set`, which uses tracked allocation metadata

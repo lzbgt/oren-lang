@@ -101,6 +101,16 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         return nil
     }
 
+    // Unknown receiver kinds are common in self-hosted compiler helpers where
+    // map/list evidence is parameter-local. Call the checked generic runtime
+    // helper instead of compiling the full dynamic list+map dispatch at every
+    // access site.
+    if recv_kind != "list" && recv_kind != "list_int" {
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_index_get", tmp0, tmp_idx)
+        _intr_tmp_pop(ctx, base0)
+        return nil
+    }
+
     // If container is nil, panic deterministically.
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
     var labels = {}

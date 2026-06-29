@@ -99,6 +99,15 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         return nil
     }
 
+    // Unknown receiver kinds are lowered to the checked generic runtime helper.
+    // Known list/list_int receivers keep the inline list path below; proven maps
+    // already use the map-only helpers above.
+    if recv_kind != "list" && recv_kind != "list_int" {
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_index_set", off_cont, off_idx, off_val)
+        _intr_tmp_pop(ctx, base0)
+        return nil
+    }
+
     // container -> rdx (2)
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_cont)
 
