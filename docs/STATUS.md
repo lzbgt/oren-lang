@@ -202,7 +202,10 @@ Facts from the 2026-05-28 implementation pass:
 					  list/hash literals; focused frame probes show literal-free `__top_level__`
 					  at `literal_slots=0` and list-literal `main` at `literal_slots=16`,
 					  keeping the remaining active hotspot in real `x64_core`
-					  instruction-builder/user-function emission.
+					  instruction-builder/user-function emission. A low-register arithmetic
+					  rewrite was rejected after parser and capped-trace evidence showed no safe
+					  throughput win; capped traces can now opt into first-N user-function
+					  phase detail with `OREN_TRACE_X64_FNS_DETAIL_LIMIT`.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

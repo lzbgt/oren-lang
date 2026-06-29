@@ -117,10 +117,14 @@ fn native_compile_program_x64(linked, platform) {
     }
     var top_slow = []
     var fns_progress_interval = 250
+    var fns_detail_limit = 0
     if phase_log != nil {
         fns_progress_interval = core.parse_int_decimal(oren_env("OREN_TRACE_X64_FNS_PROGRESS_INTERVAL"), fns_progress_interval)
         if fns_progress_interval < 1 { fns_progress_interval = 1 }
         if fns_progress_interval > 1000 { fns_progress_interval = 1000 }
+        fns_detail_limit = core.parse_int_decimal(oren_env("OREN_TRACE_X64_FNS_DETAIL_LIMIT"), fns_detail_limit)
+        if fns_detail_limit < 0 { fns_detail_limit = 0 }
+        if fns_detail_limit > 200 { fns_detail_limit = 200 }
     }
 
     var runtime_path = "lib/runtime_native.oren"
@@ -1458,7 +1462,10 @@ fn native_compile_program_x64(linked, platform) {
         }
         var t_fn = 0
         if trace_prog || trace_top_slow { t_fn = oren_time_now_ns() }
+        if phase_log != nil && i1 < fns_detail_limit { ctx["phase_fn_detail"] = true }
+        else { ctx["phase_fn_detail"] = false }
         _compile_function_v0(ctx, fns[i1], platform)
+        ctx["phase_fn_detail"] = false
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
         if trace_prog && prog_slow_fn_ms > 0 {
             var dt_ms = (oren_time_now_ns() - t_fn) / 1000000
