@@ -76,6 +76,23 @@ fn _x64_direct_data_string_globals_enabled() {
     return true
 }
 
+fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, toks) {
+    if out_stmts == nil || names == nil || values == nil || off_encs == nil { return nil }
+    var n = oren_list_len(names)
+    if n <= 0 { return nil }
+    var tok0 = nil
+    if toks != nil && oren_list_len(toks) > 0 { tok0 = toks[0] }
+    oren_list_push(out_stmts, {
+        "type": "X64GlobalStringInitBatch",
+        "token": tok0,
+        "names": names,
+        "values": values,
+        "off_encs": off_encs,
+        "toks": toks,
+    })
+    return nil
+}
+
 fn _x64_direct_data_singleton_init(ctx, expr) {
     if ctx == nil || expr == nil { return nil }
     var t = expr["type"]
@@ -205,6 +222,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // synthesized `__top_level__` assignments through the dedicated string fast path.
     var direct_string_globals = _x64_direct_data_string_globals_enabled()
     var user_global_init_in_data_flags = []
+    var user_global_off_encs = []
     var data_const_alias_targets = {}
     var ai = 0
     while ai < oren_list_len(user_vars) {
@@ -364,6 +382,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             }
             if slot_start_ns != 0 { slot_meta_ms = (oren_time_now_ns() - slot_step_ns) / 1000000 }
             oren_list_push(user_global_init_in_data_flags, direct_init_in_data2)
+            oren_list_push(user_global_off_encs, off2 + 1)
             if phase_log != nil && slot_slow_ms > 0 {
                 var slot_elapsed_ms = (oren_time_now_ns() - slot_start_ns) / 1000000
                 if slot_elapsed_ms >= slot_slow_ms {
@@ -411,6 +430,10 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Preserve source order across `var` initializers and other executable top-level statements.
     // Rewrite `var x = expr` into global-slot assignments at the same position.
     var top_stmts = []
+    var pending_string_names = []
+    var pending_string_values = []
+    var pending_string_off_encs = []
+    var pending_string_toks = []
     var j = 0
     var user_var_idx = 0
     while j < oren_list_len(user_ordered) {
@@ -423,15 +446,47 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             }
             user_var_idx = user_var_idx + 1
             if skip_init != true {
-                var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
-                init_assign["__oren_top_level_global_init"] = true
-                oren_list_push(top_stmts, init_assign)
+                var off_encx = nil
+                if user_var_idx - 1 < oren_list_len(user_global_off_encs) {
+                    off_encx = user_global_off_encs[user_var_idx - 1]
+                }
+                var vx = stx["value"]
+                if vx != nil && vx["type"] == "String" {
+                    var sx = vx["value"]
+                    if sx == nil || oren_is_string(sx) != true {
+                        var vtok = vx["token"]
+                        if vtok != nil && vtok["literal"] != nil && oren_is_string(vtok["literal"]) == true {
+                            sx = vtok["literal"]
+                        }
+                    }
+                    if sx == nil { sx = "" }
+                    oren_list_push(pending_string_names, stx["name"]["value"])
+                    oren_list_push(pending_string_values, sx)
+                    oren_list_push(pending_string_off_encs, off_encx)
+                    oren_list_push(pending_string_toks, stx["token"])
+                } else {
+                    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
+                    pending_string_names = []
+                    pending_string_values = []
+                    pending_string_off_encs = []
+                    pending_string_toks = []
+                    var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
+                    init_assign["__oren_top_level_global_init"] = true
+                    if off_encx != nil { init_assign["__oren_global_off_enc"] = off_encx }
+                    oren_list_push(top_stmts, init_assign)
+                }
             }
         } else {
+            _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
+            pending_string_names = []
+            pending_string_values = []
+            pending_string_off_encs = []
+            pending_string_toks = []
             oren_list_push(top_stmts, stx)
         }
         j = j + 1
     }
+    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_toks)
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.top_stmts.done",
             "top_stmts=" + oren_int_to_string(oren_list_len(top_stmts)))

@@ -130,16 +130,20 @@ This file is the concise task view. Detailed implementation status lives in
 											     these std modules. Capped full x64 self-host traces now complete module
 								     parsing through `lib/compiler/compiler.oren`, finish the optimizer, and
 								     reach x64 native emit. With direct string globals disabled,
-								     `top_globals.user_slots` finishes in under a second; opt-in direct-string
-								     probes now have direct string appends, slot counters, path/substep slow-slot
-								     records, positive-only scalar fact metadata, and demand-driven data-constant
-								     alias metadata, but compiler-shaped traces still show a per-slot direct
-								     metadata/root bookkeeping cliff. The synthesized `__top_level__`
+									     `top_globals.user_slots` finishes in under a second; opt-in direct-string
+									     probes now have direct string appends, slot counters, path/substep slow-slot
+									     records, positive-only scalar fact metadata, and demand-driven data-constant
+									     alias metadata, but compiler-shaped traces still show a per-slot direct
+									     metadata/root bookkeeping cliff. The synthesized `__top_level__`
 									     string-global assignment fast path now runs before generic expression
-										     validation and local fact updates, so literal string globals bypass the
-											     slow generic assignment path. The next concrete throughput target is
-											     using the recovered warm module-cache path to profile and reduce the
-											     post-`__top_level__` x64 user-function codegen throughput bottleneck.
+									     validation and local fact updates, so literal string globals bypass the
+									     slow generic assignment path. Consecutive top-level string literal globals
+									     now lower through a batched x64 op with direct encoded global-slot offsets,
+									     reducing the compiler-shaped `__top_level__` statement count from 123 to
+									     15; `OREN_TRACE_X64_EMIT_OP_SLOW_MS` records bounded slow op summaries.
+									     The next concrete throughput target is the per-item emitter work inside
+									     that batched string-global op before returning to post-`__top_level__`
+									     x64 user-function codegen throughput.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

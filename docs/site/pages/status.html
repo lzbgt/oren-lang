@@ -171,14 +171,18 @@
 <p>	  the extra skip map, records only positive scalar facts, and records data-constant</p>
 <p>	  facts only for globals that can feed top-level pointer aliases; slow-slot records</p>
 <p>	  include direct path plus init/allocation/fixup/metadata substep timing. The</p>
-<p>	  synthesized <code>__top_level__</code> string-global assignment fast path now runs before</p>
+<p>		  synthesized <code>__top_level__</code> string-global assignment fast path now runs before</p>
 <p>		  generic expression validation and local fact updates, so literal string globals</p>
-<p>		  bypass the slow generic assignment path. Capped full x64 self-host traces now</p>
-<p>		  complete module parsing through <code>lib/compiler/compiler.oren</code>, finish the optimizer,</p>
-<p>		  and reach x64 native emit. With direct string globals disabled,</p>
-<p>		  <code>top_globals.user_slots</code> finishes in under a second. The next measured target is</p>
-<p>		  using the recovered warm module-cache path to profile and reduce the</p>
-<p>		  post-<code>__top_level__</code> x64 user-function codegen throughput bottleneck.</p>
+<p>		  bypass the slow generic assignment path. Consecutive top-level string literal</p>
+<p>		  globals now lower through a batched x64 op with direct encoded global-slot</p>
+<p>		  offsets, reducing the compiler-shaped <code>__top_level__</code> statement count from 123</p>
+<p>		  to 15. <code>OREN_TRACE_X64_EMIT_OP_SLOW_MS</code> records bounded slow op summaries.</p>
+<p>		  Capped full x64 self-host traces now complete module parsing through</p>
+<p>		  <code>lib/compiler/compiler.oren</code>, finish the optimizer, and reach x64 native emit.</p>
+<p>		  With direct string globals disabled, <code>top_globals.user_slots</code> finishes in under</p>
+<p>		  a second. The next measured target is the per-item emitter work inside the</p>
+<p>		  batched string-global op before returning to post-<code>__top_level__</code> user-function</p>
+<p>		  codegen throughput.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

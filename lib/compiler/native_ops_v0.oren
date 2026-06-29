@@ -396,14 +396,46 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             err(ctx, "x64 native v0: unsupported expr statement: " + e["type"])
             return nil
         }
+        if t == "X64GlobalStringInitBatch" {
+            oren_list_push(ops, {
+                "op": "global_string_init_batch",
+                "tok": tok,
+                "names": st["names"],
+                "values": st["values"],
+                "off_encs": st["off_encs"],
+                "toks": st["toks"],
+            })
+            i = i + 1
+            continue
+        }
         if t == "Assign" {
             var name_node2 = st["name"]
             var v2 = st["value"]
             if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: assign name must be identifier"); return nil }
             if v2 == nil { err(ctx, "x64 native v0: assign missing value"); return nil }
+            if st["__oren_top_level_global_init"] == true && v2["type"] == "String" {
+                var s2 = v2["value"]
+                if s2 == nil || oren_is_string(s2) != true {
+                    var tok2 = v2["token"]
+                    if tok2 != nil && tok2["literal"] != nil && oren_is_string(tok2["literal"]) == true {
+                        s2 = tok2["literal"]
+                    }
+                }
+                if s2 == nil { s2 = "" }
+                var str_op = {"op": "global_string_init", "tok": tok, "name": name_node2["value"], "value": s2}
+                if st["__oren_global_off_enc"] != nil {
+                    str_op["__oren_global_off_enc"] = st["__oren_global_off_enc"]
+                }
+                oren_list_push(ops, str_op)
+                i = i + 1
+                continue
+            }
             var assign_op = {"op": "assign_i32", "tok": tok, "name": name_node2["value"], "expr": v2}
             if st["__oren_top_level_global_init"] == true {
                 assign_op["__oren_top_level_global_init"] = true
+                if st["__oren_global_off_enc"] != nil {
+                    assign_op["__oren_global_off_enc"] = st["__oren_global_off_enc"]
+                }
             }
             oren_list_push(ops, assign_op)
             i = i + 1

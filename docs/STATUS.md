@@ -131,14 +131,18 @@ Facts from the 2026-05-28 implementation pass:
 	  the extra skip map, records only positive scalar facts, and records data-constant
 	  facts only for globals that can feed top-level pointer aliases; slow-slot records
 	  include direct path plus init/allocation/fixup/metadata substep timing. The
-	  synthesized `__top_level__` string-global assignment fast path now runs before
+		  synthesized `__top_level__` string-global assignment fast path now runs before
 		  generic expression validation and local fact updates, so literal string globals
-		  bypass the slow generic assignment path. Capped full x64 self-host traces now
-		  complete module parsing through `lib/compiler/compiler.oren`, finish the optimizer,
-		  and reach x64 native emit. With direct string globals disabled,
-		  `top_globals.user_slots` finishes in under a second. The next measured target is
-		  using the recovered warm module-cache path to profile and reduce the
-		  post-`__top_level__` x64 user-function codegen throughput bottleneck.
+		  bypass the slow generic assignment path. Consecutive top-level string literal
+		  globals now lower through a batched x64 op with direct encoded global-slot
+		  offsets, reducing the compiler-shaped `__top_level__` statement count from 123
+		  to 15. `OREN_TRACE_X64_EMIT_OP_SLOW_MS` records bounded slow op summaries.
+		  Capped full x64 self-host traces now complete module parsing through
+		  `lib/compiler/compiler.oren`, finish the optimizer, and reach x64 native emit.
+		  With direct string globals disabled, `top_globals.user_slots` finishes in under
+		  a second. The next measured target is the per-item emitter work inside the
+		  batched string-global op before returning to post-`__top_level__` user-function
+		  codegen throughput.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker
