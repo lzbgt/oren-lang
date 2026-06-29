@@ -193,7 +193,13 @@
 <p>				  next measured target. X64 local labels now use compact internal keys</p>
 <p>				  instead of long function-derived prefixes; the capped self-host probe</p>
 <p>				  still times out after <code>x64.codegen.fns.start</code>, with the first user</p>
-<p>				  function remaining the active bottleneck.</p>
+<p>				  function remaining the active bottleneck. X64 index get/set lowering now</p>
+<p>				  skips generic list-dispatch body emission when the shared lowering already</p>
+<p>				  proved <code>recv_kind=&quot;map&quot;</code> or the key is a string literal; the same capped</p>
+<p>				  trace moved <code>collect_toplevel_rename_pairs</code> through all nested AST</p>
+<p>				  string-key lookups and reduced that function from roughly 136s to roughly</p>
+<p>				  85s, while a broader field-string inference trial was rejected after a</p>
+<p>				  real self-host <code>map: key is not a string</code> panic.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

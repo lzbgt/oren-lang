@@ -29,6 +29,16 @@ fn _native_assume_list_index_enabled() {
     return g_native_assume_list_index == 1
 }
 
+fn _x64_index_known_key_kind(expr, idx) {
+    var known_kk = -1
+    if expr != nil && expr["known_key_kind"] != nil { known_kk = expr["known_key_kind"] }
+    if known_kk < 0 && idx != nil {
+        if idx["type"] == "Integer" { known_kk = 0 }
+        else if idx["type"] == "String" { known_kk = 1 }
+    }
+    return known_kk
+}
+
 fn _emit_index_expr_v0(ctx, expr, locals) {
     // Index expression `xs[i]`.
     //
@@ -82,6 +92,62 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
     _emit_abort_panic_str(ctx, "Indexing on nil")
     _emit_label(ctx, labels, l_list_ok)
+
+    var known_kk = _x64_index_known_key_kind(expr, idx)
+
+    // String-key indexing and lowered map gets cannot reach list semantics. Avoid emitting
+    // the generic list path for compiler AST hot loops such as `stmt["type"]`.
+    if recv_kind == "map" || known_kk == 1 {
+        _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
+
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+        var l_map_trk_ok = _new_label(ctx, "idx_map_only_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_map_trk_ok)
+        if recv_kind == "map" {
+            _emit_abort_panic_str(ctx, "Index recv_kind=map but value is not a map")
+        } else {
+            _emit_abort_panic_str(ctx, "Index string key but value is not a map")
+        }
+        _emit_label(ctx, labels, l_map_trk_ok)
+
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3)) // MAP
+        var l_map_kind_ok = _new_label(ctx, "idx_map_only_kind_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_map_kind_ok)
+        if recv_kind == "map" {
+            _emit_abort_panic_str(ctx, "Index recv_kind=map but value is not a map")
+        } else {
+            _emit_abort_panic_str(ctx, "Index string key but value is not a map")
+        }
+        _emit_label(ctx, labels, l_map_kind_ok)
+
+        if recv_kind == "map" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = magic
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168)) // map_magic()
+            var l_magic_ok_map_only = _new_label(ctx, "idx_map_only_magic_ok")
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok_map_only)
+            _emit_abort_panic_str(ctx, "Index recv_kind=map but value is not a map")
+            _emit_label(ctx, labels, l_magic_ok_map_only)
+        }
+
+        if known_kk == 0 {
+            _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int", tmp0, tmp_idx)
+        } else if known_kk == 1 {
+            _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str", tmp0, tmp_idx)
+        } else {
+            _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get", tmp0, tmp_idx)
+        }
+        _patch_local_fixups(ctx, labels, local_fixups)
+        _intr_tmp_pop(ctx, base0)
+        return nil
+    }
 
     var l_is_list = _new_label(ctx, "idx_is_list")
     var l_is_map = _new_label(ctx, "idx_is_map")
@@ -263,13 +329,6 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     //
     // Note: for dynamic keys, we infer key kind using the same tracking contract as the
     // native runtime (strings are tracked kind=1), then dispatch to the typed helper.
-    var known_kk = -1
-    if expr["known_key_kind"] != nil { known_kk = expr["known_key_kind"] }
-    if known_kk < 0 {
-        if idx["type"] == "Integer" { known_kk = 0 }
-        else if idx["type"] == "String" { known_kk = 1 }
-    }
-
     if known_kk == 0 {
         _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int", tmp0, tmp_idx)
         _emit_jmp_to_label(ctx, local_fixups, l_idx_done)

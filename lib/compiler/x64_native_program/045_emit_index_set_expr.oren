@@ -55,6 +55,7 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     }
 
     var recv_kind = expr["recv_kind"]
+    var known_kk = _x64_index_known_key_kind(expr, args[1])
 
     // Spill layout (LTR eval):
     // - container
@@ -102,6 +103,44 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     var l_is_list = _new_label(ctx, "idx_set_is_list")
     var l_is_map = _new_label(ctx, "idx_set_is_map")
     var l_done = _new_label(ctx, "idx_set_done")
+
+    // String-key sets and lowered map sets cannot reach list semantics. Keep the runtime
+    // map helper call, but avoid emitting the generic list branch and its fixups.
+    if recv_kind == "map" || known_kk == 1 {
+        var l_map_trk_ok0 = _new_label(ctx, "idx_set_map_only_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_map_trk_ok0)
+        if recv_kind == "map" {
+            _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
+        } else {
+            _emit_abort_panic_str(ctx, "index_set string key but value is not a map")
+        }
+        _emit_label(ctx, labels, l_map_trk_ok0)
+
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3)) // MAP
+        var l_map_kind_ok0 = _new_label(ctx, "idx_set_map_only_kind_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_map_kind_ok0)
+        if recv_kind == "map" {
+            _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
+        } else {
+            _emit_abort_panic_str(ctx, "index_set string key but value is not a map")
+        }
+        _emit_label(ctx, labels, l_map_kind_ok0)
+
+        if known_kk == 0 {
+            _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
+        } else if known_kk == 1 {
+            _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
+        } else {
+            _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set", off_cont, off_idx, off_val)
+        }
+
+        _patch_local_fixups(ctx, labels, local_fixups)
+        _intr_tmp_pop(ctx, base0)
+        return nil
+    }
 
     if recv_kind == "list" {
         var l_trk_ok = _new_label(ctx, "idx_set_list_tracked_ok")
@@ -177,17 +216,6 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
 
     // --- map path ---
     _emit_label(ctx, labels, l_is_map)
-
-    // Known key kind fast path (shared lowering + syntax).
-    var known_kk = -1
-    if expr["known_key_kind"] != nil { known_kk = expr["known_key_kind"] }
-    if known_kk < 0 {
-        var idx_expr = args[1]
-        if idx_expr != nil {
-            if idx_expr["type"] == "Integer" { known_kk = 0 }
-            else if idx_expr["type"] == "String" { known_kk = 1 }
-        }
-    }
 
     if known_kk == 0 {
         _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)

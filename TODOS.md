@@ -34,6 +34,7 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
+- X64 native index get/set lowering now emits a map-only path for proven map receivers and string-literal keys, avoiding dead list-dispatch code in compiler AST hot loops; the measured first renamer bottleneck moved from roughly 136s to roughly 85s.
 - Base64 decode now rejects interior padding and third-character padding without
   fourth-character padding plus nonzero trailing pad bits while keeping decoded
   output as exact-size `u8_buf`; Base64URL encode/decode now uses the same

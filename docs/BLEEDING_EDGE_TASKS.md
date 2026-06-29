@@ -157,7 +157,14 @@ This file is the concise task view. Detailed implementation status lives in
 											     codegen throughput the next measured target. X64 local labels now use
 											     compact internal keys instead of long function-derived prefixes; capped
 											     self-host traces still stop after `x64.codegen.fns.start`, so the first
-											     user-function emit path remains the measured bottleneck.
+											     user-function emit path remains the measured bottleneck. X64 map/string-key
+											     index get/set lowering now skips the generic list-dispatch body once
+											     `recv_kind="map"` or a string literal key proves only map semantics are
+											     reachable. This moved the first renamer hot function through all nested
+											     AST string-key lookups and reduced it from roughly 136s to roughly 85s;
+											     broader inferred string-field key kinds are intentionally not enabled
+											     after a capped self-host probe produced a real `map: key is not a string`
+											     panic.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
