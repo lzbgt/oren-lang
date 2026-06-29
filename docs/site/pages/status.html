@@ -275,7 +275,19 @@
 <p>						  and ELF/PE runtime function lookup lazily caches only requested helper</p>
 <p>						  names instead of materializing all compact runtime offsets. Focused x64 ELF</p>
 <p>						  fixture evidence moved call-depth hook patching from roughly 5.4s to about</p>
-<p>						  7ms and generic local fixups from roughly 5.2s to about 106ms.</p>
+<p>						  7ms and generic local fixups from roughly 5.2s to about 106ms. A refreshed</p>
+<p>						  Linux x64 self-host compile-only probe then failed before the compiler build</p>
+<p>						  because the prerequisite <code>x64-linux/full</code> runtime-object seed cold-build hit</p>
+<p>						  the seed helper&#x27;s fixed 180s cap. The self-host compile-only gate now mirrors</p>
+<p>						  the bounded <code>rtobj-seed-x64</code> policy by cold-building missing stage2-compatible</p>
+<p>						  x64 runtime-object seeds with the stage1 compiler, and exposes</p>
+<p>						  <code>OREN_SELFHOST_RTOBJ_SEED_TIMEOUT_SECS</code> (defaulting to at least 300s and</p>
+<p>						  otherwise the self-host build timeout) for those prerequisite seed probes.</p>
+<p>						  The follow-up capped probe cleared seed setup, reached x64 user-function</p>
+<p>						  emission, and timed out inside renamer/codegen body shape; splitting</p>
+<p>						  <code>rename_function_params</code> out of <code>rename_function_body</code> moved that function&#x27;s</p>
+<p>						  focused marker from roughly 4.9s to about 1.0s, while the new params helper</p>
+<p>						  and statement-list traversal remain the measured renamer targets.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

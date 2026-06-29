@@ -159,19 +159,22 @@ fn scope_push(stack) {
     return {"parent": stack, "decls": {}}
 }
 
-fn rename_function_body(node, pairs, stack) {
-    var next = scope_push(stack)
+fn rename_function_params(params, pairs, stack) {
     var i = 0
-    var params = node["params"]
     var params_n = oren_list_len(params)
     while i < params_n {
         var param = params[i]
         if param["ann_type"] != nil {
             param["ann_type"] = _rename_ann_type(pairs, param["ann_type"])
         }
-        scope_declare(next, param["value"])
+        scope_declare(stack, param["value"])
         i = i + 1
     }
+}
+
+fn rename_function_body(node, pairs, stack) {
+    var next = scope_push(stack)
+    rename_function_params(node["params"], pairs, next)
     if node["ret_ann_type"] != nil {
         node["ret_ann_type"] = _rename_ann_type(pairs, node["ret_ann_type"])
     }

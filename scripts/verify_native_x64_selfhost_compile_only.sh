@@ -16,6 +16,7 @@ set -euo pipefail
 #
 # Env:
 #   OREN_SELFHOST_BUILD_TIMEOUT_SECS (default: 240)
+#   OREN_SELFHOST_RTOBJ_SEED_TIMEOUT_SECS (default: max(300, OREN_SELFHOST_BUILD_TIMEOUT_SECS))
 #   OREN_SELFHOST_SRC (default: oren.oren) override self-host compiler source
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,6 +42,7 @@ Examples:
 
 Env:
   OREN_SELFHOST_BUILD_TIMEOUT_SECS (default: 240)
+  OREN_SELFHOST_RTOBJ_SEED_TIMEOUT_SECS (default: max(300, OREN_SELFHOST_BUILD_TIMEOUT_SECS))
   OREN_SELFHOST_SRC (default: oren.oren)
 EOF
 }
@@ -123,6 +125,11 @@ if [[ "$TARGETS_CSV" != "all" ]]; then
 fi
 
 BUILD_TIMEOUT_SECS="${OREN_SELFHOST_BUILD_TIMEOUT_SECS:-240}"
+RTOBJ_SEED_TIMEOUT_SECS="${OREN_SELFHOST_RTOBJ_SEED_TIMEOUT_SECS:-}"
+if [[ -z "$RTOBJ_SEED_TIMEOUT_SECS" ]]; then
+  RTOBJ_SEED_TIMEOUT_SECS="$BUILD_TIMEOUT_SECS"
+  if [[ "$RTOBJ_SEED_TIMEOUT_SECS" -lt 300 ]]; then RTOBJ_SEED_TIMEOUT_SECS=300; fi
+fi
 
 # Compiler-only performance knobs (rolling hang guard):
 # - Stage2-native parsing/expansion of the compiler graph can be very slow on a cold cache.
@@ -206,7 +213,15 @@ ensure_runtime_obj_seed() {
     return 2
   fi
 
-  ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --no-debug >"$seed_log" 2>&1
+  if [[ ! -x ./oren ]]; then
+    echo "== ensure: stage1 compiler (./oren) for cold rtobj seeding ==" >&2
+    make stage1 >/dev/null
+  fi
+
+  OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 \
+  OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS="$RTOBJ_SEED_TIMEOUT_SECS" \
+    ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" \
+      --compiler ./oren_stage2 --build-compiler ./oren --no-debug >"$seed_log" 2>&1
 }
 
 build_one() {
@@ -266,7 +281,7 @@ if [[ "$USE_CACHE" -eq 1 ]]; then
 else
   echo -n "cache=off " >&2
 fi
-echo "timeout=${BUILD_TIMEOUT_SECS}s ==" >&2
+echo "timeout=${BUILD_TIMEOUT_SECS}s rtobj_seed_timeout=${RTOBJ_SEED_TIMEOUT_SECS}s ==" >&2
 
 if [[ "$WANT_LINUX" -eq 1 ]]; then
   ensure_runtime_astbin_seed x64-linux || {

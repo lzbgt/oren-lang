@@ -231,6 +231,18 @@ This file is the concise task view. Detailed implementation status lives in
 							     runtime helper lookup lazily caches only names requested by emitted
 							     fixups. Focused evidence moved call-depth patching from roughly 5.4s
 							     to about 7ms and generic local fixups from roughly 5.2s to about 106ms.
+							     The refreshed Linux x64 self-host compile-only probe then exposed a
+							     prerequisite seed-policy gap: missing `x64-linux/full` runtime-object
+							     seeds were still cold-built by `oren_stage2` under the seed helper's
+							     fixed 180s cap. The self-host compile-only gate now mirrors
+							     `rtobj-seed-x64` by using stage1 as the bounded cold seed builder for
+							     missing stage2-compatible x64 runtime-object seeds, with
+							     `OREN_SELFHOST_RTOBJ_SEED_TIMEOUT_SECS` controlling that prerequisite
+							     seed timeout. A follow-up capped probe now clears seed setup and reaches
+							     x64 user-function emission; `rename_function_body` parameter traversal was
+							     split into `rename_function_params`, moving the focused body marker from
+							     roughly 4.9s to about 1.0s while params and statement-list traversal remain
+							     the next renamer body-shape targets.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
