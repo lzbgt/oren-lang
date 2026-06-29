@@ -204,10 +204,13 @@
 <p>										     one compact runtime initializer loop over a <code>.data</code> table of</p>
 <p>										     <code>{global_slot_off, cstr_off}</code> pairs instead of compiling one fixed store</p>
 <p>										     sequence and two fixup maps per string. A focused 140-string x64 fixture</p>
-<p>										     now records item-level offset/value/length/data substep progress. Full</p>
-<p>										     self-host traces showed the compiler-shaped token-batch cliff was</p>
-<p>										     encoded-offset lookup, so string batches now carry decoded slot offsets</p>
-<p>											     with encoded offsets only as a fallback. Empty list/map top-level globals</p>
+<p>											     now records item-level offset/value/length/data substep progress. Full</p>
+<p>											     self-host traces showed the compiler-shaped token-batch cliff was</p>
+<p>											     encoded-offset lookup, so string batches now carry decoded slot offsets</p>
+<p>												     with encoded offsets only as a fallback. Prebuilt string batch statements</p>
+<p>												     now drop redundant per-item names/values/offsets/items payload after the</p>
+<p>												     <code>.data</code> table is materialized, keeping <code>__top_level__</code> analysis/emission</p>
+<p>												     on the compact table offset/count path. Empty list/map top-level globals</p>
 <p>											     now batch by kind into runtime allocator loops over global-slot tables; a</p>
 <p>											     compiler-shaped self-host probe reduced synthesized <code>__top_level__</code> body</p>
 <p>											     emission from about 15.5s to about 5.5s and reaches</p>

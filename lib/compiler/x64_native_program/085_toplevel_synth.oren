@@ -108,6 +108,15 @@ fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_
         push_u64_le(ctx["data"], table_count)
         bytes_extend(ctx["data"], table_buf)
     }
+    if oren_type_tag(table_off) == 1 {
+        oren_list_push(out_stmts, {
+            "type": "X64GlobalStringInitBatch",
+            "token": tok0,
+            "table_off": table_off,
+            "count": table_count,
+        })
+        return nil
+    }
     oren_list_push(out_stmts, {
         "type": "X64GlobalStringInitBatch",
         "token": tok0,

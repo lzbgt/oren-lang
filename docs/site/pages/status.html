@@ -182,11 +182,14 @@
 <p>			  runtime initializer loop over a <code>.data</code> table of <code>{global_slot_off, cstr_off}</code></p>
 <p>			  pairs instead of compiling one fixed store sequence and two fixup maps per string.</p>
 <p>			  <code>OREN_TRACE_X64_STRING_BATCH_PROGRESS=1</code> now records item-level</p>
-<p>			  offset/value/length/data substep progress; full self-host traces showed the</p>
-<p>			  compiler-shaped token-batch cliff was encoded-offset lookup, so x64 string</p>
-<p>			  batches now carry decoded slot offsets and keep encoded offsets only as a</p>
-<p>				  fallback. Empty list/map top-level globals now batch by kind into</p>
-<p>				  runtime allocator loops over global-slot tables; a compiler-shaped</p>
+<p>				  offset/value/length/data substep progress; full self-host traces showed the</p>
+<p>				  compiler-shaped token-batch cliff was encoded-offset lookup, so x64 string</p>
+<p>				  batches now carry decoded slot offsets and keep encoded offsets only as a</p>
+<p>					  fallback. Prebuilt string batch statements now drop redundant per-item</p>
+<p>					  names/values/offsets/items payload once the <code>.data</code> initializer table is</p>
+<p>					  materialized, so <code>__top_level__</code> analysis/emission only carries the compact</p>
+<p>					  table offset/count for that path. Empty list/map top-level globals now batch by kind into</p>
+<p>					  runtime allocator loops over global-slot tables; a compiler-shaped</p>
 <p>				  self-host probe reduced synthesized <code>__top_level__</code> body emission</p>
 <p>				  from about 15.5s to about 5.5s and reaches <code>x64.codegen.top.done</code>,</p>
 <p>				  making post-<code>__top_level__</code> user-function codegen throughput the</p>
