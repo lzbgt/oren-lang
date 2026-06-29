@@ -218,10 +218,19 @@ This file is the concise task view. Detailed implementation status lives in
 														     the next concrete x64 user-function targets. The renamer now uses
 														     parent-linked scope frames instead of copying the whole scope stack on
 														     push, `rename_expr` uses early-return branches, and shared child-traversal
-														     helpers remove duplicated function body, statement-list, expression-list,
-														     hash-pair, and type-field loops. Focused x64 probes moved `rename_stmt`
-														     from about 199ms to 118ms and `rename_expr` from about 194ms to 66ms,
-														     leaving the smaller dispatch checks as the remaining target.
+							     helpers remove duplicated function body, statement-list, expression-list,
+							     hash-pair, and type-field loops. Focused x64 probes moved `rename_stmt`
+							     from about 199ms to 118ms and `rename_expr` from about 194ms to 66ms,
+							     leaving the smaller dispatch checks as the remaining target.
+							     Runtime-object code splice phase markers now separate code append,
+							     compact function offsets, compact fixup metadata, legacy fixups, and
+							     RIP-data labels. The focused x64 ELF fixture showed the splice itself
+							     was fast, while call-depth hook patching and local fixups were paying
+							     full runtime-function lookup-map materialization. Compact runtime
+							     metadata now caches call-depth hook offsets directly, and ELF/PE
+							     runtime helper lookup lazily caches only names requested by emitted
+							     fixups. Focused evidence moved call-depth patching from roughly 5.4s
+							     to about 7ms and generic local fixups from roughly 5.2s to about 106ms.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

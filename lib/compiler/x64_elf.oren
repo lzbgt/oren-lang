@@ -133,29 +133,35 @@ fn _elf_patch_u64_le_ptr(basep, offset, n) {
     return nil
 }
 
-fn _elf_x64_runtime_fn_lookup_map(ctx, base) {
-    if ctx == nil { return nil }
+fn _elf_x64_runtime_fn_lookup_cached(ctx, base, name) {
+    if ctx == nil || name == nil { return nil }
     var cached = ctx["runtime_x64_fn_offsets_lookup"]
-    if cached != nil { return cached }
+    if cached != nil {
+        var off0 = cached[name]
+        if oren_type_tag(off0) != 0 { return off0 }
+    } else {
+        cached = {}
+        ctx["runtime_x64_fn_offsets_lookup"] = cached
+    }
     var comp = ctx["runtime_x64_fn_offsets_compact"]
     if comp == nil { return nil }
     var names = comp["names"]
     if names == nil { return nil }
     var offs = comp["offs_enc"]
-    var out = {}
     var i = 0
     var n = oren_list_len(names)
     while i < n {
         var nm = names[i]
-        if nm != nil && nm != "" {
+        if nm == name {
             var off_enc = nil
             if offs != nil { off_enc = offs[i] }
-            out[nm] = base + _elf_rtobj_decode_enc0(off_enc)
+            var off1 = base + _elf_rtobj_decode_enc0(off_enc)
+            cached[name] = off1
+            return off1
         }
         i = i + 1
     }
-    ctx["runtime_x64_fn_offsets_lookup"] = out
-    return out
+    return nil
 }
 
 fn _elf_x64_lookup_fn(ctx, functions, name) {
@@ -165,11 +171,8 @@ fn _elf_x64_lookup_fn(ctx, functions, name) {
     if ctx == nil || name == nil { return nil }
     var base = ctx["runtime_x64_fn_offsets_base_code"]
     if base == nil { base = 0 }
-    var compact_lookup = _elf_x64_runtime_fn_lookup_map(ctx, base)
-    if compact_lookup != nil {
-        var off0 = compact_lookup[name]
-        if oren_type_tag(off0) != 0 { return off0 }
-    }
+    var off0 = _elf_x64_runtime_fn_lookup_cached(ctx, base, name)
+    if oren_type_tag(off0) != 0 { return off0 }
     var enc_map = ctx["runtime_x64_fn_offsets_enc"]
     if enc_map != nil {
         var enc = enc_map[name]
@@ -436,7 +439,17 @@ fn _elf_apply_x64_rtobj_compact_fixups(ctx, codep, datap, functions, text_base, 
 
 fn _elf_apply_x64_call_rel32_positions(ctx, codep, functions, name, poss) {
     if poss == nil { return nil }
-    var target = _elf_x64_lookup_fn(ctx, functions, name)
+    var target = nil
+    if ctx != nil {
+        if name == "oren_call_depth_enter" {
+            var enter_target = ctx["runtime_x64_call_depth_enter_off"]
+            if oren_type_tag(enter_target) != 0 { target = enter_target }
+        } else if name == "oren_call_depth_exit" {
+            var exit_target = ctx["runtime_x64_call_depth_exit_off"]
+            if oren_type_tag(exit_target) != 0 { target = exit_target }
+        }
+    }
+    if target == nil { target = _elf_x64_lookup_fn(ctx, functions, name) }
     if target == nil {
         print("x64 elf: undefined function " + name)
         oren_exit(1)

@@ -261,19 +261,29 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
     var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
     if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
+    var phase_log = ctx["phase_log"]
 
     var base_code = bytes_len(ctx["code"])
     if trace { print("[x64_rtobj_apply] start base_code=" + oren_int_to_string(base_code)) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.start",
+            "base_code=" + oren_int_to_string(base_code))
+    }
 
     // Append runtime code.
     var code_u8 = meta["code_u8"]
+    var code_n = -1
+    if code_u8 != nil && oren_is_u8_buf(code_u8) == true { code_n = oren_buf_len(code_u8) }
     if trace {
-        var code_n = -1
-        if code_u8 != nil && oren_is_u8_buf(code_u8) == true { code_n = oren_buf_len(code_u8) }
         print("[x64_rtobj_apply] append code start bytes=" + oren_int_to_string(code_n))
     }
     if code_u8 != nil { bytes_extend_u8_buf(ctx["code"], code_u8) }
     if trace { print("[x64_rtobj_apply] append code done total_code=" + oren_int_to_string(bytes_len(ctx["code"]))) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.append.done",
+            "code_bytes=" + oren_int_to_string(code_n) +
+            " total_code=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
 
     // Merge runtime function code offsets (name -> off+1 encoding in meta).
     //
@@ -290,7 +300,28 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     if fn_compact_n > 0 {
         ctx["runtime_x64_fn_offsets_compact"] = fn_compact
         ctx["runtime_x64_fn_offsets_base_code"] = base_code
+        var fn_compact_offs = fn_compact["offs_enc"]
+        var hook_i = 0
+        var hook_found = 0
+        while hook_i < fn_compact_n && hook_found < 2 {
+            var hook_name = fn_compact_names[hook_i]
+            if hook_name == "oren_call_depth_enter" || hook_name == "oren_call_depth_exit" {
+                var hook_off = nil
+                if fn_compact_offs != nil { hook_off = _rtobj_decode_int_enc(fn_compact_offs[hook_i]) }
+                if hook_off != nil {
+                    if hook_name == "oren_call_depth_enter" { ctx["runtime_x64_call_depth_enter_off"] = base_code + hook_off }
+                    else { ctx["runtime_x64_call_depth_exit_off"] = base_code + hook_off }
+                    hook_found = hook_found + 1
+                }
+            }
+            hook_i = hook_i + 1
+        }
         if trace { print("[x64_rtobj_apply] function offsets compact attached count=" + oren_int_to_string(fn_compact_n)) }
+        if phase_log != nil {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
+                "path=compact count=" + oren_int_to_string(fn_compact_n) +
+                " hooks=" + oren_int_to_string(hook_found))
+        }
     } else if fn_offs_enc != nil {
         if ctx["functions"] == nil { ctx["functions"] = {} }
         var fn_map_n = oren_map_len(fn_offs_enc)
@@ -312,15 +343,44 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             idxf = idxf + 1
         }
         if trace { print("[x64_rtobj_apply] function offsets done count=" + oren_int_to_string(idxf)) }
+        if phase_log != nil {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
+                "path=legacy count=" + oren_int_to_string(idxf))
+        }
+    } else if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done", "path=none count=0")
     }
 
-        var x64_fx_compact = meta["x64_fixups_compact"]
-        if x64_fx_compact != nil {
-            ctx["runtime_x64_fixups_compact"] = x64_fx_compact
-            if meta["fixups_compact_u8"] != nil { ctx["runtime_x64_fixups_compact_u8"] = meta["fixups_compact_u8"] }
-            ctx["runtime_x64_fixups_base_code"] = base_code
-            _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
-            if trace { print("[x64_rtobj_apply] compact fixups attached") }
+    var x64_fx_compact = meta["x64_fixups_compact"]
+    if x64_fx_compact != nil {
+        ctx["runtime_x64_fixups_compact"] = x64_fx_compact
+        if meta["fixups_compact_u8"] != nil { ctx["runtime_x64_fixups_compact_u8"] = meta["fixups_compact_u8"] }
+        ctx["runtime_x64_fixups_base_code"] = base_code
+        _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
+        if trace { print("[x64_rtobj_apply] compact fixups attached") }
+        if phase_log != nil {
+            var call_n0 = 0
+            var call_xs0 = x64_fx_compact["call_pos_enc"]
+            if call_xs0 != nil { call_n0 = oren_list_len(call_xs0) }
+            var rip_n0 = 0
+            var rip_xs0 = x64_fx_compact["rip_data_lea_pos_enc"]
+            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
+            rip_xs0 = x64_fx_compact["rip_data_lea_rsi_pos_enc"]
+            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
+            rip_xs0 = x64_fx_compact["rip_data_mov_rax_pos_enc"]
+            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
+            rip_xs0 = x64_fx_compact["rip_code_lea_pos_enc"]
+            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
+            rip_xs0 = x64_fx_compact["rip_rdata_lea_pos_enc"]
+            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
+            var fnobj_n0 = 0
+            var fnobj_xs0 = x64_fx_compact["data_fnobj_code_ptr_data_off_enc"]
+            if fnobj_xs0 != nil { fnobj_n0 = oren_list_len(fnobj_xs0) }
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.compact_fixups.done",
+                "call=" + oren_int_to_string(call_n0) +
+                " rip=" + oren_int_to_string(rip_n0) +
+                " fnobj=" + oren_int_to_string(fnobj_n0))
+        }
     }
 
     // Merge runtime fixups (pos encoded as +1; adjust by base_code).
@@ -369,6 +429,12 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             fi = fi + 1
         }
         if trace { print("[x64_rtobj_apply] fixups done count=" + oren_int_to_string(fi)) }
+        if phase_log != nil {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.legacy_fixups.done",
+                "count=" + oren_int_to_string(fi))
+        }
+    } else if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.legacy_fixups.done", "count=0")
     }
 
     // Preferred representation (rolling): rip_data32 positions aggregated by label.
@@ -394,10 +460,20 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             idx2 = idx2 + 1
         }
         if trace { print("[x64_rtobj_apply] rip_data32 done labels=" + oren_int_to_string(idx2)) }
+        if phase_log != nil {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.rip_data32.done",
+                "labels=" + oren_int_to_string(idx2))
+        }
+    } else if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.rip_data32.done", "labels=0")
     }
 
     ctx["rtobj_pending"] = nil
     if trace { print("[x64_rtobj_apply] done") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
     return true
 }
 

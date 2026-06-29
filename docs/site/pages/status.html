@@ -263,9 +263,19 @@
 <p>					  scope stack on each push, and <code>rename_expr</code> uses the same early-return</p>
 <p>					  shape as <code>rename_stmt</code>. Shared child-traversal helpers now remove</p>
 <p>					  duplicated function body, statement-list, expression-list, hash-pair, and</p>
-<p>					  type-field loops from the hot dispatch bodies; focused x64 renamer probes</p>
-<p>					  moved <code>rename_stmt</code> from about 199ms to 118ms and <code>rename_expr</code> from about</p>
-<p>					  194ms to 66ms, leaving the smaller dispatch checks as the next target.</p>
+<p>						  type-field loops from the hot dispatch bodies; focused x64 renamer probes</p>
+<p>						  moved <code>rename_stmt</code> from about 199ms to 118ms and <code>rename_expr</code> from about</p>
+<p>						  194ms to 66ms, leaving the smaller dispatch checks as the next target.</p>
+<p>						  Runtime-object code splicing now has bounded phase markers for code append,</p>
+<p>						  compact function offsets, compact fixup metadata, legacy fallback fixups,</p>
+<p>						  and RIP-data labels. Those markers showed the splice itself was not the</p>
+<p>						  remaining focused fixture bottleneck; ELF call-depth hook patching paid</p>
+<p>						  the full runtime-function lookup-map materialization cost. The runtime</p>
+<p>						  compact metadata now caches <code>oren_call_depth_enter/exit</code> offsets directly,</p>
+<p>						  and ELF/PE runtime function lookup lazily caches only requested helper</p>
+<p>						  names instead of materializing all compact runtime offsets. Focused x64 ELF</p>
+<p>						  fixture evidence moved call-depth hook patching from roughly 5.4s to about</p>
+<p>						  7ms and generic local fixups from roughly 5.2s to about 106ms.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>
