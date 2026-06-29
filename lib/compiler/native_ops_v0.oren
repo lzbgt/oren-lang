@@ -405,6 +405,20 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 "off_encs": st["off_encs"],
                 "slot_offs": st["slot_offs"],
                 "toks": st["toks"],
+                "items": st["items"],
+                "table_off": st["table_off"],
+                "count": st["count"],
+            })
+            i = i + 1
+            continue
+        }
+        if t == "X64GlobalEmptyContainerInitBatch" {
+            oren_list_push(ops, {
+                "op": "global_empty_container_init_batch",
+                "tok": tok,
+                "kind": st["kind"],
+                "table_off": st["table_off"],
+                "count": st["count"],
             })
             i = i + 1
             continue

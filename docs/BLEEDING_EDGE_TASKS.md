@@ -97,10 +97,11 @@ This file is the concise task view. Detailed implementation status lives in
 					     cstr append path now extends the data builder directly from strings
 					     instead of allocating temporary byte buffers. A focused x64
 					     top-level string-global compile fixture guards the fast path.
-							     Zero-result lambda collection now skips the full statement walk when no
-							     local function/lambda candidates were found. Empty map/list globals stay
-							     in `__top_level__` until static mutable container headers have an explicit
-								     heap/GC ABI. Bounded slow-function rankings now persist in
+								     Zero-result lambda collection now skips the full statement walk when no
+								     local function/lambda candidates were found. Empty map/list globals avoid
+								     static `.data` materialization but now lower through table-driven
+								     `__top_level__` runtime-allocation batches, keeping mutable container
+									     semantics heap/GC-safe without per-global emitter work. Bounded slow-function rankings now persist in
 								     `OREN_TRACE_BUILD_PHASES_PATH` logs. Phase logs also include
 								     `link.parse_module.start`, so capped self-host probes identify the active
 								     module even when it does not finish before timeout. Serial/thread module
@@ -148,9 +149,12 @@ This file is the concise task view. Detailed implementation status lives in
 										     now records item-level offset/value/length/data substep progress. Full
 										     self-host traces showed the compiler-shaped token-batch cliff was
 										     encoded-offset lookup, so string batches now carry decoded slot offsets
-										     with encoded offsets only as a fallback. The full self-host probe now
-										     reaches `x64.codegen.top.done`, making post-`__top_level__` x64
-										     user-function codegen throughput the next measured target.
+											     with encoded offsets only as a fallback. Empty list/map top-level globals
+											     now batch by kind into runtime allocator loops over global-slot tables; a
+											     compiler-shaped self-host probe reduced synthesized `__top_level__` body
+											     emission from about 15.5s to about 5.5s and reaches
+											     `x64.codegen.top.done`, making post-`__top_level__` x64 user-function
+											     codegen throughput the next measured target.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

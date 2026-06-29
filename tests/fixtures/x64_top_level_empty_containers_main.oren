@@ -1,0 +1,12 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates top-level empty list/map globals compile through synthesized __top_level__
+// - keeps empty containers runtime-allocated, not statically materialized in .data
+
+var GLOBAL_LIST = []
+var GLOBAL_MAP = {}
+
+fn main() {
+    if oren_list_len(GLOBAL_LIST) != 0 { return 1 }
+    if oren_map_len(GLOBAL_MAP) != 0 { return 2 }
+    return 0
+}

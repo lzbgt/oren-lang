@@ -96,9 +96,10 @@ Facts from the 2026-05-28 implementation pass:
 	  of allocating a temporary byte buffer. Zero-result lambda
 	  collection now uses a compile-time
 	  preflight and skips the full statement walk when there are no local
-	  function/lambda candidates. Empty map/list globals remain in
-	  `__top_level__` because static mutable container headers need an explicit
-	  heap/GC ABI before direct `.data` materialization is safe. Phase logs now
+		  function/lambda candidates. Empty map/list globals still avoid static
+		  `.data` materialization, but now lower through a table-driven
+		  `__top_level__` runtime-allocation batch so mutable container semantics
+		  stay heap/GC-safe without per-global emitter work. Phase logs now
 	  persist bounded slow-function rankings under `OREN_TRACE_BUILD_PHASES_PATH`.
 		  Phase logs now include `link.parse_module.start` so capped self-host probes
 		  show the active module even when a module does not finish before timeout.
@@ -144,8 +145,12 @@ Facts from the 2026-05-28 implementation pass:
 			  offset/value/length/data substep progress; full self-host traces showed the
 			  compiler-shaped token-batch cliff was encoded-offset lookup, so x64 string
 			  batches now carry decoded slot offsets and keep encoded offsets only as a
-			  fallback. The full self-host probe now reaches `x64.codegen.top.done`, making
-			  post-`__top_level__` user-function codegen throughput the next measured target.
+				  fallback. Empty list/map top-level globals now batch by kind into
+				  runtime allocator loops over global-slot tables; a compiler-shaped
+				  self-host probe reduced synthesized `__top_level__` body emission
+				  from about 15.5s to about 5.5s and reaches `x64.codegen.top.done`,
+				  making post-`__top_level__` user-function codegen throughput the
+				  next measured target.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

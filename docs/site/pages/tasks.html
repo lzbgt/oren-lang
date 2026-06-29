@@ -153,10 +153,11 @@
 <p>					     cstr append path now extends the data builder directly from strings</p>
 <p>					     instead of allocating temporary byte buffers. A focused x64</p>
 <p>					     top-level string-global compile fixture guards the fast path.</p>
-<p>							     Zero-result lambda collection now skips the full statement walk when no</p>
-<p>							     local function/lambda candidates were found. Empty map/list globals stay</p>
-<p>							     in <code>__top_level__</code> until static mutable container headers have an explicit</p>
-<p>								     heap/GC ABI. Bounded slow-function rankings now persist in</p>
+<p>								     Zero-result lambda collection now skips the full statement walk when no</p>
+<p>								     local function/lambda candidates were found. Empty map/list globals avoid</p>
+<p>								     static <code>.data</code> materialization but now lower through table-driven</p>
+<p>								     <code>__top_level__</code> runtime-allocation batches, keeping mutable container</p>
+<p>									     semantics heap/GC-safe without per-global emitter work. Bounded slow-function rankings now persist in</p>
 <p>								     <code>OREN_TRACE_BUILD_PHASES_PATH</code> logs. Phase logs also include</p>
 <p>								     <code>link.parse_module.start</code>, so capped self-host probes identify the active</p>
 <p>								     module even when it does not finish before timeout. Serial/thread module</p>
@@ -206,9 +207,12 @@
 <p>										     now records item-level offset/value/length/data substep progress. Full</p>
 <p>										     self-host traces showed the compiler-shaped token-batch cliff was</p>
 <p>										     encoded-offset lookup, so string batches now carry decoded slot offsets</p>
-<p>										     with encoded offsets only as a fallback. The full self-host probe now</p>
-<p>										     reaches <code>x64.codegen.top.done</code>, making post-<code>__top_level__</code> x64</p>
-<p>										     user-function codegen throughput the next measured target.</p>
+<p>											     with encoded offsets only as a fallback. Empty list/map top-level globals</p>
+<p>											     now batch by kind into runtime allocator loops over global-slot tables; a</p>
+<p>											     compiler-shaped self-host probe reduced synthesized <code>__top_level__</code> body</p>
+<p>											     emission from about 15.5s to about 5.5s and reaches</p>
+<p>											     <code>x64.codegen.top.done</code>, making post-<code>__top_level__</code> x64 user-function</p>
+<p>											     codegen throughput the next measured target.</p>
 <p>	     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
