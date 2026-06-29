@@ -102,20 +102,24 @@ Facts from the 2026-05-28 implementation pass:
 	  persist bounded slow-function rankings under `OREN_TRACE_BUILD_PHASES_PATH`.
 	  Phase logs now include `link.parse_module.start` so capped self-host probes
 	  show the active module even when a module does not finish before timeout.
-	  Serial/thread module ASTBIN writes are explicit prewarm work via
-	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
-	  as a candidate and `false` disables serial-write candidates. Actual serial
-	  ASTBIN writes are now guarded behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
-	  because forced prewarm proved generic prepared-module ASTBIN encoding can stall
-	  on both std and compiler-shaped modules before the first encode completion.
-	  Cache reads and fork-worker writes remain enabled, and explicit serial prewarm
-	  now logs cache-write start/skip/encode/done phases. Module cache directories
-	  still default to the compiler executable signature, and controlled profiling
-	  runs can set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across
-	  stage2 rebuilds. A focused forced-prewarm std fixture now completes with
-	  `link.parse_module.cache_write.skip reason=astbin_disabled`, and capped
-	  compiler-root probes skip each cache-write candidate in 0-1 ms instead of
-	  stalling at `cache_write.start`. Synthetic string-global probes show opt-in direct string slots can
+		  Serial/thread module ASTBIN writes are explicit prewarm work via
+		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+		  as a candidate and `false` disables serial-write candidates. Actual serial
+		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
+		  and now use a module-specialized v2 ASTBIN writer with known-key traversal and
+		  exact-size pointer emission. Forced prewarm is bounded by
+		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MAX_PARSE_MS` (default `250`; `0`/`false`
+		  disables the parse-cost ceiling) plus the existing node budget. Cache reads and
+		  fork-worker writes remain enabled, and explicit serial prewarm now logs
+		  cache-write start/skip/encode/done phases. Module cache directories still
+		  default to the compiler executable signature, and controlled profiling runs can
+		  set `OREN_MODULE_ASTBIN_CACHE_COMPILER_SIG` to reuse entries across stage2
+		  rebuilds. Focused no-artifact-cache proof: forced `std:list` prewarm writes a
+		  35.8 KiB v2 ASTBIN in about 4.8s and the next process warm-hits with
+		  `cache_hit=1 parse_ms=0` in about 44ms. Broader generator-import proof writes
+		  bounded `std:result`, then skips known expensive `std:time`/`std:generator`
+		  candidates immediately with `reason=parse_budget` instead of spending roughly a
+		  minute in encode. Synthetic string-global probes show opt-in direct string slots can
 	  remove `__top_level__` assignment work on small programs. Compiler-shaped
 	  self-host probes still show a per-slot direct string `.data` cliff, now isolated
 	  to direct global metadata/root bookkeeping rather than the synthesized assignment
@@ -125,12 +129,12 @@ Facts from the 2026-05-28 implementation pass:
 	  include direct path plus init/allocation/fixup/metadata substep timing. The
 	  synthesized `__top_level__` string-global assignment fast path now runs before
 	  generic expression validation and local fact updates, so literal string globals
-	  bypass the slow generic assignment path. Capped full x64 self-host traces now
-	  complete module parsing through `lib/compiler/compiler.oren`, finish the optimizer,
-	  and reach x64 native emit. With direct string globals disabled,
-	  `top_globals.user_slots` finishes in under a second. The next measured target
-	  is a specialized byte-native module-AST encoder/write path before warm-cache
-	  full self-host profiles should rely on serial prewarm writes.
+		  bypass the slow generic assignment path. Capped full x64 self-host traces now
+		  complete module parsing through `lib/compiler/compiler.oren`, finish the optimizer,
+		  and reach x64 native emit. With direct string globals disabled,
+		  `top_globals.user_slots` finishes in under a second. The next measured target is
+		  reducing the remaining pathological module-AST encode shapes, especially
+		  `std:time`, before relying on uncapped serial prewarm for full self-host profiles.
 	  Host `rtobj-seed` uses the same bounded stage1 build-compiler fallback for
 	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from
 	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker

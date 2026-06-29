@@ -293,10 +293,21 @@ fn _ml_modcache_serial_write_node_budget() {
     return 200000
 }
 
+fn _ml_modcache_serial_write_max_parse_ms() {
+    // Even with the module-specialized ASTBIN writer, some prepared module shapes can still
+    // cost far more to encode than they cost to parse. Keep this ceiling enabled by default
+    // for forced prewarm; set it to 0/false only for dedicated "try every module" profiling.
+    var v = oren_env("OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MAX_PARSE_MS")
+    if v != nil && v != "" {
+        if v == "false" || v == "0" { return 0 }
+        return _ml_parse_nonneg_decimal_default(v, 250)
+    }
+    return 250
+}
+
 fn _ml_modcache_serial_write_astbin_enabled() {
-    // Prepared module ASTs can still trigger pathological generic ASTBIN traversal. Serial
-    // prewarm is useful for phase attribution, but writes must stay opt-in until module ASTs
-    // have a specialized encoder.
+    // Prepared module ASTBIN writes are useful for phase attribution and warm-cache profiling,
+    // but stay opt-in because cold prewarm must remain explicitly bounded.
     var v = oren_env("OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN")
     if v == nil || v == "" || v == "0" || v == "false" { return false }
     return true

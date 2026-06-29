@@ -249,6 +249,8 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     if cache_path != nil && profile_parse && _ml_modcache_enabled() == true {
         var min_ms = _ml_modcache_serial_write_min_ms()
         if min_ms >= 0 && parse_ms + prepare_ms >= min_ms {
+            var parse_total_ms = parse_ms + prepare_ms
+            var max_parse_ms = _ml_modcache_serial_write_max_parse_ms()
             var cache_write_phase_log = _ml_phase_log_path()
             var cache_write_t0 = 0
             if cache_write_phase_log != nil {
@@ -256,6 +258,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                 _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.start",
                     "path=" + full +
                     " min_ms=" + oren_int_to_string(min_ms) +
+                    " max_parse_ms=" + oren_int_to_string(max_parse_ms) +
                     " parse_ms=" + oren_int_to_string(parse_ms) +
                     " prepare_ms=" + oren_int_to_string(prepare_ms),
                     cache_write_t0)
@@ -263,6 +266,8 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
             var skip_reason = nil
             if _ml_modcache_serial_write_astbin_enabled() != true {
                 skip_reason = "astbin_disabled"
+            } else if max_parse_ms > 0 && parse_total_ms > max_parse_ms {
+                skip_reason = "parse_budget"
             } else if _ml_modcache_serial_write_compiler_modules_enabled() != true &&
                       starts_with(full, "lib/compiler/") {
                 skip_reason = "compiler_module"
@@ -271,12 +276,14 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                 if cache_write_phase_log != nil {
                     _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.skip",
                         "path=" + full +
-                        " reason=" + skip_reason,
+                        " reason=" + skip_reason +
+                        " parse_total_ms=" + oren_int_to_string(parse_total_ms) +
+                        " max_parse_ms=" + oren_int_to_string(max_parse_ms),
                         cache_write_t0)
                 }
             } else {
                 var node_budget = _ml_modcache_serial_write_node_budget()
-                var bs_serial = astbin_encode_v1_stream_budget(prog, node_budget)
+                var bs_serial = astbin_encode_module_v2_stream_budget(prog, node_budget)
                 if bs_serial == nil {
                     if cache_write_phase_log != nil {
                         _ml_phase_log_append(cache_write_phase_log, "link.parse_module.cache_write.skip",
