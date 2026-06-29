@@ -18,6 +18,7 @@
 var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
 var OREN_O_NONBLOCK = 1024
+var OREN_O_APPEND = 2048
 
 fn _x64_capsule_enabled(ctx) {
     if ctx == nil { return false }
@@ -90,6 +91,15 @@ fn _emit_translate_open_flags_linux_x64(ctx, locals, off_oren_flags) {
     _emit_jcc_to_label(ctx, fixups, "e", l_skip_nb)
     bytes_extend(ctx["code"], insn_or_r64_imm32(2, labi.linux_open_flag_nonblock()))
     _emit_label(ctx, labels, l_skip_nb)
+
+    // if (flags & OREN_O_APPEND) != 0 => rdx |= O_APPEND
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 8))
+    bytes_extend(ctx["code"], insn_and_r64_imm32(9, OREN_O_APPEND))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    var l_skip_append = _new_label(ctx, "open_flags_skip_append")
+    _emit_jcc_to_label(ctx, fixups, "e", l_skip_append)
+    bytes_extend(ctx["code"], insn_or_r64_imm32(2, labi.linux_open_flag_append()))
+    _emit_label(ctx, labels, l_skip_append)
 
     _patch_local_fixups(ctx, labels, fixups)
     return nil
@@ -490,4 +500,3 @@ fn _emit_intrinsic_exit_x64(ctx, expr, locals, args) {
     if argc != 1 { err(ctx, "x64 native v0: exit expects 0 or 1 args"); return nil }
     return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args)
 }
-

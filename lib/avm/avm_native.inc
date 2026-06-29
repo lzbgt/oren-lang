@@ -163,6 +163,40 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 229: { // oren_append_file
+            if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_STRING) {
+                char* path = (char*)args[0].as.p;
+                char* data = (char*)args[1].as.p;
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    uint8_t dom = 0;
+                    uint16_t capop = 0;
+                    avm_legacy_native_to_domop(id, &dom, &capop);
+                    if (!avm_log_can_fit(vm, 81ull)) {
+                        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                        avm_abort(vm, e);
+                        res = e;
+                        break;
+                    }
+                }
+                FILE* f = fopen(path, "ab");
+                if (!f) {
+                    int err = errno;
+                    char msg[512];
+                    snprintf(msg, sizeof(msg), "cannot open file for append: %s (errno=%d)", path, err);
+                    res = avm_err(avm_err_from_errno(err), msg);
+                    break;
+                }
+                size_t len = strlen(data);
+                if (!avm_io_charge(vm, (uint64_t)len, 1, 7)) { fclose(f); break; }
+                size_t n = fwrite(data, 1, len, f);
+                fclose(f);
+                if (n != len) {
+                    res = avm_err(AVM_ERR_IO, "append_file: short write");
+                    break;
+                }
+            }
+            break;
+        }
         case 2: { // oren_system
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 // Preflight: ensure record log can store this entry BEFORE executing the command.

@@ -151,6 +151,7 @@ fn emit_svc_preserve_heap(ctx, svc_imm) {
 var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
 var OREN_O_NONBLOCK = 1024
+var OREN_O_APPEND = 2048
 
 fn emit_translate_open_flags(ctx) {
     // Input:
@@ -210,6 +211,21 @@ fn emit_translate_open_flags(ctx) {
     push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_NONBLOCK
     var after_nb = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+
+    // If (oren_flags & OREN_O_APPEND) != 0 => OR in OS O_APPEND.
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_APPEND))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_APPEND
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_append = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_append = abi.darwin_open_flag_append()
+    if ctx["platform"]["os"] == "linux" {
+        os_append = labi.linux_open_flag_append()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_append))
+    push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_APPEND
+    var after_append = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_append, insn_b_cond((after_append - br_skip_append) / 4, 0)) // EQ
 
     return nil
 }

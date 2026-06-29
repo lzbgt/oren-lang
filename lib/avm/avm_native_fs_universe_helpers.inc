@@ -385,6 +385,7 @@ static const char* avm_fs_op_name(uint16_t op) {
         case 3: return "read_bytes";
         case 4: return "exists";
         case 5: return "readdir";
+        case 7: return "append_file";
         default: return "fs_op";
     }
 }
@@ -508,6 +509,28 @@ static int avm_vfs_put(AvmVM* vm, const char* path, const uint8_t* data, uint32_
         memcpy(e->data, data, (size_t)len);
     }
     e->len = len;
+    return 1;
+}
+
+static int avm_vfs_append(AvmVM* vm, const char* path, const uint8_t* data, uint32_t len) {
+    if (!vm || !path) return 0;
+    AvmVfs* v = avm_vfs_get_or_create(vm);
+    if (!v) return 0;
+
+    AvmVfsEntry* e = avm_vfs_find(v, path);
+    if (!e) return avm_vfs_put(vm, path, data, len);
+
+    uint32_t old_len = e->len;
+    if (len == 0) return 1;
+    if (UINT32_MAX - old_len < len) return 0;
+    uint32_t new_len = old_len + len;
+    uint8_t* nb = (uint8_t*)avm_heap_malloc_k((size_t)new_len, AVM_ALLOC_KIND_VFS);
+    if (!nb) return 0;
+    if (old_len > 0 && e->data) memcpy(nb, e->data, (size_t)old_len);
+    memcpy(nb + old_len, data, (size_t)len);
+    if (e->data) avm_heap_free(e->data);
+    e->data = nb;
+    e->len = new_len;
     return 1;
 }
 

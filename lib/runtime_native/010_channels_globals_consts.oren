@@ -533,6 +533,7 @@ var CAP_RNG = 32
 var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
 var OREN_O_NONBLOCK = 1024
+var OREN_O_APPEND = 2048
 
 // POSIX socket constants used by syscall-first runtime (no SDK headers).
 // Values are stable across Darwin/Linux for IPv4 + TCP/UDP in practice.

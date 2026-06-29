@@ -349,6 +349,7 @@ fn native_runtime_init(target_os) {
     OREN_O_CREAT = 256
     OREN_O_TRUNC = 512
     OREN_O_NONBLOCK = 1024
+    OREN_O_APPEND = 2048
 
     // POSIX socket constants.
     OREN_AF_INET = 2

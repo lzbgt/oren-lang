@@ -471,6 +471,17 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 3221225472)) // READ|WRITE (0xC0000000)
     _emit_label(ctx, labels, l_acc_done)
 
+    // O_APPEND maps to append-only writes on Windows. Creation disposition
+    // below still follows CREAT/TRUNC exactly.
+    _intr_load_x64(ctx, 10, tmp_flags)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_and_r64_imm32(11, OREN_O_APPEND))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    var l_no_append_access = _new_label(ctx, "sys_open_no_append_access")
+    _emit_jcc_to_label(ctx, fixups, "e", l_no_append_access)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 4)) // FILE_APPEND_DATA
+    _emit_label(ctx, labels, l_no_append_access)
+
     // r8 = share mode: READ|WRITE|DELETE
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 7))
     // r9 = lpSecurityAttributes = NULL

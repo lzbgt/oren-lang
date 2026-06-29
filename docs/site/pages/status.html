@@ -211,10 +211,15 @@
 <p>					  <code>oren_index_set</code>) instead of emitting full list+map dispatch bodies at</p>
 <p>					  each parameter-local access; focused Linux/Windows compile-only coverage</p>
 <p>					  now includes a parameter-local dynamic index fixture. The broader</p>
-<p>					  no-cache self-host diagnostic now times out after optimizer progress</p>
-<p>					  reaches the final statement, so optimizer finalization/summary tracing</p>
-<p>					  is the next measured blocker before returning to post-<code>__top_level__</code></p>
-<p>					  x64 user-function codegen throughput.</p>
+<p>					  no-cache self-host diagnostic exposed dense phase logging as an</p>
+<p>					  O(N^2) read/rewrite cliff; compiler phase logs now use append-only</p>
+<p>					  <code>oren_append_file</code>, with C backend/runtime and arm64/x64 native</p>
+<p>					  <code>O_APPEND</code> support. A refreshed capped trace now reaches</p>
+<p>					  <code>link.optimizer.done</code>, global DCE, and <code>x64.codegen.ctx.done</code>.</p>
+<p>					  Additional x64 runtime-object hash/cache/seed/build markers show</p>
+<p>					  cold cache misses stop inside <code>x64.rtobj.build.start</code>, so the next</p>
+<p>					  measured target is cold x64 rtobj build internals and then</p>
+<p>					  post-<code>__top_level__</code> x64 user-function codegen throughput.</p>
 <p>	  Host <code>rtobj-seed</code> uses the same bounded stage1 build-compiler fallback for</p>
 <p>	  missing stage2 runtime-hash seeds, keeping local NET/native matrix prewarm from</p>
 <p>	  spending minutes in repeated stage2 cold seed probes. The ARM64 Linux Docker</p>

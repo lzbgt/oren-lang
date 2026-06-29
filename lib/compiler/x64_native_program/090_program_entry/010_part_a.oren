@@ -401,7 +401,7 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     return true
 }
 
-fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
+fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, phase_log) {
     // Compile the injected native runtime into a reusable object blob for x86_64 native.
     //
     // Bounded tracing (perf guardrails; avoid huge logs):
@@ -434,20 +434,28 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // Some metadata encodings are 1-based and decoded via `enc-1`.
     bytes_push(ctx["code"], 144) // 0x90 (NOP)
 
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.parse.start", "") }
     var prog = bundle.load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
     if prog == nil { return nil }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.parse.done", "") }
     if trace_sum { t_parse_done = oren_time_now_ns() }
 
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }
 
     // Function metadata is required for lambda capture analysis and wrapper synthesis.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.fnmeta.start", "") }
     var fns = coreir.collect_top_level_functions(ctx, {"statements": stmts}, "x64 native rtobj")
     if fns == nil { return nil }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.fnmeta.done",
+            "fns=" + oren_int_to_string(oren_list_len(fns)))
+    }
     if trace_sum { t_meta_done = oren_time_now_ns() }
 
     // Normalize nested `fn name(...)` to lambdas+vars for Tier‑1 parity.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.lambdas.start", "") }
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, stmts)
 
     // Collect lambdas from the runtime so wrapper naming does not collide later.
@@ -456,16 +464,28 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         callable.collect_lambdas_in_statement(ctx, stmts[li])
         li = li + 1
     }
+    if phase_log != nil {
+        var lambda_n = 0
+        if ctx["lambda_defs"] != nil { lambda_n = oren_list_len(ctx["lambda_defs"]) }
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.lambdas.done",
+            "lambdas=" + oren_int_to_string(lambda_n))
+    }
     if trace_sum { t_lambda_done = oren_time_now_ns() }
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var declared = ctx["declared_functions"]
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.split.start", "") }
     var split = nt.split_tier1_runtime_user(ctx, "x64 native rtobj", stmts, [], declared)
     if split == nil { return nil }
     var runtime_vars = split["runtime_vars"]
     if runtime_vars == nil { runtime_vars = [] }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.split.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
+    }
     if trace_sum { t_split_done = oren_time_now_ns() }
 
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.start", "") }
     var vi = 0
     while vi < oren_list_len(runtime_vars) {
         var st = runtime_vars[vi]
@@ -487,6 +507,10 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         vi = vi + 1
     }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
+    }
     if trace_sum { t_globals_done = oren_time_now_ns() }
 
     // Compile runtime named functions.
@@ -497,8 +521,17 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     var top_keep = 12
     var sum_decl_ns = 0
     if trace_decls { top_decls = [] }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.start",
+            "fns=" + oren_int_to_string(oren_list_len(fns)))
+    }
     var i = 0
     while i < oren_list_len(fns) {
+        if phase_log != nil && i > 0 && core.int_mod(i, 250) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.progress",
+                "i=" + oren_int_to_string(i) +
+                " total=" + oren_int_to_string(oren_list_len(fns)))
+        }
         var t_decl0 = 0
         if trace_decls { t_decl0 = oren_time_now_ns() }
         _compile_function_v0(ctx, fns[i], platform)
@@ -544,6 +577,10 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
             return nil
         }
         i = i + 1
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.done",
+            "fns=" + oren_int_to_string(oren_list_len(fns)))
     }
     if trace_sum { t_decls_done = oren_time_now_ns() }
 
@@ -594,8 +631,17 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     }
 
     // Compile synthesized wrappers.
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.start",
+            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+    }
     var j = 0
     while j < oren_list_len(wrappers) {
+        if phase_log != nil && j > 0 && core.int_mod(j, 250) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.progress",
+                "i=" + oren_int_to_string(j) +
+                " total=" + oren_int_to_string(oren_list_len(wrappers)))
+        }
         var t_decl1 = 0
         if trace_decls { t_decl1 = oren_time_now_ns() }
         _compile_function_v0(ctx, wrappers[j], platform)
@@ -636,6 +682,10 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         }
         j = j + 1
     }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.done",
+            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+    }
     if trace_sum { t_wrap_done = oren_time_now_ns() }
 
     if trace_decls && top_decls != nil {
@@ -656,6 +706,7 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     }
 
     // Materialize blobs for cache storage.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.finalize.start", "") }
     var code_u8 = bytes_finalize(ctx["code"])
     var data_u8 = bytes_finalize(ctx["data"])
     if trace_sum { t_finalize_done = oren_time_now_ns() }
@@ -693,6 +744,14 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         "func_varargs_fixed": ctx["func_varargs_fixed"],
         "func_decl_order": ctx["func_decl_order"],
         "lambda_counter_enc": ctx["lambda_counter"] + 1
+    }
+    if phase_log != nil {
+        var fx_n0 = 0
+        if ctx["fixups"] != nil { fx_n0 = oren_list_len(ctx["fixups"]) }
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.finalize.done",
+            "code_bytes=" + oren_int_to_string(oren_buf_len(code_u8)) +
+            " data_bytes=" + oren_int_to_string(oren_buf_len(data_u8)) +
+            " fixups=" + oren_int_to_string(fx_n0))
     }
     if trace_sum {
         var total_ms = (t_finalize_done - t0) / 1000000
@@ -735,36 +794,49 @@ fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     if rtobj.rtobj_cache_enabled(platform) != true { return false }
 
     var trace = rtobj.rtobj_trace_enabled()
+    var phase_log = ctx["phase_log"]
     var t0 = 0
     if trace { t0 = oren_time_now_ns() }
 
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.hash.start", "") }
     var rh = rtobj.rtobj_runtime_hash(ctx, runtime_path)
     if rh == nil || rh == "" { return false }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.hash.done", "") }
     var key = rtobj.rtobj_cache_key("x64", platform, rh)
     var bsig = rtobj.rtobj_backend_sig("x64")
     var dir = rtobj.rtobj_cache_dir()
 
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.cache_load.start", "") }
     var hit = rtobj.rtobj_load(dir, key)
     if hit != nil {
         if trace { print("[rtobj] hit backend=x64 key=" + key) }
+        if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.cache_load.hit", "") }
         return _x64_rtobj_apply_data_and_meta_to_ctx(ctx, hit)
     }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.cache_load.miss", "") }
 
     // Optional seed fallback (see rtobj module docs): allows fast first-build even when the
     // selected cache dir is empty.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.seed_load.start", "") }
     var seed_hit = rtobj.rtobj_try_load_seed_into_cache(dir, key)
     if seed_hit != nil {
         if trace { print("[rtobj] seed-hit backend=x64 key=" + key) }
+        if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.seed_load.hit", "") }
         return _x64_rtobj_apply_data_and_meta_to_ctx(ctx, seed_hit)
     }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.seed_load.miss", "") }
 
     if trace { print("[rtobj] miss backend=x64 key=" + key + " (building)") }
-    var built = _x64_build_runtime_obj(platform, runtime_path, rh, bsig)
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.start", "") }
+    var built = _x64_build_runtime_obj(platform, runtime_path, rh, bsig, phase_log)
     if built == nil { return false }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.done", "") }
 
     // Persist to cache.
     var meta = built["meta"]
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.store.start", "") }
     rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"], built["cstr0_offsets_u8"])
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.store.done", "") }
 
     // Apply immediately (avoid re-reading).
     meta["code_u8"] = built["code_u8"]

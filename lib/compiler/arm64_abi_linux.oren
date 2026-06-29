@@ -66,6 +66,7 @@ fn linux_sys_munmap() { return 215 }
 fn linux_open_flag_creat() { return 64 }   // O_CREAT = 0x0040
 fn linux_open_flag_trunc() { return 512 }  // O_TRUNC = 0x0200
 fn linux_open_flag_nonblock() { return 2048 } // O_NONBLOCK = 0x0800
+fn linux_open_flag_append() { return 1024 } // O_APPEND = 0x0400
 
 // --- Syscall instruction ABI (arm64, Linux) ---
 // Linux AArch64 syscall convention:

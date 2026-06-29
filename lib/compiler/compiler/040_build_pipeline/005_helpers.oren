@@ -91,9 +91,7 @@ fn _build_phase_log_append(path, phase, detail, t0) {
         line = line + " total_ms=" + oren_int_to_string((now - t0) / 1000000)
     }
     if detail != nil && detail != "" { line = line + " " + detail }
-    var prev = oren_read_file(path)
-    if oren_is_err(prev) { prev = "" }
-    oren_write_file(path, prev + line + "\n")
+    oren_append_file(path, line + "\n")
     return nil
 }
 

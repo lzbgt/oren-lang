@@ -86,6 +86,7 @@ fn linux_syscall_reg() { return 0 } // rax
 fn linux_open_flag_creat() { return 64 }   // O_CREAT = 0x0040
 fn linux_open_flag_trunc() { return 512 }  // O_TRUNC = 0x0200
 fn linux_open_flag_nonblock() { return 2048 } // O_NONBLOCK = 0x0800
+fn linux_open_flag_append() { return 1024 } // O_APPEND = 0x0400
 
 // --- Linux AT_* constants (syscall args) ---
 fn linux_at_fdcwd() { return -100 } // AT_FDCWD

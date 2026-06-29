@@ -76,6 +76,24 @@ OrenValue oren_write_file(OrenValue path, OrenValue content) {
     return OREN_NIL;
 }
 
+OrenValue oren_append_file(OrenValue path, OrenValue content) {
+    if (path.type != OREN_TYPE_STRING || content.type != OREN_TYPE_STRING) {
+        oren_panic("append_file expects (string, string)");
+        return OREN_NIL; // Should not be reached
+    }
+    FILE *f = fopen(path.as.string_val, "ab");
+    if (!f) {
+        return oren_err_from_errno("cannot open file for append", path.as.string_val, errno);
+    }
+    size_t len = strlen(content.as.string_val);
+    size_t n = fwrite(content.as.string_val, 1, len, f);
+    fclose(f);
+    if (n != len) {
+        return oren_err_from_errno("cannot append file", path.as.string_val, errno);
+    }
+    return OREN_NIL;
+}
+
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     if (path.type != OREN_TYPE_STRING || !(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF)) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects (string, list<int>|u8_buf)"));

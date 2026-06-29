@@ -1,7 +1,7 @@
     // Domain 1: FS (filesystem). Map op -> legacy ids for now.
     // This is a rolling ABI: domain/op tables may evolve quickly.
     if (domain == 1) {
-        int is_write = (op == 1 || op == 2 || op == 6) ? 1 : 0;
+        int is_write = (op == 1 || op == 2 || op == 6 || op == 7) ? 1 : 0;
         int mounts_mode = 0;
         if (vm && vm->fs_backend_kind == 0) {
             // If any mounts are configured on the host FS backend, mounts become the explicit enrollment mechanism.
@@ -108,6 +108,28 @@
                         ok = avm_vfs_put_list(vm, path ? path : "", args[1].as.l);
                     }
                     if (!ok) {
+                        AvmValue err = avm_alloc_fail_value();
+                        avm_abort(vm, err);
+                        return err;
+                    }
+                    AvmValue ret = avm_nil();
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                case 7: { // append_file -> NIL
+                    if (nargs < 2 || args[1].type != AVM_VAL_STRING) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: append_file expects (path, string)", domain, op);
+                    const char* s = (const char*)args[1].as.p;
+                    uint32_t len = (uint32_t)strlen(s ? s : "");
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        if (!avm_log_can_fit(vm, 81ull)) {
+                            AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, err);
+                            return err;
+                        }
+                    }
+                    if (!avm_io_charge(vm, (uint64_t)len, (int)domain, (int)op)) return vm->last_error;
+                    if (!avm_vfs_append(vm, path ? path : "", (const uint8_t*)s, len)) {
                         AvmValue err = avm_alloc_fail_value();
                         avm_abort(vm, err);
                         return err;
@@ -303,6 +325,26 @@
                     use_args = tmp_args;
                 }
                 AvmValue ret = avm_call_native(vm, 17, use_args, nargs);
+                if (mapped) free(mapped);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            case 7: { // append_file
+                AvmValue* use_args = args;
+                AvmValue tmp_args[4];
+                char* mapped = NULL;
+                if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    int matched = 0;
+                    mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                    if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
+                    if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    tmp_args[0] = args[0];
+                    tmp_args[0].as.p = mapped;
+                    for (int i = 1; i < nargs && i < 4; i++) tmp_args[i] = args[i];
+                    use_args = tmp_args;
+                }
+                AvmValue ret = avm_call_native(vm, 229, use_args, nargs);
                 if (mapped) free(mapped);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);

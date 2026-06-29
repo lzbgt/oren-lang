@@ -833,8 +833,9 @@ OrenValue oren_buf_gemm_f32_4x4_slice_into(
 	OrenValue oren_buf_axpy_i32_into(OrenValue dst, OrenValue alpha, OrenValue x, OrenValue y);
 	OrenValue oren_buf_axpy_i32_in_place(OrenValue alpha, OrenValue x, OrenValue y);
 
-	OrenValue oren_read_file(OrenValue path);
+		OrenValue oren_read_file(OrenValue path);
 OrenValue oren_write_file(OrenValue path, OrenValue content);
+OrenValue oren_append_file(OrenValue path, OrenValue content);
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes);
 OrenValue oren_read_bytes(OrenValue path);
 	// Read a file into a typed byte buffer (u8_buf) with one allocation.
