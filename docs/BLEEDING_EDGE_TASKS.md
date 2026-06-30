@@ -169,7 +169,12 @@ This file is the concise task view. Detailed implementation status lives in
 											 reservation, user slot/fact preparation, and top-level initializer rewrite
 											 into helper bodies; the capped profile now shows `x64_native_program.oren` at
 											 about 37.7s total / 27.7s parse, with `_emit_ops_in_fn` exposed again at about
-											 618ms as the next parser body.
+											 618ms as the next parser body. `_emit_ops_in_fn` now delegates `var_i32`,
+											 `assign_i32`, and top-level string-init operation bodies to helpers, and Linux
+											 x64 net intrinsic lowering delegates epoll-family syscalls to a helper; the
+											 capped profile now shows `x64_native_program.oren` at about 37.2s total /
+											 27.3s parse, with `_emit_intrinsic_sys_linux_misc_x64` exposed at about 557ms
+											 as the next parser body.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
