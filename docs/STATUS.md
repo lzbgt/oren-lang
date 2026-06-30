@@ -265,7 +265,11 @@ Facts from the 2026-05-28 implementation pass:
 																			  one parser body. The capped profile now shows `x64_native_program.oren` at
 																			  about 36.8s total / 27.7s parse, with
 																			  `_emit_fast_list_get_sum_while_x64` exposed at about 272ms as the next
-																			  parser body.
+																			  parser body. X64 fast list get-sum while lowering now mirrors the list-int
+																			  split with preparation, sum-string flag, list-validation, and loop-body
+																			  helpers. The capped profile now shows `x64_native_program.oren` at about
+																			  37.9s total / 28.8s parse, with `native_compile_program_x64` exposed at
+																			  about 285ms as the next parser body.
 					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
