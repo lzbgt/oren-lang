@@ -69,12 +69,7 @@ fn insn_movdqa_xmm_m128_disp(xmm_dst, base_reg, disp) {
     if rex != 64 { bytes_push(out, rex) }
     bytes_push(out, 15)  // 0F
     bytes_push(out, 111) // 6F
-    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(xmm_dst, 8), disp)
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
-    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(xmm_dst, 8), disp) != true { return nil }
     return out
 }
 
@@ -88,12 +83,7 @@ fn insn_movdqa_m128_xmm_disp(base_reg, disp, xmm_src) {
     if rex != 64 { bytes_push(out, rex) }
     bytes_push(out, 15)  // 0F
     bytes_push(out, 127) // 7F
-    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(xmm_src, 8), disp)
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
-    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(xmm_src, 8), disp) != true { return nil }
     return out
 }
 
@@ -144,12 +134,7 @@ fn insn_mov_r32_m64_disp(dst_reg, base_reg, disp) {
     // Note: No REX.W (0x48) because this is 32-bit operation
     if need_rex { bytes_push(out, rex) }
     bytes_push(out, 139) // 0x8B (MOV r32, r/m32)
-    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(dst_reg, 8), disp)
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
-    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(dst_reg, 8), disp) != true { return nil }
     return out
 }
 

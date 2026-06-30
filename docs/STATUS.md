@@ -241,11 +241,15 @@ Facts from the 2026-05-28 implementation pass:
 							  moved `rename_stmt` from about 199ms to 118ms and `rename_expr` from about
 							  194ms to 66ms. Statement/expression branch helpers now keep the hot
 								  dispatch bodies smaller, with the latest focused probe showing
-								  `rename_stmt` at about 61ms and `rename_expr` at about 57ms.
-								  Annotation builtin checks are now split by category, replacing the
-								  former about 57ms monolithic checker with about 20ms/15ms/15ms/6ms
-								  helper bodies; traversal helpers are the remaining focused renamer
-								  emit targets.
+									  `rename_stmt` at about 61ms and `rename_expr` at about 57ms.
+									  Annotation builtin checks are now split by category, replacing the
+									  former about 57ms monolithic checker with about 20ms/15ms/15ms/6ms
+									  helper bodies; traversal helpers are the remaining focused renamer
+									  emit targets. X64 memory-displacement instruction builders now append
+									  ModRM/SIB/displacement bytes directly through
+									  `_emit_mem_base_modrm_sib_disp` instead of allocating per-instruction
+									  `{modrm,sib,disp8,disp32}` maps and unpacking them at each MOV/MOVDQU/MOVDQA
+									  call site; Linux/Windows x64 compile-only gates cover the encoding surface.
 						  Runtime-object code splicing now has bounded phase markers for code append,
 						  compact function offsets, compact fixup metadata, legacy fallback fixups,
 						  and RIP-data labels. Those markers showed the splice itself was not the

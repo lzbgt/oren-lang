@@ -257,10 +257,14 @@ This file is the concise task view. Detailed implementation status lives in
 								     now reduce the focused renamer dispatch bodies: the latest x64 probe
 								     shows `rename_stmt` around 61ms and `rename_expr` around 57ms, leaving
 								     traversal helpers and annotation builtin checks as the next measured
-								     renamer emit targets. Annotation builtin checks are now split by
-								     category, replacing the former roughly 57ms monolithic checker with
-								     about 20ms/15ms/15ms/6ms helper bodies; traversal helpers remain the
-								     next focused renamer emit target.
+									     renamer emit targets. Annotation builtin checks are now split by
+									     category, replacing the former roughly 57ms monolithic checker with
+									     about 20ms/15ms/15ms/6ms helper bodies; traversal helpers remain the
+									     next focused renamer emit target. X64 memory-displacement instruction
+									     builders now append ModRM/SIB/displacement bytes directly through
+									     `_emit_mem_base_modrm_sib_disp` instead of allocating per-instruction
+									     metadata maps; Linux/Windows x64 compile-only gates cover the MOV/MOVDQU/MOVDQA
+									     surface.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
