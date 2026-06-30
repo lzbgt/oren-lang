@@ -208,11 +208,16 @@ This file is the concise task view. Detailed implementation status lives in
 														 markers; the capped profile now shows `x64_native_program.oren` at about
 														 37.2s total / 27.5s parse, with `_emit_eval_call_expr_to_rax` exposed at
 														 about 412ms as the next parser body. X64 pointer/memory/native-allocation
-														 call intrinsics now live in `040_emit_call_intrinsics.oren`, and
-														 `_emit_eval_call_expr_to_rax` delegates to compact classifier helpers after
-														 scalar intrinsics; the capped profile now shows `x64_native_program.oren`
-														 at about 37.1s total / 27.6s parse, with `_emit_fast_lcg_sum_while_x64`
-														 exposed at about 409ms as the next parser body.
+															 call intrinsics now live in `040_emit_call_intrinsics.oren`, and
+															 `_emit_eval_call_expr_to_rax` delegates to compact classifier helpers after
+															 scalar intrinsics; the capped profile now shows `x64_native_program.oren`
+															 at about 37.1s total / 27.6s parse, with `_emit_fast_lcg_sum_while_x64`
+															 exposed at about 409ms as the next parser body. X64 fast LCG sum and
+															 list-int dot while emitters now delegate setup, repeated-step,
+															 list-validation, and whole-list helper blocks to narrower helper bodies;
+															 the capped profile now shows `x64_native_program.oren` at about 37.1s
+															 total / 27.5s parse, with `_emit_eval_int_to_rax` exposed at about 390ms
+															 as the next parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
