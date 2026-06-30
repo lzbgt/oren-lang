@@ -327,10 +327,15 @@
 <p>																					  <code>_emit_intrinsic_sys_linux_proc_x64</code> exposed at about 263ms as the next</p>
 <p>																					  parser body. X64 Linux proc syscall lowering now delegates memory mapping</p>
 <p>																					  and clone/thread families to helpers, and Linux FS syscall lowering now</p>
-<p>																					  delegates runtime stubs, pipe, and open/close/access families to helpers.</p>
-<p>																					  The capped profile now shows <code>x64_native_program.oren</code> at about 37.4s</p>
-<p>																					  total / 28.2s parse, with <code>_emit_fast_list_int_push_while_x64</code> exposed at</p>
-<p>																					  about 266ms as the next parser body.</p>
+<p>																						  delegates runtime stubs, pipe, and open/close/access families to helpers.</p>
+<p>																						  The capped profile now shows <code>x64_native_program.oren</code> at about 37.4s</p>
+<p>																						  total / 28.2s parse, with <code>_emit_fast_list_int_push_while_x64</code> exposed at</p>
+<p>																						  about 266ms as the next parser body. X64 fast list-int push while lowering</p>
+<p>																						  now delegates preparation, list validation/reserve, loop stores, and final</p>
+<p>																						  count updates to helper bodies. The capped profile now shows</p>
+<p>																						  <code>x64_native_program.oren</code> at about 37.6s total / 28.3s parse, with</p>
+<p>																						  <code>_emit_global_string_init_batch_op_x64</code> exposed at about 260ms as the next</p>
+<p>																						  parser body.</p>
 <p>					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
