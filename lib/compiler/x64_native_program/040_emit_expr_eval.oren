@@ -451,6 +451,102 @@ fn _emit_eval_infix_to_rax(ctx, expr, locals) {
         return nil
 }
 
+fn _emit_eval_scalar_call_intrinsic_x64(ctx, nm, expr, locals, args) {
+    if nm == "oren_trunc_int" {
+        _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals)
+        return 1
+    }
+    if nm == "oren_f32_round" {
+        _emit_intrinsic_oren_f32_round_x64(ctx, expr, locals)
+        return 1
+    }
+    if nm == "oren_f32_to_u32_bits" {
+        // Intrinsic: convert float64 bits (RAX) to IEEE-754 float32 bits (u32 in EAX, zero-extended).
+        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f32_to_u32_bits expects 1 argument"); return 1 }
+        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f32_to_u32_bits does not support spread"); return 1 }
+        _emit_eval_int_to_rax(ctx, args[0], locals) // f64 bits in rax
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))      // xmm0 = f64 bits
+        bytes_extend(ctx["code"], core.insn_cvtsd2ss_xmm_xmm(0, 0))  // xmm0 = f32(xmm0)
+        bytes_extend(ctx["code"], core.insn_movd_r32_xmm(0, 0))      // eax = f32 bits (zero-extends to rax)
+        return 1
+    }
+    if nm == "oren_u32_bits_to_f32" {
+        // Intrinsic: convert IEEE-754 float32 bits (low 32 of RAX) to float64 bits (RAX).
+        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_u32_bits_to_f32 expects 1 argument"); return 1 }
+        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_u32_bits_to_f32 does not support spread"); return 1 }
+        _emit_eval_int_to_rax(ctx, args[0], locals) // bits in rax (use low 32)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+        bytes_extend(ctx["code"], core.insn_movd_xmm_r32(0, 0))      // xmm0 = f32 bits from eax
+        bytes_extend(ctx["code"], core.insn_cvtss2sd_xmm_xmm(0, 0))  // xmm0 = (double)xmm0
+        bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))      // rax = f64 bits
+        return 1
+    }
+    if nm == "oren_f64_to_u64_bits" {
+        // Intrinsic: reinterpret float64 bits as u64 bits (identity in carrier register).
+        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f64_to_u64_bits expects 1 argument"); return 1 }
+        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f64_to_u64_bits does not support spread"); return 1 }
+        _emit_eval_int_to_rax(ctx, args[0], locals)
+        return 1
+    }
+    if nm == "oren_u64_bits_to_f64" {
+        // Intrinsic: reinterpret u64 bits as float64 bits (identity in carrier register).
+        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_u64_bits_to_f64 expects 1 argument"); return 1 }
+        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_u64_bits_to_f64 does not support spread"); return 1 }
+        _emit_eval_int_to_rax(ctx, args[0], locals)
+        return 1
+    }
+    if nm == "oren_bool_norm" {
+        // `oren_bool_norm(x)` is used by type annotation lowering (`: bool`) to give bool
+        // annotations deterministic semantics across backends.
+        //
+        // Semantics:
+        // - int: x != 0
+        // - float: x != 0.0 (where NaN counts as true; +0.0 and -0.0 count as false)
+        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_bool_norm expects 1 argument"); return 1 }
+        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_bool_norm does not support spread"); return 1 }
+        var a0 = args[0]
+        var is_float = _x64_expr_is_floaty(ctx, a0)
+        _emit_eval_int_to_rax(ctx, a0, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+
+        var labels = {}
+        var local_fixups = []
+        var l_true = _new_label(ctx, "bool_norm_true")
+        var l_done = _new_label(ctx, "bool_norm_done")
+
+        if is_float {
+            // Compare float value to 0.0:
+            // - unordered (NaN): PF=1 => treat as true (NaN != 0.0)
+            // - ordered not-equal: ZF=0 => true
+            // - equal (incl -0.0): ZF=1, PF=0 => false
+            bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))     // xmm0 = bits(rax)
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))    // edx = 0
+            bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 2))     // xmm1 = 0.0
+            bytes_extend(ctx["code"], core.insn_ucomisd_xmm_xmm(0, 1))  // compare xmm0 vs xmm1
+            _emit_jcc_to_label(ctx, local_fixups, "p", l_true)     // unordered => true
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)    // != => true
+        } else {
+            // if rax != 0 => rax = 1 else rax = 0
+            bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+        }
+
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cdqe())
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+        _emit_label(ctx, labels, l_true)
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+        bytes_extend(ctx["code"], core.insn_cdqe())
+
+        _emit_label(ctx, labels, l_done)
+        _patch_local_fixups(ctx, labels, local_fixups)
+        return 1
+    }
+    return 0
+}
+
 fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
     var fn_expr = expr["fn"]
     var args = expr["args"]
@@ -522,96 +618,7 @@ fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
     //
     // Note: these intrinsics operate in the "int as i64 carrier" model where pointers
     // are plain 64-bit values.
-    if nm == "oren_trunc_int" {
-        _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals)
-        return nil
-    }
-    if nm == "oren_f32_round" {
-        _emit_intrinsic_oren_f32_round_x64(ctx, expr, locals)
-        return nil
-    }
-    if nm == "oren_f32_to_u32_bits" {
-        // Intrinsic: convert float64 bits (RAX) to IEEE-754 float32 bits (u32 in EAX, zero-extended).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f32_to_u32_bits expects 1 argument"); return nil }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f32_to_u32_bits does not support spread"); return nil }
-        _emit_eval_int_to_rax(ctx, args[0], locals) // f64 bits in rax
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))      // xmm0 = f64 bits
-        bytes_extend(ctx["code"], core.insn_cvtsd2ss_xmm_xmm(0, 0))  // xmm0 = f32(xmm0)
-        bytes_extend(ctx["code"], core.insn_movd_r32_xmm(0, 0))      // eax = f32 bits (zero-extends to rax)
-        return nil
-    }
-    if nm == "oren_u32_bits_to_f32" {
-        // Intrinsic: convert IEEE-754 float32 bits (low 32 of RAX) to float64 bits (RAX).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_u32_bits_to_f32 expects 1 argument"); return nil }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_u32_bits_to_f32 does not support spread"); return nil }
-        _emit_eval_int_to_rax(ctx, args[0], locals) // bits in rax (use low 32)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        bytes_extend(ctx["code"], core.insn_movd_xmm_r32(0, 0))      // xmm0 = f32 bits from eax
-        bytes_extend(ctx["code"], core.insn_cvtss2sd_xmm_xmm(0, 0))  // xmm0 = (double)xmm0
-        bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))      // rax = f64 bits
-        return nil
-    }
-    if nm == "oren_f64_to_u64_bits" {
-        // Intrinsic: reinterpret float64 bits as u64 bits (identity in carrier register).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f64_to_u64_bits expects 1 argument"); return nil }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f64_to_u64_bits does not support spread"); return nil }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        return nil
-    }
-    if nm == "oren_u64_bits_to_f64" {
-        // Intrinsic: reinterpret u64 bits as float64 bits (identity in carrier register).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_u64_bits_to_f64 expects 1 argument"); return nil }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_u64_bits_to_f64 does not support spread"); return nil }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        return nil
-    }
-    if nm == "oren_bool_norm" {
-        // `oren_bool_norm(x)` is used by type annotation lowering (`: bool`) to give bool
-        // annotations deterministic semantics across backends.
-        //
-        // Semantics:
-        // - int: x != 0
-        // - float: x != 0.0 (where NaN counts as true; +0.0 and -0.0 count as false)
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_bool_norm expects 1 argument"); return nil }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_bool_norm does not support spread"); return nil }
-        var a0 = args[0]
-        var is_float = _x64_expr_is_floaty(ctx, a0)
-        _emit_eval_int_to_rax(ctx, a0, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-        var labels = {}
-        var local_fixups = []
-        var l_true = _new_label(ctx, "bool_norm_true")
-        var l_done = _new_label(ctx, "bool_norm_done")
-
-        if is_float {
-            // Compare float value to 0.0:
-            // - unordered (NaN): PF=1 => treat as true (NaN != 0.0)
-            // - ordered not-equal: ZF=0 => true
-            // - equal (incl -0.0): ZF=1, PF=0 => false
-            bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))     // xmm0 = bits(rax)
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))    // edx = 0
-            bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 2))     // xmm1 = 0.0
-            bytes_extend(ctx["code"], core.insn_ucomisd_xmm_xmm(0, 1))  // compare xmm0 vs xmm1
-            _emit_jcc_to_label(ctx, local_fixups, "p", l_true)     // unordered => true
-            _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)    // != => true
-        } else {
-            // if rax != 0 => rax = 1 else rax = 0
-            bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
-        }
-
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-        bytes_extend(ctx["code"], core.insn_cdqe())
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-        _emit_label(ctx, labels, l_true)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
-        bytes_extend(ctx["code"], core.insn_cdqe())
-
-        _emit_label(ctx, labels, l_done)
-        _patch_local_fixups(ctx, labels, local_fixups)
+    if _emit_eval_scalar_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 {
         return nil
     }
             if nm == "iadd" {

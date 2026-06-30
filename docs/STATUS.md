@@ -174,10 +174,14 @@ Facts from the 2026-05-28 implementation pass:
 										  capped profile now shows `x64_native_program.oren` at about 37.2s total /
 										  27.3s parse, with `_emit_intrinsic_sys_linux_misc_x64` exposed at about 557ms
 										  as the next parser body. Linux x64 misc syscall lowering now delegates
-										  fd-control syscalls (`fcntl`, `dup*`, `ioctl`, and related helpers) to a
-										  helper body; the capped profile now shows `x64_native_program.oren` at about
-										  37.4s total / 27.3s parse, with `_emit_eval_call_expr_to_rax` exposed again at
-										  about 524ms as the next parser body.
+											  fd-control syscalls (`fcntl`, `dup*`, `ioctl`, and related helpers) to a
+											  helper body; the capped profile now shows `x64_native_program.oren` at about
+											  37.4s total / 27.3s parse, with `_emit_eval_call_expr_to_rax` exposed again at
+											  about 524ms as the next parser body. X64 call-expression lowering now delegates
+											  scalar conversion/bool intrinsics to `_emit_eval_scalar_call_intrinsic_x64`;
+											  the capped profile now shows `x64_native_program.oren` at about 37.4s total /
+											  27.4s parse, with `native_compile_program_x64` exposed again at about 526ms
+											  as the next parser body.
 		  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
