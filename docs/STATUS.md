@@ -186,6 +186,11 @@ Facts from the 2026-05-28 implementation pass:
 												  `_x64_emit_entry_prologue_and_args`; the capped profile now shows
 												  `x64_native_program.oren` at about 37.0s total / 27.1s parse, with
 												  `_emit_eval_infix_to_rax` exposed at about 470ms as the next parser body.
+												  `_emit_eval_infix_to_rax` now delegates logical, comparison, modulo/division,
+												  shift, bitwise, and integer arithmetic lowering to focused helpers in
+												  `041_emit_infix_expr.oren`; the capped profile now shows
+												  `x64_native_program.oren` at about 37.1s total / 27.4s parse, with
+												  `_compile_function_v0` exposed at about 468ms as the next parser body.
 			  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

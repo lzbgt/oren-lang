@@ -1,0 +1,326 @@
+fn _x64_emit_bool_singleton_from_rax_nonzero(ctx, prefix) {
+    // Map integer boolean carrier in RAX (0/1) to runtime false/true singleton.
+    var labels = {}
+    var local_fixups = []
+    var l_true = _new_label(ctx, prefix + "_true")
+    var l_done = _new_label(ctx, prefix + "_done")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_label(ctx, labels, l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_eval_logical_infix_to_rax(ctx, op, l, r, locals) {
+    // Short-circuit boolean operators (expression context).
+    //
+    // Semantics:
+    // - evaluate operands using language truthiness rules
+    // - return BOOL runtime singleton (true/false)
+    var labels = {}
+    var local_fixups = []
+    var l_rhs = _new_label(ctx, "sc_rhs")
+    var l_false = _new_label(ctx, "sc_false")
+    var end = _new_label(ctx, "sc_end")
+
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    if op == "&&" {
+        // If lhs is falsey => false, else evaluate rhs and return truthiness(rhs).
+        _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
+        _emit_eval_int_to_rax(ctx, r, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
+        _x64_emit_load_value_singleton(ctx, 0, 384) // true
+        _emit_jmp_to_label(ctx, local_fixups, end)
+
+        _emit_label(ctx, labels, l_false)
+        _x64_emit_load_value_singleton(ctx, 0, 376) // false
+        _emit_label(ctx, labels, end)
+        _patch_local_fixups(ctx, labels, local_fixups)
+        return nil
+    }
+
+    // op == "||": if lhs is falsey => eval rhs, else true.
+    _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_rhs)
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_jmp_to_label(ctx, local_fixups, end)
+
+    _emit_label(ctx, labels, l_rhs)
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_jmp_to_label(ctx, local_fixups, end)
+
+    _emit_label(ctx, labels, l_false)
+    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+    _emit_label(ctx, labels, end)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_eval_compare_infix_to_rax(ctx, expr, op, l, r, locals) {
+    if _x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r) {
+        _emit_float_cmp_to_bool_x64(ctx, op, l, r, locals)
+        _x64_emit_bool_singleton_from_rax_nonzero(ctx, "cmp")
+        return nil
+    }
+    _emit_cmp_from_cond(ctx, expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var cc1 = _cond_true_cc(op)
+    if cc1 == nil { err(ctx, "x64 native v0: unsupported compare op"); return nil }
+    var labels = {}
+    var local_fixups = []
+    var l_true = _new_label(ctx, "cmp_true")
+    var l_done = _new_label(ctx, "cmp_done")
+    _emit_jcc_to_label(ctx, local_fixups, cc1, l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_label(ctx, labels, l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_eval_mod_infix_to_rax(ctx, l, r, locals) {
+    // Fast-path constant RHS: inline deterministic modulo for safe non-zero constants
+    // (and not -1), avoiding a runtime call on hot loops.
+    var rhs_const = _x64_expr_int_const(ctx, r)
+    if rhs_const != nil && rhs_const != 0 && rhs_const != -1 {
+        _emit_eval_int_to_rax(ctx, l, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(1, rhs_const)) // rcx = divisor
+        bytes_extend(ctx["code"], core.insn_cqo()) // sign-extend rax into rdx
+        bytes_extend(ctx["code"], core.insn_idiv_r64(1)) // idiv rcx (quotient=rax, remainder=rdx)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2)) // rax = rdx (remainder)
+        return nil
+    }
+
+    // Deterministic modulo semantics are implemented in the injected runtime helper `oren_mod`.
+    if ctx == nil || ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: '%' requires injected native runtime (oren_mod)")
+        return nil
+    }
+
+    var base_mod = _intr_tmp_push(ctx, 2)
+    if oren_type_tag(base_mod) == 0 { return nil }
+    var tmp_a = _intr_tmp_off(ctx, locals, base_mod + 0)
+    var tmp_b = _intr_tmp_off(ctx, locals, base_mod + 1)
+    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base_mod); return nil }
+
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
+
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
+
+    var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1m_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if oren_type_tag(a0m_enc) == 0 || oren_type_tag(a1m_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_mod")
+        _intr_tmp_pop(ctx, base_mod)
+        return nil
+    }
+    var a0m = a0m_enc - 1
+    var a1m = a1m_enc - 1
+    _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp_a)
+    _emit_mov_r64_mrbp(ctx, a1m, 0 - tmp_b)
+    var call_posm = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_posm, "name": "oren_mod"})
+
+    _intr_tmp_pop(ctx, base_mod)
+    return nil
+}
+
+fn _emit_eval_div_infix_to_rax(ctx, l, r, locals) {
+    // Integer division (trunc toward zero, like x86 idiv).
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var tmp_offd = locals["$tmp_div"]
+    if oren_type_tag(tmp_offd) == 0 { err(ctx, "x64 native v0: missing temp slot for div"); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_offd, 0) // [tmp] = dividend (rax)
+
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = divisor
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offd) // rax = dividend
+
+    var labels = {}
+    var local_fixups = []
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
+    var l_div_nonzero = _new_label(ctx, "div_nonzero")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_nonzero)
+    _emit_abort_panic_str(ctx, "division by zero")
+    _emit_label(ctx, labels, l_div_nonzero)
+
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 4294967295)) // -1 (imm32 sign-extended)
+    var l_div_ok = _new_label(ctx, "div_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
+    var i64_min = 0 - (1 << 63)
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, i64_min))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 2))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
+    _emit_abort_panic_str(ctx, "division overflow (i64_min / -1)")
+    _emit_label(ctx, labels, l_div_ok)
+    _patch_local_fixups(ctx, labels, local_fixups)
+
+    bytes_extend(ctx["code"], core.insn_cqo())
+    bytes_extend(ctx["code"], core.insn_idiv_r64(1))
+    return nil
+}
+
+fn _x64_emit_checked_shift_count_in_rcx(ctx, shift_msg) {
+    var labels = {}
+    var local_fixups = []
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
+    var l_nonneg = _new_label(ctx, "sh_nonneg")
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_nonneg)
+    _emit_abort_panic_str(ctx, shift_msg)
+    _emit_label(ctx, labels, l_nonneg)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 64))
+    var l_lt64 = _new_label(ctx, "sh_lt64")
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_lt64)
+    _emit_abort_panic_str(ctx, shift_msg)
+    _emit_label(ctx, labels, l_lt64)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_eval_shift_infix_to_rax(ctx, op, l, r, locals) {
+    var shift_msg = "shl shift count out of range (need 0..63)"
+    if op == ">>" { shift_msg = "shr shift count out of range (need 0..63)" }
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    if r != nil && r["type"] == "Integer" {
+        var n2 = intparse.parse_int_lit(r["value"])
+        if oren_is_err(n2) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
+        if n2 < 0 || n2 >= 64 {
+            _emit_abort_panic_str(ctx, shift_msg)
+            return nil
+        }
+        if op == "<<" { bytes_extend(ctx["code"], core.insn_shl_r64_imm8(0, n2)) }
+        else { bytes_extend(ctx["code"], core.insn_shr_r64_imm8(0, n2)) }
+        return nil
+    }
+    if r != nil && r["type"] == "Identifier" {
+        if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 2)) // rcx = rhs (CL)
+        _x64_emit_checked_shift_count_in_rcx(ctx, shift_msg)
+        if op == "<<" { bytes_extend(ctx["code"], core.insn_shl_r64_cl(0)) }
+        else { bytes_extend(ctx["code"], core.insn_shr_r64_cl(0)) }
+        return nil
+    }
+
+    var tmp_offs = locals["$tmp_shift"]
+    if oren_type_tag(tmp_offs) == 0 { err(ctx, "x64 native v0: missing temp slot for shift"); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_offs, 0) // [tmp] = lhs
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rhs
+    _x64_emit_checked_shift_count_in_rcx(ctx, shift_msg)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offs) // rax = lhs
+    if op == "<<" { bytes_extend(ctx["code"], core.insn_shl_r64_cl(0)) }
+    else { bytes_extend(ctx["code"], core.insn_shr_r64_cl(0)) }
+    return nil
+}
+
+fn _x64_emit_bitwise_r64(ctx, op, rhs_reg) {
+    if op == "&" { bytes_extend(ctx["code"], core.insn_and_r64_r64(0, rhs_reg)) }
+    else if op == "|" { bytes_extend(ctx["code"], core.insn_or_r64_r64(0, rhs_reg)) }
+    else { bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, rhs_reg)) }
+    return nil
+}
+
+fn _emit_eval_bitwise_infix_to_rax(ctx, op, l, r, locals) {
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if r != nil && r["type"] == "Integer" {
+        var n3 = intparse.parse_int_lit(r["value"])
+        if oren_is_err(n3) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
+        if _is_i32(n3) {
+            var imm_u32_3 = n3
+            if n3 < 0 { imm_u32_3 = 4294967296 + n3 }
+            if op == "&" { bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, imm_u32_3)) }
+            else if op == "|" { bytes_extend(ctx["code"], core.insn_or_r64_imm32(0, imm_u32_3)) }
+            else { bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, imm_u32_3)) }
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n3))
+            _x64_emit_bitwise_r64(ctx, op, 2)
+        }
+        return nil
+    }
+    if r != nil && r["type"] == "Identifier" {
+        if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
+        _x64_emit_bitwise_r64(ctx, op, 2)
+        return nil
+    }
+
+    var baseb = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(baseb) == 0 { return nil }
+    var tmp_offb = _intr_tmp_off(ctx, locals, baseb + 0)
+    if oren_type_tag(tmp_offb) == 0 { _intr_tmp_pop(ctx, baseb); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_offb, 0)
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, baseb); return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offb)
+    _x64_emit_bitwise_r64(ctx, op, 2)
+    _intr_tmp_pop(ctx, baseb)
+    return nil
+}
+
+fn _x64_emit_arith_r64(ctx, op, rhs_reg) {
+    if op == "+" { bytes_extend(ctx["code"], core.insn_add_r64_r64(0, rhs_reg)) }
+    else if op == "-" { bytes_extend(ctx["code"], core.insn_sub_r64_r64(0, rhs_reg)) }
+    else { bytes_extend(ctx["code"], core.insn_imul_r64_r64(0, rhs_reg)) }
+    return nil
+}
+
+fn _emit_eval_integer_arith_infix_to_rax(ctx, op, l, r, locals) {
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if r != nil && r["type"] == "Integer" {
+        var n2 = intparse.parse_int_lit(r["value"])
+        if oren_is_err(n2) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
+        if _is_i32(n2) {
+            var imm_u32_2 = n2
+            if n2 < 0 { imm_u32_2 = 4294967296 + n2 }
+            if op == "+" { bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, imm_u32_2)) }
+            else if op == "-" { bytes_extend(ctx["code"], core.insn_sub_r64_imm32(0, imm_u32_2)) }
+            else { bytes_extend(ctx["code"], core.insn_imul_r64_imm32(0, imm_u32_2)) }
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n2))
+            _x64_emit_arith_r64(ctx, op, 2)
+        }
+        return nil
+    }
+    if r != nil && r["type"] == "Identifier" {
+        if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
+        _x64_emit_arith_r64(ctx, op, 2)
+        return nil
+    }
+
+    var base4 = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base4) == 0 { return nil }
+    var tmp_off4 = _intr_tmp_off(ctx, locals, base4 + 0)
+    if oren_type_tag(tmp_off4) == 0 { _intr_tmp_pop(ctx, base4); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_off4, 0)
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off4)
+    _x64_emit_arith_r64(ctx, op, 2)
+    _intr_tmp_pop(ctx, base4)
+    return nil
+}
