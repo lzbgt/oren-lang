@@ -314,10 +314,16 @@ This file is the concise task view. Detailed implementation status lives in
 																											 `_emit_fast_list_dot_while_x64` exposed at about 244ms as the next parser
 																											 body. X64 generic list-dot fast-loop lowering now delegates preparation,
 																											 list validation, unique cursor setup, loop header, and single-step body
-																											 emission through helper bodies. The capped profile now shows
-																											 `x64_native_program.oren` at about 37.6s total / 28.2s parse, with
-																											 `_x64_rtobj_apply_code_to_ctx` exposed at about 240ms as the next parser
-																											 body.
+																												 emission through helper bodies. The capped profile now shows
+																												 `x64_native_program.oren` at about 37.6s total / 28.2s parse, with
+																												 `_x64_rtobj_apply_code_to_ctx` exposed at about 240ms as the next parser
+																												 body. X64 runtime-object apply now delegates data-tail, globals/imports/FFI/cstr,
+																												 function-metadata, code append, function-offset, compact-fixup, legacy-fixup,
+																												 and rip-data32 merge phases to helper bodies; Windows CreateProcess syscall
+																												 lowering now delegates preparation, spill/zeroing, create-call, wait, exit
+																												 status, and cleanup emission. The capped profile now shows
+																												 `x64_native_program.oren` at about 38.1s total / 28.6s parse, with
+																												 `_x64_expr_is_floaty` exposed at about 217ms as the next parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

@@ -1,17 +1,4 @@
-fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
-    // Apply the runtime object's `.data` and metadata to a fresh program ctx.
-    //
-    // IMPORTANT:
-    // We apply `.data` early (so offsets remain stable), but defer splicing `.code` until
-    // after the entry stub is emitted so the entrypoint stays at offset 0.
-    if ctx == nil || meta == nil { return false }
-    if ctx["errors"] == nil { ctx["errors"] = [] }
-    var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
-    if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
-    if trace { print("[x64_rtobj_apply] data/meta start") }
-    var phase_log = _x64_program_phase_log_path()
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.start", "") }
-
+fn _x64_rtobj_apply_data_tail(ctx, meta, trace, phase_log) {
     var want_prefix = rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN
     var have_prefix = bytes_len(ctx["data"])
     if have_prefix != want_prefix {
@@ -27,7 +14,10 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.tail.done",
             "data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
     }
+    return true
+}
 
+fn _x64_rtobj_apply_globals(ctx, meta, trace, phase_log) {
     // Merge runtime globals (name -> data_off+1).
     var meta_globals = meta["globals"]
     var adopted_globals = false
@@ -97,7 +87,10 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
                 " adopted=" + adopted_s)
         }
     }
+    return nil
+}
 
+fn _x64_rtobj_apply_imports_and_ffi(ctx, meta, trace, phase_log) {
     // Merge runtime imports/FFI link names so emitters can resolve runtime external calls.
     var imp_rt = meta["import_list"]
     if imp_rt != nil {
@@ -141,7 +134,10 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
         }
         if trace { print("[x64_rtobj_apply] ffi link merge done count=" + oren_int_to_string(idxl)) }
     }
+    return nil
+}
 
+fn _x64_rtobj_apply_cstr_metadata(ctx, meta, trace) {
     // Merge runtime cstr0 dedup map (string -> off+1).
     //
     // PERF (stage2-native, x64 emit):
@@ -192,7 +188,10 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
         ctx["rtobj_cstr0_list_enc"] = c0
     }
     if trace { print("[x64_rtobj_apply] cstr0 list stash done") }
+    return nil
+}
 
+fn _x64_rtobj_apply_function_metadata(ctx, meta, trace) {
     // Seed function metadata (for lambda capture analysis + wrapper synthesis + var shadow checks).
     if trace { print("[x64_rtobj_apply] function metadata seed start") }
     if meta["declared_functions"] != nil { ctx["declared_functions"] = meta["declared_functions"] }
@@ -207,6 +206,28 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
         var lc = _rtobj_decode_int_enc(lc_enc)
         if lc != nil && lc >= 0 { ctx["lambda_counter"] = lc }
     }
+    return nil
+}
+
+fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
+    // Apply the runtime object's `.data` and metadata to a fresh program ctx.
+    //
+    // IMPORTANT:
+    // We apply `.data` early (so offsets remain stable), but defer splicing `.code` until
+    // after the entry stub is emitted so the entrypoint stays at offset 0.
+    if ctx == nil || meta == nil { return false }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
+    if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
+    if trace { print("[x64_rtobj_apply] data/meta start") }
+    var phase_log = _x64_program_phase_log_path()
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.start", "") }
+
+    if _x64_rtobj_apply_data_tail(ctx, meta, trace, phase_log) != true { return false }
+    _x64_rtobj_apply_globals(ctx, meta, trace, phase_log)
+    _x64_rtobj_apply_imports_and_ffi(ctx, meta, trace, phase_log)
+    _x64_rtobj_apply_cstr_metadata(ctx, meta, trace)
+    _x64_rtobj_apply_function_metadata(ctx, meta, trace)
 
     ctx["runtime_injected"] = true
     // Stash the full meta (including code_u8) for a later splice after entry stub emission.
@@ -253,16 +274,7 @@ fn _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, fx) {
     return nil
 }
 
-fn _x64_rtobj_apply_code_to_ctx(ctx) {
-    // Splice runtime `.code` after the entry stub and merge fixups/function offsets.
-    if ctx == nil { return false }
-    var meta = ctx["rtobj_pending"]
-    if meta == nil { return false }
-    if ctx["errors"] == nil { ctx["errors"] = [] }
-    var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
-    if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
-    var phase_log = ctx["phase_log"]
-
+fn _x64_rtobj_apply_append_code(ctx, meta, trace, phase_log) {
     var base_code = bytes_len(ctx["code"])
     if trace { print("[x64_rtobj_apply] start base_code=" + oren_int_to_string(base_code)) }
     if phase_log != nil {
@@ -284,7 +296,10 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             "code_bytes=" + oren_int_to_string(code_n) +
             " total_code=" + oren_int_to_string(bytes_len(ctx["code"])))
     }
+    return base_code
+}
 
+fn _x64_rtobj_apply_function_offsets(ctx, meta, base_code, trace, phase_log) {
     // Merge runtime function code offsets (name -> off+1 encoding in meta).
     //
     // Prefer the compact parallel-list form. The legacy map is kept for older cache entries, but
@@ -350,7 +365,10 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     } else if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done", "path=none count=0")
     }
+    return nil
+}
 
+fn _x64_rtobj_apply_compact_fixups(ctx, meta, base_code, trace, phase_log) {
     var x64_fx_compact = meta["x64_fixups_compact"]
     if x64_fx_compact != nil {
         ctx["runtime_x64_fixups_compact"] = x64_fx_compact
@@ -382,7 +400,10 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
                 " fnobj=" + oren_int_to_string(fnobj_n0))
         }
     }
+    return nil
+}
 
+fn _x64_rtobj_apply_legacy_fixups(ctx, meta, base_code, trace, phase_log) {
     // Merge runtime fixups (pos encoded as +1; adjust by base_code).
     //
     // New x64 rtobj entries store the hot runtime fixups in `x64_fixups_compact`.
@@ -436,7 +457,10 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     } else if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.legacy_fixups.done", "count=0")
     }
+    return nil
+}
 
+fn _x64_rtobj_apply_rip_data32_fixups(ctx, meta, base_code, trace, phase_log) {
     // Preferred representation (rolling): rip_data32 positions aggregated by label.
     var r32 = meta["rip_data32_fixups_enc"]
     if r32 != nil {
@@ -467,6 +491,24 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     } else if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.rip_data32.done", "labels=0")
     }
+    return nil
+}
+
+fn _x64_rtobj_apply_code_to_ctx(ctx) {
+    // Splice runtime `.code` after the entry stub and merge fixups/function offsets.
+    if ctx == nil { return false }
+    var meta = ctx["rtobj_pending"]
+    if meta == nil { return false }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
+    if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
+    var phase_log = ctx["phase_log"]
+
+    var base_code = _x64_rtobj_apply_append_code(ctx, meta, trace, phase_log)
+    _x64_rtobj_apply_function_offsets(ctx, meta, base_code, trace, phase_log)
+    _x64_rtobj_apply_compact_fixups(ctx, meta, base_code, trace, phase_log)
+    _x64_rtobj_apply_legacy_fixups(ctx, meta, base_code, trace, phase_log)
+    _x64_rtobj_apply_rip_data32_fixups(ctx, meta, base_code, trace, phase_log)
 
     ctx["rtobj_pending"] = nil
     if trace { print("[x64_rtobj_apply] done") }

@@ -367,6 +367,15 @@
 <p>  at ~37.6s total / ~28.2s parse, with <code>_x64_rtobj_apply_code_to_ctx</code> exposed</p>
 <p>  at ~240ms as the next parser body.</p>
 <ul>
+<li>X64 runtime-object apply now delegates data-tail, globals/imports/FFI/cstr,</li>
+</ul>
+<p>  function-metadata, code append, function-offset, compact-fixup, legacy-fixup,</p>
+<p>  and rip-data32 merge phases to helper bodies; Windows CreateProcess syscall</p>
+<p>  lowering now delegates preparation, spill/zeroing, create-call, wait, exit</p>
+<p>  status, and cleanup emission. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~38.1s total / ~28.6s parse, with</p>
+<p>  <code>_x64_expr_is_floaty</code> exposed at ~217ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

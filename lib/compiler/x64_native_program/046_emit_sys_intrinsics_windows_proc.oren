@@ -25,11 +25,7 @@
 // This file depends on `_emit_call_iat_x64` and `_emit_set_rax_neg_errno_x64` helpers defined
 // in `046_emit_sys_intrinsics_windows_net.oren` (included earlier in the x64 native program).
 
-fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_win_createprocess expects 4 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_createprocess does not support spread"); return nil }
-
+fn _x64_win_cp_prepare(ctx, locals) {
     // Spill args so we can freely use registers.
     var base = _intr_tmp_push(ctx, 4)
     if oren_type_tag(base) == 0 { return nil }
@@ -64,11 +60,36 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
         return nil
     }
 
+    return {
+        "base": base,
+        "tmp_app": tmp_app,
+        "tmp_cmd": tmp_cmd,
+        "tmp_env": tmp_env,
+        "tmp_to": tmp_to,
+        "startup_q": STARTUP_Q,
+        "proc_q": PROC_Q,
+        "startup_off": STARTUP_OFF,
+        "proc_off": PROC_OFF,
+        "exit_off": EXIT_OFF,
+        "ret_off": RET_OFF
+    }
+}
+
+fn _x64_win_cp_spill_args_and_zero(ctx, locals, args, st) {
+    var base = st["base"]
+    var tmp_app = st["tmp_app"]
+    var tmp_cmd = st["tmp_cmd"]
+    var tmp_env = st["tmp_env"]
+    var tmp_to = st["tmp_to"]
+    var STARTUP_Q = st["startup_q"]
+    var PROC_Q = st["proc_q"]
+    var STARTUP_OFF = st["startup_off"]
+
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_app)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_cmd)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_env)
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_to)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
 
     // Zero the scratch structures for determinism and for best-effort cleanup on failure.
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax=0
@@ -77,10 +98,13 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
         _emit_mov_mrsp_r64(ctx, STARTUP_OFF + zi * 8, 0)
         zi = zi + 1
     }
+    return true
+}
 
+fn _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup) {
+    var tmp_cmd = st["tmp_cmd"]
+    var STARTUP_OFF = st["startup_off"]
     // Validate cmdline != 0.
-    var labels = {}
-    var fixups = []
     var l_fail = _new_label(ctx, "win_cp_fail")
     var l_after_validate = _new_label(ctx, "win_cp_after_validate")
 
@@ -91,7 +115,6 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_fail)
     _emit_set_rax_neg_errno_x64(ctx, 14) // -EFAULT
-    var l_cleanup = _new_label(ctx, "win_cp_cleanup")
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_after_validate)
@@ -110,7 +133,14 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     // CreateProcessA fail with ERROR_INVALID_PARAMETER.
     //
     // Instead, default to bInheritHandles=FALSE and let the host decide stdio wiring.
+    return nil
+}
 
+fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
+    var tmp_cmd = st["tmp_cmd"]
+    var tmp_env = st["tmp_env"]
+    var STARTUP_OFF = st["startup_off"]
+    var PROC_OFF = st["proc_off"]
     // CreateProcessA args (Win64):
     // rcx=lpApplicationName, rdx=lpCommandLine, r8=lpProcessAttributes(NULL), r9=lpThreadAttributes(NULL)
     //
@@ -166,7 +196,12 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_created)
+    return nil
+}
 
+fn _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup) {
+    var tmp_to = st["tmp_to"]
+    var PROC_OFF = st["proc_off"]
     // Wait:
     // - timeout < 0: WaitForSingleObject(hProcess, INFINITE)
     // - timeout >=0: poll WaitForSingleObject(hProcess, 0) `timeout` times (budget), else -ETIMEDOUT
@@ -223,7 +258,12 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_wait_done)
+    return nil
+}
 
+fn _x64_win_cp_emit_exit_status(ctx, st, labels, fixups, l_cleanup) {
+    var PROC_OFF = st["proc_off"]
+    var EXIT_OFF = st["exit_off"]
     // GetExitCodeProcess(hProcess, &exitcode)
     _emit_mov_r64_mrsp(ctx, 1, PROC_OFF)                        // rcx = hProcess
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 4))            // rdx = rsp
@@ -243,7 +283,12 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _emit_mov_r64_mrsp(ctx, 0, EXIT_OFF)
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, 255))
     bytes_extend(ctx["code"], core.insn_shl_r64_imm8(0, 8))
+    return nil
+}
 
+fn _x64_win_cp_emit_cleanup(ctx, st, labels, fixups, l_cleanup) {
+    var PROC_OFF = st["proc_off"]
+    var RET_OFF = st["ret_off"]
     // Common cleanup: close hThread and hProcess (best-effort), preserve rax.
     _emit_label(ctx, labels, l_cleanup)
     _emit_mov_mrsp_r64(ctx, RET_OFF, 0) // save rax
@@ -266,6 +311,29 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
 
     // Restore rax
     _emit_mov_r64_mrsp(ctx, 0, RET_OFF)
+    return nil
+}
+
+fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_win_createprocess expects 4 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_createprocess does not support spread"); return nil }
+
+    var st = _x64_win_cp_prepare(ctx, locals)
+    if st == nil { return nil }
+    var base = st["base"]
+
+    if _x64_win_cp_spill_args_and_zero(ctx, locals, args, st) != true { return nil }
+
+    var labels = {}
+    var fixups = []
+    var l_cleanup = _new_label(ctx, "win_cp_cleanup")
+
+    _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup)
+    _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup)
+    _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup)
+    _x64_win_cp_emit_exit_status(ctx, st, labels, fixups, l_cleanup)
+    _x64_win_cp_emit_cleanup(ctx, st, labels, fixups, l_cleanup)
 
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
