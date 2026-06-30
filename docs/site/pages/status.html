@@ -190,13 +190,16 @@
 <p>							  x64 op emitter now delegates while/for lowering and string-global batch</p>
 <p>							  fallback materialization to helper bodies, while the program emitter</p>
 <p>							  delegates wrapper/fnwrap compilation and program-data finalization; the</p>
-<p>							  final capped profile moves the exposed body back to</p>
-<p>							  <code>native_compile_program_x64</code> at about 880ms, leaving that remaining</p>
-<p>							  orchestration body as the concrete parser target. Entry register-thread,</p>
-<p>							  top/main entry calls, and platform return-path emission now live behind</p>
-<p>							  small helper calls; the capped profile now exposes</p>
-<p>							  <code>_emit_intrinsic_sys_linux_fs_x64</code> at about 770ms as the next x64 parser</p>
-<p>							  body to split by syscall family.</p>
+<p>								  final capped profile moves the exposed body back to</p>
+<p>								  <code>native_compile_program_x64</code> at about 880ms, leaving that remaining</p>
+<p>								  orchestration body as the concrete parser target. Entry register-thread,</p>
+<p>								  top/main entry calls, and platform return-path emission now live behind</p>
+<p>								  small helper calls; the capped profile now exposes</p>
+<p>								  <code>_emit_intrinsic_sys_linux_fs_x64</code> at about 770ms as the next x64 parser</p>
+<p>								  body to split by syscall family. Linux FS intrinsic lowering now delegates</p>
+<p>								  stat-family and path-family syscalls to helper bodies; the capped profile now</p>
+<p>								  shows <code>x64_native_program.oren</code> at about 37.4s total / 27.4s parse, with</p>
+<p>								  <code>_emit_eval_call_expr_to_rax</code> exposed at about 659ms as the next parser target.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

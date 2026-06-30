@@ -1,0 +1,421 @@
+fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm == "sys_stat" || nm == "sys_lstat" {
+        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+        // NOTE (Linux x86_64 syscall ABI):
+        // `newfstatat(2)` writes `struct stat` into the user-provided buffer at `statbuf` by
+        // writing *upwards* from that address (p..p+N-1). If we place the host `struct stat`
+        // buffer immediately below our spilled args (path/st_ptr/pair), the syscall will
+        // clobber those spilled values on success, leading to crashes when we later load them.
+        //
+        // Fix: leave a full `struct stat` worth of padding between spilled args and the host
+        // buffer start so the kernel write range never overlaps the spill slots.
+        //
+        // Linux x86_64: sizeof(struct stat)=144 => 18 qwords.
+        // Layout (qwords):
+        // - path, st_ptr, pair: 3
+        // - pad: 17 (18-1)
+        // - host_stat: 18
+        // Total: 38
+        var base5 = _intr_tmp_push(ctx, 38)
+        if oren_type_tag(base5) == 0 { return true }
+        var tmp_path = _intr_tmp_off(ctx, locals, base5 + 0)
+        var tmp_st = _intr_tmp_off(ctx, locals, base5 + 1)
+        var tmp_pair = _intr_tmp_off(ctx, locals, base5 + 2)
+        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_st) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base5); return true }
+
+        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base5); return true }
+
+        if capsule {
+            // pre: native_capsule_sys_stat_pre(path) or lstat_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+
+            // path_ptr from pair[0] into RSI
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+        } else {
+            // No capsule path resolution: path is already a host cstr.
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
+
+        // Use a private host `struct stat` buffer and translate into OrenStatV0
+        // (stable cross-OS layout) in the caller-provided `st_ptr`.
+        //
+        // Keep it in intrinsic-temp slots (RBP-relative) so we do not mutate RSP during lowering.
+        //
+        // Host buffer start index:
+        //   base + 2 (pair slot) + host_qwords(18) => base + 20
+        // This guarantees the syscall write range does not overlap the arg spill slots.
+        var host_qwords = 18
+        var off_host0 = _intr_tmp_off(ctx, locals, base5 + 2 + host_qwords)
+        if off_host0 == nil { _intr_tmp_pop(ctx, base5); return true }
+
+        // newfstatat(AT_FDCWD, path, tmp_host_stat, flags)
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+        _emit_addr_rbp_minus_off_x64(ctx, 2, off_host0) // rdx = tmp_host_stat
+        var at_flags = 0
+        if nm == "sys_lstat" { at_flags = labi.linux_at_symlink_nofollow() }
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, at_flags)) // r10d = flags
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_newfstatat()))
+        bytes_extend(ctx["code"], core.insn_syscall())
+
+        // If rc >= 0, translate tmp_host_stat (rsp) into OrenStatV0 at st_ptr.
+        var labels = {}
+        var fixups = []
+        var l_norm_done = _new_label(ctx, "sys_stat_norm_done")
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, fixups, "l", l_norm_done)
+
+        // Use low registers as base pointers for memory operations.
+        //
+        // Rationale:
+        // - The x64 backend must correctly encode ModRM/SIB for r8-r15, but historically
+        //   some "mem op with disp" helpers have been brittle on those high regs.
+        // - sys_stat/sys_fstat are on the compiler hot path (build cache, file ingest),
+        //   so we keep this conservative and robust.
+        _intr_load_x64(ctx, 7, tmp_st) // rdi = st_ptr
+        bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
+
+        // Zero OrenStatV0 (64 bytes) for determinism.
+        var zoff = 0
+        while zoff < nstat.oren_stat_v0_size_bytes() {
+            bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, zoff, 9))
+            zoff = zoff + 4
+        }
+
+        // size (i64)
+        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_size()))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(7, 10)) // [st_ptr+0] = size
+
+        // mode (u32)
+        bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(10, 6, labi.linux_stat_off_st_mode())) // r10d = *(u32*)(host_stat+off)
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, nstat.oren_stat_v0_off_mode(), 10))
+
+        // times (i64 ns): sec*1_000_000_000 + nsec
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_atime_sec()))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_atime_nsec()))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_atime_ns(), 10))
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_mtime_sec()))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_mtime_nsec()))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_mtime_ns(), 10))
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_ctime_sec()))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_ctime_nsec()))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_ctime_ns(), 10))
+
+        _emit_label(ctx, labels, l_norm_done)
+        _patch_local_fixups(ctx, labels, fixups)
+
+        if capsule {
+            // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_pair) // rdi = pair
+            if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+        }
+        _intr_tmp_pop(ctx, base5)
+        return true
+    }
+
+    if nm == "sys_fstat" {
+        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fstat expects 2 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fstat does not support spread"); return true }
+
+        // See sys_stat: `fstat(2)` writes `struct stat` upwards from the provided buffer.
+        // Leave a full `struct stat` worth of padding between spilled args (fd/st_ptr)
+        // and the host buffer start so the syscall cannot clobber spill slots on success.
+        //
+        // Layout (qwords):
+        // - fd, st_ptr: 2
+        // - pad: 17
+        // - host_stat: 18
+        // Total: 37
+        var base6 = _intr_tmp_push(ctx, 37)
+        if oren_type_tag(base6) == 0 { return true }
+        var tmp_fd = _intr_tmp_off(ctx, locals, base6 + 0)
+        var tmp_st = _intr_tmp_off(ctx, locals, base6 + 1)
+        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_st) == 0 { _intr_tmp_pop(ctx, base6); return true }
+
+        _emit_eval_int_to_rax(ctx, args[0], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base6); return true }
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre")
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
+        }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base6); return true }
+
+        var host_qwords = 18
+        var off_host0 = _intr_tmp_off(ctx, locals, base6 + 1 + host_qwords)
+        if off_host0 == nil { _intr_tmp_pop(ctx, base6); return true }
+
+        _intr_load_x64(ctx, 7, tmp_fd)
+        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fstat()))
+        bytes_extend(ctx["code"], core.insn_syscall())
+
+        // If rc >= 0, translate tmp_host_stat (rsp) into OrenStatV0 at st_ptr.
+        var labels = {}
+        var fixups = []
+        var l_norm_done = _new_label(ctx, "sys_fstat_norm_done")
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, fixups, "l", l_norm_done)
+
+        // See sys_stat: keep base pointers in low regs for robustness.
+        _intr_load_x64(ctx, 7, tmp_st) // rdi = st_ptr
+        bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
+        var zoff = 0
+        while zoff < nstat.oren_stat_v0_size_bytes() {
+            bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, zoff, 9))
+            zoff = zoff + 4
+        }
+        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_size()))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(7, 10))
+        bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(10, 6, labi.linux_stat_off_st_mode()))
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, nstat.oren_stat_v0_off_mode(), 10))
+
+        // times (i64 ns): sec*1_000_000_000 + nsec
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_atime_sec()))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_atime_nsec()))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_atime_ns(), 10))
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_mtime_sec()))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_mtime_nsec()))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_mtime_ns(), 10))
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_ctime_sec()))
+        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_ctime_nsec()))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_ctime_ns(), 10))
+
+        _emit_label(ctx, labels, l_norm_done)
+        _patch_local_fixups(ctx, labels, fixups)
+
+        if capsule {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+        }
+        _intr_tmp_pop(ctx, base6)
+        return true
+    }
+
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm == "sys_unlink" || nm == "sys_rmdir" {
+        if oren_list_len(args) != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 arg"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+        var base7 = _intr_tmp_push(ctx, 2) // path, pair
+        if oren_type_tag(base7) == 0 { return true }
+        var tmp_path = _intr_tmp_off(ctx, locals, base7 + 0)
+        var tmp_pair = _intr_tmp_off(ctx, locals, base7 + 1)
+        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base7); return true }
+
+        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base7); return true }
+
+        if capsule {
+            // pre: native_capsule_sys_unlink_pre(path) / rmdir_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11)) // rsi = path_ptr
+        } else {
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+        var flags2 = 0
+        if nm == "sys_rmdir" { flags2 = labi.linux_at_removedir() }
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, flags2)) // edx = flags
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_unlinkat()))
+        bytes_extend(ctx["code"], core.insn_syscall())
+
+        if capsule {
+            // post: unlink_post(pair, rc) / rmdir_post(pair, rc)
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_pair)
+            if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
+        }
+        _intr_tmp_pop(ctx, base7)
+        return true
+    }
+
+    if nm == "sys_rename" {
+        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_rename expects 2 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_rename does not support spread"); return true }
+
+        var base8 = _intr_tmp_push(ctx, 3) // from, to, bundle
+        if oren_type_tag(base8) == 0 { return true }
+        var tmp_from = _intr_tmp_off(ctx, locals, base8 + 0)
+        var tmp_to = _intr_tmp_off(ctx, locals, base8 + 1)
+        var tmp_bundle = _intr_tmp_off(ctx, locals, base8 + 2)
+        if oren_type_tag(tmp_from) == 0 || oren_type_tag(tmp_to) == 0 || oren_type_tag(tmp_bundle) == 0 { _intr_tmp_pop(ctx, base8); return true }
+
+        _intr_eval_spill_x64(ctx, locals, args[0], tmp_from)
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base8); return true }
+
+        if capsule {
+            // pre: native_capsule_sys_rename_pre(from, to) -> bundle
+            _intr_load_x64(ctx, 7, tmp_from)
+            _intr_load_x64(ctx, 6, tmp_to)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
+
+            // Load from_ptr into RSI = *(u64*)bundle
+            _intr_load_x64(ctx, 11, tmp_bundle)
+            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+            // Load to_ptr into R10 = *(u64*)(bundle+16)
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        } else {
+            _intr_load_x64(ctx, 6, tmp_from) // rsi = from
+            _intr_load_x64(ctx, 10, tmp_to)  // r10 = to
+        }
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, labi.linux_at_fdcwd()))
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_renameat()))
+        bytes_extend(ctx["code"], core.insn_syscall())
+
+        if capsule {
+            // post: native_capsule_sys_rename_post(bundle, rc) -> rc
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_bundle)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+        }
+        _intr_tmp_pop(ctx, base8)
+        return true
+    }
+
+    if nm == "sys_mkdir" || nm == "sys_chmod" {
+        var want = 2
+        if oren_list_len(args) != want { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+        var base9 = _intr_tmp_push(ctx, 3) // path, mode, pair
+        if oren_type_tag(base9) == 0 { return true }
+        var tmp_path = _intr_tmp_off(ctx, locals, base9 + 0)
+        var tmp_mode = _intr_tmp_off(ctx, locals, base9 + 1)
+        var tmp_pair = _intr_tmp_off(ctx, locals, base9 + 2)
+        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base9); return true }
+
+        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base9); return true }
+
+        if capsule {
+            // pre: mkdir_pre(path) / chmod_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+
+            // path_ptr from pair[0] into RSI
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+        } else {
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
+
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+        _intr_load_x64(ctx, 2, tmp_mode) // rdx = mode
+        if nm == "sys_mkdir" {
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_mkdirat()))
+            bytes_extend(ctx["code"], core.insn_syscall())
+            if capsule {
+                bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+                _intr_load_x64(ctx, 7, tmp_pair)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post")
+            }
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0)) // r10d = flags=0
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fchmodat()))
+            bytes_extend(ctx["code"], core.insn_syscall())
+            if capsule {
+                bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+                _intr_load_x64(ctx, 7, tmp_pair)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post")
+            }
+        }
+
+        _intr_tmp_pop(ctx, base9)
+        return true
+    }
+
+    if nm == "sys_getdirentries64" {
+        if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_getdirentries64 expects 4 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getdirentries64 does not support spread"); return true }
+
+        var base10 = _intr_tmp_push(ctx, 3) // fd, buf, bufsize
+        if oren_type_tag(base10) == 0 { return true }
+        var tmp_fd = _intr_tmp_off(ctx, locals, base10 + 0)
+        var tmp_buf = _intr_tmp_off(ctx, locals, base10 + 1)
+        var tmp_sz = _intr_tmp_off(ctx, locals, base10 + 2)
+        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_sz) == 0 { _intr_tmp_pop(ctx, base10); return true }
+
+        _emit_eval_int_to_rax(ctx, args[0], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base10); return true }
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_pre")
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
+        }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
+        _intr_eval_spill_x64(ctx, locals, args[2], tmp_sz)
+        // Evaluate pos_ptr for side-effect compatibility (ignored by Linux getdents64).
+        _emit_eval_int_to_rax(ctx, args[3], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base10); return true }
+
+        _intr_load_x64(ctx, 7, tmp_fd)
+        _intr_load_x64(ctx, 6, tmp_buf)
+        _intr_load_x64(ctx, 2, tmp_sz)
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getdents64()))
+        bytes_extend(ctx["code"], core.insn_syscall())
+
+        if capsule {
+            // post: native_capsule_sys_getdirentries64_post(rc) -> rc
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_post")
+        }
+        _intr_tmp_pop(ctx, base10)
+        return true
+    }
+
+    return false
+}
