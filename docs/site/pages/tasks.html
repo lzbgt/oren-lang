@@ -230,7 +230,11 @@
 <p>											 x64 net intrinsic lowering delegates epoll-family syscalls to a helper; the</p>
 <p>											 capped profile now shows <code>x64_native_program.oren</code> at about 37.2s total /</p>
 <p>											 27.3s parse, with <code>_emit_intrinsic_sys_linux_misc_x64</code> exposed at about 557ms</p>
-<p>											 as the next parser body.</p>
+<p>											 as the next parser body. Linux x64 misc syscall lowering now delegates</p>
+<p>											 fd-control syscalls (<code>fcntl</code>, <code>dup*</code>, <code>ioctl</code>, and related helpers) to a</p>
+<p>											 helper body; the capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>											 37.4s total / 27.3s parse, with <code>_emit_eval_call_expr_to_rax</code> exposed again at</p>
+<p>											 about 524ms as the next parser body.</p>
 <p>								     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

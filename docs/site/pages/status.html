@@ -209,11 +209,15 @@
 <p>									  into helper bodies; the capped profile now shows <code>x64_native_program.oren</code> at</p>
 <p>									  about 37.7s total / 27.7s parse, with <code>_emit_ops_in_fn</code> exposed again at about</p>
 <p>									  618ms as the next parser body. <code>_emit_ops_in_fn</code> now delegates <code>var_i32</code>,</p>
-<p>									  <code>assign_i32</code>, and top-level string-init operation bodies to helpers, and Linux</p>
-<p>									  x64 net intrinsic lowering delegates epoll-family syscalls to a helper; the</p>
-<p>									  capped profile now shows <code>x64_native_program.oren</code> at about 37.2s total /</p>
-<p>									  27.3s parse, with <code>_emit_intrinsic_sys_linux_misc_x64</code> exposed at about 557ms</p>
-<p>									  as the next parser body.</p>
+<p>										  <code>assign_i32</code>, and top-level string-init operation bodies to helpers, and Linux</p>
+<p>										  x64 net intrinsic lowering delegates epoll-family syscalls to a helper; the</p>
+<p>										  capped profile now shows <code>x64_native_program.oren</code> at about 37.2s total /</p>
+<p>										  27.3s parse, with <code>_emit_intrinsic_sys_linux_misc_x64</code> exposed at about 557ms</p>
+<p>										  as the next parser body. Linux x64 misc syscall lowering now delegates</p>
+<p>										  fd-control syscalls (<code>fcntl</code>, <code>dup*</code>, <code>ioctl</code>, and related helpers) to a</p>
+<p>										  helper body; the capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>										  37.4s total / 27.3s parse, with <code>_emit_eval_call_expr_to_rax</code> exposed again at</p>
+<p>										  about 524ms as the next parser body.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
