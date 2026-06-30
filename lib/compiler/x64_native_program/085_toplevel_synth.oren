@@ -314,6 +314,157 @@ fn _x64_log_user_global_slot_slow(ctx, phase_log, slot_slow_ms, slot_start_ns, i
     return nil
 }
 
+fn _x64_user_global_slot_state(nm2, slot_start_ns) {
+    return {
+        "name": nm2,
+        "off": 0,
+        "have_off": false,
+        "fact_floaty": false,
+        "fact_inty": false,
+        "fact_const": nil,
+        "fact_data_const": nil,
+        "direct_init_in_data": false,
+        "path": "runtime_zero",
+        "start_ns": slot_start_ns,
+        "step_ns": 0,
+        "init_ms": 0,
+        "alloc_ms": 0,
+        "fixup_ms": 0,
+        "meta_ms": 0
+    }
+}
+
+fn _x64_slot_step_start(slot) {
+    if slot != nil && slot["start_ns"] != 0 { slot["step_ns"] = oren_time_now_ns() }
+    return nil
+}
+
+fn _x64_slot_step_add_ms(slot, key) {
+    if slot != nil && slot["start_ns"] != 0 {
+        slot[key] = slot[key] + ((oren_time_now_ns() - slot["step_ns"]) / 1000000)
+    }
+    return nil
+}
+
+fn _x64_prepare_user_global_check_name(ctx, nm2, runtime_vars, runtime_globals) {
+    if ctx["globals"] != nil && ctx["globals"][nm2] != nil {
+        if oren_list_len(runtime_vars) > 0 && runtime_globals != nil && runtime_globals[nm2] != nil {
+            err(ctx, "x64 native v0: global var shadows runtime global " + nm2)
+            return false
+        }
+        err(ctx, "x64 native v0: duplicate global var " + nm2)
+        return false
+    }
+    return true
+}
+
+fn _x64_slot_try_direct_int(ctx, slot, value) {
+    _x64_slot_step_start(slot)
+    var init_int2 = _x64_direct_data_int_init(ctx, value)
+    _x64_slot_step_add_ms(slot, "init_ms")
+    if oren_type_tag(init_int2) == 0 { return false }
+    _x64_slot_step_start(slot)
+    slot["off"] = _data_add_u64(ctx, init_int2)
+    _x64_slot_step_add_ms(slot, "alloc_ms")
+    slot["have_off"] = true
+    slot["fact_inty"] = true
+    slot["fact_const"] = init_int2
+    slot["direct_init_in_data"] = true
+    slot["path"] = "direct_int"
+    return true
+}
+
+fn _x64_slot_store_data_ptr(ctx, slot, target_off, path) {
+    _x64_slot_step_start(slot)
+    slot["off"] = _data_add_u64(ctx, 0)
+    _x64_slot_step_add_ms(slot, "alloc_ms")
+    slot["have_off"] = true
+    _x64_slot_step_start(slot)
+    oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": slot["off"], "target_data_off": target_off})
+    _x64_slot_step_add_ms(slot, "fixup_ms")
+    slot["fact_data_const"] = target_off
+    slot["direct_init_in_data"] = true
+    slot["path"] = path
+    return true
+}
+
+fn _x64_slot_try_direct_string(ctx, slot, value, direct_string_globals) {
+    if direct_string_globals != true { return false }
+    _x64_slot_step_start(slot)
+    var init_str2 = _x64_direct_data_string_init(ctx, value)
+    _x64_slot_step_add_ms(slot, "init_ms")
+    if oren_type_tag(init_str2) == 0 { return false }
+    return _x64_slot_store_data_ptr(ctx, slot, init_str2, "direct_string")
+}
+
+fn _x64_slot_try_alias_string_fact(ctx, slot, value, data_const_alias_targets) {
+    if data_const_alias_targets[slot["name"]] != true { return false }
+    if oren_type_tag(slot["fact_data_const"]) != 0 { return false }
+    _x64_slot_step_start(slot)
+    var alias_str_const2 = _x64_direct_data_string_init(ctx, value)
+    _x64_slot_step_add_ms(slot, "init_ms")
+    if oren_type_tag(alias_str_const2) != 0 { slot["fact_data_const"] = alias_str_const2; return true }
+    return false
+}
+
+fn _x64_slot_try_direct_singleton(ctx, slot, value) {
+    _x64_slot_step_start(slot)
+    var init_singleton2 = _x64_direct_data_singleton_init(ctx, value)
+    _x64_slot_step_add_ms(slot, "init_ms")
+    if oren_type_tag(init_singleton2) == 0 { return false }
+    return _x64_slot_store_data_ptr(ctx, slot, init_singleton2, "direct_singleton")
+}
+
+fn _x64_slot_try_direct_alias(ctx, slot, value) {
+    _x64_slot_step_start(slot)
+    var init_ptr2 = _x64_direct_data_ptr_const_init(ctx, value)
+    _x64_slot_step_add_ms(slot, "init_ms")
+    if oren_type_tag(init_ptr2) == 0 { return false }
+    return _x64_slot_store_data_ptr(ctx, slot, init_ptr2, "direct_alias")
+}
+
+fn _x64_prepare_user_global_slot_storage(ctx, st2, slot, direct_string_globals, data_const_alias_targets) {
+    var value = st2["value"]
+    if _x64_slot_try_direct_int(ctx, slot, value) == true { return nil }
+    if _x64_slot_try_direct_string(ctx, slot, value, direct_string_globals) == true { return nil }
+    _x64_slot_try_alias_string_fact(ctx, slot, value, data_const_alias_targets)
+    if _x64_slot_try_direct_singleton(ctx, slot, value) == true { return nil }
+    if _x64_slot_try_direct_alias(ctx, slot, value) == true { return nil }
+    _x64_slot_step_start(slot)
+    slot["off"] = _data_add_u64(ctx, 0)
+    _x64_slot_step_add_ms(slot, "alloc_ms")
+    return nil
+}
+
+fn _x64_prepare_user_global_slot_facts(ctx, st2, slot) {
+    if slot["have_off"] == true { return nil }
+    _x64_slot_step_start(slot)
+    slot["fact_floaty"] = _x64_expr_is_floaty(ctx, st2["value"])
+    slot["fact_inty"] = _x64_expr_is_inty(ctx, st2["value"])
+    slot["fact_const"] = _x64_expr_int_const(ctx, st2["value"])
+    _x64_slot_step_add_ms(slot, "init_ms")
+    return nil
+}
+
+fn _x64_register_user_global_slot(ctx, slot, data_const_alias_targets) {
+    var nm2 = slot["name"]
+    var off2 = slot["off"]
+    _x64_slot_step_start(slot)
+    ctx["globals"][nm2] = off2 + 1
+    if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm2) }
+    if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off2) }
+    if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], false) }
+    if ctx["globals_floaty"] != nil && slot["fact_floaty"] == true { ctx["globals_floaty"][nm2] = true }
+    if ctx["globals_inty"] != nil && slot["fact_inty"] == true { ctx["globals_inty"][nm2] = true }
+    if ctx["globals_int_const"] != nil && oren_type_tag(slot["fact_const"]) != 0 { ctx["globals_int_const"][nm2] = slot["fact_const"] }
+    if ctx["globals_data_const"] != nil && oren_type_tag(slot["fact_data_const"]) != 0 &&
+       data_const_alias_targets[nm2] == true {
+        ctx["globals_data_const"][nm2] = slot["fact_data_const"] + 1
+    }
+    if slot["start_ns"] != 0 { slot["meta_ms"] = (oren_time_now_ns() - slot["step_ns"]) / 1000000 }
+    return nil
+}
+
 fn _x64_prepare_one_user_global_slot(ctx, st2, runtime_vars, runtime_globals,
                                      direct_string_globals, data_const_alias_targets,
                                      slot_slow_ms, i, total) {
@@ -321,130 +472,19 @@ fn _x64_prepare_one_user_global_slot(ctx, st2, runtime_vars, runtime_globals,
     _x64_log_user_global_slot_progress(ctx, phase_log, i, total, st2)
     var slot_start_ns = 0
     if phase_log != nil && slot_slow_ms > 0 { slot_start_ns = oren_time_now_ns() }
-    var slot_init_ms = 0
-    var slot_alloc_ms = 0
-    var slot_fixup_ms = 0
-    var slot_meta_ms = 0
-    var slot_path = "runtime_zero"
 
     var nm2 = st2["name"]["value"]
-    if ctx["globals"] != nil && ctx["globals"][nm2] != nil {
-        if oren_list_len(runtime_vars) > 0 && runtime_globals != nil && runtime_globals[nm2] != nil {
-            err(ctx, "x64 native v0: global var shadows runtime global " + nm2)
-            return nil
-        }
-        err(ctx, "x64 native v0: duplicate global var " + nm2)
-        return nil
-    }
-    var off2 = 0
-    var have_off2 = false
-    var fact_floaty2 = false
-    var fact_inty2 = false
-    var fact_const2 = nil
-    var fact_data_const2 = nil
-    var direct_init_in_data2 = false
-    var slot_step_ns = 0
-    if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-    var init_int2 = _x64_direct_data_int_init(ctx, st2["value"])
-    if slot_start_ns != 0 { slot_init_ms = slot_init_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-    if oren_type_tag(init_int2) != 0 {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        off2 = _data_add_u64(ctx, init_int2)
-        if slot_start_ns != 0 { slot_alloc_ms = slot_alloc_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-        have_off2 = true
-        fact_inty2 = true
-        fact_const2 = init_int2
-        direct_init_in_data2 = true
-        slot_path = "direct_int"
-    }
-    if have_off2 != true && direct_string_globals == true {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        var init_str2 = _x64_direct_data_string_init(ctx, st2["value"])
-        if slot_start_ns != 0 { slot_init_ms = slot_init_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-        if oren_type_tag(init_str2) != 0 {
-            if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-            off2 = _data_add_u64(ctx, 0)
-            if slot_start_ns != 0 { slot_alloc_ms = slot_alloc_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-            have_off2 = true
-            if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-            oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_str2})
-            if slot_start_ns != 0 { slot_fixup_ms = slot_fixup_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-            fact_data_const2 = init_str2
-            direct_init_in_data2 = true
-            slot_path = "direct_string"
-        }
-    }
-    if have_off2 != true && data_const_alias_targets[nm2] == true && oren_type_tag(fact_data_const2) == 0 {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        var alias_str_const2 = _x64_direct_data_string_init(ctx, st2["value"])
-        if slot_start_ns != 0 { slot_init_ms = slot_init_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-        if oren_type_tag(alias_str_const2) != 0 { fact_data_const2 = alias_str_const2 }
-    }
-    if have_off2 != true {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        var init_singleton2 = _x64_direct_data_singleton_init(ctx, st2["value"])
-        if slot_start_ns != 0 { slot_init_ms = slot_init_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-        if oren_type_tag(init_singleton2) != 0 {
-            if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-            off2 = _data_add_u64(ctx, 0)
-            if slot_start_ns != 0 { slot_alloc_ms = slot_alloc_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-            have_off2 = true
-            if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-            oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_singleton2})
-            if slot_start_ns != 0 { slot_fixup_ms = slot_fixup_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-            fact_data_const2 = init_singleton2
-            direct_init_in_data2 = true
-            slot_path = "direct_singleton"
-        }
-    }
-    if have_off2 != true {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        var init_ptr2 = _x64_direct_data_ptr_const_init(ctx, st2["value"])
-        if slot_start_ns != 0 { slot_init_ms = slot_init_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-        if oren_type_tag(init_ptr2) != 0 {
-            if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-            off2 = _data_add_u64(ctx, 0)
-            if slot_start_ns != 0 { slot_alloc_ms = slot_alloc_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-            have_off2 = true
-            if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-            oren_list_push(ctx["fixups"], {"type": "data_data_ptr", "data_off": off2, "target_data_off": init_ptr2})
-            if slot_start_ns != 0 { slot_fixup_ms = slot_fixup_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-            fact_data_const2 = init_ptr2
-            direct_init_in_data2 = true
-            slot_path = "direct_alias"
-        }
-    }
-    if have_off2 != true {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        off2 = _data_add_u64(ctx, 0)
-        if slot_start_ns != 0 { slot_alloc_ms = slot_alloc_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-    }
-    if have_off2 != true {
-        if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-        fact_floaty2 = _x64_expr_is_floaty(ctx, st2["value"])
-        fact_inty2 = _x64_expr_is_inty(ctx, st2["value"])
-        fact_const2 = _x64_expr_int_const(ctx, st2["value"])
-        if slot_start_ns != 0 { slot_init_ms = slot_init_ms + ((oren_time_now_ns() - slot_step_ns) / 1000000) }
-    }
-    if slot_start_ns != 0 { slot_step_ns = oren_time_now_ns() }
-    ctx["globals"][nm2] = off2 + 1
-    if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm2) }
-    if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off2) }
-    if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], false) }
-    if ctx["globals_floaty"] != nil && fact_floaty2 == true { ctx["globals_floaty"][nm2] = true }
-    if ctx["globals_inty"] != nil && fact_inty2 == true { ctx["globals_inty"][nm2] = true }
-    if ctx["globals_int_const"] != nil && oren_type_tag(fact_const2) != 0 { ctx["globals_int_const"][nm2] = fact_const2 }
-    if ctx["globals_data_const"] != nil && oren_type_tag(fact_data_const2) != 0 &&
-       data_const_alias_targets[nm2] == true {
-        ctx["globals_data_const"][nm2] = fact_data_const2 + 1
-    }
-    if slot_start_ns != 0 { slot_meta_ms = (oren_time_now_ns() - slot_step_ns) / 1000000 }
+    if _x64_prepare_user_global_check_name(ctx, nm2, runtime_vars, runtime_globals) != true { return nil }
+    var slot = _x64_user_global_slot_state(nm2, slot_start_ns)
+    _x64_prepare_user_global_slot_storage(ctx, st2, slot, direct_string_globals, data_const_alias_targets)
+    _x64_prepare_user_global_slot_facts(ctx, st2, slot)
+    _x64_register_user_global_slot(ctx, slot, data_const_alias_targets)
     _x64_log_user_global_slot_slow(ctx, phase_log, slot_slow_ms, slot_start_ns, i, st2,
-        nm2, slot_path, slot_init_ms, slot_alloc_ms, slot_fixup_ms, slot_meta_ms)
+        nm2, slot["path"], slot["init_ms"], slot["alloc_ms"], slot["fixup_ms"], slot["meta_ms"])
     return {
-        "direct_init_in_data": direct_init_in_data2,
-        "off_enc": off2 + 1,
-        "path": slot_path,
+        "direct_init_in_data": slot["direct_init_in_data"],
+        "off_enc": slot["off"] + 1,
+        "path": slot["path"],
     }
 }
 

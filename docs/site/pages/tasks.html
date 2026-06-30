@@ -403,7 +403,14 @@
 <p>																														 preparation, slow/fast push paths, and optional list-header tracing through</p>
 <p>																														 helper bodies. The capped profile now shows <code>x64_native_program.oren</code> at</p>
 <p>																														 about 37.6s total / 28.0s parse, with <code>_x64_prepare_one_user_global_slot</code></p>
-<p>																														 exposed at about 188ms as the next parser body.</p>
+<p>																														 exposed at about 188ms as the next parser body. X64 user-global slot</p>
+<p>																														 preparation now delegates duplicate checks, direct <code>.data</code> initialization</p>
+<p>																														 probes, fact collection, metadata registration, and slow-slot timing through</p>
+<p>																														 helper bodies; <code>assign_i32</code> op lowering now delegates top-level string fast</p>
+<p>																														 paths, empty-container fast paths, local/global facts, and global-slot</p>
+<p>																														 stores. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																														 37.6s total / 28.2s parse, with <code>_emit_intrinsic_sys_linux_net_x64</code> exposed</p>
+<p>																														 at about 181ms as the next parser body.</p>
 <p>												     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
