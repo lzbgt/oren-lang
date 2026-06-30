@@ -179,11 +179,15 @@ This file is the concise task view. Detailed implementation status lives in
 											 helper body; the capped profile now shows `x64_native_program.oren` at about
 											 37.4s total / 27.3s parse, with `_emit_eval_call_expr_to_rax` exposed again at
 											 about 524ms as the next parser body. X64 call-expression lowering now delegates
-											 scalar conversion/bool intrinsics to `_emit_eval_scalar_call_intrinsic_x64`;
-											 the capped profile now shows `x64_native_program.oren` at about 37.4s total /
-											 27.4s parse, with `native_compile_program_x64` exposed again at about 526ms
-											 as the next parser body.
-								     Serial/thread module
+												 scalar conversion/bool intrinsics to `_emit_eval_scalar_call_intrinsic_x64`;
+												 the capped profile now shows `x64_native_program.oren` at about 37.4s total /
+												 27.4s parse, with `native_compile_program_x64` exposed again at about 526ms
+												 as the next parser body. `native_compile_program_x64` now delegates entry
+												 prologue, stack scratch, and argv/env capture setup to
+												 `_x64_emit_entry_prologue_and_args`; the capped profile now shows
+												 `x64_native_program.oren` at about 37.0s total / 27.1s parse, with
+												 `_emit_eval_infix_to_rax` exposed at about 470ms as the next parser body.
+									     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
