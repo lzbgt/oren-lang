@@ -300,8 +300,12 @@ This file is the concise task view. Detailed implementation status lives in
 																								 setup, legacy item collection, per-item string data append, table/loop
 																								 emission, and slow-op reporting to helper bodies. The capped profile now
 																								 shows `x64_native_program.oren` at about 37.4s total / 28.1s parse, with
-																								 `_emit_intrinsic_sys_linux_path_family_x64` exposed at about 253ms as the
-																								 next parser body.
+																									 `_emit_intrinsic_sys_linux_path_family_x64` exposed at about 253ms as the
+																									 next parser body. X64 Linux path-family syscall lowering now delegates
+																									 unlink/rmdir, rename, mkdir/chmod, and getdirentries64 to helper bodies.
+																									 The capped profile now shows `x64_native_program.oren` at about 37.0s
+																									 total / 27.6s parse, with `_emit_fast_list_push_while_x64` exposed at
+																									 about 242ms as the next parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

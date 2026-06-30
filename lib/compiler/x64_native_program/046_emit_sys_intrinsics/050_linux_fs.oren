@@ -198,7 +198,7 @@ fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsul
     return false
 }
 
-fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsule) {
+fn _x64_emit_sys_unlink_or_rmdir_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_unlink" || nm == "sys_rmdir" {
         if oren_list_len(args) != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 arg"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
@@ -243,6 +243,10 @@ fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsul
         return true
     }
 
+    return false
+}
+
+fn _x64_emit_sys_rename_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_rename" {
         if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_rename expects 2 args"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_rename does not support spread"); return true }
@@ -292,6 +296,10 @@ fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsul
         return true
     }
 
+    return false
+}
+
+fn _x64_emit_sys_mkdir_or_chmod_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_mkdir" || nm == "sys_chmod" {
         var want = 2
         if oren_list_len(args) != want { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
@@ -347,6 +355,10 @@ fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsul
         return true
     }
 
+    return false
+}
+
+fn _x64_emit_sys_getdirentries64_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_getdirentries64" {
         if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_getdirentries64 expects 4 args"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getdirentries64 does not support spread"); return true }
@@ -389,5 +401,13 @@ fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsul
         return true
     }
 
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsule) {
+    if _x64_emit_sys_unlink_or_rmdir_x64(ctx, nm, expr, locals, args, capsule) == true { return true }
+    if _x64_emit_sys_rename_x64(ctx, nm, expr, locals, args, capsule) == true { return true }
+    if _x64_emit_sys_mkdir_or_chmod_x64(ctx, nm, expr, locals, args, capsule) == true { return true }
+    if _x64_emit_sys_getdirentries64_x64(ctx, nm, expr, locals, args, capsule) == true { return true }
     return false
 }
