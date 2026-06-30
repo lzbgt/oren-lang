@@ -277,11 +277,15 @@
 <p>																  <code>_emit_intrinsic_sys_linux_fd_misc_x64</code> exposed at about 312ms as the next parser</p>
 <p>																  body. Linux x64 fd-control syscall intrinsic lowering now delegates fcntl-family</p>
 <p>																  and dup/ioctl-family bodies to a dedicated include shard, and x64 user-global slot</p>
-<p>																  preparation now delegates alias-target collection, slow/progress tracing, and</p>
-<p>																  per-slot materialization to helpers. The capped profile now shows</p>
-<p>																  <code>x64_native_program.oren</code> at about 36.5s total / 27.6s parse, with</p>
-<p>																  <code>_emit_intrinsic_stack_helpers_x64</code> exposed at about 303ms as the next parser</p>
-<p>																  body.</p>
+<p>																	  preparation now delegates alias-target collection, slow/progress tracing, and</p>
+<p>																	  per-slot materialization to helpers. The capped profile now shows</p>
+<p>																	  <code>x64_native_program.oren</code> at about 36.5s total / 27.6s parse, with</p>
+<p>																	  <code>_emit_intrinsic_stack_helpers_x64</code> exposed at about 303ms as the next parser</p>
+<p>																	  body. X64 stack/diagnostic intrinsics now delegate code-address, context-init,</p>
+<p>																	  context-switch, and symbol-resolution lowering to focused helpers. The capped</p>
+<p>																	  profile now shows <code>x64_native_program.oren</code> at about 36.7s total / 27.9s parse,</p>
+<p>																	  with <code>_emit_intrinsic_sys_linux_x64</code> exposed at about 303ms as the next parser</p>
+<p>																	  body.</p>
 <p>					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
