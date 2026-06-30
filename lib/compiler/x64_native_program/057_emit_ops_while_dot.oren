@@ -438,11 +438,7 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
     return nil
 }
 
-fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
-    if ctx == nil || op == nil || info == nil { return nil }
-    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-
+fn _x64_fast_list_dot_prepare(ctx, info, locals) {
     var idx_name = info["idx"]
     var n_name = info["n"]
     var sum_name = info["sum"]
@@ -452,21 +448,44 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
     var off_idx = locals[idx_name]
     var off_n = locals[n_name]
     var off_sum = locals[sum_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 {
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    }
+    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
 
     var list_count = oren_list_len(lists)
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
     var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
-    if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if oren_type_tag(base) == 0 { return nil }
 
-    var l_slow = _new_label(ctx, "list_dot_slow")
-    var l_fast_cond = _new_label(ctx, "list_dot_cond")
-    var l_fast_end = _new_label(ctx, "list_dot_end")
-    var l_done = _new_label(ctx, "list_dot_done")
+    return {
+        "idx": idx_name,
+        "n": n_name,
+        "sum": sum_name,
+        "lists": lists,
+        "muls": muls,
+        "off_idx": off_idx,
+        "off_n": off_n,
+        "off_sum": off_sum,
+        "list_count": list_count,
+        "mul_count": mul_count,
+        "unique_lists": unique_lists,
+        "base": base
+    }
+}
+
+fn _x64_fast_list_dot_labels(ctx) {
+    return {
+        "slow": _new_label(ctx, "list_dot_slow"),
+        "cond": _new_label(ctx, "list_dot_cond"),
+        "end": _new_label(ctx, "list_dot_end"),
+        "done": _new_label(ctx, "list_dot_done")
+    }
+}
+
+fn _x64_fast_list_dot_emit_entry_gates(ctx, prep, labels, local_fixups) {
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var l_slow = labels["slow"]
 
     // i < 0 => slow
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
@@ -477,17 +496,25 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_n)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+    return nil
+}
+
+fn _x64_fast_list_dot_validate_lists(ctx, prep, locals, local_fixups, l_slow) {
+    var lists = prep["lists"]
+    var list_count = prep["list_count"]
+    var base = prep["base"]
+    var off_n = prep["off_n"]
 
     var li = 0
     while li < list_count {
         var list_name = lists[li]
         var off_list = locals[list_name]
-        if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+        if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return false }
         var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
         var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
         if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 {
             _intr_tmp_pop(ctx, base)
-            return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+            return false
         }
 
         // list -> slot
@@ -498,7 +525,7 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
 
         // tracked node
         _emit_find_tracked_node_x64(ctx, 0, 11)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
         bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
 
@@ -535,24 +562,38 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
 
         li = li + 1
     }
+    return true
+}
 
-    if unique_lists {
-        _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-        var li_init = 0
-        while li_init < list_count {
-            var slot_buf_init = _intr_tmp_off(ctx, locals, base + li_init * 2 + 1)
-            if oren_type_tag(slot_buf_init) == 0 {
-                _intr_tmp_pop(ctx, base)
-                return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-            }
-            _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_init)
-            bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 12))
-            _emit_mov_mrbp_r64(ctx, 0 - slot_buf_init, 11)
-            li_init = li_init + 1
-        }
+fn _x64_fast_list_dot_init_unique_cursors(ctx, prep, locals) {
+    var unique_lists = prep["unique_lists"]
+    if unique_lists != true { return true }
+
+    var list_count = prep["list_count"]
+    var base = prep["base"]
+    var off_idx = prep["off_idx"]
+
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
+    var li_init = 0
+    while li_init < list_count {
+        var slot_buf_init = _intr_tmp_off(ctx, locals, base + li_init * 2 + 1)
+        if oren_type_tag(slot_buf_init) == 0 { return false }
+        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_init)
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 12))
+        _emit_mov_mrbp_r64(ctx, 0 - slot_buf_init, 11)
+        li_init = li_init + 1
     }
+    return true
+}
+
+fn _x64_fast_list_dot_emit_loop_header(ctx, prep, locals, labels, label_names, local_fixups) {
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var off_sum = prep["off_sum"]
+    var l_fast_cond = label_names["cond"]
+    var l_fast_end = label_names["end"]
 
     _emit_label(ctx, labels, l_fast_cond)
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
@@ -564,6 +605,17 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
 
     // sum -> r13
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+    return nil
+}
+
+fn _x64_fast_list_dot_emit_single(ctx, prep, locals) {
+    var lists = prep["lists"]
+    var muls = prep["muls"]
+    var list_count = prep["list_count"]
+    var unique_lists = prep["unique_lists"]
+    var base = prep["base"]
+    var off_idx = prep["off_idx"]
+    var off_sum = prep["off_sum"]
 
     var mi = 0
     while mi < oren_list_len(muls) {
@@ -582,7 +634,7 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
         }
         var slot_buf_left = _intr_tmp_off(ctx, locals, base + li_left * 2 + 1)
         var slot_buf_right = _intr_tmp_off(ctx, locals, base + li_right * 2 + 1)
-        if oren_type_tag(slot_buf_left) == 0 || oren_type_tag(slot_buf_right) == 0 { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(slot_buf_left) == 0 || oren_type_tag(slot_buf_right) == 0 { return false }
 
         if unique_lists {
             // left value -> r14 (advance cursor)
@@ -626,10 +678,42 @@ fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, ep
     // i++
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 1))
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
+    return true
+}
 
-    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
 
-    _emit_label(ctx, labels, l_fast_end)
+    var prep = _x64_fast_list_dot_prepare(ctx, info, locals)
+    if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    var base = prep["base"]
+
+    var dot_labels = _x64_fast_list_dot_labels(ctx)
+    var l_slow = dot_labels["slow"]
+    var l_done = dot_labels["done"]
+
+    _x64_fast_list_dot_emit_entry_gates(ctx, prep, dot_labels, local_fixups)
+    if _x64_fast_list_dot_validate_lists(ctx, prep, locals, local_fixups, l_slow) != true {
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+
+    if _x64_fast_list_dot_init_unique_cursors(ctx, prep, locals) != true {
+        _intr_tmp_pop(ctx, base)
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+
+    _x64_fast_list_dot_emit_loop_header(ctx, prep, locals, labels, dot_labels, local_fixups)
+    if _x64_fast_list_dot_emit_single(ctx, prep, locals) != true {
+        _intr_tmp_pop(ctx, base)
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+
+    _emit_jmp_to_label(ctx, local_fixups, dot_labels["cond"])
+
+    _emit_label(ctx, labels, dot_labels["end"])
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _intr_tmp_pop(ctx, base)

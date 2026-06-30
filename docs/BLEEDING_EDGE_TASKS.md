@@ -308,11 +308,16 @@ This file is the concise task view. Detailed implementation status lives in
 																										 about 242ms as the next parser body. X64 generic list-push and list-int
 																										 dot fast-loop lowering now delegate preparation, validation, cursor setup,
 																										 loop headers, unrolled pairs, single-step bodies, and count/fixup updates
-																										 through helper bodies, while local label fixup helpers write label
-																										 positions to the function label map. The capped profile now shows
-																										 `x64_native_program.oren` at about 37.7s total / 28.3s parse, with
-																										 `_emit_fast_list_dot_while_x64` exposed at about 244ms as the next parser
-																										 body.
+																											 through helper bodies, while local label fixup helpers write label
+																											 positions to the function label map. The capped profile now shows
+																											 `x64_native_program.oren` at about 37.7s total / 28.3s parse, with
+																											 `_emit_fast_list_dot_while_x64` exposed at about 244ms as the next parser
+																											 body. X64 generic list-dot fast-loop lowering now delegates preparation,
+																											 list validation, unique cursor setup, loop header, and single-step body
+																											 emission through helper bodies. The capped profile now shows
+																											 `x64_native_program.oren` at about 37.6s total / 28.2s parse, with
+																											 `_x64_rtobj_apply_code_to_ctx` exposed at about 240ms as the next parser
+																											 body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

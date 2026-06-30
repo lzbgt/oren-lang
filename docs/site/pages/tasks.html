@@ -364,11 +364,16 @@
 <p>																										 about 242ms as the next parser body. X64 generic list-push and list-int</p>
 <p>																										 dot fast-loop lowering now delegate preparation, validation, cursor setup,</p>
 <p>																										 loop headers, unrolled pairs, single-step bodies, and count/fixup updates</p>
-<p>																										 through helper bodies, while local label fixup helpers write label</p>
-<p>																										 positions to the function label map. The capped profile now shows</p>
-<p>																										 <code>x64_native_program.oren</code> at about 37.7s total / 28.3s parse, with</p>
-<p>																										 <code>_emit_fast_list_dot_while_x64</code> exposed at about 244ms as the next parser</p>
-<p>																										 body.</p>
+<p>																											 through helper bodies, while local label fixup helpers write label</p>
+<p>																											 positions to the function label map. The capped profile now shows</p>
+<p>																											 <code>x64_native_program.oren</code> at about 37.7s total / 28.3s parse, with</p>
+<p>																											 <code>_emit_fast_list_dot_while_x64</code> exposed at about 244ms as the next parser</p>
+<p>																											 body. X64 generic list-dot fast-loop lowering now delegates preparation,</p>
+<p>																											 list validation, unique cursor setup, loop header, and single-step body</p>
+<p>																											 emission through helper bodies. The capped profile now shows</p>
+<p>																											 <code>x64_native_program.oren</code> at about 37.6s total / 28.2s parse, with</p>
+<p>																											 <code>_x64_rtobj_apply_code_to_ctx</code> exposed at about 240ms as the next parser</p>
+<p>																											 body.</p>
 <p>											     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
