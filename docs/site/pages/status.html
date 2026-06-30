@@ -314,7 +314,13 @@
 <p>																			  compilation, and summary formatting to low-arity helpers. The capped</p>
 <p>																			  profile now shows <code>x64_native_program.oren</code> at about 37.1s total / 27.8s</p>
 <p>																			  parse, with <code>_emit_generic_call_expr_v0</code> exposed at about 267ms as the</p>
-<p>																			  next parser body.</p>
+<p>																			  next parser body. X64 generic named-call lowering now delegates</p>
+<p>																			  intrinsic/spread dispatch, callee classification, and direct ABI call</p>
+<p>																			  emission to focused helpers; Linux stat-family syscall lowering now</p>
+<p>																			  shares host-stat to <code>OrenStatV0</code> translation and splits <code>stat</code>/<code>lstat</code></p>
+<p>																			  from <code>fstat</code>. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																			  about 37.4s total / 28.3s parse, with <code>_emit_fast_lcg_sum_while_x64</code></p>
+<p>																			  exposed at about 268ms as the next parser body.</p>
 <p>					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

@@ -504,77 +504,75 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     return nil
 }
 
-fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
-    if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
-
-    var argc = 0
-    if args != nil { argc = oren_list_len(args) }
-
-    var spread = expr["spread"]
+fn _x64_emit_named_call_intrinsic_or_spread_v0(ctx, expr, locals, nm, args, argc, spread) {
+    if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return true }
 
     // Tier-1 parity + performance: inline `oren_index_set(container, index, value)` so
     // list in-bounds stores do not pay an extra runtime call.
     if nm == "oren_index_set" {
         _emit_index_set_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
 
     // Tier‑1 parity: match arm64 by inlining core list operations with tracked-kind safety gates.
     if nm == "oren_list_len" {
         _emit_list_len_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_push" {
         _emit_list_push_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_len" || nm == "STD_list_int_len" {
         _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_len_unchecked" || nm == "STD_list_int_len_unchecked" {
         _emit_list_int_len_unchecked_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
         _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_get" || nm == "STD_list_int_get" {
         _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_get_unchecked" || nm == "STD_list_int_get_unchecked" {
         _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_set" || nm == "STD_list_int_set" {
         _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_reduce_sum_slots_unchecked" {
         _emit_list_int_reduce_sum_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
     if nm == "oren_list_int_dot_slots_unchecked" {
         _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
-        return nil
+        return true
     }
 
     if nm == "oren_call_obj_list" {
-        if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return nil }
-        if argc != 2 { err(ctx, "x64 native v0: oren_call_obj_list expects 2 args"); return nil }
+        if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return true }
+        if argc != 2 { err(ctx, "x64 native v0: oren_call_obj_list expects 2 args"); return true }
         _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, args[0], args[1])
-        return nil
+        return true
     }
 
     // Tier-1 parity: when runtime injection is enabled, lower call-site spread through the
     // shared runtime helper (matches arm64). This also works for indirect calls (callee in a var).
     if spread != nil {
         _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
-        return nil
+        return true
     }
+    return false
+}
 
+fn _x64_classify_named_call_v0(ctx, expr, locals, nm, argc) {
     var is_direct = false
     var declared = ctx["declared_functions"]
     var is_import = false
@@ -620,21 +618,6 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         }
     }
 
-    // Tier-1 parity: when runtime injection is enabled, lower varargs named calls through the
-    // uniform callable ABI (args_list + fnobj wrapper), matching arm64.
-    if is_varargs_named {
-        _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args)
-        return nil
-    }
-
-    // Generic call path:
-    // - direct calls remain ABI-direct (fast path) where possible
-    // - indirect calls lower to the uniform callable ABI:
-    //     fnobj = { code_ptr, env_ptr }
-    //     args_list = [arg0, arg1, ...] (+ spread elements)
-    //     call code_ptr(env_ptr, args_list)
-    //
-    // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
     var fixed_direct_arity = nil
     if is_direct == true && is_import != true {
         var arity2_enc = ctx["func_arity"][nm]
@@ -653,8 +636,26 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         }
     }
 
-    if is_direct != true {
-        _emit_indirect_call_via_fnobj_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
+    return {
+        "is_direct": is_direct,
+        "is_import": is_import,
+        "is_varargs_named": is_varargs_named,
+        "varargs_fixed": varargs_fixed,
+        "fixed_direct_arity": fixed_direct_arity
+    }
+}
+
+fn _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info) {
+    var argc = info["argc"]
+    var fixed_direct_arity = info["fixed_direct_arity"]
+    var is_varargs_named = info["is_varargs_named"] == true
+    var varargs_fixed = info["varargs_fixed"]
+    var is_import = info["is_import"] == true
+
+    // Tier-1 parity: when runtime injection is enabled, lower varargs named calls through the
+    // uniform callable ABI (args_list + fnobj wrapper), matching arm64.
+    if is_varargs_named {
+        _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args)
         return nil
     }
 
@@ -747,30 +748,44 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         i3 = iadd(i3, 1)
     }
 
-    if is_direct {
-        var call_pos2 = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos2, "name": nm})
-        // ABI correctness: some `ffi` symbols return 32-bit or void values.
-        //
-        // Oren treats values as i64, so normalize the return register to the declared ABI kind:
-        // - i32: sign-extend EAX -> RAX
-        // - u32: zero-extend EAX -> RAX
-        // - void: force RAX=0
-        if is_import == true && ctx != nil {
-            if ctx["ffi_ret_i32"] != nil && ctx["ffi_ret_i32"][nm] != nil {
-                bytes_extend(ctx["code"], core.insn_cdqe()) // RAX = sign_extend_i32(EAX)
-            } else if ctx["ffi_ret_u32"] != nil && ctx["ffi_ret_u32"][nm] != nil {
-                bytes_extend(ctx["code"], core.insn_mov_r32_r32(0, 0)) // EAX = EAX (zero-extend to RAX)
-            } else if ctx["ffi_ret_void"] != nil && ctx["ffi_ret_void"][nm] != nil {
-                bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0)) // RAX = 0
-                bytes_extend(ctx["code"], core.insn_cdqe())
-            }
+    var call_pos2 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos2, "name": nm})
+    // ABI correctness: some `ffi` symbols return 32-bit or void values.
+    //
+    // Oren treats values as i64, so normalize the return register to the declared ABI kind:
+    // - i32: sign-extend EAX -> RAX
+    // - u32: zero-extend EAX -> RAX
+    // - void: force RAX=0
+    if is_import == true && ctx != nil {
+        if ctx["ffi_ret_i32"] != nil && ctx["ffi_ret_i32"][nm] != nil {
+            bytes_extend(ctx["code"], core.insn_cdqe()) // RAX = sign_extend_i32(EAX)
+        } else if ctx["ffi_ret_u32"] != nil && ctx["ffi_ret_u32"][nm] != nil {
+            bytes_extend(ctx["code"], core.insn_mov_r32_r32(0, 0)) // EAX = EAX (zero-extend to RAX)
+        } else if ctx["ffi_ret_void"] != nil && ctx["ffi_ret_void"][nm] != nil {
+            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0)) // RAX = 0
+            bytes_extend(ctx["code"], core.insn_cdqe())
         }
-    } else {
-        // Should be unreachable: indirect calls return in the branch above.
-        err(ctx, "x64 native v0: internal: fell through to non-direct call tail")
     }
     _intr_tmp_pop(ctx, base2)
+    return nil
+}
+
+fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+
+    var spread = expr["spread"]
+    if _x64_emit_named_call_intrinsic_or_spread_v0(ctx, expr, locals, nm, args, argc, spread) == true { return nil }
+
+    var info = _x64_classify_named_call_v0(ctx, expr, locals, nm, argc)
+    if info == nil { return nil }
+    if info["is_direct"] != true {
+        _emit_indirect_call_via_fnobj_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
+        return nil
+    }
+
+    info["argc"] = argc
+    _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info)
     return nil
 }

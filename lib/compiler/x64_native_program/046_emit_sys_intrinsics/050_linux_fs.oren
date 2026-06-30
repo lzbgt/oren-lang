@@ -1,4 +1,62 @@
-fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsule) {
+fn _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, label_name) {
+    // If rc >= 0, translate tmp_host_stat into OrenStatV0 at st_ptr.
+    var labels = {}
+    var fixups = []
+    var l_norm_done = _new_label(ctx, label_name)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "l", l_norm_done)
+
+    // Use low registers as base pointers for memory operations.
+    //
+    // Rationale:
+    // - The x64 backend must correctly encode ModRM/SIB for r8-r15, but historically
+    //   some "mem op with disp" helpers have been brittle on those high regs.
+    // - sys_stat/sys_fstat are on the compiler hot path (build cache, file ingest),
+    //   so we keep this conservative and robust.
+    _intr_load_x64(ctx, 7, tmp_st) // rdi = st_ptr
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
+
+    // Zero OrenStatV0 (64 bytes) for determinism.
+    var zoff = 0
+    while zoff < nstat.oren_stat_v0_size_bytes() {
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, zoff, 9))
+        zoff = zoff + 4
+    }
+
+    // size (i64)
+    _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_size()))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(7, 10)) // [st_ptr+0] = size
+
+    // mode (u32)
+    bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(10, 6, labi.linux_stat_off_st_mode()))
+    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, nstat.oren_stat_v0_off_mode(), 10))
+
+    // times (i64 ns): sec*1_000_000_000 + nsec
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_atime_sec()))
+    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_atime_nsec()))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_atime_ns(), 10))
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_mtime_sec()))
+    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_mtime_nsec()))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_mtime_ns(), 10))
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_ctime_sec()))
+    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_ctime_nsec()))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_ctime_ns(), 10))
+
+    _emit_label(ctx, labels, l_norm_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _x64_emit_sys_stat_or_lstat_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_stat" || nm == "sys_lstat" {
         if oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
@@ -65,60 +123,7 @@ fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsul
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_newfstatat()))
         bytes_extend(ctx["code"], core.insn_syscall())
 
-        // If rc >= 0, translate tmp_host_stat (rsp) into OrenStatV0 at st_ptr.
-        var labels = {}
-        var fixups = []
-        var l_norm_done = _new_label(ctx, "sys_stat_norm_done")
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, fixups, "l", l_norm_done)
-
-        // Use low registers as base pointers for memory operations.
-        //
-        // Rationale:
-        // - The x64 backend must correctly encode ModRM/SIB for r8-r15, but historically
-        //   some "mem op with disp" helpers have been brittle on those high regs.
-        // - sys_stat/sys_fstat are on the compiler hot path (build cache, file ingest),
-        //   so we keep this conservative and robust.
-        _intr_load_x64(ctx, 7, tmp_st) // rdi = st_ptr
-        bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
-
-        // Zero OrenStatV0 (64 bytes) for determinism.
-        var zoff = 0
-        while zoff < nstat.oren_stat_v0_size_bytes() {
-            bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, zoff, 9))
-            zoff = zoff + 4
-        }
-
-        // size (i64)
-        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_size()))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(7, 10)) // [st_ptr+0] = size
-
-        // mode (u32)
-        bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(10, 6, labi.linux_stat_off_st_mode())) // r10d = *(u32*)(host_stat+off)
-        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, nstat.oren_stat_v0_off_mode(), 10))
-
-        // times (i64 ns): sec*1_000_000_000 + nsec
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_atime_sec()))
-        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_atime_nsec()))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_atime_ns(), 10))
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_mtime_sec()))
-        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_mtime_nsec()))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_mtime_ns(), 10))
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_ctime_sec()))
-        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_ctime_nsec()))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_ctime_ns(), 10))
-
-        _emit_label(ctx, labels, l_norm_done)
-        _patch_local_fixups(ctx, labels, fixups)
+        _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, "sys_stat_norm_done")
 
         if capsule {
             // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
@@ -130,7 +135,10 @@ fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsul
         _intr_tmp_pop(ctx, base5)
         return true
     }
+    return false
+}
 
+fn _x64_emit_sys_fstat_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_fstat" {
         if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fstat expects 2 args"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fstat does not support spread"); return true }
@@ -172,48 +180,7 @@ fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsul
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fstat()))
         bytes_extend(ctx["code"], core.insn_syscall())
 
-        // If rc >= 0, translate tmp_host_stat (rsp) into OrenStatV0 at st_ptr.
-        var labels = {}
-        var fixups = []
-        var l_norm_done = _new_label(ctx, "sys_fstat_norm_done")
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, fixups, "l", l_norm_done)
-
-        // See sys_stat: keep base pointers in low regs for robustness.
-        _intr_load_x64(ctx, 7, tmp_st) // rdi = st_ptr
-        bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
-        var zoff = 0
-        while zoff < nstat.oren_stat_v0_size_bytes() {
-            bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, zoff, 9))
-            zoff = zoff + 4
-        }
-        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_size()))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(7, 10))
-        bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(10, 6, labi.linux_stat_off_st_mode()))
-        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, nstat.oren_stat_v0_off_mode(), 10))
-
-        // times (i64 ns): sec*1_000_000_000 + nsec
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_atime_sec()))
-        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_atime_nsec()))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_atime_ns(), 10))
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_mtime_sec()))
-        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_mtime_nsec()))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_mtime_ns(), 10))
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_ctime_sec()))
-        bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_ctime_nsec()))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_ctime_ns(), 10))
-
-        _emit_label(ctx, labels, l_norm_done)
-        _patch_local_fixups(ctx, labels, fixups)
+        _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, "sys_fstat_norm_done")
 
         if capsule {
             bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
@@ -222,7 +189,12 @@ fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsul
         _intr_tmp_pop(ctx, base6)
         return true
     }
+    return false
+}
 
+fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsule) {
+    if _x64_emit_sys_stat_or_lstat_x64(ctx, nm, expr, locals, args, capsule) == true { return true }
+    if _x64_emit_sys_fstat_x64(ctx, nm, expr, locals, args, capsule) == true { return true }
     return false
 }
 
