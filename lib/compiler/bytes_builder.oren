@@ -208,10 +208,11 @@ fn _int_mod_pos(a, b) {
 
 fn _bytes_set_u32_le_ptr(dstp, off, n) {
     // Write little-endian u32 at dstp+off (no bounds checks).
-    ptr_set_byte(iadd(dstp, off + 0), _int_mod_pos(n, 256))
-    ptr_set_byte(iadd(dstp, off + 1), _int_mod_pos(n / 256, 256))
-    ptr_set_byte(iadd(dstp, off + 2), _int_mod_pos(n / 65536, 256))
-    ptr_set_byte(iadd(dstp, off + 3), _int_mod_pos(n / 16777216, 256))
+    var u = n & 4294967295
+    ptr_set_byte(iadd(dstp, off + 0), u & 255)
+    ptr_set_byte(iadd(dstp, off + 1), (u / 256) & 255)
+    ptr_set_byte(iadd(dstp, off + 2), (u / 65536) & 255)
+    ptr_set_byte(iadd(dstp, off + 3), (u / 16777216) & 255)
     return nil
 }
 
@@ -221,8 +222,9 @@ fn bytes_push_u16_le(b, n) {
     _bytes_ensure_capacity(b, used + 2)
     var dstp = oren_buf_data_ptr_unchecked(b["buf"])
     if dstp == 0 { oren_fail(1, "bytes_push_u16_le: buf data ptr is nil") }
-    ptr_set_byte(iadd(dstp, used + 0), _int_mod_pos(n, 256))
-    ptr_set_byte(iadd(dstp, used + 1), _int_mod_pos(n / 256, 256))
+    var u = n & 65535
+    ptr_set_byte(iadd(dstp, used + 0), u & 255)
+    ptr_set_byte(iadd(dstp, used + 1), (u / 256) & 255)
     _bytes_set_len_raw(b, used + 2)
     return nil
 }

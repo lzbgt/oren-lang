@@ -1,0 +1,28 @@
+import bb "../../lib/compiler/bytes_builder.oren"
+
+fn expect_byte(buf, idx, want) {
+    var got = oren_buf_load_u8(buf, idx)
+    if got != want {
+        print("byte mismatch at " + oren_int_to_string(idx) + ": got " + oren_int_to_string(got) + " want " + oren_int_to_string(want))
+        oren_exit(1)
+    }
+}
+
+fn main() {
+    var b = bb.bytes_new()
+    bb.bytes_push_u16_le(b, -1)
+    bb.bytes_push_u32_le(b, -4)
+    bb.bytes_push_u32_le(b, 305419896)
+    var out = bb.bytes_finalize(b)
+    expect_byte(out, 0, 255)
+    expect_byte(out, 1, 255)
+    expect_byte(out, 2, 252)
+    expect_byte(out, 3, 255)
+    expect_byte(out, 4, 255)
+    expect_byte(out, 5, 255)
+    expect_byte(out, 6, 120)
+    expect_byte(out, 7, 86)
+    expect_byte(out, 8, 52)
+    expect_byte(out, 9, 18)
+    print("ok")
+}
