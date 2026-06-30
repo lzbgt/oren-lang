@@ -822,6 +822,127 @@ fn _x64_program_compile_options() {
     }
 }
 
+fn _x64_collect_callable_uses(ctx, linked2, top_info, type_ctors, trace_prog, phase_log) {
+    // Collect lambdas (anonymous Function nodes with name="") from the full statement set
+    // that will actually be compiled.
+    //
+    // This annotates lambda nodes with:
+    //   - lambda_name: generated wrapper name
+    //   - captures: free vars in deterministic first-use order
+    //
+    // NOTE: We must scan more than just `bun["user_stmts"]` because:
+    // - runtime injection + DCE can keep runtime lambdas alive,
+    // - x64 synthesizes `__top_level__` from user global initializers,
+    // - x64 synthesizes type constructors.
+    var stmts_all = linked2["statements"]
+    if stmts_all == nil { stmts_all = [] }
+    var lambda_scan_skipped = false
+    if ctx["_native_has_lambda_candidates"] == true {
+        if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
+        var li = 0
+        while li < oren_list_len(stmts_all) {
+            callable.collect_lambdas_in_statement(ctx, stmts_all[li])
+            li = li + 1
+        }
+        // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
+        if top_info["top_level_fn"] != nil {
+            callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
+        }
+        // Also scan synthesized type constructors (not present in `linked2["statements"]`).
+        var ltc = 0
+        while ltc < oren_list_len(type_ctors) {
+            callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
+            ltc = ltc + 1
+        }
+    } else {
+        lambda_scan_skipped = true
+        if trace_prog { print("[x64_compile] collect lambdas skipped (no candidates)") }
+    }
+    if trace_prog { print("[x64_compile] collect lambdas done defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
+    if phase_log != nil {
+        var lambda_extra = ""
+        if lambda_scan_skipped { lambda_extra = " skipped=1" }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.lambdas.done",
+            "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])) + lambda_extra)
+    }
+
+
+    var dbg_lam = oren_env("OREN_DEBUG_X64_LAMBDAS")
+    if dbg_lam != nil {
+        var raw_fn = 0
+        var expr_fn = 0
+        var si = 0
+        while si < oren_list_len(stmts_all) {
+            var st0 = stmts_all[si]
+            if st0 != nil {
+                if st0["type"] == "Function" { raw_fn = raw_fn + 1 }
+                if st0["type"] == "ExprStmt" {
+                    var e0 = st0["expr"]
+                    if e0 != nil && e0["type"] == "Function" { expr_fn = expr_fn + 1 }
+                }
+            }
+            si = si + 1
+        }
+        print("DEBUG_X64_LAMBDAS stmts_all=" + oren_int_to_string(oren_list_len(stmts_all)) + " raw_fn=" + oren_int_to_string(raw_fn) + " expr_fn=" + oren_int_to_string(expr_fn))
+        print("DEBUG_X64_LAMBDAS lambda_defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+        var di = 0
+        while di < oren_list_len(ctx["lambda_defs"]) {
+            var d0 = ctx["lambda_defs"][di]
+            if d0 != nil { print("DEBUG_X64_LAMBDA_DEF " + d0["name"]) }
+            di = di + 1
+        }
+    }
+    callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts_all)
+    if top_info["top_level_fn"] != nil {
+        callable.collect_named_fn_value_uses_in_expression(ctx, top_info["top_level_fn"], false)
+    }
+    var vtc = 0
+    while vtc < oren_list_len(type_ctors) {
+        callable.collect_named_fn_value_uses_in_expression(ctx, type_ctors[vtc], false)
+        vtc = vtc + 1
+    }
+    return stmts_all
+}
+
+fn _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log) {
+    // --- Callable wrappers (Tier‑1 convergence) ---
+    //
+    // x64 no longer eagerly synthesizes `__oren_fnwrap_<name>` for every named function:
+    // - it is unnecessary for direct calls (`foo(x)`),
+    // - and it can dominate compile time for large programs (self-hosting `oren.oren`).
+    //
+    // Instead, we synthesize/compile fnwraps on-demand using `ctx["fnwrap_needed"]`
+    // (populated when a named function is used as a first-class value).
+    //
+    // Lambda wrappers are still synthesized eagerly because each lambda literal needs a
+    // concrete callable entrypoint.
+    var wrappers = []
+
+    // Lambda wrappers are named `__oren_lambda_N` and already implement the uniform call ABI:
+    //   fn __oren_lambda_N(__env, __args_list) { ... }
+    // They inline the original lambda body and bind captures/params from env/args.
+    if trace_prog { print("[x64_compile] lambda wrappers start") }
+    var lj = 0
+    while lj < oren_list_len(ctx["lambda_defs"]) {
+        var def = ctx["lambda_defs"][lj]
+        var st = callable.synth_lambda_wrapper(def)
+        if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+            oren_list_push(wrappers, st["expr"])
+        } else {
+            err(ctx, "x64 native v0: failed to synthesize lambda wrapper")
+            return nil
+        }
+        lj = lj + 1
+    }
+    if trace_prog { print("[x64_compile] lambda wrappers done count=" + oren_int_to_string(oren_list_len(wrappers))) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.prepare.done",
+            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+    }
+
+    return wrappers
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -1076,118 +1197,11 @@ fn native_compile_program_x64(linked, platform) {
             "top_stmts=" + oren_int_to_string(top_ops))
     }
 
-    // Collect lambdas (anonymous Function nodes with name="") from the full statement set
-    // that will actually be compiled.
-    //
-    // This annotates lambda nodes with:
-    //   - lambda_name: generated wrapper name
-    //   - captures: free vars in deterministic first-use order
-    //
-    // NOTE: We must scan more than just `bun["user_stmts"]` because:
-    // - runtime injection + DCE can keep runtime lambdas alive,
-    // - x64 synthesizes `__top_level__` from user global initializers,
-    // - x64 synthesizes type constructors.
-    var stmts_all = linked2["statements"]
-    if stmts_all == nil { stmts_all = [] }
-    var lambda_scan_skipped = false
-    if ctx["_native_has_lambda_candidates"] == true {
-        if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
-        var li = 0
-        while li < oren_list_len(stmts_all) {
-            callable.collect_lambdas_in_statement(ctx, stmts_all[li])
-            li = li + 1
-        }
-        // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
-        if top_info["top_level_fn"] != nil {
-            callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
-        }
-        // Also scan synthesized type constructors (not present in `linked2["statements"]`).
-        var ltc = 0
-        while ltc < oren_list_len(type_ctors) {
-            callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
-            ltc = ltc + 1
-        }
-    } else {
-        lambda_scan_skipped = true
-        if trace_prog { print("[x64_compile] collect lambdas skipped (no candidates)") }
-    }
-    if trace_prog { print("[x64_compile] collect lambdas done defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
-    if phase_log != nil {
-        var lambda_extra = ""
-        if lambda_scan_skipped { lambda_extra = " skipped=1" }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.lambdas.done",
-            "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])) + lambda_extra)
-    }
+    var stmts_all = _x64_collect_callable_uses(ctx, linked2, top_info, type_ctors, trace_prog, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
-
-    var dbg_lam = oren_env("OREN_DEBUG_X64_LAMBDAS")
-    if dbg_lam != nil {
-        var raw_fn = 0
-        var expr_fn = 0
-        var si = 0
-        while si < oren_list_len(stmts_all) {
-            var st0 = stmts_all[si]
-            if st0 != nil {
-                if st0["type"] == "Function" { raw_fn = raw_fn + 1 }
-                if st0["type"] == "ExprStmt" {
-                    var e0 = st0["expr"]
-                    if e0 != nil && e0["type"] == "Function" { expr_fn = expr_fn + 1 }
-                }
-            }
-            si = si + 1
-        }
-        print("DEBUG_X64_LAMBDAS stmts_all=" + oren_int_to_string(oren_list_len(stmts_all)) + " raw_fn=" + oren_int_to_string(raw_fn) + " expr_fn=" + oren_int_to_string(expr_fn))
-        print("DEBUG_X64_LAMBDAS lambda_defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
-        var di = 0
-        while di < oren_list_len(ctx["lambda_defs"]) {
-            var d0 = ctx["lambda_defs"][di]
-            if d0 != nil { print("DEBUG_X64_LAMBDA_DEF " + d0["name"]) }
-            di = di + 1
-        }
-    }
-    callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts_all)
-    if top_info["top_level_fn"] != nil {
-        callable.collect_named_fn_value_uses_in_expression(ctx, top_info["top_level_fn"], false)
-    }
-    var vtc = 0
-    while vtc < oren_list_len(type_ctors) {
-        callable.collect_named_fn_value_uses_in_expression(ctx, type_ctors[vtc], false)
-        vtc = vtc + 1
-    }
-    // --- Callable wrappers (Tier‑1 convergence) ---
-    //
-    // x64 no longer eagerly synthesizes `__oren_fnwrap_<name>` for every named function:
-    // - it is unnecessary for direct calls (`foo(x)`),
-    // - and it can dominate compile time for large programs (self-hosting `oren.oren`).
-    //
-    // Instead, we synthesize/compile fnwraps on-demand using `ctx["fnwrap_needed"]`
-    // (populated when a named function is used as a first-class value).
-    //
-    // Lambda wrappers are still synthesized eagerly because each lambda literal needs a
-    // concrete callable entrypoint.
-    var wrappers = []
-
-    // Lambda wrappers are named `__oren_lambda_N` and already implement the uniform call ABI:
-    //   fn __oren_lambda_N(__env, __args_list) { ... }
-    // They inline the original lambda body and bind captures/params from env/args.
-    if trace_prog { print("[x64_compile] lambda wrappers start") }
-    var lj = 0
-    while lj < oren_list_len(ctx["lambda_defs"]) {
-        var def = ctx["lambda_defs"][lj]
-        var st = callable.synth_lambda_wrapper(def)
-        if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
-            oren_list_push(wrappers, st["expr"])
-        } else {
-            err(ctx, "x64 native v0: failed to synthesize lambda wrapper")
-            return ctx
-        }
-        lj = lj + 1
-    }
-    if trace_prog { print("[x64_compile] lambda wrappers done count=" + oren_int_to_string(oren_list_len(wrappers))) }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.prepare.done",
-            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
-    }
+    var wrappers = _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log)
+    if wrappers == nil { return ctx }
 
     // --- Panic symbolication (best-effort) ---
     //

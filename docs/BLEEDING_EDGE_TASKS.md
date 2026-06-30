@@ -139,10 +139,15 @@ This file is the concise task view. Detailed implementation status lives in
 									     profile at about 37.8s total / 27.2s parse, with
 									     `native_compile_program_x64` narrowed to about 1.09s as the exposed hot
 									     parser body. X64 compile diagnostic/trace option parsing is now isolated
-									     in a zero-argument helper plus local unpacking, avoiding another wide OBC
-									     call; the capped profile now shows `x64_native_program.oren` at about
-									     38.0s total / 27.4s parse, with `_emit_eval_int_to_rax` exposed again
-									     at about 1.06s.
+										     in a zero-argument helper plus local unpacking, avoiding another wide OBC
+										     call; the capped profile now shows `x64_native_program.oren` at about
+										     38.0s total / 27.4s parse, with `_emit_eval_int_to_rax` exposed again
+										     at about 1.06s. X64 call expression lowering now lives in a dedicated
+										     `_emit_eval_call_expr_to_rax` helper, and native program callable-use
+										     collection plus lambda wrapper synthesis are split out of
+										     `native_compile_program_x64`; the capped profile now shows
+										     `x64_native_program.oren` at about 37.9s total / 27.4s parse, with the
+										     exposed parser body shifted to `_emit_ops_in_fn` at about 954ms.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
