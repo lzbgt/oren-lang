@@ -275,9 +275,13 @@ Facts from the 2026-05-28 implementation pass:
 								  signed-byte emission instead of calling the general positive modulo helper in
 								  every hot encoder path. Shared byte-builder u16/u32 little-endian writes now
 								  mask signed values once instead of using positive modulo per byte; the focused
-								  `bytes_builder_signed_le` fixture covers negative-width byte layout and
-								  `make stage2` covers the self-hosted compiler surface.
-								  A refreshed
+									  `bytes_builder_signed_le` fixture covers negative-width byte layout and
+									  `make stage2` covers the self-hosted compiler surface.
+									  Renamer scope lookup now caches positive and negative answers per
+									  parent-linked frame and refreshes the active frame cache on declaration;
+									  `renamer_scope_cache_shadow_main` covers the import-alias false-cache then
+									  local-shadow declaration path.
+									  A refreshed
 						  Linux x64 self-host compile-only probe then failed before the compiler build
 						  because the prerequisite `x64-linux/full` runtime-object seed cold-build hit
 						  the seed helper's fixed 180s cap. The self-host compile-only gate now mirrors

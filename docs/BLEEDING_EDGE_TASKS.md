@@ -279,11 +279,15 @@ This file is the concise task view. Detailed implementation status lives in
 											     cover the MOV, atomic, MOVDQU, and MOVDQA surface. X64 intrinsic-temp
 											     sizing now includes the live spill slots held by array/hash literal
 											     builders, with the nested-map literal fixture covered by the default
-											     Linux/Windows x64 compile-only matrix. Shared byte-builder u16/u32
-											     little-endian writes now mask signed values once instead of using
-											     positive modulo per byte, with a focused signed-layout fixture covering
-											     the negative-width path.
-	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
+												     Linux/Windows x64 compile-only matrix. Shared byte-builder u16/u32
+												     little-endian writes now mask signed values once instead of using
+												     positive modulo per byte, with a focused signed-layout fixture covering
+												     the negative-width path.
+												     Renamer scope lookup now caches positive and negative answers per
+												     parent-linked frame and updates the active frame cache on declaration;
+												     `renamer_scope_cache_shadow_main` proves an imported alias can be
+												     cached as absent, then shadowed correctly by a later local declaration.
+		     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold
      seed probes. The ARM64 Linux Docker NET leg still keeps the 10s stage1 hang

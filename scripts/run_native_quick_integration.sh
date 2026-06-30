@@ -674,6 +674,18 @@ if [[ "${OREN_QI_SKIP_BLOCK_SCOPE_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$bsf_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_RENAMER_SCOPE_CACHE_SMOKE:-0}" != "1" ]]; then
+  echo "== renamer scope cache smoke ==" >>"$log"
+  rsc_src="tests/fixtures/renamer_scope_cache_shadow_main.oren"
+  rsc_log="build/logs/${compiler_base}_renamer_scope_cache.log"
+  rm -f "$rsc_log" 2>/dev/null || true
+  run_step_checked "renamer scope cache smoke" "$rsc_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" test "$rsc_src" \
+    --backend native --platform "$platform"
+  echo "ok: renamer scope cache smoke" >>"$rsc_log"
+  tail -n 3 "$rsc_log" >>"$log"
+fi
+
 if [[ "${OREN_QI_SKIP_OPTIMIZER_CONST_MOD_SMOKE:-0}" != "1" ]]; then
   echo "== optimizer const mod smoke ==" >>"$log"
   ocm_src="tests/fixtures/optimizer_const_mod_rewrite_main.oren"

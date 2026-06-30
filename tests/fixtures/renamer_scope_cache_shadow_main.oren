@@ -1,0 +1,17 @@
+import list "std:list"
+
+fn main() {
+    if list.len([1, 2, 3]) != 3 { return 1 }
+
+    var list = 41
+    if list != 41 { return 2 }
+
+    {
+        if list != 41 { return 3 }
+        var list = 7
+        if list != 7 { return 4 }
+    }
+
+    if list != 41 { return 5 }
+    return 0
+}

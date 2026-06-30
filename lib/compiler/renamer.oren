@@ -155,12 +155,22 @@ fn rename_lookup(pairs, name) {
 }
 
 fn scope_has(stack, name) {
+    if stack == nil { return false }
+    var cache = stack["cache"]
+    if cache != nil {
+        var cached = cache[name]
+        if cached != nil { return cached == true }
+    }
     var cur = stack
     while cur != nil {
         var decls = cur["decls"]
-        if decls != nil && decls[name] == true { return true }
+        if decls != nil && decls[name] == true {
+            if cache != nil { cache[name] = true }
+            return true
+        }
         cur = cur["parent"]
     }
+    if cache != nil { cache[name] = false }
     return false
 }
 
@@ -172,11 +182,13 @@ fn scope_declare(stack, name) {
         stack["decls"] = decls
     }
     decls[name] = true
+    var cache = stack["cache"]
+    if cache != nil { cache[name] = true }
     return nil
 }
 
 fn scope_push(stack) {
-    return {"parent": stack, "decls": {}}
+    return {"parent": stack, "decls": {}, "cache": {}}
 }
 
 fn rename_function_params(params, pairs, stack) {
