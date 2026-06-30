@@ -1209,10 +1209,12 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     }
     if phase_log != nil { _elf_phase_log_append(phase_log, "x64.elf.local_fixups.start", "") }
     var i = 0
-    while i < oren_list_len(fixups) {
+    var nfixups = 0
+    if fixups != nil { nfixups = oren_list_len(fixups) }
+    while i < nfixups {
         var f = fixups[i]
+        var ft = f["type"]
         if validate_fixups {
-            var ft = f["type"]
             if ft == "call_rel32" {
                 if oren_type_tag(f["pos"]) != 1 || f["name"] == nil {
                     print("x64 elf: invalid fixup(call_rel32) pos/name")
@@ -1256,7 +1258,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
                 }
             }
         }
-        if f["type"] == "call_rel32" {
+        if ft == "call_rel32" {
             var name = f["name"]
             var target = _elf_x64_lookup_fn(ctx, functions, name)
             if target == nil {
@@ -1269,7 +1271,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             if disp < 0 { disp = 4294967296 + disp } // v0: allow negative by wrapping (assumes within 32-bit)
             _elf_patch_u32_le_ptr(codep, pos + 1, disp)
         }
-        else if f["type"] == "rip_data_lea_rsi" {
+        else if ft == "rip_data_lea_rsi" {
             // Patch lea rsi, [rip+disp32] where disp32 points into appended data.
             //
             // f["pos"] points to disp32 field within the instruction.
@@ -1285,7 +1287,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             if disp2 < 0 { disp2 = 4294967296 + disp2 }
             _elf_patch_u32_le_ptr(codep, disp_pos, disp2)
         }
-        else if f["type"] == "rip_data_lea" {
+        else if ft == "rip_data_lea" {
             // Patch lea r64, [rip+disp32] where disp32 points into appended data.
             // (Same patch math as rip_data_lea_rsi; the disp field is the same.)
             var disp_pos2 = f["pos"]
@@ -1298,7 +1300,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             _elf_patch_u32_le_ptr(codep, disp_pos2, disp3)
         }
-        else if f["type"] == "rip_data_mov_rax" {
+        else if ft == "rip_data_mov_rax" {
             // Patch mov rax, [rip+disp32] where disp32 points into appended data.
             //
             // Encoding is 7 bytes: 48 8B 05 <disp32>, so disp field begins at +3 and next RIP is +7.
@@ -1312,7 +1314,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             if dispm < 0 { dispm = 4294967296 + dispm }
             _elf_patch_u32_le_ptr(codep, disp_posm, dispm)
         }
-        else if f["type"] == "data_fnobj_code_ptr" {
+        else if ft == "data_fnobj_code_ptr" {
             // Patch the code_ptr field inside a `{code_ptr, env_ptr}` fnobj record.
             //
             // NOTE:
@@ -1334,7 +1336,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
                 _elf_patch_u64_le_ptr(datap, data_off3, addr)
             }
         }
-        else if f["type"] == "data_data_ptr" {
+        else if ft == "data_data_ptr" {
             // Patch a u64 slot in `.data` to point at another offset in `.data`.
             // ET_DYN uses an R_X86_64_RELATIVE relocation emitted while building `.rela.dyn`.
             var data_offp = f["data_off"]
@@ -1347,7 +1349,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
                 _elf_patch_u64_le_ptr(datap, data_offp, text_base + data_base_off + target_data_offp)
             }
         }
-        else if f["type"] == "rip_code_lea" {
+        else if ft == "rip_code_lea" {
             // Patch lea r64, [rip+disp32] where disp32 points to a function entry in .text.
             //
             // f["pos"] points to disp32 field within the instruction.
@@ -1366,7 +1368,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             _elf_patch_u32_le_ptr(codep, disp_pos3, disp3)
         }
         else {
-            print("x64 elf: unknown fixup type " + f["type"])
+            print("x64 elf: unknown fixup type " + ft)
             oren_exit(1)
         }
         i = i + 1

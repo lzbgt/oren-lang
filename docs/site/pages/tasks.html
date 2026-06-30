@@ -289,6 +289,11 @@
 <p>							     runtime helper lookup lazily caches only names requested by emitted</p>
 <p>							     fixups. Focused evidence moved call-depth patching from roughly 5.4s</p>
 <p>							     to about 7ms and generic local fixups from roughly 5.2s to about 106ms.</p>
+<p>							     ELF/PE local-fixup dispatch now caches the fixup count and each</p>
+<p>							     fixup kind once, with PE using single-branch dispatch instead of</p>
+<p>							     testing every shape; the focused nested-map Linux x64 probe shows</p>
+<p>							     local fixups at about 26ms, leaving runtime-object call replay and</p>
+<p>							     broader user-function emission as the next measured x64 costs.</p>
 <p>							     The refreshed Linux x64 self-host compile-only probe then exposed a</p>
 <p>							     prerequisite seed-policy gap: missing <code>x64-linux/full</code> runtime-object</p>
 <p>							     seeds were still cold-built by <code>oren_stage2</code> under the seed helper&#x27;s</p>

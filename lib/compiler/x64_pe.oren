@@ -1038,9 +1038,12 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     _pe_apply_x64_call_rel32_positions(ctx, code, functions, "oren_call_depth_exit", ctx["call_depth_exit_fixups"])
 
     var i = 0
-    while i < oren_list_len(fixups) {
+    var nfixups = 0
+    if fixups != nil { nfixups = oren_list_len(fixups) }
+    while i < nfixups {
         var f = fixups[i]
-        if f["type"] == "call_rel32" {
+        var ft = f["type"]
+        if ft == "call_rel32" {
             var name = f["name"]
             var target = _pe_x64_lookup_fn(ctx, functions, name)
             if target == nil {
@@ -1052,7 +1055,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             if disp < 0 { disp = 4294967296 + disp }
             set_u32_le(code, pos + 1, disp)
         }
-        if f["type"] == "rip_data32" {
+        else if ft == "rip_data32" {
             // disp32 relative to next RIP (end of instruction).
             // f["pos"] points to disp32 field within the instruction.
             var label = f["data_label"]
@@ -1070,7 +1073,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             if disp2 < 0 { disp2 = 4294967296 + disp2 }
             set_u32_le(code, disp_pos, disp2)
         }
-        if f["type"] == "rip_rdata_lea" {
+        else if ft == "rip_rdata_lea" {
             // Backward-compatible alias: previously we used `rip_rdata_lea` for user-data.
             // User-data now lives in `.data`.
             var disp_pos2 = f["pos"]
@@ -1082,7 +1085,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             set_u32_le(code, disp_pos2, disp3)
         }
-        if f["type"] == "rip_data_lea" || f["type"] == "rip_data_lea_rsi" {
+        else if ft == "rip_data_lea" || ft == "rip_data_lea_rsi" || ft == "rip_data_mov_rax" {
             // lea r64, [rip+disp32] where target points into `.data` (fnobj, cstr, etc).
             //
             // x64_native_program.oren uses this fixup for first-class function values:
@@ -1096,7 +1099,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             set_u32_le(code, disp_pos2, disp3)
         }
-        if f["type"] == "data_fnobj_code_ptr" {
+        else if ft == "data_fnobj_code_ptr" {
             var name2 = f["name"]
             var target_off2 = _pe_x64_lookup_fn(ctx, functions, name2)
             if target_off2 == nil {
@@ -1109,14 +1112,14 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             var addr = image_base + text_rva + target_off2
             set_u64_le(data, data_off2, addr)
         }
-        if f["type"] == "data_data_ptr" {
+        else if ft == "data_data_ptr" {
             var data_offp = f["data_off"]
             var target_data_offp = f["target_data_off"]
             if oren_type_tag(data_offp) == 0 { data_offp = 0 }
             if oren_type_tag(target_data_offp) == 0 { target_data_offp = 0 }
             set_u64_le(data, data_offp, image_base + data_rva + target_data_offp)
         }
-        if f["type"] == "rip_code_lea" {
+        else if ft == "rip_code_lea" {
             // lea r64, [rip+disp32] where target is a function entry in .text.
             var disp_pos3 = f["pos"]
             var name2 = f["name"]
@@ -1131,6 +1134,10 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             var disp4 = target_rva3 - next_rip3
             if disp4 < 0 { disp4 = 4294967296 + disp4 }
             set_u32_le(code, disp_pos3, disp4)
+        }
+        else {
+            print("x64 pe: unknown fixup type " + ft)
+            oren_exit(1)
         }
         i = i + 1
     }

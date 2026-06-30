@@ -304,6 +304,10 @@
 <p>						  names instead of materializing all compact runtime offsets. Focused x64 ELF</p>
 <p>						  fixture evidence moved call-depth hook patching from roughly 5.4s to about</p>
 <p>						  7ms and generic local fixups from roughly 5.2s to about 106ms. A refreshed</p>
+<p>						  local-fixup dispatcher now caches each fixup kind once, caches the fixup</p>
+<p>						  count, and uses single-branch dispatch in the PE emitter; the nested-map</p>
+<p>						  Linux x64 probe shows local fixups at about 26ms, with runtime-object call</p>
+<p>						  replay now the remaining fixup-side cost in that focused path. A refreshed</p>
 <p>						  Linux x64 self-host compile-only probe then failed before the compiler build</p>
 <p>						  because the prerequisite <code>x64-linux/full</code> runtime-object seed cold-build hit</p>
 <p>						  the seed helper&#x27;s fixed 180s cap. The self-host compile-only gate now mirrors</p>

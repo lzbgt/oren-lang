@@ -231,6 +231,11 @@ This file is the concise task view. Detailed implementation status lives in
 							     runtime helper lookup lazily caches only names requested by emitted
 							     fixups. Focused evidence moved call-depth patching from roughly 5.4s
 							     to about 7ms and generic local fixups from roughly 5.2s to about 106ms.
+							     ELF/PE local-fixup dispatch now caches the fixup count and each
+							     fixup kind once, with PE using single-branch dispatch instead of
+							     testing every shape; the focused nested-map Linux x64 probe shows
+							     local fixups at about 26ms, leaving runtime-object call replay and
+							     broader user-function emission as the next measured x64 costs.
 							     The refreshed Linux x64 self-host compile-only probe then exposed a
 							     prerequisite seed-policy gap: missing `x64-linux/full` runtime-object
 							     seeds were still cold-built by `oren_stage2` under the seed helper's
