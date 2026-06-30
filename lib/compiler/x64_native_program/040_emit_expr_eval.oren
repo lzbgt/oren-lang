@@ -985,7 +985,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	                bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 	                var cc0 = _cond_false_cc(r["op"])
 	                if cc0 == nil { err(ctx, "x64 native v0: unsupported compare op for !"); return nil }
-	                bytes_extend(ctx["code"], core.insn_setcc_al(cc0))
+	                bytes_extend(ctx["code"], core.insn_setcc_al_op2(core.setcc_op2(cc0)))
 	                bytes_extend(ctx["code"], core.insn_cdqe())
 	                // Map 0/1 => false/true singleton.
 	                bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))

@@ -316,7 +316,7 @@ fn _emit_jmp_to_label(ctx, local_fixups, name) {
 
 fn _emit_jcc_to_label(ctx, local_fixups, cc, name) {
     var pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_jcc_rel32(cc, 0))
+    bytes_extend(ctx["code"], core.insn_jcc_rel32_op2(core.jcc_op2(cc), 0))
     oren_list_push(local_fixups, {"disp_pos": pos + 2, "insn_start": pos, "insn_len": 6, "label": name})
 }
 

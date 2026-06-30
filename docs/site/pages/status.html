@@ -321,6 +321,10 @@
 <p>									  parent-linked frame and refreshes the active frame cache on declaration;</p>
 <p>									  <code>renamer_scope_cache_shadow_main</code> covers the import-alias false-cache then</p>
 <p>									  local-shadow declaration path.</p>
+<p>									  X64 Jcc/SETcc builders now map condition names through byte-based opcode</p>
+<p>									  helpers and expose direct numeric opcode builders, with central label and</p>
+<p>									  compare-not emission using the numeric path to avoid repeated string</p>
+<p>									  dispatch in hot branch lowering.</p>
 <p>									  A refreshed</p>
 <p>						  Linux x64 self-host compile-only probe then failed before the compiler build</p>
 <p>						  because the prerequisite <code>x64-linux/full</code> runtime-object seed cold-build hit</p>

@@ -982,6 +982,52 @@ fn insn_cmp_r64_r64(lhs, rhs) {
     return out
 }
 
+fn jcc_op2(cc) {
+    if cc == nil { return -1 }
+    var n = oren_string_len(cc)
+    if n == 1 {
+        var c0 = oren_string_byte_at_unchecked(cc, 0) & 255
+        if c0 == 101 { return 132 } // e
+        if c0 == 112 { return 138 } // p
+        if c0 == 98 { return 130 }  // b
+        if c0 == 97 { return 135 }  // a
+        if c0 == 108 { return 140 } // l
+        if c0 == 103 { return 143 } // g
+        return -1
+    }
+    if n == 2 {
+        var c1 = oren_string_byte_at_unchecked(cc, 1) & 255
+        var c0b = oren_string_byte_at_unchecked(cc, 0) & 255
+        if c0b == 110 && c1 == 101 { return 133 } // ne
+        if c0b == 110 && c1 == 112 { return 139 } // np
+        if c0b == 97 && c1 == 101 { return 131 }  // ae
+        if c0b == 98 && c1 == 101 { return 134 }  // be
+        if c0b == 103 && c1 == 101 { return 141 } // ge
+        if c0b == 108 && c1 == 101 { return 142 } // le
+    }
+    return -1
+}
+
+fn setcc_op2(cc) {
+    var op2 = jcc_op2(cc)
+    if op2 == 132 { return 148 } // e
+    if op2 == 133 { return 149 } // ne
+    if op2 == 140 { return 156 } // l
+    if op2 == 141 { return 157 } // ge
+    if op2 == 142 { return 158 } // le
+    if op2 == 143 { return 159 } // g
+    return -1
+}
+
+fn insn_jcc_rel32_op2(op2, disp32) {
+    if op2 < 128 || op2 > 143 { return nil }
+    var out = _insn_pool_get()
+    bytes_push(out, 15)
+    bytes_push(out, op2)
+    push_u32_le(out, disp32)
+    return out
+}
+
 fn insn_jcc_rel32(cc, disp32) {
     // jcc rel32 => 0F 8? disp32
     //
@@ -998,23 +1044,7 @@ fn insn_jcc_rel32(cc, disp32) {
     // - "ge" => JGE (0F 8D)  signed greater/equal
     // - "le" => JLE (0F 8E)  signed less/equal
     // - "g"  => JG  (0F 8F)  signed greater than
-    if cc != "e" && cc != "ne" && cc != "p" && cc != "np" && cc != "b" && cc != "ae" && cc != "be" && cc != "a" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
-    var out = _insn_pool_get()
-    bytes_push(out, 15)
-    if cc == "e" { bytes_push(out, 132) }
-    else if cc == "ne" { bytes_push(out, 133) }
-    else if cc == "p" { bytes_push(out, 138) }
-    else if cc == "np" { bytes_push(out, 139) }
-    else if cc == "b" { bytes_push(out, 130) }
-    else if cc == "ae" { bytes_push(out, 131) }
-    else if cc == "be" { bytes_push(out, 134) }
-    else if cc == "a" { bytes_push(out, 135) }
-    else if cc == "l" { bytes_push(out, 140) }
-    else if cc == "ge" { bytes_push(out, 141) }
-    else if cc == "le" { bytes_push(out, 142) }
-    else { bytes_push(out, 143) } // g
-    push_u32_le(out, disp32)
-    return out
+    return insn_jcc_rel32_op2(jcc_op2(cc), disp32)
 }
 
 // --- SSE2 (scalar float64; Tier‑1 x86_64) ---
@@ -1265,13 +1295,12 @@ fn insn_setcc_al(cc) {
     // - "ge" => SETGE (0F 9D C0)  signed greater/equal
     // - "le" => SETLE (0F 9E C0)  signed less/equal
     // - "g"  => SETG  (0F 9F C0)  signed greater than
-    if cc != "e" && cc != "ne" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
-    var op2 = 159 // g
-    if cc == "e" { op2 = 148 }
-    else if cc == "ne" { op2 = 149 }
-    else if cc == "l" { op2 = 156 }
-    else if cc == "ge" { op2 = 157 }
-    else if cc == "le" { op2 = 158 }
+    var op2 = setcc_op2(cc)
+    return insn_setcc_al_op2(op2)
+}
+
+fn insn_setcc_al_op2(op2) {
+    if op2 < 144 || op2 > 159 { return nil }
     var out = _insn_pool_get()
     bytes_push(out, 15)
     bytes_push(out, op2)

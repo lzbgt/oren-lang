@@ -287,6 +287,10 @@ This file is the concise task view. Detailed implementation status lives in
 												     parent-linked frame and updates the active frame cache on declaration;
 												     `renamer_scope_cache_shadow_main` proves an imported alias can be
 												     cached as absent, then shadowed correctly by a later local declaration.
+												     X64 conditional branch and SETcc builders now decode condition names
+												     through byte-based opcode helpers and central label/compare-not
+												     emission uses direct numeric opcode builders, avoiding repeated
+												     string-equality chains in hot branch lowering.
 		     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

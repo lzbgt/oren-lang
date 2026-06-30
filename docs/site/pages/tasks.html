@@ -345,6 +345,10 @@
 <p>												     parent-linked frame and updates the active frame cache on declaration;</p>
 <p>												     <code>renamer_scope_cache_shadow_main</code> proves an imported alias can be</p>
 <p>												     cached as absent, then shadowed correctly by a later local declaration.</p>
+<p>												     X64 conditional branch and SETcc builders now decode condition names</p>
+<p>												     through byte-based opcode helpers and central label/compare-not</p>
+<p>												     emission uses direct numeric opcode builders, avoiding repeated</p>
+<p>												     string-equality chains in hot branch lowering.</p>
 <p>		     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
