@@ -257,7 +257,10 @@ This file is the concise task view. Detailed implementation status lives in
 								     now reduce the focused renamer dispatch bodies: the latest x64 probe
 								     shows `rename_stmt` around 61ms and `rename_expr` around 57ms, leaving
 								     traversal helpers and annotation builtin checks as the next measured
-								     renamer emit targets.
+								     renamer emit targets. Annotation builtin checks are now split by
+								     category, replacing the former roughly 57ms monolithic checker with
+								     about 20ms/15ms/15ms/6ms helper bodies; traversal helpers remain the
+								     next focused renamer emit target.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

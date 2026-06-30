@@ -167,7 +167,10 @@ Facts from the 2026-05-28 implementation pass:
 					  expression dispatch bodies are now split into narrow branch helpers; a
 					  focused x64 renamer probe moved `rename_stmt` from the prior 118ms
 					  focused baseline to about 61ms and `rename_expr` from the post-statement
-					  split 96ms probe to about 57ms. X64 index get/set lowering now
+					  split 96ms probe to about 57ms. Annotation builtin checks are now split
+					  by category, moving the former roughly 57ms builtin checker into
+					  roughly 20ms core, 15ms signed, 15ms unsigned, and 6ms float helper
+					  bodies in the same focused probe. X64 index get/set lowering now
 					  skips generic list-dispatch body emission when the shared lowering already
 				  proved `recv_kind="map"` or the key is a string literal; the same capped
 				  trace moved `collect_toplevel_rename_pairs` through all nested AST
@@ -237,10 +240,12 @@ Facts from the 2026-05-28 implementation pass:
 							  type-field loops from the hot dispatch bodies; focused x64 renamer probes
 							  moved `rename_stmt` from about 199ms to 118ms and `rename_expr` from about
 							  194ms to 66ms. Statement/expression branch helpers now keep the hot
-							  dispatch bodies smaller, with the latest focused probe showing
-							  `rename_stmt` at about 61ms and `rename_expr` at about 57ms; traversal
-							  helpers and annotation builtin checks are the remaining focused renamer
-							  emit targets.
+								  dispatch bodies smaller, with the latest focused probe showing
+								  `rename_stmt` at about 61ms and `rename_expr` at about 57ms.
+								  Annotation builtin checks are now split by category, replacing the
+								  former about 57ms monolithic checker with about 20ms/15ms/15ms/6ms
+								  helper bodies; traversal helpers are the remaining focused renamer
+								  emit targets.
 						  Runtime-object code splicing now has bounded phase markers for code append,
 						  compact function offsets, compact fixup metadata, legacy fallback fixups,
 						  and RIP-data labels. Those markers showed the splice itself was not the

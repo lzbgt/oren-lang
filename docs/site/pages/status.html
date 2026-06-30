@@ -207,7 +207,10 @@
 <p>					  expression dispatch bodies are now split into narrow branch helpers; a</p>
 <p>					  focused x64 renamer probe moved <code>rename_stmt</code> from the prior 118ms</p>
 <p>					  focused baseline to about 61ms and <code>rename_expr</code> from the post-statement</p>
-<p>					  split 96ms probe to about 57ms. X64 index get/set lowering now</p>
+<p>					  split 96ms probe to about 57ms. Annotation builtin checks are now split</p>
+<p>					  by category, moving the former roughly 57ms builtin checker into</p>
+<p>					  roughly 20ms core, 15ms signed, 15ms unsigned, and 6ms float helper</p>
+<p>					  bodies in the same focused probe. X64 index get/set lowering now</p>
 <p>					  skips generic list-dispatch body emission when the shared lowering already</p>
 <p>				  proved <code>recv_kind=&quot;map&quot;</code> or the key is a string literal; the same capped</p>
 <p>				  trace moved <code>collect_toplevel_rename_pairs</code> through all nested AST</p>
@@ -277,10 +280,12 @@
 <p>							  type-field loops from the hot dispatch bodies; focused x64 renamer probes</p>
 <p>							  moved <code>rename_stmt</code> from about 199ms to 118ms and <code>rename_expr</code> from about</p>
 <p>							  194ms to 66ms. Statement/expression branch helpers now keep the hot</p>
-<p>							  dispatch bodies smaller, with the latest focused probe showing</p>
-<p>							  <code>rename_stmt</code> at about 61ms and <code>rename_expr</code> at about 57ms; traversal</p>
-<p>							  helpers and annotation builtin checks are the remaining focused renamer</p>
-<p>							  emit targets.</p>
+<p>								  dispatch bodies smaller, with the latest focused probe showing</p>
+<p>								  <code>rename_stmt</code> at about 61ms and <code>rename_expr</code> at about 57ms.</p>
+<p>								  Annotation builtin checks are now split by category, replacing the</p>
+<p>								  former about 57ms monolithic checker with about 20ms/15ms/15ms/6ms</p>
+<p>								  helper bodies; traversal helpers are the remaining focused renamer</p>
+<p>								  emit targets.</p>
 <p>						  Runtime-object code splicing now has bounded phase markers for code append,</p>
 <p>						  compact function offsets, compact fixup metadata, legacy fallback fixups,</p>
 <p>						  and RIP-data labels. Those markers showed the splice itself was not the</p>

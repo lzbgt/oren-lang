@@ -74,7 +74,7 @@ fn _rename_ann_type(pairs, ann) {
     return stars + slices + base + suffix
 }
 
-fn _ann_base_is_builtin(base) {
+fn _ann_base_is_builtin_core(base) {
     if base == "any" { return true }
     if base == "bool" { return true }
     if base == "bytes" { return true }
@@ -85,9 +85,29 @@ fn _ann_base_is_builtin(base) {
     if base == "map" { return true }
     if base == "nil" { return true }
     if base == "string" { return true }
+    return false
+}
+
+fn _ann_base_is_builtin_signed(base) {
     if base == "i8" || base == "i16" || base == "i32" || base == "i64" || base == "i128" { return true }
+    return false
+}
+
+fn _ann_base_is_builtin_unsigned(base) {
     if base == "u8" || base == "u16" || base == "u32" || base == "u64" || base == "u128" { return true }
+    return false
+}
+
+fn _ann_base_is_builtin_float(base) {
     if base == "f32" || base == "f64" { return true }
+    return false
+}
+
+fn _ann_base_is_builtin(base) {
+    if _ann_base_is_builtin_core(base) { return true }
+    if _ann_base_is_builtin_signed(base) { return true }
+    if _ann_base_is_builtin_unsigned(base) { return true }
+    if _ann_base_is_builtin_float(base) { return true }
     return false
 }
 
