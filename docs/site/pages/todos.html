@@ -244,6 +244,17 @@
 <p>  shows <code>x64_native_program.oren</code> at ~37.4s total / ~27.8s parse, with</p>
 <p>  <code>_emit_ops_in_fn</code> exposed at ~344ms as the next parser body.</p>
 <ul>
+<li>X64 op emission now delegates trace/progress, phase-progress, dynamic-gas</li>
+</ul>
+<p>  patching, slow-op recording, and remaining regular dispatch helpers. Entry</p>
+<p>  runtime bootstrap now delegates heap/frame setup, boot globals, argv/envp,</p>
+<p>  runtime-init, static cstr/debug registration, args/envp, and capsule/GC setup</p>
+<p>  to a bounded helper shard, and <code>_compile_function_v0</code> delegates spills,</p>
+<p>  call-depth gating, GC tick init, body emission, and epilogue emission. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~36.4s total / ~27.2s</p>
+<p>  parse, with <code>_emit_intrinsic_sys_linux_fd_misc_x64</code> exposed at ~312ms as the</p>
+<p>  next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

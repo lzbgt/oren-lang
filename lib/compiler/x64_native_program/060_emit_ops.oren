@@ -816,6 +816,159 @@ fn _emit_assign_i32_op_x64(ctx, op, locals, platform, j, op_start_ns, op_slow_ms
     return 0
 }
 
+fn _x64_emit_ops_trace_progress(ctx, trace, trace_stride, j, n, op, op_kind) {
+    if trace != true { return nil }
+    if core.int_mod(j, trace_stride) != 0 { return nil }
+    var opk = op_kind
+    if opk == nil { opk = "?" }
+    var extra = ""
+    if opk == "var_i32" || opk == "assign_i32" {
+        var nm = op["name"]
+        if nm != nil && nm != "" { extra = " name=" + nm }
+    }
+    var loc = ""
+    var tok = op["tok"]
+    if tok != nil && tok["file"] != nil && tok["line"] != nil {
+        loc = " @" + tok["file"] + ":" + oren_int_to_string(tok["line"])
+    }
+    print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
+    return nil
+}
+
+fn _x64_emit_ops_phase_progress(ctx, phase_outer, phase_log, phase_name, phase_stride, j, n, op, op_kind) {
+    if phase_outer != true { return nil }
+    if core.int_mod(j, phase_stride) != 0 { return nil }
+    var opk_phase = op_kind
+    if opk_phase == nil { opk_phase = "?" }
+    var loc_phase = ""
+    var tok_phase = op["tok"]
+    if tok_phase != nil && tok_phase["file"] != nil && tok_phase["line"] != nil {
+        loc_phase = " file=" + tok_phase["file"] + " line=" + oren_int_to_string(tok_phase["line"])
+    }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.progress",
+        "name=" + phase_name +
+        " i=" + oren_int_to_string(j) +
+        " total=" + oren_int_to_string(n) +
+        " op=" + opk_phase +
+        " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+        loc_phase)
+    return nil
+}
+
+fn _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start) {
+    if dynamic_note_pos != nil && dynamic_span_start != nil {
+        _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
+    }
+    return nil
+}
+
+fn _x64_emit_ops_record_slow(ctx, trace_op_slow, phase_log, phase_name, op, op_kind, j, op_start_ns, op_slow_ms) {
+    if trace_op_slow != true { return nil }
+    var generic_op_ms = (oren_time_now_ns() - op_start_ns) / 1000000
+    if generic_op_ms < op_slow_ms { return nil }
+    var generic_op_name = op_kind
+    if generic_op_name == nil { generic_op_name = "?" }
+    var generic_loc = ""
+    var generic_tok = op["tok"]
+    if generic_tok != nil && generic_tok["file"] != nil && generic_tok["line"] != nil {
+        generic_loc = " file=" + generic_tok["file"] + " line=" + oren_int_to_string(generic_tok["line"])
+    }
+    var generic_extra = ""
+    if op["name"] != nil { generic_extra = " target=" + op["name"] }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
+        "name=" + phase_name +
+        " i=" + oren_int_to_string(j) +
+        " op=" + generic_op_name +
+        " path=generic" +
+        " ms=" + oren_int_to_string(generic_op_ms) +
+        generic_extra +
+        generic_loc)
+    return nil
+}
+
+fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns, op_slow_ms, top_string_fast_stats, gas_weighted, gas_dynamic) {
+    if op_kind == "var_i32" {
+        _emit_var_i32_op_x64(ctx, op, locals)
+        return 0
+    }
+    if op_kind == "global_string_init" {
+        _emit_global_string_init_op_x64(ctx, op, j, op_start_ns, op_slow_ms)
+        return 0
+    }
+    if op_kind == "global_string_init_batch" {
+        _emit_global_string_init_batch_op_x64(ctx, op, j, op_start_ns, op_slow_ms)
+        return 0
+    }
+    if op_kind == "assign_i32" {
+        var assign_status = _emit_assign_i32_op_x64(ctx, op, locals, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats)
+        if assign_status == 1 { return 1 }
+        return 0
+    }
+    if op_kind == "expr" {
+        _expr_int_check(ctx, op["expr"], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+        _emit_eval_int_to_rax(ctx, op["expr"], locals)
+        return 0
+    }
+    if op_kind == "print_str_expr" {
+        _emit_print_stmt_str_x64(ctx, locals, op["expr"])
+        return 0
+    }
+    if op_kind == "print_cstr" {
+        if platform != nil && platform["os"] == "linux" {
+            _emit_linux_write_cstr(ctx, op["value"])
+        } else if platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, op["value"])
+        } else {
+            err(ctx, "x64 native v0: print unsupported on this target")
+        }
+        return 0
+    }
+    if op_kind == "return" {
+        _expr_int_check(ctx, op["expr"], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+        _emit_eval_int_to_rax(ctx, op["expr"], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+        _emit_jmp_to_label(ctx, local_fixups, epilogue_label)
+        return 0
+    }
+    if op_kind == "if" {
+        var cond = op["cond"]
+        var else_label = _new_label(ctx, "if_else")
+        var end_label = _new_label(ctx, "if_end")
+        _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, else_label)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+        _emit_ops_in_fn(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+        _emit_jmp_to_label(ctx, local_fixups, end_label)
+        _emit_label(ctx, labels, else_label)
+        _emit_ops_in_fn(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+        _emit_label(ctx, labels, end_label)
+        return 0
+    }
+    if op_kind == "while" {
+        _emit_while_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform)
+        return 0
+    }
+    if op_kind == "for" {
+        _emit_for_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic)
+        return 0
+    }
+    if op_kind == "break" {
+        if loop_end_label == nil { err(ctx, "x64 native v0: break outside loop"); return 0 }
+        _emit_jmp_to_label(ctx, local_fixups, loop_end_label)
+        return 0
+    }
+    if op_kind == "continue" {
+        if loop_cond_label == nil { err(ctx, "x64 native v0: continue outside loop"); return 0 }
+        _emit_jmp_to_label(ctx, local_fixups, loop_cond_label)
+        return 0
+    }
+    err(ctx, "x64 native v0: unknown op in main")
+    return 0
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
@@ -868,37 +1021,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             continue
         }
         var op_kind = op["op"]
-        if trace && core.int_mod(j, trace_stride) == 0 {
-            var opk = op_kind
-            if opk == nil { opk = "?" }
-            var extra = ""
-            if opk == "var_i32" || opk == "assign_i32" {
-                var nm = op["name"]
-                if nm != nil && nm != "" { extra = " name=" + nm }
-            }
-            var loc = ""
-            var tok = op["tok"]
-            if tok != nil && tok["file"] != nil && tok["line"] != nil {
-                loc = " @" + tok["file"] + ":" + oren_int_to_string(tok["line"])
-            }
-            print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
-        }
-        if phase_outer && core.int_mod(j, phase_stride) == 0 {
-            var opk_phase = op_kind
-            if opk_phase == nil { opk_phase = "?" }
-            var loc_phase = ""
-            var tok_phase = op["tok"]
-            if tok_phase != nil && tok_phase["file"] != nil && tok_phase["line"] != nil {
-                loc_phase = " file=" + tok_phase["file"] + " line=" + oren_int_to_string(tok_phase["line"])
-            }
-            _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.progress",
-                "name=" + phase_name +
-                " i=" + oren_int_to_string(j) +
-                " total=" + oren_int_to_string(n) +
-                " op=" + opk_phase +
-                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
-                loc_phase)
-        }
+        _x64_emit_ops_trace_progress(ctx, trace, trace_stride, j, n, op, op_kind)
+        _x64_emit_ops_phase_progress(ctx, phase_outer, phase_log, phase_name, phase_stride, j, n, op, op_kind)
         _linetab_record_tok(ctx, op["tok"])
         var dynamic_note_pos = nil
         var dynamic_span_start = nil
@@ -931,9 +1055,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                         " count=" + oren_int_to_string(op["count"]))
                 }
             }
-            if dynamic_note_pos != nil && dynamic_span_start != nil {
-                _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
-            }
+            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
             j = j + 1
             continue
         }
@@ -954,116 +1076,27 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                         " count=" + oren_int_to_string(op["count"]))
                 }
             }
-            if dynamic_note_pos != nil && dynamic_span_start != nil {
-                _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
-            }
+            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
             j = j + 1
             continue
         }
-        if op_kind == "var_i32" {
-            _emit_var_i32_op_x64(ctx, op, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "global_string_init" {
-            _emit_global_string_init_op_x64(ctx, op, j, op_start_ns, op_slow_ms)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "global_string_init_batch" {
-            _emit_global_string_init_batch_op_x64(ctx, op, j, op_start_ns, op_slow_ms)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "assign_i32" {
-            var assign_status = _emit_assign_i32_op_x64(ctx, op, locals, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            if assign_status == 1 {
-                if dynamic_note_pos != nil && dynamic_span_start != nil {
-                    _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
-                }
-                j = j + 1
-                continue
-            }
-        } else if op_kind == "expr" {
-            // Expression statement: evaluate and discard return value.
-            _expr_int_check(ctx, op["expr"], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_eval_int_to_rax(ctx, op["expr"], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "print_str_expr" {
-            _emit_print_stmt_str_x64(ctx, locals, op["expr"])
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "print_cstr" {
-            if platform != nil && platform["os"] == "linux" {
-                _emit_linux_write_cstr(ctx, op["value"])
-            } else if platform != nil && platform["os"] == "windows" {
-                _emit_windows_write_cstr(ctx, op["value"])
-            } else {
-                err(ctx, "x64 native v0: print unsupported on this target")
-                return nil
-            }
-        } else if op_kind == "return" {
-            _expr_int_check(ctx, op["expr"], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_eval_int_to_rax(ctx, op["expr"], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_jmp_to_label(ctx, local_fixups, epilogue_label)
-        } else if op_kind == "if" {
-            var cond = op["cond"]
-            var else_label = _new_label(ctx, "if_else")
-            var end_label = _new_label(ctx, "if_end")
-            _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, else_label)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-            _emit_ops_in_fn(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_jmp_to_label(ctx, local_fixups, end_label)
-            _emit_label(ctx, labels, else_label)
-            _emit_ops_in_fn(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_label(ctx, labels, end_label)
-        } else if op_kind == "while" {
-            _emit_while_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "for" {
-            _emit_for_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        } else if op_kind == "break" {
-            if loop_end_label == nil { err(ctx, "x64 native v0: break outside loop"); return nil }
-            _emit_jmp_to_label(ctx, local_fixups, loop_end_label)
-        } else if op_kind == "continue" {
-            if loop_cond_label == nil { err(ctx, "x64 native v0: continue outside loop"); return nil }
-            _emit_jmp_to_label(ctx, local_fixups, loop_cond_label)
-        } else {
-            err(ctx, "x64 native v0: unknown op in main")
-            return nil
+        var op_status = _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups,
+            epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns,
+            op_slow_ms, top_string_fast_stats, gas_weighted, gas_dynamic)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if op_status == 1 {
+            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
+            j = j + 1
+            continue
         }
-        if dynamic_note_pos != nil && dynamic_span_start != nil {
-            _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
-        }
+        _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
         if gas_basic == true {
             var opk_bb = op_kind
             if opk_bb == "if" || opk_bb == "while" || opk_bb == "for" {
                 charge_basic_block_next = true
             }
         }
-        if trace_op_slow == true {
-            var generic_op_ms = (oren_time_now_ns() - op_start_ns) / 1000000
-            if generic_op_ms >= op_slow_ms {
-                var generic_op_name = op_kind
-                if generic_op_name == nil { generic_op_name = "?" }
-                var generic_loc = ""
-                var generic_tok = op["tok"]
-                if generic_tok != nil && generic_tok["file"] != nil && generic_tok["line"] != nil {
-                    generic_loc = " file=" + generic_tok["file"] + " line=" + oren_int_to_string(generic_tok["line"])
-                }
-                var generic_extra = ""
-                if op["name"] != nil { generic_extra = " target=" + op["name"] }
-                _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                    "name=" + phase_name +
-                    " i=" + oren_int_to_string(j) +
-                    " op=" + generic_op_name +
-                    " path=generic" +
-                    " ms=" + oren_int_to_string(generic_op_ms) +
-                    generic_extra +
-                    generic_loc)
-            }
-        }
+        _x64_emit_ops_record_slow(ctx, trace_op_slow, phase_log, phase_name, op, op_kind, j, op_start_ns, op_slow_ms)
         j = j + 1
     }
     if phase_outer {

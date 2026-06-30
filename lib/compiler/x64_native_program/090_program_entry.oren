@@ -3,4 +3,5 @@
 // @include "090_program_entry/000_prelude.oren"
 // @include "090_program_entry/010_part_a.oren"
 // @include "090_program_entry/020_part_b.oren"
+// @include "090_program_entry/080_entry_bootstrap_helpers.oren"
 // @include "090_program_entry/090_tail.oren"

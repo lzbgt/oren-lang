@@ -281,10 +281,18 @@
 <p>															 <code>_x64_build_runtime_obj</code> exposed at about 355ms as the next parser body.</p>
 <p>															 X64 runtime-object build now delegates runtime decl compilation, wrapper</p>
 <p>															 synthesis/compilation, and top-decl reporting, and</p>
-<p>															 <code>native_compile_program_x64</code> delegates function/global preparation to a</p>
-<p>															 compact helper; the capped profile now shows <code>x64_native_program.oren</code> at</p>
-<p>															 about 37.4s total / 27.8s parse, with <code>_emit_ops_in_fn</code> exposed at about</p>
-<p>															 344ms as the next parser body.</p>
+<p>																 <code>native_compile_program_x64</code> delegates function/global preparation to a</p>
+<p>																 compact helper; the capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																 about 37.4s total / 27.8s parse, with <code>_emit_ops_in_fn</code> exposed at about</p>
+<p>																 344ms as the next parser body. X64 op emission now delegates trace/progress,</p>
+<p>																 phase-progress, dynamic-gas patching, slow-op recording, and remaining regular</p>
+<p>																 dispatch helpers; entry runtime bootstrap now delegates heap/frame, boot-global,</p>
+<p>																 argv/envp, runtime-init, static cstr/debug, args/envp, and capsule/GC setup to a</p>
+<p>																 bounded helper shard; and <code>_compile_function_v0</code> now delegates spills, call-depth</p>
+<p>																 gating, GC tick init, body emission, and epilogue emission. The capped profile</p>
+<p>																 now shows <code>x64_native_program.oren</code> at about 36.4s total / 27.2s parse, with</p>
+<p>																 <code>_emit_intrinsic_sys_linux_fd_misc_x64</code> exposed at about 312ms as the next parser</p>
+<p>																 body.</p>
 <p>											     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

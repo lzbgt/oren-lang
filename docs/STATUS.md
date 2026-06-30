@@ -224,10 +224,18 @@ Facts from the 2026-05-28 implementation pass:
 														  `_x64_build_runtime_obj` exposed at about 355ms as the next parser body.
 														  X64 runtime-object build now delegates runtime decl compilation, wrapper
 														  synthesis/compilation, and top-decl reporting, and
-														  `native_compile_program_x64` delegates function/global preparation to a
-														  compact helper; the capped profile now shows `x64_native_program.oren` at
-														  about 37.4s total / 27.8s parse, with `_emit_ops_in_fn` exposed at about
-														  344ms as the next parser body.
+															  `native_compile_program_x64` delegates function/global preparation to a
+															  compact helper; the capped profile now shows `x64_native_program.oren` at
+															  about 37.4s total / 27.8s parse, with `_emit_ops_in_fn` exposed at about
+															  344ms as the next parser body. X64 op emission now delegates trace/progress,
+															  phase-progress, dynamic-gas patching, slow-op recording, and remaining regular
+															  dispatch helpers; entry runtime bootstrap now delegates heap/frame, boot-global,
+															  argv/envp, runtime-init, static cstr/debug, args/envp, and capsule/GC setup to a
+															  bounded helper shard; and `_compile_function_v0` now delegates spills, call-depth
+															  gating, GC tick init, body emission, and epilogue emission. The capped profile
+															  now shows `x64_native_program.oren` at about 36.4s total / 27.2s parse, with
+															  `_emit_intrinsic_sys_linux_fd_misc_x64` exposed at about 312ms as the next parser
+															  body.
 					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
