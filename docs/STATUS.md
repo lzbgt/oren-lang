@@ -159,12 +159,16 @@ Facts from the 2026-05-28 implementation pass:
 				  with prologue substep timing fields. That trace showed the repeated
 				  pre-body cliff was per-function call-depth platform metadata probing;
 				  x64 now computes the call-depth default once and passes a plain
-				  fast-path boolean for the normal user-function loop. The first
-				  renamer helpers now report depth-gate setup near 0-5ms instead of
-				  roughly 970-1100ms, exposing real body emitters such as
-				  `rename_function_params`, `rename_stmt_list`, `rename_stmt`, and
-				  `rename_expr` as the next measured targets. X64 index get/set lowering now
-				  skips generic list-dispatch body emission when the shared lowering already
+					  fast-path boolean for the normal user-function loop. The first
+					  renamer helpers now report depth-gate setup near 0-5ms instead of
+					  roughly 970-1100ms, exposing real body emitters such as
+					  `rename_function_params`, `rename_stmt_list`, `rename_stmt`, and
+					  `rename_expr` as the next measured targets. The renamer statement and
+					  expression dispatch bodies are now split into narrow branch helpers; a
+					  focused x64 renamer probe moved `rename_stmt` from the prior 118ms
+					  focused baseline to about 61ms and `rename_expr` from the post-statement
+					  split 96ms probe to about 57ms. X64 index get/set lowering now
+					  skips generic list-dispatch body emission when the shared lowering already
 				  proved `recv_kind="map"` or the key is a string literal; the same capped
 				  trace moved `collect_toplevel_rename_pairs` through all nested AST
 					  string-key lookups and reduced that function from roughly 136s to roughly
@@ -230,9 +234,13 @@ Facts from the 2026-05-28 implementation pass:
 					  scope stack on each push, and `rename_expr` uses the same early-return
 					  shape as `rename_stmt`. Shared child-traversal helpers now remove
 					  duplicated function body, statement-list, expression-list, hash-pair, and
-						  type-field loops from the hot dispatch bodies; focused x64 renamer probes
-						  moved `rename_stmt` from about 199ms to 118ms and `rename_expr` from about
-						  194ms to 66ms, leaving the smaller dispatch checks as the next target.
+							  type-field loops from the hot dispatch bodies; focused x64 renamer probes
+							  moved `rename_stmt` from about 199ms to 118ms and `rename_expr` from about
+							  194ms to 66ms. Statement/expression branch helpers now keep the hot
+							  dispatch bodies smaller, with the latest focused probe showing
+							  `rename_stmt` at about 61ms and `rename_expr` at about 57ms; traversal
+							  helpers and annotation builtin checks are the remaining focused renamer
+							  emit targets.
 						  Runtime-object code splicing now has bounded phase markers for code append,
 						  compact function offsets, compact fixup metadata, legacy fallback fixups,
 						  and RIP-data labels. Those markers showed the splice itself was not the
