@@ -147,12 +147,16 @@ Facts from the 2026-05-28 implementation pass:
 						  `native_compile_program_x64`; the capped profile now shows
 						  `x64_native_program.oren` at about 37.9s total / 27.4s parse, with the
 						  exposed parser body shifted to `_emit_ops_in_fn` at about 954ms. The
-						  x64 op emitter now delegates while/for lowering and string-global batch
-						  fallback materialization to helper bodies, while the program emitter
-						  delegates wrapper/fnwrap compilation and program-data finalization; the
-						  final capped profile moves the exposed body back to
-						  `native_compile_program_x64` at about 880ms, leaving that remaining
-						  orchestration body as the concrete parser target.
+							  x64 op emitter now delegates while/for lowering and string-global batch
+							  fallback materialization to helper bodies, while the program emitter
+							  delegates wrapper/fnwrap compilation and program-data finalization; the
+							  final capped profile moves the exposed body back to
+							  `native_compile_program_x64` at about 880ms, leaving that remaining
+							  orchestration body as the concrete parser target. Entry register-thread,
+							  top/main entry calls, and platform return-path emission now live behind
+							  small helper calls; the capped profile now exposes
+							  `_emit_intrinsic_sys_linux_fs_x64` at about 770ms as the next x64 parser
+							  body to split by syscall family.
 		  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

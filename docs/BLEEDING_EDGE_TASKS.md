@@ -153,7 +153,11 @@ This file is the concise task view. Detailed implementation status lives in
 										 delegates wrapper/fnwrap compilation and program-data finalization; the
 										 final capped profile moves the exposed body back to
 										 `native_compile_program_x64` at about 880ms, leaving that remaining
-										 orchestration body as the concrete parser target.
+										 orchestration body as the concrete parser target. Entry register-thread,
+										 top/main entry calls, and platform return-path emission now live behind
+										 small helper calls; the capped profile now exposes
+										 `_emit_intrinsic_sys_linux_fs_x64` at about 770ms as the next x64 parser
+										 body to split by syscall family.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
