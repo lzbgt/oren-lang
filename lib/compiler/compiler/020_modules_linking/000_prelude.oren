@@ -482,6 +482,30 @@ fn _ml_scan_char_at(src_s, idx, safe) {
     return oren_string_char_at_unchecked(src_s, idx)
 }
 
+fn _ml_scan_path_starts_with(path, prefix) {
+    if path == nil || prefix == nil { return false }
+    var pn = oren_string_len(path)
+    var qn = oren_string_len(prefix)
+    if qn > pn { return false }
+    var i = 0
+    while i < qn {
+        if oren_string_byte_at_unchecked(path, i) != oren_string_byte_at_unchecked(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _ml_scan_header_only_path(full_path) {
+    var v = oren_env("OREN_IMPORT_SCAN_HEADER_ONLY")
+    if v != nil {
+        if v == "0" || v == "false" || v == "off" { return false }
+        return true
+    }
+    if _ml_scan_path_starts_with(full_path, "lib/compiler/") { return true }
+    if _ml_scan_path_starts_with(full_path, "lib/std/") { return true }
+    return false
+}
+
 fn _ml_scan_match_kw_import(src_s, idx, safe) {
     // Matches "import" at idx with identifier-boundary on both sides.
     // Return true/false (no allocations).
@@ -621,7 +645,7 @@ fn _ml_scan_import_attrs_keep(attrs, config) {
     return cfg_lowering.import_attrs_keep(attrs, config)
 }
 
-fn _ml_include_list_if_aggregator(full_path) {
+fn _ml_include_list_from_src_if_aggregator(full_path, src) {
     // Detect "include aggregator" files like `lib/compiler/compiler.oren`:
     // - contain one or more `// @include "..."` directives
     // - contain no other non-comment code
@@ -629,17 +653,6 @@ fn _ml_include_list_if_aggregator(full_path) {
     // For these, parsing a single giant include-expanded string is wasteful.
     // We instead parse each include child and then merge the AST fragments.
     var trace = oren_env("OREN_TRACE_IMPORT_SCAN") != nil
-    if trace { print("[include_scan] read start file=" + full_path) }
-    var src = oren_read_file(full_path)
-    if oren_is_err(src) {
-        if trace {
-            var em = oren_err_msg(src)
-            if em == nil { em = "read failed" }
-            print("[include_scan] read error file=" + full_path + " err=" + em)
-        }
-        return nil
-    }
-
     var includes = []
     var has_code = false
     var safe = _ml_scan_should_use_safe()
@@ -685,6 +698,21 @@ fn _ml_include_list_if_aggregator(full_path) {
     if has_code { return nil }
     if oren_list_len(includes) == 0 { return nil }
     return includes
+}
+
+fn _ml_include_list_if_aggregator(full_path) {
+    var trace = oren_env("OREN_TRACE_IMPORT_SCAN") != nil
+    if trace { print("[include_scan] read start file=" + full_path) }
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) {
+        if trace {
+            var em = oren_err_msg(src)
+            if em == nil { em = "read failed" }
+            print("[include_scan] read error file=" + full_path + " err=" + em)
+        }
+        return nil
+    }
+    return _ml_include_list_from_src_if_aggregator(full_path, src)
 }
 
 fn _ml_parse_program_from_src(file, src) {
@@ -883,6 +911,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
     var i = 0
     var at_bol = true
     var pending_attrs = []
+    var header_only = _ml_scan_header_only_path(full_path)
 
     while i < n {
         var ch = _ml_scan_char_at(src, i, safe)
@@ -998,6 +1027,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
             }
             // Non-import at BOL => keep scanning but treat as "not at bol" for this line.
             pending_attrs = []
+            if header_only { break }
             at_bol = false
             i = i + 1
             continue
@@ -1032,10 +1062,16 @@ fn _ml_scan_imports_for_module(full_path, config) {
     var i = 0
     while i < oren_list_len(includes) {
         var inc_full = includes[i]
+        var src2 = oren_read_file(inc_full)
+        if oren_is_err(src2) {
+            var msg2 = oren_err_msg(src2)
+            if msg2 == nil { msg2 = "failed to read" }
+            return {"ok": false, "err": msg2}
+        }
         // Shallow scan:
         // - do not expand includes; just read the file text and scan `import` tokens.
         // - if the included file itself is an include-aggregator, recurse structurally.
-        var sub_includes = _ml_include_list_if_aggregator(inc_full)
+        var sub_includes = _ml_include_list_from_src_if_aggregator(inc_full, src2)
         if sub_includes != nil {
             var ri = 0
             while ri < oren_list_len(sub_includes) {
@@ -1050,5 +1086,3 @@ fn _ml_scan_imports_for_module(full_path, config) {
                 ri = ri + 1
             }
         } else {
-            var src2 = oren_read_file(inc_full)
-            if oren_is_err(src2) {

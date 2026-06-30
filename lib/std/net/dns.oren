@@ -18,6 +18,7 @@
 
 import udp "std:net/udp"
 import rand "std:crypto/rand"
+import iphlp "std:ffi/iphlpapi"
 
 // --- Resolver helpers (small stable surface) ---
 
@@ -170,8 +171,6 @@ fn _find_nameserver_ipv4_in_resolv_conf(s) {
 // Notes:
 // - This keeps the rest of the DNS client deterministic: `dns.query_a` still speaks UDP to an explicit server.
 // - This avoids calling external tools (`ipconfig`) and avoids parsing localized text.
-
-import iphlp "std:ffi/iphlpapi"
 
 @cfg(os="windows")
 // FFI is centralized in `std:ffi/iphlpapi`.

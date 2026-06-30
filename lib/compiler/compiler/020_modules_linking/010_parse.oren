@@ -1,7 +1,3 @@
-                var msg2 = oren_err_msg(src2)
-                if msg2 == nil { msg2 = "failed to read" }
-                return {"ok": false, "err": msg2}
-            }
             var r = _ml_scan_imports_in_src(inc_full, src2, config)
             if r["ok"] != true { return r }
             var imps = r["imports"]
@@ -642,6 +638,15 @@ fn _ml_parse_program_for_module(full, config) {
     return {"statements": merged_stmts2, "traits": merged_traits2}
 }
 
+fn _ml_discover_phase_slow_ms() {
+    var v = oren_env("OREN_TRACE_DISCOVER_MODULE_MS")
+    if v == nil || v == "" { return 1000 }
+    if v == "false" || v == "off" { return 1000000000 }
+    var n = optimizer.parse_int(v)
+    if n < 0 { return 0 }
+    return n
+}
+
 fn discover_module(base, path, config) {
     // Dependency discovery + deterministic prefix assignment (cheap).
     //
@@ -649,6 +654,14 @@ fn discover_module(base, path, config) {
     // - walk the import graph using lexer-only import scanning
     // - assign module prefixes in the same deterministic order as legacy load_module
     // - build MODULE_ORDER without constructing full ASTs
+    var phase_log_path = _ml_phase_log_path()
+    var discover_t0 = 0
+    var resolve_t0 = 0
+    if phase_log_path != nil {
+        discover_t0 = oren_time_now_ns()
+        resolve_t0 = discover_t0
+    }
+
     var std_mode = nil
     if config != nil { std_mode = config["stdlib_mode"] }
     var is_std = _is_std_spec(path)
@@ -659,6 +672,8 @@ fn discover_module(base, path, config) {
     } else {
         full = resolve_import_path(base, path)
     }
+    var resolve_ms = 0
+    if phase_log_path != nil { resolve_ms = (oren_time_now_ns() - resolve_t0) / 1000000 }
     if MODULES[full] != nil {
         return MODULES[full]
     }
@@ -704,7 +719,11 @@ fn discover_module(base, path, config) {
     MODULES[full] = mod2
 
     // Scan imports cheaply and recurse.
+    var scan_t0 = 0
+    if phase_log_path != nil { scan_t0 = oren_time_now_ns() }
     var scan = _ml_scan_imports_for_module(full, config)
+    var scan_ms = 0
+    if phase_log_path != nil { scan_ms = (oren_time_now_ns() - scan_t0) / 1000000 }
     if scan["ok"] != true {
         print("Failed to scan imports in: " + full)
         if scan["err"] != nil { print(scan["err"]) }
@@ -715,6 +734,8 @@ fn discover_module(base, path, config) {
     var imports = scan["imports"]
     if LINK_GC_ROOT != nil { LINK_GC_ROOT["scan_tmp"] = scan; LINK_GC_ROOT["imports_tmp"] = imports }
     var i = 0
+    var deps_t0 = 0
+    if phase_log_path != nil { deps_t0 = oren_time_now_ns() }
     while i < oren_list_len(imports) {
         var e = imports[i]
         var alias = e["alias"]
@@ -730,6 +751,8 @@ fn discover_module(base, path, config) {
         oren_list_push(mod2["imports"], {"alias": alias, "alias_ns": alias_ns, "path": e["path"], "prefix": dep["prefix"], "full": dep["path"]})
         i = i + 1
     }
+    var deps_ms = 0
+    if phase_log_path != nil { deps_ms = (oren_time_now_ns() - deps_t0) / 1000000 }
     if LINK_GC_ROOT != nil { LINK_GC_ROOT["scan_tmp"] = nil; LINK_GC_ROOT["imports_tmp"] = nil }
 
     if mod2["added"] != true {
@@ -746,6 +769,20 @@ fn discover_module(base, path, config) {
         si2 = si2 + 1
     }
     MODULE_STACK = new_stack2
+    if phase_log_path != nil {
+        var total_ms = (oren_time_now_ns() - discover_t0) / 1000000
+        var slow_ms = _ml_discover_phase_slow_ms()
+        if total_ms >= slow_ms || scan_ms >= slow_ms || deps_ms >= slow_ms || resolve_ms >= slow_ms {
+            _ml_phase_log_append(phase_log_path, "link.discover_module.done",
+                "path=" + full +
+                " imports=" + oren_int_to_string(oren_list_len(imports)) +
+                " resolve_ms=" + oren_int_to_string(resolve_ms) +
+                " scan_ms=" + oren_int_to_string(scan_ms) +
+                " deps_ms=" + oren_int_to_string(deps_ms) +
+                " modules=" + oren_int_to_string(oren_list_len(MODULE_ORDER)),
+                discover_t0)
+        }
+    }
     return mod2
 }
 
