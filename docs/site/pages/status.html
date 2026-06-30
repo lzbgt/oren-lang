@@ -307,10 +307,14 @@
 <p>						  local-fixup dispatcher now caches each fixup kind once, caches the fixup</p>
 <p>						  count, and uses single-branch dispatch in the PE emitter; the nested-map</p>
 <p>						  Linux x64 probe shows local fixups at about 26ms, with runtime-object call</p>
-<p>						  replay as the remaining fixup-side cost in that focused path. Runtime-object</p>
-<p>						  call-fixup replay now caches sidecar pointers/base metadata once and reads</p>
-<p>						  u64 sidecars through a raw pointer helper, moving the same 15,924-call</p>
-<p>						  focused replay from about 289ms to about 237ms. A refreshed</p>
+<p>							  replay as the remaining fixup-side cost in that focused path. Runtime-object</p>
+<p>							  call-fixup replay now caches sidecar pointers/base metadata once and reads</p>
+<p>							  u64 sidecars through a raw pointer helper, moving the same 15,924-call</p>
+<p>							  focused replay from about 289ms to about 237ms. X64 instruction builders now</p>
+<p>							  use explicit <code>low3</code>/<code>u8</code> bit-mask helpers for ModRM/REX register packing and</p>
+<p>							  signed-byte emission instead of calling the general positive modulo helper in</p>
+<p>							  every hot encoder path; <code>make stage2</code> covers the self-hosted compiler surface.</p>
+<p>							  A refreshed</p>
 <p>						  Linux x64 self-host compile-only probe then failed before the compiler build</p>
 <p>						  because the prerequisite <code>x64-linux/full</code> runtime-object seed cold-build hit</p>
 <p>						  the seed helper&#x27;s fixed 180s cap. The self-host compile-only gate now mirrors</p>
