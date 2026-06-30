@@ -194,7 +194,11 @@
 <p>									     verification compatible and leaves the final capped <code>x64_native_program.oren</code></p>
 <p>									     profile at about 37.8s total / 27.2s parse, with</p>
 <p>									     <code>native_compile_program_x64</code> narrowed to about 1.09s as the exposed hot</p>
-<p>									     parser body.</p>
+<p>									     parser body. X64 compile diagnostic/trace option parsing is now isolated</p>
+<p>									     in a zero-argument helper plus local unpacking, avoiding another wide OBC</p>
+<p>									     call; the capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>									     38.0s total / 27.4s parse, with <code>_emit_eval_int_to_rax</code> exposed again</p>
+<p>									     at about 1.06s.</p>
 <p>								     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
