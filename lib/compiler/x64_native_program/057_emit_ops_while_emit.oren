@@ -924,39 +924,29 @@ fn _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, lab
     return nil
 }
 
-fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
-    if ctx == nil || op == nil || info == nil { return nil }
-    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+fn _x64_fast_lcg_labels(ctx) {
+    return {
+        "slow": _new_label(ctx, "lcg_sum_slow"),
+        "cond": _new_label(ctx, "lcg_sum_cond"),
+        "cond_mod": _new_label(ctx, "lcg_sum_cond_mod"),
+        "end": _new_label(ctx, "lcg_sum_end"),
+        "single": _new_label(ctx, "lcg_sum_single"),
+        "end_mod": _new_label(ctx, "lcg_sum_end_mod"),
+        "done": _new_label(ctx, "lcg_sum_done")
+    }
+}
 
-    var prep = _x64_fast_lcg_prepare(ctx, info, locals)
-    if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+fn _x64_fast_lcg_emit_entry_gates(ctx, prep, labels, local_fixups) {
     var mod_name = prep["mod"]
     var mod_const = prep["mod_const"]
-    var mul = prep["mul"]
-    var add = prep["add"]
-    var mod_x = prep["mod_x"]
-    var mod_i = prep["mod_i"]
-    var sum_cap = prep["sum_cap"]
-    var mod_recip = prep["mod_recip"]
-    var modx_recip = prep["modx_recip"]
-    var modi_recip = prep["modi_recip"]
-    var use_fastmod = prep["use_fastmod"]
     var off_idx = prep["off_idx"]
     var off_n = prep["off_n"]
     var off_x = prep["off_x"]
     var off_sum = prep["off_sum"]
     var off_mod = prep["off_mod"]
-    var base = prep["base"]
-    var off_i_mod = prep["off_i_mod"]
-
-    var l_slow = _new_label(ctx, "lcg_sum_slow")
-    var l_fast_cond = _new_label(ctx, "lcg_sum_cond")
-    var l_fast_cond_mod = _new_label(ctx, "lcg_sum_cond_mod")
-    var l_fast_end = _new_label(ctx, "lcg_sum_end")
-    var l_fast_single = _new_label(ctx, "lcg_sum_single")
-    var l_fast_end_mod = _new_label(ctx, "lcg_sum_end_mod")
-    var l_done = _new_label(ctx, "lcg_sum_done")
+    var sum_cap = prep["sum_cap"]
+    var l_slow = labels["slow"]
+    var l_fast_cond_mod = labels["cond_mod"]
 
     // mod <= 0 => slow
     if mod_name != nil {
@@ -985,6 +975,23 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, sum_cap))
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 9))
     _emit_jcc_to_label(ctx, local_fixups, "lt", l_fast_cond_mod)
+    return nil
+}
+
+fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
+    var mod_name = prep["mod"]
+    var mod_const = prep["mod_const"]
+    var mul = prep["mul"]
+    var add = prep["add"]
+    var mod_x = prep["mod_x"]
+    var mod_i = prep["mod_i"]
+    var modi_recip = prep["modi_recip"]
+    var use_fastmod = prep["use_fastmod"]
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var off_x = prep["off_x"]
+    var off_sum = prep["off_sum"]
+    var off_mod = prep["off_mod"]
 
     // constants in callee-saved regs (survive runtime calls)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(13, mul))  // r13 = mul
@@ -1015,6 +1022,21 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
         bytes_extend(ctx["code"], core.insn_div_r64(3)) // rbx
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 2)) // rdi = rdx
     }
+    return nil
+}
+
+fn _x64_fast_lcg_emit_unsigned_loop(ctx, prep, labels, local_fixups) {
+    var use_fastmod = prep["use_fastmod"]
+    var mod_recip = prep["mod_recip"]
+    var modx_recip = prep["modx_recip"]
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var off_x = prep["off_x"]
+    var off_sum = prep["off_sum"]
+    var off_i_mod = prep["off_i_mod"]
+    var l_fast_cond = labels["cond"]
+    var l_fast_single = labels["single"]
+    var l_fast_end = labels["end"]
 
     _emit_label(ctx, labels, l_fast_cond)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 1))
@@ -1057,10 +1079,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
 
     _emit_label(ctx, labels, l_fast_single)
-
     _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, labels, local_fixups)
-
-    // i++
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
 
@@ -1068,7 +1087,22 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 9)
     _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_jmp_to_label(ctx, local_fixups, labels["done"])
+    return nil
+}
+
+fn _x64_fast_lcg_emit_fullmod_loop(ctx, prep, labels, local_fixups) {
+    var mod_name = prep["mod"]
+    var mod_const = prep["mod_const"]
+    var mul = prep["mul"]
+    var add = prep["add"]
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var off_x = prep["off_x"]
+    var off_sum = prep["off_sum"]
+    var off_mod = prep["off_mod"]
+    var l_fast_cond_mod = labels["cond_mod"]
+    var l_fast_end_mod = labels["end_mod"]
 
     _emit_label(ctx, labels, l_fast_cond_mod)
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
@@ -1137,13 +1171,28 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
 
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond_mod)
-
     _emit_label(ctx, labels, l_fast_end_mod)
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_jmp_to_label(ctx, local_fixups, labels["done"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_slow)
+fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+
+    var prep = _x64_fast_lcg_prepare(ctx, info, locals)
+    if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    var base = prep["base"]
+    var lcg_labels = _x64_fast_lcg_labels(ctx)
+    _x64_fast_lcg_emit_entry_gates(ctx, prep, lcg_labels, local_fixups)
+    _x64_fast_lcg_emit_unsigned_setup(ctx, prep, lcg_labels, local_fixups)
+    _x64_fast_lcg_emit_unsigned_loop(ctx, prep, lcg_labels, local_fixups)
+    _x64_fast_lcg_emit_fullmod_loop(ctx, prep, lcg_labels, local_fixups)
+
+    _emit_label(ctx, labels, lcg_labels["slow"])
     _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    _emit_label(ctx, labels, l_done)
+    _emit_label(ctx, labels, lcg_labels["done"])
     _intr_tmp_pop(ctx, base)
     return nil
 }

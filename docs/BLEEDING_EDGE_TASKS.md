@@ -278,10 +278,15 @@ This file is the concise task view. Detailed implementation status lives in
 																				 next parser body. X64 generic named-call lowering now delegates
 																				 intrinsic/spread dispatch, callee classification, and direct ABI call
 																				 emission to focused helpers; Linux stat-family syscall lowering now
-																				 shares host-stat to `OrenStatV0` translation and splits `stat`/`lstat`
-																				 from `fstat`. The capped profile now shows `x64_native_program.oren` at
-																				 about 37.4s total / 28.3s parse, with `_emit_fast_lcg_sum_while_x64`
-																				 exposed at about 268ms as the next parser body.
+																					 shares host-stat to `OrenStatV0` translation and splits `stat`/`lstat`
+																					 from `fstat`. The capped profile now shows `x64_native_program.oren` at
+																					 about 37.4s total / 28.3s parse, with `_emit_fast_lcg_sum_while_x64`
+																					 exposed at about 268ms as the next parser body. X64 fast LCG sum while
+																					 lowering now delegates entry gates, unsigned setup/loop, and signed
+																					 full-mod loop emission to focused helpers. The capped profile now shows
+																					 `x64_native_program.oren` at about 37.1s total / 28.0s parse, with
+																					 `_emit_intrinsic_sys_linux_proc_x64` exposed at about 263ms as the next
+																					 parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
