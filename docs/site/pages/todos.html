@@ -208,6 +208,14 @@
 <p>  ~37.8s total / ~28.0s parse, with <code>_x64_build_runtime_obj</code> exposed at ~435ms</p>
 <p>  as the next parser body.</p>
 <ul>
+<li><code>_x64_build_runtime_obj</code> now delegates runtime function metadata collection,</li>
+</ul>
+<p>  local-function/lambda preparation, runtime/user splitting, and runtime-global</p>
+<p>  slot allocation to helper bodies while preserving the existing rtobj phase</p>
+<p>  markers. The capped profile shows <code>x64_native_program.oren</code> at ~37.2s total /</p>
+<p>  ~27.5s parse, with <code>_emit_eval_call_expr_to_rax</code> exposed at ~412ms as the next</p>
+<p>  parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

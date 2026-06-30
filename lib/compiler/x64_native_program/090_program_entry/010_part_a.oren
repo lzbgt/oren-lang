@@ -477,6 +477,82 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     return true
 }
 
+fn _x64_rtobj_collect_function_meta(ctx, stmts, phase_log) {
+    // Function metadata is required for lambda capture analysis and wrapper synthesis.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.fnmeta.start", "") }
+    var fns = coreir.collect_top_level_functions(ctx, {"statements": stmts}, "x64 native rtobj")
+    if fns == nil { return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.fnmeta.done",
+            "fns=" + oren_int_to_string(oren_list_len(fns)))
+    }
+    return fns
+}
+
+fn _x64_rtobj_rewrite_and_collect_lambdas(ctx, stmts, phase_log) {
+    // Normalize nested `fn name(...)` to lambdas+vars for Tier-1 parity.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.lambdas.start", "") }
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, stmts)
+
+    // Collect lambdas from the runtime so wrapper naming does not collide later.
+    var li = 0
+    while li < oren_list_len(stmts) {
+        callable.collect_lambdas_in_statement(ctx, stmts[li])
+        li = li + 1
+    }
+    if phase_log != nil {
+        var lambda_n = 0
+        if ctx["lambda_defs"] != nil { lambda_n = oren_list_len(ctx["lambda_defs"]) }
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.lambdas.done",
+            "lambdas=" + oren_int_to_string(lambda_n))
+    }
+    return true
+}
+
+fn _x64_rtobj_split_runtime_vars(ctx, stmts, phase_log) {
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.split.start", "") }
+    var split = nt.split_tier1_runtime_user(ctx, "x64 native rtobj", stmts, [], ctx["declared_functions"])
+    if split == nil { return nil }
+    var runtime_vars = split["runtime_vars"]
+    if runtime_vars == nil { runtime_vars = [] }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.split.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
+    }
+    return runtime_vars
+}
+
+fn _x64_rtobj_allocate_runtime_globals(ctx, runtime_vars, phase_log) {
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.start", "") }
+    var vi = 0
+    while vi < oren_list_len(runtime_vars) {
+        var st = runtime_vars[vi]
+        if st != nil {
+            var nm = st["name"]["value"]
+            if nm == nil || nm == "" { err(ctx, "x64 native rtobj: runtime global var missing name"); return false }
+            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier-1 bootstrap).
+            if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { vi = vi + 1; continue }
+            if ctx["globals"] != nil && ctx["globals"][nm] != nil {
+                err(ctx, "x64 native rtobj: duplicate global var " + nm)
+                return false
+            }
+            var off0 = _data_add_u64(ctx, 0)
+            ctx["globals"][nm] = off0 + 1
+            if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
+            if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
+            if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
+        }
+        vi = vi + 1
+    }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
+    }
+    return true
+}
+
 fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, phase_log) {
     // Compile the injected native runtime into a reusable object blob for x86_64 native.
     //
@@ -519,74 +595,19 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }
 
-    // Function metadata is required for lambda capture analysis and wrapper synthesis.
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.fnmeta.start", "") }
-    var fns = coreir.collect_top_level_functions(ctx, {"statements": stmts}, "x64 native rtobj")
+    var fns = _x64_rtobj_collect_function_meta(ctx, stmts, phase_log)
     if fns == nil { return nil }
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.fnmeta.done",
-            "fns=" + oren_int_to_string(oren_list_len(fns)))
-    }
     if trace_sum { t_meta_done = oren_time_now_ns() }
 
-    // Normalize nested `fn name(...)` to lambdas+vars for Tier‑1 parity.
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.lambdas.start", "") }
-    callable.rewrite_local_fn_decls_in_stmt_list(ctx, stmts)
-
-    // Collect lambdas from the runtime so wrapper naming does not collide later.
-    var li = 0
-    while li < oren_list_len(stmts) {
-        callable.collect_lambdas_in_statement(ctx, stmts[li])
-        li = li + 1
-    }
-    if phase_log != nil {
-        var lambda_n = 0
-        if ctx["lambda_defs"] != nil { lambda_n = oren_list_len(ctx["lambda_defs"]) }
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.lambdas.done",
-            "lambdas=" + oren_int_to_string(lambda_n))
-    }
+    if _x64_rtobj_rewrite_and_collect_lambdas(ctx, stmts, phase_log) != true { return nil }
     if trace_sum { t_lambda_done = oren_time_now_ns() }
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
-    var declared = ctx["declared_functions"]
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.split.start", "") }
-    var split = nt.split_tier1_runtime_user(ctx, "x64 native rtobj", stmts, [], declared)
-    if split == nil { return nil }
-    var runtime_vars = split["runtime_vars"]
-    if runtime_vars == nil { runtime_vars = [] }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.split.done",
-            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
-    }
+    var runtime_vars = _x64_rtobj_split_runtime_vars(ctx, stmts, phase_log)
+    if runtime_vars == nil { return nil }
     if trace_sum { t_split_done = oren_time_now_ns() }
 
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.start", "") }
-    var vi = 0
-    while vi < oren_list_len(runtime_vars) {
-        var st = runtime_vars[vi]
-        if st != nil {
-            var nm = st["name"]["value"]
-            if nm == nil || nm == "" { err(ctx, "x64 native rtobj: runtime global var missing name"); return nil }
-            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
-            if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { vi = vi + 1; continue }
-            if ctx["globals"] != nil && ctx["globals"][nm] != nil {
-                err(ctx, "x64 native rtobj: duplicate global var " + nm)
-                return nil
-            }
-            var off0 = _data_add_u64(ctx, 0)
-            ctx["globals"][nm] = off0 + 1
-            if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
-            if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
-            if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
-        }
-        vi = vi + 1
-    }
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.done",
-            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
-    }
+    if _x64_rtobj_allocate_runtime_globals(ctx, runtime_vars, phase_log) != true { return nil }
     if trace_sum { t_globals_done = oren_time_now_ns() }
 
     // Compile runtime named functions.

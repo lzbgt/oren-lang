@@ -199,10 +199,16 @@ This file is the concise task view. Detailed implementation status lives in
 												 parse, with `native_compile_program_x64` exposed again at about 445ms as the
 												 next parser body. `native_compile_program_x64` now delegates runtime-path/rtobj
 												 choice and runtime/user statement preparation to helpers while preserving the
-												 existing rtobj timing boundary; the capped profile now shows
-												 `x64_native_program.oren` at about 37.8s total / 28.0s parse, with
-												 `_x64_build_runtime_obj` exposed at about 435ms as the next parser body.
-									     Serial/thread module
+													 existing rtobj timing boundary; the capped profile now shows
+													 `x64_native_program.oren` at about 37.8s total / 28.0s parse, with
+													 `_x64_build_runtime_obj` exposed at about 435ms as the next parser body.
+													 `_x64_build_runtime_obj` now delegates runtime function metadata collection,
+													 local-function/lambda preparation, runtime/user splitting, and runtime-global
+													 slot allocation to helper bodies while preserving the existing rtobj phase
+													 markers; the capped profile now shows `x64_native_program.oren` at about
+													 37.2s total / 27.5s parse, with `_emit_eval_call_expr_to_rax` exposed at
+													 about 412ms as the next parser body.
+										     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
