@@ -216,7 +216,12 @@ Facts from the 2026-05-28 implementation pass:
 														  list-validation, and whole-list helper blocks to narrower helper bodies;
 														  the capped profile now shows `x64_native_program.oren` at about 37.1s
 														  total / 27.5s parse, with `_emit_eval_int_to_rax` exposed at about 390ms
-														  as the next parser body.
+														  as the next parser body. X64 expression evaluation now delegates literal,
+														  singleton, lambda, intrinsic temp, and identifier value lowering to helper
+														  bodies, and Linux x64 process syscalls delegate fork/exec/wait lowering
+														  to a process-family helper; the capped profile now shows
+														  `x64_native_program.oren` at about 37.3s total / 27.8s parse, with
+														  `_x64_build_runtime_obj` exposed at about 355ms as the next parser body.
 					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

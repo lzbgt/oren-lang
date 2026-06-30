@@ -304,64 +304,151 @@ fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
     // dedicated call-lowering chunk for reviewability.
     return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
 }
-fn _emit_eval_int_to_rax(ctx, expr, locals) {
-    // Evaluate a tiny integer expression into RAX (64-bit register).
-    // Values are stored/propagated through 64-bit registers and stack slots.
-    // Supports:
-    // - Integer
-    // - Identifier (locals/params; or a named function as a first-class function pointer)
-    // - Infix (+/-) with subexpressions from the above set
-    if expr == nil { return nil }
-    var t = expr["type"]
-    if t == "Integer" {
-        var n = intparse.parse_int_lit(expr["value"])
-        if oren_is_err(n) { _x64_err_invalid_int_lit(ctx, expr["value"]); return nil }
-        if _is_i32(n) {
-            // mov eax, imm32 then sign-extend to rax (cdqe)
-            var imm_u32 = n
-            if n < 0 { imm_u32 = 4294967296 + n }
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, imm_u32))
-            bytes_extend(ctx["code"], core.insn_cdqe())
-        } else {
-            // movabs rax, imm64 (encoded as u64 bits)
-            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, n))
+
+fn _emit_integer_literal_expr_to_rax(ctx, expr) {
+    var n = intparse.parse_int_lit(expr["value"])
+    if oren_is_err(n) { _x64_err_invalid_int_lit(ctx, expr["value"]); return nil }
+    if _is_i32(n) {
+        // mov eax, imm32 then sign-extend to rax (cdqe)
+        var imm_u32 = n
+        if n < 0 { imm_u32 = 4294967296 + n }
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, imm_u32))
+        bytes_extend(ctx["code"], core.insn_cdqe())
+    } else {
+        // movabs rax, imm64 (encoded as u64 bits)
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, n))
+    }
+    return nil
+}
+
+fn _emit_float_literal_expr_to_rax(ctx, expr) {
+    // Parse literal text to raw IEEE-754 binary64 bits at compile time.
+    var bits = oren_string_to_float_bits(expr["value"])
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, bits))
+    return nil
+}
+
+fn _emit_runtime_singleton_literal_to_rax(ctx, off, missing_msg) {
+    var gname = _x64_rt_resolve_g_storage_name(ctx)
+    if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+        err(ctx, missing_msg)
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cdqe())
+        return nil
+    }
+    _x64_emit_load_value_singleton(ctx, 0, off)
+    return nil
+}
+
+fn _emit_string_literal_expr_to_rax(ctx, expr) {
+    // Native strings are raw pointers to NUL-terminated bytes in the appended data blob.
+    var s = expr["value"]
+    if s == nil || oren_is_string(s) != true {
+        var tok = expr["token"]
+        if tok != nil {
+            var lit = tok["literal"]
+            if lit != nil && oren_is_string(lit) == true { s = lit }
         }
+    }
+    if s == nil { s = "" }
+    var off = _data_add_cstr0_cached(ctx, s)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var lea_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+    return nil
+}
+
+fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
+    var name = expr["name"]
+    if name != "" { err(ctx, "x64 native v0: function decl not allowed in expression position"); return nil }
+    if ctx == nil || ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: lambda literals require injected native runtime")
         return nil
     }
-    if t == "Float" {
-        // Float literal lowering:
-        // - parse literal string to raw IEEE-754 binary64 bits at compile time
-        // - load bits into RAX
-        var bits = oren_string_to_float_bits(expr["value"])
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, bits))
+
+    // Ensure lambda has a stable name + capture list.
+    if expr["lambda_name"] == nil {
+        expr["lambda_name"] = callable.lambda_gensym(ctx)
+        expr["captures"] = callable.lambda_free_vars(ctx, expr)
+        oren_list_push(ctx["lambda_defs"], {"name": expr["lambda_name"], "fun": expr, "captures": expr["captures"]})
+    }
+    var lname = expr["lambda_name"]
+    var caps = expr["captures"]
+    if caps == nil { caps = [] }
+
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return nil }
+    var slot_env = base
+    var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
+    if oren_type_tag(tmp_env) == 0 {
+        _intr_tmp_pop(ctx, base)
+        err(ctx, "x64 native v0: missing spill slot for lambda literal env")
         return nil
     }
-    if t == "Boolean" {
-        // Native backend: bool values are represented by runtime singletons stored in globals storage.
-        //
-        // This preserves:
-        // - type-strict equality (`0 != false`)
-        // - truthiness rules (only `nil` and `false` are falsey; `0` is truthy)
-        //
-        // Load:
-        //   rax = g_storage
-        //   rax = *(u64*)(rax + OFF_VALUE_TRUE/FALSE)
-        var gname = nil
-        if ctx != nil && ctx["rt_g_storage_name"] != nil { gname = ctx["rt_g_storage_name"] }
-        if gname == nil {
-            var match = nil
-            var match_count = 0
-            if ctx != nil && ctx["globals"] != nil {
-                for k in ctx["globals"] {
-                    // ends_with(k, "g_storage")
+
+    if oren_list_len(caps) == 0 {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], core.insn_cdqe())
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
+    } else {
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
+        var env_tmp = {"type": "IntrTmp", "idx": slot_env}
+        var i = 0
+        while i < oren_list_len(caps) {
+            var cname = caps[i]
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [env_tmp, {"type": "Identifier", "value": cname}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            i = iadd(i, 1)
+        }
+    }
+
+    var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
+        _intr_tmp_pop(ctx, base)
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+        return nil
+    }
+    var code_reg = code_reg_enc - 1
+    var env_reg = env_reg_enc - 1
+    _emit_mov_r64_mrbp(ctx, env_reg, 0 - tmp_env)
+
+    var lea_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(code_reg, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
+    _emit_call_rel32_named_x64(ctx, "oren_func")
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intr_tmp_expr_to_rax(ctx, expr, locals) {
+    if ctx == nil { err(ctx, "x64 native v0: IntrTmp requires ctx"); return nil }
+    var idx = expr["idx"]
+    if idx <= 0 { err(ctx, "x64 native v0: IntrTmp missing/invalid idx"); return nil }
+    var off = _intr_tmp_off(ctx, locals, idx)
+    if off == 0 { return nil }
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off)
+    return nil
+}
+
+fn _x64_resolve_fn_value_name(ctx, fn_name) {
+    if ctx["func_arity"] != nil {
+        if ctx["func_arity"][fn_name] == nil {
+            if fn_name != nil && oren_string_len(fn_name) >= 2 &&
+               oren_string_char_at(fn_name, 0) == "_" && oren_string_char_at(fn_name, 1) == "_" {
+                var match = nil
+                var match_count = 0
+                for k in ctx["func_arity"] {
                     var klen = oren_string_len(k)
-                    var suf = "g_storage"
-                    var slen = oren_string_len(suf)
-                    if klen >= slen {
+                    var nlen = oren_string_len(fn_name)
+                    if klen >= nlen {
                         var ok = true
                         var j = 0
-                        while j < slen {
-                            if oren_string_char_at(k, klen - slen + j) != oren_string_char_at(suf, j) { ok = false; break }
+                        while j < nlen {
+                            if oren_string_char_at(k, klen - nlen + j) != oren_string_char_at(fn_name, j) { ok = false; break }
                             j = j + 1
                         }
                         if ok {
@@ -371,321 +458,96 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                         }
                     }
                 }
-            }
-            if match_count == 1 {
-                gname = match
-                if ctx != nil { ctx["rt_g_storage_name"] = match }
+                if match_count == 1 && match != nil { fn_name = match }
             }
         }
-        if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
-            err(ctx, "x64 native v0: missing runtime global g_storage (needed for bool singletons)")
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-            bytes_extend(ctx["code"], core.insn_cdqe())
-            return nil
-        }
-        var goff = ctx["globals"][gname] - 1
-        // r10 = &global_slot ; rax = *(u64*)r10
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": goff})
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
+    }
+    return fn_name
+}
 
+fn _emit_named_function_value_to_rax(ctx, fn_name) {
+    if ctx["func_arity"] == nil || ctx["func_arity"][fn_name] == nil { return false }
+    if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
+    var wname = "__oren_fnwrap_" + fn_name
+    if ctx != nil && ctx["runtime_injected"] == true {
+        var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+        var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+        if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
+            err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+            return true
+        }
+        var code_reg = code_reg_enc - 1
+        var env_reg = env_reg_enc - 1
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(env_reg, 0))
+        var lea_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(code_reg, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": wname})
+        _emit_call_rel32_named_x64(ctx, "oren_func")
+        return true
+    }
+
+    var fnobj_off = _data_add_fnobj(ctx, wname)
+    if oren_type_tag(fnobj_off) == 0 { err(ctx, "x64 native v0: failed to allocate fnobj"); return true }
+    var lea_pos2 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": fnobj_off})
+    return true
+}
+
+fn _emit_identifier_expr_to_rax(ctx, expr, locals) {
+    var name = expr["value"]
+    var off = nil
+    if locals != nil { off = locals[name] }
+    if oren_type_tag(off) == 1 && off != 0 {
+        _emit_mov_r64_mrbp(ctx, 0, 0 - off)
+        return nil
+    }
+
+    var goff_enc = nil
+    if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
+    if oren_type_tag(goff_enc) == 1 && goff_enc != 0 {
+        var goff = goff_enc - 1
+        var lea_pos0 = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
+        return nil
+    }
+
+    var fn_name = _x64_resolve_fn_value_name(ctx, name)
+    if _emit_named_function_value_to_rax(ctx, fn_name) == true { return nil }
+    err(ctx, "x64 native v0: unknown var " + name)
+    return nil
+}
+
+fn _emit_eval_int_to_rax(ctx, expr, locals) {
+    // Evaluate a tiny integer expression into RAX (64-bit register).
+    // Values are stored/propagated through 64-bit registers and stack slots.
+    // Supports:
+    // - Integer
+    // - Identifier (locals/params; or a named function as a first-class function pointer)
+    // - Infix (+/-) with subexpressions from the above set
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Integer" { return _emit_integer_literal_expr_to_rax(ctx, expr) }
+    if t == "Float" { return _emit_float_literal_expr_to_rax(ctx, expr) }
+    if t == "Boolean" {
         var off = 376
         if expr["value"] { off = 384 }
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(0, 0, off))
-        return nil
+        return _emit_runtime_singleton_literal_to_rax(ctx, off, "x64 native v0: missing runtime global g_storage (needed for bool singletons)")
     }
-    if t == "Nil" {
-        // Native backend: `nil` is a runtime singleton stored in globals storage (not raw 0).
-        //
-        // Load:
-        //   rax = g_storage
-        //   rax = *(u64*)(rax + OFF_VALUE_NIL)
-        var gname2 = nil
-        if ctx != nil && ctx["rt_g_storage_name"] != nil { gname2 = ctx["rt_g_storage_name"] }
-        if gname2 == nil {
-            var match2 = nil
-            var match_count2 = 0
-            if ctx != nil && ctx["globals"] != nil {
-                for k2 in ctx["globals"] {
-                    var klen2 = oren_string_len(k2)
-                    var suf2 = "g_storage"
-                    var slen2 = oren_string_len(suf2)
-                    if klen2 >= slen2 {
-                        var ok2 = true
-                        var j2 = 0
-                        while j2 < slen2 {
-                            if oren_string_char_at(k2, klen2 - slen2 + j2) != oren_string_char_at(suf2, j2) { ok2 = false; break }
-                            j2 = j2 + 1
-                        }
-                        if ok2 {
-                            match2 = k2
-                            match_count2 = match_count2 + 1
-                            if match_count2 > 1 { break }
-                        }
-                    }
-                }
-            }
-            if match_count2 == 1 {
-                gname2 = match2
-                if ctx != nil { ctx["rt_g_storage_name"] = match2 }
-            }
-        }
-        if gname2 == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname2] == nil {
-            err(ctx, "x64 native v0: missing runtime global g_storage (needed for nil singleton)")
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-            bytes_extend(ctx["code"], core.insn_cdqe())
-            return nil
-        }
-        var goff2 = ctx["globals"][gname2] - 1
-        var lea_pos2 = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": goff2})
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(0, 0, 368))
-        return nil
-    }
-    if t == "String" {
-        // Native strings are raw pointers to NUL-terminated bytes.
-        // Store literal bytes in the appended data blob and load its address via RIP-relative LEA.
-        var s = expr["value"]
-        // Rolling robustness (stage2-native):
-        // Some runtime/map implementations return `0` for a missing key rather than `nil`.
-        // For a String AST node, prefer the token literal when `value` isn't a real string.
-        if s == nil || oren_is_string(s) != true {
-            var tok = expr["token"]
-            if tok != nil {
-                var lit = tok["literal"]
-                if lit != nil && oren_is_string(lit) == true {
-                    s = lit
-                }
-            }
-        }
-        if s == nil { s = "" }
-        var off = _data_add_cstr0_cached(ctx, s)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
-        // Tier‑1 convergence (rolling):
-        // Embedded string literals are registered once at program startup via
-        // `oren_init_static_cstr0_table` (entry stub), so per-use tracking is unnecessary here.
-        return nil
-    }
-		    if t == "Function" {
-	        // Lambda literal (anonymous function) in expression position.
-	        //
-	        // Representation:
-	        // - returns a pointer to a runtime function object (kind=6) created by `oren_func(code_ptr, env_ptr)`
-	        // - `code_ptr` points to the synthesized wrapper `__oren_lambda_N`
-	        // - `env_ptr` is either 0 (no captures) or a list of captured values (capture-by-value)
-	        var name = expr["name"]
-	        if name != "" { err(ctx, "x64 native v0: function decl not allowed in expression position"); return nil }
-	        if ctx == nil || ctx["runtime_injected"] != true {
-	            // Lambda literals rely on runtime helpers (list/alloc + callable ABI).
-	            err(ctx, "x64 native v0: lambda literals require injected native runtime")
-	            return nil
-	        }
-
-	        // Ensure lambda has a stable name + capture list.
-	        if expr["lambda_name"] == nil {
-	            // Fallback: if collection was skipped, synthesize metadata here.
-	            expr["lambda_name"] = callable.lambda_gensym(ctx)
-	            expr["captures"] = callable.lambda_free_vars(ctx, expr)
-	            oren_list_push(ctx["lambda_defs"], {"name": expr["lambda_name"], "fun": expr, "captures": expr["captures"]})
-	        }
-	        var lname = expr["lambda_name"]
-	        var caps = expr["captures"]
-	        if caps == nil { caps = [] }
-
-		        // Spill slots: env ptr.
-		        var base = _intr_tmp_push(ctx, 1)
-		        if oren_type_tag(base) == 0 { return nil }
-		        var slot_env = base
-		        var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
-		        if oren_type_tag(tmp_env) == 0 {
-		            _intr_tmp_pop(ctx, base)
-		            err(ctx, "x64 native v0: missing spill slot for lambda literal env")
-		            return nil
-		        }
-
-	        // env_ptr = 0 or a list of captures (capture-by-value, deterministic order)
-	        if oren_list_len(caps) == 0 {
-	            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-	            bytes_extend(ctx["code"], core.insn_cdqe())
-	            _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-	        } else {
-            // env = oren_new_list(0)
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-            var env_tmp = {"type": "IntrTmp", "idx": slot_env}
-
-            // Push captured values in deterministic order.
-            var i = 0
-            while i < oren_list_len(caps) {
-                var cname = caps[i]
-                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [env_tmp, {"type": "Identifier", "value": cname}]}, locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-	                i = iadd(i, 1)
-	            }
-	        }
-
-		        // Call `oren_func(code_ptr, env_ptr)` to create a tracked function object (kind=6).
-		        var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
-		        var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-		        if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
-		            _intr_tmp_pop(ctx, base)
-		            err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
-		            return nil
-		        }
-	        var code_reg = code_reg_enc - 1
-	        var env_reg = env_reg_enc - 1
-
-	        // env_reg = env_ptr
-	        _emit_mov_r64_mrbp(ctx, env_reg, 0 - tmp_env)
-
-	        // code_reg = &__oren_lambda_N
-	        var lea_pos = bytes_len(ctx["code"])
-	        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(code_reg, 0))
-	        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
-
-	        // rax = oren_func(code_ptr, env_ptr)
-	        _emit_call_rel32_named_x64(ctx, "oren_func")
-	        _intr_tmp_pop(ctx, base)
-		        return nil
-		    }
-		    if t == "IntrTmp" {
-		        // Compiler-internal expr node: intrinsic temp slot reference.
-		        // Stored as an integer idx into the per-function intrinsic temp pool.
-		        if ctx == nil { err(ctx, "x64 native v0: IntrTmp requires ctx"); return nil }
-		        var idx = expr["idx"]
-		        // IntrTmp indices are 1-based (0 is reserved); avoid `== nil` checks on scalars.
-		        if idx <= 0 { err(ctx, "x64 native v0: IntrTmp missing/invalid idx"); return nil }
-		        var off = _intr_tmp_off(ctx, locals, idx)
-		        if off == 0 { return nil }
-		        _emit_mov_r64_mrbp(ctx, 0, 0 - off)
-		        return nil
-		    }
-				    if t == "Identifier" {
-				        var name = expr["value"]
-				        var fn_name = name
-				        // Locals map stores stack offsets (>= 8). Missing keys return `nil`, which is
-				        // a distinct singleton under the native runtime. However, the native backend
-				        // still has known `scalar == nil` hazards, so avoid direct nil comparisons and
-				        // instead use the portable `oren_type_tag` probe (0=nil, 1=int).
-				        var off = nil
-				        if locals != nil { off = locals[name] }
-				        if oren_type_tag(off) == 1 && off != 0 {
-				            // Load full 64-bit slot so function pointers round-trip correctly.
-				            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
-				            return nil
-				        }
-
-		        // Global var (top-level `var`) => load from the appended data blob.
-		        //
-		        // Precedence rule (rolling): locals > globals > named functions-as-values.
-		        var goff_enc = nil
-		        if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
-		        if oren_type_tag(goff_enc) == 1 && goff_enc != 0 {
-		            var goff = goff_enc - 1
-		            // r10 = &global_slot ; rax = *(u64*)r10
-		            var lea_pos0 = bytes_len(ctx["code"])
-	            bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-	            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
-	            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
-	            return nil
-	        }
-
-        // Named function used in expression position => treat as a first-class function value.
-        // Representation: pointer to a small `{code_ptr, env_ptr}` object in the data blob.
-        //
-        // Tier‑1 convergence (rolling):
-        // - `code_ptr` points to a uniform callable wrapper `__oren_fnwrap_<name>` with signature:
-        //     fn __oren_fnwrap_name(__env, __args_list)
-        // - `env_ptr` is 0 for now (no closures on x64 native yet).
-        //
-	        // This makes indirect calls backend/arch neutral and matches the shared lowering helpers
-	        // in `lib/compiler/native_callable.oren`.
-	        // Robustness (rolling): allow resolving internal `__name` by unique suffix match against
-	        // declared function names (e.g. `M1___name`) when module prefixing missed a reference rewrite.
-	        if ctx["func_arity"] != nil {
-	            if ctx["func_arity"][fn_name] == nil {
-	                if fn_name != nil && oren_string_len(fn_name) >= 2 &&
-	                   oren_string_char_at(fn_name, 0) == "_" && oren_string_char_at(fn_name, 1) == "_" {
-	                    var match = nil
-	                    var match_count = 0
-	                    for k in ctx["func_arity"] {
-	                        var klen = oren_string_len(k)
-	                        var nlen = oren_string_len(fn_name)
-	                        if klen >= nlen {
-	                            var ok = true
-	                            var j = 0
-	                            while j < nlen {
-	                                if oren_string_char_at(k, klen - nlen + j) != oren_string_char_at(fn_name, j) { ok = false; break }
-	                                j = j + 1
-	                            }
-	                            if ok {
-	                                match = k
-	                                match_count = match_count + 1
-	                                if match_count > 1 { break }
-	                            }
-	                        }
-	                    }
-	                    if match_count == 1 && match != nil { fn_name = match }
-	                }
-	            }
-	        }
-	        if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
-	            // Track which named-function wrappers are actually referenced as values.
-	            // This keeps wrapper synthesis bounded for rtobj builds and reduces x64 cold-build time.
-	            if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
-	            var wname = "__oren_fnwrap_" + fn_name
-
-	            // Tier‑1 convergence: function values are runtime function objects (kind=6) so:
-	            // - `std:reflect.tag/name` can discriminate funcs safely
-	            // - spawned/indirect calls share a single callable ABI across arm64/x64
-		            if ctx != nil && ctx["runtime_injected"] == true {
-		                var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
-		                var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-		                if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
-		                    err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
-		                    return nil
-		                }
-	                var code_reg = code_reg_enc - 1
-	                var env_reg = env_reg_enc - 1
-
-	                // env_ptr = 0 (no closures for named functions in rolling v0)
-	                bytes_extend(ctx["code"], core.insn_mov_r32_imm32(env_reg, 0))
-
-	                // code_ptr = &__oren_fnwrap_<name>
-	                var lea_pos = bytes_len(ctx["code"])
-	                bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(code_reg, 0))
-	                oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": wname})
-
-	                _emit_call_rel32_named_x64(ctx, "oren_func")
-	                return nil
-	            }
-
-		            // Fallback (bring-up): if native runtime is not injected, use an untracked static fnobj record.
-		            var fnobj_off = _data_add_fnobj(ctx, wname)
-		            if oren_type_tag(fnobj_off) == 0 { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
-		            var lea_pos2 = bytes_len(ctx["code"])
-		            bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
-		            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": fnobj_off})
-		            return nil
-		        }
-
-        err(ctx, "x64 native v0: unknown var " + name)
-        return nil
-    }
+    if t == "Nil" { return _emit_runtime_singleton_literal_to_rax(ctx, 368, "x64 native v0: missing runtime global g_storage (needed for nil singleton)") }
+    if t == "String" { return _emit_string_literal_expr_to_rax(ctx, expr) }
+    if t == "Function" { return _emit_lambda_literal_expr_to_rax(ctx, expr, locals) }
+    if t == "IntrTmp" { return _emit_intr_tmp_expr_to_rax(ctx, expr, locals) }
+    if t == "Identifier" { return _emit_identifier_expr_to_rax(ctx, expr, locals) }
     if t == "Member" { return _emit_member_expr_v0(ctx, expr, locals) }
     if t == "Index" { return _emit_index_expr_v0(ctx, expr, locals) }
     if t == "Array" { return _emit_array_literal_expr(ctx, expr, locals) }
     if t == "Hash" { return _emit_hash_literal_expr(ctx, expr, locals) }
     if t == "SpawnExpr" { _emit_spawn_expr_v0(ctx, expr, locals); return nil }
     if t == "Call" { return _emit_eval_call_expr_to_rax(ctx, expr, locals) }
-	    if t == "Prefix" { return _emit_eval_prefix_to_rax(ctx, expr, locals) }
+    if t == "Prefix" { return _emit_eval_prefix_to_rax(ctx, expr, locals) }
     if t == "Infix" { return _emit_eval_infix_to_rax(ctx, expr, locals) }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
