@@ -34,6 +34,163 @@ fn _emit_call_rel32_3args_x64(ctx, locals, sym, arg0_off, arg1_off, arg2_off) {
     return nil
 }
 
+fn _x64_index_set_spill_args(ctx, expr, locals, args) {
+    // Spill layout (LTR eval): container, index, value.
+    var base0 = _intr_tmp_push(ctx, 3)
+    if oren_type_tag(base0) == 0 { return nil }
+    var off_cont = _intr_tmp_off(ctx, locals, base0 + 0)
+    var off_idx = _intr_tmp_off(ctx, locals, base0 + 1)
+    var off_val = _intr_tmp_off(ctx, locals, base0 + 2)
+    if oren_type_tag(off_cont) == 0 || oren_type_tag(off_idx) == 0 || oren_type_tag(off_val) == 0 {
+        _intr_tmp_pop(ctx, base0)
+        return nil
+    }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_cont, 0)
+
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+
+    _emit_eval_int_to_rax(ctx, args[2], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_val, 0)
+
+    return {"base": base0, "off_cont": off_cont, "off_idx": off_idx, "off_val": off_val}
+}
+
+fn _x64_index_set_emit_map_call(ctx, locals, known_kk, off_cont, off_idx, off_val) {
+    if known_kk == 0 {
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
+    } else if known_kk == 1 {
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
+    } else {
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set", off_cont, off_idx, off_val)
+    }
+    return nil
+}
+
+fn _x64_index_set_emit_recv_kind_dispatch(ctx, state) {
+    var recv_kind = state["recv_kind"]
+    var local_fixups = state["fixups"]
+    var labels = state["labels"]
+    var l_is_list = state["l_is_list"]
+    var l_is_map = state["l_is_map"]
+
+    if recv_kind == "list" {
+        var l_trk_ok = _new_label(ctx, "idx_set_list_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
+        _emit_label(ctx, labels, l_trk_ok)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
+        return nil
+    }
+    if recv_kind == "list_int" {
+        var l_trk_ok_int = _new_label(ctx, "idx_set_list_int_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok_int)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=list_int but value is not a list_int")
+        _emit_label(ctx, labels, l_trk_ok_int)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=list_int but value is not a list_int")
+        return nil
+    }
+
+    // Unknown at compile-time => dynamic kind dispatch (LIST or MAP).
+    var l_trk_ok3 = _new_label(ctx, "idx_set_tracked_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok3)
+    _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
+    _emit_label(ctx, labels, l_trk_ok3)
+
+    // kind = *(node + 16)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 3))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
+    _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
+    return nil
+}
+
+fn _x64_index_set_emit_list_path(ctx, locals, state) {
+    var recv_kind = state["recv_kind"]
+    var local_fixups = state["fixups"]
+    var labels = state["labels"]
+    var l_is_list = state["l_is_list"]
+    var l_done = state["l_done"]
+
+    _emit_label(ctx, labels, l_is_list)
+    // Semantics: `xs[i] = v` grows lists as needed (matches C backend + tests).
+    // Delegate to the native runtime helper rather than inlining strict in-bounds stores.
+    var list_set_sym = "oren_list_set"
+    if recv_kind == "list_int" { list_set_sym = "oren_list_int_set" }
+    _emit_call_rel32_3args_x64(ctx, locals, list_set_sym, state["off_cont"], state["off_idx"], state["off_val"])
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
+
+fn _x64_index_set_emit_map_path(ctx, locals, state) {
+    var local_fixups = state["fixups"]
+    var labels = state["labels"]
+    var l_is_map = state["l_is_map"]
+    var l_done = state["l_done"]
+
+    _emit_label(ctx, labels, l_is_map)
+    _x64_index_set_emit_map_call(ctx, locals, state["known_kk"], state["off_cont"], state["off_idx"], state["off_val"])
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
+
+fn _x64_index_set_emit_list_or_map_dispatch(ctx, locals, state) {
+    var off_cont = state["off_cont"]
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+
+    // container -> rdx (2)
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_cont)
+
+    // If container is nil, panic deterministically.
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
+    var l_non_nil = _new_label(ctx, "idx_set_non_nil")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
+    _emit_abort_panic_str(ctx, "index_set on nil")
+    _emit_label(ctx, labels, l_non_nil)
+
+    // Tier-1 safety: never read object headers from untracked pointers.
+    _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    _x64_index_set_emit_recv_kind_dispatch(ctx, state)
+    _x64_index_set_emit_list_path(ctx, locals, state)
+    _x64_index_set_emit_map_path(ctx, locals, state)
+
+    _emit_label(ctx, labels, state["l_done"])
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     if ctx == nil { return nil }
     if expr == nil { err(ctx, "x64 native v0: missing oren_index_set expr"); return nil }
@@ -57,44 +214,18 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     var recv_kind = expr["recv_kind"]
     var known_kk = _x64_index_known_key_kind(expr, args[1])
 
-    // Spill layout (LTR eval):
-    // - container
-    // - index
-    // - value
-    var base0 = _intr_tmp_push(ctx, 3)
-    if oren_type_tag(base0) == 0 { return nil }
-    var off_cont = _intr_tmp_off(ctx, locals, base0 + 0)
-    var off_idx = _intr_tmp_off(ctx, locals, base0 + 1)
-    var off_val = _intr_tmp_off(ctx, locals, base0 + 2)
-    if oren_type_tag(off_cont) == 0 || oren_type_tag(off_idx) == 0 || oren_type_tag(off_val) == 0 {
-        _intr_tmp_pop(ctx, base0)
-        return nil
-    }
-
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_cont, 0)
-
-    _emit_eval_int_to_rax(ctx, args[1], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
-
-    _emit_eval_int_to_rax(ctx, args[2], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_val, 0)
+    var spills = _x64_index_set_spill_args(ctx, expr, locals, args)
+    if spills == nil { return nil }
+    var base0 = spills["base"]
+    var off_cont = spills["off_cont"]
+    var off_idx = spills["off_idx"]
+    var off_val = spills["off_val"]
 
     // String-key sets and lowered map sets cannot reach list semantics. The native
     // map set helpers already perform checked map validation, so do not inline that
     // same tracking/kind/magic/panic sequence into every user function body.
     if recv_kind == "map" || known_kk == 1 {
-        if known_kk == 0 {
-            _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
-        } else if known_kk == 1 {
-            _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
-        } else {
-            _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set", off_cont, off_idx, off_val)
-        }
-
+        _x64_index_set_emit_map_call(ctx, locals, known_kk, off_cont, off_idx, off_val)
         _intr_tmp_pop(ctx, base0)
         return nil
     }
@@ -108,116 +239,23 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         return nil
     }
 
-    // container -> rdx (2)
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_cont)
-
-    // If container is nil, panic deterministically.
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     var labels = {}
     var local_fixups = []
-    var l_non_nil = _new_label(ctx, "idx_set_non_nil")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
-    _emit_abort_panic_str(ctx, "index_set on nil")
-    _emit_label(ctx, labels, l_non_nil)
-
-    // Tier‑1 safety: never read object headers from untracked pointers.
-    _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_is_list = _new_label(ctx, "idx_set_is_list")
     var l_is_map = _new_label(ctx, "idx_set_is_map")
     var l_done = _new_label(ctx, "idx_set_done")
-
-    if recv_kind == "list" {
-        var l_trk_ok = _new_label(ctx, "idx_set_list_tracked_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok)
-        _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
-        _emit_label(ctx, labels, l_trk_ok)
-
-        // kind = *(node + 16)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
-    } else if recv_kind == "list_int" {
-        var l_trk_ok_int = _new_label(ctx, "idx_set_list_int_tracked_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok_int)
-        _emit_abort_panic_str(ctx, "index_set recv_kind=list_int but value is not a list_int")
-        _emit_label(ctx, labels, l_trk_ok_int)
-
-        // kind = *(node + 16)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        _emit_abort_panic_str(ctx, "index_set recv_kind=list_int but value is not a list_int")
-    } else if recv_kind == "map" {
-        var l_trk_ok2 = _new_label(ctx, "idx_set_map_tracked_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok2)
-        _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
-        _emit_label(ctx, labels, l_trk_ok2)
-
-        // kind = *(node + 16)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 3)) // MAP
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
-    } else {
-        // Unknown at compile-time => dynamic kind dispatch (LIST or MAP).
-        var l_trk_ok3 = _new_label(ctx, "idx_set_tracked_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok3)
-        _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
-        _emit_label(ctx, labels, l_trk_ok3)
-
-        // kind = *(node + 16)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 3))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
-    }
-
-    // --- list path ---
-    _emit_label(ctx, labels, l_is_list)
-
-    // Semantics: `xs[i] = v` grows lists as needed (matches C backend + tests).
-    // Delegate to the native runtime helper rather than inlining strict in-bounds stores.
-    var list_set_sym = "oren_list_set"
-    if recv_kind == "list_int" { list_set_sym = "oren_list_int_set" }
-    _emit_call_rel32_3args_x64(ctx, locals, list_set_sym, off_cont, off_idx, off_val)
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    // --- map path ---
-    _emit_label(ctx, labels, l_is_map)
-
-    if known_kk == 0 {
-        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else if known_kk == 1 {
-        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else {
-        // Dynamic map set: delegate key-kind selection to the injected runtime helper.
-        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set", off_cont, off_idx, off_val)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    }
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+    _x64_index_set_emit_list_or_map_dispatch(ctx, locals, {
+        "recv_kind": recv_kind,
+        "known_kk": known_kk,
+        "off_cont": off_cont,
+        "off_idx": off_idx,
+        "off_val": off_val,
+        "labels": labels,
+        "fixups": local_fixups,
+        "l_is_list": l_is_list,
+        "l_is_map": l_is_map,
+        "l_done": l_done
+    })
     _intr_tmp_pop(ctx, base0)
     return nil
 }

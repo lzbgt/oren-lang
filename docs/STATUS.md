@@ -335,7 +335,13 @@ Facts from the 2026-05-28 implementation pass:
 																													  root-table loop emission, and phase logging. The capped profile now shows
 																													  `x64_native_program.oren` at about 38.4s total / 28.7s parse, with
 																													  `_emit_eval_pointer_call_intrinsic_x64` exposed at about 199ms as the next
-																													  parser body.
+																													  parser body. X64 pointer-call intrinsic lowering now delegates integer add,
+																													  pointer loads, pointer stores, and unchecked u8-buffer loads to focused
+																													  helpers; x64 `oren_index_set` lowering now delegates operand spilling, map
+																													  calls, receiver-kind dispatch, and list/map path emission through helper
+																													  bodies. The capped profile now shows `x64_native_program.oren` at about
+																													  37.4s total / 28.0s parse, with `_emit_list_int_push_intrinsic_v0_x64`
+																													  exposed at about 189ms as the next parser body.
 						  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

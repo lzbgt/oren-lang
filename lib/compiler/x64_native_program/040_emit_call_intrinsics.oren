@@ -1,50 +1,31 @@
-fn _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) {
-    if nm == "iadd" {
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: iadd expects 2 args"); return 1 }
-        // iadd(a, b) => (a + b) in RAX. Nested `iadd` calls must not clobber the outer LHS spill.
-        var base = _intr_tmp_push(ctx, 1)
-        if oren_type_tag(base) == 0 { return 1 }
-        var tmp_off_iadd = _intr_tmp_off(ctx, locals, base + 0)
-        if oren_type_tag(tmp_off_iadd) == 0 {
-            _intr_tmp_pop(ctx, base)
-            return 1
-        }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_off_iadd, 0)
-        _emit_eval_int_to_rax(ctx, args[1], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rhs
-        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off_iadd)      // rax = lhs
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2)) // rax += rdx
+fn _emit_eval_iadd_intrinsic_x64(ctx, locals, args) {
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: iadd expects 2 args"); return 1 }
+    // iadd(a, b) => (a + b) in RAX. Nested `iadd` calls must not clobber the outer LHS spill.
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return 1 }
+    var tmp_off_iadd = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(tmp_off_iadd) == 0 {
         _intr_tmp_pop(ctx, base)
         return 1
     }
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_off_iadd, 0)
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rhs
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off_iadd)      // rax = lhs
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2)) // rax += rdx
+    _intr_tmp_pop(ctx, base)
+    return 1
+}
+
+fn _emit_eval_ptr_load_intrinsic_x64(ctx, nm, locals, args) {
     if nm == "ptr_get" {
         if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: ptr_get expects 1 arg"); return 1 }
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
         bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        return 1
-    }
-    if nm == "ptr_set" {
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set expects 2 args"); return 1 }
-        // Must not keep `ptr` only in a register across nested expression evaluation.
-        var base = _intr_tmp_push(ctx, 1)
-        if oren_type_tag(base) == 0 { return 1 }
-        var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-        if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
-
-        _emit_eval_int_to_rax(ctx, args[1], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr) // rdx = ptr
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 0)) // [rdx] = rax
-        _intr_tmp_pop(ctx, base)
         return 1
     }
     if nm == "ptr_get_byte" {
@@ -62,70 +43,74 @@ fn _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], core.insn_movsxd_r64_r32(0, 0))
         return 1
     }
+    return 0
+}
+
+fn _emit_eval_ptr_store_intrinsic_x64(ctx, nm, locals, args) {
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return 1 }
+    // Must not keep `ptr` only in a register across nested expression evaluation.
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return 1 }
+    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return 1 }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr)
+    if nm == "ptr_set" {
+        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 0)) // [rdx] = rax
+    }
     if nm == "ptr_set_byte" {
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set_byte expects 2 args"); return 1 }
-        var base = _intr_tmp_push(ctx, 1)
-        if oren_type_tag(base) == 0 { return 1 }
-        var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-        if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
-
-        _emit_eval_int_to_rax(ctx, args[1], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr)
         bytes_extend(ctx["code"], core.insn_mov_mr8_al(2))
         bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, 255))
-        _intr_tmp_pop(ctx, base)
-        return 1
     }
     if nm == "oren_ptr_set_i32_le" {
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_ptr_set_i32_le expects 2 args"); return 1 }
-        var base = _intr_tmp_push(ctx, 1)
-        if oren_type_tag(base) == 0 { return 1 }
-        var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-        if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
-
-        _emit_eval_int_to_rax(ctx, args[1], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr)
         bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(2, 0, 0))
         bytes_extend(ctx["code"], core.insn_movsxd_r64_r32(0, 0))
-        _intr_tmp_pop(ctx, base)
-        return 1
     }
-    if nm == "oren_buf_load_u8_unchecked" {
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_buf_load_u8_unchecked expects 2 args"); return 1 }
+    _intr_tmp_pop(ctx, base)
+    return 1
+}
 
-        var base = _intr_tmp_push(ctx, 1)
-        if oren_type_tag(base) == 0 { return 1 }
-        var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
-        if oren_type_tag(tmp_buf) == 0 { _intr_tmp_pop(ctx, base); return 1 }
+fn _emit_eval_buf_load_u8_unchecked_x64(ctx, locals, args) {
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_buf_load_u8_unchecked expects 2 args"); return 1 }
 
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return 1 }
+    var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(tmp_buf) == 0 { _intr_tmp_pop(ctx, base); return 1 }
 
-        _emit_eval_int_to_rax(ctx, args[1], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
 
-        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_buf)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(0, 0, 40))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2))
-        bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 0))
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
 
-        _intr_tmp_pop(ctx, base)
-        return 1
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_buf)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(0, 0, 40))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 0))
+
+    _intr_tmp_pop(ctx, base)
+    return 1
+}
+
+fn _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) {
+    if nm == "iadd" { return _emit_eval_iadd_intrinsic_x64(ctx, locals, args) }
+    if nm == "ptr_get" || nm == "ptr_get_byte" || nm == "oren_ptr_get_i32_le" {
+        return _emit_eval_ptr_load_intrinsic_x64(ctx, nm, locals, args)
     }
+    if nm == "ptr_set" || nm == "ptr_set_byte" || nm == "oren_ptr_set_i32_le" {
+        return _emit_eval_ptr_store_intrinsic_x64(ctx, nm, locals, args)
+    }
+    if nm == "oren_buf_load_u8_unchecked" { return _emit_eval_buf_load_u8_unchecked_x64(ctx, locals, args) }
     return 0
 }
 
