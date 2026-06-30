@@ -319,10 +319,16 @@ Facts from the 2026-05-28 implementation pass:
 																											  body. X64 runtime-object apply now delegates data-tail, globals/imports/FFI/cstr,
 																											  function-metadata, code append, function-offset, compact-fixup, legacy-fixup,
 																											  and rip-data32 merge phases to helper bodies; Windows CreateProcess syscall
-																											  lowering now delegates preparation, spill/zeroing, create-call, wait, exit
-																											  status, and cleanup emission. The capped profile now shows
-																											  `x64_native_program.oren` at about 38.1s total / 28.6s parse, with
-																											  `_x64_expr_is_floaty` exposed at about 217ms as the next parser body.
+																												  lowering now delegates preparation, spill/zeroing, create-call, wait, exit
+																												  status, and cleanup emission. The capped profile now shows
+																												  `x64_native_program.oren` at about 38.1s total / 28.6s parse, with
+																												  `_x64_expr_is_floaty` exposed at about 217ms as the next parser body. X64
+																												  float-return classification, Windows entry argv synthesis, and spawn
+																												  expression lowering now delegate their large parser bodies into focused
+																												  helper shards while preserving the same runtime helper boundaries. The
+																												  capped profile now shows `x64_native_program.oren` at about 38.1s total /
+																												  28.7s parse, with `_compile_function_v0` exposed at about 211ms as the next
+																												  parser body.
 					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

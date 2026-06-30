@@ -359,10 +359,16 @@
 <p>																											  body. X64 runtime-object apply now delegates data-tail, globals/imports/FFI/cstr,</p>
 <p>																											  function-metadata, code append, function-offset, compact-fixup, legacy-fixup,</p>
 <p>																											  and rip-data32 merge phases to helper bodies; Windows CreateProcess syscall</p>
-<p>																											  lowering now delegates preparation, spill/zeroing, create-call, wait, exit</p>
-<p>																											  status, and cleanup emission. The capped profile now shows</p>
-<p>																											  <code>x64_native_program.oren</code> at about 38.1s total / 28.6s parse, with</p>
-<p>																											  <code>_x64_expr_is_floaty</code> exposed at about 217ms as the next parser body.</p>
+<p>																												  lowering now delegates preparation, spill/zeroing, create-call, wait, exit</p>
+<p>																												  status, and cleanup emission. The capped profile now shows</p>
+<p>																												  <code>x64_native_program.oren</code> at about 38.1s total / 28.6s parse, with</p>
+<p>																												  <code>_x64_expr_is_floaty</code> exposed at about 217ms as the next parser body. X64</p>
+<p>																												  float-return classification, Windows entry argv synthesis, and spawn</p>
+<p>																												  expression lowering now delegate their large parser bodies into focused</p>
+<p>																												  helper shards while preserving the same runtime helper boundaries. The</p>
+<p>																												  capped profile now shows <code>x64_native_program.oren</code> at about 38.1s total /</p>
+<p>																												  28.7s parse, with <code>_compile_function_v0</code> exposed at about 211ms as the next</p>
+<p>																												  parser body.</p>
 <p>					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

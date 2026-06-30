@@ -31,6 +31,144 @@ fn _x64_name_is_std_math_rounding_float(name) {
     return false
 }
 
+fn _x64_expr_identifier_is_floaty(ctx, expr) {
+    var name = expr["value"]
+    if ctx != nil {
+        if ctx["locals_floaty"] != nil && ctx["locals_floaty"][name] == true { return true }
+        if ctx["globals_floaty"] != nil && ctx["globals_floaty"][name] == true { return true }
+    }
+    return false
+}
+
+fn _x64_expr_call_name(expr) {
+    var fnn = expr["fn"]
+    if fnn != nil && fnn["type"] == "Identifier" {
+        return fnn["value"]
+    }
+    if fnn != nil && fnn["type"] == "Member" {
+        var prop = fnn["prop"]
+        if prop != nil && prop["type"] == "Identifier" { return prop["value"] }
+    }
+    return nil
+}
+
+fn _x64_call_name_is_float_buffer(nm) {
+    if nm == "oren_f32_round" { return true }
+    if nm == "oren_u32_bits_to_f32" { return true }
+    if nm == "oren_u64_bits_to_f64" { return true }
+    if nm == "oren_buf_load_f32" { return true }
+    if nm == "oren_buf_load_f64" { return true }
+    if nm == "oren_buf_dot_f32" || nm == "oren_buf_dot_f64" { return true }
+    if nm == "oren_buf_dot_f32_slice" || nm == "oren_buf_dot_f64_slice" { return true }
+    if nm == "oren_buf_dot_f32_strided" || nm == "oren_buf_dot_f64_strided" { return true }
+    if nm == "oren_buf_reduce_sum_f32" || nm == "oren_buf_reduce_sum_f64" { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_scalar(nm) {
+    if _x64_name_is_or_has_suffix(nm, "abs_f", "_abs_f") { return true }
+    if _x64_name_is_or_has_suffix(nm, "min_f", "_min_f") { return true }
+    if _x64_name_is_or_has_suffix(nm, "max_f", "_max_f") { return true }
+    if _x64_name_is_or_has_suffix(nm, "clamp_f", "_clamp_f") { return true }
+    if _x64_name_is_std_math_rounding_float(nm) { return true }
+    if _x64_name_is_or_has_suffix(nm, "round_even", "_round_even") { return true }
+    if _x64_name_is_or_has_suffix(nm, "nearbyint", "_nearbyint") { return true }
+    if _x64_name_is_or_has_suffix(nm, "rint", "_rint") { return true }
+    if _x64_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
+    if _x64_name_is_or_has_suffix(nm, "_round_ties_even", "_round_ties_even") { return true }
+    if _x64_name_is_or_has_suffix(nm, "remainder", "_remainder") { return true }
+    if _x64_name_is_or_has_suffix(nm, "fdim", "_fdim") { return true }
+    if _x64_name_is_or_has_suffix(nm, "nextafter", "_nextafter") { return true }
+    if _x64_name_is_or_has_suffix(nm, "nexttoward", "_nexttoward") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_exp_log(nm) {
+    if _x64_name_is_or_has_suffix(nm, "sqrt", "_sqrt") { return true }
+    if _x64_name_is_or_has_suffix(nm, "cbrt", "_cbrt") { return true }
+    if _x64_name_is_or_has_suffix(nm, "powi", "_powi") { return true }
+    if _x64_name_is_or_has_suffix(nm, "pow", "_pow") { return true }
+    if _x64_name_is_or_has_suffix(nm, "power", "_power") { return true }
+    if _x64_name_is_or_has_suffix(nm, "pow2i", "_pow2i") { return true }
+    if _x64_name_is_or_has_suffix(nm, "pow10_i", "_pow10_i") { return true }
+    if _x64_name_is_or_has_suffix(nm, "ldexp", "_ldexp") { return true }
+    if _x64_name_is_or_has_suffix(nm, "scalbn", "_scalbn") { return true }
+    if _x64_name_is_or_has_suffix(nm, "scalbln", "_scalbln") { return true }
+    if _x64_name_is_or_has_suffix(nm, "logb", "_logb") { return true }
+    if _x64_name_is_or_has_suffix(nm, "_exp_taylor", "_exp_taylor") { return true }
+    if _x64_name_is_or_has_suffix(nm, "exp2", "_exp2") { return true }
+    if _x64_name_is_or_has_suffix(nm, "exp", "_exp") { return true }
+    if _x64_name_is_or_has_suffix(nm, "expm1", "_expm1") { return true }
+    if _x64_name_is_or_has_suffix(nm, "exp10", "_exp10") { return true }
+    if _x64_name_is_or_has_suffix(nm, "log2", "_log2") { return true }
+    if _x64_name_is_or_has_suffix(nm, "log1p", "_log1p") { return true }
+    if _x64_name_is_or_has_suffix(nm, "log10", "_log10") { return true }
+    if _x64_name_is_or_has_suffix(nm, "log", "_log") { return true }
+    if _x64_name_is_or_has_suffix(nm, "lnf", "_lnf") { return true }
+    if _x64_name_is_or_has_suffix(nm, "ln", "_ln") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_trig(nm) {
+    if _x64_name_is_or_has_suffix(nm, "sinh", "_sinh") { return true }
+    if _x64_name_is_or_has_suffix(nm, "cosh", "_cosh") { return true }
+    if _x64_name_is_or_has_suffix(nm, "tanh", "_tanh") { return true }
+    if _x64_name_is_or_has_suffix(nm, "asinh", "_asinh") { return true }
+    if _x64_name_is_or_has_suffix(nm, "acosh", "_acosh") { return true }
+    if _x64_name_is_or_has_suffix(nm, "atanh", "_atanh") { return true }
+    if _x64_name_is_or_has_suffix(nm, "_erfc_positive_approx", "_erfc_positive_approx") { return true }
+    if _x64_name_is_or_has_suffix(nm, "erfc", "_erfc") { return true }
+    if _x64_name_is_or_has_suffix(nm, "erf", "_erf") { return true }
+    if _x64_name_is_or_has_suffix(nm, "pi", "_pi") { return true }
+    if _x64_name_is_or_has_suffix(nm, "tau", "_tau") { return true }
+    if _x64_name_is_or_has_suffix(nm, "nan", "_nan") { return true }
+    if _x64_name_is_or_has_suffix(nm, "inf", "_inf") { return true }
+    if _x64_name_is_or_has_suffix(nm, "sin", "_sin") { return true }
+    if _x64_name_is_or_has_suffix(nm, "cos", "_cos") { return true }
+    if _x64_name_is_or_has_suffix(nm, "tan", "_tan") { return true }
+    if _x64_name_is_or_has_suffix(nm, "atan", "_atan") { return true }
+    if _x64_name_is_or_has_suffix(nm, "atan2", "_atan2") { return true }
+    if _x64_name_is_or_has_suffix(nm, "asin", "_asin") { return true }
+    if _x64_name_is_or_has_suffix(nm, "acos", "_acos") { return true }
+    if _x64_name_is_or_has_suffix(nm, "hypot", "_hypot") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_linalg(nm) {
+    if _x64_name_is_or_has_suffix(nm, "determinant", "_determinant") { return true }
+    if _x64_name_is_or_has_suffix(nm, "dot_f32", "_dot_f32") { return true }
+    if _x64_name_is_or_has_suffix(nm, "dot_f64", "_dot_f64") { return true }
+    if _x64_name_is_or_has_suffix(nm, "dot_f32_buf", "_dot_f32_buf") { return true }
+    if _x64_name_is_or_has_suffix(nm, "dot_f64_buf", "_dot_f64_buf") { return true }
+    if _x64_name_is_or_has_suffix(nm, "reduce_sum_f64_buf", "_reduce_sum_f64_buf") { return true }
+    if _x64_name_is_or_has_suffix(nm, "dot_f32_view", "_dot_f32_view") { return true }
+    if _x64_name_is_or_has_suffix(nm, "dot_f64_view", "_dot_f64_view") { return true }
+    return false
+}
+
+fn _x64_call_name_is_floaty(nm) {
+    if nm == nil { return false }
+    if _x64_call_name_is_float_buffer(nm) { return true }
+    if _x64_call_name_is_float_scalar(nm) { return true }
+    if _x64_call_name_is_float_exp_log(nm) { return true }
+    if _x64_call_name_is_float_trig(nm) { return true }
+    if _x64_call_name_is_float_linalg(nm) { return true }
+    return false
+}
+
+fn _x64_prefix_expr_is_floaty(ctx, expr) {
+    if expr["op"] == "-" { return _x64_expr_is_floaty(ctx, expr["right"]) }
+    return false
+}
+
+fn _x64_infix_expr_is_floaty(ctx, expr) {
+    var op = expr["op"]
+    if op != "+" && op != "-" && op != "*" && op != "/" { return false }
+    if _x64_expr_is_floaty(ctx, expr["left"]) { return true }
+    if _x64_expr_is_floaty(ctx, expr["right"]) { return true }
+    return false
+}
+
 fn _x64_expr_is_floaty(ctx, expr) {
     // Heuristic, rolling "float propagation" for x64 native.
     //
@@ -39,116 +177,12 @@ fn _x64_expr_is_floaty(ctx, expr) {
     if expr == nil { return false }
     var et = expr["type"]
     if et == "Float" { return true }
-    if et == "Identifier" {
-        var name = expr["value"]
-        if ctx != nil {
-            if ctx["locals_floaty"] != nil && ctx["locals_floaty"][name] == true { return true }
-            if ctx["globals_floaty"] != nil && ctx["globals_floaty"][name] == true { return true }
-        }
-        return false
-    }
+    if et == "Identifier" { return _x64_expr_identifier_is_floaty(ctx, expr) }
     if et == "Call" {
-        var fnn = expr["fn"]
-        var nm = nil
-        if fnn != nil && fnn["type"] == "Identifier" {
-            nm = fnn["value"]
-        } else {
-            if fnn != nil && fnn["type"] == "Member" {
-                var prop = fnn["prop"]
-                if prop != nil && prop["type"] == "Identifier" { nm = prop["value"] }
-            }
-        }
-        if nm != nil {
-            // Native cast/bitcast intrinsics and common float-returning helpers.
-            if nm == "oren_f32_round" { return true }
-            if nm == "oren_u32_bits_to_f32" { return true }
-            if nm == "oren_u64_bits_to_f64" { return true }
-            if nm == "oren_buf_load_f32" { return true }
-            if nm == "oren_buf_load_f64" { return true }
-            if nm == "oren_buf_dot_f32" || nm == "oren_buf_dot_f64" { return true }
-            if nm == "oren_buf_dot_f32_slice" || nm == "oren_buf_dot_f64_slice" { return true }
-            if nm == "oren_buf_dot_f32_strided" || nm == "oren_buf_dot_f64_strided" { return true }
-            if nm == "oren_buf_reduce_sum_f32" || nm == "oren_buf_reduce_sum_f64" { return true }
-            if _x64_name_is_or_has_suffix(nm, "abs_f", "_abs_f") { return true }
-            if _x64_name_is_or_has_suffix(nm, "min_f", "_min_f") { return true }
-            if _x64_name_is_or_has_suffix(nm, "max_f", "_max_f") { return true }
-            if _x64_name_is_or_has_suffix(nm, "clamp_f", "_clamp_f") { return true }
-            if _x64_name_is_std_math_rounding_float(nm) { return true }
-            if _x64_name_is_or_has_suffix(nm, "round_even", "_round_even") { return true }
-            if _x64_name_is_or_has_suffix(nm, "nearbyint", "_nearbyint") { return true }
-            if _x64_name_is_or_has_suffix(nm, "rint", "_rint") { return true }
-            if _x64_name_is_or_has_suffix(nm, "fmod", "_fmod") { return true }
-            if _x64_name_is_or_has_suffix(nm, "_round_ties_even", "_round_ties_even") { return true }
-            if _x64_name_is_or_has_suffix(nm, "remainder", "_remainder") { return true }
-            if _x64_name_is_or_has_suffix(nm, "fdim", "_fdim") { return true }
-            if _x64_name_is_or_has_suffix(nm, "nextafter", "_nextafter") { return true }
-            if _x64_name_is_or_has_suffix(nm, "nexttoward", "_nexttoward") { return true }
-            if _x64_name_is_or_has_suffix(nm, "sqrt", "_sqrt") { return true }
-            if _x64_name_is_or_has_suffix(nm, "cbrt", "_cbrt") { return true }
-            if _x64_name_is_or_has_suffix(nm, "powi", "_powi") { return true }
-            if _x64_name_is_or_has_suffix(nm, "pow", "_pow") { return true }
-            if _x64_name_is_or_has_suffix(nm, "power", "_power") { return true }
-            if _x64_name_is_or_has_suffix(nm, "pow2i", "_pow2i") { return true }
-            if _x64_name_is_or_has_suffix(nm, "pow10_i", "_pow10_i") { return true }
-            if _x64_name_is_or_has_suffix(nm, "ldexp", "_ldexp") { return true }
-            if _x64_name_is_or_has_suffix(nm, "scalbn", "_scalbn") { return true }
-            if _x64_name_is_or_has_suffix(nm, "scalbln", "_scalbln") { return true }
-            if _x64_name_is_or_has_suffix(nm, "logb", "_logb") { return true }
-            if _x64_name_is_or_has_suffix(nm, "_exp_taylor", "_exp_taylor") { return true }
-            if _x64_name_is_or_has_suffix(nm, "exp2", "_exp2") { return true }
-            if _x64_name_is_or_has_suffix(nm, "exp", "_exp") { return true }
-            if _x64_name_is_or_has_suffix(nm, "expm1", "_expm1") { return true }
-            if _x64_name_is_or_has_suffix(nm, "exp10", "_exp10") { return true }
-            if _x64_name_is_or_has_suffix(nm, "log2", "_log2") { return true }
-            if _x64_name_is_or_has_suffix(nm, "log1p", "_log1p") { return true }
-            if _x64_name_is_or_has_suffix(nm, "log10", "_log10") { return true }
-            if _x64_name_is_or_has_suffix(nm, "log", "_log") { return true }
-            if _x64_name_is_or_has_suffix(nm, "lnf", "_lnf") { return true }
-            if _x64_name_is_or_has_suffix(nm, "ln", "_ln") { return true }
-            if _x64_name_is_or_has_suffix(nm, "sinh", "_sinh") { return true }
-            if _x64_name_is_or_has_suffix(nm, "cosh", "_cosh") { return true }
-            if _x64_name_is_or_has_suffix(nm, "tanh", "_tanh") { return true }
-            if _x64_name_is_or_has_suffix(nm, "asinh", "_asinh") { return true }
-            if _x64_name_is_or_has_suffix(nm, "acosh", "_acosh") { return true }
-            if _x64_name_is_or_has_suffix(nm, "atanh", "_atanh") { return true }
-            if _x64_name_is_or_has_suffix(nm, "_erfc_positive_approx", "_erfc_positive_approx") { return true }
-            if _x64_name_is_or_has_suffix(nm, "erfc", "_erfc") { return true }
-            if _x64_name_is_or_has_suffix(nm, "erf", "_erf") { return true }
-            if _x64_name_is_or_has_suffix(nm, "pi", "_pi") { return true }
-            if _x64_name_is_or_has_suffix(nm, "tau", "_tau") { return true }
-            if _x64_name_is_or_has_suffix(nm, "nan", "_nan") { return true }
-            if _x64_name_is_or_has_suffix(nm, "inf", "_inf") { return true }
-            if _x64_name_is_or_has_suffix(nm, "sin", "_sin") { return true }
-            if _x64_name_is_or_has_suffix(nm, "cos", "_cos") { return true }
-            if _x64_name_is_or_has_suffix(nm, "tan", "_tan") { return true }
-            if _x64_name_is_or_has_suffix(nm, "atan", "_atan") { return true }
-            if _x64_name_is_or_has_suffix(nm, "atan2", "_atan2") { return true }
-            if _x64_name_is_or_has_suffix(nm, "asin", "_asin") { return true }
-            if _x64_name_is_or_has_suffix(nm, "acos", "_acos") { return true }
-            if _x64_name_is_or_has_suffix(nm, "hypot", "_hypot") { return true }
-            if _x64_name_is_or_has_suffix(nm, "determinant", "_determinant") { return true }
-            if _x64_name_is_or_has_suffix(nm, "dot_f32", "_dot_f32") { return true }
-            if _x64_name_is_or_has_suffix(nm, "dot_f64", "_dot_f64") { return true }
-            if _x64_name_is_or_has_suffix(nm, "dot_f32_buf", "_dot_f32_buf") { return true }
-            if _x64_name_is_or_has_suffix(nm, "dot_f64_buf", "_dot_f64_buf") { return true }
-            if _x64_name_is_or_has_suffix(nm, "reduce_sum_f64_buf", "_reduce_sum_f64_buf") { return true }
-            if _x64_name_is_or_has_suffix(nm, "dot_f32_view", "_dot_f32_view") { return true }
-            if _x64_name_is_or_has_suffix(nm, "dot_f64_view", "_dot_f64_view") { return true }
-        }
-        return false
+        return _x64_call_name_is_floaty(_x64_expr_call_name(expr))
     }
-    if et == "Prefix" {
-        if expr["op"] == "-" { return _x64_expr_is_floaty(ctx, expr["right"]) }
-        return false
-    }
-    if et == "Infix" {
-        var op = expr["op"]
-        if op == "+" || op == "-" || op == "*" || op == "/" {
-            if _x64_expr_is_floaty(ctx, expr["left"]) { return true }
-            if _x64_expr_is_floaty(ctx, expr["right"]) { return true }
-        }
-        return false
-    }
+    if et == "Prefix" { return _x64_prefix_expr_is_floaty(ctx, expr) }
+    if et == "Infix" { return _x64_infix_expr_is_floaty(ctx, expr) }
     return false
 }
 

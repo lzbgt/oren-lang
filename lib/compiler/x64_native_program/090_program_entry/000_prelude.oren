@@ -126,31 +126,7 @@ fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
     return nil
 }
 
-fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
-    // Windows x64: synthesize argc/argv for the injected native runtime (no CRT).
-    //
-    // Strategy (Tier‑1, production correctness):
-    // - Use the system command-line parser: shell32!CommandLineToArgvW(GetCommandLineW()).
-    // - Convert each wide argument to UTF‑8 via kernel32!WideCharToMultiByte(CP_UTF8,...).
-    // - Store the resulting `char** argv` + strings into fixed `.data` buffers.
-    // - Store argc/argv pointers into the entry scratch region for `native_runtime_set_args`.
-    //
-    // Determinism:
-    // - If argc exceeds the fixed cap or the pool overflows, abort with a deterministic exit code.
-    //
-    // Requires PE imports + IAT labels:
-    // - kernel32!GetCommandLineW            => "IAT_GetCommandLineW"
-    // - shell32!CommandLineToArgvW          => "IAT_CommandLineToArgvW"
-    // - kernel32!WideCharToMultiByte        => "IAT_WideCharToMultiByte"
-    // - kernel32!LocalFree                  => "IAT_LocalFree"
-    //
-    // Stack args note:
-    // - WideCharToMultiByte has 8 parameters, so the entry stub must reserve Win64 stack arg
-    //   slots at [rsp+0x20..] (see entry stub allocation below).
-    //
-    // Clobbers: RAX, RBX, RCX, RDX, R8, R9, R10, R11, R12, R13, R14, R15, RSI, RDI
-    if ctx == nil { return nil }
-
+fn _x64_win_entry_args_state(ctx, scratch_base) {
     var max_args = 128
     var off_argv = _data_add_zeros(ctx, (max_args + 1) * 8)
     var pool_cap = 65536
@@ -160,17 +136,32 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     // Never treat an offset of 0 as failure here: `_data_add_zeros` only returns `nil` when
     // `ctx` is nil or `nbytes<=0`.
 
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "win_argv_done")
-    var l_overflow = _new_label(ctx, "win_argv_overflow")
-    var l_loop = _new_label(ctx, "win_argv_loop")
-    var l_free = _new_label(ctx, "win_argv_free")
+    var st = {}
+    st["scratch_base"] = scratch_base
+    st["max_args"] = max_args
+    st["pool_cap"] = pool_cap
+    st["off_argv"] = off_argv
+    st["off_pool"] = off_pool
+    st["labels"] = {}
+    st["local_fixups"] = []
+    st["l_done"] = _new_label(ctx, "win_argv_done")
+    st["l_overflow"] = _new_label(ctx, "win_argv_overflow")
+    st["l_loop"] = _new_label(ctx, "win_argv_loop")
+    st["l_free"] = _new_label(ctx, "win_argv_free")
+    st["l_body"] = _new_label(ctx, "win_argv_body")
+    st["l_after"] = _new_label(ctx, "win_argv_after")
+    st["l_have_req"] = _new_label(ctx, "win_argv_have_req")
+    st["l_pool_ok"] = _new_label(ctx, "win_argv_pool_ok")
+    st["l_conv_ok"] = _new_label(ctx, "win_argv_conv_ok")
+    return st
+}
 
+fn _x64_win_entry_args_emit_buffers(ctx, st) {
+    var scratch_base = st["scratch_base"]
     // r13 = argv_out_cur = &argv_out[0]
     var lea_argv = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(13, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_argv + 3, "data_off": off_argv})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_argv + 3, "data_off": st["off_argv"]})
 
     // Default argc=0, argv=&argv_out[0] (so runtime has a stable pointer even on failure).
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
@@ -184,11 +175,16 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     // r12 = pool_cur = &pool[0]
     var lea_pool = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(12, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pool + 3, "data_off": off_pool})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pool + 3, "data_off": st["off_pool"]})
     // r15 = pool_end = pool_cur + pool_cap
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(15, 12))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(15, pool_cap))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(15, st["pool_cap"]))
+    return nil
+}
 
+fn _x64_win_entry_args_emit_parse(ctx, st) {
+    var scratch_base = st["scratch_base"]
+    var local_fixups = st["local_fixups"]
     // GetCommandLineW() -> rax
     var mov_iat_cmd = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
@@ -208,7 +204,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
 
     // if rax == 0 => done (leave argc=0, argv=&argv_out)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    _emit_jcc_to_label(ctx, local_fixups, "e", st["l_done"])
 
     // rbx = argvw_ptr (for LocalFree later)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(3, 0))
@@ -217,13 +213,19 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     _emit_mov_r64_mrsp(ctx, 10, scratch_base + 24)
     // if argc <= 0 => free+done
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_free)
+    _emit_jcc_to_label(ctx, local_fixups, "e", st["l_free"])
     // if argc > max_args => overflow
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, max_args))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_loop)
-    _emit_jmp_to_label(ctx, local_fixups, l_overflow)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, st["max_args"]))
+    _emit_jcc_to_label(ctx, local_fixups, "le", st["l_loop"])
+    _emit_jmp_to_label(ctx, local_fixups, st["l_overflow"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_loop)
+fn _x64_win_entry_args_emit_loop_header(ctx, st) {
+    var scratch_base = st["scratch_base"]
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
+    _emit_label(ctx, labels, st["l_loop"])
     // Persist argc for runtime_set_args.
     _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
 
@@ -232,14 +234,12 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     // rdi = remaining = argc
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 10))
 
-    var l_body = _new_label(ctx, "win_argv_body")
-    var l_after = _new_label(ctx, "win_argv_after")
-    _emit_jmp_to_label(ctx, local_fixups, l_body)
+    _emit_jmp_to_label(ctx, local_fixups, st["l_body"])
 
-    _emit_label(ctx, labels, l_body)
+    _emit_label(ctx, labels, st["l_body"])
     // if remaining == 0 => after
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(7, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_after)
+    _emit_jcc_to_label(ctx, local_fixups, "e", st["l_after"])
 
     // r8 = wptr = *(u64*)rsi
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(8, 6))
@@ -247,7 +247,13 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(6, 8))
     // Preserve wptr across WinAPI calls (r8 is volatile in Win64 ABI).
     _emit_mov_mrsp_r64(ctx, scratch_base + 24, 8)
+    return nil
+}
 
+fn _x64_win_entry_args_emit_query_required(ctx, st) {
+    var scratch_base = st["scratch_base"]
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
     // Query required UTF-8 bytes: WideCharToMultiByte(CP_UTF8,0,wptr,-1,NULL,0,NULL,NULL)
     // rcx = 65001 (CP_UTF8)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 65001))
@@ -273,10 +279,9 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
 
     // if eax == 0 => abort (conversion failed)
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    var l_have_req = _new_label(ctx, "win_argv_have_req")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_have_req)
+    _emit_jcc_to_label(ctx, local_fixups, "ne", st["l_have_req"])
     _emit_abort_exitcode(ctx, 203)
-    _emit_label(ctx, labels, l_have_req)
+    _emit_label(ctx, labels, st["l_have_req"])
 
     // r10 = required bytes (u64)
     bytes_extend(ctx["code"], core.insn_cdqe())
@@ -287,11 +292,16 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     bytes_extend(ctx["code"], core.insn_add_r64_r64(14, 10))
     // if next_pool > pool_end => overflow
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(14, 15))
-    var l_pool_ok = _new_label(ctx, "win_argv_pool_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_pool_ok)
-    _emit_jmp_to_label(ctx, local_fixups, l_overflow)
-    _emit_label(ctx, labels, l_pool_ok)
+    _emit_jcc_to_label(ctx, local_fixups, "le", st["l_pool_ok"])
+    _emit_jmp_to_label(ctx, local_fixups, st["l_overflow"])
+    _emit_label(ctx, labels, st["l_pool_ok"])
+    return nil
+}
 
+fn _x64_win_entry_args_emit_convert_one(ctx, st) {
+    var scratch_base = st["scratch_base"]
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
     // Store pool_cur pointer into argv_out array: *argv_out_cur = pool_cur; argv_out_cur += 8
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(13, 12))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(13, 8))
@@ -323,41 +333,67 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
 
     // if eax == 0 => abort
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    var l_conv_ok = _new_label(ctx, "win_argv_conv_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_conv_ok)
+    _emit_jcc_to_label(ctx, local_fixups, "ne", st["l_conv_ok"])
     _emit_abort_exitcode(ctx, 203)
-    _emit_label(ctx, labels, l_conv_ok)
+    _emit_label(ctx, labels, st["l_conv_ok"])
 
     // pool_cur = next_pool
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 14))
 
     // remaining--
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(7, 1))
-    _emit_jmp_to_label(ctx, local_fixups, l_body)
+    _emit_jmp_to_label(ctx, local_fixups, st["l_body"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_after)
+fn _x64_win_entry_args_emit_finish(ctx, st) {
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
+    _emit_label(ctx, labels, st["l_after"])
     // argv terminator: *argv_out_cur = NULL
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(13, 0))
-    _emit_jmp_to_label(ctx, local_fixups, l_free)
+    _emit_jmp_to_label(ctx, local_fixups, st["l_free"])
 
-    _emit_label(ctx, labels, l_overflow)
+    _emit_label(ctx, labels, st["l_overflow"])
     _emit_abort_exitcode(ctx, 202)
 
-    _emit_label(ctx, labels, l_free)
+    _emit_label(ctx, labels, st["l_free"])
     // LocalFree(argvw_ptr)
     // rcx = argvw_ptr (rbx)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 3))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    _emit_jcc_to_label(ctx, local_fixups, "e", st["l_done"])
     var mov_iat_free = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat_free + 3, "IAT_LocalFree")
     bytes_extend(ctx["code"], core.insn_call_rax())
 
-    _emit_label(ctx, labels, l_done)
+    _emit_label(ctx, labels, st["l_done"])
     _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
+    // Windows x64: synthesize argc/argv for the injected native runtime (no CRT).
+    //
+    // Strategy (Tier‑1, production correctness):
+    // - Use the system command-line parser: shell32!CommandLineToArgvW(GetCommandLineW()).
+    // - Convert each wide argument to UTF‑8 via kernel32!WideCharToMultiByte(CP_UTF8,...).
+    // - Store the resulting `char** argv` + strings into fixed `.data` buffers.
+    // - Store argc/argv pointers into the entry scratch region for `native_runtime_set_args`.
+    //
+    // Determinism:
+    // - If argc exceeds the fixed cap or the pool overflows, abort with a deterministic exit code.
+    if ctx == nil { return nil }
+    var st = _x64_win_entry_args_state(ctx, scratch_base)
+    _x64_win_entry_args_emit_buffers(ctx, st)
+    _x64_win_entry_args_emit_parse(ctx, st)
+    _x64_win_entry_args_emit_loop_header(ctx, st)
+    _x64_win_entry_args_emit_query_required(ctx, st)
+    _x64_win_entry_args_emit_convert_one(ctx, st)
+    _x64_win_entry_args_emit_finish(ctx, st)
     return nil
 }
 
