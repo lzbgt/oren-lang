@@ -290,4 +290,5 @@ fn _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, falsey_label) {
     return nil
 }
 
+// @include "040_emit_call_fast_paths.oren"
 // @include "040_emit_expr_eval.oren"

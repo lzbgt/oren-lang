@@ -217,6 +217,11 @@
 <p>											 stat-family and path-family syscalls to helper bodies; the capped profile now</p>
 <p>											 shows <code>x64_native_program.oren</code> at about 37.4s total / 27.4s parse, with</p>
 <p>											 <code>_emit_eval_call_expr_to_rax</code> exposed at about 659ms as the next parser target.</p>
+<p>											 X64 call-expression runtime/generic fast-path classification is now split out</p>
+<p>											 of <code>_emit_eval_call_expr_to_rax</code>; the capped profile now shows</p>
+<p>											 <code>x64_native_program.oren</code> at about 37.0s total / 27.2s parse, with</p>
+<p>											 <code>_x64_collect_top_level_globals_and_stmts</code> exposed at about 606ms as the next</p>
+<p>											 parser target.</p>
 <p>								     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
