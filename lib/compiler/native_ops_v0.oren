@@ -1404,11 +1404,14 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
     }
 
     if t == "Array" {
-        var m = 0
+        // Literal lowering calls:
+        // - oren_new_list(n): needs one call spill slot
+        // - oren_list_push_unchecked(list, elem): keeps two spill slots live while evaluating elem
+        var m = 1
         var els = expr["elements"]
         var j = 0
         while els != nil && j < oren_list_len(els) {
-            var mj = _max_intr_tmp_in_expr(ctx, els[j], locals)
+            var mj = 2 + _max_intr_tmp_in_expr(ctx, els[j], locals)
             if mj > m { m = mj }
             j = j + 1
         }
@@ -1416,14 +1419,17 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
     }
 
     if t == "Hash" {
-        var m2 = 0
+        // Literal lowering calls:
+        // - oren_new_map(n): needs one call spill slot
+        // - oren_map_set_{int,str}(map, key, value): keeps three spill slots live while evaluating key/value
+        var m2 = 1
         var pairs = expr["pairs"]
         var k = 0
         while pairs != nil && k < oren_list_len(pairs) {
             var pair = pairs[k]
-            var mk = _max_intr_tmp_in_expr(ctx, pair["key"], locals)
+            var mk = 3 + _max_intr_tmp_in_expr(ctx, pair["key"], locals)
             if mk > m2 { m2 = mk }
-            var mv = _max_intr_tmp_in_expr(ctx, pair["value"], locals)
+            var mv = 3 + _max_intr_tmp_in_expr(ctx, pair["value"], locals)
             if mv > m2 { m2 = mv }
             k = k + 1
         }

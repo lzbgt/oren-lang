@@ -286,11 +286,14 @@
 <p>									  former about 57ms monolithic checker with about 20ms/15ms/15ms/6ms</p>
 <p>									  helper bodies; traversal helpers are the remaining focused renamer</p>
 <p>									  emit targets. X64 base-memory and displacement instruction builders now</p>
-<p>									  append ModRM/SIB/displacement bytes directly through</p>
-<p>									  <code>_emit_mem_base_modrm_sib_disp</code> instead of allocating per-instruction</p>
-<p>									  <code>{modrm,sib,disp8,disp32}</code>-style maps and unpacking them at each MOV,</p>
-<p>									  atomic, MOVDQU, and MOVDQA call site; Linux/Windows x64 compile-only gates</p>
-<p>									  cover the encoding surface.</p>
+<p>										  append ModRM/SIB/displacement bytes directly through</p>
+<p>										  <code>_emit_mem_base_modrm_sib_disp</code> instead of allocating per-instruction</p>
+<p>										  <code>{modrm,sib,disp8,disp32}</code>-style maps and unpacking them at each MOV,</p>
+<p>										  atomic, MOVDQU, and MOVDQA call site; Linux/Windows x64 compile-only gates</p>
+<p>										  cover the encoding surface. X64 intrinsic-temp sizing now accounts for</p>
+<p>										  the live call spill slots used by array/hash literal builders, and the</p>
+<p>										  default Linux/Windows x64 compile-only matrix includes the nested-map</p>
+<p>										  literal fixture that exercises nested literal construction.</p>
 <p>						  Runtime-object code splicing now has bounded phase markers for code append,</p>
 <p>						  compact function offsets, compact fixup metadata, legacy fallback fixups,</p>
 <p>						  and RIP-data labels. Those markers showed the splice itself was not the</p>

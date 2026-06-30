@@ -261,10 +261,13 @@ This file is the concise task view. Detailed implementation status lives in
 									     category, replacing the former roughly 57ms monolithic checker with
 									     about 20ms/15ms/15ms/6ms helper bodies; traversal helpers remain the
 									     next focused renamer emit target. X64 base-memory and displacement
-									     instruction builders now append ModRM/SIB/displacement bytes directly
-									     through `_emit_mem_base_modrm_sib_disp` instead of allocating
-									     per-instruction metadata maps; Linux/Windows x64 compile-only gates
-									     cover the MOV, atomic, MOVDQU, and MOVDQA surface.
+										     instruction builders now append ModRM/SIB/displacement bytes directly
+										     through `_emit_mem_base_modrm_sib_disp` instead of allocating
+										     per-instruction metadata maps; Linux/Windows x64 compile-only gates
+										     cover the MOV, atomic, MOVDQU, and MOVDQA surface. X64 intrinsic-temp
+										     sizing now includes the live spill slots held by array/hash literal
+										     builders, with the nested-map literal fixture covered by the default
+										     Linux/Windows x64 compile-only matrix.
 	     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

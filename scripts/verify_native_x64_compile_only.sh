@@ -161,6 +161,7 @@ PTR_I32_LE_SRC="tests/native/ptr_i32_le_native.oren"
 X64_TOP_LEVEL_STRING_GLOBALS_SRC="tests/fixtures/x64_top_level_string_globals_main.oren"
 X64_TOP_LEVEL_EMPTY_CONTAINERS_SRC="tests/fixtures/x64_top_level_empty_containers_main.oren"
 X64_DYNAMIC_INDEX_HELPERS_SRC="tests/fixtures/x64_dynamic_index_helpers_main.oren"
+X64_NESTED_MAP_LITERAL_SRC="tests/fixtures/x64_nested_map_literal_main.oren"
 CFG_OS_SRC="tests/native/cfg_os_select.oren"
 CFG_IMPORT_SRC="tests/native/cfg_import_main.oren"
 NET_TLS_HTTP2_SMOKE_SRC="tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren"
@@ -453,6 +454,9 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$X64_DYNAMIC_INDEX_HELPERS_SRC" "build/tmp/dynamic_index_helpers_${tag}_x64_linux"
   check_elf_x64 "build/tmp/dynamic_index_helpers_${tag}_x64_linux"
 
+  build_one "$compiler" x64-linux "$X64_NESTED_MAP_LITERAL_SRC" "build/tmp/nested_map_literal_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/nested_map_literal_${tag}_x64_linux"
+
   build_one "$compiler" x64-linux "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_linux"
   check_elf_x64 "build/tmp/cfg_os_${tag}_x64_linux"
 
@@ -537,6 +541,9 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$X64_DYNAMIC_INDEX_HELPERS_SRC" "build/tmp/dynamic_index_helpers_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/dynamic_index_helpers_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$X64_NESTED_MAP_LITERAL_SRC" "build/tmp/nested_map_literal_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/nested_map_literal_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/cfg_os_${tag}_x64_windows.exe"
