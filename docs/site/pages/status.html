@@ -390,10 +390,15 @@
 <p>																													  preparation now delegates duplicate checks, direct <code>.data</code> initialization</p>
 <p>																													  probes, fact collection, metadata registration, and slow-slot timing through</p>
 <p>																													  helper bodies; <code>assign_i32</code> op lowering now delegates top-level string fast</p>
-<p>																													  paths, empty-container fast paths, local/global facts, and global-slot</p>
-<p>																													  stores. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																													  37.6s total / 28.2s parse, with <code>_emit_intrinsic_sys_linux_net_x64</code> exposed</p>
-<p>																													  at about 181ms as the next parser body.</p>
+<p>																														  paths, empty-container fast paths, local/global facts, and global-slot</p>
+<p>																														  stores. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																														  37.6s total / 28.2s parse, with <code>_emit_intrinsic_sys_linux_net_x64</code> exposed</p>
+<p>																														  at about 181ms as the next parser body. X64 Linux net syscall lowering now</p>
+<p>																														  delegates socket and 3-argument address syscall families through focused</p>
+<p>																														  helpers, making <code>_emit_intrinsic_sys_linux_net_x64</code> a router over the existing</p>
+<p>																														  net helper bodies. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																														  about 37.2s total / 27.8s parse, with <code>_emit_intrinsic_sys_read_x64</code> exposed</p>
+<p>																														  at about 176ms as the next parser body.</p>
 <p>						  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

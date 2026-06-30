@@ -350,10 +350,15 @@ Facts from the 2026-05-28 implementation pass:
 																													  preparation now delegates duplicate checks, direct `.data` initialization
 																													  probes, fact collection, metadata registration, and slow-slot timing through
 																													  helper bodies; `assign_i32` op lowering now delegates top-level string fast
-																													  paths, empty-container fast paths, local/global facts, and global-slot
-																													  stores. The capped profile now shows `x64_native_program.oren` at about
-																													  37.6s total / 28.2s parse, with `_emit_intrinsic_sys_linux_net_x64` exposed
-																													  at about 181ms as the next parser body.
+																														  paths, empty-container fast paths, local/global facts, and global-slot
+																														  stores. The capped profile now shows `x64_native_program.oren` at about
+																														  37.6s total / 28.2s parse, with `_emit_intrinsic_sys_linux_net_x64` exposed
+																														  at about 181ms as the next parser body. X64 Linux net syscall lowering now
+																														  delegates socket and 3-argument address syscall families through focused
+																														  helpers, making `_emit_intrinsic_sys_linux_net_x64` a router over the existing
+																														  net helper bodies. The capped profile now shows `x64_native_program.oren` at
+																														  about 37.2s total / 27.8s parse, with `_emit_intrinsic_sys_read_x64` exposed
+																														  at about 176ms as the next parser body.
 						  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
