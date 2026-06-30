@@ -425,11 +425,16 @@
 <p>																																	 slow/fast path emission, and optional header tracing through focused helpers.</p>
 <p>																																	 The capped profile now shows <code>x64_native_program.oren</code> at about 38.0s total /</p>
 <p>																																	 28.3s parse, with <code>_x64_build_runtime_obj</code> exposed at about 180ms as the next</p>
-<p>																																	 parser body. X64 runtime-object build orchestration now delegates final</p>
-<p>																																	 blob/meta materialization and summary printing through focused helpers. The</p>
-<p>																																	 capped profile now shows <code>x64_native_program.oren</code> at about 39.3s total /</p>
-<p>																																	 29.4s parse, with <code>_x64_build_top_level_init_stmts</code> exposed at about 190ms as</p>
-<p>																																	 the next parser body.</p>
+<p>																		 parser body. X64 runtime-object build orchestration now delegates final</p>
+<p>																		 blob/meta materialization and summary printing through focused helpers. The</p>
+<p>																		 capped profile now shows <code>x64_native_program.oren</code> at about 39.3s total /</p>
+<p>																		 29.4s parse, with <code>_x64_build_top_level_init_stmts</code> exposed at about 190ms as</p>
+<p>																		 the next parser body. X64 top-level initializer synthesis now delegates</p>
+<p>																		 rewrite batch state, string literal batches, empty-container batches, Var</p>
+<p>																		 rewrites, and progress logging through focused helpers. The capped profile</p>
+<p>																		 now shows <code>x64_native_program.oren</code> at about 38.2s total / 28.6s parse, with</p>
+<p>																		 <code>_emit_intrinsic_sys_stat_windows_x64</code> exposed at about 173ms as the next</p>
+<p>																		 parser body.</p>
 <p>												     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

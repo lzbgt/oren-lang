@@ -368,11 +368,16 @@ Facts from the 2026-05-28 implementation pass:
 																																  emission, and optional header tracing through focused helpers. The capped
 																																  profile now shows `x64_native_program.oren` at about 38.0s total / 28.3s parse,
 																																  with `_x64_build_runtime_obj` exposed at about 180ms as the next parser body.
-																																  X64 runtime-object build orchestration now delegates final blob/meta
-																																  materialization and summary printing through focused helpers. The capped
-																																  profile now shows `x64_native_program.oren` at about 39.3s total / 29.4s parse,
-																																  with `_x64_build_top_level_init_stmts` exposed at about 190ms as the next
-																																  parser body.
+																	  X64 runtime-object build orchestration now delegates final blob/meta
+																	  materialization and summary printing through focused helpers. The capped
+																	  profile now shows `x64_native_program.oren` at about 39.3s total / 29.4s parse,
+																	  with `_x64_build_top_level_init_stmts` exposed at about 190ms as the next
+																	  parser body. X64 top-level initializer synthesis now delegates rewrite batch
+																	  state, string literal batches, empty-container batches, Var rewrites, and
+																	  progress logging through focused helpers. The capped profile now shows
+																	  `x64_native_program.oren` at about 38.2s total / 28.6s parse, with
+																	  `_emit_intrinsic_sys_stat_windows_x64` exposed at about 173ms as the next
+																	  parser body.
 						  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

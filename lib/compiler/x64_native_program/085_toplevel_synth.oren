@@ -548,6 +548,182 @@ fn _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals)
     }
 }
 
+fn _x64_top_init_rewrite_state() {
+    return {
+        "top_stmts": [],
+        "pending_string_names": [],
+        "pending_string_values": [],
+        "pending_string_off_encs": [],
+        "pending_string_slot_offs": [],
+        "pending_string_toks": [],
+        "pending_string_items": [],
+        "pending_string_table_buf": bytes_new(),
+        "pending_string_count": 0,
+        "pending_empty_kind": nil,
+        "pending_empty_tok": nil,
+        "pending_empty_table_buf": bytes_new(),
+        "pending_empty_count": 0,
+        "user_var_idx": 0,
+        "rewrite_direct_string": 0,
+        "rewrite_direct_alias": 0,
+        "rewrite_runtime_assign": 0
+    }
+}
+
+fn _x64_top_init_flush_strings(ctx, state) {
+    if state == nil { return nil }
+    _x64_flush_global_string_init_batch(state["top_stmts"], state["pending_string_names"],
+        state["pending_string_values"], state["pending_string_off_encs"],
+        state["pending_string_slot_offs"], state["pending_string_toks"],
+        state["pending_string_items"], ctx, state["pending_string_count"],
+        state["pending_string_table_buf"])
+    state["pending_string_names"] = []
+    state["pending_string_values"] = []
+    state["pending_string_off_encs"] = []
+    state["pending_string_slot_offs"] = []
+    state["pending_string_toks"] = []
+    state["pending_string_items"] = []
+    state["pending_string_table_buf"] = bytes_new()
+    state["pending_string_count"] = 0
+    return nil
+}
+
+fn _x64_top_init_flush_empty(ctx, state) {
+    if state == nil { return nil }
+    _x64_flush_global_empty_container_init_batch(state["top_stmts"],
+        state["pending_empty_kind"], state["pending_empty_tok"], ctx,
+        state["pending_empty_count"], state["pending_empty_table_buf"])
+    state["pending_empty_kind"] = nil
+    state["pending_empty_tok"] = nil
+    state["pending_empty_table_buf"] = bytes_new()
+    state["pending_empty_count"] = 0
+    return nil
+}
+
+fn _x64_top_init_flush_all(ctx, state) {
+    _x64_top_init_flush_strings(ctx, state)
+    _x64_top_init_flush_empty(ctx, state)
+    return nil
+}
+
+fn _x64_top_init_string_value(expr) {
+    if expr == nil { return "" }
+    var sx = expr["value"]
+    if sx == nil || oren_is_string(sx) != true {
+        var vtok = expr["token"]
+        if vtok != nil && vtok["literal"] != nil && oren_is_string(vtok["literal"]) == true {
+            sx = vtok["literal"]
+        }
+    }
+    if sx == nil { sx = "" }
+    return sx
+}
+
+fn _x64_top_init_append_string_var(ctx, state, stx, vx, off_encx, slot_offx) {
+    _x64_top_init_flush_empty(ctx, state)
+    var sx = _x64_top_init_string_value(vx)
+    oren_list_push(state["pending_string_names"], stx["name"]["value"])
+    oren_list_push(state["pending_string_values"], sx)
+    oren_list_push(state["pending_string_off_encs"], off_encx)
+    oren_list_push(state["pending_string_slot_offs"], slot_offx)
+    oren_list_push(state["pending_string_toks"], stx["token"])
+    oren_list_push(state["pending_string_items"], {
+        "name": stx["name"]["value"],
+        "value": sx,
+        "off_enc": off_encx,
+        "slot_off": slot_offx,
+        "tok": stx["token"],
+    })
+    var cstr_offx = _x64_append_global_string_batch_cstr0(ctx, sx)
+    if cstr_offx != nil {
+        push_u64_le(state["pending_string_table_buf"], slot_offx)
+        push_u64_le(state["pending_string_table_buf"], cstr_offx)
+        state["pending_string_count"] = state["pending_string_count"] + 1
+    }
+    return nil
+}
+
+fn _x64_top_init_append_empty_or_assign(ctx, state, stx, vx, off_encx, slot_offx) {
+    _x64_top_init_flush_strings(ctx, state)
+    var empty_kind = _x64_empty_container_literal_kind(vx)
+    if empty_kind != nil {
+        if state["pending_empty_kind"] != nil && state["pending_empty_kind"] != empty_kind {
+            _x64_top_init_flush_empty(ctx, state)
+        }
+        if state["pending_empty_kind"] == nil {
+            state["pending_empty_kind"] = empty_kind
+            state["pending_empty_tok"] = stx["token"]
+        }
+        push_u64_le(state["pending_empty_table_buf"], slot_offx)
+        state["pending_empty_count"] = state["pending_empty_count"] + 1
+    } else {
+        _x64_top_init_flush_empty(ctx, state)
+        var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
+        init_assign["__oren_top_level_global_init"] = true
+        init_assign["__oren_global_off_enc"] = off_encx
+        oren_list_push(state["top_stmts"], init_assign)
+    }
+    state["rewrite_runtime_assign"] = state["rewrite_runtime_assign"] + 1
+    return nil
+}
+
+fn _x64_top_init_rewrite_var(ctx, state, stx, user_global_init_in_data_flags, user_global_off_encs) {
+    var idx = state["user_var_idx"]
+    var skip_init = false
+    if idx < oren_list_len(user_global_init_in_data_flags) &&
+       user_global_init_in_data_flags[idx] == true {
+        skip_init = true
+    }
+    state["user_var_idx"] = idx + 1
+    if skip_init == true { return true }
+
+    var off_encx = 0
+    if idx < oren_list_len(user_global_off_encs) { off_encx = user_global_off_encs[idx] }
+    if off_encx <= 0 { err(ctx, "x64 native v0: missing top-level global offset"); return false }
+
+    var slot_offx = off_encx - 1
+    var vx = stx["value"]
+    if vx != nil && vx["type"] == "String" {
+        _x64_top_init_append_string_var(ctx, state, stx, vx, off_encx, slot_offx)
+        return true
+    }
+    _x64_top_init_append_empty_or_assign(ctx, state, stx, vx, off_encx, slot_offx)
+    return true
+}
+
+fn _x64_top_init_append_exec_stmt(ctx, state, stx) {
+    _x64_top_init_flush_all(ctx, state)
+    oren_list_push(state["top_stmts"], stx)
+    return nil
+}
+
+fn _x64_top_init_log_progress(phase_log, state, i, total, rewrite_start_ns) {
+    if phase_log == nil || core.int_mod(i, 50) != 0 { return nil }
+    var rewrite_elapsed_ms = 0
+    if rewrite_start_ns != 0 { rewrite_elapsed_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.rewrite.progress",
+        "i=" + oren_int_to_string(i) +
+        " total=" + oren_int_to_string(total) +
+        " elapsed_ms=" + oren_int_to_string(rewrite_elapsed_ms) +
+        " direct_string=" + oren_int_to_string(state["rewrite_direct_string"]) +
+        " direct_alias=" + oren_int_to_string(state["rewrite_direct_alias"]) +
+        " runtime_assign=" + oren_int_to_string(state["rewrite_runtime_assign"]))
+    return nil
+}
+
+fn _x64_top_init_log_done(phase_log, state, rewrite_start_ns) {
+    if phase_log == nil { return nil }
+    var rewrite_elapsed_done_ms = 0
+    if rewrite_start_ns != 0 { rewrite_elapsed_done_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.top_stmts.done",
+        "top_stmts=" + oren_int_to_string(oren_list_len(state["top_stmts"])) +
+        " rewrite_ms=" + oren_int_to_string(rewrite_elapsed_done_ms) +
+        " direct_string=" + oren_int_to_string(state["rewrite_direct_string"]) +
+        " direct_alias=" + oren_int_to_string(state["rewrite_direct_alias"]) +
+        " runtime_assign=" + oren_int_to_string(state["rewrite_runtime_assign"]))
+    return nil
+}
+
 fn _x64_build_top_level_init_stmts(ctx, user_ordered, user_global_init_in_data_flags, user_global_off_encs) {
     if ctx == nil { return nil }
     if user_ordered == nil { user_ordered = [] }
@@ -556,157 +732,23 @@ fn _x64_build_top_level_init_stmts(ctx, user_ordered, user_global_init_in_data_f
     // Top-level exec order:
     // Preserve source order across `var` initializers and other executable top-level statements.
     // Rewrite `var x = expr` into global-slot assignments at the same position.
-    var top_stmts = []
-    var pending_string_names = []
-    var pending_string_values = []
-    var pending_string_off_encs = []
-    var pending_string_slot_offs = []
-    var pending_string_toks = []
-    var pending_string_items = []
-    var pending_string_table_buf = bytes_new()
-    var pending_string_count = 0
-    var pending_empty_kind = nil
-    var pending_empty_tok = nil
-    var pending_empty_table_buf = bytes_new()
-    var pending_empty_count = 0
+    var state = _x64_top_init_rewrite_state()
     var j = 0
-    var user_var_idx = 0
-    var rewrite_direct_string = 0
-    var rewrite_direct_alias = 0
-    var rewrite_runtime_assign = 0
     var rewrite_start_ns = 0
     if phase_log != nil { rewrite_start_ns = oren_time_now_ns() }
     while j < oren_list_len(user_ordered) {
         var stx = user_ordered[j]
-        if phase_log != nil && core.int_mod(j, 50) == 0 {
-            var rewrite_elapsed_ms = 0
-            if rewrite_start_ns != 0 { rewrite_elapsed_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }
-            _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.rewrite.progress",
-                "i=" + oren_int_to_string(j) +
-                " total=" + oren_int_to_string(oren_list_len(user_ordered)) +
-                " elapsed_ms=" + oren_int_to_string(rewrite_elapsed_ms) +
-                " direct_string=" + oren_int_to_string(rewrite_direct_string) +
-                " direct_alias=" + oren_int_to_string(rewrite_direct_alias) +
-                " runtime_assign=" + oren_int_to_string(rewrite_runtime_assign))
-        }
+        _x64_top_init_log_progress(phase_log, state, j, oren_list_len(user_ordered), rewrite_start_ns)
         if stx != nil && stx["type"] == "Var" {
-            var skip_init = false
-            if user_var_idx < oren_list_len(user_global_init_in_data_flags) &&
-               user_global_init_in_data_flags[user_var_idx] == true {
-                skip_init = true
-            }
-            user_var_idx = user_var_idx + 1
-            if skip_init != true {
-                var off_encx = 0
-                if user_var_idx - 1 < oren_list_len(user_global_off_encs) {
-                    off_encx = user_global_off_encs[user_var_idx - 1]
-                }
-                if off_encx <= 0 { err(ctx, "x64 native v0: missing top-level global offset"); return nil }
-                var slot_offx = off_encx - 1
-                var vx = stx["value"]
-                if vx != nil && vx["type"] == "String" {
-                    _x64_flush_global_empty_container_init_batch(top_stmts, pending_empty_kind, pending_empty_tok, ctx, pending_empty_count, pending_empty_table_buf)
-                    pending_empty_kind = nil
-                    pending_empty_tok = nil
-                    pending_empty_table_buf = bytes_new()
-                    pending_empty_count = 0
-                    var sx = vx["value"]
-                    if sx == nil || oren_is_string(sx) != true {
-                        var vtok = vx["token"]
-                        if vtok != nil && vtok["literal"] != nil && oren_is_string(vtok["literal"]) == true {
-                            sx = vtok["literal"]
-                        }
-                    }
-                    if sx == nil { sx = "" }
-                    oren_list_push(pending_string_names, stx["name"]["value"])
-                    oren_list_push(pending_string_values, sx)
-                    oren_list_push(pending_string_off_encs, off_encx)
-                    oren_list_push(pending_string_slot_offs, slot_offx)
-                    oren_list_push(pending_string_toks, stx["token"])
-                    oren_list_push(pending_string_items, {
-                        "name": stx["name"]["value"],
-                        "value": sx,
-                        "off_enc": off_encx,
-                        "slot_off": slot_offx,
-                        "tok": stx["token"],
-                    })
-                    var cstr_offx = _x64_append_global_string_batch_cstr0(ctx, sx)
-                    if cstr_offx != nil {
-                        push_u64_le(pending_string_table_buf, slot_offx)
-                        push_u64_le(pending_string_table_buf, cstr_offx)
-                        pending_string_count = pending_string_count + 1
-                    }
-                } else {
-                    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_slot_offs, pending_string_toks, pending_string_items, ctx, pending_string_count, pending_string_table_buf)
-                    pending_string_names = []
-                    pending_string_values = []
-                    pending_string_off_encs = []
-                    pending_string_slot_offs = []
-                    pending_string_toks = []
-                    pending_string_items = []
-                    pending_string_table_buf = bytes_new()
-                    pending_string_count = 0
-                    var empty_kind = _x64_empty_container_literal_kind(vx)
-                    if empty_kind != nil {
-                        if pending_empty_kind != nil && pending_empty_kind != empty_kind {
-                            _x64_flush_global_empty_container_init_batch(top_stmts, pending_empty_kind, pending_empty_tok, ctx, pending_empty_count, pending_empty_table_buf)
-                            pending_empty_kind = nil
-                            pending_empty_tok = nil
-                            pending_empty_table_buf = bytes_new()
-                            pending_empty_count = 0
-                        }
-                        if pending_empty_kind == nil {
-                            pending_empty_kind = empty_kind
-                            pending_empty_tok = stx["token"]
-                        }
-                        push_u64_le(pending_empty_table_buf, slot_offx)
-                        pending_empty_count = pending_empty_count + 1
-                    } else {
-                        _x64_flush_global_empty_container_init_batch(top_stmts, pending_empty_kind, pending_empty_tok, ctx, pending_empty_count, pending_empty_table_buf)
-                        pending_empty_kind = nil
-                        pending_empty_tok = nil
-                        pending_empty_table_buf = bytes_new()
-                        pending_empty_count = 0
-                        var init_assign = {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]}
-                        init_assign["__oren_top_level_global_init"] = true
-                        init_assign["__oren_global_off_enc"] = off_encx
-                        oren_list_push(top_stmts, init_assign)
-                    }
-                    rewrite_runtime_assign = rewrite_runtime_assign + 1
-                }
-            }
+            if _x64_top_init_rewrite_var(ctx, state, stx, user_global_init_in_data_flags, user_global_off_encs) != true { return nil }
         } else {
-            _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_slot_offs, pending_string_toks, pending_string_items, ctx, pending_string_count, pending_string_table_buf)
-            pending_string_names = []
-            pending_string_values = []
-            pending_string_off_encs = []
-            pending_string_slot_offs = []
-            pending_string_toks = []
-            pending_string_items = []
-            pending_string_table_buf = bytes_new()
-            pending_string_count = 0
-            _x64_flush_global_empty_container_init_batch(top_stmts, pending_empty_kind, pending_empty_tok, ctx, pending_empty_count, pending_empty_table_buf)
-            pending_empty_kind = nil
-            pending_empty_tok = nil
-            pending_empty_table_buf = bytes_new()
-            pending_empty_count = 0
-            oren_list_push(top_stmts, stx)
+            _x64_top_init_append_exec_stmt(ctx, state, stx)
         }
         j = j + 1
     }
-    _x64_flush_global_string_init_batch(top_stmts, pending_string_names, pending_string_values, pending_string_off_encs, pending_string_slot_offs, pending_string_toks, pending_string_items, ctx, pending_string_count, pending_string_table_buf)
-    _x64_flush_global_empty_container_init_batch(top_stmts, pending_empty_kind, pending_empty_tok, ctx, pending_empty_count, pending_empty_table_buf)
-    if phase_log != nil {
-        var rewrite_elapsed_done_ms = 0
-        if rewrite_start_ns != 0 { rewrite_elapsed_done_ms = (oren_time_now_ns() - rewrite_start_ns) / 1000000 }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.top_stmts.done",
-            "top_stmts=" + oren_int_to_string(oren_list_len(top_stmts)) +
-            " rewrite_ms=" + oren_int_to_string(rewrite_elapsed_done_ms) +
-            " direct_string=" + oren_int_to_string(rewrite_direct_string) +
-            " direct_alias=" + oren_int_to_string(rewrite_direct_alias) +
-            " runtime_assign=" + oren_int_to_string(rewrite_runtime_assign))
-    }
-    return top_stmts
+    _x64_top_init_flush_all(ctx, state)
+    _x64_top_init_log_done(phase_log, state, rewrite_start_ns)
+    return state["top_stmts"]
 }
 
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
