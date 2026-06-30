@@ -1537,6 +1537,67 @@ fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used
     }
 }
 
+fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log) {
+    if used_rtobj != true {
+        if trace_prog { print("[x64_compile] runtime local-fn rewrite") }
+        callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
+    }
+    if trace_prog { print("[x64_compile] user local-fn rewrite") }
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
+
+    var fns = nil
+    if used_rtobj == true {
+        if trace_prog { print("[x64_compile] collect functions (rtobj merge)") }
+        fns = coreir.collect_top_level_functions_merge(ctx, linked2, "x64 native v0")
+    } else {
+        if trace_prog { print("[x64_compile] extract functions") }
+        fns = _extract_functions_v0(ctx, linked2)
+    }
+    if fns == nil { return nil }
+    if trace_prog { print("[x64_compile] collect functions done fns=" + oren_int_to_string(oren_list_len(fns))) }
+
+    if trace_prog { print("[x64_compile] type constructors start") }
+    var type_ctors = _x64_extract_type_constructors_v0(ctx, linked2)
+    if type_ctors == nil { return nil }
+    var tci = 0
+    while tci < oren_list_len(type_ctors) { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
+    if trace_prog { print("[x64_compile] type constructors done count=" + oren_int_to_string(oren_list_len(type_ctors))) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fnmeta.done",
+            "fns=" + oren_int_to_string(oren_list_len(fns)) +
+            " type_ctors=" + oren_int_to_string(oren_list_len(type_ctors)))
+    }
+
+    var has_main = false
+    if ctx["declared_functions"] != nil && ctx["declared_functions"]["main"] != nil { has_main = true }
+
+    if trace_prog { print("[x64_compile] ffi decls start") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.start", "") }
+    _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_prog { print("[x64_compile] ffi decls done") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.done", "") }
+
+    if trace_prog { print("[x64_compile] top-level globals start") }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.start", "") }
+    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts)
+    if top_info == nil { return nil }
+    if trace_prog { print("[x64_compile] top-level globals done") }
+    if phase_log != nil {
+        var top_ops = 0
+        if top_info["top_stmt_count"] != nil { top_ops = top_info["top_stmt_count"] }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.done",
+            "top_stmts=" + oren_int_to_string(top_ops))
+    }
+
+    _x64_collect_callable_uses(ctx, linked2, top_info, type_ctors, trace_prog, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    var wrappers = _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log)
+    if wrappers == nil { return nil }
+    return {"fns": fns, "type_ctors": type_ctors, "has_main": has_main, "top_info": top_info, "wrappers": wrappers}
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -1616,85 +1677,13 @@ fn native_compile_program_x64(linked, platform) {
     var runtime_stmts = runtime_info["runtime_stmts"]
     var user_stmts = runtime_info["user_stmts"]
 
-    // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
-    // so Tier‑1 native backends share the same nested-function semantics.
-    if used_rtobj != true {
-        if trace_prog { print("[x64_compile] runtime local-fn rewrite") }
-        callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
-    }
-    if trace_prog { print("[x64_compile] user local-fn rewrite") }
-    callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
-
-    var fns = nil
-    if used_rtobj == true {
-        // Runtime function metadata already seeded from rtobj; add user declarations.
-        if trace_prog { print("[x64_compile] collect functions (rtobj merge)") }
-        fns = coreir.collect_top_level_functions_merge(ctx, linked2, "x64 native v0")
-    } else {
-        if trace_prog { print("[x64_compile] extract functions") }
-        fns = _extract_functions_v0(ctx, linked2)
-    }
-    if fns == nil { return ctx }
-    if trace_prog { print("[x64_compile] collect functions done fns=" + oren_int_to_string(oren_list_len(fns))) }
-
-    // --- Type constructors (Tier‑1 parity with arm64 native) ---
-    //
-    // `struct`/`class` declarations are first-class constructors in Oren native codegen:
-    //   struct User { id, name }  =>  fn User(id, name) { return {"id": id, "name": name} }
-    //
-    // arm64 implements this in its native stmt compiler; x64 must synthesize the same
-    // constructor functions so programs using type constructors compile on x86_64 too.
-    if trace_prog { print("[x64_compile] type constructors start") }
-    var type_ctors = _x64_extract_type_constructors_v0(ctx, linked2)
-    if type_ctors == nil { return ctx }
-    var tci = 0
-    while tci < oren_list_len(type_ctors) { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
-    if trace_prog { print("[x64_compile] type constructors done count=" + oren_int_to_string(oren_list_len(type_ctors))) }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.fnmeta.done",
-            "fns=" + oren_int_to_string(oren_list_len(fns)) +
-            " type_ctors=" + oren_int_to_string(oren_list_len(type_ctors)))
-    }
-    // Rolling parity with other backends:
-    // - `fn main()` is optional; if absent, only `__top_level__` runs.
-    var has_main = false
-    if ctx["declared_functions"] != nil && ctx["declared_functions"]["main"] != nil { has_main = true }
-
-    // --- FFI declarations (Tier‑1 parity) ---
-    //
-    // Collect `ffi name` declarations so:
-    // - the name is reserved (globals can't shadow it)
-    // - direct calls can resolve to backend-emitted stubs
-    if trace_prog { print("[x64_compile] ffi decls start") }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.start", "") }
-    _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_prog { print("[x64_compile] ffi decls done") }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.done", "") }
-
-    // --- Global vars + top-level statements (Tier‑1 convergence) ---
-    //
-    // Collect top-level `var` declarations into `ctx["globals"]` and build the statement list
-    // that will run before `main` as a synthesized `__top_level__` function.
-    //
-    // We scan after function collection so we can reject global names that shadow functions.
-    if trace_prog { print("[x64_compile] top-level globals start") }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.start", "") }
-    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts)
-    if top_info == nil { return ctx }
-    if trace_prog { print("[x64_compile] top-level globals done") }
-    if phase_log != nil {
-        var top_ops = 0
-        if top_info["top_stmt_count"] != nil { top_ops = top_info["top_stmt_count"] }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.done",
-            "top_stmts=" + oren_int_to_string(top_ops))
-    }
-
-    var stmts_all = _x64_collect_callable_uses(ctx, linked2, top_info, type_ctors, trace_prog, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-
-    var wrappers = _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log)
-    if wrappers == nil { return ctx }
+    var prep = _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log)
+    if prep == nil { return ctx }
+    var fns = prep["fns"]
+    var type_ctors = prep["type_ctors"]
+    var has_main = prep["has_main"] == true
+    var top_info = prep["top_info"]
+    var wrappers = prep["wrappers"]
 
     // --- Panic symbolication (best-effort) ---
     //

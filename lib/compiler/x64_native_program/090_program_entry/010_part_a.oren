@@ -553,6 +553,186 @@ fn _x64_rtobj_allocate_runtime_globals(ctx, runtime_vars, phase_log) {
     return true
 }
 
+fn _x64_rtobj_decl_display_name(fn0) {
+    var nm0 = ""
+    if fn0 != nil {
+        var n0 = fn0["name"]
+        if n0 != nil {
+            if oren_is_string(n0) == true { nm0 = n0 }
+            else if n0["value"] != nil { nm0 = n0["value"] }
+        }
+    }
+    return nm0
+}
+
+fn _x64_rtobj_keep_top_decl(top_decls, top_keep, ent) {
+    if top_decls == nil { return nil }
+    if oren_list_len(top_decls) < top_keep {
+        oren_list_push(top_decls, ent)
+        return top_decls
+    }
+    var min_idx = 0
+    var min_ns = 0
+    if top_decls[0] != nil && top_decls[0]["ns"] != nil {
+        min_ns = top_decls[0]["ns"]
+    } else {
+        min_ns = ent["ns"]
+    }
+    var j0 = 1
+    while j0 < oren_list_len(top_decls) {
+        var e0 = top_decls[j0]
+        if e0 != nil && e0["ns"] != nil && e0["ns"] < min_ns {
+            min_ns = e0["ns"]
+            min_idx = j0
+        }
+        j0 = j0 + 1
+    }
+    if ent["ns"] > min_ns { top_decls[min_idx] = ent }
+    return top_decls
+}
+
+fn _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {
+    var sum_decl_ns = 0
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.start",
+            "fns=" + oren_int_to_string(oren_list_len(fns)))
+    }
+    var i = 0
+    while i < oren_list_len(fns) {
+        if phase_log != nil && i > 0 && core.int_mod(i, 250) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.progress",
+                "i=" + oren_int_to_string(i) +
+                " total=" + oren_int_to_string(oren_list_len(fns)))
+        }
+        var t_decl0 = 0
+        if trace_decls { t_decl0 = oren_time_now_ns() }
+        _compile_function_v0(ctx, fns[i], platform, false, call_depth_default_enabled)
+        if trace_decls {
+            var dt_decl = oren_time_now_ns() - t_decl0
+            sum_decl_ns = sum_decl_ns + dt_decl
+            top_decls = _x64_rtobj_keep_top_decl(top_decls, top_keep, {
+                "ns": dt_decl,
+                "type": "Function",
+                "name": _x64_rtobj_decl_display_name(fns[i])
+            })
+        }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+            if trace { print("[rtobj] x64 build failed (compile runtime fn): " + ctx["errors"][0]) }
+            return nil
+        }
+        i = i + 1
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.done",
+            "fns=" + oren_int_to_string(oren_list_len(fns)))
+    }
+    return {"sum_decl_ns": sum_decl_ns, "top_decls": top_decls}
+}
+
+fn _x64_rtobj_synthesize_wrappers(ctx) {
+    callable.collect_named_fn_value_uses_in_stmt_list(ctx, ctx["rtobj_runtime_stmts"])
+    var wrappers = []
+    var need = ctx["fnwrap_needed"]
+    var wi = 0
+    while wi < oren_list_len(ctx["func_decl_order"]) {
+        var nm0 = ctx["func_decl_order"][wi]
+        if nm0 == nil || nm0 == "" { wi = wi + 1; continue }
+        if need == nil || need[nm0] == nil { wi = wi + 1; continue }
+
+        var ar0 = nil
+        if ctx["func_arity"] != nil {
+            var ar0_enc = ctx["func_arity"][nm0]
+            if oren_type_tag(ar0_enc) != 0 { ar0 = ar0_enc - 1 }
+        }
+        var vf0 = nil
+        if ctx["func_varargs_fixed"] != nil {
+            var vf0_enc = ctx["func_varargs_fixed"][nm0]
+            if oren_type_tag(vf0_enc) != 0 { vf0 = vf0_enc - 1 }
+        }
+        if ar0 != nil {
+            var stw = callable.synth_fnwrap(nm0, ar0, vf0)
+            if stw != nil && stw["type"] == "ExprStmt" && stw["expr"] != nil && stw["expr"]["type"] == "Function" {
+                oren_list_push(wrappers, stw["expr"])
+            } else {
+                err(ctx, "x64 native rtobj: failed to synthesize fnwrap for " + nm0)
+                return nil
+            }
+        }
+        wi = wi + 1
+    }
+    var lj = 0
+    while lj < oren_list_len(ctx["lambda_defs"]) {
+        var def = ctx["lambda_defs"][lj]
+        var stl = callable.synth_lambda_wrapper(def)
+        if stl != nil && stl["type"] == "ExprStmt" && stl["expr"] != nil && stl["expr"]["type"] == "Function" {
+            oren_list_push(wrappers, stl["expr"])
+        } else {
+            err(ctx, "x64 native rtobj: failed to synthesize lambda wrapper")
+            return nil
+        }
+        lj = lj + 1
+    }
+    return wrappers
+}
+
+fn _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {
+    var sum_decl_ns = 0
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.start",
+            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+    }
+    var j = 0
+    while j < oren_list_len(wrappers) {
+        if phase_log != nil && j > 0 && core.int_mod(j, 250) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.progress",
+                "i=" + oren_int_to_string(j) +
+                " total=" + oren_int_to_string(oren_list_len(wrappers)))
+        }
+        var t_decl1 = 0
+        if trace_decls { t_decl1 = oren_time_now_ns() }
+        _compile_function_v0(ctx, wrappers[j], platform, false, call_depth_default_enabled)
+        if trace_decls {
+            var dt_decl1 = oren_time_now_ns() - t_decl1
+            sum_decl_ns = sum_decl_ns + dt_decl1
+            if top_decls == nil { top_decls = [] }
+            top_decls = _x64_rtobj_keep_top_decl(top_decls, top_keep, {
+                "ns": dt_decl1,
+                "type": "Wrapper",
+                "name": _x64_rtobj_decl_display_name(wrappers[j])
+            })
+        }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+            if trace { print("[rtobj] x64 build failed (compile wrapper): " + ctx["errors"][0]) }
+            return nil
+        }
+        j = j + 1
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.done",
+            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+    }
+    return {"sum_decl_ns": sum_decl_ns, "top_decls": top_decls}
+}
+
+fn _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) {
+    if top_decls == nil { return nil }
+    print("[x64_rtobj] top decls (us), sum_compile_ms=" + oren_int_to_string(sum_decl_ns / 1000000) + ":")
+    var ti = 0
+    while ti < oren_list_len(top_decls) {
+        var e2 = top_decls[ti]
+        if e2 != nil {
+            var nm2 = e2["name"]
+            if nm2 == nil { nm2 = "" }
+            var ty2 = e2["type"]
+            if ty2 == nil { ty2 = "" }
+            var us = e2["ns"] / 1000
+            print("  " + oren_int_to_string(us) + "us " + ty2 + " " + nm2)
+        }
+        ti = ti + 1
+    }
+    return nil
+}
+
 fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, phase_log) {
     // Compile the injected native runtime into a reusable object blob for x86_64 native.
     //
@@ -594,6 +774,7 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
 
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }
+    ctx["rtobj_runtime_stmts"] = stmts
 
     var fns = _x64_rtobj_collect_function_meta(ctx, stmts, phase_log)
     if fns == nil { return nil }
@@ -618,190 +799,29 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
     var top_keep = 12
     var sum_decl_ns = 0
     if trace_decls { top_decls = [] }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.start",
-            "fns=" + oren_int_to_string(oren_list_len(fns)))
-    }
     var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
-    var i = 0
-    while i < oren_list_len(fns) {
-        if phase_log != nil && i > 0 && core.int_mod(i, 250) == 0 {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.progress",
-                "i=" + oren_int_to_string(i) +
-                " total=" + oren_int_to_string(oren_list_len(fns)))
-        }
-        var t_decl0 = 0
-        if trace_decls { t_decl0 = oren_time_now_ns() }
-        _compile_function_v0(ctx, fns[i], platform, false, call_depth_default_enabled)
-        if trace_decls {
-            var dt_decl = oren_time_now_ns() - t_decl0
-            sum_decl_ns = sum_decl_ns + dt_decl
-            // Keep only the slowest `top_keep` decls to avoid huge logs.
-            var fn0 = fns[i]
-            var nm0 = ""
-            if fn0 != nil {
-                var n0 = fn0["name"]
-                if n0 != nil {
-                    if oren_is_string(n0) == true { nm0 = n0 }
-                    else if n0["value"] != nil { nm0 = n0["value"] }
-                }
-            }
-            var ent = {"ns": dt_decl, "type": "Function", "name": nm0}
-            if oren_list_len(top_decls) < top_keep {
-                oren_list_push(top_decls, ent)
-            } else {
-                var min_idx = 0
-                var min_ns = 0
-                if top_decls[0] != nil && top_decls[0]["ns"] != nil {
-                    min_ns = top_decls[0]["ns"]
-                } else {
-                    // Defensive: should not happen, but avoid panicking in trace mode.
-                    min_ns = dt_decl
-                }
-                var j0 = 1
-                while j0 < oren_list_len(top_decls) {
-                    var e0 = top_decls[j0]
-                    if e0 != nil && e0["ns"] != nil && e0["ns"] < min_ns {
-                        min_ns = e0["ns"]
-                        min_idx = j0
-                    }
-                    j0 = j0 + 1
-                }
-                if dt_decl > min_ns { top_decls[min_idx] = ent }
-            }
-        }
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-            if trace { print("[rtobj] x64 build failed (compile runtime fn): " + ctx["errors"][0]) }
-            return nil
-        }
-        i = i + 1
-    }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.done",
-            "fns=" + oren_int_to_string(oren_list_len(fns)))
-    }
+    var decl_res = _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabled,
+        trace_decls, top_decls, top_keep, phase_log, trace)
+    if decl_res == nil { return nil }
+    sum_decl_ns = sum_decl_ns + decl_res["sum_decl_ns"]
+    top_decls = decl_res["top_decls"]
     if trace_sum { t_decls_done = oren_time_now_ns() }
 
     // Synthesize only wrappers needed by the runtime itself:
     // - named functions used as first-class values (tracked in ctx["fnwrap_needed"])
     // - lambda wrappers (always needed when a lambda literal exists)
-    callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts)
-    var wrappers = []
-    var need = ctx["fnwrap_needed"]
-    var wi = 0
-    while wi < oren_list_len(ctx["func_decl_order"]) {
-        var nm0 = ctx["func_decl_order"][wi]
-        if nm0 == nil || nm0 == "" { wi = wi + 1; continue }
-        if need == nil || need[nm0] == nil { wi = wi + 1; continue }
-
-        var ar0 = nil
-        if ctx["func_arity"] != nil {
-        var ar0_enc = ctx["func_arity"][nm0]
-        if oren_type_tag(ar0_enc) != 0 { ar0 = ar0_enc - 1 }
-    }
-    var vf0 = nil
-    if ctx["func_varargs_fixed"] != nil {
-        var vf0_enc = ctx["func_varargs_fixed"][nm0]
-        if oren_type_tag(vf0_enc) != 0 { vf0 = vf0_enc - 1 }
-    }
-        if ar0 != nil {
-            var stw = callable.synth_fnwrap(nm0, ar0, vf0)
-            if stw != nil && stw["type"] == "ExprStmt" && stw["expr"] != nil && stw["expr"]["type"] == "Function" {
-                oren_list_push(wrappers, stw["expr"])
-            } else {
-                err(ctx, "x64 native rtobj: failed to synthesize fnwrap for " + nm0)
-                return nil
-            }
-        }
-        wi = wi + 1
-    }
-    var lj = 0
-    while lj < oren_list_len(ctx["lambda_defs"]) {
-        var def = ctx["lambda_defs"][lj]
-        var stl = callable.synth_lambda_wrapper(def)
-        if stl != nil && stl["type"] == "ExprStmt" && stl["expr"] != nil && stl["expr"]["type"] == "Function" {
-            oren_list_push(wrappers, stl["expr"])
-        } else {
-            err(ctx, "x64 native rtobj: failed to synthesize lambda wrapper")
-            return nil
-        }
-        lj = lj + 1
-    }
+    var wrappers = _x64_rtobj_synthesize_wrappers(ctx)
+    if wrappers == nil { return nil }
 
     // Compile synthesized wrappers.
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.start",
-            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
-    }
-    var j = 0
-    while j < oren_list_len(wrappers) {
-        if phase_log != nil && j > 0 && core.int_mod(j, 250) == 0 {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.progress",
-                "i=" + oren_int_to_string(j) +
-                " total=" + oren_int_to_string(oren_list_len(wrappers)))
-        }
-        var t_decl1 = 0
-        if trace_decls { t_decl1 = oren_time_now_ns() }
-        _compile_function_v0(ctx, wrappers[j], platform, false, call_depth_default_enabled)
-        if trace_decls {
-            var dt_decl1 = oren_time_now_ns() - t_decl1
-            sum_decl_ns = sum_decl_ns + dt_decl1
-            var fn1 = wrappers[j]
-            var nm1 = ""
-            if fn1 != nil {
-                var n1 = fn1["name"]
-                if n1 != nil {
-                    if oren_is_string(n1) == true { nm1 = n1 }
-                    else if n1["value"] != nil { nm1 = n1["value"] }
-                }
-            }
-            var ent1 = {"ns": dt_decl1, "type": "Wrapper", "name": nm1}
-            if top_decls == nil { top_decls = [] }
-            if oren_list_len(top_decls) < top_keep {
-                oren_list_push(top_decls, ent1)
-            } else {
-                var min_idx1 = 0
-                var min_ns1 = top_decls[0]["ns"]
-                var k1 = 1
-                while k1 < oren_list_len(top_decls) {
-                    var e1 = top_decls[k1]
-                    if e1 != nil && e1["ns"] != nil && e1["ns"] < min_ns1 {
-                        min_ns1 = e1["ns"]
-                        min_idx1 = k1
-                    }
-                    k1 = k1 + 1
-                }
-                if dt_decl1 > min_ns1 { top_decls[min_idx1] = ent1 }
-            }
-        }
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-            if trace { print("[rtobj] x64 build failed (compile wrapper): " + ctx["errors"][0]) }
-            return nil
-        }
-        j = j + 1
-    }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.done",
-            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
-    }
+    var wrap_res = _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled,
+        trace_decls, top_decls, top_keep, phase_log, trace)
+    if wrap_res == nil { return nil }
+    sum_decl_ns = sum_decl_ns + wrap_res["sum_decl_ns"]
+    top_decls = wrap_res["top_decls"]
     if trace_sum { t_wrap_done = oren_time_now_ns() }
 
-    if trace_decls && top_decls != nil {
-        print("[x64_rtobj] top decls (us), sum_compile_ms=" + oren_int_to_string(sum_decl_ns / 1000000) + ":")
-        var ti = 0
-        while ti < oren_list_len(top_decls) {
-            var e2 = top_decls[ti]
-            if e2 != nil {
-                var nm2 = e2["name"]
-                if nm2 == nil { nm2 = "" }
-                var ty2 = e2["type"]
-                if ty2 == nil { ty2 = "" }
-                var us = e2["ns"] / 1000
-                print("  " + oren_int_to_string(us) + "us " + ty2 + " " + nm2)
-            }
-            ti = ti + 1
-        }
-    }
+    if trace_decls && top_decls != nil { _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) }
 
     // Materialize blobs for cache storage.
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.finalize.start", "") }

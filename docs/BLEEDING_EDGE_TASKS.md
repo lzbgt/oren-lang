@@ -223,6 +223,12 @@ This file is the concise task view. Detailed implementation status lives in
 															 to a process-family helper; the capped profile now shows
 															 `x64_native_program.oren` at about 37.3s total / 27.8s parse, with
 															 `_x64_build_runtime_obj` exposed at about 355ms as the next parser body.
+															 X64 runtime-object build now delegates runtime decl compilation, wrapper
+															 synthesis/compilation, and top-decl reporting, and
+															 `native_compile_program_x64` delegates function/global preparation to a
+															 compact helper; the capped profile now shows `x64_native_program.oren` at
+															 about 37.4s total / 27.8s parse, with `_emit_ops_in_fn` exposed at about
+															 344ms as the next parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
