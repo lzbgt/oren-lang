@@ -164,7 +164,10 @@
 <p>				  x64 self-host parse profile for <code>x64_native_program.oren</code> moved from about</p>
 <p>				  41.4s total / 30.4s parse to 38.2s total / 27.8s parse, shifting the hot</p>
 <p>				  parser body from <code>_emit_intrinsic_sys_linux_x64</code> to</p>
-<p>				  <code>native_compile_program_x64</code>.</p>
+<p>				  <code>native_compile_program_x64</code>. <code>native_compile_program_x64</code> now delegates</p>
+<p>				  debug metadata and entry global-root table emission to helpers; total x64</p>
+<p>				  module parse stayed essentially flat in the capped profile (~38.5s), and</p>
+<p>				  the exposed parser target is <code>_emit_eval_int_to_rax</code>.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
