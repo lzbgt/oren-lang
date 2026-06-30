@@ -433,6 +433,13 @@
 <p>  with <code>_emit_list_push_intrinsic_v0_x64</code> exposed at ~176ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>X64 generic <code>oren_list_push</code> lowering now mirrors the list-int helper layout,</li>
+</ul>
+<p>  delegating argument spilling, validation, header reads, slow/fast path</p>
+<p>  emission, and optional header tracing through focused helpers. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~38.0s total / ~28.3s parse,</p>
+<p>  with <code>_x64_build_runtime_obj</code> exposed at ~180ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

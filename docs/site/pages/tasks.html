@@ -407,10 +407,10 @@
 <p>																														 preparation now delegates duplicate checks, direct <code>.data</code> initialization</p>
 <p>																														 probes, fact collection, metadata registration, and slow-slot timing through</p>
 <p>																														 helper bodies; <code>assign_i32</code> op lowering now delegates top-level string fast</p>
-<p>																															 paths, empty-container fast paths, local/global facts, and global-slot</p>
-<p>																															 stores. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																															 37.6s total / 28.2s parse, with <code>_emit_intrinsic_sys_linux_net_x64</code> exposed</p>
-<p>																															 at about 181ms as the next parser body. X64 Linux net syscall lowering now</p>
+<p>																																 paths, empty-container fast paths, local/global facts, and global-slot</p>
+<p>																																 stores. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																 37.6s total / 28.2s parse, with <code>_emit_intrinsic_sys_linux_net_x64</code> exposed</p>
+<p>																																 at about 181ms as the next parser body. X64 Linux net syscall lowering now</p>
 <p>																															 delegates socket and 3-argument address syscall families through focused</p>
 <p>																																 helpers, making <code>_emit_intrinsic_sys_linux_net_x64</code> a router over the</p>
 <p>																																 existing net helper bodies. The capped profile now shows</p>
@@ -420,6 +420,11 @@
 <p>																																 emission through platform-specific helpers after shared validation. The capped</p>
 <p>																																 profile now shows <code>x64_native_program.oren</code> at about 37.3s total / 27.9s parse,</p>
 <p>																																 with <code>_emit_list_push_intrinsic_v0_x64</code> exposed at about 176ms as the next</p>
+<p>																																 parser body. X64 generic <code>oren_list_push</code> lowering now mirrors the list-int</p>
+<p>																																 helper layout, delegating argument spilling, validation, header reads,</p>
+<p>																																 slow/fast path emission, and optional header tracing through focused helpers.</p>
+<p>																																	 The capped profile now shows <code>x64_native_program.oren</code> at about 38.0s total /</p>
+<p>																																	 28.3s parse, with <code>_x64_build_runtime_obj</code> exposed at about 180ms as the next</p>
 <p>																																 parser body.</p>
 <p>												     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
