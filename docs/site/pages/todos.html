@@ -352,6 +352,14 @@
 <p>  <code>x64_native_program.oren</code> at ~37.0s total / ~27.6s parse, with</p>
 <p>  <code>_emit_fast_list_push_while_x64</code> exposed at ~242ms as the next parser body.</p>
 <ul>
+<li>X64 generic list-push and list-int dot fast-loop lowering now delegate</li>
+</ul>
+<p>  preparation, validation, cursor setup, loop headers, unrolled pairs, single-step</p>
+<p>  bodies, and count/fixup updates through helper bodies, while local label fixup</p>
+<p>  helpers write label positions to the function label map. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~37.7s total / ~28.3s parse, with</p>
+<p>  <code>_emit_fast_list_dot_while_x64</code> exposed at ~244ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

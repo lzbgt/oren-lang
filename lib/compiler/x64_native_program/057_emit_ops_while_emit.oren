@@ -199,7 +199,7 @@ fn _x64_fast_list_int_push_labels(ctx) {
     }
 }
 
-fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, local_fixups) {
+fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, label_names, local_fixups) {
     var lists = prep["lists"]
     var list_count = prep["list_count"]
     var base = prep["base"]
@@ -209,7 +209,7 @@ fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, local_fixup
     var a1 = prep["a1"]
     var a2 = prep["a2"]
     var trace_reserve = prep["trace_reserve"]
-    var l_slow = labels["slow"]
+    var l_slow = label_names["slow"]
 
     // i < 0 => slow
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
@@ -301,15 +301,15 @@ fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, local_fixup
     return true
 }
 
-fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, local_fixups) {
+fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
     var lists = prep["lists"]
     var pushes = prep["pushes"]
     var list_count = prep["list_count"]
     var base = prep["base"]
     var off_idx = prep["off_idx"]
     var off_n = prep["off_n"]
-    var l_fast_cond = labels["cond"]
-    var l_fast_end = labels["end"]
+    var l_fast_cond = label_names["cond"]
+    var l_fast_end = label_names["end"]
 
     _emit_label(ctx, labels, l_fast_cond)
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
@@ -387,12 +387,12 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
     var l_slow = list_labels["slow"]
     var l_done = list_labels["done"]
 
-    if _x64_fast_list_int_push_validate_lists(ctx, prep, locals, list_labels, local_fixups) != true {
+    if _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, list_labels, local_fixups) != true {
         _intr_tmp_pop(ctx, base)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     }
-    if _x64_fast_list_int_push_emit_loop(ctx, prep, locals, list_labels, local_fixups) != true {
+    if _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, list_labels, local_fixups) != true {
         _intr_tmp_pop(ctx, base)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
@@ -411,16 +411,10 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
     return nil
 }
 
-fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
-    if ctx == nil || op == nil || info == nil { return nil }
-    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-
+fn _x64_fast_list_push_prepare(ctx, info, locals) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 {
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    }
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 { return nil }
     var a0 = a0_enc - 1
     var a1 = a1_enc - 1
 
@@ -433,30 +427,58 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
     var off_idx = locals[idx_name]
     var off_n = nil
     if n_name != nil { off_n = locals[n_name] }
-    if oren_type_tag(off_idx) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if n_name != nil && oren_type_tag(off_n) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if n_name == nil && n_const == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if oren_type_tag(off_idx) == 0 { return nil }
+    if n_name != nil && oren_type_tag(off_n) == 0 { return nil }
+    if n_name == nil && n_const == nil { return nil }
 
     var list_count = oren_list_len(lists)
     var extra = 0
     if n_name == nil { extra = 1 }
     var base = _intr_tmp_push(ctx, iadd(list_count, list_count) + extra)
-    if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if oren_type_tag(base) == 0 { return nil }
     if n_name == nil {
         var n_slot = _intr_tmp_off(ctx, locals, base + list_count * 2)
         if oren_type_tag(n_slot) == 0 {
             _intr_tmp_pop(ctx, base)
-            return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+            return nil
         }
         bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, n_const))
         _emit_mov_mrbp_r64(ctx, 0 - n_slot, 0)
         off_n = n_slot
     }
 
-    var l_slow = _new_label(ctx, "list_push_slow")
-    var l_fast_cond = _new_label(ctx, "list_push_cond")
-    var l_fast_end = _new_label(ctx, "list_push_end")
-    var l_done = _new_label(ctx, "list_push_done")
+    return {
+        "a0": a0,
+        "a1": a1,
+        "idx": idx_name,
+        "n": n_name,
+        "lists": lists,
+        "pushes": pushes,
+        "off_idx": off_idx,
+        "off_n": off_n,
+        "list_count": list_count,
+        "base": base
+    }
+}
+
+fn _x64_fast_list_push_labels(ctx) {
+    return {
+        "slow": _new_label(ctx, "list_push_slow"),
+        "cond": _new_label(ctx, "list_push_cond"),
+        "end": _new_label(ctx, "list_push_end"),
+        "done": _new_label(ctx, "list_push_done")
+    }
+}
+
+fn _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, label_names, local_fixups) {
+    var lists = prep["lists"]
+    var list_count = prep["list_count"]
+    var base = prep["base"]
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var a0 = prep["a0"]
+    var a1 = prep["a1"]
+    var l_slow = label_names["slow"]
 
     // i < 0 => slow
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
@@ -472,13 +494,10 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
     while li < list_count {
         var list_name = lists[li]
         var off_list = locals[list_name]
-        if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+        if oren_type_tag(off_list) == 0 { return false }
         var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
         var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
-        if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 {
-            _intr_tmp_pop(ctx, base)
-            return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-        }
+        if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return false }
 
         // list -> slot
         _emit_mov_r64_mrbp(ctx, 0, 0 - off_list)
@@ -488,7 +507,7 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
 
         // tracked node
         _emit_find_tracked_node_x64(ctx, 0, 11)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
         bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
 
@@ -542,6 +561,18 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
 
         li = li + 1
     }
+    return true
+}
+
+fn _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
+    var lists = prep["lists"]
+    var pushes = prep["pushes"]
+    var list_count = prep["list_count"]
+    var base = prep["base"]
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var l_fast_cond = label_names["cond"]
+    var l_fast_end = label_names["end"]
 
     _emit_label(ctx, labels, l_fast_cond)
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
@@ -562,10 +593,10 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
         }
         var slot_list2 = _intr_tmp_off(ctx, locals, base + list_index * 2)
         var slot_buf2 = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
-        if oren_type_tag(slot_list2) == 0 || oren_type_tag(slot_buf2) == 0 { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(slot_list2) == 0 || oren_type_tag(slot_buf2) == 0 { return false }
 
         _emit_eval_int_to_rax(ctx, push["value"], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
 
         _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
         _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
@@ -585,16 +616,53 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
 
     _emit_label(ctx, labels, l_fast_end)
+    return true
+}
+
+fn _x64_fast_list_push_update_counts(ctx, prep, locals) {
+    var list_count = prep["list_count"]
+    var base = prep["base"]
+    var off_idx = prep["off_idx"]
+
     // Update list counts after loop exit.
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
     var li2 = 0
     while li2 < list_count {
         var slot_list3 = _intr_tmp_off(ctx, locals, base + li2 * 2)
-        if oren_type_tag(slot_list3) == 0 { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(slot_list3) == 0 { return false }
         _emit_mov_r64_mrbp(ctx, 13, 0 - slot_list3)
         bytes_extend(ctx["code"], core.insn_mov_mr64_r64(13, 10))
         _emit_trace_list_header_x64(ctx, 13, 4, 2) // list_push / LIST
         li2 = li2 + 1
+    }
+    return true
+}
+
+fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+
+    var prep = _x64_fast_list_push_prepare(ctx, info, locals)
+    if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    var base = prep["base"]
+    var list_labels = _x64_fast_list_push_labels(ctx)
+    var l_slow = list_labels["slow"]
+    var l_done = list_labels["done"]
+
+    if _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, list_labels, local_fixups) != true {
+        _intr_tmp_pop(ctx, base)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+    if _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, list_labels, local_fixups) != true {
+        _intr_tmp_pop(ctx, base)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+    if _x64_fast_list_push_update_counts(ctx, prep, locals) != true {
+        _intr_tmp_pop(ctx, base)
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     }
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
