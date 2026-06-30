@@ -134,40 +134,47 @@ fn _x64_setup_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, w
     return nil
 }
 
-fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_log) {
-    // Register global slots as GC roots (native parity with C backend).
-    // Do this after GC mode init so native_gc_register_root is active.
-    //
-    // Do not emit one `lea + call + fixup` sequence per global. Large self-hosted
-    // compilers have thousands of globals, and that old strategy made x64 entry
-    // generation/fixups dominate compile time. Match arm64: write root offsets to
-    // `.data` and emit one tiny runtime loop over that table.
-    var gmap = ctx["globals"]
+fn _x64_global_root_name_is_skipped(gname) {
+    if gname == "g_gc_reuse_bad_list_last_ptr" { return true }
+    if gname == "g_find_cache_ptr0" { return true }
+    if gname == "g_find_cache_ptr1" { return true }
+    if gname == "g_find_cache_node0" { return true }
+    if gname == "g_find_cache_node1" { return true }
+    return false
+}
+
+fn _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg, name_reg) {
+    if trace_root_names != nil && trace_root_names != 0 && gname != nil {
+        var name_off = _data_add_cstr0(ctx, gname)
+        var lea_ptr_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(arg_reg, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_ptr_pos + 3, "data_off": off})
+        var lea_name_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(name_reg, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_name_pos + 3, "data_off": name_off})
+        var call_name_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_name_pos, "name": "native_gc_register_root_name"})
+    }
+    return nil
+}
+
+fn _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg) {
+    var root_names_src = ctx["global_root_names"]
+    var root_offsets_src = ctx["global_root_offsets"]
+    if root_names_src == nil || root_offsets_src == nil { return nil }
+    if oren_list_len(root_names_src) != oren_list_len(root_offsets_src) { return nil }
+
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
-    var root_offsets = []
-    var roots_scanned = 0
-    var root_count = 0
-    var arg_reg = 7 // rdi
-    var name_reg = 6 // rsi
-    if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // rcx
-    if platform != nil && platform["os"] == "windows" { name_reg = 2 } // rdx
-    if trace_prog { print("[x64_compile] global root registration start") }
-    var root_names_src = ctx["global_root_names"]
-    var root_offsets_src = ctx["global_root_offsets"]
     var root_runtime_src = ctx["global_root_is_runtime"]
-    if root_names_src != nil && root_offsets_src != nil &&
-       oren_list_len(root_names_src) == oren_list_len(root_offsets_src) {
+    var roots_scanned = 0
         var gi = 0
         while gi < oren_list_len(root_offsets_src) {
             roots_scanned = roots_scanned + 1
             var gname = root_names_src[gi]
-            if gname == "g_gc_reuse_bad_list_last_ptr" ||
-               gname == "g_find_cache_ptr0" ||
-               gname == "g_find_cache_ptr1" ||
-               gname == "g_find_cache_node0" ||
-               gname == "g_find_cache_node1" {
+            if _x64_global_root_name_is_skipped(gname) == true {
                 gi = gi + 1
                 continue
             }
@@ -182,22 +189,20 @@ fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_l
                 continue
             }
             var off = root_offsets_src[gi]
-            if trace_root_names != nil && trace_root_names != 0 && gname != nil {
-                var name_off = _data_add_cstr0(ctx, gname)
-                var lea_ptr_pos = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(arg_reg, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_ptr_pos + 3, "data_off": off})
-                var lea_name_pos = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(name_reg, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_name_pos + 3, "data_off": name_off})
-                var call_name_pos = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], core.insn_call_rel32(0))
-                oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_name_pos, "name": "native_gc_register_root_name"})
-            }
+            _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg, name_reg)
             oren_list_push(root_offsets, off)
             gi = gi + 1
         }
-    } else if gmap != nil {
+    return roots_scanned
+}
+
+fn _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg) {
+    var gmap = ctx["globals"]
+    if gmap == nil { return 0 }
+    var runtime_globals = ctx["runtime_globals"]
+    var skip_runtime_globals = ctx["skip_runtime_global_roots"]
+    var trace_root_names = ctx["trace_gc_root_names"]
+    var roots_scanned = 0
         var gi2 = 0
         var pair = [nil, nil]
         while 1 {
@@ -205,11 +210,7 @@ fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_l
             if okg == 0 { break }
             roots_scanned = roots_scanned + 1
             var gname = pair[0]
-            if gname == "g_gc_reuse_bad_list_last_ptr" ||
-               gname == "g_find_cache_ptr0" ||
-               gname == "g_find_cache_ptr1" ||
-               gname == "g_find_cache_node0" ||
-               gname == "g_find_cache_node1" {
+            if _x64_global_root_name_is_skipped(gname) == true {
                 gi2 = gi2 + 1
                 continue
             }
@@ -221,24 +222,16 @@ fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_l
             var off_enc = pair[1]
             if oren_type_tag(off_enc) == 1 {
                 var off = off_enc - 1
-                if trace_root_names != nil && trace_root_names != 0 && gname != nil {
-                    var name_off = _data_add_cstr0(ctx, gname)
-                    var lea_ptr_pos = bytes_len(ctx["code"])
-                    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(arg_reg, 0))
-                    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_ptr_pos + 3, "data_off": off})
-                    var lea_name_pos = bytes_len(ctx["code"])
-                    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(name_reg, 0))
-                    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_name_pos + 3, "data_off": name_off})
-                    var call_name_pos = bytes_len(ctx["code"])
-                    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-                    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_name_pos, "name": "native_gc_register_root_name"})
-                }
+                _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg, name_reg)
                 oren_list_push(root_offsets, off)
             }
             gi2 = gi2 + 1
         }
-    }
-    root_count = oren_list_len(root_offsets)
+    return roots_scanned
+}
+
+fn _x64_emit_global_root_table_loop(ctx, scratch_base, root_offsets, arg_reg) {
+    var root_count = oren_list_len(root_offsets)
     if root_count > 0 {
         while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
         var root_table_off = bytes_len(ctx["data"])
@@ -287,6 +280,10 @@ fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_l
         _emit_label(ctx, labels_roots, l_roots_done)
         _patch_local_fixups(ctx, labels_roots, fixups_roots)
     }
+    return root_count
+}
+
+fn _x64_log_entry_global_roots(ctx, trace_prog, phase_log, roots_scanned, root_count) {
     if trace_prog { print("[x64_compile] global root registration done count=" + oren_int_to_string(roots_scanned)) }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.entry.global_roots.done",
@@ -294,6 +291,30 @@ fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_l
             " roots=" + oren_int_to_string(root_count) +
             " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
+    return nil
+}
+
+fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_log) {
+    // Register global slots as GC roots (native parity with C backend).
+    // Do this after GC mode init so native_gc_register_root is active.
+    //
+    // Do not emit one `lea + call + fixup` sequence per global. Large self-hosted
+    // compilers have thousands of globals, and that old strategy made x64 entry
+    // generation/fixups dominate compile time. Match arm64: write root offsets to
+    // `.data` and emit one tiny runtime loop over that table.
+    var root_offsets = []
+    var arg_reg = 7 // rdi
+    var name_reg = 6 // rsi
+    if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // rcx
+    if platform != nil && platform["os"] == "windows" { name_reg = 2 } // rdx
+    if trace_prog { print("[x64_compile] global root registration start") }
+
+    var roots_scanned = _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg)
+    if roots_scanned == nil {
+        roots_scanned = _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg)
+    }
+    var root_count = _x64_emit_global_root_table_loop(ctx, scratch_base, root_offsets, arg_reg)
+    _x64_log_entry_global_roots(ctx, trace_prog, phase_log, roots_scanned, root_count)
     return nil
 }
 

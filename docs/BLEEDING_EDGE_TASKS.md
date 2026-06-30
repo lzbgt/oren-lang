@@ -326,11 +326,18 @@ This file is the concise task view. Detailed implementation status lives in
 																													 `_x64_expr_is_floaty` exposed at about 217ms as the next parser body. X64
 																													 float-return classification, Windows entry argv synthesis, and spawn
 																													 expression lowering now delegate their large parser bodies into focused
-																													 helper shards while preserving the same runtime helper boundaries. The
-																													 capped profile now shows `x64_native_program.oren` at about 38.1s total /
-																													 28.7s parse, with `_compile_function_v0` exposed at about 211ms as the next
-																													 parser body.
-											     Serial/thread module
+																														 helper shards while preserving the same runtime helper boundaries. The
+																														 capped profile now shows `x64_native_program.oren` at about 38.1s total /
+																														 28.7s parse, with `_compile_function_v0` exposed at about 211ms as the next
+																														 parser body. X64 function compilation now delegates phase setup, context
+																														 reset, ops analysis logging, frame prologue emission, call-depth entry hook
+																														 emission, and done-phase detail formatting; entry global-root emission now
+																														 delegates skip filtering, traced name emission, vector/map collection,
+																														 root-table loop emission, and phase logging. The capped profile now shows
+																														 `x64_native_program.oren` at about 38.4s total / 28.7s parse, with
+																														 `_emit_eval_pointer_call_intrinsic_x64` exposed at about 199ms as the next
+																														 parser body.
+												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
