@@ -342,7 +342,12 @@ This file is the concise task view. Detailed implementation status lives in
 																														 calls, receiver-kind dispatch, and list/map path emission through helper
 																														 bodies. The capped profile now shows `x64_native_program.oren` at about
 																														 37.4s total / 28.0s parse, with `_emit_list_int_push_intrinsic_v0_x64`
-																														 exposed at about 189ms as the next parser body.
+																														 exposed at about 189ms as the next parser body. X64 `oren_list_int_push`
+																														 lowering now delegates argument spilling, list-int validation, value/header
+																														 preparation, slow/fast push paths, and optional list-header tracing through
+																														 helper bodies. The capped profile now shows `x64_native_program.oren` at
+																														 about 37.6s total / 28.0s parse, with `_x64_prepare_one_user_global_slot`
+																														 exposed at about 188ms as the next parser body.
 												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

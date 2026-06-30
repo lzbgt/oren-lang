@@ -480,6 +480,34 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
         return nil
     }
 
+    var state = _x64_list_int_push_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    var base = state["base"]
+    var off_list = state["off_list"]
+    var off_val = state["off_val"]
+
+    var labels = {}
+    var local_fixups = []
+    state["labels"] = labels
+    state["fixups"] = local_fixups
+    state["l_fast"] = _new_label(ctx, "list_int_push_fast")
+    state["l_done"] = _new_label(ctx, "list_int_push_done")
+
+    _x64_emit_list_int_push_validate(ctx, locals, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _x64_emit_list_int_push_value_and_header(ctx, locals, state)
+    _x64_emit_list_int_push_slow_or_fast(ctx, locals, state)
+
+    // return nil
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+
+    _emit_label(ctx, labels, state["l_done"])
+    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _x64_list_int_push_spill_args(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
@@ -499,22 +527,25 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     // list -> rdx, value -> r8
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)
+    return {"base": base, "off_list": off_list, "off_val": off_val}
+}
 
-    var labels = {}
-    var local_fixups = []
+fn _x64_emit_list_int_push_validate(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var off_list = state["off_list"]
+    var off_val = state["off_val"]
+
     var l_non_nil = _new_label(ctx, "list_int_push_non_nil")
-    var l_fast = _new_label(ctx, "list_int_push_fast")
-    var l_done = _new_label(ctx, "list_int_push_done")
-
     // nil => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_push on nil")
     _emit_label(ctx, labels, l_non_nil)
 
-    // Tier‑1 safety: never read object headers from untracked pointers.
+    // Tier-1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list) // rdx = list
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)  // r8  = value
 
@@ -548,7 +579,12 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 3, 8)
     _emit_abort_panic_str(ctx, "list_int_push on non-list")
     _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
 
+fn _x64_emit_list_int_push_value_and_header(ctx, locals, state) {
+    var off_list = state["off_list"]
+    var off_val = state["off_val"]
     // Validate value is int (no tracked pointer / no nil/bool).
     _emit_call_rel32_1arg_x64(ctx, locals, "_list_int_check_value", off_val)
     // Call clobbers caller-saved regs; reload list/value for header reads + store.
@@ -571,6 +607,16 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // buf
+    return nil
+}
+
+fn _x64_emit_list_int_push_slow_or_fast(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var l_fast = state["l_fast"]
+    var l_done = state["l_done"]
+    var off_list = state["off_list"]
+    var off_val = state["off_val"]
 
     // if count < cap => fast; else slow runtime call
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
@@ -591,7 +637,11 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     // count++ ; *(list) = count
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 9))
+    _x64_emit_list_int_push_trace(ctx)
+    return nil
+}
 
+fn _x64_emit_list_int_push_trace(ctx) {
     if ctx["trace_native_list_hdr"] != nil {
         var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
         var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
@@ -610,13 +660,6 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
         }
     }
-
-    // return nil
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-    _intr_tmp_pop(ctx, base)
     return nil
 }
 
