@@ -246,7 +246,12 @@ This file is the concise task view. Detailed implementation status lives in
 																		 context-switch, and symbol-resolution lowering to focused helpers. The capped
 																		 profile now shows `x64_native_program.oren` at about 36.7s total / 27.9s parse,
 																		 with `_emit_intrinsic_sys_linux_x64` exposed at about 303ms as the next parser
-																		 body.
+																		 body. Linux x64 top-level syscall lowering now delegates Windows-compat ENOSYS
+																		 stubs, getrandom/getentropy, and ulock/futex paths to focused helpers while
+																		 preserving validation early returns. The capped profile now shows
+																		 `x64_native_program.oren` at about 38.8s total / 29.8s parse, with
+																		 `_emit_fast_list_int_get_sum_while_x64` exposed at about 311ms as the next
+																		 parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

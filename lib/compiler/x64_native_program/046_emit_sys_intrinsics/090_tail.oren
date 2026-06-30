@@ -1,8 +1,4 @@
-fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
-    if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
-    if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
-    if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
-
+fn _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) {
     if nm == "sys_qpc_frequency" {
         // Windows-only intrinsic (QueryPerformanceFrequency).
         // On non-Windows targets we still want builds to succeed, because sources commonly gate
@@ -13,7 +9,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_qpc_frequency expects 1 arg"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_qpc_frequency does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
 
     if nm == "sys_create_io_completion_port" {
@@ -21,28 +17,28 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_create_io_completion_port expects 4 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_create_io_completion_port does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
     if nm == "sys_get_queued_completion_status_ex" {
         // Windows-only intrinsic (GetQueuedCompletionStatusEx).
         if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex expects 6 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
     if nm == "sys_post_queued_completion_status" {
         // Windows-only intrinsic (PostQueuedCompletionStatus).
         if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_post_queued_completion_status expects 4 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_post_queued_completion_status does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
     if nm == "sys_cancel_io_ex" {
         // Windows-only intrinsic (CancelIoEx).
         if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_cancel_io_ex expects 2 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_cancel_io_ex does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
 
     if nm == "sys_wsarecv" {
@@ -50,27 +46,31 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsarecv expects 6 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecv does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
     if nm == "sys_wsarecvfrom" {
         // Windows-only intrinsic (WSARecvFrom overlapped).
         if args == nil || oren_list_len(args) != 8 { err(ctx, "x64 native v0: sys_wsarecvfrom expects 8 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecvfrom does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
     if nm == "sys_wsasend" {
         // Windows-only intrinsic (WSASend overlapped).
         if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsasend expects 6 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsasend does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
 
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_random_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_getentropy" {
         // Linux x86_64: no getentropy syscall; return -ENOSYS and let runtime fall back to getrandom.
         _emit_return_enosys_x64(ctx)
-        return nil
+        return true
     }
 
     if nm == "sys_getrandom" {
@@ -98,9 +98,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], core.insn_syscall())
 
         _intr_tmp_pop(ctx, base)
-        return nil
+        return true
     }
 
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_ulock_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_ulock_wait" {
         // NOTE (portability): despite the Darwin-y name, the native runtime uses sys_ulock_wait/wake
         // as a portable "wait-on-address" primitive for internal locks.
@@ -197,7 +201,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _patch_local_fixups(ctx, labels_ulw, fixups_ulw)
 
         _intr_tmp_pop(ctx, base_ulw)
-        return nil
+        return true
     }
 
     if nm == "sys_ulock_wake" {
@@ -237,8 +241,19 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _patch_local_fixups(ctx, labels_ulk, fixups_ulk)
 
         _intr_tmp_pop(ctx, base_ulk)
-        return nil
+        return true
     }
+
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
+    if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
+    if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
+    if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
+    if _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) != false { return nil }
+    if _emit_intrinsic_sys_linux_random_x64(ctx, nm, expr, locals, args) != false { return nil }
+    if _emit_intrinsic_sys_linux_ulock_x64(ctx, nm, expr, locals, args) != false { return nil }
 
     if args == nil { args = [] }
     var capsule = _x64_capsule_enabled(ctx)
