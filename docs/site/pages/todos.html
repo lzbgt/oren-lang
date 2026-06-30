@@ -81,8 +81,10 @@
 </ul>
 <p>  markers for path resolution, import scanning, and dependency descent. Repo-owned</p>
 <p>  <code>lib/compiler/<strong></code> and <code>lib/std/</strong></code> files use header-only import scanning after</p>
-<p>  verifying all 1495 repo Oren files keep imports before code, reducing the</p>
-<p>  capped x64 self-host <code>link.discover.done</code> measurement from ~45.7s to ~26.8s.</p>
+<p>  verifying all 1495 repo Oren files keep imports before code, and include</p>
+<p>  aggregator detection now exits at the first real code line for ordinary</p>
+<p>  children. Capped x64 self-host <code>link.discover.done</code> dropped from ~45.7s to</p>
+<p>  ~26.8s after header scanning and then to ~0.675s after aggregator early exit.</p>
 <ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>

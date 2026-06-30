@@ -654,7 +654,6 @@ fn _ml_include_list_from_src_if_aggregator(full_path, src) {
     // We instead parse each include child and then merge the AST fragments.
     var trace = oren_env("OREN_TRACE_IMPORT_SCAN") != nil
     var includes = []
-    var has_code = false
     var safe = _ml_scan_should_use_safe()
     if trace {
         print("[include_scan] file=" + full_path + " bytes=" + oren_int_to_string(oren_string_len(src)))
@@ -674,7 +673,7 @@ fn _ml_include_list_from_src_if_aggregator(full_path, src) {
                 }
                 oren_list_push(includes, inc_full)
             } else {
-                if !_ml_line_is_only_comment_or_ws(line) { has_code = true }
+                if !_ml_line_is_only_comment_or_ws(line) { return nil }
             }
             line_start = i + 1
         }
@@ -691,11 +690,10 @@ fn _ml_include_list_from_src_if_aggregator(full_path, src) {
             }
             oren_list_push(includes, inc_full2)
         } else {
-            if !_ml_line_is_only_comment_or_ws(line2) { has_code = true }
+            if !_ml_line_is_only_comment_or_ws(line2) { return nil }
         }
     }
 
-    if has_code { return nil }
     if oren_list_len(includes) == 0 { return nil }
     return includes
 }

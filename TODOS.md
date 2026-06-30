@@ -43,8 +43,10 @@ design evidence lives under `project-doc/`.
 - Module discovery now emits bounded `link.discover_module.done` attribution
   markers for path resolution, import scanning, and dependency descent. Repo-owned
   `lib/compiler/**` and `lib/std/**` files use header-only import scanning after
-  verifying all 1495 repo Oren files keep imports before code, reducing the
-  capped x64 self-host `link.discover.done` measurement from ~45.7s to ~26.8s.
+  verifying all 1495 repo Oren files keep imports before code, and include
+  aggregator detection now exits at the first real code line for ordinary
+  children. Capped x64 self-host `link.discover.done` dropped from ~45.7s to
+  ~26.8s after header scanning and then to ~0.675s after aggregator early exit.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

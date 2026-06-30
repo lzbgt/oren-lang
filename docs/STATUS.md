@@ -116,8 +116,10 @@ Facts from the 2026-05-28 implementation pass:
 			  `link.discover_module.done` attribution markers for path resolution, import
 			  scanning, and recursive dependency descent. Repo-owned `lib/compiler/**` and
 			  `lib/std/**` sources use header-only import scanning after a repo scan verified
-			  all 1495 Oren files keep imports before code; capped x64 self-host discovery
-			  dropped from roughly 45.7s to 26.8s.
+			  all 1495 Oren files keep imports before code. Include-aggregator detection
+			  now exits at the first real code line for ordinary children, so capped x64
+			  self-host discovery dropped from roughly 45.7s to 26.8s after header scanning
+			  and then to about 0.675s after aggregator early exit.
 		  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

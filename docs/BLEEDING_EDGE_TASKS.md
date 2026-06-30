@@ -117,9 +117,10 @@ This file is the concise task view. Detailed implementation status lives in
 									     `link.discover_module.done` path/scan/dependency attribution, and
 									     repo-owned `lib/compiler/**` plus `lib/std/**` files use header-only
 									     import scanning after a repo scan proved all 1495 Oren files keep
-									     imports before code. Capped x64 self-host discovery dropped from
-									     roughly 45.7s to 26.8s; remaining discovery cost is concentrated in
-									     include-heavy compiler scanner nodes such as `x64_native_program`.
+									     imports before code. Include-aggregator detection now exits at the first
+									     real code line for ordinary children, so capped x64 self-host discovery
+									     dropped from roughly 45.7s to 26.8s after header scanning and then to
+									     about 0.675s after aggregator early exit.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
