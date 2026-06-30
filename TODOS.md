@@ -123,6 +123,11 @@ design evidence lives under `project-doc/`.
   `041_emit_infix_expr.oren`. The capped profile shows `x64_native_program.oren`
   at ~37.1s total / ~27.4s parse, with `_compile_function_v0` exposed at ~468ms
   as the next parser body.
+- `_compile_function_v0` now delegates frame/local/intrinsic-temp sizing to
+  `_x64_prepare_function_frame_v0`, and Linux x64 net syscall lowering now
+  delegates fd2/accept/sockopt/message families to helper bodies. The capped
+  profile shows `x64_native_program.oren` at ~37.6s total / ~27.8s parse, with
+  `native_compile_program_x64` exposed again at ~445ms as the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

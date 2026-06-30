@@ -121,6 +121,157 @@ fn _x64_call_depth_default_enabled(platform) {
     return true
 }
 
+fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots) {
+    // Compute locals, reserved spill regions, intrinsic-temp pool, literal slots,
+    // outgoing call area, and callee-save region. This helper intentionally emits no
+    // machine code so `_compile_function_v0` keeps the original prologue/body order.
+    var locals = {}
+    var local_next = 8
+    var params = fn_node["params"]
+    var pc = 0
+    if params != nil { pc = oren_list_len(params) }
+    var i = 0
+    while i < pc {
+        var p = params[i]
+        var pnm = p["value"]
+        if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return nil }
+        locals[pnm] = local_next
+        local_next = local_next + 8
+
+        var ann = p["ann_type"]
+        if ann != nil {
+            if ctx["locals_floaty"] != nil {
+                if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
+            }
+            if ctx["locals_inty"] != nil {
+                if ann == "i32" || ann == "i64" { ctx["locals_inty"][pnm] = true }
+            }
+        }
+        var pk = oren_int_to_string(i)
+        var inferred_floaty = nil
+        var inferred_inty = nil
+        if ctx["func_param_floaty"] != nil && ctx["func_param_floaty"][name] != nil {
+            inferred_floaty = ctx["func_param_floaty"][name][pk]
+        }
+        if ctx["func_param_inty"] != nil && ctx["func_param_inty"][name] != nil {
+            inferred_inty = ctx["func_param_inty"][name][pk]
+        }
+        if inferred_floaty == true {
+            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][pnm] = true }
+        } else if inferred_inty == true {
+            if ctx["locals_inty"] != nil { ctx["locals_inty"][pnm] = true }
+        }
+        i = i + 1
+    }
+
+    local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
+    if local_next < 0 { return nil }
+
+    if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
+    locals["$tmp0"] = local_next
+    local_next = local_next + 8
+    if locals["$tmp_cmp"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_cmp used"); return nil }
+    locals["$tmp_cmp"] = local_next
+    local_next = local_next + 8
+    if locals["$tmp_shift"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_shift used"); return nil }
+    locals["$tmp_shift"] = local_next
+    local_next = local_next + 8
+    if locals["$tmp_div"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_div used"); return nil }
+    locals["$tmp_div"] = local_next
+    local_next = local_next + 8
+    if locals["$tmp_gc_tick"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_gc_tick used"); return nil }
+    locals["$tmp_gc_tick"] = local_next
+    local_next = local_next + 8
+
+    _x64_tmp_names_init(ctx)
+    var tmp_names = ctx["__x64_tmp_names"]
+    var ti = 1
+    while ti <= 8 {
+        var tnm = oren_list_get(tmp_names, ti - 1)
+        if locals[tnm] != nil { err(ctx, "x64 native v0: reserved local name " + tnm + " used"); return nil }
+        locals[tnm] = local_next
+        local_next = local_next + 8
+        ti = ti + 1
+    }
+
+    var max_intr = _max_intr_tmp_in_ops(ctx, ops, locals)
+    if oren_type_tag(max_intr) == 0 { max_intr = 0 }
+    var intr_lim = max_intr + 8
+    if intr_lim < 16 { intr_lim = 16 }
+    if intr_lim > 4096 {
+        err(ctx, "x64 native v0: intrinsic temp demand too high (need " + oren_int_to_string(intr_lim) + ")")
+        return nil
+    }
+    ctx["intr_tmp_cursor"] = 1
+    ctx["intr_tmp_limit"] = intr_lim
+    ctx["intr_tmp_base_off"] = local_next
+    var intr_bytes = intr_lim
+    intr_bytes = iadd(intr_bytes, intr_bytes) // *2
+    intr_bytes = iadd(intr_bytes, intr_bytes) // *4
+    intr_bytes = iadd(intr_bytes, intr_bytes) // *8
+    local_next = iadd(local_next, intr_bytes)
+
+    var literal_slot_count = 0
+    if needs_literal_slots == true {
+        var ld = 0
+        while ld < 8 {
+            var hn1 = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld)
+            if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
+            locals[hn1] = local_next
+            local_next = local_next + 8
+            literal_slot_count = literal_slot_count + 1
+
+            var hn2 = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld)
+            if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
+            locals[hn2] = local_next
+            local_next = local_next + 8
+            literal_slot_count = literal_slot_count + 1
+            ld = ld + 1
+        }
+    }
+
+    var locals_pre_align_bytes = local_next - 8
+    var locals_size = locals_pre_align_bytes
+    var align = abi.stack_align_bytes(ctx["abi"])
+    if align < 1 { align = 16 }
+    while core.int_mod(locals_size, align) != 0 { locals_size = locals_size + 1 }
+
+    var regc = abi.max_int_reg_args(ctx["abi"])
+    var shadow = abi.caller_shadow_bytes(ctx["abi"])
+    var slot = abi.stack_arg_slot_bytes(ctx["abi"])
+    var stack_slots = 0
+    if max_call_argc > regc { stack_slots = max_call_argc - regc }
+    var need_call_area = shadow + stack_slots * slot
+    var call_area = abi.callee_call_area_bytes(ctx["abi"])
+    if need_call_area > call_area { call_area = need_call_area }
+    while core.int_mod(call_area, align) != 0 { call_area = call_area + 1 }
+    ctx["cur_call_area_bytes"] = call_area
+
+    var save_regs = abi.callee_saved_regs(ctx["abi"])
+    var save_n = 0
+    if save_regs != nil { save_n = oren_list_len(save_regs) }
+    var save_bytes = save_n * 8
+    while core.int_mod(save_bytes, align) != 0 { save_bytes = save_bytes + 8 }
+    var frame_size = locals_size + save_bytes + call_area
+
+    return {
+        "locals": locals,
+        "params": params,
+        "pc": pc,
+        "regc": regc,
+        "shadow": shadow,
+        "max_intr": max_intr,
+        "intr_lim": intr_lim,
+        "literal_slot_count": literal_slot_count,
+        "locals_pre_align_bytes": locals_pre_align_bytes,
+        "locals_size": locals_size,
+        "call_area": call_area,
+        "save_regs": save_regs,
+        "save_n": save_n,
+        "frame_size": frame_size
+    }
+}
+
 fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_depth_default_enabled) {
     if fn_node == nil { return nil }
     var name = fn_node["name"]
@@ -199,53 +350,22 @@ fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_de
     bytes_extend(ctx["code"], core.insn_push_rbp())
     bytes_extend(ctx["code"], core.insn_mov_rbp_rsp())
 
-    // Allocate locals + (Windows) call shadow/args area.
-    //
-    // Locals are addressed via RBP-negative offsets in 8-byte steps.
-    var locals = {}
-    var local_next = 8
-    var params = fn_node["params"]
-    var pc = 0
-    if params != nil { pc = oren_list_len(params) }
-    var i = 0
-    while i < pc {
-        var p = params[i]
-        var pnm = p["value"]
-        if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return nil }
-        locals[pnm] = local_next
-        local_next = local_next + 8
-        // Type annotation hinting (rolling):
-        //
-        // Parameters annotated as `f32`/`f64` must participate in the float-propagation
-        // heuristic so float intrinsics (e.g. `oren_f32_to_u32_bits`) accept identifiers.
-	        var ann = p["ann_type"]
-	        if ann != nil {
-	            if ctx["locals_floaty"] != nil {
-	                if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
-	            }
-	            if ctx["locals_inty"] != nil {
-	                if ann == "i32" || ann == "i64" { ctx["locals_inty"][pnm] = true }
-	            }
-	        }
-	        var pk = oren_int_to_string(i)
-	        var inferred_floaty = nil
-	        var inferred_inty = nil
-	        if ctx["func_param_floaty"] != nil && ctx["func_param_floaty"][name] != nil {
-	            inferred_floaty = ctx["func_param_floaty"][name][pk]
-	        }
-	        if ctx["func_param_inty"] != nil && ctx["func_param_inty"][name] != nil {
-	            inferred_inty = ctx["func_param_inty"][name][pk]
-	        }
-	        if inferred_floaty == true {
-	            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][pnm] = true }
-	        } else if inferred_inty == true {
-	            if ctx["locals_inty"] != nil { ctx["locals_inty"][pnm] = true }
-	        }
-	        i = i + 1
-	    }
-
-    local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
-    if local_next < 0 { return nil }
+    var frame = _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots)
+    if frame == nil { return nil }
+    var locals = frame["locals"]
+    var params = frame["params"]
+    var pc = frame["pc"]
+    var regc = frame["regc"]
+    var shadow = frame["shadow"]
+    var max_intr = frame["max_intr"]
+    var intr_lim = frame["intr_lim"]
+    var literal_slot_count = frame["literal_slot_count"]
+    var locals_pre_align_bytes = frame["locals_pre_align_bytes"]
+    var locals_size = frame["locals_size"]
+    var call_area = frame["call_area"]
+    var save_regs = frame["save_regs"]
+    var save_n = frame["save_n"]
+    var frame_size = frame["frame_size"]
     if phase_this && phase_summary_only != true {
         _x64_program_phase_log_append(phase_log, "x64.codegen.function.locals.done",
             "name=" + name +
@@ -258,112 +378,6 @@ fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_de
         t_stage = oren_time_now_ns()
     }
 
-    // Reserve a spill slot so expression lowering can safely handle calls on RHS without
-    // perturbing RSP (keeps ABI alignment intact for nested calls).
-    if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
-    locals["$tmp0"] = local_next
-    local_next = local_next + 8
-
-    // Reserve a spill slot for condition comparison lowering. This must be distinct from $tmp0
-    // because RHS expression evaluation may itself use $tmp0 (calls/infix spill), and we must
-    // preserve the LHS value until the final cmp.
-    if locals["$tmp_cmp"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_cmp used"); return nil }
-    locals["$tmp_cmp"] = local_next
-    local_next = local_next + 8
-
-    // Reserve a spill slot for shift lowering, for the same reason as $tmp_cmp: RHS expression
-    // evaluation can use $tmp0, so we need an independent slot to preserve the LHS value.
-    if locals["$tmp_shift"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_shift used"); return nil }
-    locals["$tmp_shift"] = local_next
-    local_next = local_next + 8
-
-    // Reserve a spill slot for division lowering, because idiv uses RAX/RDX and we need
-    // to preserve the dividend while evaluating the divisor.
-    if locals["$tmp_div"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_div used"); return nil }
-    locals["$tmp_div"] = local_next
-    local_next = local_next + 8
-
-    // Cooperative GC safepoint throttle (Tier‑1 parity with arm64 + C transpiler):
-    // One per-function tick counter used by loop-header safepoint injection.
-    if locals["$tmp_gc_tick"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_gc_tick used"); return nil }
-    locals["$tmp_gc_tick"] = local_next
-    local_next = local_next + 8
-
-    // Reserve additional general-purpose spill slots used by x64 intrinsics.
-    // These are intentionally generic so future intrinsic lowering doesn't need to keep
-    // growing the reserved namespace (keeps ABI stable while the backend evolves).
-    _x64_tmp_names_init(ctx)
-    var tmp_names = ctx["__x64_tmp_names"]
-    var ti = 1
-    while ti <= 8 {
-        var tnm = oren_list_get(tmp_names, ti - 1)
-        if locals[tnm] != nil { err(ctx, "x64 native v0: reserved local name " + tnm + " used"); return nil }
-        locals[tnm] = local_next
-        local_next = local_next + 8
-        ti = ti + 1
-    }
-
-    // Now that we have a complete locals map (params + locals + reserved `$tmp*`), compute the
-    // maximum intrinsic-temp pool usage needed for this function.
-    //
-    // This MUST be done after local collection so we can correctly size indirect call lowering:
-    // - calling a local/global variable that shadows a function name (`locals > globals > functions`)
-    // - calling a non-identifier callee expression (first-class callables)
-    var max_intr = _max_intr_tmp_in_ops(ctx, ops, locals)
-    if oren_type_tag(max_intr) == 0 { max_intr = 0 }
-    var intr_lim = max_intr + 8
-    if intr_lim < 16 { intr_lim = 16 }
-    // Rolling safety ceiling: if a function needs an extreme amount of temp spilling,
-    // fail fast rather than silently capping and producing miscompiles.
-    if intr_lim > 4096 {
-        err(ctx, "x64 native v0: intrinsic temp demand too high (need " + oren_int_to_string(intr_lim) + ")")
-        return nil
-    }
-    // Reset the intrinsic temp allocator for this function.
-    // Native-runtime robustness: reserve slot 0 so `base==0` never aliases `nil` (0).
-    ctx["intr_tmp_cursor"] = 1
-    ctx["intr_tmp_limit"] = intr_lim
-    // Per-function intrinsic-temp spill region base offset (RBP-relative).
-    // Cleared/overwritten for each function; used by `_intr_tmp_off`.
-    ctx["intr_tmp_base_off"] = nil
-
-    // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
-    // These slots are addressed via `IntrTmp{idx}` (not string-named locals) to avoid:
-    // - per-use `$tmp_intrN` string allocations
-    // - per-function locals-map inserts for each intrinsic temp
-    //
-    // Slots are a contiguous region of 8-byte stack words.
-    ctx["intr_tmp_base_off"] = local_next
-    var intr_bytes = intr_lim
-    intr_bytes = iadd(intr_bytes, intr_bytes) // *2
-    intr_bytes = iadd(intr_bytes, intr_bytes) // *4
-    intr_bytes = iadd(intr_bytes, intr_bytes) // *8
-    local_next = iadd(local_next, intr_bytes)
-
-    var literal_slot_count = 0
-    if needs_literal_slots == true {
-        // Reserve literal-building spill slots. These must be re-entrant because list/map literals
-        // can be nested (e.g. `[0, 1, [0, 0]]` in for-in lowering).
-        //
-        // Note: `oren_list_push` intrinsic lowering uses `$tmp1..$tmp6`, so we must not depend on
-        // those across nested expression evaluation. Dedicated `$tmp_lit_*` slots avoid clobbering.
-        var ld = 0
-        while ld < 8 {
-            var hn1 = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld)
-            if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
-            locals[hn1] = local_next
-            local_next = local_next + 8
-            literal_slot_count = literal_slot_count + 1
-
-            var hn2 = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld)
-            if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
-            locals[hn2] = local_next
-            local_next = local_next + 8
-            literal_slot_count = literal_slot_count + 1
-            ld = ld + 1
-        }
-    }
-
     // Bounded debug aid: print frame sizing for one function name.
     // Example:
     //   OREN_TRACE_X64_FN_FRAME=oren_string_from_bytes OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1 ...
@@ -372,66 +386,11 @@ fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_de
         print("[x64_fn] name=" + name +
               " max_call_argc=" + oren_int_to_string(max_call_argc) +
               " max_intr=" + oren_int_to_string(max_intr) +
-              " intr_lim=" + oren_int_to_string(intr_lim) +
-              " literal_slots=" + oren_int_to_string(literal_slot_count) +
-              " locals_pre_align_bytes=" + oren_int_to_string(local_next - 8))
+	              " intr_lim=" + oren_int_to_string(intr_lim) +
+	              " literal_slots=" + oren_int_to_string(literal_slot_count) +
+	              " locals_pre_align_bytes=" + oren_int_to_string(locals_pre_align_bytes))
     }
 
-    var locals_size = local_next - 8
-    var align = abi.stack_align_bytes(ctx["abi"])
-    if align < 1 { align = 16 }
-    // Align locals area to ABI stack alignment so nested calls keep the required boundary.
-    while core.int_mod(locals_size, align) != 0 { locals_size = locals_size + 1 }
-
-    // Reserve an outgoing call area at the bottom of the frame so call lowering can:
-    // - satisfy Win64 32B shadow requirement (if applicable)
-    // - place stack args without mutating RSP inside expression lowering
-    //
-    // For SysV, shadow is 0 and stack args begin at [rsp+0] at the call site.
-    // For Win64, stack args begin at [rsp+0x20] at the call site.
-    var regc = abi.max_int_reg_args(ctx["abi"])
-    var shadow = abi.caller_shadow_bytes(ctx["abi"])
-    var slot = abi.stack_arg_slot_bytes(ctx["abi"])
-    var stack_slots = 0
-    if max_call_argc > regc { stack_slots = max_call_argc - regc }
-    var need_call_area = shadow + stack_slots * slot
-    var call_area = abi.callee_call_area_bytes(ctx["abi"])
-    if need_call_area > call_area { call_area = need_call_area }
-    // Keep RSP aligned after `push rbp; sub rsp, frame_size` so all nested calls satisfy the ABI.
-    while core.int_mod(call_area, align) != 0 { call_area = call_area + 1 }
-
-    // Win64 ABI: keep RSP 16B-aligned in non-prolog code regions.
-    //
-    // MSVC x64 conventions require the stack pointer to remain 16-byte aligned outside
-    // prolog/epilog sequences (non-leaf functions included).
-    //
-    // Our prologue uses `push rbp` (8B) and then subtracts `frame_size`. Because the
-    // incoming RSP at function entry is 8 mod 16 (return address pushed by the call),
-    // `push rbp` brings it back to 0 mod 16. Therefore `frame_size` must be a multiple
-    // of 16 to keep RSP aligned for all nested calls (including WinAPI IAT calls).
-
-    // Provide call lowering with the reserved call-area capacity for this function.
-    ctx["cur_call_area_bytes"] = call_area
-
-    // ABI hygiene (Tier-1): preserve a stable callee-saved set.
-    //
-    // The injected runtime is compiled by the same backend, and we freely call across
-    // user/runtime boundaries. Preserving a stable set of non-volatile regs prevents subtle
-    // miscompiles when callers keep values in registers across calls.
-    //
-    // IMPORTANT (arch unification): r14/r15 are reserved global heap registers on x64
-    // (heap_limit/heap_ptr, mirrors arm64 X27/X28). They MUST NOT be saved/restored by
-    // prologues/epilogues, otherwise allocator updates performed inside callees would be
-    // rolled back on return. The platform ABI tables reflect this by excluding r14/r15
-    // from `callee_saved_regs` for x64.
-    var save_regs = abi.callee_saved_regs(ctx["abi"])
-    var save_n = 0
-    if save_regs != nil { save_n = oren_list_len(save_regs) }
-    var save_bytes = save_n * 8
-    // Keep the full frame aligned so nested calls satisfy the ABI.
-    while core.int_mod(save_bytes, align) != 0 { save_bytes = save_bytes + 8 }
-
-    var frame_size = locals_size + save_bytes + call_area
     if frame_size > 0 { bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(frame_size)) }
     if phase_this && phase_summary_only != true {
         _x64_program_phase_log_append(phase_log, "x64.codegen.function.frame.done",
@@ -453,7 +412,7 @@ fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_de
     }
 
     // Spill incoming params to their stack slots.
-    i = 0
+    var i = 0
     while i < pc {
         var p2 = params[i]
         var pnm2 = p2["value"]

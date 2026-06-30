@@ -192,6 +192,12 @@ This file is the concise task view. Detailed implementation status lives in
 												 `041_emit_infix_expr.oren`; the capped profile now shows
 												 `x64_native_program.oren` at about 37.1s total / 27.4s parse, with
 												 `_compile_function_v0` exposed at about 468ms as the next parser body.
+												 `_compile_function_v0` now delegates frame/local/intrinsic-temp sizing to
+												 `_x64_prepare_function_frame_v0`, and Linux x64 net syscall lowering now
+												 delegates fd2/accept/sockopt/message families to helper bodies; the capped
+												 profile now shows `x64_native_program.oren` at about 37.6s total / 27.8s
+												 parse, with `native_compile_program_x64` exposed again at about 445ms as the
+												 next parser body.
 									     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
