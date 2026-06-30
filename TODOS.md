@@ -33,6 +33,13 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- Parallel module parsing now emits setup and per-module worker phase markers under
+  `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
+  self-host evidence shows the active macOS stage2 path is thread mode (`fork=0`),
+  all sampled compiler modules were cold module-cache reads (`cache_hit=0`), and
+  the largest completed parse costs were `lib/compiler/compiler.oren` (~15.8s),
+  `parser_parse.oren` (~6.7s), and `codegen_bytecode.oren` (~6.1s); forced fork
+  remains rejected because compiler-shaped ASTBIN worker encoding still stalls.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

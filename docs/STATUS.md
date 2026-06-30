@@ -103,6 +103,16 @@ Facts from the 2026-05-28 implementation pass:
 	  persist bounded slow-function rankings under `OREN_TRACE_BUILD_PHASES_PATH`.
 		  Phase logs now include `link.parse_module.start` so capped self-host probes
 		  show the active module even when a module does not finish before timeout.
+		  Parallel module parsing now also logs `link.parse_parallel.*` setup markers plus
+		  per-module thread/fork worker parse markers under `OREN_TRACE_BUILD_PHASES_PATH`,
+		  so capped x64 self-host probes can distinguish setup, thread-mode parse, fork
+		  parse, and ASTBIN worker encode costs. The latest x64 self-host probe showed the
+		  active path is thread mode (`fork=0`) with cold module-cache reads (`cache_hit=0`);
+		  the slowest completed modules were `lib/compiler/compiler.oren` (~15.8s total),
+		  `parser_parse.oren` (~6.7s), and `codegen_bytecode.oren` (~6.1s). A forced-fork
+		  comparison was rejected because compiler-shaped ASTBIN encoding still stalls early,
+		  so the next high-leverage path is thread-mode module-cache recovery or parser
+		  throughput, not forcing fork.
 		  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

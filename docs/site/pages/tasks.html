@@ -161,6 +161,16 @@
 <p>								     <code>OREN_TRACE_BUILD_PHASES_PATH</code> logs. Phase logs also include</p>
 <p>								     <code>link.parse_module.start</code>, so capped self-host probes identify the active</p>
 <p>								     module even when it does not finish before timeout. Serial/thread module</p>
+<p>								     parse profiling now includes <code>link.parse_parallel.*</code> setup markers and</p>
+<p>								     per-module thread/fork worker markers. The current x64 self-host evidence</p>
+<p>								     shows thread-mode parsing (<code>fork=0</code>) with cold module-cache reads</p>
+<p>								     (<code>cache_hit=0</code>) and top completed costs in <code>lib/compiler/compiler.oren</code></p>
+<p>								     (~15.8s), <code>parser_parse.oren</code> (~6.7s), and <code>codegen_bytecode.oren</code> (~6.1s);</p>
+<p>								     forced fork was rejected because compiler-shaped ASTBIN worker encoding</p>
+<p>								     still stalls early. Next work should recover warm thread-mode module-cache</p>
+<p>								     hits or reduce parser throughput before returning to x64 user-function</p>
+<p>								     emit.</p>
+<p>								     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

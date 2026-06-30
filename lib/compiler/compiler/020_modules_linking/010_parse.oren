@@ -332,12 +332,22 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
     // - "log missing" => worker crashed before user-level error handling
     // - "log present with FAIL" => worker reported a structured failure
     oren_write_file(log_path, log)
+    var phase_log_path = _ml_phase_log_path()
 
     var bi = 0
     while bi < oren_list_len(bucket) {
         var item = bucket[bi]
         var full = item["path"]
         var prefix = item["prefix"]
+        var mod_t0 = 0
+        if phase_log_path != nil {
+            mod_t0 = oren_time_now_ns()
+            _ml_phase_log_append(phase_log_path, "link.parse_worker_module.start",
+                "path=" + full +
+                " bucket_index=" + oren_int_to_string(bi) +
+                " bucket_total=" + oren_int_to_string(oren_list_len(bucket)),
+                mod_t0)
+        }
 
         log = log + "module: " + full + "\n"
         // Best-effort progress checkpoint for crash diagnostics.
@@ -360,6 +370,16 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
         }
         var prog = rr["prog"]
         var cache_path = rr["cache_path"]
+        if phase_log_path != nil {
+            var cache_hit = "0"
+            if rr["cache_hit"] == true { cache_hit = "1" }
+            _ml_phase_log_append(phase_log_path, "link.parse_worker_module.parse.done",
+                "path=" + full +
+                " cache_hit=" + cache_hit +
+                " parse_ms=" + oren_int_to_string(rr["parse_ms"]) +
+                " prepare_ms=" + oren_int_to_string(rr["prepare_ms"]),
+                mod_t0)
+        }
         log = log + "  ok: parsed\n"
         log = log + "  ok: renamed\n"
         log = log + "  ok: serde_json\n"
@@ -369,10 +389,24 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
         if bs == nil {
             log = log + "  step: astbin_encode\n"
             oren_write_file(log_path, log)
+            var enc_t0 = 0
+            if phase_log_path != nil { enc_t0 = oren_time_now_ns() }
             bs = astbin_encode(prog)
+            if phase_log_path != nil {
+                _ml_phase_log_append(phase_log_path, "link.parse_worker_module.encode.done",
+                    "path=" + full +
+                    " bytes=" + oren_int_to_string(oren_buf_len(bs)),
+                    enc_t0)
+            }
             log = log + "  ok: astbin_encode\n"
             oren_write_file(log_path, log)
         } else {
+            if phase_log_path != nil {
+                _ml_phase_log_append(phase_log_path, "link.parse_worker_module.encode.skip",
+                    "path=" + full +
+                    " reason=cache_hit bytes=" + oren_int_to_string(oren_buf_len(bs)),
+                    mod_t0)
+            }
             log = log + "  ok: astbin_cache_hit\n"
             oren_write_file(log_path, log)
         }
@@ -417,10 +451,20 @@ fn _ml_parse_module_bucket_mem(bucket, config) {
     if bucket == nil { return {"ok": true, "count": 0} }
     var bi = 0
     var trace = (oren_env("OREN_PARSE_WORKER_TRACE") != nil)
+    var phase_log_path = _ml_phase_log_path()
     while bi < oren_list_len(bucket) {
         var item = bucket[bi]
         var full = item["path"]
         var prefix = item["prefix"]
+        var mod_t0 = 0
+        if phase_log_path != nil {
+            mod_t0 = oren_time_now_ns()
+            _ml_phase_log_append(phase_log_path, "link.parse_thread_module.start",
+                "path=" + full +
+                " bucket_index=" + oren_int_to_string(bi) +
+                " bucket_total=" + oren_int_to_string(oren_list_len(bucket)),
+                mod_t0)
+        }
         if trace {
             print("[trace] parse worker module: " + full)
         }
@@ -437,6 +481,19 @@ fn _ml_parse_module_bucket_mem(bucket, config) {
             return {"ok": false, "path": full, "err": "internal: module record missing", "errors": []}
         }
         mrec["program"] = rr["prog"]
+        if phase_log_path != nil {
+            var cache_hit = "0"
+            if rr["cache_hit"] == true { cache_hit = "1" }
+            _ml_phase_log_append(phase_log_path, "link.parse_thread_module.done",
+                "path=" + full +
+                " cache_hit=" + cache_hit +
+                " parse_ms=" + oren_int_to_string(rr["parse_ms"]) +
+                " prepare_ms=" + oren_int_to_string(rr["prepare_ms"]) +
+                " parser_ms=" + oren_int_to_string(rr["parser_ms"]) +
+                " parse_hot1_ms=" + oren_int_to_string(rr["parse_hot1_ms"]) +
+                " parse_hot1_label=" + rr["parse_hot1_label"],
+                mod_t0)
+        }
         bi = bi + 1
     }
     return {"ok": true, "count": oren_list_len(bucket)}
@@ -771,6 +828,12 @@ fn _ml_parse_discovered_modules_serial(config) {
 }
 
 fn _ml_parse_discovered_modules_parallel(config) {
+    var phase_log_path = _ml_phase_log_path()
+    var parallel_t0 = 0
+    if phase_log_path != nil {
+        parallel_t0 = oren_time_now_ns()
+        _ml_phase_log_append(phase_log_path, "link.parse_parallel.enter", "", parallel_t0)
+    }
     var jobs = _ml_parse_jobs()
     if jobs <= 1 { jobs = 1 }
     if jobs <= 1 { return _ml_parse_discovered_modules_serial(config) }
@@ -789,6 +852,14 @@ fn _ml_parse_discovered_modules_parallel(config) {
     // for the stage2 (<3min) gate unless explicitly forced.
     if fork_mode && oren_env("OREN_PARSE_FORK_PARALLEL") == nil {
         return _ml_parse_discovered_modules_serial(config)
+    }
+    if phase_log_path != nil {
+        var fork_s = "0"
+        if fork_mode { fork_s = "1" }
+        _ml_phase_log_append(phase_log_path, "link.parse_parallel.mode.done",
+            "jobs=" + oren_int_to_string(jobs) +
+            " fork=" + fork_s,
+            parallel_t0)
     }
     // Deterministic, single-build temp directory (rolling).
     // Workers write per-module files keyed by sha(path), so concurrent builds don't collide
@@ -810,6 +881,12 @@ fn _ml_parse_discovered_modules_parallel(config) {
         i = i + 1
     }
     if oren_list_len(work) == 0 { return 0 }
+    if phase_log_path != nil {
+        _ml_phase_log_append(phase_log_path, "link.parse_parallel.worklist.done",
+            "modules=" + oren_int_to_string(oren_list_len(MODULE_ORDER)) +
+            " work=" + oren_int_to_string(oren_list_len(work)),
+            parallel_t0)
+    }
 
     // Debug mode: isolate failures by running one module per worker bucket.
     // Enable with: OREN_PARSE_DEBUG_SINGLE=1
@@ -838,6 +915,12 @@ fn _ml_parse_discovered_modules_parallel(config) {
         i = i + 1
     }
     if LINK_GC_ROOT != nil { LINK_GC_ROOT["parse_buckets"] = buckets }
+    if phase_log_path != nil {
+        _ml_phase_log_append(phase_log_path, "link.parse_parallel.buckets.done",
+            "jobs=" + oren_int_to_string(jobs) +
+            " work=" + oren_int_to_string(oren_list_len(work)),
+            parallel_t0)
+    }
 
     var handles = []
     bi = 0
