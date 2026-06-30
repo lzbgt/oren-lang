@@ -204,7 +204,11 @@
 <p>								  of <code>_emit_eval_call_expr_to_rax</code>; the capped profile now shows</p>
 <p>								  <code>x64_native_program.oren</code> at about 37.0s total / 27.2s parse, with</p>
 <p>								  <code>_x64_collect_top_level_globals_and_stmts</code> exposed at about 606ms as the next</p>
-<p>								  parser target.</p>
+<p>								  parser target. X64 top-level global collection now delegates runtime slot</p>
+<p>								  reservation, user slot/fact preparation, and top-level initializer rewrite</p>
+<p>								  into helper bodies; the capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>								  about 37.7s total / 27.7s parse, with <code>_emit_ops_in_fn</code> exposed again at about</p>
+<p>								  618ms as the next parser body.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

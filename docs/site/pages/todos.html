@@ -156,6 +156,12 @@
 <p>  <code>_x64_collect_top_level_globals_and_stmts</code> exposed at ~606ms; the next</p>
 <p>  concrete x64 parser target is top-level global collection/rewrite structure.</p>
 <ul>
+<li>X64 top-level global collection now delegates runtime slot reservation, user</li>
+</ul>
+<p>  slot/fact preparation, and top-level initializer rewrite into helper bodies.</p>
+<p>  The capped profile shows <code>x64_native_program.oren</code> at ~37.7s total / ~27.7s</p>
+<p>  parse, with <code>_emit_ops_in_fn</code> exposed again at ~618ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

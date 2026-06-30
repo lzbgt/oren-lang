@@ -188,38 +188,10 @@ fn _x64_direct_data_ptr_const_init(ctx, expr) {
     return enc - 1
 }
 
-fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
-    // Collect top-level `var` declarations as globals and build the statement list to run
-    // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
-    //
-    // Tier‑1 convergence (arm64 parity):
-    // - Allocate runtime globals, but do NOT execute runtime global initializers in __top_level__.
-    //   The injected runtime must initialize its own globals in `native_runtime_init`.
-    // - Defer ALL user global initializers into __top_level__ as assignments, so
-    //   startup order is deterministic and matches arm64.
-    // - Disallow top-level executable statements in the injected runtime.
+fn _x64_prepare_runtime_global_slots(ctx, runtime_vars) {
     if ctx == nil { return nil }
     var phase_log = ctx["phase_log"]
-
-    var declared = ctx["declared_functions"]
-    var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
-    if split == nil { return nil }
-
-    var runtime_vars = split["runtime_vars"]
-    var user_vars = split["user_vars"]
-    var user_exec = split["user_exec"]
-    var user_ordered = split["user_ordered"]
     if runtime_vars == nil { runtime_vars = [] }
-    if user_vars == nil { user_vars = [] }
-    if user_exec == nil { user_exec = [] }
-    if user_ordered == nil { user_ordered = [] }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.split.done",
-            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
-            " user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
-            " user_ordered=" + oren_int_to_string(oren_list_len(user_ordered)))
-    }
-
     if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
     var runtime_globals = ctx["runtime_globals"]
     var v_trace_names = oren_env("OREN_TRACE_GC_REGISTER_ROOT_NAMES")
@@ -250,7 +222,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         var st = runtime_vars[i]
         if st != nil {
             var nm = st["name"]["value"]
-            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
+            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier-1 bootstrap).
             if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { i = i + 1; continue }
             if ctx["globals"] != nil && ctx["globals"][nm] != nil {
                 err(ctx, "x64 native v0: duplicate global var " + nm)
@@ -271,6 +243,14 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
             " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
     }
+    return runtime_globals
+}
+
+fn _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals) {
+    if ctx == nil { return nil }
+    var phase_log = ctx["phase_log"]
+    if runtime_vars == nil { runtime_vars = [] }
+    if user_vars == nil { user_vars = [] }
 
     // Allocate user global slots. Literal integer/singleton/alias globals can be
     // materialized directly in `.data`. Direct string globals stay opt-in because measured
@@ -299,7 +279,7 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     if v_slot_slow != nil && v_slot_slow != "" {
         slot_slow_ms = core.parse_int_decimal(v_slot_slow, slot_slow_ms)
     }
-    i = 0
+    var i = 0
     while i < oren_list_len(user_vars) {
         var st2 = user_vars[i]
         if st2 != nil {
@@ -489,6 +469,16 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     }
 
     _x64_trace_global_slots(ctx, "after_prepare_globals")
+    return {
+        "user_global_init_in_data_flags": user_global_init_in_data_flags,
+        "user_global_off_encs": user_global_off_encs,
+    }
+}
+
+fn _x64_build_top_level_init_stmts(ctx, user_ordered, user_global_init_in_data_flags, user_global_off_encs) {
+    if ctx == nil { return nil }
+    if user_ordered == nil { user_ordered = [] }
+    var phase_log = ctx["phase_log"]
 
     // Top-level exec order:
     // Preserve source order across `var` initializers and other executable top-level statements.
@@ -643,6 +633,49 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
             " direct_alias=" + oren_int_to_string(rewrite_direct_alias) +
             " runtime_assign=" + oren_int_to_string(rewrite_runtime_assign))
     }
+    return top_stmts
+}
+
+fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
+    // Collect top-level `var` declarations as globals and build the statement list to run
+    // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
+    //
+    // Tier‑1 convergence (arm64 parity):
+    // - Allocate runtime globals, but do NOT execute runtime global initializers in __top_level__.
+    //   The injected runtime must initialize its own globals in `native_runtime_init`.
+    // - Defer ALL user global initializers into __top_level__ as assignments, so
+    //   startup order is deterministic and matches arm64.
+    // - Disallow top-level executable statements in the injected runtime.
+    if ctx == nil { return nil }
+    var phase_log = ctx["phase_log"]
+
+    var declared = ctx["declared_functions"]
+    var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
+    if split == nil { return nil }
+
+    var runtime_vars = split["runtime_vars"]
+    var user_vars = split["user_vars"]
+    var user_exec = split["user_exec"]
+    var user_ordered = split["user_ordered"]
+    if runtime_vars == nil { runtime_vars = [] }
+    if user_vars == nil { user_vars = [] }
+    if user_exec == nil { user_exec = [] }
+    if user_ordered == nil { user_ordered = [] }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.split.done",
+            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
+            " user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
+            " user_ordered=" + oren_int_to_string(oren_list_len(user_ordered)))
+    }
+
+    var runtime_globals = _x64_prepare_runtime_global_slots(ctx, runtime_vars)
+    if runtime_globals == nil { return nil }
+    var user_slot_info = _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals)
+    if user_slot_info == nil { return nil }
+    var top_stmts = _x64_build_top_level_init_stmts(ctx, user_ordered,
+        user_slot_info["user_global_init_in_data_flags"],
+        user_slot_info["user_global_off_encs"])
+    if top_stmts == nil { return nil }
 
     var top_len = oren_list_len(top_stmts)
     // Debug-only tracing: list synthesized top-level statements with indices.

@@ -165,7 +165,11 @@ This file is the concise task view. Detailed implementation status lives in
 											 of `_emit_eval_call_expr_to_rax`; the capped profile now shows
 											 `x64_native_program.oren` at about 37.0s total / 27.2s parse, with
 											 `_x64_collect_top_level_globals_and_stmts` exposed at about 606ms as the next
-											 parser target.
+											 parser target. X64 top-level global collection now delegates runtime slot
+											 reservation, user slot/fact preparation, and top-level initializer rewrite
+											 into helper bodies; the capped profile now shows `x64_native_program.oren` at
+											 about 37.7s total / 27.7s parse, with `_emit_ops_in_fn` exposed again at about
+											 618ms as the next parser body.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
