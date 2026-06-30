@@ -1413,6 +1413,130 @@ fn _x64_emit_entry_prologue_and_args(ctx, platform, trace_prog, trace_entry, pha
     }
 }
 
+fn _x64_select_runtime_path(linked, platform) {
+    var runtime_path = "lib/runtime_native.oren"
+    if platform != nil && platform["capsule"] == true {
+        return "lib/runtime_native_capsule.oren"
+    }
+
+    // Optional: smaller injected runtime profile to keep cold rtobj builds bounded.
+    //
+    // Values (rolling):
+    // - unset / "auto": default heuristic (prefers core; escalates to full for std:net)
+    // - "full": force full runtime (`lib/runtime_native.oren`)
+    // - "core" / "minimal": reduced runtime (`lib/runtime_native_core.oren`)
+    var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
+    if x64_env_str_eq(prof, "full") {
+        runtime_path = "lib/runtime_native.oren"
+    } else if x64_env_str_eq(prof, "core") || x64_env_str_eq(prof, "minimal") {
+        runtime_path = "lib/runtime_native_core.oren"
+    } else {
+        // Default-on heuristic:
+        // - core unless the program imports `std:net/*` (which requires runtime networking primitives).
+        runtime_path = "lib/runtime_native_core.oren"
+        if x64_env_str_eq(prof, "auto") || prof == nil || prof == "" {
+            if _x64_should_use_full_native_runtime_profile(linked) { runtime_path = "lib/runtime_native.oren" }
+        }
+    }
+    return runtime_path
+}
+
+fn _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log) {
+    var runtime_path = _x64_select_runtime_path(linked, platform)
+    var rtobj_enabled = true
+    var v_rtobj = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
+    if v_rtobj != nil && v_rtobj != "" {
+        if x64_env_str_eq(v_rtobj, "0") == true || x64_env_str_eq(v_rtobj, "false") == true {
+            rtobj_enabled = false
+        }
+    }
+    var v_skip_rtobj = oren_env("OREN_X64_SKIP_RTOBJ")
+    if v_skip_rtobj != nil && v_skip_rtobj != "" {
+        if x64_env_str_eq(v_skip_rtobj, "0") != true && x64_env_str_eq(v_skip_rtobj, "false") != true {
+            rtobj_enabled = false
+        }
+    }
+    if trace_prog {
+        var re = "1"
+        if rtobj_enabled != true { re = "0" }
+        var vlen = -1
+        var vb0 = -1
+        if v_rtobj != nil {
+            vlen = oren_string_len(v_rtobj)
+            if vlen > 0 { vb0 = oren_string_byte_at_unchecked(v_rtobj, 0) & 255 }
+        }
+        print("[x64_compile] rtobj enabled=" + re + " path=" + runtime_path + " env_len=" + oren_int_to_string(vlen) + " env_b0=" + oren_int_to_string(vb0))
+    }
+
+    var used_rtobj = false
+    if rtobj_enabled == true {
+        used_rtobj = _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path)
+    }
+    if trace_prog {
+        var u0 = "0"
+        if used_rtobj == true { u0 = "1" }
+        print("[x64_compile] rtobj done used=" + u0)
+    }
+    if phase_log != nil {
+        var used_rtobj_s0 = "0"
+        if used_rtobj == true { used_rtobj_s0 = "1" }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj.done", "used=" + used_rtobj_s0 + " path=" + runtime_path)
+    }
+    return {"runtime_path": runtime_path, "used_rtobj": used_rtobj}
+}
+
+fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used_rtobj, trace_prog, phase_log) {
+    var linked2 = linked
+    var runtime_stmts = []
+    var user_stmts = []
+    if used_rtobj != true {
+        if trace_prog { print("[x64_compile] runtime bundle prepare") }
+        var bun = bundle.prepare_native_runtime_bundle(ctx, "x64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
+        if bun == nil { return nil }
+        if trace_prog { print("[x64_compile] runtime bundle prepared") }
+        linked2 = bun["linked"]
+        ctx["runtime_injected"] = true
+        runtime_stmts = bun["runtime_stmts"]
+        user_stmts = bun["user_stmts"]
+        if runtime_stmts == nil { runtime_stmts = [] }
+        if user_stmts == nil { user_stmts = [] }
+    } else {
+        if trace_prog { print("[x64_compile] runtime bundle skipped (rtobj)") }
+        // Runtime already compiled into ctx; user statements come from the original program.
+        // Mark as injected so lowering selects Tier-1 shared runtime paths (parity with arm64 and
+        // with the non-rtobj injection path).
+        ctx["runtime_injected"] = true
+        user_stmts = nil
+        if linked != nil { user_stmts = linked["statements"] }
+        if user_stmts == nil { user_stmts = [] }
+        runtime_stmts = []
+    }
+
+    // Runtime pruning (size + compile time):
+    // The injected native runtime branches on `g_target_os`, but for a target-specific
+    // build those branches are compile-time constants. Prune unreachable runtime branches
+    // early so the x64 backend does not compile dead platform code.
+    if used_rtobj != true {
+        if trace_prog { print("[x64_compile] runtime prune start") }
+        pprune.prune_runtime_os_branches_in_linked_program_in_place(linked2, platform)
+        if trace_prog { print("[x64_compile] runtime prune done") }
+    }
+    if phase_log != nil {
+        var rt_stmts_n0 = 0
+        var user_stmts_n0 = 0
+        if runtime_stmts != nil { rt_stmts_n0 = oren_list_len(runtime_stmts) }
+        if user_stmts != nil { user_stmts_n0 = oren_list_len(user_stmts) }
+        _x64_program_phase_log_append(phase_log, "x64.codegen.runtime_prepare.done",
+            "runtime_stmts=" + oren_int_to_string(rt_stmts_n0) +
+            " user_stmts=" + oren_int_to_string(user_stmts_n0))
+    }
+    return {
+        "linked": linked2,
+        "runtime_stmts": runtime_stmts,
+        "user_stmts": user_stmts
+    }
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -1470,32 +1594,6 @@ fn native_compile_program_x64(linked, platform) {
     var fns_progress_interval = opts_compile["fns_progress_interval"]
     var fns_detail_limit = opts_compile["fns_detail_limit"]
 
-    var runtime_path = "lib/runtime_native.oren"
-    if platform != nil && platform["capsule"] == true {
-        runtime_path = "lib/runtime_native_capsule.oren"
-    } else {
-        // Optional: smaller injected runtime profile to keep cold rtobj builds bounded.
-        //
-        // Values (rolling):
-        // - unset / "auto": default heuristic (prefers core; escalates to full for std:net)
-        // - "full": force full runtime (`lib/runtime_native.oren`)
-        // - "core" / "minimal": reduced runtime (`lib/runtime_native_core.oren`)
-        var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
-        if x64_env_str_eq(prof, "full") {
-            runtime_path = "lib/runtime_native.oren"
-        } else if x64_env_str_eq(prof, "core") || x64_env_str_eq(prof, "minimal") {
-            runtime_path = "lib/runtime_native_core.oren"
-        } else {
-            // Default-on heuristic:
-            // - core unless the program imports `std:net/*` (which requires runtime networking primitives).
-            runtime_path = "lib/runtime_native_core.oren"
-            if x64_env_str_eq(prof, "auto") || prof == nil || prof == "" {
-                if _x64_should_use_full_native_runtime_profile(linked) { runtime_path = "lib/runtime_native.oren" }
-            }
-        }
-    }
-    var linked2 = linked
-
     if trace_prog { print("[x64_compile] ctx init") }
     var ctx = _x64_new_ctx(linked, platform)
     ctx["phase_log"] = phase_log
@@ -1508,90 +1606,15 @@ fn native_compile_program_x64(linked, platform) {
     // - identical include expansion + parsing,
     // - capsule enforcement (compile-time) when `--capsule` is enabled,
     // - post-injection DCE + pinned entry-stub roots.
-    var rtobj_enabled = true
-    var v_rtobj = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
-    if v_rtobj != nil && v_rtobj != "" {
-        if x64_env_str_eq(v_rtobj, "0") == true || x64_env_str_eq(v_rtobj, "false") == true {
-            rtobj_enabled = false
-        }
-    }
-    var v_skip_rtobj = oren_env("OREN_X64_SKIP_RTOBJ")
-    if v_skip_rtobj != nil && v_skip_rtobj != "" {
-        if x64_env_str_eq(v_skip_rtobj, "0") != true && x64_env_str_eq(v_skip_rtobj, "false") != true {
-            rtobj_enabled = false
-        }
-    }
-    if trace_prog {
-        var re = "1"
-        if rtobj_enabled != true { re = "0" }
-        var vlen = -1
-        var vb0 = -1
-        if v_rtobj != nil {
-            vlen = oren_string_len(v_rtobj)
-            if vlen > 0 { vb0 = oren_string_byte_at_unchecked(v_rtobj, 0) & 255 }
-        }
-        print("[x64_compile] rtobj enabled=" + re + " path=" + runtime_path + " env_len=" + oren_int_to_string(vlen) + " env_b0=" + oren_int_to_string(vb0))
-    }
-    var used_rtobj = false
-    if rtobj_enabled == true {
-        used_rtobj = _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path)
-    }
-    if trace_prog {
-        var u0 = "0"
-        if used_rtobj == true { u0 = "1" }
-        print("[x64_compile] rtobj done used=" + u0)
-    }
+    var rtobj_choice = _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log)
+    var runtime_path = rtobj_choice["runtime_path"]
+    var used_rtobj = rtobj_choice["used_rtobj"] == true
     if trace_sum { t_rtobj_done = oren_time_now_ns() }
-    if phase_log != nil {
-        var used_rtobj_s0 = "0"
-        if used_rtobj == true { used_rtobj_s0 = "1" }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj.done", "used=" + used_rtobj_s0 + " path=" + runtime_path)
-    }
-
-    var bun = nil
-    var runtime_stmts = []
-    var user_stmts = []
-    if used_rtobj != true {
-        if trace_prog { print("[x64_compile] runtime bundle prepare") }
-        bun = bundle.prepare_native_runtime_bundle(ctx, "x64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
-        if bun == nil { return ctx }
-        if trace_prog { print("[x64_compile] runtime bundle prepared") }
-        linked2 = bun["linked"]
-        ctx["runtime_injected"] = true
-        runtime_stmts = bun["runtime_stmts"]
-        user_stmts = bun["user_stmts"]
-        if runtime_stmts == nil { runtime_stmts = [] }
-        if user_stmts == nil { user_stmts = [] }
-    } else {
-        if trace_prog { print("[x64_compile] runtime bundle skipped (rtobj)") }
-        // Runtime already compiled into ctx; user statements come from the original program.
-        // Mark as injected so lowering selects Tier‑1 shared runtime paths (parity with arm64 and
-        // with the non-rtobj injection path).
-        ctx["runtime_injected"] = true
-        user_stmts = nil
-        if linked != nil { user_stmts = linked["statements"] }
-        if user_stmts == nil { user_stmts = [] }
-        runtime_stmts = []
-    }
-
-    // Runtime pruning (size + compile time):
-    // The injected native runtime branches on `g_target_os`, but for a target-specific
-    // build those branches are compile-time constants. Prune unreachable runtime branches
-    // early so the x64 backend does not compile dead platform code.
-    if used_rtobj != true {
-        if trace_prog { print("[x64_compile] runtime prune start") }
-        pprune.prune_runtime_os_branches_in_linked_program_in_place(linked2, platform)
-        if trace_prog { print("[x64_compile] runtime prune done") }
-    }
-    if phase_log != nil {
-        var rt_stmts_n0 = 0
-        var user_stmts_n0 = 0
-        if runtime_stmts != nil { rt_stmts_n0 = oren_list_len(runtime_stmts) }
-        if user_stmts != nil { user_stmts_n0 = oren_list_len(user_stmts) }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.runtime_prepare.done",
-            "runtime_stmts=" + oren_int_to_string(rt_stmts_n0) +
-            " user_stmts=" + oren_int_to_string(user_stmts_n0))
-    }
+    var runtime_info = _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used_rtobj, trace_prog, phase_log)
+    if runtime_info == nil { return ctx }
+    var linked2 = runtime_info["linked"]
+    var runtime_stmts = runtime_info["runtime_stmts"]
+    var user_stmts = runtime_info["user_stmts"]
 
     // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
     // so Tier‑1 native backends share the same nested-function semantics.
