@@ -201,9 +201,15 @@
 <p>										     at about 1.06s. X64 call expression lowering now lives in a dedicated</p>
 <p>										     <code>_emit_eval_call_expr_to_rax</code> helper, and native program callable-use</p>
 <p>										     collection plus lambda wrapper synthesis are split out of</p>
-<p>										     <code>native_compile_program_x64</code>; the capped profile now shows</p>
-<p>										     <code>x64_native_program.oren</code> at about 37.9s total / 27.4s parse, with the</p>
-<p>										     exposed parser body shifted to <code>_emit_ops_in_fn</code> at about 954ms.</p>
+<p>										 <code>native_compile_program_x64</code>; the capped profile now shows</p>
+<p>										 <code>x64_native_program.oren</code> at about 37.9s total / 27.4s parse, with the</p>
+<p>										 exposed parser body shifted to <code>_emit_ops_in_fn</code> at about 954ms. The</p>
+<p>										 x64 op emitter now delegates while/for lowering and string-global batch</p>
+<p>										 fallback materialization to helper bodies, while the program emitter</p>
+<p>										 delegates wrapper/fnwrap compilation and program-data finalization; the</p>
+<p>										 final capped profile moves the exposed body back to</p>
+<p>										 <code>native_compile_program_x64</code> at about 880ms, leaving that remaining</p>
+<p>										 orchestration body as the concrete parser target.</p>
 <p>								     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
