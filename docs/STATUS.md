@@ -355,10 +355,15 @@ Facts from the 2026-05-28 implementation pass:
 																														  37.6s total / 28.2s parse, with `_emit_intrinsic_sys_linux_net_x64` exposed
 																														  at about 181ms as the next parser body. X64 Linux net syscall lowering now
 																														  delegates socket and 3-argument address syscall families through focused
-																														  helpers, making `_emit_intrinsic_sys_linux_net_x64` a router over the existing
-																														  net helper bodies. The capped profile now shows `x64_native_program.oren` at
-																														  about 37.2s total / 27.8s parse, with `_emit_intrinsic_sys_read_x64` exposed
-																														  at about 176ms as the next parser body.
+																															  helpers, making `_emit_intrinsic_sys_linux_net_x64` a router over the existing
+																															  net helper bodies. The capped profile now shows `x64_native_program.oren` at
+																															  about 37.2s total / 27.8s parse, with `_emit_intrinsic_sys_read_x64` exposed
+																															  at about 176ms as the next parser body. X64 `sys_read` lowering now delegates
+																															  Windows `ReadFile` and Linux syscall emission through platform-specific helpers
+																															  after shared validation. The capped profile now shows
+																															  `x64_native_program.oren` at about 37.3s total / 27.9s parse, with
+																															  `_emit_list_push_intrinsic_v0_x64` exposed at about 176ms as the next parser
+																															  body.
 						  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
