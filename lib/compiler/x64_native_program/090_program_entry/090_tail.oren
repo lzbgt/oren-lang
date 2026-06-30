@@ -297,6 +297,445 @@ fn _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_l
     return nil
 }
 
+fn _x64_emit_entry_runtime_bootstrap(ctx, platform, scratch_base, is_so, trace_prog, trace_entry, phase_log) {
+    // Native heap registers (rolling Tier-1 design):
+    //
+    // Reserve two callee-saved registers as the global bump allocator state:
+    // - R15: heap_ptr
+    // - R14: heap_limit
+    //
+    // These are initialized to 0 so the first `malloc`/`malloc_raw` triggers the slow path
+    // and maps/allocates a new chunk. External calls (WinAPI) and syscalls preserve R14/R15
+    // by ABI convention (Linux syscalls clobber RCX/R11 only).
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(14, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(15, 0))
+
+    // Stack-trace safety (Tier‑1 bring-up):
+    //
+    // Our entry stub is not a C runtime and does not set up an RBP frame chain.
+    // If we call into compiled functions with an uninitialized RBP, the first compiled
+    // function will save that garbage into its frame, and best-effort stack walking in
+    // `oren_panic` can segfault when it follows the chain past `main`.
+    //
+    // Set RBP=0 before calling `main` so the chain terminates cleanly.
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(5, 0))
+
+    // --- Native runtime init (Tier‑1 parity with arm64) ---
+    //
+    // NOTE:
+    // - The runtime is injected by default (see top of file), but entry stub calls are not part
+    //   of the AST, so we pin the init symbols in global DCE via config["roots"] above.
+    // Convention (rolling):
+    // - 1: macos
+    // - 2: linux
+    // - 3: windows
+    var target_os_id = 2
+    if platform != nil && platform["os"] == "windows" { target_os_id = 3 }
+
+    // Tier‑1 bootstrap: initialize the runtime globals storage pointer (`g_storage`) and the
+    // nil/bool singleton slots before calling into `native_runtime_init`.
+    if ctx["globals"] == nil || ctx["globals"]["g_storage"] == nil {
+        err(ctx, "x64 native v0: missing reserved global slot g_storage (Tier-1 bootstrap)")
+        return nil
+    }
+    if ctx["boot_globals_storage_off_enc"] == nil {
+        err(ctx, "x64 native v0: missing boot globals storage offset (Tier-1 bootstrap)")
+        return nil
+    }
+    var g_storage_off = ctx["globals"]["g_storage"] - 1
+    var boot_off = ctx["boot_globals_storage_off_enc"] - 1
+
+    // r10 = &g_storage_slot
+    var lea_gs_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_gs_pos + 3, "data_off": g_storage_off})
+    // r11 = &boot_globals_storage
+    var lea_boot_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_boot_pos + 3, "data_off": boot_off})
+    // *(g_storage_slot) = boot_base
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 11))
+    // Initialize singleton slots inside the boot storage.
+    // r12 = boot + 392
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 392))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 368, 12))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 376, 12))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 384, 12))
+
+    // Capture argc/argv/envp from the original SysV entry stack (Linux executables only).
+    // We store them in the entry scratch region so subsequent calls cannot clobber them.
+    if platform == nil || platform["os"] != "windows" {
+        if is_so {
+            // Shared library ctor: no argc/argv/envp ABI. Default to argc=0, argv=nil, envp=nil.
+            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0)) // rax=0
+            _emit_mov_mrsp_r64(ctx, scratch_base + 0, 0)  // argc
+            _emit_mov_mrsp_r64(ctx, scratch_base + 8, 0)  // argv
+            _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0) // envp
+        } else {
+            // r10 = argc
+            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 13))
+            _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+
+            // r11 = argv = orig_rsp + 8
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 13))
+            bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
+            _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
+
+            // r12 = envp = orig_rsp + (argc + 2) * 8
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+            bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 2))
+            bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
+            bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 13))
+            _emit_mov_mrsp_r64(ctx, scratch_base + 16, 12)
+        }
+    }
+
+    // native_runtime_init(target_os_id)
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, target_os_id)) // rcx
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, target_os_id)) // rdi
+    }
+    var call_init_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_init_pos, "name": "native_runtime_init"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: runtime_init ok")
+    }
+    if trace_prog { print("[x64_compile] runtime init call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.runtime_init.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    // Register embedded string literals once at startup (Tier‑1 performance).
+    //
+    // Do this immediately after `native_runtime_init` so any subsequent runtime helpers
+    // (capsule init, env parsing, etc) can safely use string literals as map keys.
+    //
+    // Table pointer derivation (PIE-safe):
+    // - slot_addr = &data[slot_off] (RIP-relative LEA)
+    // - table_off = *(u64*)slot_addr
+    // - data_base = slot_addr - slot_off
+    // - table_ptr = data_base + table_off
+    var slot_off_enc = ctx["cstr0_table_slot_enc"]
+    if oren_type_tag(slot_off_enc) == 1 {
+      if slot_off_enc > 0 {
+        var slot_off = slot_off_enc - 1
+        // r10 = slot_addr
+        var lea_slot_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_pos + 3, "data_off": slot_off})
+        // r11 = table_off (u64)
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
+        // r12 = data_base
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(slot_off, 4294967296)))
+        // r12 = table_ptr
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+        // arg0 = table_ptr
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12)) // rcx
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12)) // rdi
+        }
+        var call_cstr_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: cstr0_table ok")
+        }
+      }
+    }
+    if trace_prog { print("[x64_compile] cstr0 table call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.cstr0_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
+    //
+    // This enables runtime `oren_resolve_symbol(pc)` to resolve program PCs precisely without
+    // depending on the coarser symtab-based `resolve_symbol(pc)` intrinsic.
+    var dbg_slot_off_enc = ctx["dbginfo_table_slot_enc"]
+    if oren_type_tag(dbg_slot_off_enc) == 1 {
+      if dbg_slot_off_enc > 0 {
+        var dbg_slot_off = dbg_slot_off_enc - 1
+        // slot_addr = &data[dbg_slot_off]
+        var lea_dbg_slot_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0)) // r10 = slot_addr
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dbg_slot_pos + 3, "data_off": dbg_slot_off})
+        // table_off = *(u64*)slot_addr
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10)) // r11 = table_off
+
+        // If table_off == 0, skip (rolling safety: debug-info finalize may be disabled).
+        var labels_dbg = {}
+        var fixups_dbg = []
+        var l_skip_dbg = _new_label(ctx, "dbginfo_skip")
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+        _emit_jcc_to_label(ctx, fixups_dbg, "e", l_skip_dbg)
+
+        // data_base = slot_addr - dbg_slot_off
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(dbg_slot_off, 4294967296)))
+        // table_ptr = data_base + table_off
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+
+        // oren_set_debug_info(table_ptr, static_addr)
+        // For x64 v0 fixed-base emitters, use static_addr=table_ptr (slide=0).
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12)) // rcx = table_ptr
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12)) // rdx = table_ptr
+        } else {
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12)) // rdi = table_ptr
+            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 12)) // rsi = table_ptr
+        }
+        var call_dbg_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_dbg_pos, "name": "oren_set_debug_info"})
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: set_debug_info ok")
+        }
+
+        _emit_label(ctx, labels_dbg, l_skip_dbg)
+        _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
+      }
+    }
+    if trace_prog { print("[x64_compile] debug-info call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.dbginfo_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    // native_runtime_set_args(argc, argv)
+    if platform != nil && platform["os"] == "windows" {
+        _emit_mov_r64_mrsp(ctx, 1, scratch_base + 0) // rcx=argc
+        _emit_mov_r64_mrsp(ctx, 2, scratch_base + 8) // rdx=argv
+    } else {
+        _emit_mov_r64_mrsp(ctx, 7, scratch_base + 0) // rdi=argc
+        _emit_mov_r64_mrsp(ctx, 6, scratch_base + 8) // rsi=argv
+    }
+    var call_set_args_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_args_pos, "name": "native_runtime_set_args"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: set_args ok")
+    }
+    if trace_prog { print("[x64_compile] set args call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.args.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    // Windows: convert Win32 env block -> POSIX envp (Tier‑1 parity).
+    //
+    // scratch[16] currently holds `env_block` captured by `_emit_entry_capture_envblock_windows_x64`.
+    // Build envp using the runtime helper and overwrite scratch[16] with the envp pointer.
+    if platform != nil && platform["os"] == "windows" {
+        // Save env_block so we can free it after the helper copies strings.
+        _emit_mov_r64_mrsp(ctx, 10, scratch_base + 16) // r10 = env_block
+        _emit_mov_mrsp_r64(ctx, scratch_base + 32, 10) // scratch[32] = env_block
+
+        // rcx = env_block
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 10))
+        var call_build_envp_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_build_envp_pos, "name": "native_envp_build_from_win_envblock"})
+        // scratch[16] = envp
+        _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
+
+        // FreeEnvironmentStringsA(env_block) if non-null.
+        var labels_free_env = {}
+        var local_fixups_free_env = []
+        var l_skip_free_env = _new_label(ctx, "win_envblock_free_skip")
+        _emit_mov_r64_mrsp(ctx, 1, scratch_base + 32) // rcx = env_block
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
+        _emit_jcc_to_label(ctx, local_fixups_free_env, "e", l_skip_free_env)
+        var mov_iat_free_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
+        _x64_add_rip_data32_fixup(ctx, mov_iat_free_pos + 3, "IAT_FreeEnvironmentStringsA")
+        bytes_extend(ctx["code"], core.insn_call_rax())
+        _emit_label(ctx, labels_free_env, l_skip_free_env)
+        _patch_local_fixups(ctx, labels_free_env, local_fixups_free_env)
+        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: envp ok") }
+    }
+
+    // native_runtime_set_envp(envp)
+    if platform != nil && platform["os"] == "windows" {
+        _emit_mov_r64_mrsp(ctx, 1, scratch_base + 16) // rcx=envp
+    } else {
+        _emit_mov_r64_mrsp(ctx, 7, scratch_base + 16) // rdi=envp
+    }
+    var call_set_envp_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_envp_pos, "name": "native_runtime_set_envp"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: set_envp ok")
+    }
+    if trace_prog { print("[x64_compile] set envp call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.envp.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    // native_runtime_capsule_init() (env + capsule init).
+    //
+    // NOTE: In non-capsule builds this is a permissive stub that only applies shared
+    // env overrides (call depth, SIMD, allocator). Capsule enforcement is only
+    // meaningful when compiled with `--capsule`.
+    var call_capsule_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
+    if trace_prog { print("[x64_compile] capsule init call emitted") }
+
+    // native_runtime_init_gc_mode(default_enabled)
+    var gc_default = 1
+    if platform != nil && platform["no_gc"] == true { gc_default = 0 }
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, gc_default)) // rcx
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, gc_default)) // rdi
+    }
+    var call_gc_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_gc_pos, "name": "native_runtime_init_gc_mode"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
+    }
+    if trace_prog { print("[x64_compile] gc mode call emitted") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.gc_mode.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    return nil
+}
+
+fn _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, opts) {
+    var trace_prog = false
+    var focus_enabled = false
+    var prog_focus_from = -1
+    var prog_focus_to = -1
+    var prog_stride = 200
+    var prog_slow_fn_ms = 2000
+    var trace_top_slow = false
+    var top_slow_n = 20
+    var top_slow_min_ms = 50
+    var top_slow_live = false
+    var top_slow_live_n = 20
+    var fns_progress_interval = 250
+    var fns_detail_limit = 0
+    if opts != nil {
+        if opts["trace_prog"] == true { trace_prog = true }
+        if opts["focus_enabled"] == true { focus_enabled = true }
+        var v_focus_from = opts["prog_focus_from"]
+        if oren_type_tag(v_focus_from) != 0 { prog_focus_from = v_focus_from }
+        var v_focus_to = opts["prog_focus_to"]
+        if oren_type_tag(v_focus_to) != 0 { prog_focus_to = v_focus_to }
+        var v_stride = opts["prog_stride"]
+        if oren_type_tag(v_stride) != 0 { prog_stride = v_stride }
+        var v_slow_ms = opts["prog_slow_fn_ms"]
+        if oren_type_tag(v_slow_ms) != 0 { prog_slow_fn_ms = v_slow_ms }
+        if opts["trace_top_slow"] == true { trace_top_slow = true }
+        var v_top_slow_n = opts["top_slow_n"]
+        if oren_type_tag(v_top_slow_n) != 0 { top_slow_n = v_top_slow_n }
+        var v_top_slow_min_ms = opts["top_slow_min_ms"]
+        if oren_type_tag(v_top_slow_min_ms) != 0 { top_slow_min_ms = v_top_slow_min_ms }
+        if opts["top_slow_live"] == true { top_slow_live = true }
+        var v_top_slow_live_n = opts["top_slow_live_n"]
+        if oren_type_tag(v_top_slow_live_n) != 0 { top_slow_live_n = v_top_slow_live_n }
+        var v_fns_progress_interval = opts["fns_progress_interval"]
+        if oren_type_tag(v_fns_progress_interval) != 0 { fns_progress_interval = v_fns_progress_interval }
+        var v_fns_detail_limit = opts["fns_detail_limit"]
+        if oren_type_tag(v_fns_detail_limit) != 0 { fns_detail_limit = v_fns_detail_limit }
+    }
+    var top_slow = []
+    var top_slow_live_count = 0
+    var i1 = 0
+    var fns_n = oren_list_len(fns)
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.start",
+            "fns=" + oren_int_to_string(fns_n))
+    }
+    while i1 < fns_n {
+        var fn1 = fns[i1]
+        var nm1 = nil
+        if fn1 != nil { nm1 = fn1["name"] }
+        if nm1 == nil || nm1 == "" { nm1 = "?" }
+        if phase_log != nil && (i1 == 0 || core.int_mod(i1, fns_progress_interval) == 0) {
+            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.before",
+                "i=" + oren_int_to_string(i1) +
+                " total=" + oren_int_to_string(fns_n) +
+                " name=" + nm1 +
+                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+        }
+        if trace_prog && ((focus_enabled && i1 >= prog_focus_from && i1 < prog_focus_to) ||
+                          (prog_stride > 0 && core.int_mod(i1, prog_stride) == 0)) {
+            print("[x64_compile] fns " + oren_int_to_string(i1) + "/" + oren_int_to_string(fns_n) + " next=" + nm1)
+        }
+        var t_fn = 0
+        if trace_prog || trace_top_slow { t_fn = oren_time_now_ns() }
+        if phase_log != nil && i1 < fns_detail_limit { ctx["phase_fn_detail"] = true }
+        else { ctx["phase_fn_detail"] = false }
+        _compile_function_v0(ctx, fns[i1], platform, true, call_depth_default_enabled)
+        ctx["phase_fn_detail"] = false
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+        if trace_prog && prog_slow_fn_ms > 0 {
+            var dt_ms = (oren_time_now_ns() - t_fn) / 1000000
+            if dt_ms > prog_slow_fn_ms { print("[x64_compile] slow_fn ms=" + oren_int_to_string(dt_ms) + " name=" + nm1) }
+        } else if trace_top_slow {
+            var dt_ms2 = (oren_time_now_ns() - t_fn) / 1000000
+            if dt_ms2 >= top_slow_min_ms {
+                _x64_slow_fn_top_push(top_slow, top_slow_n, dt_ms2, nm1)
+                if top_slow_live == true && phase_log != nil && top_slow_live_count < top_slow_live_n {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow_live",
+                        "i=" + oren_int_to_string(i1) +
+                        " total=" + oren_int_to_string(fns_n) +
+                        " ms=" + oren_int_to_string(dt_ms2) +
+                        " name=" + nm1)
+                    top_slow_live_count = top_slow_live_count + 1
+                }
+            }
+        }
+        if phase_log != nil && i1 > 0 && core.int_mod(i1, fns_progress_interval) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.progress",
+                "i=" + oren_int_to_string(i1) +
+                " total=" + oren_int_to_string(fns_n) +
+                " name=" + nm1 +
+                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+        }
+        i1 = i1 + 1
+    }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.done",
+            "fns=" + oren_int_to_string(fns_n) +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
+    if trace_top_slow {
+        var k = 0
+        while k < oren_list_len(top_slow) {
+            var it = top_slow[k]
+            if it != nil {
+                print("[x64_compile] top_slow_fn[" + oren_int_to_string(k) +
+                      "] ms=" + oren_int_to_string(it["ms"]) +
+                      " name=" + it["name"])
+                if phase_log != nil {
+                    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow",
+                        "rank=" + oren_int_to_string(k) +
+                        " ms=" + oren_int_to_string(it["ms"]) +
+                        " name=" + it["name"])
+                }
+            }
+            k = k + 1
+        }
+    }
+
+    return nil
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -409,7 +848,6 @@ fn native_compile_program_x64(linked, platform) {
     var top_slow_min_ms = 50
     var top_slow_live = false
     var top_slow_live_n = 20
-    var top_slow_live_count = 0
     if trace_top_slow {
         top_slow_n = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_N"), top_slow_n)
         top_slow_min_ms = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_MIN_MS"), top_slow_min_ms)
@@ -426,7 +864,6 @@ fn native_compile_program_x64(linked, platform) {
             }
         }
     }
-    var top_slow = []
     var fns_progress_interval = 250
     var fns_detail_limit = 0
     if phase_log != nil {
@@ -908,318 +1345,8 @@ fn native_compile_program_x64(linked, platform) {
         if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win envblock ok") }
     }
 
-    // Native heap registers (rolling Tier-1 design):
-    //
-    // Reserve two callee-saved registers as the global bump allocator state:
-    // - R15: heap_ptr
-    // - R14: heap_limit
-    //
-    // These are initialized to 0 so the first `malloc`/`malloc_raw` triggers the slow path
-    // and maps/allocates a new chunk. External calls (WinAPI) and syscalls preserve R14/R15
-    // by ABI convention (Linux syscalls clobber RCX/R11 only).
-    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(14, 0))
-    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(15, 0))
-
-    // Stack-trace safety (Tier‑1 bring-up):
-    //
-    // Our entry stub is not a C runtime and does not set up an RBP frame chain.
-    // If we call into compiled functions with an uninitialized RBP, the first compiled
-    // function will save that garbage into its frame, and best-effort stack walking in
-    // `oren_panic` can segfault when it follows the chain past `main`.
-    //
-    // Set RBP=0 before calling `main` so the chain terminates cleanly.
-    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(5, 0))
-
-    // --- Native runtime init (Tier‑1 parity with arm64) ---
-    //
-    // NOTE:
-    // - The runtime is injected by default (see top of file), but entry stub calls are not part
-    //   of the AST, so we pin the init symbols in global DCE via config["roots"] above.
-    // Convention (rolling):
-    // - 1: macos
-    // - 2: linux
-    // - 3: windows
-    var target_os_id = 2
-    if platform != nil && platform["os"] == "windows" { target_os_id = 3 }
-
-    // Tier‑1 bootstrap: initialize the runtime globals storage pointer (`g_storage`) and the
-    // nil/bool singleton slots before calling into `native_runtime_init`.
-    if ctx["globals"] == nil || ctx["globals"]["g_storage"] == nil {
-        err(ctx, "x64 native v0: missing reserved global slot g_storage (Tier-1 bootstrap)")
-        return nil
-    }
-    if ctx["boot_globals_storage_off_enc"] == nil {
-        err(ctx, "x64 native v0: missing boot globals storage offset (Tier-1 bootstrap)")
-        return nil
-    }
-    var g_storage_off = ctx["globals"]["g_storage"] - 1
-    var boot_off = ctx["boot_globals_storage_off_enc"] - 1
-
-    // r10 = &g_storage_slot
-    var lea_gs_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_gs_pos + 3, "data_off": g_storage_off})
-    // r11 = &boot_globals_storage
-    var lea_boot_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_boot_pos + 3, "data_off": boot_off})
-    // *(g_storage_slot) = boot_base
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 11))
-    // Initialize singleton slots inside the boot storage.
-    // r12 = boot + 392
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 11))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 392))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 368, 12))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 376, 12))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 384, 12))
-
-    // Capture argc/argv/envp from the original SysV entry stack (Linux executables only).
-    // We store them in the entry scratch region so subsequent calls cannot clobber them.
-    if platform == nil || platform["os"] != "windows" {
-        if is_so {
-            // Shared library ctor: no argc/argv/envp ABI. Default to argc=0, argv=nil, envp=nil.
-            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0)) // rax=0
-            _emit_mov_mrsp_r64(ctx, scratch_base + 0, 0)  // argc
-            _emit_mov_mrsp_r64(ctx, scratch_base + 8, 0)  // argv
-            _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0) // envp
-        } else {
-            // r10 = argc
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 13))
-            _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
-
-            // r11 = argv = orig_rsp + 8
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 13))
-            bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
-            _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
-
-            // r12 = envp = orig_rsp + (argc + 2) * 8
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-            bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 2))
-            bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-            bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 13))
-            _emit_mov_mrsp_r64(ctx, scratch_base + 16, 12)
-        }
-    }
-
-    // native_runtime_init(target_os_id)
-    if platform != nil && platform["os"] == "windows" {
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, target_os_id)) // rcx
-    } else {
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, target_os_id)) // rdi
-    }
-    var call_init_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_init_pos, "name": "native_runtime_init"})
-    if trace_entry && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: runtime_init ok")
-    }
-    if trace_prog { print("[x64_compile] runtime init call emitted") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.runtime_init.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
-
-    // Register embedded string literals once at startup (Tier‑1 performance).
-    //
-    // Do this immediately after `native_runtime_init` so any subsequent runtime helpers
-    // (capsule init, env parsing, etc) can safely use string literals as map keys.
-    //
-    // Table pointer derivation (PIE-safe):
-    // - slot_addr = &data[slot_off] (RIP-relative LEA)
-    // - table_off = *(u64*)slot_addr
-    // - data_base = slot_addr - slot_off
-    // - table_ptr = data_base + table_off
-    var slot_off_enc = ctx["cstr0_table_slot_enc"]
-    if oren_type_tag(slot_off_enc) == 1 {
-      if slot_off_enc > 0 {
-        var slot_off = slot_off_enc - 1
-        // r10 = slot_addr
-        var lea_slot_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_pos + 3, "data_off": slot_off})
-        // r11 = table_off (u64)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
-        // r12 = data_base
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(slot_off, 4294967296)))
-        // r12 = table_ptr
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-        // arg0 = table_ptr
-        if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12)) // rcx
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12)) // rdi
-        }
-        var call_cstr_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            _emit_windows_write_cstr(ctx, "ENTRY: cstr0_table ok")
-        }
-      }
-    }
-    if trace_prog { print("[x64_compile] cstr0 table call emitted") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.cstr0_call.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
-
-    // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
-    //
-    // This enables runtime `oren_resolve_symbol(pc)` to resolve program PCs precisely without
-    // depending on the coarser symtab-based `resolve_symbol(pc)` intrinsic.
-    var dbg_slot_off_enc = ctx["dbginfo_table_slot_enc"]
-    if oren_type_tag(dbg_slot_off_enc) == 1 {
-      if dbg_slot_off_enc > 0 {
-        var dbg_slot_off = dbg_slot_off_enc - 1
-        // slot_addr = &data[dbg_slot_off]
-        var lea_dbg_slot_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0)) // r10 = slot_addr
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dbg_slot_pos + 3, "data_off": dbg_slot_off})
-        // table_off = *(u64*)slot_addr
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10)) // r11 = table_off
-
-        // If table_off == 0, skip (rolling safety: debug-info finalize may be disabled).
-        var labels_dbg = {}
-        var fixups_dbg = []
-        var l_skip_dbg = _new_label(ctx, "dbginfo_skip")
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-        _emit_jcc_to_label(ctx, fixups_dbg, "e", l_skip_dbg)
-
-        // data_base = slot_addr - dbg_slot_off
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(dbg_slot_off, 4294967296)))
-        // table_ptr = data_base + table_off
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-
-        // oren_set_debug_info(table_ptr, static_addr)
-        // For x64 v0 fixed-base emitters, use static_addr=table_ptr (slide=0).
-        if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12)) // rcx = table_ptr
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12)) // rdx = table_ptr
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12)) // rdi = table_ptr
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 12)) // rsi = table_ptr
-        }
-        var call_dbg_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_dbg_pos, "name": "oren_set_debug_info"})
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            _emit_windows_write_cstr(ctx, "ENTRY: set_debug_info ok")
-        }
-
-        _emit_label(ctx, labels_dbg, l_skip_dbg)
-        _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
-      }
-    }
-    if trace_prog { print("[x64_compile] debug-info call emitted") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.dbginfo_call.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
-
-    // native_runtime_set_args(argc, argv)
-    if platform != nil && platform["os"] == "windows" {
-        _emit_mov_r64_mrsp(ctx, 1, scratch_base + 0) // rcx=argc
-        _emit_mov_r64_mrsp(ctx, 2, scratch_base + 8) // rdx=argv
-    } else {
-        _emit_mov_r64_mrsp(ctx, 7, scratch_base + 0) // rdi=argc
-        _emit_mov_r64_mrsp(ctx, 6, scratch_base + 8) // rsi=argv
-    }
-    var call_set_args_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_args_pos, "name": "native_runtime_set_args"})
-    if trace_entry && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: set_args ok")
-    }
-    if trace_prog { print("[x64_compile] set args call emitted") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.args.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
-
-    // Windows: convert Win32 env block -> POSIX envp (Tier‑1 parity).
-    //
-    // scratch[16] currently holds `env_block` captured by `_emit_entry_capture_envblock_windows_x64`.
-    // Build envp using the runtime helper and overwrite scratch[16] with the envp pointer.
-    if platform != nil && platform["os"] == "windows" {
-        // Save env_block so we can free it after the helper copies strings.
-        _emit_mov_r64_mrsp(ctx, 10, scratch_base + 16) // r10 = env_block
-        _emit_mov_mrsp_r64(ctx, scratch_base + 32, 10) // scratch[32] = env_block
-
-        // rcx = env_block
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 10))
-        var call_build_envp_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_build_envp_pos, "name": "native_envp_build_from_win_envblock"})
-        // scratch[16] = envp
-        _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
-
-        // FreeEnvironmentStringsA(env_block) if non-null.
-        var labels_free_env = {}
-        var local_fixups_free_env = []
-        var l_skip_free_env = _new_label(ctx, "win_envblock_free_skip")
-        _emit_mov_r64_mrsp(ctx, 1, scratch_base + 32) // rcx = env_block
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
-        _emit_jcc_to_label(ctx, local_fixups_free_env, "e", l_skip_free_env)
-        var mov_iat_free_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-        _x64_add_rip_data32_fixup(ctx, mov_iat_free_pos + 3, "IAT_FreeEnvironmentStringsA")
-        bytes_extend(ctx["code"], core.insn_call_rax())
-        _emit_label(ctx, labels_free_env, l_skip_free_env)
-        _patch_local_fixups(ctx, labels_free_env, local_fixups_free_env)
-        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: envp ok") }
-    }
-
-    // native_runtime_set_envp(envp)
-    if platform != nil && platform["os"] == "windows" {
-        _emit_mov_r64_mrsp(ctx, 1, scratch_base + 16) // rcx=envp
-    } else {
-        _emit_mov_r64_mrsp(ctx, 7, scratch_base + 16) // rdi=envp
-    }
-    var call_set_envp_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_envp_pos, "name": "native_runtime_set_envp"})
-    if trace_entry && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: set_envp ok")
-    }
-    if trace_prog { print("[x64_compile] set envp call emitted") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.envp.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
-
-    // native_runtime_capsule_init() (env + capsule init).
-    //
-    // NOTE: In non-capsule builds this is a permissive stub that only applies shared
-    // env overrides (call depth, SIMD, allocator). Capsule enforcement is only
-    // meaningful when compiled with `--capsule`.
-    var call_capsule_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
-    if trace_prog { print("[x64_compile] capsule init call emitted") }
-
-    // native_runtime_init_gc_mode(default_enabled)
-    var gc_default = 1
-    if platform != nil && platform["no_gc"] == true { gc_default = 0 }
-    if platform != nil && platform["os"] == "windows" {
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, gc_default)) // rcx
-    } else {
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, gc_default)) // rdi
-    }
-    var call_gc_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_gc_pos, "name": "native_runtime_init_gc_mode"})
-    if trace_entry && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
-    }
-    if trace_prog { print("[x64_compile] gc mode call emitted") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.gc_mode.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
+    _x64_emit_entry_runtime_bootstrap(ctx, platform, scratch_base, is_so, trace_prog, trace_entry, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_log)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
@@ -1461,86 +1588,24 @@ fn native_compile_program_x64(linked, platform) {
     if trace_sum { t_top_done = oren_time_now_ns() }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
 
-    var i1 = 0
-    var fns_n = oren_list_len(fns)
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.start",
-            "fns=" + oren_int_to_string(fns_n))
+    var fn_loop_opts = {
+        "trace_prog": trace_prog,
+        "focus_enabled": focus_enabled,
+        "prog_focus_from": prog_focus_from,
+        "prog_focus_to": prog_focus_to,
+        "prog_stride": prog_stride,
+        "prog_slow_fn_ms": prog_slow_fn_ms,
+        "trace_top_slow": trace_top_slow,
+        "top_slow_n": top_slow_n,
+        "top_slow_min_ms": top_slow_min_ms,
+        "top_slow_live": top_slow_live,
+        "top_slow_live_n": top_slow_live_n,
+        "fns_progress_interval": fns_progress_interval,
+        "fns_detail_limit": fns_detail_limit
     }
-    while i1 < fns_n {
-        var fn1 = fns[i1]
-        var nm1 = nil
-        if fn1 != nil { nm1 = fn1["name"] }
-        if nm1 == nil || nm1 == "" { nm1 = "?" }
-        if phase_log != nil && (i1 == 0 || core.int_mod(i1, fns_progress_interval) == 0) {
-            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.before",
-                "i=" + oren_int_to_string(i1) +
-                " total=" + oren_int_to_string(fns_n) +
-                " name=" + nm1 +
-                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
-        }
-        if trace_prog && ((focus_enabled && i1 >= prog_focus_from && i1 < prog_focus_to) ||
-                          (prog_stride > 0 && core.int_mod(i1, prog_stride) == 0)) {
-            print("[x64_compile] fns " + oren_int_to_string(i1) + "/" + oren_int_to_string(fns_n) + " next=" + nm1)
-        }
-        var t_fn = 0
-        if trace_prog || trace_top_slow { t_fn = oren_time_now_ns() }
-        if phase_log != nil && i1 < fns_detail_limit { ctx["phase_fn_detail"] = true }
-        else { ctx["phase_fn_detail"] = false }
-        _compile_function_v0(ctx, fns[i1], platform, true, call_depth_default_enabled)
-        ctx["phase_fn_detail"] = false
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-        if trace_prog && prog_slow_fn_ms > 0 {
-            var dt_ms = (oren_time_now_ns() - t_fn) / 1000000
-            if dt_ms > prog_slow_fn_ms { print("[x64_compile] slow_fn ms=" + oren_int_to_string(dt_ms) + " name=" + nm1) }
-        } else if trace_top_slow {
-            var dt_ms2 = (oren_time_now_ns() - t_fn) / 1000000
-            if dt_ms2 >= top_slow_min_ms {
-                _x64_slow_fn_top_push(top_slow, top_slow_n, dt_ms2, nm1)
-                if top_slow_live == true && phase_log != nil && top_slow_live_count < top_slow_live_n {
-                    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow_live",
-                        "i=" + oren_int_to_string(i1) +
-                        " total=" + oren_int_to_string(fns_n) +
-                        " ms=" + oren_int_to_string(dt_ms2) +
-                        " name=" + nm1)
-                    top_slow_live_count = top_slow_live_count + 1
-                }
-            }
-        }
-        if phase_log != nil && i1 > 0 && core.int_mod(i1, fns_progress_interval) == 0 {
-            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.progress",
-                "i=" + oren_int_to_string(i1) +
-                " total=" + oren_int_to_string(fns_n) +
-                " name=" + nm1 +
-                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
-        }
-        i1 = i1 + 1
-    }
+    _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, fn_loop_opts)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     if trace_sum { t_fns_done = oren_time_now_ns() }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.done",
-            "fns=" + oren_int_to_string(fns_n) +
-            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
-    }
-    if trace_top_slow {
-        var k = 0
-        while k < oren_list_len(top_slow) {
-            var it = top_slow[k]
-            if it != nil {
-                print("[x64_compile] top_slow_fn[" + oren_int_to_string(k) +
-                      "] ms=" + oren_int_to_string(it["ms"]) +
-                      " name=" + it["name"])
-                if phase_log != nil {
-                    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow",
-                        "rank=" + oren_int_to_string(k) +
-                        " ms=" + oren_int_to_string(it["ms"]) +
-                        " name=" + it["name"])
-                }
-            }
-            k = k + 1
-        }
-    }
-
     // Compile synthesized wrappers after user functions (order does not affect fixups, but
     // keeping them grouped makes debugging easier).
     var j1 = 0

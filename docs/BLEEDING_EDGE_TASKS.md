@@ -132,7 +132,13 @@ This file is the concise task view. Detailed implementation status lives in
 									     now delegates prefix and infix expression lowering to helpers, moving capped
 									     `x64_native_program.oren` parse from about 38.5s total / 27.9s parse to
 									     37.5s total / 27.3s parse and exposing `native_compile_program_x64` again
-									     as the largest parser body.
+									     as the largest parser body. `native_compile_program_x64` now also delegates
+									     entry runtime bootstrap emission and the user-function compile loop to
+									     helper bodies; the valid reduced-arity helper shape keeps compiler-in-AVM
+									     verification compatible and leaves the final capped `x64_native_program.oren`
+									     profile at about 37.8s total / 27.2s parse, with
+									     `native_compile_program_x64` narrowed to about 1.09s as the exposed hot
+									     parser body.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

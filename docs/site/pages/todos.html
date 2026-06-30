@@ -105,6 +105,14 @@
 <p>  from ~38.5s total / ~27.9s parse to ~37.5s total / ~27.3s parse; the current</p>
 <p>  exposed hot parser body is back in <code>native_compile_program_x64</code>.</p>
 <ul>
+<li><code>native_compile_program_x64</code> now also delegates entry runtime bootstrap</li>
+</ul>
+<p>  emission and the user-function compile loop to helper bodies. The valid</p>
+<p>  reduced-arity helper shape keeps compiler-in-AVM verification compatible and</p>
+<p>  leaves the final capped <code>x64_native_program.oren</code> profile at ~37.8s total /</p>
+<p>  ~27.2s parse, with <code>native_compile_program_x64</code> narrowed to about 1.09s as the</p>
+<p>  exposed hot parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>
