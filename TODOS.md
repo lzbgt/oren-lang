@@ -56,6 +56,10 @@ design evidence lives under `project-doc/`.
   table emission to helper bodies, keeping the entry orchestrator smaller. The
   capped self-host profile stayed essentially flat for total x64 module parse
   (~38.5s) and exposed `_emit_eval_int_to_rax` as the next large parser body.
+- `_emit_eval_int_to_rax` now delegates prefix and infix expression lowering to
+  helper bodies. Capped x64 self-host parse for `x64_native_program.oren` moved
+  from ~38.5s total / ~27.9s parse to ~37.5s total / ~27.3s parse; the current
+  exposed hot parser body is back in `native_compile_program_x64`.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

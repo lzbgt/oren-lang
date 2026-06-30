@@ -167,7 +167,11 @@
 <p>				  <code>native_compile_program_x64</code>. <code>native_compile_program_x64</code> now delegates</p>
 <p>				  debug metadata and entry global-root table emission to helpers; total x64</p>
 <p>				  module parse stayed essentially flat in the capped profile (~38.5s), and</p>
-<p>				  the exposed parser target is <code>_emit_eval_int_to_rax</code>.</p>
+<p>				  the exposed parser target was <code>_emit_eval_int_to_rax</code>. <code>_emit_eval_int_to_rax</code></p>
+<p>				  now delegates prefix and infix expression lowering to helpers, moving capped</p>
+<p>				  <code>x64_native_program.oren</code> parse from about 38.5s total / 27.9s parse to</p>
+<p>				  37.5s total / 27.3s parse and exposing <code>native_compile_program_x64</code> again</p>
+<p>				  as the largest parser body.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

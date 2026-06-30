@@ -99,6 +99,12 @@
 <p>  capped self-host profile stayed essentially flat for total x64 module parse</p>
 <p>  (~38.5s) and exposed <code>_emit_eval_int_to_rax</code> as the next large parser body.</p>
 <ul>
+<li><code>_emit_eval_int_to_rax</code> now delegates prefix and infix expression lowering to</li>
+</ul>
+<p>  helper bodies. Capped x64 self-host parse for <code>x64_native_program.oren</code> moved</p>
+<p>  from ~38.5s total / ~27.9s parse to ~37.5s total / ~27.3s parse; the current</p>
+<p>  exposed hot parser body is back in <code>native_compile_program_x64</code>.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

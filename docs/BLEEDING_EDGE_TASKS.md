@@ -128,7 +128,11 @@ This file is the concise task view. Detailed implementation status lives in
 									     `native_compile_program_x64`. `native_compile_program_x64` now delegates
 									     debug metadata and entry global-root table emission to helpers; total x64
 									     module parse stayed essentially flat in the capped profile (~38.5s), and
-									     the exposed parser target is `_emit_eval_int_to_rax`.
+									     the exposed parser target was `_emit_eval_int_to_rax`. `_emit_eval_int_to_rax`
+									     now delegates prefix and infix expression lowering to helpers, moving capped
+									     `x64_native_program.oren` parse from about 38.5s total / 27.9s parse to
+									     37.5s total / 27.3s parse and exposing `native_compile_program_x64` again
+									     as the largest parser body.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
