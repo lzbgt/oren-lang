@@ -257,11 +257,16 @@ This file is the concise task view. Detailed implementation status lives in
 																			 profile now shows `x64_native_program.oren` at about 36.7s total / 27.7s
 																			 parse, with `_emit_index_expr_v0` exposed at about 298ms as the next parser
 																			 body. X64 index expression lowering now delegates operand spill/runtime fast
-																			 paths, assumed-list indexing, receiver kind dispatch, and list/map emission
-																			 to focused helpers. The capped profile now shows `x64_native_program.oren`
-																			 at about 37.1s total / 28.1s parse, with
-																			 `_emit_intrinsic_sys_linux_misc_x64` exposed at about 279ms as the next
-																			 parser body.
+																				 paths, assumed-list indexing, receiver kind dispatch, and list/map emission
+																				 to focused helpers. The capped profile now shows `x64_native_program.oren`
+																				 at about 37.1s total / 28.1s parse, with
+																				 `_emit_intrinsic_sys_linux_misc_x64` exposed at about 279ms as the next
+																				 parser body. Linux x64 misc syscall lowering now delegates signal, time,
+																				 cwd/scheduler/sleep, fd, and net families instead of keeping those cases in
+																				 one parser body. The capped profile now shows `x64_native_program.oren` at
+																				 about 36.8s total / 27.7s parse, with
+																				 `_emit_fast_list_get_sum_while_x64` exposed at about 272ms as the next
+																				 parser body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

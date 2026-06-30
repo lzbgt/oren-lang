@@ -291,6 +291,12 @@
 <p>  ~28.1s parse, with <code>_emit_intrinsic_sys_linux_misc_x64</code> exposed at ~279ms as the</p>
 <p>  next parser body.</p>
 <ul>
+<li>Linux x64 misc syscall lowering now delegates signal, time, cwd/scheduler/sleep,</li>
+</ul>
+<p>  fd, and net families instead of keeping those cases in one parser body. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~36.8s total / ~27.7s parse, with</p>
+<p>  <code>_emit_fast_list_get_sum_while_x64</code> exposed at ~272ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

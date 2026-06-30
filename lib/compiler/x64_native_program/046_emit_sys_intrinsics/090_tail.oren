@@ -832,22 +832,20 @@ fn _emit_intrinsic_sys_linux_fd_misc_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
-fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
-    if _emit_intrinsic_sys_linux_fd_misc_x64(ctx, nm, expr, locals, args, capsule) == true { return nil }
-
+fn _emit_intrinsic_sys_linux_signal_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_kill" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_kill expects 2 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_kill does not support spread"); return nil }
+        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_kill expects 2 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_kill does not support spread"); return true }
 
         var base22 = _intr_tmp_push(ctx, 2) // pid, signum
-        if oren_type_tag(base22) == 0 { return nil }
+        if oren_type_tag(base22) == 0 { return true }
         var tmp_pid = _intr_tmp_off(ctx, locals, base22 + 0)
         var tmp_sig = _intr_tmp_off(ctx, locals, base22 + 1)
-        if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_sig) == 0 { _intr_tmp_pop(ctx, base22); return nil }
+        if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_sig) == 0 { _intr_tmp_pop(ctx, base22); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_pid)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_sig)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base22); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base22); return true }
 
         // pre: native_capsule_sys_kill_pre(pid, signum)
         if capsule {
@@ -862,12 +860,16 @@ fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
         bytes_extend(ctx["code"], core.insn_syscall())
 
         _intr_tmp_pop(ctx, base22)
-        return nil
+        return true
     }
 
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_time_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_gettimeofday" {
-        if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_gettimeofday expects 3 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_gettimeofday does not support spread"); return nil }
+        if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_gettimeofday expects 3 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_gettimeofday does not support spread"); return true }
 
         // Also reserve a 16-byte timespec scratch so we can optionally provide a
         // monotonic raw timestamp via clock_gettime(CLOCK_MONOTONIC) on Linux.
@@ -884,7 +886,7 @@ fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
         // We pass the deeper slot as the timespec base so the kernel's "+8" write lands in
         // the shallower slot.
         var base23 = _intr_tmp_push(ctx, 5) // tv, tz, abs, ts_hi, ts_lo
-        if oren_type_tag(base23) == 0 { return nil }
+        if oren_type_tag(base23) == 0 { return true }
         var tmp_tv = _intr_tmp_off(ctx, locals, base23 + 0)
         var tmp_tz = _intr_tmp_off(ctx, locals, base23 + 1)
         var tmp_abs = _intr_tmp_off(ctx, locals, base23 + 2)
@@ -893,13 +895,13 @@ fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
         if oren_type_tag(tmp_tv) == 0 || oren_type_tag(tmp_tz) == 0 || oren_type_tag(tmp_abs) == 0 ||
            oren_type_tag(tmp_ts_hi) == 0 || oren_type_tag(tmp_ts_lo) == 0 {
             _intr_tmp_pop(ctx, base23)
-            return nil
+            return true
         }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_tv)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_tz)
         _intr_eval_spill_x64(ctx, locals, args[2], tmp_abs)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base23); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base23); return true }
 
         // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
         if capsule {
@@ -956,22 +958,26 @@ fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
         _patch_local_fixups(ctx, labels, fixups)
 
         _intr_tmp_pop(ctx, base23)
-        return nil
+        return true
     }
 
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_cwd_sched_sleep_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_getcwd" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_getcwd expects 2 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getcwd does not support spread"); return nil }
+        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_getcwd expects 2 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getcwd does not support spread"); return true }
 
         var base24 = _intr_tmp_push(ctx, 2) // buf, size
-        if oren_type_tag(base24) == 0 { return nil }
+        if oren_type_tag(base24) == 0 { return true }
         var tmp_buf = _intr_tmp_off(ctx, locals, base24 + 0)
         var tmp_sz = _intr_tmp_off(ctx, locals, base24 + 1)
-        if oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_sz) == 0 { _intr_tmp_pop(ctx, base24); return nil }
+        if oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_sz) == 0 { _intr_tmp_pop(ctx, base24); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_buf)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_sz)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base24); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base24); return true }
 
         // pre: native_capsule_sys_getcwd_pre()
         if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getcwd_pre") }
@@ -982,32 +988,32 @@ fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
         bytes_extend(ctx["code"], core.insn_syscall())
 
         _intr_tmp_pop(ctx, base24)
-        return nil
+        return true
     }
 
     if nm == "sys_sched_yield" {
-        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_sched_yield expects 0 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_sched_yield does not support spread"); return nil }
+        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_sched_yield expects 0 args"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_sched_yield does not support spread"); return true }
 
         // pre: native_capsule_sys_sched_yield_pre()
         if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sched_yield_pre") }
 
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_sched_yield()))
         bytes_extend(ctx["code"], core.insn_syscall())
-        return nil
+        return true
     }
 
     if nm == "sys_nanosleep" {
-        if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return nil }
+        if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return true }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return true }
 
         var base25 = _intr_tmp_push(ctx, 1) // ns
-        if oren_type_tag(base25) == 0 { return nil }
+        if oren_type_tag(base25) == 0 { return true }
         var tmp_ns = _intr_tmp_off(ctx, locals, base25 + 0)
-        if oren_type_tag(tmp_ns) == 0 { _intr_tmp_pop(ctx, base25); return nil }
+        if oren_type_tag(tmp_ns) == 0 { _intr_tmp_pop(ctx, base25); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return true }
 
         // pre: native_capsule_sys_nanosleep_pre(ns) -> ns (may return <=0 to skip sleep)
         if capsule {
@@ -1074,8 +1080,17 @@ fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
         _patch_local_fixups(ctx, labels25, fixups25)
 
         _intr_tmp_pop(ctx, base25)
-        return nil
+        return true
     }
+
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_misc_x64(ctx, nm, expr, locals, args, capsule) {
+    if _emit_intrinsic_sys_linux_fd_misc_x64(ctx, nm, expr, locals, args, capsule) == true { return nil }
+    if _emit_intrinsic_sys_linux_signal_x64(ctx, nm, expr, locals, args, capsule) != false { return nil }
+    if _emit_intrinsic_sys_linux_time_x64(ctx, nm, expr, locals, args, capsule) != false { return nil }
+    if _emit_intrinsic_sys_linux_cwd_sched_sleep_x64(ctx, nm, expr, locals, args, capsule) != false { return nil }
 
     if _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) { return nil }
 
