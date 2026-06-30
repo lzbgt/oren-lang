@@ -309,7 +309,12 @@
 <p>																			  split with preparation, sum-string flag, list-validation, and loop-body</p>
 <p>																			  helpers. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>																			  37.9s total / 28.8s parse, with <code>native_compile_program_x64</code> exposed at</p>
-<p>																			  about 285ms as the next parser body.</p>
+<p>																			  about 285ms as the next parser body. <code>native_compile_program_x64</code> now</p>
+<p>																			  delegates debug metadata setup, entry emission, function/backend tail</p>
+<p>																			  compilation, and summary formatting to low-arity helpers. The capped</p>
+<p>																			  profile now shows <code>x64_native_program.oren</code> at about 37.1s total / 27.8s</p>
+<p>																			  parse, with <code>_emit_generic_call_expr_v0</code> exposed at about 267ms as the</p>
+<p>																			  next parser body.</p>
 <p>					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

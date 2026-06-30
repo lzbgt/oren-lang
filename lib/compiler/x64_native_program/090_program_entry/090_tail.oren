@@ -1299,6 +1299,200 @@ fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, u
     return {"fns": fns, "type_ctors": type_ctors, "has_main": has_main, "top_info": top_info, "wrappers": wrappers}
 }
 
+fn _x64_prepare_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, trace_prog, phase_log) {
+    // Reserve a u64 slot holding the debug-info table offset so the entry stub can
+    // read the final offset at runtime and derive a PIE-safe pointer.
+    if platform != nil && platform["debug"] == true {
+        var dbg_slot_off = _data_add_u64(ctx, 0)
+        // Store as offset+1 so offset 0 is representable while still using `nil` as missing.
+        ctx["dbginfo_table_slot_enc"] = dbg_slot_off + 1
+    }
+
+    var want_resolve_symbol = false
+    var env_rs = oren_env("OREN_NATIVE_RESOLVE_SYMBOL")
+    if env_rs != nil && env_rs == "1" { want_resolve_symbol = true }
+
+    _x64_setup_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, want_resolve_symbol)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    if trace_prog { print("[x64_compile] debug metadata setup done") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.metadata.done", "")
+    }
+    return true
+}
+
+fn _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) {
+    var trace_prog = opts_compile["trace_prog"] == true
+    var trace_entry = opts_compile["trace_entry"] == true
+    var phase_log = opts_compile["phase_log"]
+    var entry_setup = _x64_emit_entry_prologue_and_args(ctx, platform, trace_prog, trace_entry, phase_log)
+    if entry_setup == nil { return false }
+    var is_dll = entry_setup["is_dll"] == true
+    var is_so = entry_setup["is_so"] == true
+    var scratch_base = entry_setup["scratch_base"]
+
+    _x64_emit_entry_runtime_bootstrap(ctx, platform, scratch_base, is_so, trace_prog, trace_entry, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+
+    _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+
+    var entry_opts = {
+        "trace_prog": trace_prog,
+        "trace_entry": trace_entry,
+        "trace_entry_after_reg": opts_compile["trace_entry_after_reg"] == true,
+        "skip_register_thread": opts_compile["skip_register_thread"] == true,
+        "exit_after_register_thread": opts_compile["exit_after_register_thread"] == true,
+        "skip_top_level": opts_compile["skip_top_level"] == true,
+        "skip_main": opts_compile["skip_main"] == true,
+        "is_dll": is_dll,
+        "is_so": is_so,
+        "entry_total": entry_setup["entry_total"],
+        "dll_labels": entry_setup["dll_labels"],
+        "dll_fixups": entry_setup["dll_fixups"]
+    }
+    _x64_emit_entry_register_thread_call(ctx, platform, entry_opts, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _x64_emit_entry_return_path(ctx, platform, entry_opts)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    if trace_prog { print("[x64_compile] entry stub done") }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
+    return true
+}
+
+fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers, used_rtobj, opts_compile) {
+    var trace_prog = opts_compile["trace_prog"] == true
+    var trace_sum = opts_compile["trace_sum"] == true
+    var phase_log = opts_compile["phase_log"]
+    var t_apply_rtobj_done = 0
+    var t_top_done = 0
+    var t_fns_done = 0
+    var t_wrappers_done = 0
+    var t_fnwrap_done = 0
+    var t_panic_done = 0
+
+    var top_fn = top_info["top_level_fn"]
+    if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return nil }
+    coreir.infer_native_param_numeric_traits(ctx, fns, top_fn, "x64 native v0")
+
+    if used_rtobj == true {
+        if trace_prog { print("[x64_compile] rtobj code splice start") }
+        _x64_rtobj_apply_code_to_ctx(ctx)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if trace_prog { print("[x64_compile] rtobj code splice done") }
+    }
+    if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj_code.done",
+            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
+
+    var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
+    if trace_prog { print("[x64_compile] compile __top_level__") }
+    _compile_function_v0(ctx, top_fn, platform, false, call_depth_default_enabled)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_top_done = oren_time_now_ns() }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
+
+    var fn_loop_opts = {
+        "trace_prog": trace_prog,
+        "focus_enabled": opts_compile["focus_enabled"] == true,
+        "prog_focus_from": opts_compile["prog_focus_from"],
+        "prog_focus_to": opts_compile["prog_focus_to"],
+        "prog_stride": opts_compile["prog_stride"],
+        "prog_slow_fn_ms": opts_compile["prog_slow_fn_ms"],
+        "trace_top_slow": opts_compile["trace_top_slow"] == true,
+        "top_slow_n": opts_compile["top_slow_n"],
+        "top_slow_min_ms": opts_compile["top_slow_min_ms"],
+        "top_slow_live": opts_compile["top_slow_live"] == true,
+        "top_slow_live_n": opts_compile["top_slow_live_n"],
+        "fns_progress_interval": opts_compile["fns_progress_interval"],
+        "fns_detail_limit": opts_compile["fns_detail_limit"]
+    }
+    _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, fn_loop_opts)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_fns_done = oren_time_now_ns() }
+
+    _x64_compile_lambda_wrappers(ctx, wrappers, platform, call_depth_default_enabled, trace_prog, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_wrappers_done = oren_time_now_ns() }
+
+    _x64_compile_missing_fnwraps(ctx, platform, call_depth_default_enabled, phase_log)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_fnwrap_done = oren_time_now_ns() }
+
+    _x64_emit_ffi_stubs(ctx, platform)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _emit_panic_helper_fn_if_needed_x64(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_panic_done = oren_time_now_ns() }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.panic_helper.done", "") }
+
+    return {
+        "apply_rtobj_done": t_apply_rtobj_done,
+        "top_done": t_top_done,
+        "fns_done": t_fns_done,
+        "wrappers_done": t_wrappers_done,
+        "fnwrap_done": t_fnwrap_done,
+        "panic_done": t_panic_done
+    }
+}
+
+fn _x64_print_program_compile_summary(ctx, platform, used_rtobj, t0, times) {
+    var t_finalize_done = times["finalize_done"]
+    var t_rtobj_done = times["rtobj_done"]
+    var t_entry_done = times["entry_done"]
+    var t_apply_rtobj_done = times["apply_rtobj_done"]
+    var t_top_done = times["top_done"]
+    var t_fns_done = times["fns_done"]
+    var t_wrappers_done = times["wrappers_done"]
+    var t_fnwrap_done = times["fnwrap_done"]
+    var t_panic_done = times["panic_done"]
+    var os = "unknown"
+    var dbg = 0
+    var used_rtobj_i = 0
+    if platform != nil {
+        if platform["os"] != nil { os = platform["os"] }
+        if platform["debug"] == true { dbg = 1 }
+    }
+    // Avoid passing bool-like values to `oren_int_to_string` (native value-model hazard).
+    if used_rtobj == true { used_rtobj_i = 1 }
+    var total_ms = (t_finalize_done - t0) / 1000000
+    var rtobj_ms = (t_rtobj_done - t0) / 1000000
+    var entry_ms = (t_entry_done - t_rtobj_done) / 1000000
+    var apply_ms = (t_apply_rtobj_done - t_entry_done) / 1000000
+    var top_ms = (t_top_done - t_apply_rtobj_done) / 1000000
+    var fns_ms = (t_fns_done - t_top_done) / 1000000
+    var wrappers_ms = (t_wrappers_done - t_fns_done) / 1000000
+    var fnwrap_ms = (t_fnwrap_done - t_wrappers_done) / 1000000
+    var panic_ms = (t_panic_done - t_fnwrap_done) / 1000000
+    var finalize_ms = (t_finalize_done - t_panic_done) / 1000000
+    var code_bytes = bytes_len(ctx["code"])
+    var fx_n = 0
+    if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
+    print("[x64_compile] os=" + os +
+        " dbg=" + oren_int_to_string(dbg) +
+        " used_rtobj=" + oren_int_to_string(used_rtobj_i) +
+        " total_ms=" + oren_int_to_string(total_ms) +
+        " rtobj_ms=" + oren_int_to_string(rtobj_ms) +
+        " entry_ms=" + oren_int_to_string(entry_ms) +
+        " apply_rtobj_ms=" + oren_int_to_string(apply_ms) +
+        " top_ms=" + oren_int_to_string(top_ms) +
+        " fns_ms=" + oren_int_to_string(fns_ms) +
+        " wrappers_ms=" + oren_int_to_string(wrappers_ms) +
+        " fnwrap_ms=" + oren_int_to_string(fnwrap_ms) +
+        " panic_ms=" + oren_int_to_string(panic_ms) +
+        " finalize_ms=" + oren_int_to_string(finalize_ms) +
+        " code_bytes=" + oren_int_to_string(code_bytes) +
+        " fixups_n=" + oren_int_to_string(fx_n))
+    return nil
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -1325,36 +1519,11 @@ fn native_compile_program_x64(linked, platform) {
     var phase_log = opts_compile["phase_log"]
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.enter", "") }
     var trace_prog = opts_compile["trace_prog"] == true
-    var prog_stride = opts_compile["prog_stride"]
-    var prog_focus_from = opts_compile["prog_focus_from"]
-    var prog_focus_to = opts_compile["prog_focus_to"]
-    var prog_slow_fn_ms = opts_compile["prog_slow_fn_ms"]
-    var focus_enabled = opts_compile["focus_enabled"] == true
-    var trace_entry = opts_compile["trace_entry"] == true
-    var skip_register_thread = opts_compile["skip_register_thread"] == true
-    var exit_after_register_thread = opts_compile["exit_after_register_thread"] == true
-    var skip_top_level = opts_compile["skip_top_level"] == true
-    var skip_main = opts_compile["skip_main"] == true
-    var trace_entry_after_reg = opts_compile["trace_entry_after_reg"] == true
     var t0 = 0
     var t_rtobj_done = 0
     var t_entry_done = 0
-    var t_apply_rtobj_done = 0
-    var t_top_done = 0
-    var t_fns_done = 0
-    var t_wrappers_done = 0
-    var t_fnwrap_done = 0
-    var t_panic_done = 0
     var t_finalize_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
-
-    var trace_top_slow = opts_compile["trace_top_slow"] == true
-    var top_slow_n = opts_compile["top_slow_n"]
-    var top_slow_min_ms = opts_compile["top_slow_min_ms"]
-    var top_slow_live = opts_compile["top_slow_live"] == true
-    var top_slow_live_n = opts_compile["top_slow_live_n"]
-    var fns_progress_interval = opts_compile["fns_progress_interval"]
-    var fns_detail_limit = opts_compile["fns_detail_limit"]
 
     if trace_prog { print("[x64_compile] ctx init") }
     var ctx = _x64_new_ctx(linked, platform)
@@ -1381,7 +1550,6 @@ fn native_compile_program_x64(linked, platform) {
     var prep = _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log)
     if prep == nil { return ctx }
     var fns = prep["fns"]
-    var type_ctors = prep["type_ctors"]
     var has_main = prep["has_main"] == true
     var top_info = prep["top_info"]
     var wrappers = prep["wrappers"]
@@ -1398,15 +1566,6 @@ fn native_compile_program_x64(linked, platform) {
     // - rtobj code cannot embed final-program symtab references (those are reserved/finalized
     //   in this file), so `resolve_symbol(pc)` inside rtobj would otherwise degrade to "???".
     //
-    // Reserve a u64 slot holding the debug-info table offset so the entry stub can:
-    // - read the final offset at runtime, and
-    // - compute a PIE-safe pointer using the same `data_base` derivation as the cstr0 table.
-    if platform != nil && platform["debug"] == true {
-        var dbg_slot_off = _data_add_u64(ctx, 0)
-        // Store as offset+1 so offset 0 is representable while still using `nil` as missing.
-        ctx["dbginfo_table_slot_enc"] = dbg_slot_off + 1
-    }
-
     // Symbol table for `resolve_symbol(pc)` (optional; rolling):
     // - Debug builds already embed a range-based debug-info table used by `oren_resolve_symbol(pc)`.
     // - A full symtab can still be useful for postmortem/debugging when debug-info is missing,
@@ -1415,16 +1574,7 @@ fn native_compile_program_x64(linked, platform) {
     // Policy:
     // - Default: skip symtab+linetab generation (even in debug builds).
     // - Opt-in: set `OREN_NATIVE_RESOLVE_SYMBOL=1` to generate the full tables.
-    var want_resolve_symbol = false
-    var env_rs = oren_env("OREN_NATIVE_RESOLVE_SYMBOL")
-    if env_rs != nil && env_rs == "1" { want_resolve_symbol = true }
-
-    _x64_setup_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, want_resolve_symbol)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_prog { print("[x64_compile] debug metadata setup done") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.metadata.done", "")
-    }
+    if _x64_prepare_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, trace_prog, phase_log) != true { return ctx }
 
     // --- Stack safety (call depth guard; Tier‑1 parity) ---
     //
@@ -1441,117 +1591,11 @@ fn native_compile_program_x64(linked, platform) {
     // using envp (`native_runtime_call_depth_apply_env()`), so we do not parse env in the
     // entry stub.
     //
-    var entry_setup = _x64_emit_entry_prologue_and_args(ctx, platform, trace_prog, trace_entry, phase_log)
-    if entry_setup == nil { return ctx }
-    var is_dll = entry_setup["is_dll"] == true
-    var is_so = entry_setup["is_so"] == true
-    var entry_total = entry_setup["entry_total"]
-    var scratch_base = entry_setup["scratch_base"]
-    var dll_labels = entry_setup["dll_labels"]
-    var dll_fixups = entry_setup["dll_fixups"]
-
-    _x64_emit_entry_runtime_bootstrap(ctx, platform, scratch_base, is_so, trace_prog, trace_entry, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-
-    _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-
-    var entry_opts = {
-        "trace_prog": trace_prog,
-        "trace_entry": trace_entry,
-        "trace_entry_after_reg": trace_entry_after_reg,
-        "skip_register_thread": skip_register_thread,
-        "exit_after_register_thread": exit_after_register_thread,
-        "skip_top_level": skip_top_level,
-        "skip_main": skip_main,
-        "is_dll": is_dll,
-        "is_so": is_so,
-        "entry_total": entry_total,
-        "dll_labels": dll_labels,
-        "dll_fixups": dll_fixups
-    }
-    _x64_emit_entry_register_thread_call(ctx, platform, entry_opts, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    _x64_emit_entry_return_path(ctx, platform, entry_opts)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) != true { return ctx }
     if trace_sum { t_entry_done = oren_time_now_ns() }
-    if trace_prog { print("[x64_compile] entry stub done") }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.done",
-            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
-    }
 
-    // --- functions ---
-    // Compile the synthesized top-level initializer function first so:
-    // - its symbol exists for the entry stub call fixup, and
-    // - stack traces can include a stable `__top_level__` frame when it panics.
-	    var top_fn = top_info["top_level_fn"]
-	    if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return ctx }
-	    coreir.infer_native_param_numeric_traits(ctx, fns, top_fn, "x64 native v0")
-
-	    // If a runtime object is pending, splice its code after the entry stub now so
-    // runtime functions resolve by name before compiling user code.
-    if used_rtobj == true {
-        if trace_prog { print("[x64_compile] rtobj code splice start") }
-        _x64_rtobj_apply_code_to_ctx(ctx)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-        if trace_prog { print("[x64_compile] rtobj code splice done") }
-    }
-    if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj_code.done",
-            "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
-    }
-
-    var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
-
-    if trace_prog { print("[x64_compile] compile __top_level__") }
-    _compile_function_v0(ctx, top_fn, platform, false, call_depth_default_enabled)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_sum { t_top_done = oren_time_now_ns() }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
-
-    var fn_loop_opts = {
-        "trace_prog": trace_prog,
-        "focus_enabled": focus_enabled,
-        "prog_focus_from": prog_focus_from,
-        "prog_focus_to": prog_focus_to,
-        "prog_stride": prog_stride,
-        "prog_slow_fn_ms": prog_slow_fn_ms,
-        "trace_top_slow": trace_top_slow,
-        "top_slow_n": top_slow_n,
-        "top_slow_min_ms": top_slow_min_ms,
-        "top_slow_live": top_slow_live,
-        "top_slow_live_n": top_slow_live_n,
-        "fns_progress_interval": fns_progress_interval,
-        "fns_detail_limit": fns_detail_limit
-    }
-    _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, fn_loop_opts)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_sum { t_fns_done = oren_time_now_ns() }
-    _x64_compile_lambda_wrappers(ctx, wrappers, platform, call_depth_default_enabled, trace_prog, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_sum { t_wrappers_done = oren_time_now_ns() }
-
-    _x64_compile_missing_fnwraps(ctx, platform, call_depth_default_enabled, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_sum { t_fnwrap_done = oren_time_now_ns() }
-
-    // --- FFI stubs ---
-    //
-    // Emit any backend stubs required for `ffi` symbols (Windows: real; Linux: stubbed).
-    _x64_emit_ffi_stubs(ctx, platform)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-
-    // Emit shared panic helper after compiling user/runtime functions so:
-    // - call-site fixups can resolve it by name, and
-    // - we avoid inlining large panic sequences at every compiler-generated site.
-    _emit_panic_helper_fn_if_needed_x64(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-    if trace_sum { t_panic_done = oren_time_now_ns() }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.panic_helper.done", "") }
+    var fn_times = _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers, used_rtobj, opts_compile)
+    if fn_times == nil { return ctx }
 
 
     _x64_finalize_program_data(ctx, platform, phase_log)
@@ -1559,43 +1603,10 @@ fn native_compile_program_x64(linked, platform) {
 
     if trace_sum {
         t_finalize_done = oren_time_now_ns()
-        var os = "unknown"
-        var dbg = 0
-        var used_rtobj_i = 0
-        if platform != nil {
-            if platform["os"] != nil { os = platform["os"] }
-            if platform["debug"] == true { dbg = 1 }
-        }
-        // Avoid passing bool-like values to `oren_int_to_string` (native value-model hazard).
-        if used_rtobj == true { used_rtobj_i = 1 }
-        var total_ms = (t_finalize_done - t0) / 1000000
-        var rtobj_ms = (t_rtobj_done - t0) / 1000000
-        var entry_ms = (t_entry_done - t_rtobj_done) / 1000000
-        var apply_ms = (t_apply_rtobj_done - t_entry_done) / 1000000
-        var top_ms = (t_top_done - t_apply_rtobj_done) / 1000000
-        var fns_ms = (t_fns_done - t_top_done) / 1000000
-        var wrappers_ms = (t_wrappers_done - t_fns_done) / 1000000
-        var fnwrap_ms = (t_fnwrap_done - t_wrappers_done) / 1000000
-        var panic_ms = (t_panic_done - t_fnwrap_done) / 1000000
-        var finalize_ms = (t_finalize_done - t_panic_done) / 1000000
-        var code_bytes = bytes_len(ctx["code"])
-        var fx_n = 0
-        if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
-        print("[x64_compile] os=" + os +
-            " dbg=" + oren_int_to_string(dbg) +
-            " used_rtobj=" + oren_int_to_string(used_rtobj_i) +
-            " total_ms=" + oren_int_to_string(total_ms) +
-            " rtobj_ms=" + oren_int_to_string(rtobj_ms) +
-            " entry_ms=" + oren_int_to_string(entry_ms) +
-            " apply_rtobj_ms=" + oren_int_to_string(apply_ms) +
-            " top_ms=" + oren_int_to_string(top_ms) +
-            " fns_ms=" + oren_int_to_string(fns_ms) +
-            " wrappers_ms=" + oren_int_to_string(wrappers_ms) +
-            " fnwrap_ms=" + oren_int_to_string(fnwrap_ms) +
-            " panic_ms=" + oren_int_to_string(panic_ms) +
-            " finalize_ms=" + oren_int_to_string(finalize_ms) +
-            " code_bytes=" + oren_int_to_string(code_bytes) +
-            " fixups_n=" + oren_int_to_string(fx_n))
+        fn_times["rtobj_done"] = t_rtobj_done
+        fn_times["entry_done"] = t_entry_done
+        fn_times["finalize_done"] = t_finalize_done
+        _x64_print_program_compile_summary(ctx, platform, used_rtobj, t0, fn_times)
     }
 
     return ctx
