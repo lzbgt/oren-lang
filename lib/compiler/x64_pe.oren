@@ -63,8 +63,19 @@ fn _pe_read_u64_le_u8(ub, off) {
     var b5 = ptr_get_byte(iadd(p, off + 5)) & 255
     var b6 = ptr_get_byte(iadd(p, off + 6)) & 255
     var b7 = ptr_get_byte(iadd(p, off + 7)) & 255
-    return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216 +
-        b4 * 4294967296 + b5 * 1099511627776 + b6 * 281474976710656 + b7 * 72057594037927936
+    return (b7 << 56) | (b6 << 48) | (b5 << 40) | (b4 << 32) | (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+}
+
+fn _pe_read_u64_le_ptr(p, off) {
+    var b0 = ptr_get_byte(iadd(p, off + 0)) & 255
+    var b1 = ptr_get_byte(iadd(p, off + 1)) & 255
+    var b2 = ptr_get_byte(iadd(p, off + 2)) & 255
+    var b3 = ptr_get_byte(iadd(p, off + 3)) & 255
+    var b4 = ptr_get_byte(iadd(p, off + 4)) & 255
+    var b5 = ptr_get_byte(iadd(p, off + 5)) & 255
+    var b6 = ptr_get_byte(iadd(p, off + 6)) & 255
+    var b7 = ptr_get_byte(iadd(p, off + 7)) & 255
+    return (b7 << 56) | (b6 << 48) | (b5 << 40) | (b4 << 32) | (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
 }
 
 fn _pe_u64_sidecar_count(ub) {
@@ -197,16 +208,34 @@ fn _pe_apply_x64_rtobj_call_fixups(ctx, code, poss, names, rtbase, functions) {
 fn _pe_apply_x64_rtobj_call_fixups_u8(ctx, code, poss_u8, target_u8, names, rtbase, functions) {
     if poss_u8 == nil { return false }
     var n = _pe_u64_sidecar_count(poss_u8)
+    var poss_p = oren_buf_data_ptr_unchecked(poss_u8)
+    if poss_p == 0 { return false }
+    var target_p = 0
+    if target_u8 != nil && _pe_u64_sidecar_count(target_u8) >= n {
+        target_p = oren_buf_data_ptr_unchecked(target_u8)
+    }
+    var base = 0
+    if ctx != nil && ctx["runtime_x64_fn_offsets_base_code"] != nil { base = ctx["runtime_x64_fn_offsets_base_code"] }
     var i = 0
     while i < n {
-        var target = _pe_x64_lookup_fn_target_u8(ctx, functions, target_u8, names, i)
+        var target = nil
+        var off = i * 8
+        if target_p != 0 {
+            var enc = _pe_read_u64_le_ptr(target_p, off)
+            if enc > 0 { target = base + enc - 1 }
+        }
+        if target == nil {
+            var name0 = nil
+            if names != nil { name0 = names[i] }
+            target = _pe_x64_lookup_fn(ctx, functions, name0)
+        }
         if target == nil {
             var name = ""
             if names != nil { name = names[i] }
             print("x64 pe: undefined function " + name)
             oren_exit(1)
         }
-        var pos = rtbase + _pe_read_u64_le_u8(poss_u8, i * 8)
+        var pos = rtbase + _pe_read_u64_le_ptr(poss_p, off)
         var disp = target - (pos + 5)
         if disp < 0 { disp = 4294967296 + disp }
         set_u32_le(code, pos + 1, disp)

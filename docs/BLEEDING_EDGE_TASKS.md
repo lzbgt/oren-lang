@@ -236,6 +236,10 @@ This file is the concise task view. Detailed implementation status lives in
 							     testing every shape; the focused nested-map Linux x64 probe shows
 							     local fixups at about 26ms, leaving runtime-object call replay and
 							     broader user-function emission as the next measured x64 costs.
+							     Runtime-object call-fixup replay now caches sidecar pointers/base
+							     metadata once and reads u64 sidecars through a raw pointer helper,
+							     moving the same 15,924-call focused replay from about 289ms to
+							     about 237ms.
 							     The refreshed Linux x64 self-host compile-only probe then exposed a
 							     prerequisite seed-policy gap: missing `x64-linux/full` runtime-object
 							     seeds were still cold-built by `oren_stage2` under the seed helper's

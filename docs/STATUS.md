@@ -267,7 +267,10 @@ Facts from the 2026-05-28 implementation pass:
 						  local-fixup dispatcher now caches each fixup kind once, caches the fixup
 						  count, and uses single-branch dispatch in the PE emitter; the nested-map
 						  Linux x64 probe shows local fixups at about 26ms, with runtime-object call
-						  replay now the remaining fixup-side cost in that focused path. A refreshed
+						  replay as the remaining fixup-side cost in that focused path. Runtime-object
+						  call-fixup replay now caches sidecar pointers/base metadata once and reads
+						  u64 sidecars through a raw pointer helper, moving the same 15,924-call
+						  focused replay from about 289ms to about 237ms. A refreshed
 						  Linux x64 self-host compile-only probe then failed before the compiler build
 						  because the prerequisite `x64-linux/full` runtime-object seed cold-build hit
 						  the seed helper's fixed 180s cap. The self-host compile-only gate now mirrors
