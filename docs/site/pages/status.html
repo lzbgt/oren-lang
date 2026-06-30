@@ -156,10 +156,15 @@
 <p>			  <code>link.discover_module.done</code> attribution markers for path resolution, import</p>
 <p>			  scanning, and recursive dependency descent. Repo-owned <code>lib/compiler/**</code> and</p>
 <p>			  <code>lib/std/**</code> sources use header-only import scanning after a repo scan verified</p>
-<p>			  all 1495 Oren files keep imports before code. Include-aggregator detection</p>
-<p>			  now exits at the first real code line for ordinary children, so capped x64</p>
-<p>			  self-host discovery dropped from roughly 45.7s to 26.8s after header scanning</p>
-<p>			  and then to about 0.675s after aggregator early exit.</p>
+<p>				  all 1495 Oren files keep imports before code. Include-aggregator detection</p>
+<p>				  now exits at the first real code line for ordinary children, so capped x64</p>
+<p>				  self-host discovery dropped from roughly 45.7s to 26.8s after header scanning</p>
+<p>				  and then to about 0.675s after aggregator early exit. The Linux x64 syscall</p>
+<p>				  intrinsic dispatcher is split into fs/proc/misc helper bodies; the capped</p>
+<p>				  x64 self-host parse profile for <code>x64_native_program.oren</code> moved from about</p>
+<p>				  41.4s total / 30.4s parse to 38.2s total / 27.8s parse, shifting the hot</p>
+<p>				  parser body from <code>_emit_intrinsic_sys_linux_x64</code> to</p>
+<p>				  <code>native_compile_program_x64</code>.</p>
 <p>		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

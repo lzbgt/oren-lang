@@ -86,6 +86,13 @@
 <p>  children. Capped x64 self-host <code>link.discover.done</code> dropped from ~45.7s to</p>
 <p>  ~26.8s after header scanning and then to ~0.675s after aggregator early exit.</p>
 <ul>
+<li>The Linux x64 syscall intrinsic dispatcher is split into smaller fs/proc/misc</li>
+</ul>
+<p>  helper bodies. The capped x64 self-host parse profile for</p>
+<p>  <code>x64_native_program.oren</code> moved from roughly 41.4s total / 30.4s parse to</p>
+<p>  38.2s total / 27.8s parse, shifting the hot parse body from</p>
+<p>  <code>_emit_intrinsic_sys_linux_x64</code> to <code>native_compile_program_x64</code>.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

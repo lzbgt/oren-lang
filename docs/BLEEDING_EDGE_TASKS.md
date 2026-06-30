@@ -117,10 +117,15 @@ This file is the concise task view. Detailed implementation status lives in
 									     `link.discover_module.done` path/scan/dependency attribution, and
 									     repo-owned `lib/compiler/**` plus `lib/std/**` files use header-only
 									     import scanning after a repo scan proved all 1495 Oren files keep
-									     imports before code. Include-aggregator detection now exits at the first
+										     imports before code. Include-aggregator detection now exits at the first
 									     real code line for ordinary children, so capped x64 self-host discovery
 									     dropped from roughly 45.7s to 26.8s after header scanning and then to
-									     about 0.675s after aggregator early exit.
+									     about 0.675s after aggregator early exit. The Linux x64 syscall intrinsic
+									     dispatcher is split into fs/proc/misc helper bodies; the capped x64
+									     self-host parse profile for `x64_native_program.oren` moved from about
+									     41.4s total / 30.4s parse to 38.2s total / 27.8s parse, shifting the hot
+									     parser body from `_emit_intrinsic_sys_linux_x64` to
+									     `native_compile_program_x64`.
 								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
