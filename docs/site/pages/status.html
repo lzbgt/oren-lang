@@ -404,10 +404,15 @@
 <p>																															  <code>x64_native_program.oren</code> at about 37.3s total / 27.9s parse, with</p>
 <p>																															  <code>_emit_list_push_intrinsic_v0_x64</code> exposed at about 176ms as the next parser</p>
 <p>																															  body. X64 generic <code>oren_list_push</code> lowering now mirrors the list-int helper</p>
-<p>																															  layout, delegating argument spilling, validation, header reads, slow/fast path</p>
-<p>																															  emission, and optional header tracing through focused helpers. The capped</p>
-<p>																															  profile now shows <code>x64_native_program.oren</code> at about 38.0s total / 28.3s parse,</p>
-<p>																															  with <code>_x64_build_runtime_obj</code> exposed at about 180ms as the next parser body.</p>
+<p>																																  layout, delegating argument spilling, validation, header reads, slow/fast path</p>
+<p>																																  emission, and optional header tracing through focused helpers. The capped</p>
+<p>																																  profile now shows <code>x64_native_program.oren</code> at about 38.0s total / 28.3s parse,</p>
+<p>																																  with <code>_x64_build_runtime_obj</code> exposed at about 180ms as the next parser body.</p>
+<p>																																  X64 runtime-object build orchestration now delegates final blob/meta</p>
+<p>																																  materialization and summary printing through focused helpers. The capped</p>
+<p>																																  profile now shows <code>x64_native_program.oren</code> at about 39.3s total / 29.4s parse,</p>
+<p>																																  with <code>_x64_build_top_level_init_stmts</code> exposed at about 190ms as the next</p>
+<p>																																  parser body.</p>
 <p>						  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
