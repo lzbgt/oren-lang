@@ -206,6 +206,108 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     return nil
 }
 
+fn _emit_win64_zero_ore_stat_v0_x64(ctx, st_reg) {
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8))
+    var zoff = 0
+    while zoff < nstat.oren_stat_v0_size_bytes() {
+        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(st_reg, zoff, 8))
+        zoff = zoff + 4
+    }
+    return nil
+}
+
+fn _emit_win64_stat_dir_success_x64(ctx, fixups, tmp_st, l_done) {
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+
+    // Translate into OrenStatV0 at st_ptr (directory).
+    _intr_load_x64(ctx, 9, tmp_st)                    // r9 = st_ptr
+    _emit_win64_zero_ore_stat_v0_x64(ctx, 9)
+    // mode: directory (approx): 0o040755 = 16877
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 16877))
+    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
+
+fn _emit_win64_stat_open_file_x64(ctx, fixups, l_done, l_handle_ok) {
+    // Restore rcx to the normalized path buffer (Win64 ABI treats rcx as volatile; the
+    // prior GetFileAttributesA call may have clobbered it).
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(1, 64))
+
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 7))          // r8d = share
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
+
+    // arg5 creation disposition = OPEN_EXISTING (3)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 3))
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    // arg6 flags/attrs = FILE_ATTRIBUTE_NORMAL (0x80)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 128))
+    _emit_mov_mrsp_r64(ctx, 40, 10)
+    // arg7 template = NULL
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
+    _emit_mov_mrsp_r64(ctx, 48, 10)
+
+    _emit_call_iat_x64(ctx, "IAT_CreateFileA")
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+
+    // if handle == INVALID_HANDLE_VALUE (-1) => fail
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_handle_ok)
+    _emit_win32_last_error_to_neg_errno_common_x64(ctx)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
+
+fn _emit_win64_stat_file_success_x64(ctx, tmp_st, tmp_handle) {
+    // spill handle so capsule post hooks can observe rc consistently (and so we can close it)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_handle, 0)
+
+    // Translate into OrenStatV0 at st_ptr.
+    _intr_load_x64(ctx, 9, tmp_st)                 // r9 = st_ptr
+    _emit_win64_zero_ore_stat_v0_x64(ctx, 9)
+    // mode: regular file (approx): 0o100644 = 33188
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 33188))
+    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+
+    // LARGE_INTEGER out at [rsp+0x28] (reuse call-area; avoid intrinsic temp pointers)
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(48, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(52, 0))
+
+    // Reload handle from the spilled slot: intermediate helpers may clobber rax.
+    _intr_load_x64(ctx, 1, tmp_handle)                    // rcx = handle
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(2, 40)) // rdx = &li
+    _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
+
+    // If GetFileSizeEx fails, keep size=0 (rolling, still treat stat as success).
+    // Load size from li.QuadPart (8 bytes at [rsp+0x28]) into r8.
+    _intr_load_x64(ctx, 9, tmp_st) // reload st_ptr (volatile regs are clobbered by WinAPI calls)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp8(8, 40))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(9, 8)) // [st_ptr+0] = size
+
+    // CloseHandle(handle) (best-effort).
+    _intr_load_x64(ctx, 1, tmp_handle) // rcx = handle
+    _emit_call_iat_x64(ctx, "IAT_CloseHandle")
+
+    // rc = 0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    return nil
+}
+
+fn _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, tmp_pair) {
+    if capsule != true { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
+    _intr_load_x64(ctx, 1, tmp_pair)                       // rcx = pair
+    if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
+    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+    return nil
+}
+
 fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
@@ -286,103 +388,17 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_do_file)
 
-    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
-
-    // --- Translate into OrenStatV0 at st_ptr (directory) ---
-    _intr_load_x64(ctx, 9, tmp_st)                    // r9 = st_ptr
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8))  // r8 = 0
-    var zoff_dir = 0
-    while zoff_dir < nstat.oren_stat_v0_size_bytes() {
-        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, zoff_dir, 8))
-        zoff_dir = zoff_dir + 4
-    }
-    // mode: directory (approx): 0o040755 = 16877
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 16877))
-    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_win64_stat_dir_success_x64(ctx, fixups, tmp_st, l_done)
 
     _emit_label(ctx, labels, l_do_file)
-
-    // Restore rcx to the normalized path buffer (Win64 ABI treats rcx as volatile; the
-    // prior GetFileAttributesA call may have clobbered it).
-    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(1, 64))
-
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 7))          // r8d = share
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
-
-    // arg5 creation disposition = OPEN_EXISTING (3)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 3))
-    _emit_mov_mrsp_r64(ctx, 32, 10)
-    // arg6 flags/attrs = FILE_ATTRIBUTE_NORMAL (0x80)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 128))
-    _emit_mov_mrsp_r64(ctx, 40, 10)
-    // arg7 template = NULL
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
-    _emit_mov_mrsp_r64(ctx, 48, 10)
-
-    _emit_call_iat_x64(ctx, "IAT_CreateFileA")
-    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
-
-    // if handle == INVALID_HANDLE_VALUE (-1) => fail
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_handle_ok)
-    _emit_win32_last_error_to_neg_errno_common_x64(ctx)
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_win64_stat_open_file_x64(ctx, fixups, l_done, l_handle_ok)
     _emit_label(ctx, labels, l_handle_ok)
 
-    // spill handle so capsule post hooks can observe rc consistently (and so we can close it)
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_handle, 0)
-
-    // --- Translate into OrenStatV0 at st_ptr ---
-    _intr_load_x64(ctx, 9, tmp_st)                 // r9 = st_ptr
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8 = 0
-    var zoff = 0
-    while zoff < nstat.oren_stat_v0_size_bytes() {
-        bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, zoff, 8))
-        zoff = zoff + 4
-    }
-    // mode: regular file (approx): 0o100644 = 33188
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 33188))
-    bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
-
-    // LARGE_INTEGER out at [rsp+0x28] (reuse call-area; avoid intrinsic temp pointers)
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(48, 0))
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(52, 0))
-
-    // Reload handle from the spilled slot: intermediate helpers may clobber rax.
-    _intr_load_x64(ctx, 1, tmp_handle)                          // rcx = handle
-    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(2, 40))     // rdx = &li
-    _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
-
-    // If GetFileSizeEx fails, keep size=0 (rolling, still treat stat as success).
-    // Load size from li.QuadPart (8 bytes at [rsp+0x28]) into r8.
-    _intr_load_x64(ctx, 9, tmp_st) // reload st_ptr (volatile regs are clobbered by WinAPI calls)
-    bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp8(8, 40))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(9, 8)) // [st_ptr+0] = size
-
-    // CloseHandle(handle) (best-effort).
-    _intr_load_x64(ctx, 1, tmp_handle) // rcx = handle
-    _emit_call_iat_x64(ctx, "IAT_CloseHandle")
-
-    // rc = 0
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_win64_stat_file_success_x64(ctx, tmp_st, tmp_handle)
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-
-    // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
-        _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
-        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
-    }
+    _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, tmp_pair)
 
     _intr_tmp_pop(ctx, base)
     return nil

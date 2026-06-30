@@ -455,6 +455,13 @@
 <p>  <code>_emit_intrinsic_sys_stat_windows_x64</code> exposed at ~173ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>X64 Windows <code>sys_stat</code> / <code>sys_lstat</code> lowering now delegates OrenStatV0</li>
+</ul>
+<p>  zeroing, directory-success emission, file-open emission, file-success</p>
+<p>  translation/close, and capsule post hooks through focused helpers. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~38.5s total / ~28.9s parse,</p>
+<p>  with <code>_x64_emit_entry_return_path</code> exposed at ~173ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>
