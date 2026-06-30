@@ -232,11 +232,17 @@ This file is the concise task view. Detailed implementation status lives in
 																 phase-progress, dynamic-gas patching, slow-op recording, and remaining regular
 																 dispatch helpers; entry runtime bootstrap now delegates heap/frame, boot-global,
 																 argv/envp, runtime-init, static cstr/debug, args/envp, and capsule/GC setup to a
-																 bounded helper shard; and `_compile_function_v0` now delegates spills, call-depth
-																 gating, GC tick init, body emission, and epilogue emission. The capped profile
-																 now shows `x64_native_program.oren` at about 36.4s total / 27.2s parse, with
-																 `_emit_intrinsic_sys_linux_fd_misc_x64` exposed at about 312ms as the next parser
-																 body.
+																	 bounded helper shard; and `_compile_function_v0` now delegates spills, call-depth
+																	 gating, GC tick init, body emission, and epilogue emission. The capped profile
+																	 now shows `x64_native_program.oren` at about 36.4s total / 27.2s parse, with
+																	 `_emit_intrinsic_sys_linux_fd_misc_x64` exposed at about 312ms as the next parser
+																	 body. Linux x64 fd-control syscall intrinsic lowering now delegates fcntl-family
+																	 and dup/ioctl-family bodies to a dedicated include shard, and x64 user-global slot
+																	 preparation now delegates alias-target collection, slow/progress tracing, and
+																	 per-slot materialization to helpers. The capped profile now shows
+																	 `x64_native_program.oren` at about 36.5s total / 27.6s parse, with
+																	 `_emit_intrinsic_stack_helpers_x64` exposed at about 303ms as the next parser
+																	 body.
 											     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
