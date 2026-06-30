@@ -285,11 +285,12 @@
 <p>									  Annotation builtin checks are now split by category, replacing the</p>
 <p>									  former about 57ms monolithic checker with about 20ms/15ms/15ms/6ms</p>
 <p>									  helper bodies; traversal helpers are the remaining focused renamer</p>
-<p>									  emit targets. X64 memory-displacement instruction builders now append</p>
-<p>									  ModRM/SIB/displacement bytes directly through</p>
+<p>									  emit targets. X64 base-memory and displacement instruction builders now</p>
+<p>									  append ModRM/SIB/displacement bytes directly through</p>
 <p>									  <code>_emit_mem_base_modrm_sib_disp</code> instead of allocating per-instruction</p>
-<p>									  <code>{modrm,sib,disp8,disp32}</code> maps and unpacking them at each MOV/MOVDQU/MOVDQA</p>
-<p>									  call site; Linux/Windows x64 compile-only gates cover the encoding surface.</p>
+<p>									  <code>{modrm,sib,disp8,disp32}</code>-style maps and unpacking them at each MOV,</p>
+<p>									  atomic, MOVDQU, and MOVDQA call site; Linux/Windows x64 compile-only gates</p>
+<p>									  cover the encoding surface.</p>
 <p>						  Runtime-object code splicing now has bounded phase markers for code append,</p>
 <p>						  compact function offsets, compact fixup metadata, legacy fallback fixups,</p>
 <p>						  and RIP-data labels. Those markers showed the splice itself was not the</p>

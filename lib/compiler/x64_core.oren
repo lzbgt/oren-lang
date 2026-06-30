@@ -297,42 +297,6 @@ fn insn_mov_rax_mrax() {
     return out
 }
 
-fn _mem_base_modrm_and_sib(base_reg, reg_field_low3) {
-    // Encode ModRM (+ optional SIB + optional disp8=0) for the addressing mode [base_reg].
-    //
-    // This handles the x86_64 encoding quirks:
-    // - rm=100 (rsp/r12) requires a SIB byte
-    // - rm=101 (rbp/r13) cannot be encoded with mod=00; use mod=01 with disp8=0
-    //
-    // Returns {"modrm": byte, "sib": byte|nil, "disp8": byte|nil}.
-    //
-    // IMPORTANT (native backend semantics):
-    // - `nil` is a distinct runtime singleton value (not the integer 0).
-    // - Optional bytes can use the full 0..255 range, with `nil` meaning “absent”.
-    if base_reg < 0 || base_reg > 15 { return nil }
-    var rm = int_mod(base_reg, 8)
-    var mod = 0
-    var sib = nil
-    var disp8 = nil
-
-    // rbp/r13: force disp8=0 so it's [rbp+0] instead of RIP-relative.
-    if rm == 5 {
-        mod = 1
-        disp8 = 0
-    }
-
-    // rsp/r12: require SIB byte with index=none, base=rsp.
-    if rm == 4 {
-        sib = 36 // 0x24 (scale=0, index=100 (none), base=100 (rsp))
-        rm = 4
-    }
-
-    var modrm = 0
-    if mod == 1 { modrm = 64 } // 0x40
-    modrm = modrm + int_mod(reg_field_low3, 8) * 8 + rm
-    return {"modrm": modrm, "sib": sib, "disp8": disp8}
-}
-
 fn _emit_mem_base_modrm_sib_disp(out, base_reg, reg_field_low3, disp) {
     // Append ModRM (+ optional SIB + optional disp8/disp32) for [base_reg + disp].
     // This avoids allocating a metadata map in hot instruction-builder paths.
@@ -399,11 +363,7 @@ fn insn_mov_r64_mr64(dst_reg, base_reg) {
     if base_reg >= 8 { rex = rex + 1 } // REX.B
     bytes_push(out, rex)
     bytes_push(out, 139) // 8B
-    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(dst_reg, 8))
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(dst_reg, 8), 0) != true { return nil }
     return out
 }
 
@@ -418,11 +378,7 @@ fn insn_mov_mr64_r64(base_reg, src_reg) {
     if base_reg >= 8 { rex = rex + 1 } // REX.B
     bytes_push(out, rex)
     bytes_push(out, 137) // 89
-    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(src_reg, 8))
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(src_reg, 8), 0) != true { return nil }
     return out
 }
 
@@ -445,11 +401,7 @@ fn insn_lock_xadd_mr64_r64(base_reg, src_reg) {
     bytes_push(out, rex)
     bytes_push(out, 15)  // 0F
     bytes_push(out, 193) // C1
-    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(src_reg, 8))
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(src_reg, 8), 0) != true { return nil }
     return out
 }
 
@@ -472,11 +424,7 @@ fn insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) {
     bytes_push(out, rex)
     bytes_push(out, 15)  // 0F
     bytes_push(out, 177) // B1
-    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(src_reg, 8))
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(src_reg, 8), 0) != true { return nil }
     return out
 }
 
@@ -493,11 +441,7 @@ fn insn_movzx_r32_mr8(dst_reg, base_reg) {
     if need { bytes_push(out, rex) }
     bytes_push(out, 15) // 0F
     bytes_push(out, 182) // B6
-    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(dst_reg, 8))
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, int_mod(dst_reg, 8), 0) != true { return nil }
     return out
 }
 
@@ -525,11 +469,7 @@ fn insn_mov_mr8_al(base_reg) {
     var out = _insn_pool_get()
     if base_reg >= 8 { bytes_push(out, 65) } // 0x41 (REX.B)
     bytes_push(out, 136) // 88
-    var enc = _mem_base_modrm_and_sib(base_reg, 0)
-    if enc == nil { return nil }
-    bytes_push(out, enc["modrm"])
-    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if _emit_mem_base_modrm_sib_disp(out, base_reg, 0, 0) != true { return nil }
     return out
 }
 
