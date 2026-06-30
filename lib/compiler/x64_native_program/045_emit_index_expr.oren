@@ -39,10 +39,7 @@ fn _x64_index_known_key_kind(expr, idx) {
     return known_kk
 }
 
-fn _emit_index_expr_v0(ctx, expr, locals) {
-    // Index expression `xs[i]`.
-    //
-    // In rolling Tier‑1, `Index` is polymorphic over list + map.
+fn _x64_index_prepare(ctx, expr, locals) {
     if expr == nil { err(ctx, "x64 native v0: missing index expr"); return nil }
     var left = expr["left"]
     var idx = expr["index"]
@@ -81,11 +78,11 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_idx, 0)
 
-    // list -> rdx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
-
     var known_kk = _x64_index_known_key_kind(expr, idx)
+    return {"recv_kind": recv_kind, "known_kk": known_kk, "tmp0": tmp0, "tmp_idx": tmp_idx, "base": base0}
+}
 
+fn _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) {
     // String-key indexing and lowered map gets cannot reach list semantics. Delegate
     // checked map validation to the runtime instead of emitting the same tracking,
     // kind, magic, and panic sequence at every compiler AST access site.
@@ -98,7 +95,7 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
             _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_checked", tmp0, tmp_idx)
         }
         _intr_tmp_pop(ctx, base0)
-        return nil
+        return true
     }
 
     // Unknown receiver kinds are common in self-hosted compiler helpers where
@@ -108,41 +105,33 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     if recv_kind != "list" && recv_kind != "list_int" {
         _emit_call_rel32_2args_x64(ctx, locals, "oren_index_get", tmp0, tmp_idx)
         _intr_tmp_pop(ctx, base0)
-        return nil
+        return true
     }
 
-    // If container is nil, panic deterministically.
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
-    var labels = {}
-    var local_fixups = []
-    var l_list_ok = _new_label(ctx, "idx_list_non_nil")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
-    _emit_abort_panic_str(ctx, "Indexing on nil")
-    _emit_label(ctx, labels, l_list_ok)
+    return false
+}
 
-    var l_is_list = _new_label(ctx, "idx_is_list")
-    var l_is_map = _new_label(ctx, "idx_is_map")
-    var l_idx_done = _new_label(ctx, "idx_done")
+fn _x64_index_emit_assume_list_fast(ctx, labels, local_fixups, tmp_idx, l_idx_done) {
+    // rcx = idx
+    _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx)
+    // buf -> r9 = *(list+16)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
+    // addr = buf + idx*8  (r10)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 1))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+    // load *(addr) into rax
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
+    return nil
+}
 
-    if (recv_kind == "list" || recv_kind == "list_int") && _native_assume_list_index_enabled() == true {
-        // rcx = idx
-        _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx)
-        // buf -> r9 = *(list+16)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
-        // addr = buf + idx*8  (r10)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 1))
-        bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-        // load *(addr) into rax
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
-    }
-
+fn _x64_index_emit_kind_dispatch(ctx, recv_kind, tmp0, base0, labels, local_fixups, l_is_list, l_is_map) {
     // Tier‑1 safety: never read object headers from untracked pointers.
     //
     // In the native v0 carrier model, "ints" and pointers share the same i64 representation.
@@ -221,7 +210,10 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
         _emit_abort_panic_str(ctx, "Indexing on non-container (expected list or map)")
     }
+    return nil
+}
 
+fn _x64_index_emit_list_path(ctx, tmp_idx, labels, local_fixups, l_is_list, l_idx_done) {
     // --- list indexing path ---
     _emit_label(ctx, labels, l_is_list)
     _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx) // rcx = idx
@@ -280,7 +272,10 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
 
     _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
+    return nil
+}
 
+fn _x64_index_emit_map_path(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, labels, local_fixups, l_is_map, l_idx_done) {
     // --- map indexing path ---
     _emit_label(ctx, labels, l_is_map)
     // If shared lowering inferred this is a map, validate magic deterministically.
@@ -311,6 +306,47 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get", tmp0, tmp_idx)
         _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
     }
+    return nil
+}
+
+fn _emit_index_expr_v0(ctx, expr, locals) {
+    // Index expression `xs[i]`.
+    //
+    // In rolling Tier‑1, `Index` is polymorphic over list + map.
+    var prep = _x64_index_prepare(ctx, expr, locals)
+    if prep == nil { return nil }
+    var recv_kind = prep["recv_kind"]
+    var known_kk = prep["known_kk"]
+    var tmp0 = prep["tmp0"]
+    var tmp_idx = prep["tmp_idx"]
+    var base0 = prep["base"]
+
+    if _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) != false { return nil }
+
+    // list -> rdx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
+
+    // If container is nil, panic deterministically.
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
+    var labels = {}
+    var local_fixups = []
+    var l_list_ok = _new_label(ctx, "idx_list_non_nil")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
+    _emit_abort_panic_str(ctx, "Indexing on nil")
+    _emit_label(ctx, labels, l_list_ok)
+
+    var l_is_list = _new_label(ctx, "idx_is_list")
+    var l_is_map = _new_label(ctx, "idx_is_map")
+    var l_idx_done = _new_label(ctx, "idx_done")
+
+    if (recv_kind == "list" || recv_kind == "list_int") && _native_assume_list_index_enabled() == true {
+        _x64_index_emit_assume_list_fast(ctx, labels, local_fixups, tmp_idx, l_idx_done)
+    }
+
+    _x64_index_emit_kind_dispatch(ctx, recv_kind, tmp0, base0, labels, local_fixups, l_is_list, l_is_map)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_index_emit_list_path(ctx, tmp_idx, labels, local_fixups, l_is_list, l_idx_done)
+    _x64_index_emit_map_path(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, labels, local_fixups, l_is_map, l_idx_done)
 
     _emit_label(ctx, labels, l_idx_done)
     _patch_local_fixups(ctx, labels, local_fixups)
