@@ -699,6 +699,13 @@ This file is the concise task view. Detailed implementation status lives in
 																		 `x64_native_program.oren` at about 40.7s total / 30.1s parse, with
 																		 `_emit_eval_prefix_to_rax` exposed at about 100ms as the next parser
 																		 body.
+																		 X64 prefix expression lowering now delegates boolean singleton mapping,
+																		 language-truthiness `!`, compare-infix `!`, and float/integer negation
+																		 to focused helpers while preserving runtime singleton and IEEE sign-bit
+																		 semantics. The capped profile now shows `x64_native_program.oren` at
+																		 about 40.6s total / 30.1s parse, with
+																		 `_emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64`
+																		 exposed at about 96ms as the next parser body.
 																		     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

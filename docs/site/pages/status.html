@@ -752,6 +752,14 @@
 <p>																						  at about 40.7s total / 30.1s parse, with</p>
 <p>																						  <code>_emit_eval_prefix_to_rax</code> exposed at about 100ms as the next</p>
 <p>																						  parser body.</p>
+<p>																						  X64 prefix expression lowering now delegates boolean singleton</p>
+<p>																						  mapping, language-truthiness <code>!</code>, compare-infix <code>!</code>, and</p>
+<p>																						  float/integer negation to focused helpers while preserving</p>
+<p>																						  runtime singleton and IEEE sign-bit semantics. The capped</p>
+<p>																						  profile now shows <code>x64_native_program.oren</code> at about 40.6s</p>
+<p>																						  total / 30.1s parse, with</p>
+<p>																						  <code>_emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64</code></p>
+<p>																						  exposed at about 96ms as the next parser body.</p>
 <p>														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

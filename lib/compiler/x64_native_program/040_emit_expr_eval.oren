@@ -1,83 +1,87 @@
-fn _emit_eval_prefix_to_rax(ctx, expr, locals) {
-	        var op = expr["op"]
-	        var r = expr["right"]
-	        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
-	        if op == "!" {
-	            // Boolean-not in expression context: result is a BOOL runtime singleton in RAX.
-	            //
-	            // Semantics: language truthiness (only `nil` and `false` are falsey).
-	            // This is intentionally different from `oren_bool_norm` which uses numeric semantics.
-	            var labels = {}
-	            var local_fixups = []
-	            var l_true = _new_label(ctx, "not_true")
-	            var l_done = _new_label(ctx, "not_done")
-	            if _cond_is_cmp_infix(r) != nil {
-	                // Float compares require IEEE-aware lowering (ucomisd + unordered handling).
-	                if _x64_expr_is_floaty(ctx, r["left"]) || _x64_expr_is_floaty(ctx, r["right"]) {
-	                    _emit_float_cmp_to_bool_x64(ctx, r["op"], r["left"], r["right"], locals)
-	                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-	                    // Invert the boolean (0/1).
-	                    bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, 1))
-	                    // Map 0/1 => false/true singleton.
-	                    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-	                    _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
-	                    _x64_emit_load_value_singleton(ctx, 0, 376) // false
-	                    _emit_jmp_to_label(ctx, local_fixups, l_done)
-	                    _emit_label(ctx, labels, l_true)
-	                    _x64_emit_load_value_singleton(ctx, 0, 384) // true
-	                    _emit_label(ctx, labels, l_done)
-	                    _patch_local_fixups(ctx, labels, local_fixups)
-	                    return nil
-	                }
-	                _emit_cmp_from_cond(ctx, r, locals)
-	                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-	                bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-	                var cc0 = _cond_false_cc(r["op"])
-	                if cc0 == nil { err(ctx, "x64 native v0: unsupported compare op for !"); return nil }
-	                bytes_extend(ctx["code"], core.insn_setcc_al_op2(core.setcc_op2(cc0)))
-	                bytes_extend(ctx["code"], core.insn_cdqe())
-	                // Map 0/1 => false/true singleton.
-	                bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-	                _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
-	                _x64_emit_load_value_singleton(ctx, 0, 376) // false
-	                _emit_jmp_to_label(ctx, local_fixups, l_done)
-	                _emit_label(ctx, labels, l_true)
-	                _x64_emit_load_value_singleton(ctx, 0, 384) // true
-	                _emit_label(ctx, labels, l_done)
-	                _patch_local_fixups(ctx, labels, local_fixups)
-	                return nil
-	            }
-	            _emit_eval_int_to_rax(ctx, r, locals)
-	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-	            // If operand is falsey => result true else false.
-	            _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_true)
-	            _x64_emit_load_value_singleton(ctx, 0, 376) // false
-	            _emit_jmp_to_label(ctx, local_fixups, l_done)
-	            _emit_label(ctx, labels, l_true)
-	            _x64_emit_load_value_singleton(ctx, 0, 384) // true
-	            _emit_label(ctx, labels, l_done)
-	            _patch_local_fixups(ctx, labels, local_fixups)
-	            return nil
-	        }
-        _emit_eval_int_to_rax(ctx, r, locals)
+fn _x64_emit_bool_singleton_from_rax01(ctx) {
+    var labels = {}
+    var local_fixups = []
+    var l_true = _new_label(ctx, "bool01_true")
+    var l_done = _new_label(ctx, "bool01_done")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_label(ctx, labels, l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _x64_emit_prefix_not_from_falsey_rax(ctx) {
+    var labels = {}
+    var local_fixups = []
+    var l_true = _new_label(ctx, "not_true")
+    var l_done = _new_label(ctx, "not_done")
+    _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_label(ctx, labels, l_true)
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_prefix_not_cmp_infix_x64(ctx, r, locals) {
+    // Float compares require IEEE-aware lowering (ucomisd + unordered handling).
+    if _x64_expr_is_floaty(ctx, r["left"]) || _x64_expr_is_floaty(ctx, r["right"]) {
+        _emit_float_cmp_to_bool_x64(ctx, r["op"], r["left"], r["right"], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        if op == "-" {
-            if _x64_expr_is_floaty(ctx, r) {
-                // Float negation: flip the sign bit to preserve IEEE-754 semantics (incl -0.0).
-                var sign_mask = 0 - (1 << 63) // 0x8000_0000_0000_0000 (i64_min)
-                bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, sign_mask)) // rdx = mask
-                bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 2))           // rax ^= mask
-                return nil
-            }
-            bytes_extend(ctx["code"], core.insn_neg_r64(0)) // neg rax (int)
-            return nil
-        }
-        if op == "~" {
-            bytes_extend(ctx["code"], core.insn_not_r64(0)) // not rax
-            return nil
-        }
-        err(ctx, "x64 native v0: prefix op not supported: " + op)
+        bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, 1))
+        return _x64_emit_bool_singleton_from_rax01(ctx)
+    }
+    _emit_cmp_from_cond(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    var cc0 = _cond_false_cc(r["op"])
+    if cc0 == nil { err(ctx, "x64 native v0: unsupported compare op for !"); return nil }
+    bytes_extend(ctx["code"], core.insn_setcc_al_op2(core.setcc_op2(cc0)))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    return _x64_emit_bool_singleton_from_rax01(ctx)
+}
+
+fn _emit_prefix_not_x64(ctx, r, locals) {
+    // Boolean-not in expression context: result is a BOOL runtime singleton.
+    // Semantics: only `nil` and `false` are falsey.
+    if _cond_is_cmp_infix(r) != nil { return _emit_prefix_not_cmp_infix_x64(ctx, r, locals) }
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return _x64_emit_prefix_not_from_falsey_rax(ctx)
+}
+
+fn _emit_prefix_neg_x64(ctx, r) {
+    if _x64_expr_is_floaty(ctx, r) {
+        // Float negation: flip the sign bit to preserve IEEE-754 semantics (incl -0.0).
+        var sign_mask = 0 - (1 << 63) // 0x8000_0000_0000_0000 (i64_min)
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, sign_mask)) // rdx = mask
+        bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 2))           // rax ^= mask
         return nil
+    }
+    bytes_extend(ctx["code"], core.insn_neg_r64(0)) // neg rax (int)
+    return nil
+}
+
+fn _emit_eval_prefix_to_rax(ctx, expr, locals) {
+    var op = expr["op"]
+    var r = expr["right"]
+    if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+    if op == "!" { return _emit_prefix_not_x64(ctx, r, locals) }
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if op == "-" { return _emit_prefix_neg_x64(ctx, r) }
+    if op == "~" {
+        bytes_extend(ctx["code"], core.insn_not_r64(0)) // not rax
+        return nil
+    }
+    err(ctx, "x64 native v0: prefix op not supported: " + op)
+    return nil
 }
 
 fn _emit_eval_infix_to_rax(ctx, expr, locals) {
