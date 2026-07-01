@@ -631,6 +631,14 @@ Facts from the 2026-05-28 implementation pass:
 																					  `x64_native_program.oren` at about 40.2s total / 29.7s parse,
 																					  with `_x64_emit_ffi_stub_linux_dyn` exposed at about 104ms as
 																					  the next parser body.
+																					  Linux x64 dynamic FFI stubs now delegate data-cell/string
+																					  materialization, cached function-pointer load, SysV argument
+																					  spill/restore, resolver call, cache-store, target tailcall, and
+																					  unresolved-symbol panic emission while preserving local fixup
+																					  ownership. The capped profile now shows
+																					  `x64_native_program.oren` at about 40.8s total / 29.8s parse,
+																					  with `_emit_varargs_named_call_via_fnobj_x64` exposed at about
+																					  117ms as the next parser body.
 												  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
