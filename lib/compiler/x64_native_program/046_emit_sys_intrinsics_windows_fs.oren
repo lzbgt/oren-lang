@@ -337,22 +337,7 @@ fn _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, tmp_pair) {
     return nil
 }
 
-fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
-    // Implementation strategy (rolling):
-    // - Avoid GetFileAttributesExA + output struct writes: it has proven fragile under bring-up.
-    // - Determine existence by opening a handle (CreateFileA).
-    // - For regular files, query size via GetFileSizeEx().
-    //
-    // This is sufficient for the runtime/stdlib/compiler uses today:
-    // - `oren_read_file` needs a deterministic file size to allocate a buffer
-    // - callers avoid platform `struct stat` assumptions and consume OrenStatV0 only
-    //   through `oren_stat_get_*` accessors.
+fn _x64_windows_stat_spill_args(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 4) // path, st_ptr, pair, handle
     if oren_type_tag(base) == 0 { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
@@ -364,8 +349,12 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "path": tmp_path, "st": tmp_st, "pair": tmp_pair, "handle": tmp_handle}
+}
 
-    // pre: native_capsule_sys_stat_pre(path) / lstat_pre(path) -> pair
+fn _x64_windows_stat_emit_capsule_pre(ctx, nm, state, capsule) {
+    var tmp_path = state["path"]
+    var tmp_pair = state["pair"]
     if capsule {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path
         if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
@@ -378,14 +367,25 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     } else {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
     }
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "sys_stat_win_done")
-    var l_handle_ok = _new_label(ctx, "sys_stat_win_handle_ok")
-    var l_attr_ok = _new_label(ctx, "sys_stat_win_attr_ok")
-    var l_do_file = _new_label(ctx, "sys_stat_win_do_file")
+fn _x64_windows_stat_labels(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "done": _new_label(ctx, "sys_stat_win_done"),
+        "handle_ok": _new_label(ctx, "sys_stat_win_handle_ok"),
+        "attr_ok": _new_label(ctx, "sys_stat_win_attr_ok"),
+        "do_file": _new_label(ctx, "sys_stat_win_do_file")
+    }
+}
 
+fn _x64_windows_stat_emit_attr_probe(ctx, lab) {
+    var labels = lab["labels"]
+    var fixups = lab["fixups"]
+    var l_attr_ok = lab["attr_ok"]
+    var l_done = lab["done"]
     // Open the path for read to determine existence and file size.
     //
     // NOTE (rolling):
@@ -408,7 +408,15 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_attr_ok)
+    return nil
+}
 
+fn _x64_windows_stat_emit_dir_or_file(ctx, lab, tmp_st, tmp_handle) {
+    var labels = lab["labels"]
+    var fixups = lab["fixups"]
+    var l_done = lab["done"]
+    var l_handle_ok = lab["handle_ok"]
+    var l_do_file = lab["do_file"]
     // If FILE_ATTRIBUTE_DIRECTORY (0x10) is set, emit a directory stat and return rc=0.
     // This is required for mkdir_p on Windows: creating an existing directory returns -EEXIST,
     // and without directory-capable stat, mkdir_p cannot distinguish "dir exists" vs "path is file".
@@ -424,12 +432,31 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _emit_label(ctx, labels, l_handle_ok)
 
     _emit_win64_stat_file_success_x64(ctx, tmp_st, tmp_handle)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, tmp_pair)
+fn _x64_windows_stat_finish(ctx, nm, state, lab, capsule) {
+    _emit_label(ctx, lab["labels"], lab["done"])
+    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
+    _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, state["pair"])
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_windows_stat_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+
+    _x64_windows_stat_emit_capsule_pre(ctx, nm, state, capsule)
+    var lab = _x64_windows_stat_labels(ctx)
+    _x64_windows_stat_emit_attr_probe(ctx, lab)
+    _x64_windows_stat_emit_dir_or_file(ctx, lab, state["st"], state["handle"])
+    _x64_windows_stat_finish(ctx, nm, state, lab, capsule)
     return nil
 }
 

@@ -852,10 +852,16 @@ Facts from the 2026-05-28 implementation pass:
 																																  to focused helpers. Lambda literal lowering now delegates metadata/
 																																  capture registration, env spill allocation, capture-env materialization,
 																																  and `oren_func` object construction. The capped profile now shows
-																																  `x64_native_program.oren` at about 41.8s total / 30.8s parse, with
-																																  `_emit_intrinsic_sys_stat_windows_x64` exposed at about 83ms as the
-																																  next parser body.
-																						  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																	  `x64_native_program.oren` at about 41.8s total / 30.8s parse, with
+																																	  `_emit_intrinsic_sys_stat_windows_x64` exposed at about 83ms as the
+																																	  next parser body.
+																																	  Windows x64 `sys_stat` / `sys_lstat` lowering now delegates argument
+																																	  spilling, capsule prehook path resolution, label/fixup setup, path
+																																	  normalization plus attribute probing, directory/file dispatch, and final
+																																	  patch/posthook cleanup. The capped profile now shows
+																																	  `x64_native_program.oren` at about 41.9s total / 31.0s parse, with
+																																	  `_x64_expr_is_inty` exposed at about 84ms as the next parser body.
+																							  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
