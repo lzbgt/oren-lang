@@ -56,86 +56,87 @@ fn _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, label_na
     return nil
 }
 
-fn _x64_emit_sys_stat_or_lstat_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_stat" || nm == "sys_lstat" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+fn _x64_prepare_sys_stat_or_lstat_x64(ctx, locals, args) {
+    // NOTE (Linux x86_64 syscall ABI):
+    // `newfstatat(2)` writes `struct stat` upwards from statbuf. Keep a full
+    // host stat buffer gap between spill slots and the host buffer.
+    var base5 = _intr_tmp_push(ctx, 38)
+    if oren_type_tag(base5) == 0 { return nil }
+    var tmp_path = _intr_tmp_off(ctx, locals, base5 + 0)
+    var tmp_st = _intr_tmp_off(ctx, locals, base5 + 1)
+    var tmp_pair = _intr_tmp_off(ctx, locals, base5 + 2)
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_st) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base5); return nil }
 
-        // NOTE (Linux x86_64 syscall ABI):
-        // `newfstatat(2)` writes `struct stat` into the user-provided buffer at `statbuf` by
-        // writing *upwards* from that address (p..p+N-1). If we place the host `struct stat`
-        // buffer immediately below our spilled args (path/st_ptr/pair), the syscall will
-        // clobber those spilled values on success, leading to crashes when we later load them.
-        //
-        // Fix: leave a full `struct stat` worth of padding between spilled args and the host
-        // buffer start so the kernel write range never overlaps the spill slots.
-        //
-        // Linux x86_64: sizeof(struct stat)=144 => 18 qwords.
-        // Layout (qwords):
-        // - path, st_ptr, pair: 3
-        // - pad: 17 (18-1)
-        // - host_stat: 18
-        // Total: 38
-        var base5 = _intr_tmp_push(ctx, 38)
-        if oren_type_tag(base5) == 0 { return true }
-        var tmp_path = _intr_tmp_off(ctx, locals, base5 + 0)
-        var tmp_st = _intr_tmp_off(ctx, locals, base5 + 1)
-        var tmp_pair = _intr_tmp_off(ctx, locals, base5 + 2)
-        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_st) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base5); return true }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base5); return nil }
+    return {"base": base5, "tmp_path": tmp_path, "tmp_st": tmp_st, "tmp_pair": tmp_pair}
+}
 
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base5); return true }
+fn _x64_emit_sys_stat_or_lstat_path_arg_x64(ctx, nm, capsule, tmp_path, tmp_pair) {
+    if capsule {
+        // pre: native_capsule_sys_stat_pre(path) or lstat_pre(path) -> pair
+        _intr_load_x64(ctx, 7, tmp_path)
+        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
 
-        if capsule {
-            // pre: native_capsule_sys_stat_pre(path) or lstat_pre(path) -> pair
-            _intr_load_x64(ctx, 7, tmp_path)
-            if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
-            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
-
-            // path_ptr from pair[0] into RSI
-            _intr_load_x64(ctx, 11, tmp_pair)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
-        } else {
-            // No capsule path resolution: path is already a host cstr.
-            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
-        }
-
-        // Use a private host `struct stat` buffer and translate into OrenStatV0
-        // (stable cross-OS layout) in the caller-provided `st_ptr`.
-        //
-        // Keep it in intrinsic-temp slots (RBP-relative) so we do not mutate RSP during lowering.
-        //
-        // Host buffer start index:
-        //   base + 2 (pair slot) + host_qwords(18) => base + 20
-        // This guarantees the syscall write range does not overlap the arg spill slots.
-        var host_qwords = 18
-        var off_host0 = _intr_tmp_off(ctx, locals, base5 + 2 + host_qwords)
-        if off_host0 == nil { _intr_tmp_pop(ctx, base5); return true }
-
-        // newfstatat(AT_FDCWD, path, tmp_host_stat, flags)
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        _emit_addr_rbp_minus_off_x64(ctx, 2, off_host0) // rdx = tmp_host_stat
-        var at_flags = 0
-        if nm == "sys_lstat" { at_flags = labi.linux_at_symlink_nofollow() }
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, at_flags)) // r10d = flags
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_newfstatat()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, "sys_stat_norm_done")
-
-        if capsule {
-            // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_pair) // rdi = pair
-            if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
-            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
-        }
-        _intr_tmp_pop(ctx, base5)
-        return true
+        // path_ptr from pair[0] into RSI
+        _intr_load_x64(ctx, 11, tmp_pair)
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+    } else {
+        // No capsule path resolution: path is already a host cstr.
+        _intr_load_x64(ctx, 6, tmp_path) // rsi = path
     }
-    return false
+}
+
+fn _x64_sys_stat_or_lstat_host_off_x64(ctx, locals, base5) {
+    // Host buffer start index:
+    //   base + 2 (pair slot) + host_qwords(18) => base + 20
+    // This guarantees the syscall write range does not overlap the arg spill slots.
+    var host_qwords = 18
+    return _intr_tmp_off(ctx, locals, base5 + 2 + host_qwords)
+}
+
+fn _x64_emit_sys_stat_or_lstat_syscall_x64(ctx, nm, off_host0) {
+    // newfstatat(AT_FDCWD, path, tmp_host_stat, flags)
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+    _emit_addr_rbp_minus_off_x64(ctx, 2, off_host0) // rdx = tmp_host_stat
+    var at_flags = 0
+    if nm == "sys_lstat" { at_flags = labi.linux_at_symlink_nofollow() }
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, at_flags)) // r10d = flags
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_newfstatat()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+}
+
+fn _x64_emit_sys_stat_or_lstat_post_x64(ctx, nm, capsule, tmp_pair) {
+    if capsule {
+        // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+        _intr_load_x64(ctx, 7, tmp_pair) // rdi = pair
+        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+    }
+}
+
+fn _x64_emit_sys_stat_or_lstat_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm != "sys_stat" && nm != "sys_lstat" { return false }
+    if oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+    var st = _x64_prepare_sys_stat_or_lstat_x64(ctx, locals, args)
+    if st == nil { return true }
+    _x64_emit_sys_stat_or_lstat_path_arg_x64(ctx, nm, capsule, st["tmp_path"], st["tmp_pair"])
+
+    // Private host `struct stat` temp is translated into stable OrenStatV0.
+    var off_host0 = _x64_sys_stat_or_lstat_host_off_x64(ctx, locals, st["base"])
+    if off_host0 == nil { _intr_tmp_pop(ctx, st["base"]); return true }
+    _x64_emit_sys_stat_or_lstat_syscall_x64(ctx, nm, off_host0)
+    _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, st["tmp_st"], off_host0, "sys_stat_norm_done")
+    _x64_emit_sys_stat_or_lstat_post_x64(ctx, nm, capsule, st["tmp_pair"])
+
+    _intr_tmp_pop(ctx, st["base"])
+    return true
 }
 
 fn _x64_emit_sys_fstat_x64(ctx, nm, expr, locals, args, capsule) {

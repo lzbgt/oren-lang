@@ -960,6 +960,14 @@ This file is the concise task view. Detailed implementation status lives in
 																																										 `x64_native_program.oren` at about 42.9s total / 31.8s parse, with
 																																										 `_x64_emit_sys_stat_or_lstat_x64` exposed at about 77ms as the next parser
 																																										 body.
+																																										 Linux x64 `sys_stat` / `sys_lstat` lowering now delegates temp layout,
+																																										 capsule path resolution, host-stat buffer offset derivation, `newfstatat`
+																																										 setup, and capsule posthook emission to focused helpers while preserving the
+																																										 38-qword spill-gap layout that prevents kernel `struct stat` writes from
+																																										 clobbering spilled args. The capped profile now shows
+																																										 `x64_native_program.oren` at about 42.6s total / 31.5s parse, with
+																																										 `_x64_fast_list_int_push_validate_one_list` exposed at about 77ms as the next
+																																										 parser body.
 																																								     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

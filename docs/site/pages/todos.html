@@ -1180,6 +1180,15 @@
 <p>  <code>x64_native_program.oren</code> at ~42.9s total / ~31.8s parse, with</p>
 <p>  <code>_x64_emit_sys_stat_or_lstat_x64</code> exposed at ~77ms as the next parser body.</p>
 <ul>
+<li>Linux x64 <code>sys_stat</code> / <code>sys_lstat</code> lowering now delegates temp layout,</li>
+</ul>
+<p>  capsule path resolution, host-stat buffer offset derivation, <code>newfstatat</code></p>
+<p>  setup, and capsule posthook emission to focused helpers while preserving the</p>
+<p>  38-qword spill-gap layout that prevents kernel <code>struct stat</code> writes from</p>
+<p>  clobbering spilled args. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at ~42.6s total / ~31.5s parse, with <code>_x64_fast_list_int_push_validate_one_list</code></p>
+<p>  exposed at ~77ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>
