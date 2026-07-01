@@ -976,12 +976,18 @@
 <p>																																								  Windows x64 <code>sys_rename</code> lowering now mirrors the adjacent mkdir/chmod helper</p>
 <p>																																								  shape with focused state/eval, capsule prehook, <code>MoveFileExA</code>, BOOL-result,</p>
 <p>																																								  and capsule posthook helpers while preserving path normalization and</p>
-<p>																																								  replace-existing semantics. The capped profile now shows</p>
-<p>																																								  <code>x64_native_program.oren</code> at about 41.5s total / 30.7s parse, with</p>
-<p>																																								  <code>_emit_resolve_loc_ptr_best_effort</code> exposed at about 85ms as the next parser</p>
-<p>																																								  body.</p>
-<p>																															  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>				  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																									  replace-existing semantics. The capped profile now shows</p>
+<p>																																									  <code>x64_native_program.oren</code> at about 41.5s total / 30.7s parse, with</p>
+<p>																																									  <code>_emit_resolve_loc_ptr_best_effort</code> exposed at about 85ms as the next parser</p>
+<p>																																									  body.</p>
+<p>																																									  X64 best-effort panic location resolution now mirrors the symbol resolver with</p>
+<p>																																									  focused default-location, linetab setup, and scan-loop helpers while preserving</p>
+<p>																																									  debug-only linetab fallback and unsigned fixed-base address checks. The capped</p>
+<p>																																									  profile now shows <code>x64_native_program.oren</code> at about 41.7s total / 30.7s parse,</p>
+<p>																																									  with <code>_emit_infix_add_or_string_concat_x64</code> exposed at about 78ms as the next</p>
+<p>																																									  parser body.</p>
+<p>																																  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>					  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>
