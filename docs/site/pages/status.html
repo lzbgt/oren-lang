@@ -694,6 +694,13 @@
 <p>																						  <code>x64_native_program.oren</code> at about 40.6s total / 30.1s parse,</p>
 <p>																						  with <code>_emit_intrinsic_sys_linux_proc_memory_x64</code> exposed at about</p>
 <p>																						  104ms as the next parser body.</p>
+<p>																						  X64 Linux proc-memory syscall lowering now delegates private</p>
+<p>																						  anonymous mmap and munmap emission to focused helpers with a</p>
+<p>																						  shared ABI-kind probe while preserving capsule hook argument</p>
+<p>																						  registers and Windows fallback emission. The capped profile now</p>
+<p>																						  shows <code>x64_native_program.oren</code> at about 41.3s total / 30.9s</p>
+<p>																						  parse, with <code>_emit_intrinsic_sys_linux_access_x64</code> exposed at</p>
+<p>																						  about 130ms as the next parser body.</p>
 <p>													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
