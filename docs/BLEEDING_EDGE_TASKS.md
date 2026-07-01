@@ -949,11 +949,18 @@ This file is the concise task view. Detailed implementation status lives in
 																																									 Linux x64 `sys_getsockopt` / `sys_setsockopt` lowering now mirrors the
 																																									 adjacent Linux net-message helper shape with shared spill state, capsule
 																																									 prehook argument loading, syscall argument loading, and syscall-number
-																																									 dispatch helpers. The capped profile now shows `x64_native_program.oren` at
-																																									 about 42.1s total / 31.1s parse, with
-																																									 `_emit_intrinsic_sys_nanosleep_windows_x64` exposed at about 78ms as the next
-																																									 parser body.
-																																							     Serial/thread module
+																																										 dispatch helpers. The capped profile now shows `x64_native_program.oren` at
+																																										 about 42.1s total / 31.1s parse, with
+																																										 `_emit_intrinsic_sys_nanosleep_windows_x64` exposed at about 78ms as the next
+																																										 parser body.
+																																										 Windows x64 `sys_nanosleep` lowering now delegates temp/eval setup, capsule
+																																										 prehook adjustment, nonpositive fast return, nanosecond-to-DWORD millisecond
+																																										 conversion, and `Sleep` call/result emission to focused helpers while
+																																										 preserving the best-effort no-EINTR contract. The capped profile now shows
+																																										 `x64_native_program.oren` at about 42.9s total / 31.8s parse, with
+																																										 `_x64_emit_sys_stat_or_lstat_x64` exposed at about 77ms as the next parser
+																																										 body.
+																																								     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

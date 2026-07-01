@@ -1172,6 +1172,14 @@
 <p>  ~42.1s total / ~31.1s parse, with <code>_emit_intrinsic_sys_nanosleep_windows_x64</code></p>
 <p>  exposed at ~78ms as the next parser body.</p>
 <ul>
+<li>Windows x64 <code>sys_nanosleep</code> lowering now delegates temp/eval setup, capsule</li>
+</ul>
+<p>  prehook adjustment, nonpositive fast return, nanosecond-to-DWORD millisecond</p>
+<p>  conversion, and <code>Sleep</code> call/result emission to focused helpers while</p>
+<p>  preserving the best-effort no-EINTR contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~42.9s total / ~31.8s parse, with</p>
+<p>  <code>_x64_emit_sys_stat_or_lstat_x64</code> exposed at ~77ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

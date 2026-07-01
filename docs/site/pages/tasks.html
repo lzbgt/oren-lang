@@ -1005,11 +1005,18 @@
 <p>																																									 Linux x64 <code>sys_getsockopt</code> / <code>sys_setsockopt</code> lowering now mirrors the</p>
 <p>																																									 adjacent Linux net-message helper shape with shared spill state, capsule</p>
 <p>																																									 prehook argument loading, syscall argument loading, and syscall-number</p>
-<p>																																									 dispatch helpers. The capped profile now shows <code>x64_native_program.oren</code> at</p>
-<p>																																									 about 42.1s total / 31.1s parse, with</p>
-<p>																																									 <code>_emit_intrinsic_sys_nanosleep_windows_x64</code> exposed at about 78ms as the next</p>
-<p>																																									 parser body.</p>
-<p>																																							     Serial/thread module</p>
+<p>																																										 dispatch helpers. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																																										 about 42.1s total / 31.1s parse, with</p>
+<p>																																										 <code>_emit_intrinsic_sys_nanosleep_windows_x64</code> exposed at about 78ms as the next</p>
+<p>																																										 parser body.</p>
+<p>																																										 Windows x64 <code>sys_nanosleep</code> lowering now delegates temp/eval setup, capsule</p>
+<p>																																										 prehook adjustment, nonpositive fast return, nanosecond-to-DWORD millisecond</p>
+<p>																																										 conversion, and <code>Sleep</code> call/result emission to focused helpers while</p>
+<p>																																										 preserving the best-effort no-EINTR contract. The capped profile now shows</p>
+<p>																																										 <code>x64_native_program.oren</code> at about 42.9s total / 31.8s parse, with</p>
+<p>																																										 <code>_x64_emit_sys_stat_or_lstat_x64</code> exposed at about 77ms as the next parser</p>
+<p>																																										 body.</p>
+<p>																																								     Serial/thread module</p>
 <p>															     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
