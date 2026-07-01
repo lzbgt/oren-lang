@@ -782,10 +782,17 @@ Facts from the 2026-05-28 implementation pass:
 																									  argument spilling, timeout-us to timeout-ms conversion,
 																									  `WaitOnAddress` call setup, and result/timeout errno mapping to
 																									  focused helpers while preserving temp cleanup ownership. The
-																									  capped profile now shows `x64_native_program.oren` at about
-																									  41.4s total / 30.6s parse, with `_emit_cmp_from_cond` exposed at
-																									  about 96ms as the next parser body.
-																		  Serial/thread module ASTBIN writes are explicit prewarm work via
+																										  capped profile now shows `x64_native_program.oren` at about
+																										  41.4s total / 30.6s parse, with `_emit_cmp_from_cond` exposed at
+																										  about 96ms as the next parser body.
+																										  X64 condition compare lowering now delegates integer,
+																										  identifier/global, and general-expression RHS paths plus
+																										  truthy/prefix fallback into focused helpers while preserving
+																										  string-aware compare routing. The capped profile now shows
+																										  `x64_native_program.oren` at about 41.6s total / 30.7s parse,
+																										  with `_x64_index_emit_kind_dispatch` exposed at about 99ms as the
+																										  next parser body.
+																			  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

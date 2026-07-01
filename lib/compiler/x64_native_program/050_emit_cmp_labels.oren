@@ -159,65 +159,67 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
     return nil
 }
 
-fn _emit_cmp_from_cond(ctx, cond, locals) {
-    // Emits a compare that sets flags according to `cond`.
-    // Uses RAX for evaluated LHS/expr; RDX as scratch for RHS when needed.
-    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+fn _x64_emit_cmp_rhs_integer(ctx, r) {
+    var n = intparse.parse_int_lit(r["value"])
+    if oren_is_err(n) { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+    if _is_i32(n) {
+        var imm_u32 = n
+        if n < 0 { imm_u32 = 4294967296 + n }
+        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, imm_u32))
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n)) // rdx = imm64
+        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 2))
+    }
+    return nil
+}
 
-    // Comparison condition: compare lhs and rhs.
-    if _cond_is_cmp_infix(cond) != nil {
-        var l = cond["left"]
-        var r = cond["right"]
-        _emit_eval_int_to_rax(ctx, l, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        if r["type"] == "Integer" {
-            var n = intparse.parse_int_lit(r["value"])
-            if oren_is_err(n) { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-            if _is_i32(n) {
-                var imm_u32 = n
-                if n < 0 { imm_u32 = 4294967296 + n }
-                bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, imm_u32))
-            } else {
-                bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n)) // rdx = imm64
-                bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 2))
-            }
+fn _x64_emit_cmp_rhs_identifier(ctx, locals, rhs_name) {
+    var off = locals[rhs_name]
+    if oren_type_tag(off) != 0 {
+        _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs (local)
+    } else {
+        // Global var RHS (top-level `var`).
+        var goff_enc = nil
+        if ctx["globals"] != nil { goff_enc = ctx["globals"][rhs_name] }
+        if oren_type_tag(goff_enc) == 0 {
+            err(ctx, "x64 native v0: unknown var " + rhs_name)
             return nil
         }
-                if r["type"] == "Identifier" {
-                    var rhs_name = r["value"]
-                    var off = locals[rhs_name]
-                    if oren_type_tag(off) != 0 {
-                        _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs (local)
-            } else {
-                // Global var RHS (top-level `var`).
-                var goff_enc = nil
-                if ctx["globals"] != nil { goff_enc = ctx["globals"][rhs_name] }
-                if oren_type_tag(goff_enc) == 0 {
-                    err(ctx, "x64 native v0: unknown var " + rhs_name)
-                    return nil
-                }
-                var goff = goff_enc - 1
-                // r10 = &global_slot ; rdx = *(u64*)r10
-                var lea_pos0 = bytes_len(ctx["code"])
-                bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
-	                bytes_extend(ctx["code"], core.insn_mov_r64_mr64(2, 10))
-	            }
-	            _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, 0, 2)
-	            return nil
-        }
-        // General RHS expression: spill LHS, evaluate RHS, then cmp lhs,rhs.
-        var tmp_off = locals["$tmp_cmp"]
-        if oren_type_tag(tmp_off) == 0 { err(ctx, "x64 native v0: missing temp slot for cmp"); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = lhs (rax)
-        _emit_eval_int_to_rax(ctx, r, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-	        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rhs
-	        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
-	        _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, 0, 2)
-	        return nil
-	    }
+        var goff = goff_enc - 1
+        // r10 = &global_slot ; rdx = *(u64*)r10
+        var lea_pos0 = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(2, 10))
+    }
+    _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, 0, 2)
+    return nil
+}
 
+fn _x64_emit_cmp_rhs_general(ctx, locals, r) {
+    // General RHS expression: spill LHS, evaluate RHS, then cmp lhs,rhs.
+    var tmp_off = locals["$tmp_cmp"]
+    if oren_type_tag(tmp_off) == 0 { err(ctx, "x64 native v0: missing temp slot for cmp"); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = lhs (rax)
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rhs
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
+    _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, 0, 2)
+    return nil
+}
+
+fn _x64_emit_cmp_infix_from_cond(ctx, cond, locals) {
+    var l = cond["left"]
+    var r = cond["right"]
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if r["type"] == "Integer" { return _x64_emit_cmp_rhs_integer(ctx, r) }
+    if r["type"] == "Identifier" { return _x64_emit_cmp_rhs_identifier(ctx, locals, r["value"]) }
+    return _x64_emit_cmp_rhs_general(ctx, locals, r)
+}
+
+fn _x64_emit_cmp_truthy_from_cond(ctx, cond, locals) {
     // Truthy expression condition: compare expr to 0.
     if cond["type"] == "Prefix" && cond["op"] == "!" {
         var inner = cond["right"]
@@ -236,6 +238,21 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
     _emit_eval_int_to_rax(ctx, cond, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    return nil
+}
+
+fn _emit_cmp_from_cond(ctx, cond, locals) {
+    // Emits a compare that sets flags according to `cond`.
+    // Uses RAX for evaluated LHS/expr; RDX as scratch for RHS when needed.
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+
+    // Comparison condition: compare lhs and rhs.
+    if _cond_is_cmp_infix(cond) != nil {
+        _x64_emit_cmp_infix_from_cond(ctx, cond, locals)
+        return nil
+    }
+
+    _x64_emit_cmp_truthy_from_cond(ctx, cond, locals)
     return nil
 }
 

@@ -822,10 +822,17 @@
 <p>																									  argument spilling, timeout-us to timeout-ms conversion,</p>
 <p>																									  <code>WaitOnAddress</code> call setup, and result/timeout errno mapping to</p>
 <p>																									  focused helpers while preserving temp cleanup ownership. The</p>
-<p>																									  capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																									  41.4s total / 30.6s parse, with <code>_emit_cmp_from_cond</code> exposed at</p>
-<p>																									  about 96ms as the next parser body.</p>
-<p>																		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																										  capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																										  41.4s total / 30.6s parse, with <code>_emit_cmp_from_cond</code> exposed at</p>
+<p>																										  about 96ms as the next parser body.</p>
+<p>																										  X64 condition compare lowering now delegates integer,</p>
+<p>																										  identifier/global, and general-expression RHS paths plus</p>
+<p>																										  truthy/prefix fallback into focused helpers while preserving</p>
+<p>																										  string-aware compare routing. The capped profile now shows</p>
+<p>																										  <code>x64_native_program.oren</code> at about 41.6s total / 30.7s parse,</p>
+<p>																										  with <code>_x64_index_emit_kind_dispatch</code> exposed at about 99ms as the</p>
+<p>																										  next parser body.</p>
+<p>																			  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
