@@ -792,11 +792,19 @@
 <p>																						  X64 malloc core lowering now delegates <code>$tmp0</code> validation,</p>
 <p>																						  allocation labels, size alignment, native reuse probing, heap</p>
 <p>																						  fast-path probing, and platform slow-path routing to focused</p>
-<p>																						  helpers while preserving heap register semantics. The capped</p>
-<p>																						  profile now shows <code>x64_native_program.oren</code> at about 40.6s total /</p>
-<p>																						  30.0s parse, with <code>_emit_call_spread_via_runtime_helper_fnexpr_x64</code></p>
-<p>																						  exposed at about 96ms as the next parser body.</p>
-<p>														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																							  helpers while preserving heap register semantics. The capped</p>
+<p>																							  profile now shows <code>x64_native_program.oren</code> at about 40.6s total /</p>
+<p>																							  30.0s parse, with <code>_emit_call_spread_via_runtime_helper_fnexpr_x64</code></p>
+<p>																							  exposed at about 96ms as the next parser body.</p>
+<p>																							  X64 spread-call lowering now delegates spill layout,</p>
+<p>																							  left-to-right explicit argument spilling, fixed-list construction,</p>
+<p>																							  spread/callee spilling, and <code>oren_call_obj_spread</code> emission to</p>
+<p>																							  focused helpers while preserving injected runtime gating and temp</p>
+<p>																							  cleanup on failure. The capped profile now shows</p>
+<p>																							  <code>x64_native_program.oren</code> at about 43.0s total / 31.8s parse, with</p>
+<p>																							  <code>_emit_wsa_last_error_to_neg_errno_common_x64</code> exposed at about</p>
+<p>																							  124ms as the next parser body.</p>
+<p>															  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

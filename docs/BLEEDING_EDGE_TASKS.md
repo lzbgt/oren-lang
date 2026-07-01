@@ -736,11 +736,19 @@ This file is the concise task view. Detailed implementation status lives in
 																		 X64 malloc core lowering now delegates `$tmp0` validation, allocation
 																		 labels, size alignment, native reuse probing, heap fast-path probing,
 																		 and platform slow-path routing to focused helpers while preserving heap
-																		 register semantics. The capped profile now shows
-																		 `x64_native_program.oren` at about 40.6s total / 30.0s parse, with
-																		 `_emit_call_spread_via_runtime_helper_fnexpr_x64` exposed at about 96ms
-																		 as the next parser body.
-																		     Serial/thread module
+																			 register semantics. The capped profile now shows
+																			 `x64_native_program.oren` at about 40.6s total / 30.0s parse, with
+																			 `_emit_call_spread_via_runtime_helper_fnexpr_x64` exposed at about 96ms
+																			 as the next parser body.
+																			 X64 spread-call lowering now delegates spill layout, left-to-right
+																			 explicit argument spilling, fixed-list construction, spread/callee
+																			 spilling, and `oren_call_obj_spread` emission to focused helpers while
+																			 preserving injected runtime gating and temp cleanup on failure. The
+																			 capped profile now shows `x64_native_program.oren` at about 43.0s
+																			 total / 31.8s parse, with
+																			 `_emit_wsa_last_error_to_neg_errno_common_x64` exposed at about 124ms
+																			 as the next parser body.
+																			     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
