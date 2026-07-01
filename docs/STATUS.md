@@ -563,10 +563,16 @@ Facts from the 2026-05-28 implementation pass:
 																		  Windows x64 `sys_gettimeofday` delegates argument spilling, capsule
 																		  prehook, `tv` validation, wall-time materialization, and optional QPC
 																		  emission; and checked x64 `oren_list_int_len` now mirrors the helperized
-																		  `oren_list_len` validation shape. The capped profile now shows
-																		  `x64_native_program.oren` at about 40.8s total / 30.6s parse, with
-																		  `_emit_intrinsic_sys_linux_proc_exec_x64` exposed at about 120ms as the
-																		  next parser body.
+																			  `oren_list_len` validation shape. The capped profile now shows
+																			  `x64_native_program.oren` at about 40.8s total / 30.6s parse, with
+																			  `_emit_intrinsic_sys_linux_proc_exec_x64` exposed at about 120ms as the
+																			  next parser body. Linux x64 process syscall lowering now delegates
+																			  `fork`, `execve`, and `wait4` to focused helpers, and x64 context
+																			  creation now delegates progress-trace detection, base map setup,
+																			  alias/lambda state, runtime data-slot reservation, and debug trace flags.
+																			  The capped profile now shows `x64_native_program.oren` at about 40.4s
+																			  total / 30.1s parse, with `_emit_indirect_call_via_fnobj_x64` exposed
+																			  at about 120ms as the next parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

@@ -475,94 +475,97 @@ fn _emit_intrinsic_sys_linux_fs_x64(ctx, nm, expr, locals, args, capsule) {
     return _emit_intrinsic_sys_linux_proc_x64(ctx, nm, expr, locals, args, capsule)
 }
 
-fn _emit_intrinsic_sys_linux_proc_exec_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_fork" {
-        if oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_fork expects 0 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fork does not support spread"); return true }
+fn _emit_intrinsic_sys_linux_fork_x64(ctx, expr, args, capsule) {
+    if oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_fork expects 0 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fork does not support spread"); return true }
 
-        // pre: native_capsule_sys_fork_pre()
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_pre")
-        }
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fork()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-        if capsule {
-            // post: native_capsule_sys_fork_post(pid) -> pid
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = pid
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_post")
-        }
-        return true
+    // pre: native_capsule_sys_fork_pre()
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_pre")
     }
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fork()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    if capsule {
+        // post: native_capsule_sys_fork_post(pid) -> pid
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = pid
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_post")
+    }
+    return true
+}
 
-    if nm == "sys_execve" {
-        if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_execve expects 3 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_execve does not support spread"); return true }
+fn _emit_intrinsic_sys_linux_execve_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_execve expects 3 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_execve does not support spread"); return true }
 
-        var base11 = _intr_tmp_push(ctx, 3) // path, argv, envp
-        if oren_type_tag(base11) == 0 { return true }
-        var tmp_path = _intr_tmp_off(ctx, locals, base11 + 0)
-        var tmp_argv = _intr_tmp_off(ctx, locals, base11 + 1)
-        var tmp_envp = _intr_tmp_off(ctx, locals, base11 + 2)
-        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_argv) == 0 || oren_type_tag(tmp_envp) == 0 { _intr_tmp_pop(ctx, base11); return true }
+    var base11 = _intr_tmp_push(ctx, 3) // path, argv, envp
+    if oren_type_tag(base11) == 0 { return true }
+    var tmp_path = _intr_tmp_off(ctx, locals, base11 + 0)
+    var tmp_argv = _intr_tmp_off(ctx, locals, base11 + 1)
+    var tmp_envp = _intr_tmp_off(ctx, locals, base11 + 2)
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_argv) == 0 || oren_type_tag(tmp_envp) == 0 { _intr_tmp_pop(ctx, base11); return true }
 
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_argv)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_envp)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base11); return true }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_argv)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_envp)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base11); return true }
 
-        // pre: native_capsule_sys_execve_pre(path, argv, envp) -> envp_to_use
-        if capsule {
-            _intr_load_x64(ctx, 7, tmp_path)
-            _intr_load_x64(ctx, 6, tmp_argv)
-            _intr_load_x64(ctx, 2, tmp_envp)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_execve_pre")
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_envp, 0) // overwrite envp slot
-        }
-
+    // pre: native_capsule_sys_execve_pre(path, argv, envp) -> envp_to_use
+    if capsule {
         _intr_load_x64(ctx, 7, tmp_path)
         _intr_load_x64(ctx, 6, tmp_argv)
         _intr_load_x64(ctx, 2, tmp_envp)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_execve()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-        _intr_tmp_pop(ctx, base11)
-        return true
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_execve_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_envp, 0) // overwrite envp slot
     }
 
-    if nm == "sys_wait4" {
-        if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_wait4 expects 4 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wait4 does not support spread"); return true }
+    _intr_load_x64(ctx, 7, tmp_path)
+    _intr_load_x64(ctx, 6, tmp_argv)
+    _intr_load_x64(ctx, 2, tmp_envp)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_execve()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    _intr_tmp_pop(ctx, base11)
+    return true
+}
 
-        var base12 = _intr_tmp_push(ctx, 4) // pid, status_ptr, options, rusage
-        if oren_type_tag(base12) == 0 { return true }
-        var tmp_pid = _intr_tmp_off(ctx, locals, base12 + 0)
-        var tmp_status = _intr_tmp_off(ctx, locals, base12 + 1)
-        var tmp_opts = _intr_tmp_off(ctx, locals, base12 + 2)
-        var tmp_rusage = _intr_tmp_off(ctx, locals, base12 + 3)
-        if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_status) == 0 || oren_type_tag(tmp_opts) == 0 || oren_type_tag(tmp_rusage) == 0 { _intr_tmp_pop(ctx, base12); return true }
+fn _emit_intrinsic_sys_linux_wait4_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_wait4 expects 4 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wait4 does not support spread"); return true }
 
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_pid)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_status)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_opts)
-        _intr_eval_spill_x64(ctx, locals, args[3], tmp_rusage)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base12); return true }
+    var base12 = _intr_tmp_push(ctx, 4) // pid, status_ptr, options, rusage
+    if oren_type_tag(base12) == 0 { return true }
+    var tmp_pid = _intr_tmp_off(ctx, locals, base12 + 0)
+    var tmp_status = _intr_tmp_off(ctx, locals, base12 + 1)
+    var tmp_opts = _intr_tmp_off(ctx, locals, base12 + 2)
+    var tmp_rusage = _intr_tmp_off(ctx, locals, base12 + 3)
+    if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_status) == 0 || oren_type_tag(tmp_opts) == 0 || oren_type_tag(tmp_rusage) == 0 { _intr_tmp_pop(ctx, base12); return true }
 
-        // pre: native_capsule_sys_wait4_pre(pid, options)
-        if capsule {
-            _intr_load_x64(ctx, 7, tmp_pid)
-            _intr_load_x64(ctx, 6, tmp_opts)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wait4_pre")
-        }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_pid)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_status)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_opts)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_rusage)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base12); return true }
 
+    // pre: native_capsule_sys_wait4_pre(pid, options)
+    if capsule {
         _intr_load_x64(ctx, 7, tmp_pid)
-        _intr_load_x64(ctx, 6, tmp_status)
-        _intr_load_x64(ctx, 2, tmp_opts)
-        _intr_load_x64(ctx, 10, tmp_rusage) // arg4
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_wait4()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-        _intr_tmp_pop(ctx, base12)
-        return true
+        _intr_load_x64(ctx, 6, tmp_opts)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wait4_pre")
     }
 
+    _intr_load_x64(ctx, 7, tmp_pid)
+    _intr_load_x64(ctx, 6, tmp_status)
+    _intr_load_x64(ctx, 2, tmp_opts)
+    _intr_load_x64(ctx, 10, tmp_rusage) // arg4
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_wait4()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    _intr_tmp_pop(ctx, base12)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_proc_exec_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm == "sys_fork" { return _emit_intrinsic_sys_linux_fork_x64(ctx, expr, args, capsule) }
+    if nm == "sys_execve" { return _emit_intrinsic_sys_linux_execve_x64(ctx, expr, locals, args, capsule) }
+    if nm == "sys_wait4" { return _emit_intrinsic_sys_linux_wait4_x64(ctx, expr, locals, args, capsule) }
     return false
 }
 

@@ -402,16 +402,13 @@ fn _rtobj_decode_int_enc(x_enc) {
     return x_enc - 1
 }
 
-fn _x64_new_ctx(linked, platform) {
-    // Shared x64 native compiler context initializer.
-    //
-    // This is used both by the main program compiler and by the native-runtime object cache
-    // that compiles the injected runtime once and reuses it across builds.
-    //
-    // Build incrementally to avoid large nested map literals (rolling x64-windows robustness).
-    var trace_ctx = false
+fn _x64_ctx_progress_trace_enabled() {
     var v_trace_ctx = oren_env("OREN_TRACE_X64_COMPILE_PROGRESS")
-    if v_trace_ctx != nil && v_trace_ctx != "" { trace_ctx = true }
+    if v_trace_ctx != nil && v_trace_ctx != "" { return true }
+    return false
+}
+
+fn _x64_new_ctx_base(linked, platform, trace_ctx) {
     var ctx = {}
     ctx["code"] = bytes_new()
     ctx["data"] = bytes_new()
@@ -440,16 +437,19 @@ fn _x64_new_ctx(linked, platform) {
     ctx["func_decl_order"] = []
     ctx["declared_functions"] = {}
     // Track which named functions are actually used as first-class values so we only
-    // synthesize `__oren_fnwrap_*` wrappers when needed (Tier‑1 perf; parity with arm64).
+    // synthesize `__oren_fnwrap_*` wrappers when needed (Tier-1 perf; parity with arm64).
     ctx["fnwrap_needed"] = {}
     if trace_ctx { print("[x64_ctx] base init ok") }
 
     // Expose whether runtime injection is enabled so lowering can progressively
-    // switch from x64 bring-up intrinsics to shared runtime helpers (Tier‑1 parity).
+    // switch from x64 bring-up intrinsics to shared runtime helpers (Tier-1 parity).
     ctx["inject_runtime"] = true
     ctx["abi"] = abi.x64(platform)
     if trace_ctx { print("[x64_ctx] abi ok") }
+    return ctx
+}
 
+fn _x64_new_ctx_aliases(ctx, linked, trace_ctx) {
     // Import aliases / type namespaces are used by shared callable lowering and ns-resolution.
     if linked != nil {
         ctx["aliases"] = linked["aliases"]
@@ -462,7 +462,10 @@ fn _x64_new_ctx(linked, platform) {
     // Lambda collection state (lambdas are parsed as Function nodes with name="").
     ctx["lambda_defs"] = []
     ctx["lambda_counter"] = 0
+    return nil
+}
 
+fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
     // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
     //
     // Store as offset+1 so offset 0 is representable while still using `nil` as the
@@ -471,7 +474,7 @@ fn _x64_new_ctx(linked, platform) {
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
     if trace_ctx { print("[x64_ctx] cstr slot ok") }
 
-    // Tier‑1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a small
+    // Tier-1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a small
     // boot globals storage blob used before `native_runtime_init` runs.
     //
     // Layout is defined by `rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN` and must match across:
@@ -489,7 +492,7 @@ fn _x64_new_ctx(linked, platform) {
     ctx["boot_true_obj_off_enc"] = boot_off + 408 + 1
     if trace_ctx { print("[x64_ctx] boot globals ok") }
 
-    // Tier‑1 export/FFI ABI bridge: reserve persistent heap register spill slots.
+    // Tier-1 export/FFI ABI bridge: reserve persistent heap register spill slots.
     //
     // x64 native uses r14/r15 as global bump allocator registers for intra-Oren calls.
     // That is intentionally incompatible with the platform ABIs at external boundaries
@@ -500,7 +503,10 @@ fn _x64_new_ctx(linked, platform) {
     ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
     ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
     if trace_ctx { print("[x64_ctx] heap slots ok") }
+    return nil
+}
 
+fn _x64_new_ctx_trace_flags(ctx, trace_ctx) {
     // Bounded debug knob (bring-up):
     // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.
     //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
@@ -527,6 +533,21 @@ fn _x64_new_ctx(linked, platform) {
         ctx["trace_native_alloc_req"] = 1
         if trace_ctx { print("[x64_ctx] trace_native_alloc_req=1") }
     }
+    return nil
+}
+
+fn _x64_new_ctx(linked, platform) {
+    // Shared x64 native compiler context initializer.
+    //
+    // This is used both by the main program compiler and by the native-runtime object cache
+    // that compiles the injected runtime once and reuses it across builds.
+    //
+    // Build incrementally to avoid large nested map literals (rolling x64-windows robustness).
+    var trace_ctx = _x64_ctx_progress_trace_enabled()
+    var ctx = _x64_new_ctx_base(linked, platform, trace_ctx)
+    _x64_new_ctx_aliases(ctx, linked, trace_ctx)
+    _x64_new_ctx_runtime_slots(ctx, trace_ctx)
+    _x64_new_ctx_trace_flags(ctx, trace_ctx)
     return ctx
 }
 
