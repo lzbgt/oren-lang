@@ -730,6 +730,13 @@
 <p>																						  <code>x64_native_program.oren</code> at about 40.7s total / 30.1s parse,</p>
 <p>																						  with <code>_x64_emit_regular_op</code> exposed at about 101ms as the next</p>
 <p>																						  parser body.</p>
+<p>																						  X64 regular op dispatch now delegates straight-line</p>
+<p>																						  declaration/expression/print/return ops and control-flow/loop ops</p>
+<p>																						  to focused routers while preserving the existing <code>0</code>/<code>1</code> status</p>
+<p>																						  contract for gas patching and fast-path skips. The capped profile</p>
+<p>																						  now shows <code>x64_native_program.oren</code> at about 41.3s total / 30.5s</p>
+<p>																						  parse, with <code>_x64_emit_entry_top_and_main_calls</code> exposed at about</p>
+<p>																						  116ms as the next parser body.</p>
 <p>													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

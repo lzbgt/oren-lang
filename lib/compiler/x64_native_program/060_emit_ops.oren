@@ -1130,7 +1130,7 @@ fn _x64_emit_ops_summary(ctx, state) {
     return nil
 }
 
-fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns, op_slow_ms, top_string_fast_stats, gas_weighted, gas_dynamic) {
+fn _x64_emit_regular_straightline_op(ctx, op_kind, op, locals, local_fixups, epilogue_label, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats) {
     if op_kind == "var_i32" {
         _emit_var_i32_op_x64(ctx, op, locals)
         return 0
@@ -1176,6 +1176,10 @@ fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue
         _emit_jmp_to_label(ctx, local_fixups, epilogue_label)
         return 0
     }
+    return nil
+}
+
+fn _x64_emit_regular_control_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic) {
     if op_kind == "if" {
         var cond = op["cond"]
         var else_label = _new_label(ctx, "if_else")
@@ -1209,6 +1213,16 @@ fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue
         _emit_jmp_to_label(ctx, local_fixups, loop_cond_label)
         return 0
     }
+    return nil
+}
+
+fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns, op_slow_ms, top_string_fast_stats, gas_weighted, gas_dynamic) {
+    var straight_status = _x64_emit_regular_straightline_op(ctx, op_kind, op, locals, local_fixups, epilogue_label, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats)
+    if straight_status != nil { return straight_status }
+
+    var control_status = _x64_emit_regular_control_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic)
+    if control_status != nil { return control_status }
+
     err(ctx, "x64 native v0: unknown op in main")
     return 0
 }
