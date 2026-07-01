@@ -537,7 +537,14 @@
 <p>													  preserving the same <code>WSA_IO_PENDING</code> success mapping. The capped profile</p>
 <p>													  now shows <code>x64_native_program.oren</code> at about 38.6s total / 28.8s parse,</p>
 <p>													  with <code>_emit_cmp_r64_r64_maybe_string_x64</code> exposed at about 178ms as the</p>
-<p>													  next parser body.</p>
+<p>													  next parser body. X64 string-aware compare lowering now delegates spill-slot</p>
+<p>													  lookup, small-int fast path probes, string-pointer checks, inline strcmp</p>
+<p>													  lowering, and integer fallback emission to focused helpers, and</p>
+<p>													  runtime-object cache recovery now delegates cache identity, cache-hit apply,</p>
+<p>													  seed-hit apply, and store/apply finalization. The capped profile now shows</p>
+<p>													  <code>x64_native_program.oren</code> at about 40.2s total / 30.3s parse, with</p>
+<p>													  <code>_emit_intrinsic_sys_linux_dup_ioctl_x64</code> exposed at about 152ms as the next</p>
+<p>													  parser body.</p>
 <p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

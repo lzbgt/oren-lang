@@ -1,18 +1,6 @@
-fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
-    // Set CPU flags for `lhs <op> rhs`-style comparisons in conditions.
-    //
-    // Tier‑1 convergence rule:
-    // - If both operands are string pointers (tracked heap STRING or embedded cstr0 literal),
-    //   lower compare via an inline `strcmp`-equivalent and then `cmp rax, 0`.
-    // - Otherwise, fall back to raw integer compare (`cmp lhs, rhs`).
-    //
-    // This keeps condition Jcc mapping identical for ints and strings because both paths
-    // end with a `cmp <result>, 0` semantics: ints use flags from `cmp lhs,rhs`, strings
-    // use flags from `cmp strcmp(lhs,rhs), 0`.
+fn _x64_cmp_spill_offsets(ctx, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: missing locals"); return nil }
-
-    // Spill operands to preserve across runtime calls.
     var off_l = locals["$tmp_cmp"]
     var off_r = locals["$tmp0"]
     if oren_type_tag(off_l) != 1 { off_l = 0 }
@@ -21,15 +9,10 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
         err(ctx, "x64 native v0: missing spill slots for string-aware compare")
         return nil
     }
-    _emit_mov_mrbp_r64(ctx, 0 - off_l, lhs_reg)
-    _emit_mov_mrbp_r64(ctx, 0 - off_r, rhs_reg)
+    return {"left": off_l, "right": off_r}
+}
 
-    var labels = {}
-    var fixups = []
-    var l_int = _new_label(ctx, "cmp_int")
-    var l_str = _new_label(ctx, "cmp_str")
-    var l_done = _new_label(ctx, "cmp_done")
-
+fn _x64_emit_cmp_small_int_fast_path(ctx, fixups, off_l, off_r, l_int) {
     // Fast path: if either operand is a small integer (<4096 in the native v0 model),
     // it cannot be a tracked heap string. Skip the tracking scan in that case.
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_l) // rax = lhs
@@ -38,20 +21,23 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_r) // rax = rhs
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4096))
     _emit_jcc_to_label(ctx, fixups, "l", l_int)
+    return nil
+}
 
-    // Check lhs is a string pointer (tracked heap string OR embedded cstr0 literal).
+fn _x64_emit_cmp_string_ptr_checks(ctx, fixups, off_l, off_r, l_int, l_str) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     if oren_type_tag(a0_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg reg for native_is_string_ptr")
         return nil
     }
     var a0 = a0_enc - 1
+
+    // Check lhs is a string pointer (tracked heap string OR embedded cstr0 literal).
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_l) // r8 = lhs
     if a0 != 8 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 8)) }
     var call_pos_l = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos_l, "name": "native_is_string_ptr"})
-    // RAX = 1/0
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_int)
 
@@ -66,7 +52,10 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
 
     // Both are strings.
     _emit_jmp_to_label(ctx, fixups, l_str)
+    return nil
+}
 
+fn _x64_emit_cmp_string_path(ctx, labels, fixups, off_l, off_r, l_str, l_done) {
     _emit_label(ctx, labels, l_str)
     // Inline `strcmp` semantics returning -1/0/1 in RAX, then `cmp rax,0` for Jcc mapping.
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_l) // r10 = s1 cursor
@@ -122,11 +111,48 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
     bytes_extend(ctx["code"], core.insn_cdqe())
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
 
+fn _x64_emit_cmp_int_path(ctx, labels, off_l, off_r, l_int) {
     _emit_label(ctx, labels, l_int)
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_l)
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_r)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 2))
+    return nil
+}
+
+fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
+    // Set CPU flags for `lhs <op> rhs`-style comparisons in conditions.
+    //
+    // Tier‑1 convergence rule:
+    // - If both operands are string pointers (tracked heap STRING or embedded cstr0 literal),
+    //   lower compare via an inline `strcmp`-equivalent and then `cmp rax, 0`.
+    // - Otherwise, fall back to raw integer compare (`cmp lhs, rhs`).
+    //
+    // This keeps condition Jcc mapping identical for ints and strings because both paths
+    // end with a `cmp <result>, 0` semantics: ints use flags from `cmp lhs,rhs`, strings
+    // use flags from `cmp strcmp(lhs,rhs), 0`.
+    var offs = _x64_cmp_spill_offsets(ctx, locals)
+    if offs == nil { return nil }
+    var off_l = offs["left"]
+    var off_r = offs["right"]
+
+    // Spill operands to preserve across runtime calls.
+    _emit_mov_mrbp_r64(ctx, 0 - off_l, lhs_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - off_r, rhs_reg)
+
+    var labels = {}
+    var fixups = []
+    var l_int = _new_label(ctx, "cmp_int")
+    var l_str = _new_label(ctx, "cmp_str")
+    var l_done = _new_label(ctx, "cmp_done")
+
+    _x64_emit_cmp_small_int_fast_path(ctx, fixups, off_l, off_r, l_int)
+    _x64_emit_cmp_string_ptr_checks(ctx, fixups, off_l, off_r, l_int, l_str)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_cmp_string_path(ctx, labels, fixups, off_l, off_r, l_str, l_done)
+    _x64_emit_cmp_int_path(ctx, labels, off_l, off_r, l_int)
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)

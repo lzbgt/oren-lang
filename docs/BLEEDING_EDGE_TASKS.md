@@ -495,7 +495,13 @@ This file is the concise task view. Detailed implementation status lives in
 																								 same `WSA_IO_PENDING` success mapping. The capped profile now shows
 																								 `x64_native_program.oren` at about 38.6s total / 28.8s parse, with
 																								 `_emit_cmp_r64_r64_maybe_string_x64` exposed at about 178ms as the next parser
-																								 body.
+																								 body. X64 string-aware compare lowering now delegates spill-slot lookup,
+																								 small-int fast path probes, string-pointer checks, inline strcmp lowering, and
+																								 integer fallback emission to focused helpers, and runtime-object cache recovery
+																								 now delegates cache identity, cache-hit apply, seed-hit apply, and store/apply
+																								 finalization. The capped profile now shows `x64_native_program.oren` at about
+																								 40.2s total / 30.3s parse, with `_emit_intrinsic_sys_linux_dup_ioctl_x64`
+																								 exposed at about 152ms as the next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
