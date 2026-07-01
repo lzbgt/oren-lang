@@ -404,13 +404,7 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_fstat expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_fstat does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_windows_fstat_spill_args(ctx, locals, args, capsule) {
     var base = _intr_tmp_push(ctx, 4) // fd, st_ptr, li(2q)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -427,18 +421,13 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     // Evaluate st_ptr for side effects/compatibility (ignored for now).
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_fd": tmp_fd, "tmp_st": tmp_st}
+}
 
+fn _x64_windows_fstat_emit_handle_resolution(ctx, labels, fixups, tmp_fd, l_have_handle, l_ok, l_fail) {
     // Determine handle:
     // - fd==0/1/2 => GetStdHandle(STD_*_HANDLE)
     // - else      => fd itself is a Win32 HANDLE
-    var labels = {}
-    var fixups = []
-    var l_have_handle = _new_label(ctx, "sys_fstat_have_handle")
-    var l_ok = _new_label(ctx, "sys_fstat_ok")
-    var l_fail = _new_label(ctx, "sys_fstat_fail")
-    var l_done = _new_label(ctx, "sys_fstat_done")
-
-    // rax = fd
     _intr_load_x64(ctx, 0, tmp_fd)
     // if fd == 0
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
@@ -483,7 +472,10 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
     _emit_jmp_to_label(ctx, fixups, l_ok)
+    return nil
+}
 
+fn _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_ok, l_fail, l_done) {
     _emit_label(ctx, labels, l_fail)
     _emit_set_rax_neg_errno_x64(ctx, 9) // EBADF
     _emit_jmp_to_label(ctx, fixups, l_done)
@@ -524,15 +516,47 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     // rc = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
+    return true
+}
+
+fn _x64_windows_fstat_capsule_post(ctx, capsule) {
+    if capsule {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+    }
+    return nil
+}
+
+fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_fstat expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_fstat does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_windows_fstat_spill_args(ctx, locals, args, capsule)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_fd = state["tmp_fd"]
+    var tmp_st = state["tmp_st"]
+
+    var labels = {}
+    var fixups = []
+    var l_have_handle = _new_label(ctx, "sys_fstat_have_handle")
+    var l_ok = _new_label(ctx, "sys_fstat_ok")
+    var l_fail = _new_label(ctx, "sys_fstat_fail")
+    var l_done = _new_label(ctx, "sys_fstat_done")
+
+    _x64_windows_fstat_emit_handle_resolution(ctx, labels, fixups, tmp_fd, l_have_handle, l_ok, l_fail)
+    if _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_ok, l_fail, l_done) != true {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_fstat_post(rc) -> rc
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
-    }
+    _x64_windows_fstat_capsule_post(ctx, capsule)
 
     _intr_tmp_pop(ctx, base)
     return nil

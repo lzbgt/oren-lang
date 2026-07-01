@@ -506,7 +506,13 @@ This file is the concise task view. Detailed implementation status lives in
 																								 helpers while preserving capsule hook ordering and syscall register setup. The
 																								 capped profile now shows `x64_native_program.oren` at about 39.7s total / 29.8s
 																								 parse, with `_emit_intrinsic_sys_fstat_windows_x64` exposed at about 145ms as
-																								 the next parser body.
+																								 the next parser body. Windows x64 `sys_fstat` lowering now delegates fd/st
+																								 argument spill and capsule prehook, standard-handle resolution, stat
+																								 materialization, and capsule posthook emission to focused helpers while
+																								 preserving best-effort zero-size success for non-file handles. The capped
+																								 profile now shows `x64_native_program.oren` at about 39.3s total / 29.4s parse,
+																								 with `_emit_list_int_get_intrinsic_v0_x64` exposed at about 142ms as the next
+																								 parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
