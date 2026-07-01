@@ -513,49 +513,61 @@ fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fcntl_setfl expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_setfl does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_fcntl_setfl_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // fd, oren_flags
     if oren_type_tag(base) == 0 { return nil }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_flags = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var state = {}
+    state["base"] = base
+    state["fd"] = _intr_tmp_off(ctx, locals, base + 0)
+    state["flags"] = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(state["fd"]) == 0 || oren_type_tag(state["flags"]) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[0], state["fd"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["flags"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return state
+}
 
-    // pre: native_capsule_sys_fcntl_pre(fd, F_SETFL, oren_flags)
-    _intr_load_x64(ctx, 1, tmp_fd)
+fn _x64_emit_fcntl_setfl_windows_prehook(ctx, state, capsule) {
+    if !capsule { return nil }
+    _intr_load_x64(ctx, 1, state["fd"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
-    _intr_load_x64(ctx, 8, tmp_flags)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
+    _intr_load_x64(ctx, 8, state["flags"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+    return nil
+}
 
+fn _x64_emit_fcntl_setfl_windows_mode(ctx, labels, fixups, state) {
     // ioctlsocket(fd, FIONBIO, &mode)
     //
     // mode is u_long (32-bit). Use the call-area scratch at [rsp+0x20] as storage.
     // Initialize to 0, set to 1 if (flags & OREN_O_NONBLOCK) != 0.
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0)) // mode=0
-    _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
+    _intr_load_x64(ctx, 10, state["flags"]) // r10 = flags
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(10, OREN_O_NONBLOCK))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 0))
-    var labels = {}
-    var fixups = []
     var l_skip = _new_label(ctx, "fcntl_setfl_win_skip")
     _emit_jcc_to_label(ctx, fixups, "e", l_skip)
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 1)) // mode=1
     _emit_label(ctx, labels, l_skip)
+    return nil
+}
 
-    _intr_load_x64(ctx, 1, tmp_fd) // rcx = fd
+fn _x64_emit_fcntl_setfl_windows_ioctl(ctx, state) {
+    _intr_load_x64(ctx, 1, state["fd"]) // rcx = fd
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147772030)) // edx = FIONBIO (0x8004667e)
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(8, 32)) // r8 = &mode
     _emit_call_iat_x64(ctx, "IAT_ioctlsocket")
+    return nil
+}
 
+fn _x64_emit_fcntl_setfl_windows_result(ctx, labels, fixups) {
     // If rc == SOCKET_ERROR(-1), map; else return 0.
     var l_ok = _new_label(ctx, "fcntl_setfl_win_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
@@ -568,15 +580,38 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_post)
-    // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+    return nil
+}
+
+fn _x64_emit_fcntl_setfl_windows_posthook(ctx, state, capsule) {
+    if !capsule { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, tmp_fd)
+    _intr_load_x64(ctx, 2, state["fd"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, labi.posix_fcntl_f_setfl()))
-    _intr_load_x64(ctx, 9, tmp_flags) // r9 = original oren flags (debug)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post") }
+    _intr_load_x64(ctx, 9, state["flags"]) // r9 = original oren flags (debug)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+    return nil
+}
+
+fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fcntl_setfl expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_setfl does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_fcntl_setfl_windows_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    var labels = {}
+    var fixups = []
+    _x64_emit_fcntl_setfl_windows_prehook(ctx, state, capsule)
+    _x64_emit_fcntl_setfl_windows_mode(ctx, labels, fixups, state)
+    _x64_emit_fcntl_setfl_windows_ioctl(ctx, state)
+    _x64_emit_fcntl_setfl_windows_result(ctx, labels, fixups)
+    _x64_emit_fcntl_setfl_windows_posthook(ctx, state, capsule)
 
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 

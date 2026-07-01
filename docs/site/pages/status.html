@@ -921,6 +921,12 @@
 <p>																																				  <code>x64_native_program.oren</code> at about 42.2s total / 31.3s parse, with</p>
 <p>																																				  <code>_emit_intrinsic_sys_fcntl_setfl_windows_x64</code> exposed at about 82ms as</p>
 <p>																																				  the next parser body.</p>
+<p>																																				  Windows x64 <code>sys_fcntl_setfl</code> lowering now delegates temp-state setup,</p>
+<p>																																				  capsule pre/post hooks, nonblocking <code>FIONBIO</code> mode materialization,</p>
+<p>																																				  <code>ioctlsocket</code>, and WSA errno normalization to focused helpers. The capped</p>
+<p>																																				  profile now shows <code>x64_native_program.oren</code> at about 42.2s total / 31.3s</p>
+<p>																																				  parse, with <code>_emit_intrinsic_sys_mkdir_or_chmod_windows_x64</code> exposed at</p>
+<p>																																				  about 82ms as the next parser body.</p>
 <p>																									  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
