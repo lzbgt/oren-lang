@@ -287,36 +287,33 @@ fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
     return nil
 }
 
-fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_off_reg) {
-    // Resolve an absolute return address to a best-effort function name pointer.
-    //
-    // Requires:
-    // - ctx["symtab_off"] reserved by `_data_reserve_symtab` in program entry.
-    // - fixed-base emitters (x64_elf/x64_pe) so absolute return addresses are stable.
-    //
-    // Returns:
-    // - out_ptr_reg = pointer to NUL-terminated C string name (or "???")
-    // - out_off_reg = u64 offset within function (0 if unknown)
-    //
-    // Clobbers: rax, rbx, r8, r9, r10, r11
+fn _x64_resolve_symbol_best_effort_symtab_off(ctx) {
     // `ctx["symtab_off"]` is stored as `off+1` so offset 0 is representable while still
     // using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
     var symtab_off_enc = ctx["symtab_off"]
-    var symtab_off = nil
-    if oren_type_tag(symtab_off_enc) == 1 {
-        if symtab_off_enc > 0 { symtab_off = symtab_off_enc - 1 }
-    }
+    if oren_type_tag(symtab_off_enc) != 1 { return nil }
+    if symtab_off_enc <= 0 { return nil }
+    return symtab_off_enc - 1
+}
+
+fn _x64_emit_resolve_symbol_default(ctx, out_ptr_reg, out_off_reg) {
     var unk_off = _data_add_cstr0(ctx, "???")
     // `unk_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
 
-    // Default out_ptr_reg = "???"; out_off_reg = 0
+    // Default out_ptr_reg = "???"; out_off_reg = 0.
     var lea_unk = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(out_ptr_reg, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(out_off_reg, 0))
+    return nil
+}
 
-    if oren_type_tag(symtab_off_enc) != 1 { return nil }
-    if symtab_off_enc <= 0 { return nil }
+fn _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off) {
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "sym_done")
+    var l_loop = _new_label(ctx, "sym_loop")
+    var l_match = _new_label(ctx, "sym_match")
 
     // Compute code base address used by the fixed-base emitters.
     // Source of truth: `lib/compiler/native_abi.oren` (x64_v0_* helpers).
@@ -326,11 +323,6 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     // if addr < text_base => keep "???"
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(10, text_base)) // r10 = text_base
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(addr_reg, 10))
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "sym_done")
-    var l_loop = _new_label(ctx, "sym_loop")
-    var l_match = _new_label(ctx, "sym_match")
     // Treat return addresses as unsigned 64-bit domain values.
     _emit_jcc_to_label(ctx, fixups, "b", l_done)
 
@@ -353,6 +345,15 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     // idx (rbx) = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(3, 0))
+    return {"labels": labels, "fixups": fixups, "l_done": l_done, "l_loop": l_loop, "l_match": l_match}
+}
+
+fn _x64_emit_resolve_symbol_scan_loop(ctx, st, out_ptr_reg, out_off_reg) {
+    var labels = st["labels"]
+    var fixups = st["fixups"]
+    var l_done = st["l_done"]
+    var l_loop = st["l_loop"]
+    var l_match = st["l_match"]
 
     _emit_label(ctx, labels, l_loop)
     // if idx >= count => done
@@ -393,9 +394,29 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(out_ptr_reg, 8))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(out_ptr_reg, 0))
     _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_off_reg) {
+    // Resolve an absolute return address to a best-effort function name pointer.
+    //
+    // Requires:
+    // - ctx["symtab_off"] reserved by `_data_reserve_symtab` in program entry.
+    // - fixed-base emitters (x64_elf/x64_pe) so absolute return addresses are stable.
+    //
+    // Returns:
+    // - out_ptr_reg = pointer to NUL-terminated C string name (or "???")
+    // - out_off_reg = u64 offset within function (0 if unknown)
+    //
+    // Clobbers: rax, rbx, r8, r9, r10, r11
+    var symtab_off = _x64_resolve_symbol_best_effort_symtab_off(ctx)
+    _x64_emit_resolve_symbol_default(ctx, out_ptr_reg, out_off_reg)
+    if symtab_off == nil { return nil }
+
+    var st = _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off)
+    _x64_emit_resolve_symbol_scan_loop(ctx, st, out_ptr_reg, out_off_reg)
+    _emit_label(ctx, st["labels"], st["l_done"])
+    _patch_local_fixups(ctx, st["labels"], st["fixups"])
     return nil
 }
 

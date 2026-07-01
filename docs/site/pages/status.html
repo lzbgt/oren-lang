@@ -853,10 +853,20 @@
 <p>																													  helpers. X64 false-branch condition lowering now delegates float</p>
 <p>																													  compare, prefix-<code>!</code> float compare, prefix-<code>!</code> truthiness, and</p>
 <p>																													  plain truthy-expression branches while preserving integer compare</p>
-<p>																													  fallback. The capped profile now shows <code>x64_native_program.oren</code></p>
-<p>																													  at about 41.3s total / 30.6s parse, with</p>
-<p>																													  <code>_emit_resolve_symbol_ptr_and_off_best_effort</code> exposed at about</p>
-<p>																													  93ms as the next parser body.</p>
+<p>																														  fallback. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>																														  at about 41.3s total / 30.6s parse, with</p>
+<p>																														  <code>_emit_resolve_symbol_ptr_and_off_best_effort</code> exposed at about</p>
+<p>																														  93ms as the next parser body.</p>
+<p>																														  X64 best-effort symbol pointer/offset resolution now delegates</p>
+<p>																														  default <code>&quot;???&quot;</code> materialization, symtab offset decoding,</p>
+<p>																														  fixed-base symtab setup, and scan/match emission to focused</p>
+<p>																														  helpers. Runtime-object global metadata apply now delegates root</p>
+<p>																														  metadata extraction, whole-map adoption, root progress logging,</p>
+<p>																														  per-global fallback merge, and final adopted/count logging. The</p>
+<p>																														  capped profile now shows <code>x64_native_program.oren</code> at about 40.8s</p>
+<p>																														  total / 30.1s parse, with</p>
+<p>																														  <code>_x64_emit_list_int_dot_slots_unchecked_body</code> exposed at about</p>
+<p>																														  92ms as the next parser body.</p>
 <p>																					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

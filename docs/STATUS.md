@@ -813,10 +813,20 @@ Facts from the 2026-05-28 implementation pass:
 																													  helpers. X64 false-branch condition lowering now delegates float
 																													  compare, prefix-`!` float compare, prefix-`!` truthiness, and
 																													  plain truthy-expression branches while preserving integer compare
-																													  fallback. The capped profile now shows `x64_native_program.oren`
-																													  at about 41.3s total / 30.6s parse, with
-																													  `_emit_resolve_symbol_ptr_and_off_best_effort` exposed at about
-																													  93ms as the next parser body.
+																														  fallback. The capped profile now shows `x64_native_program.oren`
+																														  at about 41.3s total / 30.6s parse, with
+																														  `_emit_resolve_symbol_ptr_and_off_best_effort` exposed at about
+																														  93ms as the next parser body.
+																														  X64 best-effort symbol pointer/offset resolution now delegates
+																														  default `"???"` materialization, symtab offset decoding,
+																														  fixed-base symtab setup, and scan/match emission to focused
+																														  helpers. Runtime-object global metadata apply now delegates root
+																														  metadata extraction, whole-map adoption, root progress logging,
+																														  per-global fallback merge, and final adopted/count logging. The
+																														  capped profile now shows `x64_native_program.oren` at about 40.8s
+																														  total / 30.1s parse, with
+																														  `_x64_emit_list_int_dot_slots_unchecked_body` exposed at about
+																														  92ms as the next parser body.
 																					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

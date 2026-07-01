@@ -17,6 +17,87 @@ fn _x64_rtobj_apply_data_tail(ctx, meta, trace, phase_log) {
     return true
 }
 
+fn _x64_rtobj_global_root_meta(meta) {
+    return {
+        "names": meta["global_root_names"],
+        "offsets": meta["global_root_offsets"],
+        "is_runtime": meta["global_root_is_runtime"]
+    }
+}
+
+fn _x64_rtobj_try_adopt_globals(ctx, meta_globals, root_meta) {
+    var meta_root_names = root_meta["names"]
+    var meta_root_offsets = root_meta["offsets"]
+    var meta_root_is_runtime = root_meta["is_runtime"]
+    if meta_root_names == nil || meta_root_offsets == nil { return false }
+    if oren_list_len(meta_root_names) != oren_list_len(meta_root_offsets) { return false }
+
+    var cur_g_storage = nil
+    if ctx["globals"] != nil { cur_g_storage = ctx["globals"]["g_storage"] }
+    var meta_g_storage = meta_globals["g_storage"]
+    if oren_type_tag(cur_g_storage) != 1 { return false }
+    if cur_g_storage != meta_g_storage { return false }
+    if meta_root_is_runtime == nil { return false }
+    if oren_list_len(meta_root_is_runtime) != oren_list_len(meta_root_offsets) { return false }
+
+    ctx["globals"] = meta_globals
+    ctx["global_root_names"] = meta_root_names
+    ctx["global_root_offsets"] = meta_root_offsets
+    ctx["global_root_is_runtime"] = meta_root_is_runtime
+    return true
+}
+
+fn _x64_rtobj_log_rootmeta(ctx, globals_n, phase_log) {
+    if phase_log == nil { return nil }
+    var roots_n0 = 0
+    if ctx["global_root_offsets"] != nil { roots_n0 = oren_list_len(ctx["global_root_offsets"]) }
+    _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.rootmeta.done",
+        "roots=" + oren_int_to_string(roots_n0) +
+        " globals=" + oren_int_to_string(globals_n))
+    return nil
+}
+
+fn _x64_rtobj_merge_one_global(ctx, name, off_enc, root_meta) {
+    if name == nil || oren_type_tag(off_enc) != 1 { return nil }
+    var prev_global = ctx["globals"][name]
+    if oren_type_tag(prev_global) == 1 && prev_global != off_enc {
+        err(ctx, "x64 native v0: runtime obj global conflict " + name)
+        return nil
+    }
+    ctx["globals"][name] = off_enc
+    if root_meta["names"] == nil && ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], name) }
+    if root_meta["names"] == nil && ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off_enc - 1) }
+    if root_meta["names"] == nil && ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
+    return nil
+}
+
+fn _x64_rtobj_merge_globals_individual(ctx, meta_globals, root_meta, globals_n, phase_log) {
+    var idxg = 0
+    var pairg = [nil, nil]
+    while 1 {
+        if phase_log != nil && idxg > 0 && core.int_mod(idxg, 128) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.globals.progress",
+                "idx=" + oren_int_to_string(idxg) +
+                " total=" + oren_int_to_string(globals_n))
+        }
+        var okg = oren_iter_next_entry(meta_globals, idxg, pairg)
+        if okg == 0 { break }
+        _x64_rtobj_merge_one_global(ctx, pairg[0], pairg[1], root_meta)
+        idxg = idxg + 1
+    }
+    return nil
+}
+
+fn _x64_rtobj_log_globals_done(globals_n, adopted_globals, phase_log) {
+    if phase_log == nil { return nil }
+    var adopted_s = "0"
+    if adopted_globals == true { adopted_s = "1" }
+    _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.globals.done",
+        "count=" + oren_int_to_string(globals_n) +
+        " adopted=" + adopted_s)
+    return nil
+}
+
 fn _x64_rtobj_apply_globals(ctx, meta, trace, phase_log) {
     // Merge runtime globals (name -> data_off+1).
     var meta_globals = meta["globals"]
@@ -25,67 +106,14 @@ fn _x64_rtobj_apply_globals(ctx, meta, trace, phase_log) {
     if meta_globals != nil {
         globals_n = oren_map_len(meta_globals)
         if trace { print("[x64_rtobj_apply] globals merge start") }
-        var meta_root_names = meta["global_root_names"]
-        var meta_root_offsets = meta["global_root_offsets"]
-        var meta_root_is_runtime = meta["global_root_is_runtime"]
-        if meta_root_names != nil && meta_root_offsets != nil &&
-           oren_list_len(meta_root_names) == oren_list_len(meta_root_offsets) {
-            var cur_g_storage = nil
-            if ctx["globals"] != nil { cur_g_storage = ctx["globals"]["g_storage"] }
-            var meta_g_storage = meta_globals["g_storage"]
-            if oren_type_tag(cur_g_storage) == 1 &&
-               cur_g_storage == meta_g_storage &&
-               meta_root_is_runtime != nil &&
-               oren_list_len(meta_root_is_runtime) == oren_list_len(meta_root_offsets) {
-                ctx["globals"] = meta_globals
-                ctx["global_root_names"] = meta_root_names
-                ctx["global_root_offsets"] = meta_root_offsets
-                ctx["global_root_is_runtime"] = meta_root_is_runtime
-                adopted_globals = true
-            }
-        }
-        if phase_log != nil {
-            var roots_n0 = 0
-            if ctx["global_root_offsets"] != nil { roots_n0 = oren_list_len(ctx["global_root_offsets"]) }
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.rootmeta.done",
-                "roots=" + oren_int_to_string(roots_n0) +
-                " globals=" + oren_int_to_string(globals_n))
-        }
+        var root_meta = _x64_rtobj_global_root_meta(meta)
+        adopted_globals = _x64_rtobj_try_adopt_globals(ctx, meta_globals, root_meta)
+        _x64_rtobj_log_rootmeta(ctx, globals_n, phase_log)
         if adopted_globals != true {
-            var idxg = 0
-            var pairg = [nil, nil]
-            while 1 {
-                if phase_log != nil && idxg > 0 && core.int_mod(idxg, 128) == 0 {
-                    _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.globals.progress",
-                        "idx=" + oren_int_to_string(idxg) +
-                        " total=" + oren_int_to_string(globals_n))
-                }
-                var okg = oren_iter_next_entry(meta_globals, idxg, pairg)
-                if okg == 0 { break }
-                var name = pairg[0]
-                var off_enc = pairg[1]
-                if name != nil && oren_type_tag(off_enc) == 1 {
-                    var prev_global = ctx["globals"][name]
-                    if oren_type_tag(prev_global) == 1 && prev_global != off_enc {
-                        err(ctx, "x64 native v0: runtime obj global conflict " + name)
-                    } else {
-                        ctx["globals"][name] = off_enc
-                        if meta_root_names == nil && ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], name) }
-                        if meta_root_names == nil && ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off_enc - 1) }
-                        if meta_root_names == nil && ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
-                    }
-                }
-                idxg = idxg + 1
-            }
+            _x64_rtobj_merge_globals_individual(ctx, meta_globals, root_meta, globals_n, phase_log)
         }
         if trace { print("[x64_rtobj_apply] globals merge done count=" + oren_int_to_string(globals_n)) }
-        if phase_log != nil {
-            var adopted_s = "0"
-            if adopted_globals == true { adopted_s = "1" }
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_data.globals.done",
-                "count=" + oren_int_to_string(globals_n) +
-                " adopted=" + adopted_s)
-        }
+        _x64_rtobj_log_globals_done(globals_n, adopted_globals, phase_log)
     }
     return nil
 }
