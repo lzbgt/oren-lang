@@ -772,11 +772,18 @@ This file is the concise task view. Detailed implementation status lives in
 																							 X64 condition compare lowering now delegates integer,
 																							 identifier/global, and general-expression RHS paths plus
 																							 truthy/prefix fallback into focused helpers while preserving
-																							 string-aware compare routing. The capped profile now shows
-																							 `x64_native_program.oren` at about 41.6s total / 30.7s parse, with
-																							 `_x64_index_emit_kind_dispatch` exposed at about 99ms as the next
-																							 parser body.
-																							     Serial/thread module
+																								 string-aware compare routing. The capped profile now shows
+																								 `x64_native_program.oren` at about 41.6s total / 30.7s parse, with
+																								 `_x64_index_emit_kind_dispatch` exposed at about 99ms as the next
+																								 parser body.
+																								 X64 index receiver kind dispatch now delegates tracked lookup,
+																								 tracked guards, node-kind loading, and known list/list-int/map plus
+																								 dynamic receiver branches to focused helpers while preserving panic
+																								 messages and list/map branch labels. The capped profile now shows
+																								 `x64_native_program.oren` at about 41.4s total / 30.6s parse, with
+																								 `_emit_list_int_get_unchecked_intrinsic_v0_x64` exposed at about
+																								 95ms as the next parser body.
+																								     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
