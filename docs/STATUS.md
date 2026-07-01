@@ -639,6 +639,14 @@ Facts from the 2026-05-28 implementation pass:
 																					  `x64_native_program.oren` at about 40.8s total / 29.8s parse,
 																					  with `_emit_varargs_named_call_via_fnobj_x64` exposed at about
 																					  117ms as the next parser body.
+																					  X64 varargs named-call lowering now delegates state preparation,
+																					  left-to-right explicit argument spills, spill-slot preparation,
+																					  argument-list allocation, ordered list pushes, named fn-object
+																					  spilling, and inline `oren_call_obj_list` emission to focused
+																					  helpers. The capped profile now shows `x64_native_program.oren`
+																					  at about 40.9s total / 30.1s parse, with
+																					  `_emit_fast_list_int_get_sum_while_x64` exposed at about 134ms as
+																					  the next parser body.
 												  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
