@@ -539,7 +539,13 @@
 <p>																								 helpers while the wrapper retains label/fixup ownership. The capped profile</p>
 <p>																								 now shows <code>x64_native_program.oren</code> at about 38.9s total / 29.0s parse, with</p>
 <p>																								 <code>_emit_intrinsic_sys_dispatch_x64</code> exposed at about 146ms as the next parser</p>
-<p>																								 body.</p>
+<p>																								 body. X64 syscall dispatch now keeps ABI-derived Windows target detection in</p>
+<p>																								 a small helper and routes Windows syscalls through focused</p>
+<p>																								 core/FS/time/entropy, net/IOCP/WinSock, and proc/thread/fcntl helper families</p>
+<p>																								 before falling back to Linux lowering. The capped profile now shows</p>
+<p>																								 <code>x64_native_program.oren</code> at about 38.7s total / 28.9s parse, with</p>
+<p>																								 <code>_emit_intrinsic_sys_wsarecvfrom_windows_x64</code> exposed at about 147ms as the</p>
+<p>																								 next parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

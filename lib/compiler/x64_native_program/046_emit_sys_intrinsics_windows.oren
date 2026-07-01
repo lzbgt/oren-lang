@@ -796,80 +796,89 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
+fn _x64_dispatch_target_is_windows(ctx) {
     // Prefer ABI-derived detection instead of `ctx["platform"]` so Windows builds remain correct
     // even if the higher-level driver does not thread a platform map into the x64 backend ctx.
-    var is_win = false
     var sh = abi.caller_shadow_bytes(ctx["abi"])
-    if sh != nil && sh > 0 { is_win = true }
+    if sh != nil && sh > 0 { return true }
+    return false
+}
 
-    if is_win {
-        // Windows syscall surface (rolling):
-        // - core IO + exit
-        // - TIME substrate
-        // - NET substrate (WinSock)
-        //
-        // Some cross-platform syscalls are implemented in the shared syscall module but have a
-        // Windows mapping (VirtualAlloc/VirtualFree). Delegate those to the shared dispatcher.
-        if nm == "sys_mmap_private_anon" || nm == "sys_munmap" {
-            return _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args)
-        }
-        if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
-        if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
-        if nm == "sys_open" { return _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) }
-        // FS substrate (rolling, Tier‑1): Win32 API shims + capsule gating.
-        if nm == "sys_stat" || nm == "sys_lstat" { return _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) }
-        if nm == "sys_fstat" { return _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_unlink" || nm == "sys_rmdir" { return _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) }
-        if nm == "sys_rename" { return _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_mkdir" || nm == "sys_chmod" { return _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) }
-        if nm == "sys_gettid" { return _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
-        if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_ulock_wait" { return _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_ulock_wake" { return _emit_intrinsic_sys_ulock_wake_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_sched_yield" { return _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_qpc_frequency" { return _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) }
-        // Entropy
-        if nm == "sys_getentropy" { return _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_getrandom" { _emit_return_enosys_x64(ctx); return nil }
-        // NET + wait backend
-        if nm == "sys_wsa_startup" { return _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_select" { return _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) }
-        // IOCP (kernel32) (future Windows netpoll backend; still runtime-gated)
-        if nm == "sys_create_io_completion_port" { return _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_get_queued_completion_status_ex" { return _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_post_queued_completion_status" { return _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_cancel_io_ex" { return _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_socket" { return _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_connect" { return _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_bind" { return _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_listen" { return _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_accept" { return _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_getsockname" { return _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_getpeername" { return _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_setsockopt" { return _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_getsockopt" { return _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_shutdown" { return _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_sendto" { return _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_recvfrom" { return _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) }
-        // WinSock overlapped I/O (IOCP bring-up)
-        if nm == "sys_wsarecv" { return _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_wsarecvfrom" { return _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_wsasend" { return _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_wsa_get_last_error" { return _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_close" { return _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) }
-        // PROC (CreateProcessA spawn+wait)
-        if nm == "sys_win_createprocess" { return _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) }
-        // THREAD (CreateThread + WaitForSingleObject + TerminateThread + CloseHandle)
-        if nm == "sys_win_createthread" { return _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_win_wait_single_object" { return _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_win_terminate_thread" { return _emit_intrinsic_sys_win_terminate_thread_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_win_close_handle" { return _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) }
-        // Socket nonblocking (mapped to ioctlsocket(FIONBIO))
-        if nm == "sys_fcntl_getfl" { return _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) }
-        if nm == "sys_fcntl_setfl" { return _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) }
+fn _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) {
+    // Some cross-platform syscalls are implemented in the shared syscall module but have a
+    // Windows mapping (VirtualAlloc/VirtualFree). Delegate those to the shared dispatcher.
+    if nm == "sys_mmap_private_anon" || nm == "sys_munmap" {
+        _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args)
+        return true
+    }
+    if nm == "sys_write" { _emit_intrinsic_sys_write_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_read" { _emit_intrinsic_sys_read_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_open" { _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args); return true }
+    // FS substrate (rolling, Tier-1): Win32 API shims + capsule gating.
+    if nm == "sys_stat" || nm == "sys_lstat" { _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args); return true }
+    if nm == "sys_fstat" { _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_unlink" || nm == "sys_rmdir" { _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args); return true }
+    if nm == "sys_rename" { _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_mkdir" || nm == "sys_chmod" { _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args); return true }
+    if nm == "sys_gettid" { _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_exit" { _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_nanosleep" { _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_ulock_wait" { _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_ulock_wake" { _emit_intrinsic_sys_ulock_wake_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_sched_yield" { _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_gettimeofday" { _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_qpc_frequency" { _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_getentropy" { _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_getrandom" { _emit_return_enosys_x64(ctx); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_x64(ctx, nm, expr, locals, args) {
+    if nm == "sys_wsa_startup" { _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_select" { _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args); return true }
+    // IOCP (kernel32) (future Windows netpoll backend; still runtime-gated)
+    if nm == "sys_create_io_completion_port" { _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_get_queued_completion_status_ex" { _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_post_queued_completion_status" { _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_cancel_io_ex" { _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_socket" { _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_connect" { _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_bind" { _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_listen" { _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_accept" { _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_getsockname" { _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_getpeername" { _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_setsockopt" { _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_getsockopt" { _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_shutdown" { _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_sendto" { _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_recvfrom" { _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args); return true }
+    // WinSock overlapped I/O (IOCP bring-up)
+    if nm == "sys_wsarecv" { _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_wsarecvfrom" { _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_wsasend" { _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_wsa_get_last_error" { _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_close" { _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_proc_thread_x64(ctx, nm, expr, locals, args) {
+    if nm == "sys_win_createprocess" { _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_win_createthread" { _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_win_wait_single_object" { _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_win_terminate_thread" { _emit_intrinsic_sys_win_terminate_thread_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_win_close_handle" { _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args); return true }
+    // Socket nonblocking (mapped to ioctlsocket(FIONBIO)).
+    if nm == "sys_fcntl_getfl" { _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_fcntl_setfl" { _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
+    if _x64_dispatch_target_is_windows(ctx) {
+        if _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) { return nil }
+        if _emit_intrinsic_sys_windows_net_x64(ctx, nm, expr, locals, args) { return nil }
+        if _emit_intrinsic_sys_windows_proc_thread_x64(ctx, nm, expr, locals, args) { return nil }
         _emit_return_enosys_x64(ctx)
         return nil
     }
