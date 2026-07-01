@@ -515,7 +515,13 @@ Facts from the 2026-05-28 implementation pass:
 													  preserving best-effort zero-size success for non-file handles. The capped
 													  profile now shows `x64_native_program.oren` at about 39.3s total / 29.4s
 													  parse, with `_emit_list_int_get_intrinsic_v0_x64` exposed at about 142ms as
-													  the next parser body.
+													  the next parser body. X64 checked `oren_list_int_get` lowering now delegates
+													  argument spills, label setup, tracked LIST_INT validation, bounds checks, and
+													  element load emission to focused helpers while preserving the same panic
+													  strings and wrapper-owned fixup patching. The capped profile now shows
+													  `x64_native_program.oren` at about 39.1s total / 29.0s parse, with
+													  `_emit_intrinsic_sys_linux_windows_compat_x64` exposed at about 149ms as the
+													  next parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

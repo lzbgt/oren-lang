@@ -72,7 +72,7 @@ fn _x64_list_len_spill_arg(ctx, expr, locals) {
 
     // LTR eval: list -> spill
     _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
 
     return {"base": base, "off_list": off_list}
@@ -239,7 +239,7 @@ fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
 
     // Tier‑1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
 
     // tracked?
@@ -742,25 +742,7 @@ fn _x64_emit_list_int_push_trace(ctx) {
     return nil
 }
 
-fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
-    // Intrinsic: list<int> get fast-path (bounds-checked).
-    //
-    // Signature: oren_list_int_get(list, idx) -> int
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: oren_list_int_get requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: oren_list_int_get requires injected native runtime")
-        return nil
-    }
-    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_get expr"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_get does not support spread"); return nil }
-
-    var args = expr["args"]
-    if args == nil || oren_list_len(args) != 2 {
-        err(ctx, "x64 native v0: oren_list_int_get expects 2 args")
-        return nil
-    }
-
+fn _x64_list_int_get_spill_args(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
@@ -776,19 +758,34 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_eval_int_to_rax(ctx, args[1], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+    return {"base": base, "off_list": off_list, "off_idx": off_idx}
+}
 
+fn _x64_list_int_get_prepare_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "l_non_nil": _new_label(ctx, "list_int_get_non_nil"),
+        "l_node_ok": _new_label(ctx, "list_int_get_node_ok"),
+        "l_kind_ok": _new_label(ctx, "list_int_get_kind_ok"),
+        "l_magic_ok": _new_label(ctx, "list_int_get_magic_ok"),
+        "l_idx_nonneg": _new_label(ctx, "list_int_get_idx_nonneg"),
+        "l_idx_ok": _new_label(ctx, "list_int_get_idx_ok"),
+        "l_done": _new_label(ctx, "list_int_get_done")
+    }
+}
+
+fn _x64_emit_list_int_get_validate_list(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var off_list = state["off_list"]
+    var off_idx = state["off_idx"]
+    var l_non_nil = state["l_non_nil"]
+    var l_node_ok = state["l_node_ok"]
+    var l_kind_ok = state["l_kind_ok"]
+    var l_magic_ok = state["l_magic_ok"]
     // list -> rdx
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
-
-    var labels = {}
-    var local_fixups = []
-    var l_non_nil = _new_label(ctx, "list_int_get_non_nil")
-    var l_node_ok = _new_label(ctx, "list_int_get_node_ok")
-    var l_kind_ok = _new_label(ctx, "list_int_get_kind_ok")
-    var l_magic_ok = _new_label(ctx, "list_int_get_magic_ok")
-    var l_idx_nonneg = _new_label(ctx, "list_int_get_idx_nonneg")
-    var l_idx_ok = _new_label(ctx, "list_int_get_idx_ok")
-    var l_done = _new_label(ctx, "list_int_get_done")
 
     // nil => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
@@ -798,7 +795,7 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
 
     // Tier‑1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list) // rdx = list
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)  // r8  = idx
 
@@ -826,7 +823,14 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
 
+fn _x64_emit_list_int_get_bounds(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var l_idx_nonneg = state["l_idx_nonneg"]
+    var l_idx_ok = state["l_idx_ok"]
     // count -> r9
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
@@ -843,7 +847,10 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "l", l_idx_ok)
     _emit_abort_panic_str(ctx, "Index out of bounds")
     _emit_label(ctx, labels, l_idx_ok)
+    return nil
+}
 
+fn _x64_emit_list_int_get_load_value(ctx) {
     // buf -> r10
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
@@ -858,9 +865,49 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     // load value -> rax
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> get fast-path (bounds-checked).
+    //
+    // Signature: oren_list_int_get(list, idx) -> int
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: oren_list_int_get requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: oren_list_int_get requires injected native runtime")
+        return nil
+    }
+    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_get expr"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_get does not support spread"); return nil }
+
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 {
+        err(ctx, "x64 native v0: oren_list_int_get expects 2 args")
+        return nil
+    }
+
+    var state = _x64_list_int_get_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    var base = state["base"]
+    var labels_state = _x64_list_int_get_prepare_labels(ctx)
+    state["labels"] = labels_state["labels"]
+    state["local_fixups"] = labels_state["local_fixups"]
+    state["l_non_nil"] = labels_state["l_non_nil"]
+    state["l_node_ok"] = labels_state["l_node_ok"]
+    state["l_kind_ok"] = labels_state["l_kind_ok"]
+    state["l_magic_ok"] = labels_state["l_magic_ok"]
+    state["l_idx_nonneg"] = labels_state["l_idx_nonneg"]
+    state["l_idx_ok"] = labels_state["l_idx_ok"]
+    state["l_done"] = labels_state["l_done"]
+
+    _x64_emit_list_int_get_validate_list(ctx, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _x64_emit_list_int_get_bounds(ctx, state)
+    _x64_emit_list_int_get_load_value(ctx)
+
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
     _intr_tmp_pop(ctx, base)
     return nil
 }
