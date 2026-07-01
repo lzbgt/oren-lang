@@ -352,140 +352,127 @@ fn _emit_intrinsic_sys_linux_pipe_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
+fn _emit_intrinsic_sys_linux_open_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_open expects 3 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_open does not support spread"); return true }
+
+    var base2 = _intr_tmp_push(ctx, 4) // path, flags, mode, pair
+    if oren_type_tag(base2) == 0 { return true }
+    var tmp_path = _intr_tmp_off(ctx, locals, base2 + 0)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base2 + 1)
+    var tmp_mode = _intr_tmp_off(ctx, locals, base2 + 2)
+    var tmp_pair = _intr_tmp_off(ctx, locals, base2 + 3)
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base2); return true }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return true }
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return true }
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_mode)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return true }
+
+    if capsule {
+        _intr_load_x64(ctx, 7, tmp_path)
+        _intr_load_x64(ctx, 6, tmp_flags)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+        _intr_load_x64(ctx, 11, tmp_pair)
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+    } else {
+        _intr_load_x64(ctx, 6, tmp_path)
+    }
+
+    _emit_translate_open_flags_linux_x64(ctx, locals, tmp_flags)
+    _intr_load_x64(ctx, 10, tmp_mode)
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_openat()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+
+    if capsule {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0))
+        _intr_load_x64(ctx, 7, tmp_pair)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
+    }
+    _intr_tmp_pop(ctx, base2)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_close_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return true }
+
+    var base3 = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base3) == 0 { return true }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base3 + 0)
+    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base3); return true }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base3); return true }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+    _intr_load_x64(ctx, 7, tmp_fd)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_close()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+
+    if capsule {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+        _intr_load_x64(ctx, 6, tmp_fd)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
+    }
+    _intr_tmp_pop(ctx, base3)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_access_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_access expects 2 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_access does not support spread"); return true }
+
+    var base4 = _intr_tmp_push(ctx, 3) // path, mode, pair
+    if oren_type_tag(base4) == 0 { return true }
+    var tmp_path = _intr_tmp_off(ctx, locals, base4 + 0)
+    var tmp_mode = _intr_tmp_off(ctx, locals, base4 + 1)
+    var tmp_pair = _intr_tmp_off(ctx, locals, base4 + 2)
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base4); return true }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return true }
+
+    if capsule {
+        _intr_load_x64(ctx, 7, tmp_path)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+        _intr_load_x64(ctx, 11, tmp_pair)
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+    } else {
+        _intr_load_x64(ctx, 6, tmp_path)
+    }
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+    _intr_load_x64(ctx, 2, tmp_mode)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_faccessat()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+
+    if capsule {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0))
+        _intr_load_x64(ctx, 7, tmp_pair)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_post")
+    }
+    _intr_tmp_pop(ctx, base4)
+    return true
+}
+
 fn _emit_intrinsic_sys_linux_open_close_access_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_open" {
-        if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_open expects 3 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_open does not support spread"); return true }
-
-        var base2 = _intr_tmp_push(ctx, 4) // path, flags, mode, pair
-        if oren_type_tag(base2) == 0 { return true }
-        var tmp_path = _intr_tmp_off(ctx, locals, base2 + 0)
-        var tmp_flags = _intr_tmp_off(ctx, locals, base2 + 1)
-        var tmp_mode = _intr_tmp_off(ctx, locals, base2 + 2)
-        var tmp_pair = _intr_tmp_off(ctx, locals, base2 + 3)
-        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base2); return true }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return true }
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return true }
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_mode)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return true }
-
-        if capsule {
-            // pre: native_capsule_sys_open_pre(path, flags) -> pair
-            _intr_load_x64(ctx, 7, tmp_path)  // rdi = path
-            _intr_load_x64(ctx, 6, tmp_flags) // rsi = flags
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_pre")
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // save pair
-
-            // Load resolved path_ptr from pair[0] into RSI.
-            _intr_load_x64(ctx, 11, tmp_pair)              // r11 = pair
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11)) // rsi = *(u64*)pair
-        } else {
-            // No capsule path resolution: path is already a host cstr.
-            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
-        }
-
-        // rdx = os_flags (translated)
-        _emit_translate_open_flags_linux_x64(ctx, locals, tmp_flags)
-        // r10 = mode
-        _intr_load_x64(ctx, 10, tmp_mode)
-
-        // rdi = AT_FDCWD
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_openat()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            // post: native_capsule_sys_open_post(pair, rc) -> rc
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_pair)                  // rdi = pair
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
-        }
-        _intr_tmp_pop(ctx, base2)
-        return true
-    }
-
-    if nm == "sys_close" {
-        if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return true }
-
-        var base3 = _intr_tmp_push(ctx, 1) // fd
-        if oren_type_tag(base3) == 0 { return true }
-        var tmp_fd = _intr_tmp_off(ctx, locals, base3 + 0)
-        if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base3); return true }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base3); return true }
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
-        } else {
-            // rax = fd
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
-        }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0) // fd
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_close()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            // post: native_capsule_sys_close_post(rc, fd) -> rc
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
-            _intr_load_x64(ctx, 6, tmp_fd)                    // rsi = fd
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
-        }
-        _intr_tmp_pop(ctx, base3)
-        return true
-    }
-
-    if nm == "sys_access" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_access expects 2 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_access does not support spread"); return true }
-
-        var base4 = _intr_tmp_push(ctx, 3) // path, mode, pair
-        if oren_type_tag(base4) == 0 { return true }
-        var tmp_path = _intr_tmp_off(ctx, locals, base4 + 0)
-        var tmp_mode = _intr_tmp_off(ctx, locals, base4 + 1)
-        var tmp_pair = _intr_tmp_off(ctx, locals, base4 + 2)
-        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base4); return true }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return true }
-
-        if capsule {
-            // pre: native_capsule_sys_access_pre(path) -> pair
-            _intr_load_x64(ctx, 7, tmp_path)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_pre")
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
-
-            // path_ptr from pair[0] into RSI
-            _intr_load_x64(ctx, 11, tmp_pair)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
-        } else {
-            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
-        }
-
-        // faccessat(AT_FDCWD, path, mode, flags=0)
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        _intr_load_x64(ctx, 2, tmp_mode)                 // rdx = mode
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0)) // r10d = flags=0
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_faccessat()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            // post: native_capsule_sys_access_post(pair, rc) -> rc
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_pair)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_post")
-        }
-        _intr_tmp_pop(ctx, base4)
-        return true
-    }
-
+    if nm == "sys_open" { return _emit_intrinsic_sys_linux_open_x64(ctx, expr, locals, args, capsule) }
+    if nm == "sys_close" { return _emit_intrinsic_sys_linux_close_x64(ctx, expr, locals, args, capsule) }
+    if nm == "sys_access" { return _emit_intrinsic_sys_linux_access_x64(ctx, expr, locals, args, capsule) }
     return false
 }
 
