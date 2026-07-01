@@ -930,11 +930,18 @@
 <p>																																				  Windows x64 <code>sys_mkdir</code> / <code>sys_chmod</code> lowering now delegates temp-state</p>
 <p>																																				  setup, capsule path resolution, CreateDirectory/no-op chmod operation</p>
 <p>																																				  emission, BOOL-to-errno normalization, and capsule posthooks to focused</p>
-<p>																																				  helpers. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																																				  41.8s total / 30.6s parse, with</p>
-<p>																																				  <code>_emit_intrinsic_sys_win_wait_single_object_windows_x64</code> exposed at about</p>
-<p>																																				  81ms as the next parser body.</p>
-<p>																									  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																					  helpers. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																					  41.8s total / 30.6s parse, with</p>
+<p>																																					  <code>_emit_intrinsic_sys_win_wait_single_object_windows_x64</code> exposed at about</p>
+<p>																																					  81ms as the next parser body.</p>
+<p>																																					  Windows x64 <code>sys_win_wait_single_object</code> lowering now delegates temp-state</p>
+<p>																																					  setup, timeout-to-INFINITE argument normalization, the <code>WaitForSingleObject</code></p>
+<p>																																					  IAT call, and WAIT-code result mapping to focused helpers while preserving</p>
+<p>																																					  the <code>0</code> / <code>-ETIMEDOUT</code> / <code>-1</code> contract. The capped profile now shows</p>
+<p>																																					  <code>x64_native_program.oren</code> at about 41.7s total / 30.5s parse, with</p>
+<p>																																					  <code>_emit_intrinsic_sys_sendto_windows_x64</code> exposed at about 79ms as the next</p>
+<p>																																					  parser body.</p>
+<p>																										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

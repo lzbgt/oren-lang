@@ -68,30 +68,34 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_win_wait_single_object expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_wait_single_object does not support spread"); return nil }
-
+fn _x64_win_wait_single_object_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // handle, timeout
     if oren_type_tag(base) == 0 { return nil }
-    var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_to = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_h) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var state = {}
+    state["base"] = base
+    state["handle"] = _intr_tmp_off(ctx, locals, base + 0)
+    state["timeout"] = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(state["handle"]) == 0 || oren_type_tag(state["timeout"]) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[0], state["handle"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["timeout"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return state
+}
 
+fn _x64_emit_win_wait_single_object_args(ctx, labels, fixups, state) {
     // WaitForSingleObject(handle, timeout_ms)
     // - timeout_ms < 0 => INFINITE (0xFFFFFFFF)
     // Win64 ABI shadow space is provided by the function's reserved call area; do not touch RSP.
+    _intr_load_x64(ctx, 1, state["handle"])   // rcx = handle
+    _intr_load_x64(ctx, 0, state["timeout"])  // rax = timeout (i64)
 
-    _intr_load_x64(ctx, 1, tmp_h)   // rcx = handle
-    _intr_load_x64(ctx, 0, tmp_to)  // rax = timeout (i64)
-
-    var labels = {}
-    var fixups = []
     var l_infinite = _new_label(ctx, "win_wso_infinite")
     var l_after_to = _new_label(ctx, "win_wso_after_to")
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
@@ -102,10 +106,15 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
     _emit_label(ctx, labels, l_infinite)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 4294967295)) // INFINITE
     _emit_label(ctx, labels, l_after_to)
+    return nil
+}
 
+fn _x64_emit_win_wait_single_object_call(ctx) {
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
-    // eax is the WAIT_* code
+    return nil
+}
 
+fn _x64_emit_win_wait_single_object_result(ctx, labels, fixups) {
     var l_ok = _new_label(ctx, "win_wso_ok")
     var l_timeout = _new_label(ctx, "win_wso_timeout")
     var l_fail = _new_label(ctx, "win_wso_fail")
@@ -139,8 +148,24 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_win_wait_single_object expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_wait_single_object does not support spread"); return nil }
+
+    var state = _x64_win_wait_single_object_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    var labels = {}
+    var fixups = []
+    _x64_emit_win_wait_single_object_args(ctx, labels, fixups, state)
+    _x64_emit_win_wait_single_object_call(ctx)
+    _x64_emit_win_wait_single_object_result(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 
