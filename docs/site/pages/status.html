@@ -927,6 +927,13 @@
 <p>																																				  profile now shows <code>x64_native_program.oren</code> at about 42.2s total / 31.3s</p>
 <p>																																				  parse, with <code>_emit_intrinsic_sys_mkdir_or_chmod_windows_x64</code> exposed at</p>
 <p>																																				  about 82ms as the next parser body.</p>
+<p>																																				  Windows x64 <code>sys_mkdir</code> / <code>sys_chmod</code> lowering now delegates temp-state</p>
+<p>																																				  setup, capsule path resolution, CreateDirectory/no-op chmod operation</p>
+<p>																																				  emission, BOOL-to-errno normalization, and capsule posthooks to focused</p>
+<p>																																				  helpers. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																				  41.8s total / 30.6s parse, with</p>
+<p>																																				  <code>_emit_intrinsic_sys_win_wait_single_object_windows_x64</code> exposed at about</p>
+<p>																																				  81ms as the next parser body.</p>
 <p>																									  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

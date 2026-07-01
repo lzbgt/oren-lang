@@ -760,57 +760,58 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_mkdir_chmod_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // path, mode, pair
     if oren_type_tag(base) == 0 { return nil }
-    var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_mode = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_pair = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // pre: mkdir_pre(path) / chmod_pre(path) -> pair
-    if capsule {
-        _intr_load_x64(ctx, 1, tmp_path) // rcx = path
-        if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
-
-        // rcx = resolved path pointer from pair[0]
-        _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11))
-    } else {
-        _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
+    var state = {}
+    state["base"] = base
+    state["path"] = _intr_tmp_off(ctx, locals, base + 0)
+    state["mode"] = _intr_tmp_off(ctx, locals, base + 1)
+    state["pair"] = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(state["path"]) == 0 || oren_type_tag(state["mode"]) == 0 || oren_type_tag(state["pair"]) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
     }
 
+    _intr_eval_spill_x64(ctx, locals, args[0], state["path"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["mode"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return state
+}
+
+fn _x64_emit_mkdir_chmod_windows_prehook(ctx, nm, state, capsule) {
+    if !capsule {
+        _intr_load_x64(ctx, 1, state["path"]) // rcx = path (direct)
+        return nil
+    }
+    _intr_load_x64(ctx, 1, state["path"]) // rcx = path
+    if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
+    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
+    _emit_mov_mrbp_r64(ctx, 0 - state["pair"], 0)
+
+    _intr_load_x64(ctx, 11, state["pair"])
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11)) // rcx = resolved path pointer from pair[0]
+    return nil
+}
+
+fn _x64_emit_mkdir_chmod_windows_operation(ctx, nm) {
     if nm == "sys_mkdir" {
-        // CreateDirectoryA(path, NULL) -> BOOL
         _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
         _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0)) // rdx = NULL
         _emit_call_iat_x64(ctx, "IAT_CreateDirectoryA")
         _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
-    } else {
-        // sys_chmod on Windows (rolling):
-        //
-        // Windows does not have POSIX permission bits. Until we design a real mapping
-        // (READONLY attribute, ACL translation, or a VFS-level policy), treat chmod as a
-        // no-op that reports success once capsule gating has been enforced by the prehook.
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // BOOL ok sentinel
+        return nil
     }
+    // Windows has no POSIX mode bits here; chmod succeeds after capsule gating.
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // BOOL ok sentinel
+    return nil
+}
 
-    // For both mkdir/chmod: BOOL result in eax (nonzero = ok)
-    var labels = {}
-    var fixups = []
+fn _x64_emit_mkdir_chmod_windows_result(ctx, labels, fixups) {
     var l_ok = _new_label(ctx, "sys_mkdir_chmod_ok")
     var l_done = _new_label(ctx, "sys_mkdir_chmod_done")
 
@@ -825,16 +826,35 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
+    return nil
+}
+
+fn _x64_emit_mkdir_chmod_windows_posthook(ctx, nm, state, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
+    _intr_load_x64(ctx, 1, state["pair"])                  // rcx = pair
+    if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
+    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }
+    return nil
+}
+
+fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_mkdir_chmod_windows_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    var labels = {}
+    var fixups = []
+    _x64_emit_mkdir_chmod_windows_prehook(ctx, nm, state, capsule)
+    _x64_emit_mkdir_chmod_windows_operation(ctx, nm)
+    _x64_emit_mkdir_chmod_windows_result(ctx, labels, fixups)
     _patch_local_fixups(ctx, labels, fixups)
+    _x64_emit_mkdir_chmod_windows_posthook(ctx, nm, state, capsule)
 
-    // post: mkdir_post(pair, rc) / chmod_post(pair, rc) -> rc
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
-        _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
-        if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }
-    }
-
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
