@@ -426,11 +426,17 @@ Facts from the 2026-05-28 implementation pass:
 											  at about 40.1s total / 30.3s parse, with `_x64_program_compile_options`
 											  exposed at about 203ms as the next parser body. X64 program compile option
 											  parsing now delegates progress/focus, entry toggles, slow-function ranking,
-											  and phase-detail limits to focused helpers while preserving the returned
-											  option map. The capped profile now shows `x64_native_program.oren` at about
-											  39.2s total / 29.5s parse, with `_emit_list_int_set_intrinsic_v0_x64`
-											  exposed at about 164ms as the next parser body.
-								  Serial/thread module ASTBIN writes are explicit prewarm work via
+												  and phase-detail limits to focused helpers while preserving the returned
+												  option map. The capped profile now shows `x64_native_program.oren` at about
+												  39.2s total / 29.5s parse, with `_emit_list_int_set_intrinsic_v0_x64`
+												  exposed at about 164ms as the next parser body. X64 `oren_list_int_set`
+												  lowering now delegates LTR argument spills, argument reloads, list-int
+												  validation, value/count checks, and slow/fast store emission through
+												  focused helper bodies. The capped profile now shows
+												  `x64_native_program.oren` at about 38.9s total / 29.1s parse, with
+												  `_emit_intrinsic_sys_getentropy_windows_x64` exposed at about 159ms as the
+												  next parser body.
+									  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

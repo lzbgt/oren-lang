@@ -935,6 +935,26 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
         return nil
     }
 
+    var state = _x64_list_int_set_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    state["labels"] = {}
+    state["local_fixups"] = []
+    state["l_idx_nonneg"] = _new_label(ctx, "list_int_set_idx_nonneg")
+    state["l_fast"] = _new_label(ctx, "list_int_set_fast")
+    state["l_done"] = _new_label(ctx, "list_int_set_done")
+
+    _x64_emit_list_int_set_validate(ctx, locals, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    _x64_emit_list_int_set_value_and_count(ctx, locals, state)
+    _x64_emit_list_int_set_slow_or_fast(ctx, locals, state)
+
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _x64_list_int_set_spill_args(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
@@ -958,20 +978,32 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_val, 0)
 
-    // list -> rdx, idx -> r8, value -> r9
+    return {
+        "base": base,
+        "off_list": off_list,
+        "off_idx": off_idx,
+        "off_val": off_val
+    }
+}
+
+fn _x64_emit_list_int_set_reload_args(ctx, locals, state) {
+    var off_list = state["off_list"]
+    var off_idx = state["off_idx"]
+    var off_val = state["off_val"]
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_val)
+    return nil
+}
 
-    var labels = {}
-    var local_fixups = []
+fn _x64_emit_list_int_set_validate(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    _x64_emit_list_int_set_reload_args(ctx, locals, state)
     var l_non_nil = _new_label(ctx, "list_int_set_non_nil")
     var l_node_ok = _new_label(ctx, "list_int_set_node_ok")
     var l_kind_ok = _new_label(ctx, "list_int_set_kind_ok")
     var l_magic_ok = _new_label(ctx, "list_int_set_magic_ok")
-    var l_idx_nonneg = _new_label(ctx, "list_int_set_idx_nonneg")
-    var l_fast = _new_label(ctx, "list_int_set_fast")
-    var l_done = _new_label(ctx, "list_int_set_done")
 
     // nil => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
@@ -981,10 +1013,8 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
 
     // Tier‑1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list) // rdx = list
-    _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)  // r8  = idx
-    _emit_mov_r64_mrbp(ctx, 9, 0 - off_val)  // r9  = value
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_list_int_set_reload_args(ctx, locals, state)
 
     // tracked?
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
@@ -1010,12 +1040,14 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_set on non-list")
     _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
 
+fn _x64_emit_list_int_set_value_and_count(ctx, locals, state) {
     // Validate value is int (no tracked pointer / no nil/bool).
+    var off_val = state["off_val"]
     _emit_call_rel32_1arg_x64(ctx, locals, "_list_int_check_value", off_val)
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list) // rdx = list
-    _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)  // r8  = idx
-    _emit_mov_r64_mrbp(ctx, 9, 0 - off_val)  // r9  = value
+    _x64_emit_list_int_set_reload_args(ctx, locals, state)
 
     // count -> r10
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
@@ -1023,20 +1055,28 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
 
     // idx < 0 => panic
+    var local_fixups = state["local_fixups"]
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
+    _emit_jcc_to_label(ctx, local_fixups, "ge", state["l_idx_nonneg"])
     _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
-    _emit_label(ctx, labels, l_idx_nonneg)
+    _emit_label(ctx, state["labels"], state["l_idx_nonneg"])
+    return nil
+}
 
+fn _x64_emit_list_int_set_slow_or_fast(ctx, locals, state) {
+    var local_fixups = state["local_fixups"]
+    var off_list = state["off_list"]
+    var off_idx = state["off_idx"]
+    var off_val = state["off_val"]
     // idx < count => fast path
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 10))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
+    _emit_jcc_to_label(ctx, local_fixups, "l", state["l_fast"])
 
     // Slow path: call runtime oren_list_int_set(list, idx, value)
     _emit_call_rel32_3args_x64(ctx, locals, "oren_list_int_set", off_list, off_idx, off_val)
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
 
-    _emit_label(ctx, labels, l_fast)
+    _emit_label(ctx, state["labels"], state["l_fast"])
     // buf -> r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
@@ -1052,10 +1092,6 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 9))
     // return value
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 9))
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-    _intr_tmp_pop(ctx, base)
     return nil
 }
 
