@@ -1,23 +1,4 @@
-fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsarecv expects 6 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecv does not support spread"); return nil }
-
-    // WSARecv(SOCKET s, LPWSABUF lpBuffers, DWORD dwBufferCount, LPDWORD lpNumberOfBytesRecvd,
-    //         LPDWORD lpFlags, LPWSAOVERLAPPED lpOverlapped, LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine)
-    //
-    // Oren intrinsic shape (rolling):
-    //   sys_wsarecv(sock, buf_ptr, buf_len, flags_ptr, bytes_ptr, overlapped_ptr) -> 0 or -errno
-    //
-    // Contract:
-    // - Returns 0 on immediate completion OR if the overlapped op is queued (WSA_IO_PENDING).
-    // - Returns -errno on other failures.
-    //
-    // Notes (per MS docs snapshot):
-    // - lpNumberOfBytesRecvd must be NULL when lpOverlapped != NULL to avoid erroneous results.
-    // - lpCompletionRoutine is NULL (we use IOCP, not APC completion routines).
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_wsarecv_spill_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 8) // sock, buf, len, flags_ptr, bytes_ptr, ov, wsabuf_len, wsabuf_buf
     if oren_type_tag(base) == 0 { return nil }
     var tmp_s = _intr_tmp_off(ctx, locals, base + 0)
@@ -38,48 +19,68 @@ fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[5], tmp_ov)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
+    return {
+        "base": base,
+        "tmp_s": tmp_s,
+        "tmp_buf": tmp_buf,
+        "tmp_len": tmp_len,
+        "tmp_flags": tmp_flags,
+        "tmp_bytes": tmp_bytes,
+        "tmp_ov": tmp_ov,
+        "tmp_wsabuf_len": tmp_wsabuf_len,
+        "tmp_wsabuf_buf": tmp_wsabuf_buf
+    }
+}
+
+fn _x64_wsarecv_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_wsarecv_pre(sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr)
     if capsule {
-        _intr_load_x64(ctx, 1, tmp_s)
-        _intr_load_x64(ctx, 2, tmp_buf)
-        _intr_load_x64(ctx, 8, tmp_len)
-        _intr_load_x64(ctx, 9, tmp_flags)
-        _intr_load_x64(ctx, 10, tmp_bytes)
+        _intr_load_x64(ctx, 1, state["tmp_s"])
+        _intr_load_x64(ctx, 2, state["tmp_buf"])
+        _intr_load_x64(ctx, 8, state["tmp_len"])
+        _intr_load_x64(ctx, 9, state["tmp_flags"])
+        _intr_load_x64(ctx, 10, state["tmp_bytes"])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, tmp_ov)
+        _intr_load_x64(ctx, 10, state["tmp_ov"])
         _emit_mov_mrsp_r64(ctx, 40, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsarecv_pre")
     }
+    return nil
+}
 
+fn _x64_wsarecv_emit_call(ctx, state) {
     // Build WSABUF as two 8-byte locals so we can take a stable address without
     // requiring extra Win64 outgoing stack space beyond the ABI argument area.
     //
     // Layout:
     // - [rbp - tmp_wsabuf_len] stores len (u64; low 32 bits are used)
     // - [rbp - tmp_wsabuf_buf] stores buf ptr (u64)
-    _intr_load_x64(ctx, 0, tmp_len)
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_wsabuf_len, 0)
-    _intr_load_x64(ctx, 0, tmp_buf)
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_wsabuf_buf, 0)
+    _intr_load_x64(ctx, 0, state["tmp_len"])
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_len"], 0)
+    _intr_load_x64(ctx, 0, state["tmp_buf"])
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_buf"], 0)
 
     // Call WSARecv:
     // rcx=s, rdx=&wsabuf, r8=1, r9=bytes_ptr,
     // [rsp+32]=flags_ptr, [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
-    _intr_load_x64(ctx, 1, tmp_s)
+    _intr_load_x64(ctx, 1, state["tmp_s"])
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, tmp_wsabuf_len))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state["tmp_wsabuf_len"]))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
-    _intr_load_x64(ctx, 9, tmp_bytes)                        // r9  = bytes_ptr
-    _intr_load_x64(ctx, 10, tmp_flags)
+    _intr_load_x64(ctx, 9, state["tmp_bytes"])               // r9  = bytes_ptr
+    _intr_load_x64(ctx, 10, state["tmp_flags"])
     _emit_mov_mrsp_r64(ctx, 32, 10) // flags_ptr
-    _intr_load_x64(ctx, 10, tmp_ov)
+    _intr_load_x64(ctx, 10, state["tmp_ov"])
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
 
     _emit_call_iat_x64(ctx, "IAT_WSARecv")
+    return nil
+}
 
+fn _x64_wsarecv_normalize_result(ctx) {
     // rc == 0 => ok
     // rc == SOCKET_ERROR(-1) => if WSAGetLastError == WSA_IO_PENDING => ok, else map to -errno
     var labels = {}
@@ -108,23 +109,47 @@ fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
 
+fn _x64_wsarecv_capsule_post(ctx, state, capsule) {
     // post: native_capsule_sys_wsarecv_post(rc, sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr) -> rc
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-        _intr_load_x64(ctx, 2, tmp_s)
-        _intr_load_x64(ctx, 8, tmp_buf)
-        _intr_load_x64(ctx, 9, tmp_len)
-        _intr_load_x64(ctx, 10, tmp_flags)
+        _intr_load_x64(ctx, 2, state["tmp_s"])
+        _intr_load_x64(ctx, 8, state["tmp_buf"])
+        _intr_load_x64(ctx, 9, state["tmp_len"])
+        _intr_load_x64(ctx, 10, state["tmp_flags"])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, tmp_bytes)
+        _intr_load_x64(ctx, 10, state["tmp_bytes"])
         _emit_mov_mrsp_r64(ctx, 40, 10)
-        _intr_load_x64(ctx, 10, tmp_ov)
+        _intr_load_x64(ctx, 10, state["tmp_ov"])
         _emit_mov_mrsp_r64(ctx, 48, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsarecv_post")
     }
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsarecv expects 6 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecv does not support spread"); return nil }
+
+    // WSARecv(SOCKET s, LPWSABUF lpBuffers, DWORD dwBufferCount, LPDWORD lpNumberOfBytesRecvd,
+    //         LPDWORD lpFlags, LPWSAOVERLAPPED lpOverlapped, LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine)
+    //
+    // Oren intrinsic shape (rolling):
+    //   sys_wsarecv(sock, buf_ptr, buf_len, flags_ptr, bytes_ptr, overlapped_ptr) -> 0 or -errno
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_wsarecv_spill_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    _x64_wsarecv_capsule_pre(ctx, state, capsule)
+    _x64_wsarecv_emit_call(ctx, state)
+    _x64_wsarecv_normalize_result(ctx)
+    _x64_wsarecv_capsule_post(ctx, state, capsule)
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 
@@ -301,22 +326,7 @@ fn _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsasend expects 6 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsasend does not support spread"); return nil }
-
-    // WSASend(SOCKET s, LPWSABUF lpBuffers, DWORD dwBufferCount, LPDWORD lpNumberOfBytesSent,
-    //         DWORD dwFlags, LPWSAOVERLAPPED lpOverlapped, LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine)
-    //
-    // Oren intrinsic shape (rolling):
-    //   sys_wsasend(sock, buf_ptr, buf_len, flags, bytes_ptr, overlapped_ptr) -> 0 or -errno
-    //
-    // Contract:
-    // - Returns 0 on immediate completion OR if queued (WSA_IO_PENDING).
-    // - Returns -errno on other failures.
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_wsasend_spill_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 8) // sock, buf, len, flags, bytes_ptr, ov, wsabuf_len, wsabuf_buf
     if oren_type_tag(base) == 0 { return nil }
     var tmp_s = _intr_tmp_off(ctx, locals, base + 0)
@@ -337,43 +347,63 @@ fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[5], tmp_ov)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
+    return {
+        "base": base,
+        "tmp_s": tmp_s,
+        "tmp_buf": tmp_buf,
+        "tmp_len": tmp_len,
+        "tmp_flags": tmp_flags,
+        "tmp_bytes": tmp_bytes,
+        "tmp_ov": tmp_ov,
+        "tmp_wsabuf_len": tmp_wsabuf_len,
+        "tmp_wsabuf_buf": tmp_wsabuf_buf
+    }
+}
+
+fn _x64_wsasend_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_wsasend_pre(sock, buf, len, flags, bytes_ptr, overlapped_ptr)
     if capsule {
-        _intr_load_x64(ctx, 1, tmp_s)
-        _intr_load_x64(ctx, 2, tmp_buf)
-        _intr_load_x64(ctx, 8, tmp_len)
-        _intr_load_x64(ctx, 9, tmp_flags)
-        _intr_load_x64(ctx, 10, tmp_bytes)
+        _intr_load_x64(ctx, 1, state["tmp_s"])
+        _intr_load_x64(ctx, 2, state["tmp_buf"])
+        _intr_load_x64(ctx, 8, state["tmp_len"])
+        _intr_load_x64(ctx, 9, state["tmp_flags"])
+        _intr_load_x64(ctx, 10, state["tmp_bytes"])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, tmp_ov)
+        _intr_load_x64(ctx, 10, state["tmp_ov"])
         _emit_mov_mrsp_r64(ctx, 40, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsasend_pre")
     }
+    return nil
+}
 
+fn _x64_wsasend_emit_call(ctx, state) {
     // Build WSABUF as two 8-byte locals (see wsarecv above).
-    _intr_load_x64(ctx, 0, tmp_len)
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_wsabuf_len, 0)
-    _intr_load_x64(ctx, 0, tmp_buf)
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_wsabuf_buf, 0)
+    _intr_load_x64(ctx, 0, state["tmp_len"])
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_len"], 0)
+    _intr_load_x64(ctx, 0, state["tmp_buf"])
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_buf"], 0)
 
     // Call WSASend:
     // rcx=s, rdx=&wsabuf, r8=1, r9=bytes_ptr,
     // [rsp+32]=flags (DWORD, in low bits), [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
-    _intr_load_x64(ctx, 1, tmp_s)
+    _intr_load_x64(ctx, 1, state["tmp_s"])
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, tmp_wsabuf_len))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state["tmp_wsabuf_len"]))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
-    _intr_load_x64(ctx, 9, tmp_bytes)                        // r9  = bytes_ptr
-    _intr_load_x64(ctx, 0, tmp_flags)
+    _intr_load_x64(ctx, 9, state["tmp_bytes"])               // r9  = bytes_ptr
+    _intr_load_x64(ctx, 0, state["tmp_flags"])
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r32(32, 0)) // flags DWORD (eax)
-    _intr_load_x64(ctx, 10, tmp_ov)
+    _intr_load_x64(ctx, 10, state["tmp_ov"])
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
 
     _emit_call_iat_x64(ctx, "IAT_WSASend")
+    return nil
+}
 
+fn _x64_wsasend_normalize_result(ctx) {
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "wsasend_ok")
@@ -400,23 +430,47 @@ fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
 
+fn _x64_wsasend_capsule_post(ctx, state, capsule) {
     // post: native_capsule_sys_wsasend_post(rc, sock, buf, len, flags, bytes_ptr, overlapped_ptr) -> rc
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-        _intr_load_x64(ctx, 2, tmp_s)
-        _intr_load_x64(ctx, 8, tmp_buf)
-        _intr_load_x64(ctx, 9, tmp_len)
-        _intr_load_x64(ctx, 10, tmp_flags)
+        _intr_load_x64(ctx, 2, state["tmp_s"])
+        _intr_load_x64(ctx, 8, state["tmp_buf"])
+        _intr_load_x64(ctx, 9, state["tmp_len"])
+        _intr_load_x64(ctx, 10, state["tmp_flags"])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, tmp_bytes)
+        _intr_load_x64(ctx, 10, state["tmp_bytes"])
         _emit_mov_mrsp_r64(ctx, 40, 10)
-        _intr_load_x64(ctx, 10, tmp_ov)
+        _intr_load_x64(ctx, 10, state["tmp_ov"])
         _emit_mov_mrsp_r64(ctx, 48, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsasend_post")
     }
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsasend expects 6 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsasend does not support spread"); return nil }
+
+    // WSASend(SOCKET s, LPWSABUF lpBuffers, DWORD dwBufferCount, LPDWORD lpNumberOfBytesSent,
+    //         DWORD dwFlags, LPWSAOVERLAPPED lpOverlapped, LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine)
+    //
+    // Oren intrinsic shape (rolling):
+    //   sys_wsasend(sock, buf_ptr, buf_len, flags, bytes_ptr, overlapped_ptr) -> 0 or -errno
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_wsasend_spill_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    _x64_wsasend_capsule_pre(ctx, state, capsule)
+    _x64_wsasend_emit_call(ctx, state)
+    _x64_wsasend_normalize_result(ctx)
+    _x64_wsasend_capsule_post(ctx, state, capsule)
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 

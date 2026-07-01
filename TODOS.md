@@ -485,6 +485,13 @@ design evidence lives under `project-doc/`.
   `x64_native_program.oren` at ~39.3s total / ~29.0s parse, with
   `_emit_intrinsic_sys_wsarecv_windows_x64` exposed at ~125ms as the next parser
   body.
+- Windows x64 overlapped `WSARecv`/`WSASend` lowering now delegates state
+  spilling, capsule pre/post hooks, IAT call setup, and pending/error
+  normalization to focused helpers. Windows `getsockopt` lowering delegates
+  spill state, capsule prehook, level/option translation, IAT call setup, and
+  SO_ERROR normalization. The capped profile now shows
+  `x64_native_program.oren` at ~41.2s total / ~30.8s parse, with
+  `_compile_function_v0` exposed at ~134ms as the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

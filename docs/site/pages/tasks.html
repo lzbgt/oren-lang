@@ -591,11 +591,17 @@
 <p>																										 argument spill/prehook setup, standard-handle selection, and <code>WriteFile</code></p>
 <p>																										 result normalization to focused helpers. Missing fnwrap compilation delegates</p>
 <p>																										 per-function synthesis/compile and phase logging, and the x64 SIMD dot</p>
-<p>																										 intrinsic delegates argument setup, vector loop emission, and scalar tail</p>
-<p>																										 emission. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																										 39.3s total / 29.0s parse, with</p>
-<p>																										 <code>_emit_intrinsic_sys_wsarecv_windows_x64</code> exposed at about 125ms as the next</p>
-<p>																										 parser body.</p>
+<p>																											 intrinsic delegates argument setup, vector loop emission, and scalar tail</p>
+<p>																											 emission. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																											 39.3s total / 29.0s parse, with</p>
+<p>																											 <code>_emit_intrinsic_sys_wsarecv_windows_x64</code> exposed at about 125ms as the next</p>
+<p>																											 parser body. Windows x64 overlapped <code>WSARecv</code>/<code>WSASend</code> lowering now delegates</p>
+<p>																											 state spilling, capsule pre/post hooks, IAT call setup, and pending/error</p>
+<p>																											 normalization to focused helpers. Windows <code>getsockopt</code> lowering delegates</p>
+<p>																											 spill state, capsule prehook, level/option translation, IAT call setup, and</p>
+<p>																											 SO_ERROR normalization. The capped profile now shows</p>
+<p>																											 <code>x64_native_program.oren</code> at about 41.2s total / 30.8s parse, with</p>
+<p>																											 <code>_compile_function_v0</code> exposed at about 134ms as the next parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

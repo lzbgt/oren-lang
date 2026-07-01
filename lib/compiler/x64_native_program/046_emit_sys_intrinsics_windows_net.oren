@@ -749,13 +749,7 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_getsockopt expects 5 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getsockopt does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_getsockopt_spill_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, lenp
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -772,26 +766,38 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_lenp)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
+    return {
+        "base": base,
+        "tmp_fd": tmp_fd,
+        "tmp_lvl": tmp_lvl,
+        "tmp_opt": tmp_opt,
+        "tmp_val": tmp_val,
+        "tmp_lenp": tmp_lenp
+    }
+}
+
+fn _x64_getsockopt_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_getsockopt_pre(fd, level, optname, optval, optlen_ptr)
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_lvl)
-    _intr_load_x64(ctx, 8, tmp_opt)
-    _intr_load_x64(ctx, 9, tmp_val)
-    _intr_load_x64(ctx, 10, tmp_lenp)
+    _intr_load_x64(ctx, 1, state["tmp_fd"])
+    _intr_load_x64(ctx, 2, state["tmp_lvl"])
+    _intr_load_x64(ctx, 8, state["tmp_opt"])
+    _intr_load_x64(ctx, 9, state["tmp_val"])
+    _intr_load_x64(ctx, 10, state["tmp_lenp"])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre") }
+    return nil
+}
 
+fn _x64_getsockopt_translate_args(ctx, labels, fixups, state) {
     // Translate level/optname.
-    _intr_load_x64(ctx, 2, tmp_lvl)
+    _intr_load_x64(ctx, 2, state["tmp_lvl"])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 1))
-    var labels = {}
-    var fixups = []
     var l_skip_lvl = _new_label(ctx, "getsockopt_skip_lvl")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 65535))
     _emit_label(ctx, labels, l_skip_lvl)
 
-    _intr_load_x64(ctx, 8, tmp_opt) // r8 = optname (original)
+    _intr_load_x64(ctx, 8, state["tmp_opt"]) // r8 = optname (original)
     var l_opt_done = _new_label(ctx, "getsockopt_opt_done")
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 2))
     var l_opt_not_reuse = _new_label(ctx, "getsockopt_opt_not_reuse")
@@ -811,14 +817,20 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4103))
     _emit_label(ctx, labels, l_opt_not_err)
     _emit_label(ctx, labels, l_opt_done)
+    return nil
+}
 
+fn _x64_getsockopt_emit_call(ctx, state) {
     // getsockopt(fd, level, opt, optval, optlen_ptr)
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 9, tmp_val)
-    _intr_load_x64(ctx, 10, tmp_lenp)
+    _intr_load_x64(ctx, 1, state["tmp_fd"])
+    _intr_load_x64(ctx, 9, state["tmp_val"])
+    _intr_load_x64(ctx, 10, state["tmp_lenp"])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _emit_call_iat_x64(ctx, "IAT_getsockopt")
+    return nil
+}
 
+fn _x64_getsockopt_normalize_result(ctx, labels, fixups, state) {
     var l_ok = _new_label(ctx, "getsockopt_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
@@ -828,11 +840,11 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_ok)
     // Normalize SO_ERROR to POSIX errno numbers.
-    _intr_load_x64(ctx, 11, tmp_opt) // r11 = original optname
+    _intr_load_x64(ctx, 11, state["tmp_opt"]) // r11 = original optname
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4)) // OREN_SO_ERROR
     var l_skip_norm = _new_label(ctx, "getsockopt_skip_norm")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_norm)
-    _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
+    _intr_load_x64(ctx, 10, state["tmp_val"]) // r10 = optval
     bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(0, 10, 0)) // eax = *(u32*)optval
     _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx)
     bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(10, 0, 0)) // *(u32*)optval = eax
@@ -842,8 +854,26 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_getsockopt expects 5 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getsockopt does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_getsockopt_spill_state(ctx, locals, args)
+    if state == nil { return nil }
+    var labels = {}
+    var fixups = []
+
+    _x64_getsockopt_capsule_pre(ctx, state, capsule)
+    _x64_getsockopt_translate_args(ctx, labels, fixups, state)
+    _x64_getsockopt_emit_call(ctx, state)
+    _x64_getsockopt_normalize_result(ctx, labels, fixups, state)
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 

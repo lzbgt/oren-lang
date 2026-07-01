@@ -539,11 +539,17 @@ Facts from the 2026-05-28 implementation pass:
 															  spill/prehook setup, standard-handle selection, and `WriteFile` result
 															  normalization to focused helpers. Missing fnwrap compilation delegates
 															  per-function synthesis/compile and phase logging, and the x64 SIMD dot
-															  intrinsic delegates argument setup, vector loop emission, and scalar tail
-															  emission. The capped profile now shows `x64_native_program.oren` at about
-															  39.3s total / 29.0s parse, with
-															  `_emit_intrinsic_sys_wsarecv_windows_x64` exposed at about 125ms as the next
-															  parser body.
+																  intrinsic delegates argument setup, vector loop emission, and scalar tail
+																  emission. The capped profile now shows `x64_native_program.oren` at about
+																  39.3s total / 29.0s parse, with
+																  `_emit_intrinsic_sys_wsarecv_windows_x64` exposed at about 125ms as the next
+																  parser body. Windows x64 overlapped `WSARecv`/`WSASend` lowering now
+																  delegates state spilling, capsule pre/post hooks, IAT call setup, and
+																  pending/error normalization to focused helpers. Windows `getsockopt`
+																  lowering delegates spill state, capsule prehook, level/option translation,
+																  IAT call setup, and SO_ERROR normalization. The capped profile now shows
+																  `x64_native_program.oren` at about 41.2s total / 30.8s parse, with
+																  `_compile_function_v0` exposed at about 134ms as the next parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
