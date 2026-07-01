@@ -720,6 +720,13 @@ This file is the concise task view. Detailed implementation status lives in
 																		 `x64_native_program.oren` at about 42.8s total / 32.0s parse, with
 																		 `_x64_fast_lcg_emit_fullmod_loop` exposed at about 108ms as the next
 																		 parser body.
+																		 X64 fast LCG sum full-mod fallback now delegates loop condition,
+																		 throttled safepoint, state reload, signed full-mod step, and
+																		 writeback/increment to focused helpers while preserving signed `idiv`
+																		 modulo behavior. The capped profile now shows
+																		 `x64_native_program.oren` at about 41.2s total / 30.6s parse, with
+																		 `_emit_float_cmp_to_bool_x64` exposed at about 99ms as the next parser
+																		 body.
 																		     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

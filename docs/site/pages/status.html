@@ -775,6 +775,13 @@
 <p>																						  The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>																						  42.8s total / 32.0s parse, with <code>_x64_fast_lcg_emit_fullmod_loop</code></p>
 <p>																						  exposed at about 108ms as the next parser body.</p>
+<p>																						  X64 fast LCG sum full-mod fallback now delegates loop condition,</p>
+<p>																						  throttled safepoint, state reload, signed full-mod step, and</p>
+<p>																						  writeback/increment to focused helpers while preserving signed</p>
+<p>																						  <code>idiv</code> modulo behavior. The capped profile now shows</p>
+<p>																						  <code>x64_native_program.oren</code> at about 41.2s total / 30.6s parse,</p>
+<p>																						  with <code>_emit_float_cmp_to_bool_x64</code> exposed at about 99ms as the</p>
+<p>																						  next parser body.</p>
 <p>														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
