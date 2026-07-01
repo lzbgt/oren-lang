@@ -840,10 +840,17 @@ This file is the concise task view. Detailed implementation status lives in
 																												 Windows x64 `sys_stat` / `sys_lstat` lowering now delegates argument
 																												 spilling, capsule prehook path resolution, label/fixup setup, path
 																												 normalization plus attribute probing, directory/file dispatch, and final
-																												 patch/posthook cleanup. The capped profile now shows
-																												 `x64_native_program.oren` at about 41.9s total / 31.0s parse, with
-																												 `_x64_expr_is_inty` exposed at about 84ms as the next parser body.
-																											     Serial/thread module
+																													 patch/posthook cleanup. The capped profile now shows
+																													 `x64_native_program.oren` at about 41.9s total / 31.0s parse, with
+																													 `_x64_expr_is_inty` exposed at about 84ms as the next parser body.
+																													 X64 integer-expression classification now delegates identifier fact lookup,
+																													 prefix recursion, integer infix recursion, list-int index recognition, and
+																													 integer-returning call-name groups to focused helpers while preserving the
+																													 float-exclusion gate. The capped profile now shows
+																													 `x64_native_program.oren` at about 41.6s total / 30.7s parse, with
+																													 `_emit_intrinsic_sys_linux_time_x64` exposed at about 82ms as the next
+																													 parser body.
+																												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

@@ -186,6 +186,77 @@ fn _x64_expr_is_floaty(ctx, expr) {
     return false
 }
 
+fn _x64_expr_identifier_is_inty(ctx, expr) {
+    var name = expr["value"]
+    if ctx != nil {
+        if ctx["locals_inty"] != nil && ctx["locals_inty"][name] == true { return true }
+        if ctx["globals_inty"] != nil && ctx["globals_inty"][name] == true { return true }
+    }
+    return false
+}
+
+fn _x64_prefix_expr_is_inty(ctx, expr) {
+    if expr["op"] == "-" || expr["op"] == "~" { return _x64_expr_is_inty(ctx, expr["right"]) }
+    return false
+}
+
+fn _x64_infix_expr_is_inty(ctx, expr) {
+    var op = expr["op"]
+    if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+        if _x64_expr_is_inty(ctx, expr["left"]) && _x64_expr_is_inty(ctx, expr["right"]) { return true }
+    }
+    return false
+}
+
+fn _x64_index_expr_is_inty(expr) {
+    if expr["recv_kind"] == "list_int" { return true }
+    return false
+}
+
+fn _x64_call_name_is_int_arith(nm) {
+    if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
+    if nm == "oren_trunc_int" { return true }
+    if nm == "oren_int" { return true }
+    if nm == "oren_f32_to_u32_bits" { return true }
+    if nm == "oren_f64_to_u64_bits" { return true }
+    return false
+}
+
+fn _x64_call_name_is_int_len(nm) {
+    if nm == "oren_string_len" { return true }
+    if nm == "oren_list_len" { return true }
+    if nm == "oren_list_int_len" || nm == "STD_list_int_len" { return true }
+    if nm == "oren_list_int_len_unchecked" || nm == "STD_list_int_len_unchecked" { return true }
+    if nm == "oren_map_len" { return true }
+    if nm == "oren_buf_len" { return true }
+    return false
+}
+
+fn _x64_call_name_is_int_list_or_buf(nm) {
+    if nm == "oren_list_int_get" || nm == "STD_list_int_get" { return true }
+    if nm == "oren_list_int_get_unchecked" || nm == "STD_list_int_get_unchecked" { return true }
+    if nm == "oren_buf_load_u8" || nm == "oren_buf_load_u8_unchecked" { return true }
+    if nm == "oren_buf_load_i32" || nm == "oren_buf_load_i64" { return true }
+    if nm == "oren_buf_dot_i32" || nm == "oren_buf_dot_i32_slice" || nm == "oren_buf_dot_i32_strided" { return true }
+    if nm == "oren_buf_reduce_sum_i32" { return true }
+    return false
+}
+
+fn _x64_call_name_is_inty(nm) {
+    if _x64_call_name_is_int_arith(nm) { return true }
+    if _x64_call_name_is_int_len(nm) { return true }
+    if _x64_call_name_is_int_list_or_buf(nm) { return true }
+    return false
+}
+
+fn _x64_call_expr_is_inty(expr) {
+    var fnn = expr["fn"]
+    if fnn != nil && fnn["type"] == "Identifier" {
+        return _x64_call_name_is_inty(fnn["value"])
+    }
+    return false
+}
+
 fn _x64_expr_is_inty(ctx, expr) {
     // Heuristic "int propagation" for x64 native (rolling).
     if expr == nil { return false }
@@ -194,53 +265,11 @@ fn _x64_expr_is_inty(ctx, expr) {
     if et == "Integer" { return true }
     if et == "Float" { return false }
     if et == "String" { return false }
-    if et == "Identifier" {
-        var name = expr["value"]
-        if ctx != nil {
-            if ctx["locals_inty"] != nil && ctx["locals_inty"][name] == true { return true }
-            if ctx["globals_inty"] != nil && ctx["globals_inty"][name] == true { return true }
-        }
-        return false
-    }
-    if et == "Prefix" {
-        if expr["op"] == "-" || expr["op"] == "~" { return _x64_expr_is_inty(ctx, expr["right"]) }
-        return false
-    }
-    if et == "Infix" {
-        var op = expr["op"]
-        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
-            if _x64_expr_is_inty(ctx, expr["left"]) && _x64_expr_is_inty(ctx, expr["right"]) { return true }
-        }
-        return false
-    }
-    if et == "Index" {
-        if expr["recv_kind"] == "list_int" { return true }
-        return false
-    }
-    if et == "Call" {
-        var fnn = expr["fn"]
-        if fnn != nil && fnn["type"] == "Identifier" {
-            var nm = fnn["value"]
-            if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
-            if nm == "oren_trunc_int" { return true }
-            if nm == "oren_int" { return true }
-            if nm == "oren_f32_to_u32_bits" { return true }
-            if nm == "oren_f64_to_u64_bits" { return true }
-            if nm == "oren_string_len" { return true }
-            if nm == "oren_list_len" { return true }
-            if nm == "oren_list_int_len" || nm == "STD_list_int_len" { return true }
-            if nm == "oren_list_int_len_unchecked" || nm == "STD_list_int_len_unchecked" { return true }
-            if nm == "oren_map_len" { return true }
-            if nm == "oren_list_int_get" || nm == "STD_list_int_get" { return true }
-            if nm == "oren_list_int_get_unchecked" || nm == "STD_list_int_get_unchecked" { return true }
-            if nm == "oren_buf_len" { return true }
-            if nm == "oren_buf_load_u8" || nm == "oren_buf_load_u8_unchecked" { return true }
-            if nm == "oren_buf_load_i32" || nm == "oren_buf_load_i64" { return true }
-            if nm == "oren_buf_dot_i32" || nm == "oren_buf_dot_i32_slice" || nm == "oren_buf_dot_i32_strided" { return true }
-            if nm == "oren_buf_reduce_sum_i32" { return true }
-        }
-        return false
-    }
+    if et == "Identifier" { return _x64_expr_identifier_is_inty(ctx, expr) }
+    if et == "Prefix" { return _x64_prefix_expr_is_inty(ctx, expr) }
+    if et == "Infix" { return _x64_infix_expr_is_inty(ctx, expr) }
+    if et == "Index" { return _x64_index_expr_is_inty(expr) }
+    if et == "Call" { return _x64_call_expr_is_inty(expr) }
     return false
 }
 

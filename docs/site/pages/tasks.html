@@ -896,10 +896,17 @@
 <p>																												 Windows x64 <code>sys_stat</code> / <code>sys_lstat</code> lowering now delegates argument</p>
 <p>																												 spilling, capsule prehook path resolution, label/fixup setup, path</p>
 <p>																												 normalization plus attribute probing, directory/file dispatch, and final</p>
-<p>																												 patch/posthook cleanup. The capped profile now shows</p>
-<p>																												 <code>x64_native_program.oren</code> at about 41.9s total / 31.0s parse, with</p>
-<p>																												 <code>_x64_expr_is_inty</code> exposed at about 84ms as the next parser body.</p>
-<p>																											     Serial/thread module</p>
+<p>																													 patch/posthook cleanup. The capped profile now shows</p>
+<p>																													 <code>x64_native_program.oren</code> at about 41.9s total / 31.0s parse, with</p>
+<p>																													 <code>_x64_expr_is_inty</code> exposed at about 84ms as the next parser body.</p>
+<p>																													 X64 integer-expression classification now delegates identifier fact lookup,</p>
+<p>																													 prefix recursion, integer infix recursion, list-int index recognition, and</p>
+<p>																													 integer-returning call-name groups to focused helpers while preserving the</p>
+<p>																													 float-exclusion gate. The capped profile now shows</p>
+<p>																													 <code>x64_native_program.oren</code> at about 41.6s total / 30.7s parse, with</p>
+<p>																													 <code>_emit_intrinsic_sys_linux_time_x64</code> exposed at about 82ms as the next</p>
+<p>																													 parser body.</p>
+<p>																												     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
