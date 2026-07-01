@@ -114,96 +114,104 @@ fn _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) {
     return 0
 }
 
+fn _emit_eval_native_direct_call1_intrinsic_x64(ctx, expr, locals, args) {
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: native_call1 expects 2 args"); return 1 }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: native_call1 does not support spread"); return 1 }
+
+    var base = _intr_tmp_push(ctx, 2) // addr, arg0
+    if oren_type_tag(base) == 0 { return 1 }
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_arg0 = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_arg0) == 0 { _intr_tmp_pop(ctx, base); return 1 }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg0)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+
+    var arg_regs = nil
+    if ctx["abi"] != nil { arg_regs = ctx["abi"]["int_arg_regs"] }
+    var reg0 = 7 // fallback: SysV rdi
+    if arg_regs != nil && oren_list_len(arg_regs) > 0 { reg0 = arg_regs[0] }
+    _intr_load_x64(ctx, reg0, tmp_arg0)
+
+    _intr_load_x64(ctx, 0, tmp_addr)
+    bytes_extend(ctx["code"], core.insn_call_rax())
+    _intr_tmp_pop(ctx, base)
+    return 1
+}
+
+fn _emit_eval_native_alloc_intrinsic_x64(ctx, nm, locals, args) {
+    var want_args = 1
+    if nm == "malloc_k" { want_args = 2 }
+    if args == nil || oren_list_len(args) != want_args { err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(want_args) + " arg(s)"); return 1 }
+
+    var base = nil
+    var tmp_kind = nil
+    if nm == "malloc_k" {
+        // Preserve kind across the allocator slow path (clobbers R10/R11/RCX).
+        base = _intr_tmp_push(ctx, 1)
+        if oren_type_tag(base) == 0 { return 1 }
+        tmp_kind = _intr_tmp_off(ctx, locals, base + 0)
+        if oren_type_tag(tmp_kind) == 0 { _intr_tmp_pop(ctx, base); return 1 }
+        _emit_eval_int_to_rax(ctx, args[1], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_kind, 0)
+    }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        if oren_type_tag(base) != 0 { _intr_tmp_pop(ctx, base) }
+        return 1
+    }
+
+    var reuse_mode = 1
+    if nm == "malloc_raw" { reuse_mode = 0 }
+    _emit_malloc_size_in_rax(ctx, locals, reuse_mode)
+
+    if nm == "malloc" {
+        var tmp0 = locals["$tmp0"]
+        if oren_type_tag(tmp0) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return 1 }
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0))
+        _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0)
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
+        if ctx["trace_native_alloc_req"] != nil {
+            _emit_trace_alloc_request_x64(ctx, locals, 12, 13, 10)
+        }
+        _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
+    }
+    if nm == "malloc_k" {
+        var tmp0b = locals["$tmp0"]
+        if oren_type_tag(tmp0b) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc_k tracking"); _intr_tmp_pop(ctx, base); return 1 }
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0))
+        _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0b)
+        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_kind)
+        if ctx["trace_native_alloc_req"] != nil {
+            _emit_trace_alloc_request_x64(ctx, locals, 12, 13, 10)
+        }
+        _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
+        _intr_tmp_pop(ctx, base)
+    }
+    return 1
+}
+
+fn _emit_eval_native_panic_intrinsic_x64(ctx, locals, args) {
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_panic expects 1 arg"); return 1 }
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+    _emit_panic_with_msg_ptr(ctx, 0)
+    return 1
+}
+
 fn _emit_eval_native_call_intrinsic_x64(ctx, nm, expr, locals, args) {
     if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return 1 }
     if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return 1 }
     if nm == "simd_dot_i32_ptr" { _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals); return 1 }
-    if nm == "native_call1" {
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: native_call1 expects 2 args"); return 1 }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: native_call1 does not support spread"); return 1 }
-
-        var base = _intr_tmp_push(ctx, 2) // addr, arg0
-        if oren_type_tag(base) == 0 { return 1 }
-        var tmp_addr = _intr_tmp_off(ctx, locals, base + 0)
-        var tmp_arg0 = _intr_tmp_off(ctx, locals, base + 1)
-        if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_arg0) == 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_addr)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg0)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-
-        var arg_regs = nil
-        if ctx["abi"] != nil { arg_regs = ctx["abi"]["int_arg_regs"] }
-        var reg0 = 7 // fallback: SysV rdi
-        if arg_regs != nil && oren_list_len(arg_regs) > 0 { reg0 = arg_regs[0] }
-        _intr_load_x64(ctx, reg0, tmp_arg0)
-
-        _intr_load_x64(ctx, 0, tmp_addr)
-        bytes_extend(ctx["code"], core.insn_call_rax())
-        _intr_tmp_pop(ctx, base)
-        return 1
-    }
+    if nm == "native_call1" { return _emit_eval_native_direct_call1_intrinsic_x64(ctx, expr, locals, args) }
     if nm == "malloc" || nm == "malloc_raw" || nm == "malloc_k" {
-        var want_args = 1
-        if nm == "malloc_k" { want_args = 2 }
-        if args == nil || oren_list_len(args) != want_args { err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(want_args) + " arg(s)"); return 1 }
-
-        var base = nil
-        var tmp_kind = nil
-        if nm == "malloc_k" {
-            // Preserve kind across the allocator slow path (clobbers R10/R11/RCX).
-            base = _intr_tmp_push(ctx, 1)
-            if oren_type_tag(base) == 0 { return 1 }
-            tmp_kind = _intr_tmp_off(ctx, locals, base + 0)
-            if oren_type_tag(tmp_kind) == 0 { _intr_tmp_pop(ctx, base); return 1 }
-            _emit_eval_int_to_rax(ctx, args[1], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 1 }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_kind, 0)
-        }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-            if oren_type_tag(base) != 0 { _intr_tmp_pop(ctx, base) }
-            return 1
-        }
-
-        var reuse_mode = 1
-        if nm == "malloc_raw" { reuse_mode = 0 }
-        _emit_malloc_size_in_rax(ctx, locals, reuse_mode)
-
-        if nm == "malloc" {
-            var tmp0 = locals["$tmp0"]
-            if oren_type_tag(tmp0) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return 1 }
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0))
-            _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0)
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
-            if ctx["trace_native_alloc_req"] != nil {
-                _emit_trace_alloc_request_x64(ctx, locals, 12, 13, 10)
-            }
-            _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
-        }
-        if nm == "malloc_k" {
-            var tmp0b = locals["$tmp0"]
-            if oren_type_tag(tmp0b) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc_k tracking"); _intr_tmp_pop(ctx, base); return 1 }
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0))
-            _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0b)
-            _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_kind)
-            if ctx["trace_native_alloc_req"] != nil {
-                _emit_trace_alloc_request_x64(ctx, locals, 12, 13, 10)
-            }
-            _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
-            _intr_tmp_pop(ctx, base)
-        }
-        return 1
+        return _emit_eval_native_alloc_intrinsic_x64(ctx, nm, locals, args)
     }
-    if nm == "oren_panic" {
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_panic expects 1 arg"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-        _emit_panic_with_msg_ptr(ctx, 0)
-        return 1
-    }
+    if nm == "oren_panic" { return _emit_eval_native_panic_intrinsic_x64(ctx, locals, args) }
     return 0
 }

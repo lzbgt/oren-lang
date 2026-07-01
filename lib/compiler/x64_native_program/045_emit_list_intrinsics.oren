@@ -1247,7 +1247,7 @@ fn _emit_list_int_reduce_sum_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
     return nil
 }
 
-fn _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
+fn _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_int_dot_slots_unchecked requires locals"); return nil }
     if ctx["runtime_injected"] != true {
@@ -1277,6 +1277,10 @@ fn _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_b, 0)
 
+    return {"base": base, "off_a": off_a, "off_b": off_b}
+}
+
+fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
     var labels = {}
     var local_fixups = []
     var l_a_non_nil = _new_label(ctx, "list_int_dot_slots_unchecked_a_non_nil")
@@ -1341,6 +1345,14 @@ fn _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_label(ctx, labels, l_done)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 14))
     _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
+    var state = _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals)
+    if state == nil { return nil }
+    var base = state["base"]
+    _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, state["off_a"], state["off_b"])
     _intr_tmp_pop(ctx, base)
     return nil
 }

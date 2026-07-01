@@ -524,10 +524,18 @@ Facts from the 2026-05-28 implementation pass:
 													  next parser body. Linux x64 lowering for Windows-only compatibility
 													  intrinsics now shares ENOSYS validation/emission and delegates QPC,
 													  IOCP/cancel, and WSA families to focused helpers while preserving validation
-													  errors and handled return values. The capped profile now shows
-													  `x64_native_program.oren` at about 39.0s total / 28.9s parse, with
-													  `_emit_eval_call_runtime_or_fast_generic_x64` exposed at about 135ms as the
-													  next parser body.
+														  errors and handled return values. The capped profile now shows
+														  `x64_native_program.oren` at about 39.0s total / 28.9s parse, with
+														  `_emit_eval_call_runtime_or_fast_generic_x64` exposed at about 135ms as the
+														  next parser body. X64 call fast-path classification now delegates
+														  runtime-required generic calls, internal-prefix generic calls, and
+														  typed-buffer runtime name detection to focused helpers; native-call intrinsic
+														  lowering delegates `native_call1`, allocator, and panic paths; list-int
+														  unchecked dot-slot lowering delegates validation/spill setup and loop-body
+														  emission. The capped profile now shows `x64_native_program.oren` at about
+														  39.4s total / 29.2s parse, with
+														  `_emit_intrinsic_sys_write_windows_x64` exposed at about 133ms as the next
+														  parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

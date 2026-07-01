@@ -576,11 +576,18 @@
 <p>																								 <code>_emit_intrinsic_sys_linux_windows_compat_x64</code> exposed at about 149ms as the</p>
 <p>																								 next parser body. Linux x64 lowering for Windows-only compatibility intrinsics</p>
 <p>																								 now shares ENOSYS validation/emission and delegates QPC, IOCP/cancel, and WSA</p>
-<p>																								 families to focused helpers while preserving validation errors and handled</p>
-<p>																								 return values. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																								 39.0s total / 28.9s parse, with</p>
-<p>																								 <code>_emit_eval_call_runtime_or_fast_generic_x64</code> exposed at about 135ms as the</p>
-<p>																								 next parser body.</p>
+<p>																									 families to focused helpers while preserving validation errors and handled</p>
+<p>																									 return values. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																									 39.0s total / 28.9s parse, with</p>
+<p>																									 <code>_emit_eval_call_runtime_or_fast_generic_x64</code> exposed at about 135ms as the</p>
+<p>																									 next parser body. X64 call fast-path classification now delegates</p>
+<p>																									 runtime-required generic calls, internal-prefix generic calls, and typed-buffer</p>
+<p>																									 runtime name detection to focused helpers; native-call intrinsic lowering</p>
+<p>																									 delegates <code>native_call1</code>, allocator, and panic paths; list-int unchecked</p>
+<p>																									 dot-slot lowering delegates validation/spill setup and loop-body emission. The</p>
+<p>																									 capped profile now shows <code>x64_native_program.oren</code> at about 39.4s total /</p>
+<p>																									 29.2s parse, with <code>_emit_intrinsic_sys_write_windows_x64</code> exposed at about</p>
+<p>																									 133ms as the next parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
