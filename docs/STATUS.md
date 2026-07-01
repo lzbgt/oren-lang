@@ -864,10 +864,16 @@ Facts from the 2026-05-28 implementation pass:
 																																		  X64 integer-expression classification now delegates identifier fact lookup,
 																																		  prefix recursion, integer infix recursion, list-int index recognition, and
 																																		  integer-returning call-name groups to focused helpers while preserving the
-																																		  float-exclusion gate. The capped profile now shows
-																																		  `x64_native_program.oren` at about 41.6s total / 30.7s parse, with
-																																		  `_emit_intrinsic_sys_linux_time_x64` exposed at about 82ms as the next
-																																		  parser body.
+																																			  float-exclusion gate. The capped profile now shows
+																																			  `x64_native_program.oren` at about 41.6s total / 30.7s parse, with
+																																			  `_emit_intrinsic_sys_linux_time_x64` exposed at about 82ms as the next
+																																			  parser body.
+																																			  Linux x64 `sys_gettimeofday` lowering now delegates temp-state setup,
+																																			  argument spills, capsule prehook emission, raw `gettimeofday`, and optional
+																																			  monotonic `clock_gettime` synthesis to focused helpers while preserving the
+																																			  stable 3-argument runtime ABI. The capped profile now shows
+																																			  `x64_native_program.oren` at about 41.0s total / 30.2s parse, with
+																																			  `_emit_print_stmt_str_x64` exposed at about 81ms as the next parser body.
 																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

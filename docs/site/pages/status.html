@@ -904,10 +904,16 @@
 <p>																																		  X64 integer-expression classification now delegates identifier fact lookup,</p>
 <p>																																		  prefix recursion, integer infix recursion, list-int index recognition, and</p>
 <p>																																		  integer-returning call-name groups to focused helpers while preserving the</p>
-<p>																																		  float-exclusion gate. The capped profile now shows</p>
-<p>																																		  <code>x64_native_program.oren</code> at about 41.6s total / 30.7s parse, with</p>
-<p>																																		  <code>_emit_intrinsic_sys_linux_time_x64</code> exposed at about 82ms as the next</p>
-<p>																																		  parser body.</p>
+<p>																																			  float-exclusion gate. The capped profile now shows</p>
+<p>																																			  <code>x64_native_program.oren</code> at about 41.6s total / 30.7s parse, with</p>
+<p>																																			  <code>_emit_intrinsic_sys_linux_time_x64</code> exposed at about 82ms as the next</p>
+<p>																																			  parser body.</p>
+<p>																																			  Linux x64 <code>sys_gettimeofday</code> lowering now delegates temp-state setup,</p>
+<p>																																			  argument spills, capsule prehook emission, raw <code>gettimeofday</code>, and optional</p>
+<p>																																			  monotonic <code>clock_gettime</code> synthesis to focused helpers while preserving the</p>
+<p>																																			  stable 3-argument runtime ABI. The capped profile now shows</p>
+<p>																																			  <code>x64_native_program.oren</code> at about 41.0s total / 30.2s parse, with</p>
+<p>																																			  <code>_emit_print_stmt_str_x64</code> exposed at about 81ms as the next parser body.</p>
 <p>																								  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
