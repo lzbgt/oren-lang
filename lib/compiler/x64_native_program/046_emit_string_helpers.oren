@@ -39,32 +39,23 @@ fn _emit_string_len_from_ptr_x64(ctx, ptr_reg, dst_reg) {
     return nil
 }
 
-fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
-    // Infix '+' lowering:
-    // - Tier‑1 rule: x64 always lowers to the shared runtime helper `oren_add(a, b)`.
-    // - `oren_add` performs runtime detection using tracked-allocation metadata:
-    //   - if both operands are strings, concat via `string_concat`
-    //   - otherwise, add as integers
-    if expr == nil { return nil }
-    if expr["op"] != "+" { return nil }
+fn _x64_emit_known_int_add_x64(ctx, locals, left, right) {
+    var base_fast = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base_fast) == 0 { return nil }
+    var tmp_off = _intr_tmp_off(ctx, locals, base_fast + 0)
+    if oren_type_tag(tmp_off) == 0 { _intr_tmp_pop(ctx, base_fast); return nil }
+    _emit_eval_int_to_rax(ctx, left, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_fast); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
+    _emit_eval_int_to_rax(ctx, right, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_fast); return nil }
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_off)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2))
+    _intr_tmp_pop(ctx, base_fast)
+    return 1
+}
 
-    // Fast-path: if both operands are known int-like, emit direct add.
-    if _x64_expr_is_inty(ctx, expr["left"]) && _x64_expr_is_inty(ctx, expr["right"]) {
-        var base_fast = _intr_tmp_push(ctx, 1)
-        if oren_type_tag(base_fast) == 0 { return nil }
-        var tmp_off = _intr_tmp_off(ctx, locals, base_fast + 0)
-        if oren_type_tag(tmp_off) == 0 { _intr_tmp_pop(ctx, base_fast); return nil }
-        _emit_eval_int_to_rax(ctx, expr["left"], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_fast); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
-        _emit_eval_int_to_rax(ctx, expr["right"], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_fast); return nil }
-        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_off)
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 2))
-        _intr_tmp_pop(ctx, base_fast)
-        return 1
-    }
-
+fn _x64_emit_runtime_oren_add_x64(ctx, expr, locals) {
     if ctx == nil || ctx["runtime_injected"] != true {
         err(ctx, "x64 native v0: '+' requires injected native runtime (oren_add)")
         return nil
@@ -102,4 +93,23 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
 
     _intr_tmp_pop(ctx, base)
     return 1
+}
+
+fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
+    // Infix '+' lowering:
+    // - Tier‑1 rule: x64 always lowers to the shared runtime helper `oren_add(a, b)`.
+    // - `oren_add` performs runtime detection using tracked-allocation metadata:
+    //   - if both operands are strings, concat via `string_concat`
+    //   - otherwise, add as integers
+    if expr == nil { return nil }
+    if expr["op"] != "+" { return nil }
+
+    var left = expr["left"]
+    var right = expr["right"]
+    // Fast-path: if both operands are known int-like, emit direct add.
+    if _x64_expr_is_inty(ctx, left) && _x64_expr_is_inty(ctx, right) {
+        return _x64_emit_known_int_add_x64(ctx, locals, left, right)
+    }
+
+    return _x64_emit_runtime_oren_add_x64(ctx, expr, locals)
 }

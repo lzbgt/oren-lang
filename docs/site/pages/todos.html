@@ -1140,6 +1140,14 @@
 <p>  with <code>_emit_infix_add_or_string_concat_x64</code> exposed at ~78ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 infix <code>+</code> lowering now keeps the wrapper as a small router and delegates</li>
+</ul>
+<p>  known-int direct add and injected-runtime <code>oren_add</code> fallback emission to</p>
+<p>  focused helpers while preserving the handled/nil contract used by infix</p>
+<p>  dispatch. The capped profile now shows <code>x64_native_program.oren</code> at ~42.1s</p>
+<p>  total / ~31.1s parse, with <code>_x64_collect_callable_uses</code> exposed at ~79ms as</p>
+<p>  the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

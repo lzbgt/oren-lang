@@ -980,12 +980,18 @@
 <p>																																					 body.</p>
 <p>																																					 X64 best-effort panic location resolution now mirrors the symbol resolver with</p>
 <p>																																					 focused default-location, linetab setup, and scan-loop helpers while preserving</p>
-<p>																																					 debug-only linetab fallback and unsigned fixed-base address checks. The capped</p>
-<p>																																					 profile now shows <code>x64_native_program.oren</code> at about 41.7s total / 30.7s parse,</p>
-<p>																																					 with <code>_emit_infix_add_or_string_concat_x64</code> exposed at about 78ms as the next</p>
-<p>																																					 parser body.</p>
-<p>																																			     Serial/thread module</p>
-<p>											     ASTBIN writes are now explicit prewarm work via</p>
+<p>																																						 debug-only linetab fallback and unsigned fixed-base address checks. The capped</p>
+<p>																																						 profile now shows <code>x64_native_program.oren</code> at about 41.7s total / 30.7s parse,</p>
+<p>																																						 with <code>_emit_infix_add_or_string_concat_x64</code> exposed at about 78ms as the next</p>
+<p>																																						 parser body.</p>
+<p>																																						 X64 infix <code>+</code> lowering now keeps the wrapper as a small router and delegates</p>
+<p>																																						 known-int direct add and injected-runtime <code>oren_add</code> fallback emission to</p>
+<p>																																						 focused helpers while preserving the handled/nil contract used by infix</p>
+<p>																																						 dispatch. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																						 42.1s total / 31.1s parse, with <code>_x64_collect_callable_uses</code> exposed at about</p>
+<p>																																						 79ms as the next parser body.</p>
+<p>																																				     Serial/thread module</p>
+<p>												     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
 <p>									     serial ASTBIN writes stay opt-in behind</p>
