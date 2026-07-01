@@ -467,11 +467,7 @@ fn _x64_env_enabled(name, default_value) {
     return true
 }
 
-fn _x64_program_compile_options() {
-    var trace_sum = oren_env("OREN_TRACE_X64_COMPILE_SUMMARY") != nil
-    var phase_log = _x64_program_phase_log_path()
-    var trace_prog = _x64_env_enabled("OREN_TRACE_X64_COMPILE_PROGRESS", false)
-
+fn _x64_program_progress_options(trace_prog) {
     var prog_stride = 200
     var prog_focus_from = -1
     var prog_focus_to = -1
@@ -483,14 +479,33 @@ fn _x64_program_compile_options() {
         prog_slow_fn_ms = core.parse_int_decimal(oren_env("OREN_TRACE_X64_SLOW_FN_MS"), prog_slow_fn_ms)
     }
     var focus_enabled = trace_prog && prog_focus_from >= 0 && prog_focus_to > prog_focus_from
+    return {
+        "prog_stride": prog_stride,
+        "prog_focus_from": prog_focus_from,
+        "prog_focus_to": prog_focus_to,
+        "prog_slow_fn_ms": prog_slow_fn_ms,
+        "focus_enabled": focus_enabled
+    }
+}
 
+fn _x64_program_entry_options() {
     var trace_entry = _x64_env_enabled("OREN_TRACE_X64_ENTRY", false)
     var skip_register_thread = _x64_env_enabled("OREN_SKIP_REGISTER_THREAD", false)
     var exit_after_register_thread = _x64_env_enabled("OREN_ENTRY_EXIT_AFTER_REGISTER_THREAD", false)
     var skip_top_level = _x64_env_enabled("OREN_ENTRY_SKIP_TOP_LEVEL", false)
     var skip_main = _x64_env_enabled("OREN_ENTRY_SKIP_MAIN", false)
     var trace_entry_after_reg = _x64_env_enabled("OREN_TRACE_X64_ENTRY_AFTER_REG", true)
+    return {
+        "trace_entry": trace_entry,
+        "skip_register_thread": skip_register_thread,
+        "exit_after_register_thread": exit_after_register_thread,
+        "skip_top_level": skip_top_level,
+        "skip_main": skip_main,
+        "trace_entry_after_reg": trace_entry_after_reg
+    }
+}
 
+fn _x64_program_slow_fn_options(phase_log) {
     var trace_top_slow = oren_env("OREN_TRACE_X64_TOP_SLOW_FNS") != nil || phase_log != nil
     var top_slow_n = 20
     var top_slow_min_ms = 50
@@ -507,7 +522,16 @@ fn _x64_program_compile_options() {
         if top_slow_live_n > 1000 { top_slow_live_n = 1000 }
         top_slow_live = _x64_env_enabled("OREN_TRACE_X64_TOP_SLOW_FNS_LIVE", false)
     }
+    return {
+        "trace_top_slow": trace_top_slow,
+        "top_slow_n": top_slow_n,
+        "top_slow_min_ms": top_slow_min_ms,
+        "top_slow_live": top_slow_live,
+        "top_slow_live_n": top_slow_live_n
+    }
+}
 
+fn _x64_program_phase_detail_options(phase_log) {
     var fns_progress_interval = 250
     var fns_detail_limit = 0
     if phase_log != nil {
@@ -518,29 +542,43 @@ fn _x64_program_compile_options() {
         if fns_detail_limit < 0 { fns_detail_limit = 0 }
         if fns_detail_limit > 200 { fns_detail_limit = 200 }
     }
+    return {
+        "fns_progress_interval": fns_progress_interval,
+        "fns_detail_limit": fns_detail_limit
+    }
+}
+
+fn _x64_program_compile_options() {
+    var trace_sum = oren_env("OREN_TRACE_X64_COMPILE_SUMMARY") != nil
+    var phase_log = _x64_program_phase_log_path()
+    var trace_prog = _x64_env_enabled("OREN_TRACE_X64_COMPILE_PROGRESS", false)
+    var progress_opts = _x64_program_progress_options(trace_prog)
+    var entry_opts = _x64_program_entry_options()
+    var slow_opts = _x64_program_slow_fn_options(phase_log)
+    var phase_opts = _x64_program_phase_detail_options(phase_log)
 
     return {
         "trace_sum": trace_sum,
         "phase_log": phase_log,
         "trace_prog": trace_prog,
-        "prog_stride": prog_stride,
-        "prog_focus_from": prog_focus_from,
-        "prog_focus_to": prog_focus_to,
-        "prog_slow_fn_ms": prog_slow_fn_ms,
-        "focus_enabled": focus_enabled,
-        "trace_entry": trace_entry,
-        "skip_register_thread": skip_register_thread,
-        "exit_after_register_thread": exit_after_register_thread,
-        "skip_top_level": skip_top_level,
-        "skip_main": skip_main,
-        "trace_entry_after_reg": trace_entry_after_reg,
-        "trace_top_slow": trace_top_slow,
-        "top_slow_n": top_slow_n,
-        "top_slow_min_ms": top_slow_min_ms,
-        "top_slow_live": top_slow_live,
-        "top_slow_live_n": top_slow_live_n,
-        "fns_progress_interval": fns_progress_interval,
-        "fns_detail_limit": fns_detail_limit
+        "prog_stride": progress_opts["prog_stride"],
+        "prog_focus_from": progress_opts["prog_focus_from"],
+        "prog_focus_to": progress_opts["prog_focus_to"],
+        "prog_slow_fn_ms": progress_opts["prog_slow_fn_ms"],
+        "focus_enabled": progress_opts["focus_enabled"],
+        "trace_entry": entry_opts["trace_entry"],
+        "skip_register_thread": entry_opts["skip_register_thread"],
+        "exit_after_register_thread": entry_opts["exit_after_register_thread"],
+        "skip_top_level": entry_opts["skip_top_level"],
+        "skip_main": entry_opts["skip_main"],
+        "trace_entry_after_reg": entry_opts["trace_entry_after_reg"],
+        "trace_top_slow": slow_opts["trace_top_slow"],
+        "top_slow_n": slow_opts["top_slow_n"],
+        "top_slow_min_ms": slow_opts["top_slow_min_ms"],
+        "top_slow_live": slow_opts["top_slow_live"],
+        "top_slow_live_n": slow_opts["top_slow_live_n"],
+        "fns_progress_interval": phase_opts["fns_progress_interval"],
+        "fns_detail_limit": phase_opts["fns_detail_limit"]
     }
 }
 

@@ -461,11 +461,16 @@
 <p>										  38.2s total / 28.6s parse, with <code>_emit_intrinsic_sys_linux_ulock_x64</code></p>
 <p>										  exposed at about 162ms as the next parser body. Linux x64 ulock/futex</p>
 <p>										  lowering now delegates shared futex syscall setup, timeout-timespec</p>
-<p>										  emission, timeout errno mapping, wait lowering, and wake lowering to</p>
-<p>										  focused helpers. The capped profile now shows <code>x64_native_program.oren</code></p>
-<p>										  at about 40.1s total / 30.3s parse, with <code>_x64_program_compile_options</code></p>
-<p>										  exposed at about 203ms as the next parser body.</p>
-<p>							  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>											  emission, timeout errno mapping, wait lowering, and wake lowering to</p>
+<p>											  focused helpers. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>											  at about 40.1s total / 30.3s parse, with <code>_x64_program_compile_options</code></p>
+<p>											  exposed at about 203ms as the next parser body. X64 program compile option</p>
+<p>											  parsing now delegates progress/focus, entry toggles, slow-function ranking,</p>
+<p>											  and phase-detail limits to focused helpers while preserving the returned</p>
+<p>											  option map. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>											  39.2s total / 29.5s parse, with <code>_emit_list_int_set_intrinsic_v0_x64</code></p>
+<p>											  exposed at about 164ms as the next parser body.</p>
+<p>								  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
