@@ -483,7 +483,12 @@
 <p>													  reliance on volatile <code>r10</code>. The capped profile now shows</p>
 <p>													  <code>x64_native_program.oren</code> at about 37.7s total / 28.2s parse, with</p>
 <p>													  <code>_emit_stack_trace_best_effort</code> exposed at about 153ms as the next parser</p>
-<p>													  body.</p>
+<p>													  body. X64 best-effort panic stack-trace lowering now delegates Windows</p>
+<p>													  and Linux frame-walk/code-emission bodies to platform-specific helpers</p>
+<p>													  while keeping the shared scratch reservation wrapper small. The capped</p>
+<p>													  profile now shows <code>x64_native_program.oren</code> at about 38.0s total / 28.5s</p>
+<p>													  parse, with <code>_emit_list_len_intrinsic_v0_x64</code> exposed at about 179ms as</p>
+<p>													  the next parser body.</p>
 <p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

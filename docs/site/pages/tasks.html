@@ -499,6 +499,11 @@
 <p>																							 volatile <code>r10</code>. The capped profile now shows</p>
 <p>																							 <code>x64_native_program.oren</code> at about 37.7s total / 28.2s parse, with</p>
 <p>																							 <code>_emit_stack_trace_best_effort</code> exposed at about 153ms as the next parser</p>
+<p>																							 body. X64 best-effort panic stack-trace lowering now delegates Windows and</p>
+<p>																							 Linux frame-walk/code-emission bodies to platform-specific helpers while</p>
+<p>																							 keeping the shared scratch reservation wrapper small. The capped profile now</p>
+<p>																							 shows <code>x64_native_program.oren</code> at about 38.0s total / 28.5s parse, with</p>
+<p>																							 <code>_emit_list_len_intrinsic_v0_x64</code> exposed at about 179ms as the next parser</p>
 <p>																							 body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>

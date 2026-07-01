@@ -443,6 +443,11 @@ This file is the concise task view. Detailed implementation status lives in
 																							 volatile `r10`. The capped profile now shows
 																							 `x64_native_program.oren` at about 37.7s total / 28.2s parse, with
 																							 `_emit_stack_trace_best_effort` exposed at about 153ms as the next parser
+																							 body. X64 best-effort panic stack-trace lowering now delegates Windows and
+																							 Linux frame-walk/code-emission bodies to platform-specific helpers while
+																							 keeping the shared scratch reservation wrapper small. The capped profile now
+																							 shows `x64_native_program.oren` at about 38.0s total / 28.5s parse, with
+																							 `_emit_list_len_intrinsic_v0_x64` exposed at about 179ms as the next parser
 																							 body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
