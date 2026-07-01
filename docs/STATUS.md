@@ -960,12 +960,19 @@ Facts from the 2026-05-28 implementation pass:
 																																												  exposed at about 80ms as the next parser body.
 																																												  X64 runtime-object function-offset replay now routes compact sidecar
 																																												  attachment and legacy map replay through focused helpers while preserving
-																																												  call-depth hook discovery, base-code adjustment, and phase-log path reporting.
-																																												  The capped profile now shows `x64_native_program.oren` at about 41.6s total /
-																																												  30.7s parse, with `_emit_intrinsic_sys_linux_net_sockopt_x64` exposed at about
-																																												  77ms as the next parser body.
-																																			  Serial/thread module ASTBIN writes are explicit prewarm work via
-								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																													  call-depth hook discovery, base-code adjustment, and phase-log path reporting.
+																																													  The capped profile now shows `x64_native_program.oren` at about 41.6s total /
+																																													  30.7s parse, with `_emit_intrinsic_sys_linux_net_sockopt_x64` exposed at about
+																																													  77ms as the next parser body.
+																																													  Linux x64 `sys_getsockopt` / `sys_setsockopt` lowering now mirrors the
+																																													  adjacent Linux net-message helper shape with shared spill state, capsule
+																																													  prehook argument loading, syscall argument loading, and syscall-number
+																																													  dispatch helpers. The capped profile now shows `x64_native_program.oren` at
+																																													  about 42.1s total / 31.1s parse, with
+																																													  `_emit_intrinsic_sys_nanosleep_windows_x64` exposed at about 78ms as the next
+																																													  parser body.
+																																				  Serial/thread module ASTBIN writes are explicit prewarm work via
+									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

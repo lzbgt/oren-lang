@@ -214,60 +214,84 @@ fn _emit_intrinsic_sys_linux_net_accept_x64(ctx, nm, expr, locals, args, capsule
     return true
 }
 
-fn _emit_intrinsic_sys_linux_net_sockopt_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm != "sys_getsockopt" && nm != "sys_setsockopt" { return false }
-    if oren_list_len(args) != 5 { err(ctx, "x64 native v0: " + nm + " expects 5 args"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
-
+fn _x64_linux_net_sockopt_state(ctx, locals, args) {
     var base30 = _intr_tmp_push(ctx, 5)
-    if oren_type_tag(base30) == 0 { return true }
+    if oren_type_tag(base30) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base30 + 0)
     var tmp_level = _intr_tmp_off(ctx, locals, base30 + 1)
     var tmp_opt = _intr_tmp_off(ctx, locals, base30 + 2)
     var tmp_val = _intr_tmp_off(ctx, locals, base30 + 3)
     var tmp_lenp = _intr_tmp_off(ctx, locals, base30 + 4)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_level) == 0 || oren_type_tag(tmp_opt) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base30); return true }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_level) == 0 || oren_type_tag(tmp_opt) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base30); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_level)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_opt)
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_val)
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_lenp)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base30); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base30); return nil }
 
-    if nm == "sys_getsockopt" {
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_level)
-        _intr_load_x64(ctx, 2, tmp_opt)
-        _intr_load_x64(ctx, 1, tmp_val) // rcx = optval
-        _intr_load_x64(ctx, 8, tmp_lenp) // r8 = optlen_ptr
-        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre") }
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_level)
-        _intr_load_x64(ctx, 2, tmp_opt)
-        _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
-        _intr_load_x64(ctx, 8, tmp_lenp)  // r8 = optlen_ptr (arg5)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getsockopt()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-    } else {
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_level)
-        _intr_load_x64(ctx, 2, tmp_opt)
-        _intr_load_x64(ctx, 1, tmp_val) // rcx = optval
-        _intr_load_x64(ctx, 8, tmp_lenp) // r8 = optlen
-        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre") }
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_level)
-        _intr_load_x64(ctx, 2, tmp_opt)
-        _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
-        _intr_load_x64(ctx, 8, tmp_lenp)  // r8 = optlen
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_setsockopt()))
-        bytes_extend(ctx["code"], core.insn_syscall())
+    return {
+        "base": base30,
+        "fd": tmp_fd,
+        "level": tmp_level,
+        "opt": tmp_opt,
+        "val": tmp_val,
+        "lenp": tmp_lenp
     }
+}
 
-    _intr_tmp_pop(ctx, base30)
+fn _x64_linux_net_sockopt_load_capsule_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
+    _intr_load_x64(ctx, 6, st["level"])
+    _intr_load_x64(ctx, 2, st["opt"])
+    _intr_load_x64(ctx, 1, st["val"]) // rcx = optval
+    _intr_load_x64(ctx, 8, st["lenp"]) // r8 = optlen/optlen_ptr
+    return nil
+}
+
+fn _x64_linux_net_sockopt_emit_pre(ctx, nm, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_net_sockopt_load_capsule_args(ctx, st)
+    if nm == "sys_getsockopt" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre")
+    } else {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre")
+    }
+    return nil
+}
+
+fn _x64_linux_net_sockopt_load_syscall_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
+    _intr_load_x64(ctx, 6, st["level"])
+    _intr_load_x64(ctx, 2, st["opt"])
+    _intr_load_x64(ctx, 10, st["val"]) // r10 = optval
+    _intr_load_x64(ctx, 8, st["lenp"]) // r8 = optlen/optlen_ptr
+    return nil
+}
+
+fn _x64_linux_net_sockopt_emit_syscall(ctx, nm, st) {
+    _x64_linux_net_sockopt_load_syscall_args(ctx, st)
+    if nm == "sys_getsockopt" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getsockopt()))
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_setsockopt()))
+    }
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_net_sockopt_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm != "sys_getsockopt" && nm != "sys_setsockopt" { return false }
+    if oren_list_len(args) != 5 { err(ctx, "x64 native v0: " + nm + " expects 5 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+    var state = _x64_linux_net_sockopt_state(ctx, locals, args)
+    if state == nil { return true }
+    _x64_linux_net_sockopt_emit_pre(ctx, nm, state, capsule)
+    _x64_linux_net_sockopt_emit_syscall(ctx, nm, state)
+
+    _intr_tmp_pop(ctx, state["base"])
     return true
 }
 
