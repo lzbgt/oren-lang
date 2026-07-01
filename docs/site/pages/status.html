@@ -782,6 +782,13 @@
 <p>																						  <code>x64_native_program.oren</code> at about 41.2s total / 30.6s parse,</p>
 <p>																						  with <code>_emit_float_cmp_to_bool_x64</code> exposed at about 99ms as the</p>
 <p>																						  next parser body.</p>
+<p>																						  X64 float comparison lowering now delegates operand spilling, XMM</p>
+<p>																						  load/convert, ordered/unordered condition dispatch, and bool result</p>
+<p>																						  patching to focused helpers while preserving IEEE NaN behavior for</p>
+<p>																						  each relation. The capped profile now shows</p>
+<p>																						  <code>x64_native_program.oren</code> at about 40.8s total / 29.9s parse,</p>
+<p>																						  with <code>_emit_malloc_size_in_rax</code> exposed at about 141ms as the next</p>
+<p>																						  parser body.</p>
 <p>														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

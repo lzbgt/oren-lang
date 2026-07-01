@@ -396,6 +396,102 @@ fn _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals) {
     return nil
 }
 
+fn _x64_float_cmp_spill_operands(ctx, left_expr, right_expr, locals) {
+    var base = _intr_tmp_push(ctx, 2)
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _emit_eval_int_to_rax(ctx, left_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
+
+    _emit_eval_int_to_rax(ctx, right_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
+
+    return {"base": base, "tmp_a": tmp_a, "tmp_b": tmp_b}
+}
+
+fn _x64_float_cmp_load_xmms(ctx, left_expr, right_expr, state) {
+    // Load/convert A into XMM0.
+    _emit_mov_r64_mrbp(ctx, 0, 0 - state["tmp_a"]) // rax = a
+    if _x64_expr_is_floaty(ctx, left_expr) {
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
+    } else {
+        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
+    }
+
+    // Load/convert B into XMM1.
+    _emit_mov_r64_mrbp(ctx, 0, 0 - state["tmp_b"]) // rax = b
+    if _x64_expr_is_floaty(ctx, right_expr) {
+        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
+    } else {
+        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
+    }
+    return nil
+}
+
+fn _x64_float_cmp_emit_branch(ctx, op, local_fixups, l_true, l_done) {
+    if op == "==" {
+        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_true)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        return true
+    }
+    if op == "!=" {
+        _emit_jcc_to_label(ctx, local_fixups, "p", l_true)
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        return true
+    }
+    if op == "<" {
+        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
+        _emit_jcc_to_label(ctx, local_fixups, "b", l_true)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        return true
+    }
+    if op == "<=" {
+        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
+        _emit_jcc_to_label(ctx, local_fixups, "be", l_true)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        return true
+    }
+    if op == ">" {
+        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
+        _emit_jcc_to_label(ctx, local_fixups, "a", l_true)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        return true
+    }
+    if op == ">=" {
+        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
+        _emit_jcc_to_label(ctx, local_fixups, "ae", l_true)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        return true
+    }
+    return false
+}
+
+fn _x64_float_cmp_emit_bool_result(ctx, op) {
+    var labels = {}
+    var local_fixups = []
+    var l_true = _new_label(ctx, "fcmp_true")
+    var l_done = _new_label(ctx, "fcmp_done")
+
+    if _x64_float_cmp_emit_branch(ctx, op, local_fixups, l_true, l_done) != true {
+        err(ctx, "x64 native v0: unsupported float compare op: " + op)
+        return nil
+    }
+
+    _emit_label(ctx, labels, l_true)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     // Emit float comparison (IEEE-754 ordered semantics; NaN is unordered):
     // - `==` true only when ordered and equal
@@ -408,36 +504,9 @@ fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     if ctx == nil { return nil }
     if left_expr == nil || right_expr == nil { err(ctx, "x64 native v0: float cmp missing operands"); return nil }
 
-    var base = _intr_tmp_push(ctx, 2)
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // Evaluate LTR.
-    _emit_eval_int_to_rax(ctx, left_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
-
-    _emit_eval_int_to_rax(ctx, right_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
-
-    // Load/convert A into XMM0.
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
-    if _x64_expr_is_floaty(ctx, left_expr) {
-        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
-    } else {
-        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
-    }
-
-    // Load/convert B into XMM1.
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_b) // rax = b
-    if _x64_expr_is_floaty(ctx, right_expr) {
-        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
-    } else {
-        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
-    }
+    var state = _x64_float_cmp_spill_operands(ctx, left_expr, right_expr, locals)
+    if state == nil { return nil }
+    _x64_float_cmp_load_xmms(ctx, left_expr, right_expr, state)
 
     // Compare XMM0 vs XMM1 (sets ZF/PF/CF).
     bytes_extend(ctx["code"], core.insn_ucomisd_xmm_xmm(0, 1))
@@ -446,53 +515,7 @@ fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
 
-    var labels = {}
-    var local_fixups = []
-    var l_true = _new_label(ctx, "fcmp_true")
-    var l_done = _new_label(ctx, "fcmp_done")
-
-    if op == "==" {
-        // unordered => false; else ZF==1 => true
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else if op == "!=" {
-        // unordered => true; else ZF==0 => true
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_true)
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else if op == "<" {
-        // unordered => false; else CF==1 => true
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "b", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else if op == "<=" {
-        // unordered => false; else (CF==1 || ZF==1) => true
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "be", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else if op == ">" {
-        // unordered => false; else (CF==0 && ZF==0) => true
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "a", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else if op == ">=" {
-        // unordered => false; else (CF==0) => true
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "ae", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else {
-        _intr_tmp_pop(ctx, base)
-        err(ctx, "x64 native v0: unsupported float compare op: " + op)
-        return nil
-    }
-
-    _emit_label(ctx, labels, l_true)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-
-    _intr_tmp_pop(ctx, base)
+    _x64_float_cmp_emit_bool_result(ctx, op)
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
