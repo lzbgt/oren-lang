@@ -688,11 +688,18 @@ This file is the concise task view. Detailed implementation status lives in
 																	 parser body.
 																	 X64 entry top/main call emission now delegates top-level call/skip
 																	 tracing and executable main-or-zero return setup to focused helpers while
-																	 preserving DLL/SO no-main behavior and phase-log fixup counters. The
-																	 capped profile now shows `x64_native_program.oren` at about 42.6s total
-																	 / 31.6s parse, with `_data_finalize_cstr0_table` exposed at about 140ms
-																	 as the next parser body.
-																	     Serial/thread module
+																		 preserving DLL/SO no-main behavior and phase-log fixup counters. The
+																		 capped profile now shows `x64_native_program.oren` at about 42.6s total
+																		 / 31.6s parse, with `_data_finalize_cstr0_table` exposed at about 140ms
+																		 as the next parser body.
+																		 X64 C-string static-table finalization now delegates reserved-slot
+																		 decoding, runtime-object offset counting/appending, user literal offset
+																		 appending, and slot patching to focused helpers while preserving the
+																		 PIE-safe table layout. The capped profile now shows
+																		 `x64_native_program.oren` at about 40.7s total / 30.1s parse, with
+																		 `_emit_eval_prefix_to_rax` exposed at about 100ms as the next parser
+																		 body.
+																		     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

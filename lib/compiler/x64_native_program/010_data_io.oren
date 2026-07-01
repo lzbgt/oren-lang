@@ -165,6 +165,62 @@ fn _data_add_cstr0_nodedup(ctx, s) {
     return off
 }
 
+fn _data_cstr0_table_slot_off(ctx) {
+    if ctx == nil { return nil }
+    var slot_enc = ctx["cstr0_table_slot_enc"]
+    if slot_enc <= 0 { return nil }
+    return slot_enc - 1
+}
+
+fn _data_cstr0_runtime_count(ctx) {
+    if ctx == nil { return 0 }
+    var rt_offs_u8 = ctx["rtobj_cstr0_offsets_u8"]
+    if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
+        return oren_buf_len(rt_offs_u8) / 8
+    }
+    var rt_offs_enc = ctx["rtobj_cstr0_list_enc"]
+    if rt_offs_enc != nil { return oren_list_len(rt_offs_enc) }
+    return 0
+}
+
+fn _data_append_runtime_cstr0_offsets(ctx) {
+    if ctx == nil { return nil }
+    var rt_offs_u8 = ctx["rtobj_cstr0_offsets_u8"]
+    if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
+        bytes_extend_u8_buf(ctx["data"], rt_offs_u8)
+        return nil
+    }
+    var rt_offs_enc = ctx["rtobj_cstr0_list_enc"]
+    if rt_offs_enc == nil { return nil }
+    var ri = 0
+    while ri < oren_list_len(rt_offs_enc) {
+        var off_enc = rt_offs_enc[ri]
+        if oren_type_tag(off_enc) == 1 && off_enc > 0 {
+            push_u64_le(ctx["data"], off_enc - 1)
+        }
+        ri = ri + 1
+    }
+    return nil
+}
+
+fn _data_append_user_cstr0_offsets(ctx, offs, user_count) {
+    if ctx == nil { return nil }
+    var i = 0
+    while i < user_count {
+        push_u64_le(ctx["data"], offs[i])
+        i = i + 1
+    }
+    return nil
+}
+
+fn _data_patch_cstr0_table_slot(ctx, slot_off, table_off) {
+    if ctx == nil { return nil }
+    // table_off fits in u32 for all practical binaries, so hi32 is 0.
+    set_u32_le(ctx["data"], slot_off + 0, core.int_mod(table_off, 4294967296))
+    set_u32_le(ctx["data"], slot_off + 4, 0)
+    return nil
+}
+
 fn _data_finalize_cstr0_table(ctx) {
     // Build a compact table of all unique embedded C-string literals so the program entry stub can
     // register them once via `oren_init_static_cstr0_table` (native runtime).
@@ -181,23 +237,15 @@ fn _data_finalize_cstr0_table(ctx) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
-    var slot_enc = ctx["cstr0_table_slot_enc"]
-    if slot_enc <= 0 {
+    var slot_off = _data_cstr0_table_slot_off(ctx)
+    if slot_off == nil {
         // If the backend didn't reserve a slot, do nothing (rolling safety).
         return nil
     }
-    var slot_off = slot_enc - 1
 
     var offs = ctx["cstr0_list"]
     if offs == nil { offs = [] }
-    var rt_offs_u8 = ctx["rtobj_cstr0_offsets_u8"]
-    var rt_offs_enc = ctx["rtobj_cstr0_list_enc"]
-    var rt_count = 0
-    if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
-        rt_count = oren_buf_len(rt_offs_u8) / 8
-    } else if rt_offs_enc != nil {
-        rt_count = oren_list_len(rt_offs_enc)
-    }
+    var rt_count = _data_cstr0_runtime_count(ctx)
     var user_count = oren_list_len(offs)
 
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
@@ -206,28 +254,11 @@ fn _data_finalize_cstr0_table(ctx) {
     // Always emit a table (even if empty) so entry stubs can call init unconditionally.
     push_u64_le(ctx["data"], table_off)
     push_u64_le(ctx["data"], rt_count + user_count)
-    if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
-        bytes_extend_u8_buf(ctx["data"], rt_offs_u8)
-    } else if rt_offs_enc != nil {
-        var ri = 0
-        while ri < oren_list_len(rt_offs_enc) {
-            var off_enc = rt_offs_enc[ri]
-            if oren_type_tag(off_enc) == 1 && off_enc > 0 {
-                push_u64_le(ctx["data"], off_enc - 1)
-            }
-            ri = ri + 1
-        }
-    }
-    var i = 0
-    while i < user_count {
-        push_u64_le(ctx["data"], offs[i])
-        i = i + 1
-    }
+    _data_append_runtime_cstr0_offsets(ctx)
+    _data_append_user_cstr0_offsets(ctx, offs, user_count)
 
     // Write table_off into the reserved slot as a u64 (little-endian).
-    // table_off fits in u32 for all practical binaries, so hi32 is 0.
-    set_u32_le(ctx["data"], slot_off + 0, core.int_mod(table_off, 4294967296))
-    set_u32_le(ctx["data"], slot_off + 4, 0)
+    _data_patch_cstr0_table_slot(ctx, slot_off, table_off)
     return table_off
 }
 
