@@ -418,21 +418,23 @@ fn _emit_intrinsic_sys_linux_close_x64(ctx, expr, locals, args, capsule) {
     return true
 }
 
-fn _emit_intrinsic_sys_linux_access_x64(ctx, expr, locals, args, capsule) {
-    if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_access expects 2 args"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_access does not support spread"); return true }
-
+fn _x64_linux_access_spill_state(ctx, locals, args) {
     var base4 = _intr_tmp_push(ctx, 3) // path, mode, pair
-    if oren_type_tag(base4) == 0 { return true }
+    if oren_type_tag(base4) == 0 { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base4 + 0)
     var tmp_mode = _intr_tmp_off(ctx, locals, base4 + 1)
     var tmp_pair = _intr_tmp_off(ctx, locals, base4 + 2)
-    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base4); return true }
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base4); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }
+    return {"base": base4, "path": tmp_path, "mode": tmp_mode, "pair": tmp_pair}
+}
 
+fn _x64_linux_access_emit_prehook(ctx, state, capsule) {
+    var tmp_path = state["path"]
+    var tmp_pair = state["pair"]
     if capsule {
         _intr_load_x64(ctx, 7, tmp_path)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_pre")
@@ -442,19 +444,38 @@ fn _emit_intrinsic_sys_linux_access_x64(ctx, expr, locals, args, capsule) {
     } else {
         _intr_load_x64(ctx, 6, tmp_path)
     }
+    return nil
+}
 
+fn _x64_linux_access_emit_syscall(ctx, state) {
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-    _intr_load_x64(ctx, 2, tmp_mode)
+    _intr_load_x64(ctx, 2, state["mode"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_faccessat()))
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
+fn _x64_linux_access_emit_posthook(ctx, state, capsule) {
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0))
-        _intr_load_x64(ctx, 7, tmp_pair)
+        _intr_load_x64(ctx, 7, state["pair"])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_post")
     }
-    _intr_tmp_pop(ctx, base4)
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_access_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_access expects 2 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_access does not support spread"); return true }
+
+    var state = _x64_linux_access_spill_state(ctx, locals, args)
+    if state == nil { return true }
+
+    _x64_linux_access_emit_prehook(ctx, state, capsule)
+    _x64_linux_access_emit_syscall(ctx, state)
+    _x64_linux_access_emit_posthook(ctx, state, capsule)
+    _intr_tmp_pop(ctx, state["base"])
     return true
 }
 

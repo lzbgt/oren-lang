@@ -661,6 +661,13 @@ Facts from the 2026-05-28 implementation pass:
 																						  shows `x64_native_program.oren` at about 41.3s total / 30.9s
 																						  parse, with `_emit_intrinsic_sys_linux_access_x64` exposed at
 																						  about 130ms as the next parser body.
+																						  X64 Linux `sys_access` lowering now delegates argument spill
+																						  state, capsule prehook pair handling, `faccessat` syscall
+																						  register setup, and capsule posthook emission to focused helpers
+																						  under the FS router. The capped profile now shows
+																						  `x64_native_program.oren` at about 43.0s total / 32.3s parse,
+																						  with `_x64_fast_list_get_sum_emit_single` exposed at about 112ms
+																						  as the next parser body.
 													  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
