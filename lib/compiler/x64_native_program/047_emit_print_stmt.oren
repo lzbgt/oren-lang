@@ -10,74 +10,98 @@
 // This module adds support for printing an arbitrary string expression (e.g. `"a"+b`),
 // without requiring full native runtime injection yet.
 
-fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: print requires locals"); return nil }
-
-    // Evaluate the string expression into RAX, preserve in r12.
+fn _x64_eval_print_string_to_r12(ctx, locals, str_expr) {
     _emit_eval_int_to_rax(ctx, str_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0)) // r12 = s
+    return true
+}
 
-    // Compute len in r8 (strlen). Treat s==0 as empty.
+fn _x64_emit_print_strlen_to_r8(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 12))
     _emit_string_len_from_ptr_x64(ctx, 8, 8)
+    return nil
+}
 
-    // Prepare intr temp slots and call the `sys_write` intrinsic to keep
-    // Linux/Windows behavior unified (syscall vs WinAPI).
+fn _x64_print_write_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
-    var slot_fd = base
-    var slot_ptr = iadd(base, 1)
-    var slot_len = iadd(base, 2)
-    var tmp_fd = _intr_tmp_off(ctx, locals, slot_fd)
-    var tmp_ptr = _intr_tmp_off(ctx, locals, slot_ptr)
-    var tmp_len = _intr_tmp_off(ctx, locals, slot_len)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var state = {}
+    state["base"] = base
+    state["slot_fd"] = base
+    state["slot_ptr"] = iadd(base, 1)
+    state["slot_len"] = iadd(base, 2)
+    state["tmp_fd"] = _intr_tmp_off(ctx, locals, state["slot_fd"])
+    state["tmp_ptr"] = _intr_tmp_off(ctx, locals, state["slot_ptr"])
+    state["tmp_len"] = _intr_tmp_off(ctx, locals, state["slot_len"])
+    if oren_type_tag(state["tmp_fd"]) == 0 || oren_type_tag(state["tmp_ptr"]) == 0 || oren_type_tag(state["tmp_len"]) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return state
+}
 
-    // fd=1
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
-    // ptr=s
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
-    // len=r8
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 8))
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
-
-    // sys_write(1, s, len)
-    var call_write = {
+fn _x64_print_sys_write_call_expr(state) {
+    return {
         "type": "Call",
         "fn": {"type": "Identifier", "token": nil, "value": "sys_write"},
-        "args": [{"type": "IntrTmp", "idx": slot_fd},
-                 {"type": "IntrTmp", "idx": slot_ptr},
-                 {"type": "IntrTmp", "idx": slot_len}],
+        "args": [{"type": "IntrTmp", "idx": state["slot_fd"]},
+                 {"type": "IntrTmp", "idx": state["slot_ptr"]},
+                 {"type": "IntrTmp", "idx": state["slot_len"]}],
     }
-    _emit_eval_int_to_rax(ctx, call_write, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+}
 
-    // newline via a compile-time data literal so repeated prints don't leak heap.
-    var nl_off = _data_add_cstr0(ctx, "\n")
-    // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
-
-    // fd=1, ptr=&"\n", len=1
+fn _x64_store_print_write_args(ctx, state, ptr_reg, len_reg) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, ptr_reg))
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_ptr"], 0)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, len_reg))
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_len"], 0)
+    return nil
+}
+
+fn _x64_emit_print_sys_write(ctx, locals, call_write) {
+    _emit_eval_int_to_rax(ctx, call_write, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_emit_print_newline_args(ctx, state) {
+    var nl_off = _data_add_cstr0(ctx, "\n")
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
 
     var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_ptr"], 0)
 
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_len"], 0)
+    return nil
+}
 
-    _emit_eval_int_to_rax(ctx, call_write, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: print requires locals"); return nil }
 
-    _intr_tmp_pop(ctx, base)
+    if _x64_eval_print_string_to_r12(ctx, locals, str_expr) == false { return nil }
+    _x64_emit_print_strlen_to_r8(ctx)
+
+    // Reuse the `sys_write` intrinsic to keep Linux/Windows behavior unified.
+    var state = _x64_print_write_state(ctx, locals)
+    if state == nil { return nil }
+    var call_write = _x64_print_sys_write_call_expr(state)
+    _x64_store_print_write_args(ctx, state, 12, 8)
+    if _x64_emit_print_sys_write(ctx, locals, call_write) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+
+    _x64_emit_print_newline_args(ctx, state)
+    if _x64_emit_print_sys_write(ctx, locals, call_write) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }

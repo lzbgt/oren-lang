@@ -871,10 +871,17 @@ Facts from the 2026-05-28 implementation pass:
 																																			  Linux x64 `sys_gettimeofday` lowering now delegates temp-state setup,
 																																			  argument spills, capsule prehook emission, raw `gettimeofday`, and optional
 																																			  monotonic `clock_gettime` synthesis to focused helpers while preserving the
-																																			  stable 3-argument runtime ABI. The capped profile now shows
-																																			  `x64_native_program.oren` at about 41.0s total / 30.2s parse, with
-																																			  `_emit_print_stmt_str_x64` exposed at about 81ms as the next parser body.
-																								  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																				  stable 3-argument runtime ABI. The capped profile now shows
+																																				  `x64_native_program.oren` at about 41.0s total / 30.2s parse, with
+																																				  `_emit_print_stmt_str_x64` exposed at about 81ms as the next parser body.
+																																				  X64 print-string statement lowering now delegates expression evaluation,
+																																				  string-length materialization, reusable `sys_write` temp setup, write-arg
+																																				  storage, and newline literal emission to focused helpers while keeping the
+																																				  shared Linux/Windows `sys_write` path. The capped profile now shows
+																																				  `x64_native_program.oren` at about 42.2s total / 31.3s parse, with
+																																				  `_emit_intrinsic_sys_fcntl_setfl_windows_x64` exposed at about 82ms as
+																																				  the next parser body.
+																									  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

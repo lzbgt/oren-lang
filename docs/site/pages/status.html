@@ -911,10 +911,17 @@
 <p>																																			  Linux x64 <code>sys_gettimeofday</code> lowering now delegates temp-state setup,</p>
 <p>																																			  argument spills, capsule prehook emission, raw <code>gettimeofday</code>, and optional</p>
 <p>																																			  monotonic <code>clock_gettime</code> synthesis to focused helpers while preserving the</p>
-<p>																																			  stable 3-argument runtime ABI. The capped profile now shows</p>
-<p>																																			  <code>x64_native_program.oren</code> at about 41.0s total / 30.2s parse, with</p>
-<p>																																			  <code>_emit_print_stmt_str_x64</code> exposed at about 81ms as the next parser body.</p>
-<p>																								  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																				  stable 3-argument runtime ABI. The capped profile now shows</p>
+<p>																																				  <code>x64_native_program.oren</code> at about 41.0s total / 30.2s parse, with</p>
+<p>																																				  <code>_emit_print_stmt_str_x64</code> exposed at about 81ms as the next parser body.</p>
+<p>																																				  X64 print-string statement lowering now delegates expression evaluation,</p>
+<p>																																				  string-length materialization, reusable <code>sys_write</code> temp setup, write-arg</p>
+<p>																																				  storage, and newline literal emission to focused helpers while keeping the</p>
+<p>																																				  shared Linux/Windows <code>sys_write</code> path. The capped profile now shows</p>
+<p>																																				  <code>x64_native_program.oren</code> at about 42.2s total / 31.3s parse, with</p>
+<p>																																				  <code>_emit_intrinsic_sys_fcntl_setfl_windows_x64</code> exposed at about 82ms as</p>
+<p>																																				  the next parser body.</p>
+<p>																									  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
