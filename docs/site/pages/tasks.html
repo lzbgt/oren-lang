@@ -518,10 +518,15 @@
 <p>																							 <code>_emit_ops_in_fn</code> exposed at about 164ms as the next parser body. X64</p>
 <p>																							 function-op emission now delegates loop-state setup, gas-note charging,</p>
 <p>																							 prebuilt top-level batch fast paths, post-op gas/slow logging, and body</p>
-<p>																							 summary emission to focused helpers while preserving regular-op dispatch.</p>
-<p>																							 The capped profile now shows <code>x64_native_program.oren</code> at about 38.3s total /</p>
-<p>																							 28.6s parse, with <code>_emit_intrinsic_sys_linux_proc_clone_x64</code> exposed at about</p>
-<p>																							 150ms as the next parser body.</p>
+<p>																								 summary emission to focused helpers while preserving regular-op dispatch.</p>
+<p>																								 The capped profile now shows <code>x64_native_program.oren</code> at about 38.3s total /</p>
+<p>																								 28.6s parse, with <code>_emit_intrinsic_sys_linux_proc_clone_x64</code> exposed at about</p>
+<p>																								 150ms as the next parser body. Linux x64 proc/clone lowering now delegates raw</p>
+<p>																								 <code>sys_clone</code>, <code>sys_thread_create</code> state/spill setup, clone syscall setup, and</p>
+<p>																								 child start/exit emission to focused helpers while preserving <code>sys_gettid</code></p>
+<p>																								 dispatch and the clone capsule prehook. The capped profile now shows</p>
+<p>																								 <code>x64_native_program.oren</code> at about 38.3s total / 28.5s parse, with</p>
+<p>																								 <code>_x64_emit_direct_named_call_v0</code> exposed at about 150ms as the next parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

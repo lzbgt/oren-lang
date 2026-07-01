@@ -505,6 +505,12 @@
 <p>													  summary emission to focused helpers while preserving regular-op dispatch.</p>
 <p>													  The capped profile now shows <code>x64_native_program.oren</code> at about 38.3s</p>
 <p>													  total / 28.6s parse, with <code>_emit_intrinsic_sys_linux_proc_clone_x64</code></p>
+<p>													  exposed at about 150ms as the next parser body. Linux x64 proc/clone</p>
+<p>													  lowering now delegates raw <code>sys_clone</code>, <code>sys_thread_create</code> state/spill</p>
+<p>													  setup, clone syscall setup, and child start/exit emission to focused</p>
+<p>													  helpers while preserving <code>sys_gettid</code> dispatch and the clone capsule</p>
+<p>													  prehook. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>													  about 38.3s total / 28.5s parse, with <code>_x64_emit_direct_named_call_v0</code></p>
 <p>													  exposed at about 150ms as the next parser body.</p>
 <p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>

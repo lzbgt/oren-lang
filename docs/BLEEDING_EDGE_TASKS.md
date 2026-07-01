@@ -462,10 +462,15 @@ This file is the concise task view. Detailed implementation status lives in
 																							 `_emit_ops_in_fn` exposed at about 164ms as the next parser body. X64
 																							 function-op emission now delegates loop-state setup, gas-note charging,
 																							 prebuilt top-level batch fast paths, post-op gas/slow logging, and body
-																							 summary emission to focused helpers while preserving regular-op dispatch.
-																							 The capped profile now shows `x64_native_program.oren` at about 38.3s total /
-																							 28.6s parse, with `_emit_intrinsic_sys_linux_proc_clone_x64` exposed at about
-																							 150ms as the next parser body.
+																								 summary emission to focused helpers while preserving regular-op dispatch.
+																								 The capped profile now shows `x64_native_program.oren` at about 38.3s total /
+																								 28.6s parse, with `_emit_intrinsic_sys_linux_proc_clone_x64` exposed at about
+																								 150ms as the next parser body. Linux x64 proc/clone lowering now delegates raw
+																								 `sys_clone`, `sys_thread_create` state/spill setup, clone syscall setup, and
+																								 child start/exit emission to focused helpers while preserving `sys_gettid`
+																								 dispatch and the clone capsule prehook. The capped profile now shows
+																								 `x64_native_program.oren` at about 38.3s total / 28.5s parse, with
+																								 `_x64_emit_direct_named_call_v0` exposed at about 150ms as the next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

@@ -652,155 +652,147 @@ fn _emit_intrinsic_sys_linux_proc_memory_x64(ctx, nm, expr, locals, args, capsul
     return false
 }
 
-fn _emit_intrinsic_sys_linux_proc_clone_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_clone" {
-        if oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_clone expects 5 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_clone does not support spread"); return true }
+fn _emit_intrinsic_sys_linux_raw_clone_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_clone expects 5 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_clone does not support spread"); return true }
 
-        var base15 = _intr_tmp_push(ctx, 5) // flags, stack, ptid, ctid, tls
-        if oren_type_tag(base15) == 0 { return true }
-        var tmp_flags = _intr_tmp_off(ctx, locals, base15 + 0)
-        var tmp_stack = _intr_tmp_off(ctx, locals, base15 + 1)
-        var tmp_ptid = _intr_tmp_off(ctx, locals, base15 + 2)
-        var tmp_ctid = _intr_tmp_off(ctx, locals, base15 + 3)
-        var tmp_tls = _intr_tmp_off(ctx, locals, base15 + 4)
-        if oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_stack) == 0 || oren_type_tag(tmp_ptid) == 0 || oren_type_tag(tmp_ctid) == 0 || oren_type_tag(tmp_tls) == 0 {
-            _intr_tmp_pop(ctx, base15)
-            return true
-        }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_stack)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_ptid)
-        _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
-        _intr_eval_spill_x64(ctx, locals, args[4], tmp_tls)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return true }
-
-        // pre: native_capsule_sys_clone_pre()
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
-        }
-
-        _intr_load_x64(ctx, 7, tmp_flags) // rdi = flags
-        _intr_load_x64(ctx, 6, tmp_stack) // rsi = stack
-        _intr_load_x64(ctx, 2, tmp_ptid)  // rdx = ptid
-        _intr_load_x64(ctx, 10, tmp_ctid) // r10 = ctid
-        _intr_load_x64(ctx, 8, tmp_tls)   // r8 = tls
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
+    var base15 = _intr_tmp_push(ctx, 5) // flags, stack, ptid, ctid, tls
+    if oren_type_tag(base15) == 0 { return true }
+    var tmp_flags = _intr_tmp_off(ctx, locals, base15 + 0)
+    var tmp_stack = _intr_tmp_off(ctx, locals, base15 + 1)
+    var tmp_ptid = _intr_tmp_off(ctx, locals, base15 + 2)
+    var tmp_ctid = _intr_tmp_off(ctx, locals, base15 + 3)
+    var tmp_tls = _intr_tmp_off(ctx, locals, base15 + 4)
+    if oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_stack) == 0 || oren_type_tag(tmp_ptid) == 0 || oren_type_tag(tmp_ctid) == 0 || oren_type_tag(tmp_tls) == 0 {
         _intr_tmp_pop(ctx, base15)
         return true
     }
-    
-    if nm == "sys_thread_create" {
-        // Linux-only syscall-first OS thread create (clone wrapper).
-        // Signature: sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr) -> tid or -errno.
-        if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_thread_create expects 4 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_thread_create does not support spread"); return true }
 
-        var base_tc = _intr_tmp_push(ctx, 4) // start_addr, arg_ptr, stack_top, ctid_ptr
-        if oren_type_tag(base_tc) == 0 { return true }
-        var tmp_start = _intr_tmp_off(ctx, locals, base_tc + 0)
-        var tmp_arg = _intr_tmp_off(ctx, locals, base_tc + 1)
-        var tmp_stack_top = _intr_tmp_off(ctx, locals, base_tc + 2)
-        var tmp_ctid = _intr_tmp_off(ctx, locals, base_tc + 3)
-        if oren_type_tag(tmp_start) == 0 || oren_type_tag(tmp_arg) == 0 || oren_type_tag(tmp_stack_top) == 0 || oren_type_tag(tmp_ctid) == 0 {
-            _intr_tmp_pop(ctx, base_tc)
-            return true
-        }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_stack)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_ptid)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
+    _intr_eval_spill_x64(ctx, locals, args[4], tmp_tls)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return true }
 
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_start)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_stack_top)
-        _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_tc); return true }
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
+    }
 
-        // Only lower this intrinsic for non-Windows targets.
-        //
-        // IMPORTANT: do not infer the target OS from ABI details (shadow space, arg regs, ...):
-        // we generate Linux syscalls here, and some rolling build paths may temporarily select
-        // a Windows-ish ABI shape while still targeting ELF/Linux.
-        var platform_tc = ctx["platform"]
-        if platform_tc != nil && platform_tc["os"] == "windows" {
-            _emit_return_enosys_x64(ctx)
-            _intr_tmp_pop(ctx, base_tc)
-            return true
-        }
+    _intr_load_x64(ctx, 7, tmp_flags) // rdi = flags
+    _intr_load_x64(ctx, 6, tmp_stack) // rsi = stack
+    _intr_load_x64(ctx, 2, tmp_ptid)  // rdx = ptid
+    _intr_load_x64(ctx, 10, tmp_ctid) // r10 = ctid
+    _intr_load_x64(ctx, 8, tmp_tls)   // r8 = tls
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
+    bytes_extend(ctx["code"], core.insn_syscall())
 
-        // pre: native_capsule_sys_clone_pre()
-        // (sys_thread_create is a clone wrapper; reuse the same capsule hook.)
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
-        }
+    _intr_tmp_pop(ctx, base15)
+    return true
+}
 
-        // Linux clone(2) flags for a real OS thread in the same address space:
-        //   CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM |
-        //   CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID | CLONE_CHILD_SETTID
-        //
-        // Constants verified against:
-        //   project-doc/web/linux/include_uapi_linux_sched.h
-        var flags = 0x01350F00
+fn _x64_linux_thread_create_state(ctx, locals, args) {
+    var base_tc = _intr_tmp_push(ctx, 4) // start_addr, arg_ptr, stack_top, ctid_ptr
+    if oren_type_tag(base_tc) == 0 { return nil }
+    var tmp_start = _intr_tmp_off(ctx, locals, base_tc + 0)
+    var tmp_arg = _intr_tmp_off(ctx, locals, base_tc + 1)
+    var tmp_stack_top = _intr_tmp_off(ctx, locals, base_tc + 2)
+    var tmp_ctid = _intr_tmp_off(ctx, locals, base_tc + 3)
+    if oren_type_tag(tmp_start) == 0 || oren_type_tag(tmp_arg) == 0 || oren_type_tag(tmp_stack_top) == 0 || oren_type_tag(tmp_ctid) == 0 {
+        _intr_tmp_pop(ctx, base_tc)
+        return nil
+    }
 
-        // Preserve the start routine and argument across the clone syscall in callee-saved regs.
-        //
-        // Rationale:
-        // - `syscall` clobbers RCX/R11 (per the x86_64 ABI), but preserves other GPRs.
-        // - Using registers avoids relying on "write start/arg onto child stack" encodings, which
-        //   are easy to get subtly wrong with REX prefixes and can crash immediately in the child.
-        _intr_load_x64(ctx, 12, tmp_start) // r12 = start_addr
-        _intr_load_x64(ctx, 13, tmp_arg)   // r13 = arg_ptr
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_start)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_stack_top)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_tc); return nil }
+    return {"base": base_tc, "tmp_start": tmp_start, "tmp_arg": tmp_arg, "tmp_stack_top": tmp_stack_top, "tmp_ctid": tmp_ctid}
+}
 
-        // Set child's SP to stack_top aligned down to 16 so that *before* `call`,
-        // RSP is 16-byte aligned (SysV ABI). After `call` pushes a return address,
-        // the callee sees the standard RSP%16==8 at function entry.
-        _intr_load_x64(ctx, 6, tmp_stack_top) // rsi = stack_top
-        // NOTE: `core.insn_and_r64_imm32` takes an *unsigned* u32 immediate. Use 0xFFFFFFF0 for -16.
-        // See similar usage in `x64_native_program/040_emit_expr.oren`.
-        bytes_extend(ctx["code"], core.insn_and_r64_imm32(6, 4294967280)) // align down to 16
+fn _x64_emit_linux_thread_clone_call(ctx, state, capsule) {
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
+    }
 
-        // clone(flags, child_stack, ptid, ctid, tls)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, flags)) // edi = flags
-        _intr_load_x64(ctx, 2, tmp_ctid)  // rdx = ptid (reuse ctid_ptr for parent_tid)
-        _intr_load_x64(ctx, 10, tmp_ctid) // r10 = ctid_ptr
-        bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8 = tls = 0
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
-        bytes_extend(ctx["code"], core.insn_syscall())
+    // Linux clone(2) flags for a real OS thread in the same address space:
+    //   CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM |
+    //   CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID | CLONE_CHILD_SETTID
+    // Constants verified against project-doc/web/linux/include_uapi_linux_sched.h.
+    var flags = 0x01350F00
 
-        // If child: run start(arg) and then sys_exit(0). Never return to caller frame.
-        var labels_tc = {}
-        var fixups_tc = []
-        var l_tc_done = _new_label(ctx, "tc_done")
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, fixups_tc, "ne", l_tc_done)
+    // Preserve the start routine and argument across the clone syscall in callee-saved regs.
+    _intr_load_x64(ctx, 12, state["tmp_start"]) // r12 = start_addr
+    _intr_load_x64(ctx, 13, state["tmp_arg"])   // r13 = arg_ptr
 
-        // Child init (allocator hygiene):
-        // The x64 native bump allocator state lives in callee-saved registers:
-        //   - R15 = heap_ptr
-        //   - R14 = heap_limit
-        //
-        // `clone(2)` threads inherit parent register contents, so without resetting R14/R15
-        // the parent and child can allocate from the same bump region concurrently.
-        // Reset so the first allocation in the child takes the slow path (mmap) and seeds
-        // per-thread bump state.
-        bytes_extend(ctx["code"], core.insn_xor_r64_r64(14, 14)) // r14 = 0
-        bytes_extend(ctx["code"], core.insn_xor_r64_r64(15, 15)) // r15 = 0
+    // Align child SP down to 16 before call; callee sees standard SysV RSP%16==8.
+    _intr_load_x64(ctx, 6, state["tmp_stack_top"]) // rsi = stack_top
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(6, 4294967280)) // align down to 16
 
-        // Child path: call start_addr(arg_ptr)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 13)) // rdi = r13 (arg_ptr)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12)) // rax = r12 (start_addr)
-        bytes_extend(ctx["code"], core.insn_call_rax())
+    // clone(flags, child_stack, ptid, ctid, tls)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, flags)) // edi = flags
+    _intr_load_x64(ctx, 2, state["tmp_ctid"])  // rdx = ptid (reuse ctid_ptr for parent_tid)
+    _intr_load_x64(ctx, 10, state["tmp_ctid"]) // r10 = ctid_ptr
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8 = tls = 0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
-        // sys_exit(0)
-        bytes_extend(ctx["code"], core.insn_xor_r64_r64(7, 7)) // rdi = 0
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_exit()))
-        bytes_extend(ctx["code"], core.insn_syscall())
+fn _x64_emit_linux_thread_child_path(ctx) {
+    var labels_tc = {}
+    var fixups_tc = []
+    var l_tc_done = _new_label(ctx, "tc_done")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups_tc, "ne", l_tc_done)
 
-        _emit_label(ctx, labels_tc, l_tc_done)
-        _patch_local_fixups(ctx, labels_tc, fixups_tc)
+    // Child allocator hygiene: force first child allocation through slow mmap path.
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(14, 14)) // r14 = 0
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(15, 15)) // r15 = 0
 
+    // Child path: call start_addr(arg_ptr)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 13)) // rdi = r13 (arg_ptr)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12)) // rax = r12 (start_addr)
+    bytes_extend(ctx["code"], core.insn_call_rax())
+
+    // sys_exit(0)
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(7, 7)) // rdi = 0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_exit()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+
+    _emit_label(ctx, labels_tc, l_tc_done)
+    _patch_local_fixups(ctx, labels_tc, fixups_tc)
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_thread_create_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_thread_create expects 4 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_thread_create does not support spread"); return true }
+
+    var state = _x64_linux_thread_create_state(ctx, locals, args)
+    if state == nil { return true }
+    var base_tc = state["base"]
+
+    var platform_tc = ctx["platform"]
+    if platform_tc != nil && platform_tc["os"] == "windows" {
+        _emit_return_enosys_x64(ctx)
         _intr_tmp_pop(ctx, base_tc)
         return true
+    }
+
+    _x64_emit_linux_thread_clone_call(ctx, state, capsule)
+    _x64_emit_linux_thread_child_path(ctx)
+    _intr_tmp_pop(ctx, base_tc)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_proc_clone_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm == "sys_clone" {
+        return _emit_intrinsic_sys_linux_raw_clone_x64(ctx, expr, locals, args, capsule)
+    }
+    if nm == "sys_thread_create" {
+        return _emit_intrinsic_sys_linux_thread_create_x64(ctx, expr, locals, args, capsule)
     }
 
     if nm == "sys_gettid" {
