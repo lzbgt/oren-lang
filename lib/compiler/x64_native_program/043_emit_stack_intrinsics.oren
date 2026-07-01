@@ -152,39 +152,33 @@ fn _x64_emit_ctx_switch_intrinsic(ctx, locals, args) {
     return 1
 }
 
-fn _x64_emit_resolve_symbol_intrinsic(ctx, locals, args) {
-    if args == nil || oren_list_len(args) != 1 {
-        err(ctx, "x64 native v0: resolve_symbol expects 1 arg")
-        return 1
-    }
-
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
-    var symtab_off_enc = ctx["symtab_off"]
-    var symtab_off = nil
-    if oren_type_tag(symtab_off_enc) != 0 { symtab_off = symtab_off_enc - 1 }
+fn _x64_resolve_symbol_emit_unknown_default(ctx) {
     var unk_off = _data_add_cstr0(ctx, "???")
     var lea_unk = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
+    return nil
+}
 
-    if oren_type_tag(symtab_off_enc) == 0 {
-        if locals != nil { _emit_ensure_tracked_ptr_kind_x64(ctx, locals, 0, 1) }
-        return 1
-    }
+fn _x64_resolve_symbol_symtab_off(ctx) {
+    var symtab_off_enc = ctx["symtab_off"]
+    if oren_type_tag(symtab_off_enc) == 0 { return nil }
+    return symtab_off_enc - 1
+}
+
+fn _x64_resolve_symbol_emit_range_setup(ctx, symtab_off) {
+    var st = {}
+    st["labels"] = {}
+    st["fixups"] = []
+    st["l_done"] = _new_label(ctx, "resolve_sym_done")
+    st["l_loop"] = _new_label(ctx, "resolve_sym_loop")
+    st["l_match"] = _new_label(ctx, "resolve_sym_match")
 
     var platform = ctx["platform"]
     var text_base = abi.x64_v0_text_base_addr(platform)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(11, text_base))
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 11))
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "resolve_sym_done")
-    var l_loop = _new_label(ctx, "resolve_sym_loop")
-    var l_match = _new_label(ctx, "resolve_sym_match")
-    _emit_jcc_to_label(ctx, fixups, "b", l_done)
+    _emit_jcc_to_label(ctx, st["fixups"], "b", st["l_done"])
 
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 10))
     bytes_extend(ctx["code"], core.insn_sub_r64_r64(9, 11))
@@ -196,6 +190,15 @@ fn _x64_emit_resolve_symbol_intrinsic(ctx, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
+    return st
+}
+
+fn _x64_resolve_symbol_emit_loop(ctx, st) {
+    var labels = st["labels"]
+    var fixups = st["fixups"]
+    var l_done = st["l_done"]
+    var l_loop = st["l_loop"]
+    var l_match = st["l_match"]
 
     _emit_label(ctx, labels, l_loop)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(1, 10))
@@ -214,9 +217,31 @@ fn _x64_emit_resolve_symbol_intrinsic(ctx, locals, args) {
     bytes_extend(ctx["code"], core.insn_shr_r64_imm8(0, 32))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 8))
     _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+fn _x64_emit_resolve_symbol_intrinsic(ctx, locals, args) {
+    if args == nil || oren_list_len(args) != 1 {
+        err(ctx, "x64 native v0: resolve_symbol expects 1 arg")
+        return 1
+    }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
+    var symtab_off = _x64_resolve_symbol_symtab_off(ctx)
+    _x64_resolve_symbol_emit_unknown_default(ctx)
+
+    if symtab_off == nil {
+        if locals != nil { _emit_ensure_tracked_ptr_kind_x64(ctx, locals, 0, 1) }
+        return 1
+    }
+
+    var st = _x64_resolve_symbol_emit_range_setup(ctx, symtab_off)
+    _x64_resolve_symbol_emit_loop(ctx, st)
+    _emit_label(ctx, st["labels"], st["l_done"])
+    _patch_local_fixups(ctx, st["labels"], st["fixups"])
     if locals != nil { _emit_ensure_tracked_ptr_kind_x64(ctx, locals, 0, 1) }
     return 1
 }

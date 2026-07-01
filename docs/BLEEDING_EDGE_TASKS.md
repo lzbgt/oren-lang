@@ -751,11 +751,18 @@ This file is the concise task view. Detailed implementation status lives in
 																				 X64 Windows WSA error normalization now shares the repeated
 																				 compare/set/jump case emission between common socket-error and
 																				 connect-specialized mappings while preserving POSIX errno
-																				 translations and local fixup ownership. The capped profile now shows
-																				 `x64_native_program.oren` at about 41.5s total / 30.5s parse, with
-																				 `_x64_emit_resolve_symbol_intrinsic` exposed at about 95ms as the next
-																				 parser body.
-																				     Serial/thread module
+																					 translations and local fixup ownership. The capped profile now shows
+																					 `x64_native_program.oren` at about 41.5s total / 30.5s parse, with
+																					 `_x64_emit_resolve_symbol_intrinsic` exposed at about 95ms as the next
+																					 parser body.
+																					 X64 `resolve_symbol` intrinsic lowering now delegates default
+																					 `"???"` materialization, symtab offset decoding, range setup, and
+																					 range-table loop emission to focused helpers while preserving embedded
+																					 debug-symbol fallback semantics. The capped profile now shows
+																					 `x64_native_program.oren` at about 41.1s total / 30.3s parse, with
+																					 `_emit_intrinsic_sys_ulock_wait_windows_x64` exposed at about 94ms as
+																					 the next parser body.
+																					     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

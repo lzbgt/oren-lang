@@ -807,11 +807,18 @@
 <p>																				 X64 Windows WSA error normalization now shares the repeated</p>
 <p>																				 compare/set/jump case emission between common socket-error and</p>
 <p>																				 connect-specialized mappings while preserving POSIX errno</p>
-<p>																				 translations and local fixup ownership. The capped profile now shows</p>
-<p>																				 <code>x64_native_program.oren</code> at about 41.5s total / 30.5s parse, with</p>
-<p>																				 <code>_x64_emit_resolve_symbol_intrinsic</code> exposed at about 95ms as the next</p>
-<p>																				 parser body.</p>
-<p>																				     Serial/thread module</p>
+<p>																					 translations and local fixup ownership. The capped profile now shows</p>
+<p>																					 <code>x64_native_program.oren</code> at about 41.5s total / 30.5s parse, with</p>
+<p>																					 <code>_x64_emit_resolve_symbol_intrinsic</code> exposed at about 95ms as the next</p>
+<p>																					 parser body.</p>
+<p>																					 X64 <code>resolve_symbol</code> intrinsic lowering now delegates default</p>
+<p>																					 <code>&quot;???&quot;</code> materialization, symtab offset decoding, range setup, and</p>
+<p>																					 range-table loop emission to focused helpers while preserving embedded</p>
+<p>																					 debug-symbol fallback semantics. The capped profile now shows</p>
+<p>																					 <code>x64_native_program.oren</code> at about 41.1s total / 30.3s parse, with</p>
+<p>																					 <code>_emit_intrinsic_sys_ulock_wait_windows_x64</code> exposed at about 94ms as</p>
+<p>																					 the next parser body.</p>
+<p>																					     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

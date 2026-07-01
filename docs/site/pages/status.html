@@ -807,11 +807,18 @@
 <p>																							  X64 Windows WSA error normalization now shares the repeated</p>
 <p>																							  compare/set/jump case emission between common socket-error and</p>
 <p>																							  connect-specialized mappings while preserving POSIX errno</p>
-<p>																							  translations and local fixup ownership. The capped profile now</p>
-<p>																							  shows <code>x64_native_program.oren</code> at about 41.5s total / 30.5s</p>
-<p>																							  parse, with <code>_x64_emit_resolve_symbol_intrinsic</code> exposed at about</p>
-<p>																							  95ms as the next parser body.</p>
-<p>																  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																								  translations and local fixup ownership. The capped profile now</p>
+<p>																								  shows <code>x64_native_program.oren</code> at about 41.5s total / 30.5s</p>
+<p>																								  parse, with <code>_x64_emit_resolve_symbol_intrinsic</code> exposed at about</p>
+<p>																								  95ms as the next parser body.</p>
+<p>																								  X64 <code>resolve_symbol</code> intrinsic lowering now delegates default</p>
+<p>																								  <code>&quot;???&quot;</code> materialization, symtab offset decoding, range setup, and</p>
+<p>																								  range-table loop emission to focused helpers while preserving</p>
+<p>																								  embedded debug-symbol fallback semantics. The capped profile now</p>
+<p>																								  shows <code>x64_native_program.oren</code> at about 41.1s total / 30.3s</p>
+<p>																								  parse, with <code>_emit_intrinsic_sys_ulock_wait_windows_x64</code> exposed</p>
+<p>																								  at about 94ms as the next parser body.</p>
+<p>																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
