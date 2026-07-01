@@ -1570,17 +1570,9 @@ fn _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) {
     return true
 }
 
-fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers, used_rtobj, opts_compile) {
-    var trace_prog = opts_compile["trace_prog"] == true
-    var trace_sum = opts_compile["trace_sum"] == true
-    var phase_log = opts_compile["phase_log"]
+fn _x64_compile_program_prepare_top(ctx, platform, top_info, fns, used_rtobj, trace_prog, trace_sum, phase_log) {
     var t_apply_rtobj_done = 0
     var t_top_done = 0
-    var t_fns_done = 0
-    var t_wrappers_done = 0
-    var t_fnwrap_done = 0
-    var t_panic_done = 0
-
     var top_fn = top_info["top_level_fn"]
     if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return nil }
     coreir.infer_native_param_numeric_traits(ctx, fns, top_fn, "x64 native v0")
@@ -1603,8 +1595,15 @@ fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     if trace_sum { t_top_done = oren_time_now_ns() }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
+    return {
+        "call_depth": call_depth_default_enabled,
+        "apply_rtobj_done": t_apply_rtobj_done,
+        "top_done": t_top_done
+    }
+}
 
-    var fn_loop_opts = {
+fn _x64_compile_program_fn_loop_opts(opts_compile, trace_prog) {
+    return {
         "trace_prog": trace_prog,
         "focus_enabled": opts_compile["focus_enabled"] == true,
         "prog_focus_from": opts_compile["prog_focus_from"],
@@ -1619,9 +1618,12 @@ fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers
         "fns_progress_interval": opts_compile["fns_progress_interval"],
         "fns_detail_limit": opts_compile["fns_detail_limit"]
     }
-    _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, fn_loop_opts)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if trace_sum { t_fns_done = oren_time_now_ns() }
+}
+
+fn _x64_compile_program_tail_emitters(ctx, platform, wrappers, call_depth_default_enabled, trace_prog, trace_sum, phase_log) {
+    var t_wrappers_done = 0
+    var t_fnwrap_done = 0
+    var t_panic_done = 0
 
     _x64_compile_lambda_wrappers(ctx, wrappers, platform, call_depth_default_enabled, trace_prog, phase_log)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -1639,12 +1641,37 @@ fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.panic_helper.done", "") }
 
     return {
-        "apply_rtobj_done": t_apply_rtobj_done,
-        "top_done": t_top_done,
-        "fns_done": t_fns_done,
         "wrappers_done": t_wrappers_done,
         "fnwrap_done": t_fnwrap_done,
         "panic_done": t_panic_done
+    }
+}
+
+fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers, used_rtobj, opts_compile) {
+    var trace_prog = opts_compile["trace_prog"] == true
+    var trace_sum = opts_compile["trace_sum"] == true
+    var phase_log = opts_compile["phase_log"]
+    var t_fns_done = 0
+
+    var top_times = _x64_compile_program_prepare_top(ctx, platform, top_info, fns, used_rtobj, trace_prog, trace_sum, phase_log)
+    if top_times == nil { return nil }
+    var call_depth_default_enabled = top_times["call_depth"]
+
+    var fn_loop_opts = _x64_compile_program_fn_loop_opts(opts_compile, trace_prog)
+    _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, fn_loop_opts)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_fns_done = oren_time_now_ns() }
+
+    var tail_times = _x64_compile_program_tail_emitters(ctx, platform, wrappers, call_depth_default_enabled, trace_prog, trace_sum, phase_log)
+    if tail_times == nil { return nil }
+
+    return {
+        "apply_rtobj_done": top_times["apply_rtobj_done"],
+        "top_done": top_times["top_done"],
+        "fns_done": t_fns_done,
+        "wrappers_done": tail_times["wrappers_done"],
+        "fnwrap_done": tail_times["fnwrap_done"],
+        "panic_done": tail_times["panic_done"]
     }
 }
 

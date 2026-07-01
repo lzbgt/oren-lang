@@ -716,6 +716,13 @@
 <p>																						  40.7s total / 30.1s parse, with</p>
 <p>																						  <code>_x64_compile_program_function_sequence</code> exposed at about 221ms</p>
 <p>																						  as the next parser body.</p>
+<p>																						  X64 program function-sequence orchestration now delegates</p>
+<p>																						  top-level/rtobj setup, user-function loop option packing, and</p>
+<p>																						  wrapper/fnwrap/FFI/panic tail emission to focused helpers while</p>
+<p>																						  preserving the phase timing map returned to the compile summary.</p>
+<p>																						  The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																						  41.7s total / 31.0s parse, with <code>_x64_emit_ffi_stub_win64</code></p>
+<p>																						  exposed at about 105ms as the next parser body.</p>
 <p>													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
