@@ -52,17 +52,7 @@ fn _x64_emit_ctx_init_intrinsic(ctx, locals, args) {
     return 1
 }
 
-fn _x64_emit_ctx_switch_intrinsic(ctx, locals, args) {
-    if args == nil || oren_list_len(args) != 2 {
-        err(ctx, "x64 native v0: oren_ctx_switch expects 2 args")
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-        return 1
-    }
-
-    bytes_extend(ctx["code"], core.insn_push_r64(0))
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-
+fn _x64_emit_ctx_switch_save_gprs(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 8, 1))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 16, 2))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 24, 3))
@@ -75,7 +65,10 @@ fn _x64_emit_ctx_switch_intrinsic(ctx, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 80, 11))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 88, 12))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 96, 13))
+    return nil
+}
 
+fn _x64_emit_ctx_switch_save_resume(ctx) {
     bytes_extend(ctx["code"], core.insn_pop_r64(8))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 0, 8))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 104, 4))
@@ -83,23 +76,28 @@ fn _x64_emit_ctx_switch_intrinsic(ctx, locals, args) {
     var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(8, 0))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 112, 8))
+    return lea_pos
+}
 
+fn _x64_emit_ctx_switch_save_xmms(ctx) {
     var xi = 0
     while xi < 16 {
         bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 128 + xi * 16, xi))
         xi = xi + 1
     }
+    return nil
+}
 
-    _emit_eval_int_to_rax(ctx, args[1], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
-
-    xi = 0
+fn _x64_emit_ctx_switch_restore_xmms(ctx) {
+    var xi = 0
     while xi < 16 {
         bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(xi, 9, 128 + xi * 16))
         xi = xi + 1
     }
+    return nil
+}
 
+fn _x64_emit_ctx_switch_restore_gprs(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(1, 9, 8))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(2, 9, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(3, 9, 24))
@@ -113,11 +111,40 @@ fn _x64_emit_ctx_switch_intrinsic(ctx, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 9, 104))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(4, 8))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 9, 112))
+    return nil
+}
+
+fn _x64_emit_ctx_switch_return_to_next(ctx) {
     bytes_extend(ctx["code"], core.insn_push_r64(8))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 9, 56))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(0, 9, 0))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 9, 64))
     bytes_extend(ctx["code"], core.insn_ret())
+    return nil
+}
+
+fn _x64_emit_ctx_switch_intrinsic(ctx, locals, args) {
+    if args == nil || oren_list_len(args) != 2 {
+        err(ctx, "x64 native v0: oren_ctx_switch expects 2 args")
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+        return 1
+    }
+
+    bytes_extend(ctx["code"], core.insn_push_r64(0))
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+
+    _x64_emit_ctx_switch_save_gprs(ctx)
+    var lea_pos = _x64_emit_ctx_switch_save_resume(ctx)
+    _x64_emit_ctx_switch_save_xmms(ctx)
+
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
+
+    _x64_emit_ctx_switch_restore_xmms(ctx)
+    _x64_emit_ctx_switch_restore_gprs(ctx)
+    _x64_emit_ctx_switch_return_to_next(ctx)
 
     var resume_pos = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], lea_pos + 3, resume_pos - (lea_pos + 7))

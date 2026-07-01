@@ -584,12 +584,23 @@ Facts from the 2026-05-28 implementation pass:
 																				  the next parser body.
 																				  X64 scalar call intrinsics now delegate float bit-cast and
 																				  bool-normalization lowering, and fallback top-level string-batch
-																				  data append delegates progress tracing plus per-item
-																				  offset/value/data materialization. The capped profile now shows
-																				  `x64_native_program.oren` at about 40.3s total / 30.0s parse, with
-																				  `_x64_emit_ctx_switch_intrinsic` exposed at about 116ms as the next
-																				  parser body.
-											  Serial/thread module ASTBIN writes are explicit prewarm work via
+																					  data append delegates progress tracing plus per-item
+																					  offset/value/data materialization. The capped profile now shows
+																					  `x64_native_program.oren` at about 40.3s total / 30.0s parse, with
+																					  `_x64_emit_ctx_switch_intrinsic` exposed at about 116ms as the next
+																					  parser body.
+																					  X64 context switching now delegates GPR save/restore,
+																					  resume-address capture, XMM save/restore, and next-context
+																					  return emission; Windows x64 path normalization delegates
+																					  scratch setup, local labels, copy loop, and finish patching;
+																					  and Windows `sys_setsockopt` mirrors the helperized
+																					  `getsockopt` shape for spill state, capsule prehook, WinSock
+																					  constant translation, call setup, and result normalization.
+																					  The capped profile now shows `x64_native_program.oren` at about
+																					  39.5s total / 29.2s parse, with
+																					  `_emit_intrinsic_sys_linux_net_addr3_x64` exposed at about
+																					  107ms as the next parser body.
+												  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

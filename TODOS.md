@@ -531,6 +531,15 @@ design evidence lives under `project-doc/`.
   The capped profile now shows `x64_native_program.oren` at ~40.3s total /
   ~30.0s parse, with `_x64_emit_ctx_switch_intrinsic` exposed at ~116ms as the
   next parser body.
+- X64 context switching now delegates GPR save/restore, resume-address capture,
+  XMM save/restore, and next-context return emission to focused helpers. Windows
+  x64 path normalization now splits scratch setup, local labels, copy loop, and
+  finish patching, and Windows `sys_setsockopt` mirrors the helperized
+  `getsockopt` shape for spill state, capsule prehook, WinSock constant
+  translation, call setup, and result normalization. The capped profile now shows
+  `x64_native_program.oren` at ~39.5s total / ~29.2s parse, with
+  `_emit_intrinsic_sys_linux_net_addr3_x64` exposed at ~107ms as the next parser
+  body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

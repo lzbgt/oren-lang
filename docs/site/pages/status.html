@@ -624,12 +624,23 @@
 <p>																				  the next parser body.</p>
 <p>																				  X64 scalar call intrinsics now delegate float bit-cast and</p>
 <p>																				  bool-normalization lowering, and fallback top-level string-batch</p>
-<p>																				  data append delegates progress tracing plus per-item</p>
-<p>																				  offset/value/data materialization. The capped profile now shows</p>
-<p>																				  <code>x64_native_program.oren</code> at about 40.3s total / 30.0s parse, with</p>
-<p>																				  <code>_x64_emit_ctx_switch_intrinsic</code> exposed at about 116ms as the next</p>
-<p>																				  parser body.</p>
-<p>											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																					  data append delegates progress tracing plus per-item</p>
+<p>																					  offset/value/data materialization. The capped profile now shows</p>
+<p>																					  <code>x64_native_program.oren</code> at about 40.3s total / 30.0s parse, with</p>
+<p>																					  <code>_x64_emit_ctx_switch_intrinsic</code> exposed at about 116ms as the next</p>
+<p>																					  parser body.</p>
+<p>																					  X64 context switching now delegates GPR save/restore,</p>
+<p>																					  resume-address capture, XMM save/restore, and next-context</p>
+<p>																					  return emission; Windows x64 path normalization delegates</p>
+<p>																					  scratch setup, local labels, copy loop, and finish patching;</p>
+<p>																					  and Windows <code>sys_setsockopt</code> mirrors the helperized</p>
+<p>																					  <code>getsockopt</code> shape for spill state, capsule prehook, WinSock</p>
+<p>																					  constant translation, call setup, and result normalization.</p>
+<p>																					  The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																					  39.5s total / 29.2s parse, with</p>
+<p>																					  <code>_emit_intrinsic_sys_linux_net_addr3_x64</code> exposed at about</p>
+<p>																					  107ms as the next parser body.</p>
+<p>												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

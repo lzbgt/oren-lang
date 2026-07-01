@@ -43,18 +43,7 @@ fn _emit_win64_path_norm_end_x64(ctx, scratch_bytes) {
     return nil
 }
 
-fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
-    // Input:  src_reg holds a pointer to a NUL-terminated path cstr.
-    // Output: src_reg updated to point at normalized buffer in scratch.
-    //
-    // Scratch contract:
-    // - Caller must have reserved at least WIN64_PATH_SCRATCH_ONE bytes via
-    //   `_emit_win64_path_norm_begin_x64`.
-    // - Buffer #1 is at [rsp+64 .. rsp+64+WIN64_PATH_BUF_BYTES).
-    // - Buffer #2 is at [rsp+64+WIN64_PATH_BUF_BYTES .. +2*WIN64_PATH_BUF_BYTES) (if allocated).
-    //
-    // Uses/clobbers: r8, r9, r10, r11, eax.
-    //
+fn _emit_win64_path_norm_setup_x64(ctx, src_reg, buf_add) {
     // r10 = dst_start
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(10, 64))
     if buf_add != 0 { bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, buf_add)) }
@@ -64,13 +53,27 @@ fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, src_reg))
     // r8 = remaining (leave room for NUL)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, WIN64_PATH_BUF_BYTES - 1))
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
-    var l_loop = _new_label(ctx, "win_path_norm_loop")
-    var l_store = _new_label(ctx, "win_path_norm_store")
-    var l_done = _new_label(ctx, "win_path_norm_done")
-    var l_trunc = _new_label(ctx, "win_path_norm_trunc")
+fn _emit_win64_path_norm_labels_x64(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "loop": _new_label(ctx, "win_path_norm_loop"),
+        "store": _new_label(ctx, "win_path_norm_store"),
+        "done": _new_label(ctx, "win_path_norm_done"),
+        "trunc": _new_label(ctx, "win_path_norm_trunc"),
+    }
+}
+
+fn _emit_win64_path_norm_loop_x64(ctx, st) {
+    var labels = st["labels"]
+    var fixups = st["fixups"]
+    var l_loop = st["loop"]
+    var l_store = st["store"]
+    var l_done = st["done"]
+    var l_trunc = st["trunc"]
 
     _emit_label(ctx, labels, l_loop)
     // eax = *src_cursor
@@ -95,6 +98,14 @@ fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(8, 1))
     _emit_jmp_to_label(ctx, fixups, l_loop)
+    return nil
+}
+
+fn _emit_win64_path_norm_finish_x64(ctx, st, src_reg) {
+    var labels = st["labels"]
+    var fixups = st["fixups"]
+    var l_trunc = st["trunc"]
+    var l_done = st["done"]
 
     _emit_label(ctx, labels, l_trunc)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
@@ -109,6 +120,24 @@ fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(src_reg, 10))
 
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
+    // Input:  src_reg holds a pointer to a NUL-terminated path cstr.
+    // Output: src_reg updated to point at normalized buffer in scratch.
+    //
+    // Scratch contract:
+    // - Caller must have reserved at least WIN64_PATH_SCRATCH_ONE bytes via
+    //   `_emit_win64_path_norm_begin_x64`.
+    // - Buffer #1 is at [rsp+64 .. rsp+64+WIN64_PATH_BUF_BYTES).
+    // - Buffer #2 is at [rsp+64+WIN64_PATH_BUF_BYTES .. +2*WIN64_PATH_BUF_BYTES) (if allocated).
+    //
+    // Uses/clobbers: r8, r9, r10, r11, eax.
+    _emit_win64_path_norm_setup_x64(ctx, src_reg, buf_add)
+    var st = _emit_win64_path_norm_labels_x64(ctx)
+    _emit_win64_path_norm_loop_x64(ctx, st)
+    _emit_win64_path_norm_finish_x64(ctx, st, src_reg)
     return nil
 }
 
