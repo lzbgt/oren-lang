@@ -779,11 +779,18 @@ This file is the concise task view. Detailed implementation status lives in
 																								 X64 index receiver kind dispatch now delegates tracked lookup,
 																								 tracked guards, node-kind loading, and known list/list-int/map plus
 																								 dynamic receiver branches to focused helpers while preserving panic
-																								 messages and list/map branch labels. The capped profile now shows
-																								 `x64_native_program.oren` at about 41.4s total / 30.6s parse, with
-																								 `_emit_list_int_get_unchecked_intrinsic_v0_x64` exposed at about
-																								 95ms as the next parser body.
-																								     Serial/thread module
+																									 messages and list/map branch labels. The capped profile now shows
+																									 `x64_native_program.oren` at about 41.4s total / 30.6s parse, with
+																									 `_emit_list_int_get_unchecked_intrinsic_v0_x64` exposed at about
+																									 95ms as the next parser body.
+																									 X64 unchecked list-int get lowering now reuses the checked get
+																									 argument-spill helper and delegates unchecked labels, nil
+																									 validation, bounds checks, and final value load to focused helpers
+																									 while preserving unchecked header semantics. The capped profile now
+																									 shows `x64_native_program.oren` at about 41.1s total / 30.2s parse,
+																									 with `_x64_build_runtime_obj` exposed at about 93ms as the next
+																									 parser body.
+																									     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

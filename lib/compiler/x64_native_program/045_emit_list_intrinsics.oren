@@ -959,56 +959,39 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     return nil
 }
 
-fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
-    // Intrinsic: list<int> get fast-path (bounds-checked, unchecked list headers).
-    //
-    // Signature: oren_list_int_get_unchecked(list, idx) -> int
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: oren_list_int_get_unchecked requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: oren_list_int_get_unchecked requires injected native runtime")
-        return nil
+fn _x64_list_int_get_unchecked_prepare_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "l_non_nil": _new_label(ctx, "list_int_get_unchecked_non_nil"),
+        "l_idx_nonneg": _new_label(ctx, "list_int_get_unchecked_idx_nonneg"),
+        "l_idx_ok": _new_label(ctx, "list_int_get_unchecked_idx_ok"),
+        "l_done": _new_label(ctx, "list_int_get_unchecked_done")
     }
-    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_get_unchecked expr"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_get_unchecked does not support spread"); return nil }
+}
 
-    var args = expr["args"]
-    if args == nil || oren_list_len(args) != 2 {
-        err(ctx, "x64 native v0: oren_list_int_get_unchecked expects 2 args")
-        return nil
-    }
-
-    var base = _intr_tmp_push(ctx, 2)
-    if oren_type_tag(base) == 0 { return nil }
-    var off_list = _intr_tmp_off(ctx, locals, base + 0)
-    var off_idx = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(off_list) == 0 || oren_type_tag(off_idx) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // LTR eval: list -> spill
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
-
-    // idx -> spill
-    _emit_eval_int_to_rax(ctx, args[1], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
-
+fn _x64_emit_list_int_get_unchecked_non_nil(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var off_list = state["off_list"]
+    var l_non_nil = state["l_non_nil"]
     // list -> rdx
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
-
-    var labels = {}
-    var local_fixups = []
-    var l_non_nil = _new_label(ctx, "list_int_get_unchecked_non_nil")
-    var l_idx_nonneg = _new_label(ctx, "list_int_get_unchecked_idx_nonneg")
-    var l_idx_ok = _new_label(ctx, "list_int_get_unchecked_idx_ok")
-    var l_done = _new_label(ctx, "list_int_get_unchecked_done")
 
     // nil => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_get_unchecked on nil")
     _emit_label(ctx, labels, l_non_nil)
+    return nil
+}
+
+fn _x64_emit_list_int_get_unchecked_bounds(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var off_idx = state["off_idx"]
+    var l_idx_nonneg = state["l_idx_nonneg"]
+    var l_idx_ok = state["l_idx_ok"]
 
     // restore idx
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx) // r8 = idx
@@ -1029,7 +1012,10 @@ fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "l", l_idx_ok)
     _emit_abort_panic_str(ctx, "Index out of bounds")
     _emit_label(ctx, labels, l_idx_ok)
+    return nil
+}
 
+fn _x64_emit_list_int_get_unchecked_load_value(ctx) {
     // buf -> r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
@@ -1042,9 +1028,45 @@ fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
 
     // value -> rax
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 10))
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> get fast-path (bounds-checked, unchecked list headers).
+    //
+    // Signature: oren_list_int_get_unchecked(list, idx) -> int
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: oren_list_int_get_unchecked requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: oren_list_int_get_unchecked requires injected native runtime")
+        return nil
+    }
+    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_get_unchecked expr"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_get_unchecked does not support spread"); return nil }
+
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 {
+        err(ctx, "x64 native v0: oren_list_int_get_unchecked expects 2 args")
+        return nil
+    }
+
+    var state = _x64_list_int_get_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    var base = state["base"]
+    var labels_state = _x64_list_int_get_unchecked_prepare_labels(ctx)
+    state["labels"] = labels_state["labels"]
+    state["local_fixups"] = labels_state["local_fixups"]
+    state["l_non_nil"] = labels_state["l_non_nil"]
+    state["l_idx_nonneg"] = labels_state["l_idx_nonneg"]
+    state["l_idx_ok"] = labels_state["l_idx_ok"]
+    state["l_done"] = labels_state["l_done"]
+
+    _x64_emit_list_int_get_unchecked_non_nil(ctx, state)
+    _x64_emit_list_int_get_unchecked_bounds(ctx, state)
+    _x64_emit_list_int_get_unchecked_load_value(ctx)
+
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
     _intr_tmp_pop(ctx, base)
     return nil
 }
