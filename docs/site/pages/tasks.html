@@ -607,10 +607,18 @@
 <p>																												 x64 <code>sys_read</code> now delegates argument spill/prehook setup, handle</p>
 <p>																												 selection, and <code>ReadFile</code> result normalization; debug metadata setup now</p>
 <p>																												 delegates display labels, runtime-object symbol collection, and symtab</p>
-<p>																												 reservation. The capped profile now shows <code>x64_native_program.oren</code> at</p>
-<p>																												 about 40.0s total / 29.9s parse, with</p>
-<p>																												 <code>_emit_intrinsic_sys_linux_cwd_sched_sleep_x64</code> exposed at about 121ms as</p>
-<p>																												 the next parser body.</p>
+<p>																													 reservation. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																													 about 40.0s total / 29.9s parse, with</p>
+<p>																													 <code>_emit_intrinsic_sys_linux_cwd_sched_sleep_x64</code> exposed at about 121ms as</p>
+<p>																													 the next parser body. Linux x64 cwd/scheduler/sleep syscall lowering now</p>
+<p>																													 delegates <code>getcwd</code>, <code>sched_yield</code>, and <code>nanosleep</code> to focused helpers;</p>
+<p>																													 Windows x64 <code>sys_gettimeofday</code> delegates argument spilling, capsule</p>
+<p>																													 prehook, <code>tv</code> validation, wall-time materialization, and optional QPC</p>
+<p>																													 emission; and checked x64 <code>oren_list_int_len</code> now mirrors the helperized</p>
+<p>																													 <code>oren_list_len</code> validation shape. The capped profile now shows</p>
+<p>																													 <code>x64_native_program.oren</code> at about 40.8s total / 30.6s parse, with</p>
+<p>																													 <code>_emit_intrinsic_sys_linux_proc_exec_x64</code> exposed at about 120ms as the</p>
+<p>																													 next parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

@@ -215,24 +215,7 @@ fn _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_gettimeofday expects 3 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_gettimeofday does not support spread"); return nil }
-
-    // Windows: implement a syscall-first TIME substrate without libc.
-    //
-    // Signature matches Oren runtime:
-    //   sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> rc
-    //
-    // - tv_ptr: points to 16 bytes (2x u64): tv_sec, tv_usec
-    // - abs_ptr: optional out-arg (u64) for monotonic/raw compare-only time
-    //
-    // We use:
-    // - KERNEL32!GetSystemTimeAsFileTime for wall time (FILETIME 100ns since 1601-01-01 UTC)
-    // - KERNEL32!QueryPerformanceCounter for monotonic raw ticks (compare-only)
-    //
-    // Returns 0 on success; negative errno on obvious invalid pointers.
+fn _x64_prepare_gettimeofday_windows_args(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // tv, tz, abs
     if oren_type_tag(base) == 0 { return nil }
     var tmp_tv = _intr_tmp_off(ctx, locals, base + 0)
@@ -245,20 +228,22 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_abs)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
+    return {"base": base, "tmp_tv": tmp_tv, "tmp_tz": tmp_tz, "tmp_abs": tmp_abs}
+}
+
+fn _x64_gettimeofday_windows_capsule_pre(ctx, state) {
     // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
     var capsule = _x64_capsule_enabled(ctx)
     if capsule {
-        _intr_load_x64(ctx, 1, tmp_tv)  // rcx = tv
-        _intr_load_x64(ctx, 2, tmp_tz)  // rdx = tz
-        _intr_load_x64(ctx, 8, tmp_abs) // r8  = abs
+        _intr_load_x64(ctx, 1, state["tmp_tv"])  // rcx = tv
+        _intr_load_x64(ctx, 2, state["tmp_tz"])  // rdx = tz
+        _intr_load_x64(ctx, 8, state["tmp_abs"]) // r8  = abs
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
     }
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "sys_gettimeofday_win_done")
-    var l_skip_abs = _new_label(ctx, "sys_gettimeofday_win_skip_abs")
-
+fn _x64_gettimeofday_windows_validate_tv(ctx, labels, fixups, tmp_tv, l_done) {
     // Validate tv_ptr != 0 (otherwise -EFAULT).
     _intr_load_x64(ctx, 0, tmp_tv)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
@@ -269,7 +254,10 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_tv_ok)
+    return nil
+}
 
+fn _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv) {
     // filetime (u64) output at [rsp+0x20]
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(1, 32)) // rcx = &filetime
     var mov_iat0 = bytes_len(ctx["code"])
@@ -302,7 +290,10 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     // Store tv_usec at [tv_ptr+8]
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 0))
+    return nil
+}
 
+fn _x64_gettimeofday_windows_emit_abs_qpc(ctx, labels, fixups, tmp_abs, l_skip_abs) {
     // abs_ptr optional: write monotonic raw ticks via QueryPerformanceCounter.
     _intr_load_x64(ctx, 0, tmp_abs)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
@@ -320,6 +311,43 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 0))
 
     _emit_label(ctx, labels, l_skip_abs)
+    return nil
+}
+
+fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_gettimeofday expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_gettimeofday does not support spread"); return nil }
+
+    // Windows: implement a syscall-first TIME substrate without libc.
+    //
+    // Signature matches Oren runtime:
+    //   sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> rc
+    //
+    // - tv_ptr: points to 16 bytes (2x u64): tv_sec, tv_usec
+    // - abs_ptr: optional out-arg (u64) for monotonic/raw compare-only time
+    //
+    // We use:
+    // - KERNEL32!GetSystemTimeAsFileTime for wall time (FILETIME 100ns since 1601-01-01 UTC)
+    // - KERNEL32!QueryPerformanceCounter for monotonic raw ticks (compare-only)
+    //
+    // Returns 0 on success; negative errno on obvious invalid pointers.
+    var state = _x64_prepare_gettimeofday_windows_args(ctx, locals, args)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_tv = state["tmp_tv"]
+    var tmp_abs = state["tmp_abs"]
+
+    _x64_gettimeofday_windows_capsule_pre(ctx, state)
+
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "sys_gettimeofday_win_done")
+    var l_skip_abs = _new_label(ctx, "sys_gettimeofday_win_skip_abs")
+
+    _x64_gettimeofday_windows_validate_tv(ctx, labels, fixups, tmp_tv, l_done)
+    _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv)
+    _x64_gettimeofday_windows_emit_abs_qpc(ctx, labels, fixups, tmp_abs, l_skip_abs)
 
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())

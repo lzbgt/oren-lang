@@ -551,10 +551,18 @@ This file is the concise task view. Detailed implementation status lives in
 																												 x64 `sys_read` now delegates argument spill/prehook setup, handle
 																												 selection, and `ReadFile` result normalization; debug metadata setup now
 																												 delegates display labels, runtime-object symbol collection, and symtab
-																												 reservation. The capped profile now shows `x64_native_program.oren` at
-																												 about 40.0s total / 29.9s parse, with
-																												 `_emit_intrinsic_sys_linux_cwd_sched_sleep_x64` exposed at about 121ms as
-																												 the next parser body.
+																													 reservation. The capped profile now shows `x64_native_program.oren` at
+																													 about 40.0s total / 29.9s parse, with
+																													 `_emit_intrinsic_sys_linux_cwd_sched_sleep_x64` exposed at about 121ms as
+																													 the next parser body. Linux x64 cwd/scheduler/sleep syscall lowering now
+																													 delegates `getcwd`, `sched_yield`, and `nanosleep` to focused helpers;
+																													 Windows x64 `sys_gettimeofday` delegates argument spilling, capsule
+																													 prehook, `tv` validation, wall-time materialization, and optional QPC
+																													 emission; and checked x64 `oren_list_int_len` now mirrors the helperized
+																													 `oren_list_len` validation shape. The capped profile now shows
+																													 `x64_native_program.oren` at about 40.8s total / 30.6s parse, with
+																													 `_emit_intrinsic_sys_linux_proc_exec_x64` exposed at about 120ms as the
+																													 next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
