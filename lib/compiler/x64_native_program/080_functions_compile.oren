@@ -121,11 +121,7 @@ fn _x64_call_depth_default_enabled(platform) {
     return true
 }
 
-fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots) {
-    // Compute locals, reserved spill regions, intrinsic-temp pool, literal slots,
-    // outgoing call area, and callee-save region. This helper intentionally emits no
-    // machine code so `_compile_function_v0` keeps the original prologue/body order.
-    var locals = {}
+fn _x64_prepare_function_params(ctx, fn_node, name, locals) {
     var local_next = 8
     var params = fn_node["params"]
     var pc = 0
@@ -163,37 +159,39 @@ fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_
         }
         i = i + 1
     }
+    return {"params": params, "pc": pc, "local_next": local_next}
+}
 
-    local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
-    if local_next < 0 { return nil }
+fn _x64_reserve_named_local_slot(ctx, locals, local_next, slot_name) {
+    if locals[slot_name] != nil { err(ctx, "x64 native v0: reserved local name " + slot_name + " used"); return -1 }
+    locals[slot_name] = local_next
+    return local_next + 8
+}
 
-    if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
-    locals["$tmp0"] = local_next
-    local_next = local_next + 8
-    if locals["$tmp_cmp"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_cmp used"); return nil }
-    locals["$tmp_cmp"] = local_next
-    local_next = local_next + 8
-    if locals["$tmp_shift"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_shift used"); return nil }
-    locals["$tmp_shift"] = local_next
-    local_next = local_next + 8
-    if locals["$tmp_div"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_div used"); return nil }
-    locals["$tmp_div"] = local_next
-    local_next = local_next + 8
-    if locals["$tmp_gc_tick"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_gc_tick used"); return nil }
-    locals["$tmp_gc_tick"] = local_next
-    local_next = local_next + 8
+fn _x64_reserve_frame_scratch_slots(ctx, locals, local_next) {
+    local_next = _x64_reserve_named_local_slot(ctx, locals, local_next, "$tmp0")
+    if local_next < 0 { return -1 }
+    local_next = _x64_reserve_named_local_slot(ctx, locals, local_next, "$tmp_cmp")
+    if local_next < 0 { return -1 }
+    local_next = _x64_reserve_named_local_slot(ctx, locals, local_next, "$tmp_shift")
+    if local_next < 0 { return -1 }
+    local_next = _x64_reserve_named_local_slot(ctx, locals, local_next, "$tmp_div")
+    if local_next < 0 { return -1 }
+    local_next = _x64_reserve_named_local_slot(ctx, locals, local_next, "$tmp_gc_tick")
+    if local_next < 0 { return -1 }
 
     _x64_tmp_names_init(ctx)
     var tmp_names = ctx["__x64_tmp_names"]
     var ti = 1
     while ti <= 8 {
-        var tnm = oren_list_get(tmp_names, ti - 1)
-        if locals[tnm] != nil { err(ctx, "x64 native v0: reserved local name " + tnm + " used"); return nil }
-        locals[tnm] = local_next
-        local_next = local_next + 8
+        local_next = _x64_reserve_named_local_slot(ctx, locals, local_next, oren_list_get(tmp_names, ti - 1))
+        if local_next < 0 { return -1 }
         ti = ti + 1
     }
+    return local_next
+}
 
+fn _x64_reserve_intrinsic_temp_slots(ctx, ops, locals, local_next) {
     var max_intr = _max_intr_tmp_in_ops(ctx, ops, locals)
     if oren_type_tag(max_intr) == 0 { max_intr = 0 }
     var intr_lim = max_intr + 8
@@ -209,27 +207,31 @@ fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_
     intr_bytes = iadd(intr_bytes, intr_bytes) // *2
     intr_bytes = iadd(intr_bytes, intr_bytes) // *4
     intr_bytes = iadd(intr_bytes, intr_bytes) // *8
-    local_next = iadd(local_next, intr_bytes)
+    return {"max_intr": max_intr, "intr_lim": intr_lim, "local_next": iadd(local_next, intr_bytes)}
+}
 
+fn _x64_reserve_literal_frame_slots(ctx, locals, local_next, needs_literal_slots) {
     var literal_slot_count = 0
     if needs_literal_slots == true {
+        _x64_tmp_names_init(ctx)
         var ld = 0
         while ld < 8 {
-            var hn1 = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld)
-            if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
-            locals[hn1] = local_next
-            local_next = local_next + 8
+            local_next = _x64_reserve_named_local_slot(ctx, locals, local_next,
+                oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld))
+            if local_next < 0 { return nil }
             literal_slot_count = literal_slot_count + 1
 
-            var hn2 = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld)
-            if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
-            locals[hn2] = local_next
-            local_next = local_next + 8
+            local_next = _x64_reserve_named_local_slot(ctx, locals, local_next,
+                oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld))
+            if local_next < 0 { return nil }
             literal_slot_count = literal_slot_count + 1
             ld = ld + 1
         }
     }
+    return {"literal_slot_count": literal_slot_count, "local_next": local_next}
+}
 
+fn _x64_compute_function_frame_layout(ctx, local_next, max_call_argc) {
     var locals_pre_align_bytes = local_next - 8
     var locals_size = locals_pre_align_bytes
     var align = abi.stack_align_bytes(ctx["abi"])
@@ -253,22 +255,63 @@ fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_
     var save_bytes = save_n * 8
     while core.int_mod(save_bytes, align) != 0 { save_bytes = save_bytes + 8 }
     var frame_size = locals_size + save_bytes + call_area
+    return {
+        "locals_pre_align_bytes": locals_pre_align_bytes,
+        "locals_size": locals_size,
+        "regc": regc,
+        "shadow": shadow,
+        "call_area": call_area,
+        "save_regs": save_regs,
+        "save_n": save_n,
+        "frame_size": frame_size
+    }
+}
+
+fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots) {
+    // Compute locals, reserved spill regions, intrinsic-temp pool, literal slots,
+    // outgoing call area, and callee-save region. This helper intentionally emits no
+    // machine code so `_compile_function_v0` keeps the original prologue/body order.
+    var locals = {}
+    var param_state = _x64_prepare_function_params(ctx, fn_node, name, locals)
+    if param_state == nil { return nil }
+    var params = param_state["params"]
+    var pc = param_state["pc"]
+    var local_next = param_state["local_next"]
+
+    local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
+    if local_next < 0 { return nil }
+
+    local_next = _x64_reserve_frame_scratch_slots(ctx, locals, local_next)
+    if local_next < 0 { return nil }
+
+    var intr_state = _x64_reserve_intrinsic_temp_slots(ctx, ops, locals, local_next)
+    if intr_state == nil { return nil }
+    var max_intr = intr_state["max_intr"]
+    var intr_lim = intr_state["intr_lim"]
+    local_next = intr_state["local_next"]
+
+    var literal_state = _x64_reserve_literal_frame_slots(ctx, locals, local_next, needs_literal_slots)
+    if literal_state == nil { return nil }
+    var literal_slot_count = literal_state["literal_slot_count"]
+    local_next = literal_state["local_next"]
+
+    var layout = _x64_compute_function_frame_layout(ctx, local_next, max_call_argc)
 
     return {
         "locals": locals,
         "params": params,
         "pc": pc,
-        "regc": regc,
-        "shadow": shadow,
+        "regc": layout["regc"],
+        "shadow": layout["shadow"],
         "max_intr": max_intr,
         "intr_lim": intr_lim,
         "literal_slot_count": literal_slot_count,
-        "locals_pre_align_bytes": locals_pre_align_bytes,
-        "locals_size": locals_size,
-        "call_area": call_area,
-        "save_regs": save_regs,
-        "save_n": save_n,
-        "frame_size": frame_size
+        "locals_pre_align_bytes": layout["locals_pre_align_bytes"],
+        "locals_size": layout["locals_size"],
+        "call_area": layout["call_area"],
+        "save_regs": layout["save_regs"],
+        "save_n": layout["save_n"],
+        "frame_size": layout["frame_size"]
     }
 }
 

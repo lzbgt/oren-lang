@@ -411,11 +411,17 @@ This file is the concise task view. Detailed implementation status lives in
 																		 shows `x64_native_program.oren` at about 37.9s total / 28.3s parse, with
 																		 `_emit_intrinsic_sys_linux_open_close_access_x64` exposed at about 163ms as
 																		 the next parser body. Linux x64 open/close/access lowering now delegates
-																		 `sys_open`, `sys_close`, and `sys_access` through focused helpers under the
-																		 FS router. The capped profile now shows `x64_native_program.oren` at about
-																		 37.6s total / 28.1s parse, with `_x64_prepare_function_frame_v0` exposed at
-																		 about 162ms as the next parser body.
-												     Serial/thread module
+																			 `sys_open`, `sys_close`, and `sys_access` through focused helpers under the
+																			 FS router. The capped profile now shows `x64_native_program.oren` at about
+																			 37.6s total / 28.1s parse, with `_x64_prepare_function_frame_v0` exposed at
+																			 about 162ms as the next parser body. X64 function-frame preparation now
+																			 delegates parameter slot/type inference, reserved scratch slots,
+																			 intrinsic-temp sizing, literal spill slots, and ABI layout calculation to
+																			 focused helpers while preserving the same frame map contract. The capped
+																			 profile now shows `x64_native_program.oren` at about 38.2s total / 28.6s
+																			 parse, with `_emit_intrinsic_sys_linux_ulock_x64` exposed at about 162ms as
+																			 the next parser body.
+													     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

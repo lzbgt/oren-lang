@@ -467,11 +467,17 @@
 <p>																		 shows <code>x64_native_program.oren</code> at about 37.9s total / 28.3s parse, with</p>
 <p>																		 <code>_emit_intrinsic_sys_linux_open_close_access_x64</code> exposed at about 163ms as</p>
 <p>																		 the next parser body. Linux x64 open/close/access lowering now delegates</p>
-<p>																		 <code>sys_open</code>, <code>sys_close</code>, and <code>sys_access</code> through focused helpers under the</p>
-<p>																		 FS router. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																		 37.6s total / 28.1s parse, with <code>_x64_prepare_function_frame_v0</code> exposed at</p>
-<p>																		 about 162ms as the next parser body.</p>
-<p>												     Serial/thread module</p>
+<p>																			 <code>sys_open</code>, <code>sys_close</code>, and <code>sys_access</code> through focused helpers under the</p>
+<p>																			 FS router. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																			 37.6s total / 28.1s parse, with <code>_x64_prepare_function_frame_v0</code> exposed at</p>
+<p>																			 about 162ms as the next parser body. X64 function-frame preparation now</p>
+<p>																			 delegates parameter slot/type inference, reserved scratch slots,</p>
+<p>																			 intrinsic-temp sizing, literal spill slots, and ABI layout calculation to</p>
+<p>																			 focused helpers while preserving the same frame map contract. The capped</p>
+<p>																			 profile now shows <code>x64_native_program.oren</code> at about 38.2s total / 28.6s</p>
+<p>																			 parse, with <code>_emit_intrinsic_sys_linux_ulock_x64</code> exposed at about 162ms as</p>
+<p>																			 the next parser body.</p>
+<p>													     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
