@@ -577,6 +577,13 @@ This file is the concise task view. Detailed implementation status lives in
 															 capped profile now shows `x64_native_program.oren` at about 40.3s total
 															 / 30.0s parse, with `_emit_eval_scalar_call_intrinsic_x64` exposed at
 															 about 118ms as the next parser body.
+															 X64 scalar call intrinsics now delegate float bit-cast and
+															 bool-normalization lowering, and fallback top-level string-batch data
+															 append delegates progress tracing plus per-item offset/value/data
+															 materialization. The capped profile now shows `x64_native_program.oren`
+															 at about 40.3s total / 30.0s parse, with
+															 `_x64_emit_ctx_switch_intrinsic` exposed at about 116ms as the next
+															 parser body.
 															     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

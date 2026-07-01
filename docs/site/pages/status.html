@@ -622,6 +622,13 @@
 <p>																				  <code>x64_native_program.oren</code> at about 40.3s total / 30.0s parse, with</p>
 <p>																				  <code>_emit_eval_scalar_call_intrinsic_x64</code> exposed at about 118ms as</p>
 <p>																				  the next parser body.</p>
+<p>																				  X64 scalar call intrinsics now delegate float bit-cast and</p>
+<p>																				  bool-normalization lowering, and fallback top-level string-batch</p>
+<p>																				  data append delegates progress tracing plus per-item</p>
+<p>																				  offset/value/data materialization. The capped profile now shows</p>
+<p>																				  <code>x64_native_program.oren</code> at about 40.3s total / 30.0s parse, with</p>
+<p>																				  <code>_x64_emit_ctx_switch_intrinsic</code> exposed at about 116ms as the next</p>
+<p>																				  parser body.</p>
 <p>											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
