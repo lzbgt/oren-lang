@@ -649,42 +649,50 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     return nil
 }
 
-fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_rename expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_rename does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_rename_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // from, to, bundle
     if oren_type_tag(base) == 0 { return nil }
-    var tmp_from = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_to = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_bundle = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(tmp_from) == 0 || oren_type_tag(tmp_to) == 0 || oren_type_tag(tmp_bundle) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_from)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // pre: native_capsule_sys_rename_pre(from, to) -> bundle
-    if capsule {
-        _intr_load_x64(ctx, 1, tmp_from) // rcx = from
-        _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
-
-        // existing = *(u64*)bundle (rcx), new = *(u64*)(bundle+16) (rdx)
-        _intr_load_x64(ctx, 11, tmp_bundle)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(2, 10)) // rdx = to_ptr
-    } else {
-        _intr_load_x64(ctx, 1, tmp_from) // rcx = from
-        _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
+    var state = {}
+    state["base"] = base
+    state["from"] = _intr_tmp_off(ctx, locals, base + 0)
+    state["to"] = _intr_tmp_off(ctx, locals, base + 1)
+    state["bundle"] = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(state["from"]) == 0 || oren_type_tag(state["to"]) == 0 || oren_type_tag(state["bundle"]) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
     }
 
+    _intr_eval_spill_x64(ctx, locals, args[0], state["from"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["to"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return state
+}
+
+fn _x64_emit_rename_windows_prehook(ctx, state, capsule) {
+    if !capsule {
+        _intr_load_x64(ctx, 1, state["from"]) // rcx = from
+        _intr_load_x64(ctx, 2, state["to"])   // rdx = to
+        return nil
+    }
+    // pre: native_capsule_sys_rename_pre(from, to) -> bundle
+    _intr_load_x64(ctx, 1, state["from"]) // rcx = from
+    _intr_load_x64(ctx, 2, state["to"])   // rdx = to
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
+    _emit_mov_mrbp_r64(ctx, 0 - state["bundle"], 0)
+
+    // existing = *(u64*)bundle (rcx), new = *(u64*)(bundle+16) (rdx)
+    _intr_load_x64(ctx, 11, state["bundle"])
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(2, 10)) // rdx = to_ptr
+    return nil
+}
+
+fn _x64_emit_rename_windows_operation(ctx) {
     // MoveFileExA(existing, new, flags) -> BOOL
     _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_TWO)
     _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0)                    // rcx = from
@@ -693,9 +701,10 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1)) // r8d
     _emit_call_iat_x64(ctx, "IAT_MoveFileExA")
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_TWO)
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
+fn _x64_emit_rename_windows_result(ctx, labels, fixups) {
     var l_ok = _new_label(ctx, "sys_rename_win_ok")
     var l_done = _new_label(ctx, "sys_rename_win_done")
 
@@ -710,16 +719,36 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
 
+fn _x64_emit_rename_windows_posthook(ctx, state, capsule) {
+    if !capsule { return nil }
     // post: native_capsule_sys_rename_post(bundle, rc) -> rc
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
-        _intr_load_x64(ctx, 1, tmp_bundle)                // rcx = bundle
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
-    }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
+    _intr_load_x64(ctx, 1, state["bundle"])                // rcx = bundle
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_rename expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_rename does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_rename_windows_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    var labels = {}
+    var fixups = []
+    _x64_emit_rename_windows_prehook(ctx, state, capsule)
+    _x64_emit_rename_windows_operation(ctx)
+    _x64_emit_rename_windows_result(ctx, labels, fixups)
+    _patch_local_fixups(ctx, labels, fixups)
+    _x64_emit_rename_windows_posthook(ctx, state, capsule)
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 

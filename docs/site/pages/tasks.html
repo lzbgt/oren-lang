@@ -967,12 +967,19 @@
 <p>																																			 Windows x64 Win32 <code>GetLastError</code> errno lowering now shares the repeated</p>
 <p>																																			 compare/set/jump case emission through <code>_emit_win32_neg_errno_case_x64</code> while</p>
 <p>																																			 preserving the POSIX-style ENOENT, EACCES, EBADF, EBUSY, EEXIST, ENOTEMPTY,</p>
-<p>																																			 EXDEV, and fallback EIO mappings. The capped profile now shows</p>
-<p>																																			 <code>x64_native_program.oren</code> at about 41.4s total / 30.5s parse, with</p>
-<p>																																			 <code>_emit_intrinsic_sys_rename_windows_x64</code> exposed at about 79ms as the next</p>
-<p>																																			 parser body.</p>
-<p>																																	     Serial/thread module</p>
-<p>									     ASTBIN writes are now explicit prewarm work via</p>
+<p>																																				 EXDEV, and fallback EIO mappings. The capped profile now shows</p>
+<p>																																				 <code>x64_native_program.oren</code> at about 41.4s total / 30.5s parse, with</p>
+<p>																																				 <code>_emit_intrinsic_sys_rename_windows_x64</code> exposed at about 79ms as the next</p>
+<p>																																				 parser body.</p>
+<p>																																				 Windows x64 <code>sys_rename</code> lowering now mirrors the adjacent mkdir/chmod helper</p>
+<p>																																				 shape with focused state/eval, capsule prehook, <code>MoveFileExA</code>, BOOL-result,</p>
+<p>																																				 and capsule posthook helpers while preserving path normalization and</p>
+<p>																																				 replace-existing semantics. The capped profile now shows</p>
+<p>																																				 <code>x64_native_program.oren</code> at about 41.5s total / 30.7s parse, with</p>
+<p>																																				 <code>_emit_resolve_loc_ptr_best_effort</code> exposed at about 85ms as the next parser</p>
+<p>																																				 body.</p>
+<p>																																		     Serial/thread module</p>
+<p>										     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
 <p>									     serial ASTBIN writes stay opt-in behind</p>

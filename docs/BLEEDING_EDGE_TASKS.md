@@ -911,12 +911,19 @@ This file is the concise task view. Detailed implementation status lives in
 																																			 Windows x64 Win32 `GetLastError` errno lowering now shares the repeated
 																																			 compare/set/jump case emission through `_emit_win32_neg_errno_case_x64` while
 																																			 preserving the POSIX-style ENOENT, EACCES, EBADF, EBUSY, EEXIST, ENOTEMPTY,
-																																			 EXDEV, and fallback EIO mappings. The capped profile now shows
-																																			 `x64_native_program.oren` at about 41.4s total / 30.5s parse, with
-																																			 `_emit_intrinsic_sys_rename_windows_x64` exposed at about 79ms as the next
-																																			 parser body.
-																																	     Serial/thread module
-									     ASTBIN writes are now explicit prewarm work via
+																																				 EXDEV, and fallback EIO mappings. The capped profile now shows
+																																				 `x64_native_program.oren` at about 41.4s total / 30.5s parse, with
+																																				 `_emit_intrinsic_sys_rename_windows_x64` exposed at about 79ms as the next
+																																				 parser body.
+																																				 Windows x64 `sys_rename` lowering now mirrors the adjacent mkdir/chmod helper
+																																				 shape with focused state/eval, capsule prehook, `MoveFileExA`, BOOL-result,
+																																				 and capsule posthook helpers while preserving path normalization and
+																																				 replace-existing semantics. The capped profile now shows
+																																				 `x64_native_program.oren` at about 41.5s total / 30.7s parse, with
+																																				 `_emit_resolve_loc_ptr_best_effort` exposed at about 85ms as the next parser
+																																				 body.
+																																		     Serial/thread module
+										     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
 									     serial ASTBIN writes stay opt-in behind
