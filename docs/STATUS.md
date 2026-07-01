@@ -803,10 +803,20 @@ Facts from the 2026-05-28 implementation pass:
 																												  X64 unchecked list-int get lowering now reuses the checked get
 																												  argument-spill helper and delegates unchecked labels, nil
 																												  validation, bounds checks, and final value load to focused helpers
-																												  while preserving unchecked header semantics. The capped profile
-																												  now shows `x64_native_program.oren` at about 41.1s total / 30.2s
-																												  parse, with `_x64_build_runtime_obj` exposed at about 93ms as the
-																												  next parser body.
+																													  while preserving unchecked header semantics. The capped profile
+																													  now shows `x64_native_program.oren` at about 41.1s total / 30.2s
+																													  parse, with `_x64_build_runtime_obj` exposed at about 93ms as the
+																													  next parser body.
+																													  X64 runtime-object build orchestration now delegates trace/timing
+																													  setup, runtime parse/context setup, runtime input preparation,
+																													  decl/wrapper compilation, and final result packaging to focused
+																													  helpers. X64 false-branch condition lowering now delegates float
+																													  compare, prefix-`!` float compare, prefix-`!` truthiness, and
+																													  plain truthy-expression branches while preserving integer compare
+																													  fallback. The capped profile now shows `x64_native_program.oren`
+																													  at about 41.3s total / 30.6s parse, with
+																													  `_emit_resolve_symbol_ptr_and_off_best_effort` exposed at about
+																													  93ms as the next parser body.
 																					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

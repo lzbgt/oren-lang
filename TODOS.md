@@ -706,6 +706,15 @@ design evidence lives under `project-doc/`.
   value load to focused helpers while preserving unchecked header semantics. The
   capped profile now shows `x64_native_program.oren` at ~41.1s total / ~30.2s
   parse, with `_x64_build_runtime_obj` exposed at ~93ms as the next parser body.
+- X64 runtime-object build orchestration now delegates trace/timing setup,
+  runtime parse/context setup, runtime input preparation, decl/wrapper
+  compilation, and final result packaging to focused helpers. X64 false-branch
+  condition lowering now delegates float compare, prefix-`!` float compare,
+  prefix-`!` truthiness, and plain truthy-expression branches while preserving
+  integer compare fallback. The capped profile now shows `x64_native_program.oren`
+  at ~41.3s total / ~30.6s parse, with
+  `_emit_resolve_symbol_ptr_and_off_best_effort` exposed at ~93ms as the next
+  parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

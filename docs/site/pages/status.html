@@ -843,10 +843,20 @@
 <p>																												  X64 unchecked list-int get lowering now reuses the checked get</p>
 <p>																												  argument-spill helper and delegates unchecked labels, nil</p>
 <p>																												  validation, bounds checks, and final value load to focused helpers</p>
-<p>																												  while preserving unchecked header semantics. The capped profile</p>
-<p>																												  now shows <code>x64_native_program.oren</code> at about 41.1s total / 30.2s</p>
-<p>																												  parse, with <code>_x64_build_runtime_obj</code> exposed at about 93ms as the</p>
-<p>																												  next parser body.</p>
+<p>																													  while preserving unchecked header semantics. The capped profile</p>
+<p>																													  now shows <code>x64_native_program.oren</code> at about 41.1s total / 30.2s</p>
+<p>																													  parse, with <code>_x64_build_runtime_obj</code> exposed at about 93ms as the</p>
+<p>																													  next parser body.</p>
+<p>																													  X64 runtime-object build orchestration now delegates trace/timing</p>
+<p>																													  setup, runtime parse/context setup, runtime input preparation,</p>
+<p>																													  decl/wrapper compilation, and final result packaging to focused</p>
+<p>																													  helpers. X64 false-branch condition lowering now delegates float</p>
+<p>																													  compare, prefix-<code>!</code> float compare, prefix-<code>!</code> truthiness, and</p>
+<p>																													  plain truthy-expression branches while preserving integer compare</p>
+<p>																													  fallback. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>																													  at about 41.3s total / 30.6s parse, with</p>
+<p>																													  <code>_emit_resolve_symbol_ptr_and_off_best_effort</code> exposed at about</p>
+<p>																													  93ms as the next parser body.</p>
 <p>																					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

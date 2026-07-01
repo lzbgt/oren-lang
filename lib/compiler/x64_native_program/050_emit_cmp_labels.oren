@@ -256,6 +256,71 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
     return nil
 }
 
+fn _x64_emit_float_cmp_false_for_cond(ctx, cond, locals, local_fixups, false_label) {
+    if _cond_is_cmp_infix(cond) == nil { return false }
+    var l = cond["left"]
+    var r = cond["right"]
+    if !(_x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r)) { return false }
+    _emit_float_cmp_to_bool_x64(ctx, cond["op"], l, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return true }
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", false_label)
+    return true
+}
+
+fn _x64_emit_prefix_not_float_cmp_false(ctx, inner, locals, local_fixups, false_label) {
+    if _cond_is_cmp_infix(inner) == nil { return false }
+    var l2 = inner["left"]
+    var r2 = inner["right"]
+    if !(_x64_expr_is_floaty(ctx, l2) || _x64_expr_is_floaty(ctx, r2)) { return false }
+    _emit_float_cmp_to_bool_x64(ctx, inner["op"], l2, r2, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return true }
+    // !x : invert boolean then branch on RAX==0.
+    bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, 1))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", false_label)
+    return true
+}
+
+fn _x64_emit_prefix_not_truthy_false(ctx, inner, locals, local_fixups, false_label) {
+    if inner == nil || _cond_is_cmp_infix(inner) != nil { return false }
+    // General `!x` condition: branch false when x is truthy.
+    //
+    // Truthiness:
+    // - falsey: `nil` and `false`
+    // - truthy: everything else (including int 0)
+    _emit_eval_int_to_rax(ctx, inner, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return true }
+
+    // If inner is falsey => `!inner` is true => do not branch false.
+    // If inner is truthy => `!inner` is false => branch to false_label.
+    var labels2 = {}
+    var fixups2 = []
+    var l_skip = _new_label(ctx, "not_skip")
+    _x64_emit_load_g_storage_ptr_to_reg(ctx, 10)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 10, 368)) // r11 = nil
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 11))
+    _emit_jcc_to_label(ctx, fixups2, "e", l_skip)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 10, 376)) // r11 = false
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 11))
+    _emit_jcc_to_label(ctx, fixups2, "e", l_skip)
+    _emit_jmp_to_label(ctx, local_fixups, false_label)
+    _emit_label(ctx, labels2, l_skip)
+    _patch_local_fixups(ctx, labels2, fixups2)
+    return true
+}
+
+fn _x64_emit_truthy_expr_false(ctx, cond, locals, local_fixups, false_label) {
+    if _cond_is_cmp_infix(cond) != nil { return false }
+    if cond["type"] == "Prefix" && cond["op"] == "!" { return false }
+    // Truthy expression condition fallback: evaluate cond and branch false when cond is falsey.
+    // This matches the language truthiness rules (only `nil` and `false` are falsey).
+    _emit_eval_int_to_rax(ctx, cond, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return true }
+    _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, false_label)
+    return true
+}
+
 fn _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, false_label) {
     // Emit branch to `false_label` when `cond` is false.
     //
@@ -267,68 +332,14 @@ fn _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, false_label) {
     if false_label == nil { err(ctx, "x64 native v0: missing false label"); return nil }
 
     // Float compare condition: compute boolean into RAX, then branch on RAX==0.
-    if _cond_is_cmp_infix(cond) != nil {
-        var l = cond["left"]
-        var r = cond["right"]
-        if _x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r) {
-            _emit_float_cmp_to_bool_x64(ctx, cond["op"], l, r, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "e", false_label)
-            return nil
-        }
-    }
+    if _x64_emit_float_cmp_false_for_cond(ctx, cond, locals, local_fixups, false_label) == true { return nil }
     if cond["type"] == "Prefix" && cond["op"] == "!" {
         var inner = cond["right"]
-        if _cond_is_cmp_infix(inner) != nil {
-            var l2 = inner["left"]
-            var r2 = inner["right"]
-            if _x64_expr_is_floaty(ctx, l2) || _x64_expr_is_floaty(ctx, r2) {
-                _emit_float_cmp_to_bool_x64(ctx, inner["op"], l2, r2, locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                // !x : invert boolean then branch on RAX==0.
-                bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, 1))
-                bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-                _emit_jcc_to_label(ctx, local_fixups, "e", false_label)
-                return nil
-            }
-        }
-        // General `!x` condition: branch false when x is truthy.
-        //
-        // Truthiness:
-        // - falsey: `nil` and `false`
-        // - truthy: everything else (including int 0)
-        if inner != nil && _cond_is_cmp_infix(inner) == nil {
-            _emit_eval_int_to_rax(ctx, inner, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-            // If inner is falsey => `!inner` is true => do not branch false.
-            // If inner is truthy => `!inner` is false => branch to false_label.
-            var labels2 = {}
-            var fixups2 = []
-            var l_skip = _new_label(ctx, "not_skip")
-            _x64_emit_load_g_storage_ptr_to_reg(ctx, 10)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 10, 368)) // r11 = nil
-            bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 11))
-            _emit_jcc_to_label(ctx, fixups2, "e", l_skip)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(11, 10, 376)) // r11 = false
-            bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 11))
-            _emit_jcc_to_label(ctx, fixups2, "e", l_skip)
-            _emit_jmp_to_label(ctx, local_fixups, false_label)
-            _emit_label(ctx, labels2, l_skip)
-            _patch_local_fixups(ctx, labels2, fixups2)
-            return nil
-        }
+        if _x64_emit_prefix_not_float_cmp_false(ctx, inner, locals, local_fixups, false_label) == true { return nil }
+        if _x64_emit_prefix_not_truthy_false(ctx, inner, locals, local_fixups, false_label) == true { return nil }
     }
 
-    // Truthy expression condition fallback: evaluate cond and branch false when cond is falsey.
-    // This matches the language truthiness rules (only `nil` and `false` are falsey).
-    if _cond_is_cmp_infix(cond) == nil && !(cond["type"] == "Prefix" && cond["op"] == "!") {
-        _emit_eval_int_to_rax(ctx, cond, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, false_label)
-        return nil
-    }
+    if _x64_emit_truthy_expr_false(ctx, cond, locals, local_fixups, false_label) == true { return nil }
 
     // Integer/truthy condition fallback.
     _emit_cmp_from_cond(ctx, cond, locals)

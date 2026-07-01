@@ -973,6 +973,17 @@
 <p>  capped profile now shows <code>x64_native_program.oren</code> at ~41.1s total / ~30.2s</p>
 <p>  parse, with <code>_x64_build_runtime_obj</code> exposed at ~93ms as the next parser body.</p>
 <ul>
+<li>X64 runtime-object build orchestration now delegates trace/timing setup,</li>
+</ul>
+<p>  runtime parse/context setup, runtime input preparation, decl/wrapper</p>
+<p>  compilation, and final result packaging to focused helpers. X64 false-branch</p>
+<p>  condition lowering now delegates float compare, prefix-<code>!</code> float compare,</p>
+<p>  prefix-<code>!</code> truthiness, and plain truthy-expression branches while preserving</p>
+<p>  integer compare fallback. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at ~41.3s total / ~30.6s parse, with</p>
+<p>  <code>_emit_resolve_symbol_ptr_and_off_best_effort</code> exposed at ~93ms as the next</p>
+<p>  parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

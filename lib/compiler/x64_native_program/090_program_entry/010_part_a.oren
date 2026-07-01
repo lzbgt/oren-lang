@@ -862,9 +862,7 @@ fn _x64_rtobj_print_build_summary(ctx, timing, fns, wrappers, runtime_vars, buil
     return nil
 }
 
-fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, phase_log) {
-    // Compile the injected native runtime into a reusable object blob for x86_64 native.
-    //
+fn _x64_rtobj_build_trace_state() {
     // Bounded tracing (perf guardrails; avoid huge logs):
     // - OREN_TRACE_X64_RT_OBJ_SUMMARY=1: single-line phase breakdown
     // - OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1: keep only slowest N decls by compile time
@@ -874,83 +872,128 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, pha
     if v_sum != nil && v_sum != "" { trace_sum = true }
     var timing = nil
     if trace_sum { timing = {"t0": oren_time_now_ns()} }
+    return {"trace_sum": trace_sum, "timing": timing}
+}
 
+fn _x64_rtobj_trace_mark(state, name) {
+    if state != nil && state["trace_sum"] == true {
+        var timing = state["timing"]
+        if timing != nil { timing[name] = oren_time_now_ns() }
+    }
+    return nil
+}
+
+fn _x64_rtobj_new_build_ctx(platform) {
     var linked0 = {"statements": [], "aliases": {}, "type_ns": {}}
     var ctx = _x64_new_ctx(linked0, platform)
     // Runtime object compilation must behave like "runtime injected" mode so runtime code
-    // can use Tier‑1 lowering paths (Index semantics, etc) that depend on runtime helpers.
+    // can use Tier-1 lowering paths (Index semantics, etc) that depend on runtime helpers.
     ctx["runtime_injected"] = true
-
-    var trace = rtobj.rtobj_trace_enabled()
 
     // Avoid having any real function start at code offset 0.
     // Some metadata encodings are 1-based and decoded via `enc-1`.
     bytes_push(ctx["code"], 144) // 0x90 (NOP)
+    return ctx
+}
 
+fn _x64_rtobj_load_runtime_statements(ctx, runtime_path, platform, phase_log, trace_state) {
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.parse.start", "") }
     var prog = bundle.load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
     if prog == nil { return nil }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.parse.done", "") }
-    if trace_sum { timing["parse"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "parse")
 
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }
     ctx["rtobj_runtime_stmts"] = stmts
+    return stmts
+}
 
+fn _x64_rtobj_prepare_runtime_inputs(ctx, stmts, phase_log, trace_state) {
     var fns = _x64_rtobj_collect_function_meta(ctx, stmts, phase_log)
     if fns == nil { return nil }
-    if trace_sum { timing["meta"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "meta")
 
     if _x64_rtobj_rewrite_and_collect_lambdas(ctx, stmts, phase_log) != true { return nil }
-    if trace_sum { timing["lambda"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "lambda")
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var runtime_vars = _x64_rtobj_split_runtime_vars(ctx, stmts, phase_log)
     if runtime_vars == nil { return nil }
-    if trace_sum { timing["split"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "split")
 
     if _x64_rtobj_allocate_runtime_globals(ctx, runtime_vars, phase_log) != true { return nil }
-    if trace_sum { timing["globals"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "globals")
+    return {"fns": fns, "runtime_vars": runtime_vars}
+}
 
-    // Compile runtime named functions.
+fn _x64_rtobj_decl_trace_state() {
     var trace_decls = false
     var v_decls = oren_env("OREN_TRACE_X64_RT_OBJ_TOP_DECLS")
     if v_decls != nil && v_decls != "" { trace_decls = true }
     var top_decls = nil
-    var top_keep = 12
-    var sum_decl_ns = 0
     if trace_decls { top_decls = [] }
+    return {"trace_decls": trace_decls, "top_decls": top_decls, "top_keep": 12, "sum_decl_ns": 0}
+}
+
+fn _x64_rtobj_compile_runtime_functions_and_wrappers(ctx, fns, platform, phase_log, trace, trace_state) {
+    // Compile runtime named functions, then only the wrappers needed by the runtime itself:
+    // - named functions used as first-class values (tracked in ctx["fnwrap_needed"])
+    // - lambda wrappers (always needed when a lambda literal exists)
+    var decl_state = _x64_rtobj_decl_trace_state()
+    var trace_decls = decl_state["trace_decls"] == true
+    var top_decls = decl_state["top_decls"]
+    var top_keep = decl_state["top_keep"]
+    var sum_decl_ns = decl_state["sum_decl_ns"]
     var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
+
     var decl_res = _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabled,
         trace_decls, top_decls, top_keep, phase_log, trace)
     if decl_res == nil { return nil }
     sum_decl_ns = sum_decl_ns + decl_res["sum_decl_ns"]
     top_decls = decl_res["top_decls"]
-    if trace_sum { timing["decls"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "decls")
 
-    // Synthesize only wrappers needed by the runtime itself:
-    // - named functions used as first-class values (tracked in ctx["fnwrap_needed"])
-    // - lambda wrappers (always needed when a lambda literal exists)
     var wrappers = _x64_rtobj_synthesize_wrappers(ctx)
     if wrappers == nil { return nil }
 
-    // Compile synthesized wrappers.
     var wrap_res = _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled,
         trace_decls, top_decls, top_keep, phase_log, trace)
     if wrap_res == nil { return nil }
     sum_decl_ns = sum_decl_ns + wrap_res["sum_decl_ns"]
     top_decls = wrap_res["top_decls"]
-    if trace_sum { timing["wrap"] = oren_time_now_ns() }
+    _x64_rtobj_trace_mark(trace_state, "wrap")
 
     if trace_decls && top_decls != nil { _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) }
+    return {"wrappers": wrappers}
+}
 
+fn _x64_rtobj_finalize_build_result(ctx, runtime_hash, backend_sig, phase_log, trace_state, build_info) {
     var built = _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log)
     if built == nil { return nil }
-    if trace_sum { timing["finalize"] = oren_time_now_ns() }
-    if trace_sum {
-        _x64_rtobj_print_build_summary(ctx, timing, fns, wrappers, runtime_vars, built)
+    _x64_rtobj_trace_mark(trace_state, "finalize")
+
+    if trace_state != nil && trace_state["trace_sum"] == true {
+        _x64_rtobj_print_build_summary(ctx, trace_state["timing"],
+            build_info["fns"], build_info["wrappers"], build_info["runtime_vars"], built)
     }
     return {"meta": built["meta"], "code_u8": built["code_u8"], "data_tail_u8": built["data_tail_u8"], "cstr0_offsets_u8": built["cstr0_offsets_u8"]}
+}
+
+fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig, phase_log) {
+    // Compile the injected native runtime into a reusable object blob for x86_64 native.
+    var trace_state = _x64_rtobj_build_trace_state()
+    var ctx = _x64_rtobj_new_build_ctx(platform)
+    var trace = rtobj.rtobj_trace_enabled()
+
+    var stmts = _x64_rtobj_load_runtime_statements(ctx, runtime_path, platform, phase_log, trace_state)
+    if stmts == nil { return nil }
+    var build_info = _x64_rtobj_prepare_runtime_inputs(ctx, stmts, phase_log, trace_state)
+    if build_info == nil { return nil }
+    var compiled = _x64_rtobj_compile_runtime_functions_and_wrappers(ctx, build_info["fns"], platform, phase_log, trace, trace_state)
+    if compiled == nil { return nil }
+    build_info["wrappers"] = compiled["wrappers"]
+    return _x64_rtobj_finalize_build_result(ctx, runtime_hash, backend_sig, phase_log, trace_state, build_info)
 }
 
 fn _x64_rtobj_cache_identity(ctx, platform, runtime_path, phase_log) {
