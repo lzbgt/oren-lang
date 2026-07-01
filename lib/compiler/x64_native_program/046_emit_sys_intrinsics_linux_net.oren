@@ -378,98 +378,96 @@ fn _emit_intrinsic_sys_linux_net_socket_x64(ctx, nm, expr, locals, args, capsule
     return true
 }
 
-fn _emit_intrinsic_sys_linux_net_addr3_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_connect" || nm == "sys_bind" || nm == "sys_getpeername" || nm == "sys_getsockname" {
-        if oren_list_len(args) != 3 { err(ctx, "x64 native v0: " + nm + " expects 3 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+fn _x64_linux_net_addr3_name(nm) {
+    return nm == "sys_connect" || nm == "sys_bind" || nm == "sys_getpeername" || nm == "sys_getsockname"
+}
 
-        var base27 = _intr_tmp_push(ctx, 3) // fd, addr, addrlen(_ptr)
-        if oren_type_tag(base27) == 0 { return true }
-        var tmp_fd = _intr_tmp_off(ctx, locals, base27 + 0)
-        var tmp_addr = _intr_tmp_off(ctx, locals, base27 + 1)
-        var tmp_len = _intr_tmp_off(ctx, locals, base27 + 2)
-        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base27); return true }
+fn _x64_linux_net_addr3_state(ctx, locals, args) {
+    var base27 = _intr_tmp_push(ctx, 3) // fd, addr, addrlen(_ptr)
+    if oren_type_tag(base27) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base27 + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base27 + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base27 + 2)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base27); return nil }
 
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base27); return true }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base27); return nil }
 
-        if nm == "sys_connect" {
-            if capsule {
-                _intr_load_x64(ctx, 7, tmp_fd)
-                _intr_load_x64(ctx, 6, tmp_addr)
-                _intr_load_x64(ctx, 2, tmp_len)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
-            }
-
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_connect()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-
-            if capsule {
-                bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
-                _intr_load_x64(ctx, 6, tmp_fd)
-                _intr_load_x64(ctx, 2, tmp_addr)
-                _intr_load_x64(ctx, 1, tmp_len)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
-            }
-        } else if nm == "sys_bind" {
-            if capsule {
-                _intr_load_x64(ctx, 7, tmp_fd)
-                _intr_load_x64(ctx, 6, tmp_addr)
-                _intr_load_x64(ctx, 2, tmp_len)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre")
-            }
-
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_bind()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-
-            if capsule {
-                bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
-                _intr_load_x64(ctx, 6, tmp_fd)
-                _intr_load_x64(ctx, 2, tmp_addr)
-                _intr_load_x64(ctx, 1, tmp_len)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post")
-            }
-        } else if nm == "sys_getpeername" {
-            if capsule {
-                _intr_load_x64(ctx, 7, tmp_fd)
-                _intr_load_x64(ctx, 6, tmp_addr)
-                _intr_load_x64(ctx, 2, tmp_len)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre")
-            }
-
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getpeername()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-        } else {
-            if capsule {
-                _intr_load_x64(ctx, 7, tmp_fd)
-                _intr_load_x64(ctx, 6, tmp_addr)
-                _intr_load_x64(ctx, 2, tmp_len)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre")
-            }
-
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getsockname()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-        }
-
-        _intr_tmp_pop(ctx, base27)
-        return true
+    return {
+        "base": base27,
+        "fd": tmp_fd,
+        "addr": tmp_addr,
+        "len": tmp_len
     }
+}
 
-    return false
+fn _x64_linux_net_addr3_emit_pre(ctx, nm, state, capsule) {
+    if !capsule { return nil }
+
+    _intr_load_x64(ctx, 7, state["fd"])
+    _intr_load_x64(ctx, 6, state["addr"])
+    _intr_load_x64(ctx, 2, state["len"])
+    if nm == "sys_connect" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
+    } else if nm == "sys_bind" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre")
+    } else if nm == "sys_getpeername" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre")
+    } else {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre")
+    }
+    return nil
+}
+
+fn _x64_linux_net_addr3_emit_syscall(ctx, nm, state) {
+    _intr_load_x64(ctx, 7, state["fd"])
+    _intr_load_x64(ctx, 6, state["addr"])
+    _intr_load_x64(ctx, 2, state["len"])
+    if nm == "sys_connect" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_connect()))
+    } else if nm == "sys_bind" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_bind()))
+    } else if nm == "sys_getpeername" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getpeername()))
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getsockname()))
+    }
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_linux_net_addr3_emit_post(ctx, nm, state, capsule) {
+    if !capsule { return nil }
+    if nm != "sys_connect" && nm != "sys_bind" { return nil }
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
+    _intr_load_x64(ctx, 6, state["fd"])
+    _intr_load_x64(ctx, 2, state["addr"])
+    _intr_load_x64(ctx, 1, state["len"])
+    if nm == "sys_connect" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
+    } else {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post")
+    }
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_net_addr3_x64(ctx, nm, expr, locals, args, capsule) {
+    if !_x64_linux_net_addr3_name(nm) { return false }
+    if oren_list_len(args) != 3 { err(ctx, "x64 native v0: " + nm + " expects 3 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+    var state = _x64_linux_net_addr3_state(ctx, locals, args)
+    if state == nil { return true }
+
+    _x64_linux_net_addr3_emit_pre(ctx, nm, state, capsule)
+    _x64_linux_net_addr3_emit_syscall(ctx, nm, state)
+    _x64_linux_net_addr3_emit_post(ctx, nm, state, capsule)
+
+    _intr_tmp_pop(ctx, state["base"])
+    return true
 }
 
 fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {

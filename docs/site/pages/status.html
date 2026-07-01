@@ -640,6 +640,14 @@
 <p>																					  39.5s total / 29.2s parse, with</p>
 <p>																					  <code>_emit_intrinsic_sys_linux_net_addr3_x64</code> exposed at about</p>
 <p>																					  107ms as the next parser body.</p>
+<p>																					  Linux x64 3-argument socket address syscalls now share addr3</p>
+<p>																					  helpers for intrinsic state spilling, capsule prehooks,</p>
+<p>																					  syscall-number emission, and the connect/bind posthook paths</p>
+<p>																					  while keeping getpeername/getsockname as no-post syscalls. The</p>
+<p>																					  capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																					  39.6s total / 29.4s parse, with</p>
+<p>																					  <code>_x64_collect_top_level_globals_and_stmts</code> exposed at about</p>
+<p>																					  107ms as the next parser body.</p>
 <p>												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
