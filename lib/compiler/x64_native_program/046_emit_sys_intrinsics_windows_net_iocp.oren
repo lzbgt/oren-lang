@@ -720,12 +720,7 @@ fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, loca
     return nil
 }
 
-fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex expects 6 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex does not support spread"); return nil }
-
-    // GetQueuedCompletionStatusEx(port, entries, entry_cap, removed_ptr, timeout_ms, alertable) -> 0 or -errno
+fn _x64_gqcsx_spill_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 6)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_port = _intr_tmp_off(ctx, locals, base + 0)
@@ -744,20 +739,35 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
     _intr_eval_spill_x64(ctx, locals, args[5], tmp_alert)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    _intr_load_x64(ctx, 1, tmp_port)    // rcx = port
-    _intr_load_x64(ctx, 2, tmp_entries) // rdx = entries
-    _intr_load_x64(ctx, 8, tmp_cap)     // r8  = entry_cap
-    _intr_load_x64(ctx, 9, tmp_removed) // r9  = removed_ptr
+    return {
+        "base": base,
+        "tmp_port": tmp_port,
+        "tmp_entries": tmp_entries,
+        "tmp_cap": tmp_cap,
+        "tmp_removed": tmp_removed,
+        "tmp_timeout": tmp_timeout,
+        "tmp_alert": tmp_alert
+    }
+}
+
+fn _x64_gqcsx_emit_call(ctx, state) {
+    _intr_load_x64(ctx, 1, state["tmp_port"])    // rcx = port
+    _intr_load_x64(ctx, 2, state["tmp_entries"]) // rdx = entries
+    _intr_load_x64(ctx, 8, state["tmp_cap"])     // r8  = entry_cap
+    _intr_load_x64(ctx, 9, state["tmp_removed"]) // r9  = removed_ptr
 
     // Stack args (Win64 ABI): [rsp+32] = timeout_ms, [rsp+40] = alertable
-    _intr_load_x64(ctx, 0, tmp_timeout)
+    _intr_load_x64(ctx, 0, state["tmp_timeout"])
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(32, 0))
-    _intr_load_x64(ctx, 0, tmp_alert)
+    _intr_load_x64(ctx, 0, state["tmp_alert"])
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(40, 0))
 
     _emit_call_iat_x64(ctx, "IAT_GetQueuedCompletionStatusEx")
-    // BOOL in eax (0 => failure; GetLastError() == WAIT_TIMEOUT on timeout)
+    return nil
+}
 
+fn _x64_gqcsx_normalize_result(ctx) {
+    // BOOL in eax (0 => failure; GetLastError() == WAIT_TIMEOUT on timeout)
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "iocp_gqcsx_ok")
@@ -800,7 +810,20 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex expects 6 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex does not support spread"); return nil }
+
+    // GetQueuedCompletionStatusEx(port, entries, entry_cap, removed_ptr, timeout_ms, alertable) -> 0 or -errno
+    var state = _x64_gqcsx_spill_state(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_gqcsx_emit_call(ctx, state)
+    _x64_gqcsx_normalize_result(ctx)
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 
