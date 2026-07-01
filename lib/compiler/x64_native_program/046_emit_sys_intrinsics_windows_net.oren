@@ -34,6 +34,16 @@ fn _emit_wsa_get_last_error_x64(ctx) {
     return nil
 }
 
+fn _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, next_label, wsa_errno, posix_errno) {
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, wsa_errno))
+    var l_next = _new_label(ctx, next_label)
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next)
+    _emit_set_rax_neg_errno_x64(ctx, posix_errno)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next)
+    return nil
+}
+
 fn _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_wsa_get_last_error expects 0 args"); return nil }
@@ -54,76 +64,31 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     var l_done = _new_label(ctx, "wsa_err_done")
 
     // WSAEWOULDBLOCK(10035) -> EAGAIN(11)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10035))
-    var l_next0 = _new_label(ctx, "wsa_err_next0")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
-    _emit_set_rax_neg_errno_x64(ctx, 11)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next0)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next0", 10035, 11)
 
     // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10036))
-    var l_next1 = _new_label(ctx, "wsa_err_next1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
-    _emit_set_rax_neg_errno_x64(ctx, 115)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next1)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next1", 10036, 115)
 
     // WSAEALREADY(10037) -> EALREADY(114)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10037))
-    var l_next2 = _new_label(ctx, "wsa_err_next2")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
-    _emit_set_rax_neg_errno_x64(ctx, 114)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next2)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next2", 10037, 114)
 
     // WSAETIMEDOUT(10060) -> ETIMEDOUT(60)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10060))
-    var l_next3 = _new_label(ctx, "wsa_err_next3")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
-    _emit_set_rax_neg_errno_x64(ctx, 60)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next3)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next3", 10060, 60)
 
     // WSAECONNREFUSED(10061) -> ECONNREFUSED(111)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10061))
-    var l_next4 = _new_label(ctx, "wsa_err_next4")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next4)
-    _emit_set_rax_neg_errno_x64(ctx, 111)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next4)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next4", 10061, 111)
 
     // WSAEADDRINUSE(10048) -> EADDRINUSE(98)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10048))
-    var l_next5 = _new_label(ctx, "wsa_err_next5")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next5)
-    _emit_set_rax_neg_errno_x64(ctx, 98)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next5)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next5", 10048, 98)
 
     // WSAEINVAL(10022) -> EINVAL(22)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10022))
-    var l_next6 = _new_label(ctx, "wsa_err_next6")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next6)
-    _emit_set_rax_neg_errno_x64(ctx, 22)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next6)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next6", 10022, 22)
 
     // WSAENOTSOCK(10038) -> ENOTSOCK(88) (Linux number; used only for diagnostics)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10038))
-    var l_next7 = _new_label(ctx, "wsa_err_next7")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next7)
-    _emit_set_rax_neg_errno_x64(ctx, 88)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next7)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next7", 10038, 88)
 
     // WSAECONNRESET(10054) -> ECONNRESET(104)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10054))
-    var l_next8 = _new_label(ctx, "wsa_err_next8")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next8)
-    _emit_set_rax_neg_errno_x64(ctx, 104)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next8)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next8", 10054, 104)
 
     // Default: -EIO(5)
     _emit_set_rax_neg_errno_x64(ctx, 5)
@@ -142,20 +107,10 @@ fn _emit_wsa_last_error_to_neg_errno_connect_x64(ctx) {
     var l_done = _new_label(ctx, "wsa_err_connect_done")
 
     // WSAEWOULDBLOCK(10035) -> EINPROGRESS(115)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10035))
-    var l_next0 = _new_label(ctx, "wsa_err_connect_next0")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
-    _emit_set_rax_neg_errno_x64(ctx, 115)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next0)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_connect_next0", 10035, 115)
 
     // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10036))
-    var l_next1 = _new_label(ctx, "wsa_err_connect_next1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
-    _emit_set_rax_neg_errno_x64(ctx, 115)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next1)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_connect_next1", 10036, 115)
 
     // Otherwise, fall back to common mapping.
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)

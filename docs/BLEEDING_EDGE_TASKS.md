@@ -744,11 +744,18 @@ This file is the concise task view. Detailed implementation status lives in
 																			 explicit argument spilling, fixed-list construction, spread/callee
 																			 spilling, and `oren_call_obj_spread` emission to focused helpers while
 																			 preserving injected runtime gating and temp cleanup on failure. The
-																			 capped profile now shows `x64_native_program.oren` at about 43.0s
-																			 total / 31.8s parse, with
-																			 `_emit_wsa_last_error_to_neg_errno_common_x64` exposed at about 124ms
-																			 as the next parser body.
-																			     Serial/thread module
+																				 capped profile now shows `x64_native_program.oren` at about 43.0s
+																				 total / 31.8s parse, with
+																				 `_emit_wsa_last_error_to_neg_errno_common_x64` exposed at about 124ms
+																				 as the next parser body.
+																				 X64 Windows WSA error normalization now shares the repeated
+																				 compare/set/jump case emission between common socket-error and
+																				 connect-specialized mappings while preserving POSIX errno
+																				 translations and local fixup ownership. The capped profile now shows
+																				 `x64_native_program.oren` at about 41.5s total / 30.5s parse, with
+																				 `_x64_emit_resolve_symbol_intrinsic` exposed at about 95ms as the next
+																				 parser body.
+																				     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

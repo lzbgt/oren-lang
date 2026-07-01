@@ -800,11 +800,18 @@
 <p>																			 explicit argument spilling, fixed-list construction, spread/callee</p>
 <p>																			 spilling, and <code>oren_call_obj_spread</code> emission to focused helpers while</p>
 <p>																			 preserving injected runtime gating and temp cleanup on failure. The</p>
-<p>																			 capped profile now shows <code>x64_native_program.oren</code> at about 43.0s</p>
-<p>																			 total / 31.8s parse, with</p>
-<p>																			 <code>_emit_wsa_last_error_to_neg_errno_common_x64</code> exposed at about 124ms</p>
-<p>																			 as the next parser body.</p>
-<p>																			     Serial/thread module</p>
+<p>																				 capped profile now shows <code>x64_native_program.oren</code> at about 43.0s</p>
+<p>																				 total / 31.8s parse, with</p>
+<p>																				 <code>_emit_wsa_last_error_to_neg_errno_common_x64</code> exposed at about 124ms</p>
+<p>																				 as the next parser body.</p>
+<p>																				 X64 Windows WSA error normalization now shares the repeated</p>
+<p>																				 compare/set/jump case emission between common socket-error and</p>
+<p>																				 connect-specialized mappings while preserving POSIX errno</p>
+<p>																				 translations and local fixup ownership. The capped profile now shows</p>
+<p>																				 <code>x64_native_program.oren</code> at about 41.5s total / 30.5s parse, with</p>
+<p>																				 <code>_x64_emit_resolve_symbol_intrinsic</code> exposed at about 95ms as the next</p>
+<p>																				 parser body.</p>
+<p>																				     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

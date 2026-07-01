@@ -804,7 +804,14 @@
 <p>																							  <code>x64_native_program.oren</code> at about 43.0s total / 31.8s parse, with</p>
 <p>																							  <code>_emit_wsa_last_error_to_neg_errno_common_x64</code> exposed at about</p>
 <p>																							  124ms as the next parser body.</p>
-<p>															  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																							  X64 Windows WSA error normalization now shares the repeated</p>
+<p>																							  compare/set/jump case emission between common socket-error and</p>
+<p>																							  connect-specialized mappings while preserving POSIX errno</p>
+<p>																							  translations and local fixup ownership. The capped profile now</p>
+<p>																							  shows <code>x64_native_program.oren</code> at about 41.5s total / 30.5s</p>
+<p>																							  parse, with <code>_x64_emit_resolve_symbol_intrinsic</code> exposed at about</p>
+<p>																							  95ms as the next parser body.</p>
+<p>																  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
