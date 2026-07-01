@@ -758,11 +758,18 @@ This file is the concise task view. Detailed implementation status lives in
 																					 X64 `resolve_symbol` intrinsic lowering now delegates default
 																					 `"???"` materialization, symtab offset decoding, range setup, and
 																					 range-table loop emission to focused helpers while preserving embedded
-																					 debug-symbol fallback semantics. The capped profile now shows
-																					 `x64_native_program.oren` at about 41.1s total / 30.3s parse, with
-																					 `_emit_intrinsic_sys_ulock_wait_windows_x64` exposed at about 94ms as
-																					 the next parser body.
-																					     Serial/thread module
+																						 debug-symbol fallback semantics. The capped profile now shows
+																						 `x64_native_program.oren` at about 41.1s total / 30.3s parse, with
+																						 `_emit_intrinsic_sys_ulock_wait_windows_x64` exposed at about 94ms as
+																						 the next parser body.
+																						 X64 Windows `sys_ulock_wait` lowering now delegates temp setup,
+																						 argument spilling, timeout-us to timeout-ms conversion,
+																						 `WaitOnAddress` call setup, and result/timeout errno mapping to
+																						 focused helpers while preserving temp cleanup ownership. The capped
+																						 profile now shows `x64_native_program.oren` at about 41.4s total /
+																						 30.6s parse, with `_emit_cmp_from_cond` exposed at about 96ms as the
+																						 next parser body.
+																						     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

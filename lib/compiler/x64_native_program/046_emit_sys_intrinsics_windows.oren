@@ -80,34 +80,25 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
-    // Portable "wait-on-address" primitive used by the injected runtime lock.
-    //
-    // Name is historical (Darwin ulock), but on Windows we map it to:
-    //   KERNEL32!WaitOnAddress(addr, &compare, 8, timeout_ms)
-    //
-    // Contract:
-    // - returns 0 on success (including "woke up"),
-    // - returns -ETIMEDOUT on timeout,
-    // - returns -EIO on unexpected failure.
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_ulock_wait expects 4 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wait does not support spread"); return nil }
-
-    // args: (operation, addr, value, timeout_us)
-    // We ignore `operation` today (runtime lock uses UL_COMPARE_AND_WAIT=1).
+fn _x64_ulock_wait_prepare_windows(ctx, locals) {
     var base = _intr_tmp_push(ctx, 3) // addr, value, timeout_us
     if oren_type_tag(base) == 0 { return nil }
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_val = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 2)
     if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_addr": tmp_addr, "tmp_val": tmp_val, "tmp_to": tmp_to}
+}
 
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_val)
-    _intr_eval_spill_x64(ctx, locals, args[3], tmp_to)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+fn _x64_ulock_wait_spill_args_windows(ctx, locals, args, st) {
+    _intr_eval_spill_x64(ctx, locals, args[1], st["tmp_addr"])
+    _intr_eval_spill_x64(ctx, locals, args[2], st["tmp_val"])
+    _intr_eval_spill_x64(ctx, locals, args[3], st["tmp_to"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return false }
+    return true
+}
 
+fn _x64_ulock_wait_emit_timeout_ms_windows(ctx, tmp_to) {
     // r9 = timeout_ms
     // - timeout_us <= 0: INFINITE (0xFFFFFFFF)
     // - timeout_us > 0: ceil(timeout_us / 1000)
@@ -128,7 +119,10 @@ fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 4294967295)) // INFINITE
     _emit_label(ctx, labels, l_after_to)
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
 
+fn _x64_ulock_wait_emit_call_windows(ctx, tmp_addr, tmp_val) {
     // rcx = addr
     _intr_load_x64(ctx, 1, tmp_addr)
 
@@ -142,7 +136,10 @@ fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
 
     _emit_call_iat_x64(ctx, "IAT_WaitOnAddress")
     // BOOL in eax (0 => failure)
+    return nil
+}
 
+fn _x64_ulock_wait_emit_result_windows(ctx) {
     var labels2 = {}
     var fixups2 = []
     var l_ok = _new_label(ctx, "ulock_ok")
@@ -171,8 +168,33 @@ fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
     _emit_set_rax_neg_errno_x64(ctx, 5) // -EIO
     _emit_label(ctx, labels2, l_done)
     _patch_local_fixups(ctx, labels2, fixups2)
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base)
+fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
+    // Portable "wait-on-address" primitive used by the injected runtime lock.
+    //
+    // Name is historical (Darwin ulock), but on Windows we map it to:
+    //   KERNEL32!WaitOnAddress(addr, &compare, 8, timeout_ms)
+    //
+    // Contract:
+    // - returns 0 on success (including "woke up"),
+    // - returns -ETIMEDOUT on timeout,
+    // - returns -EIO on unexpected failure.
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_ulock_wait expects 4 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wait does not support spread"); return nil }
+
+    // args: (operation, addr, value, timeout_us)
+    // We ignore `operation` today (runtime lock uses UL_COMPARE_AND_WAIT=1).
+    var st = _x64_ulock_wait_prepare_windows(ctx, locals)
+    if st == nil { return nil }
+    if _x64_ulock_wait_spill_args_windows(ctx, locals, args, st) != true { return nil }
+    _x64_ulock_wait_emit_timeout_ms_windows(ctx, st["tmp_to"])
+    _x64_ulock_wait_emit_call_windows(ctx, st["tmp_addr"], st["tmp_val"])
+    _x64_ulock_wait_emit_result_windows(ctx)
+
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
