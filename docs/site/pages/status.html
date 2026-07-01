@@ -683,11 +683,18 @@
 <p>																					  left-to-right explicit argument spills, spill-slot preparation,</p>
 <p>																					  argument-list allocation, ordered list pushes, named fn-object</p>
 <p>																					  spilling, and inline <code>oren_call_obj_list</code> emission to focused</p>
-<p>																					  helpers. The capped profile now shows <code>x64_native_program.oren</code></p>
-<p>																					  at about 40.9s total / 30.1s parse, with</p>
-<p>																					  <code>_emit_fast_list_int_get_sum_while_x64</code> exposed at about 134ms as</p>
-<p>																					  the next parser body.</p>
-<p>												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																						  helpers. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>																						  at about 40.9s total / 30.1s parse, with</p>
+<p>																						  <code>_emit_fast_list_int_get_sum_while_x64</code> exposed at about 134ms as</p>
+<p>																						  the next parser body.</p>
+<p>																						  X64 fast list-int get-sum while lowering now delegates label setup,</p>
+<p>																						  bounds checks, optional whole-list helper dispatch, loop</p>
+<p>																						  header/unroll guarding, loop-body emission, and final jump fixup</p>
+<p>																						  resolution to focused helpers. The capped profile now shows</p>
+<p>																						  <code>x64_native_program.oren</code> at about 40.6s total / 30.1s parse,</p>
+<p>																						  with <code>_emit_intrinsic_sys_linux_proc_memory_x64</code> exposed at about</p>
+<p>																						  104ms as the next parser body.</p>
+<p>													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

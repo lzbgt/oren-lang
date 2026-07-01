@@ -636,11 +636,18 @@ This file is the concise task view. Detailed implementation status lives in
 																 left-to-right explicit argument spills, spill-slot preparation,
 																 argument-list allocation, ordered list pushes, named fn-object
 																 spilling, and inline `oren_call_obj_list` emission to focused
-																 helpers. The capped profile now shows `x64_native_program.oren` at
-																 about 40.9s total / 30.1s parse, with
-																 `_emit_fast_list_int_get_sum_while_x64` exposed at about 134ms as the
-																 next parser body.
-																     Serial/thread module
+																	 helpers. The capped profile now shows `x64_native_program.oren` at
+																	 about 40.9s total / 30.1s parse, with
+																	 `_emit_fast_list_int_get_sum_while_x64` exposed at about 134ms as the
+																	 next parser body.
+																	 X64 fast list-int get-sum while lowering now delegates label setup,
+																	 bounds checks, optional whole-list helper dispatch, loop header/unroll
+																	 guarding, loop-body emission, and final jump fixup resolution to
+																	 focused helpers. The capped profile now shows
+																	 `x64_native_program.oren` at about 40.6s total / 30.1s parse, with
+																	 `_emit_intrinsic_sys_linux_proc_memory_x64` exposed at about 104ms as
+																	 the next parser body.
+																	     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
