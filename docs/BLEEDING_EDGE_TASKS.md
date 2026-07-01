@@ -388,7 +388,13 @@ This file is the concise task view. Detailed implementation status lives in
 																		 paths through focused helpers and shares heap-spill emission. The capped
 																		 profile now shows `x64_native_program.oren` at about 38.3s total / 28.7s
 																		 parse, with `_emit_intrinsic_sys_open_windows_x64` exposed at about 172ms as
-																		 the next parser body.
+																		 the next parser body. X64 Windows `sys_open` lowering now delegates capsule
+																		 pre/post hooks, path normalization argument setup, desired-access mapping,
+																		 creation-disposition stack args, and CreateFileA/error mapping through
+																		 focused helpers. The capped profile now shows `x64_native_program.oren` at
+																		 about 37.8s total / 28.3s parse, with
+																		 `_emit_intrinsic_sys_linux_fcntl_x64` exposed at about 166ms as the next
+																		 parser body.
 												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

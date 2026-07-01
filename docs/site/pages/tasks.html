@@ -444,7 +444,13 @@
 <p>																		 paths through focused helpers and shares heap-spill emission. The capped</p>
 <p>																		 profile now shows <code>x64_native_program.oren</code> at about 38.3s total / 28.7s</p>
 <p>																		 parse, with <code>_emit_intrinsic_sys_open_windows_x64</code> exposed at about 172ms as</p>
-<p>																		 the next parser body.</p>
+<p>																		 the next parser body. X64 Windows <code>sys_open</code> lowering now delegates capsule</p>
+<p>																		 pre/post hooks, path normalization argument setup, desired-access mapping,</p>
+<p>																		 creation-disposition stack args, and CreateFileA/error mapping through</p>
+<p>																		 focused helpers. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																		 about 37.8s total / 28.3s parse, with</p>
+<p>																		 <code>_emit_intrinsic_sys_linux_fcntl_x64</code> exposed at about 166ms as the next</p>
+<p>																		 parser body.</p>
 <p>												     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
