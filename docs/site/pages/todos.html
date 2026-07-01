@@ -691,6 +691,17 @@
 <p>  <code>x64_native_program.oren</code> at ~41.2s total / ~30.8s parse, with</p>
 <p>  <code>_compile_function_v0</code> exposed at ~134ms as the next parser body.</p>
 <ul>
+<li><code>_compile_function_v0</code> now delegates phase-state setup, function entry</li>
+</ul>
+<p>  registration, phase timestamp marks, and body/epilogue emission to focused</p>
+<p>  helper bodies. Windows x64 <code>sys_read</code> now mirrors the <code>sys_write</code> helper shape</p>
+<p>  for argument spill/prehook setup, handle selection, and <code>ReadFile</code> result</p>
+<p>  normalization. Debug metadata setup now delegates display-label construction,</p>
+<p>  runtime-object symbol collection, and symtab reservation. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~40.0s total / ~29.9s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_cwd_sched_sleep_x64</code> exposed at ~121ms as the next</p>
+<p>  parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

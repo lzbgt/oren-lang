@@ -543,9 +543,18 @@ This file is the concise task view. Detailed implementation status lives in
 																											 state spilling, capsule pre/post hooks, IAT call setup, and pending/error
 																											 normalization to focused helpers. Windows `getsockopt` lowering delegates
 																											 spill state, capsule prehook, level/option translation, IAT call setup, and
-																											 SO_ERROR normalization. The capped profile now shows
-																											 `x64_native_program.oren` at about 41.2s total / 30.8s parse, with
-																											 `_compile_function_v0` exposed at about 134ms as the next parser body.
+																												 SO_ERROR normalization. The capped profile now shows
+																												 `x64_native_program.oren` at about 41.2s total / 30.8s parse, with
+																												 `_compile_function_v0` exposed at about 134ms as the next parser body.
+																												 `_compile_function_v0` now delegates phase-state setup, function entry
+																												 registration, phase timestamp marks, and body/epilogue emission; Windows
+																												 x64 `sys_read` now delegates argument spill/prehook setup, handle
+																												 selection, and `ReadFile` result normalization; debug metadata setup now
+																												 delegates display labels, runtime-object symbol collection, and symtab
+																												 reservation. The capped profile now shows `x64_native_program.oren` at
+																												 about 40.0s total / 29.9s parse, with
+																												 `_emit_intrinsic_sys_linux_cwd_sched_sleep_x64` exposed at about 121ms as
+																												 the next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

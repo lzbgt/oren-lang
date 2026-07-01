@@ -1,129 +1,141 @@
+fn _x64_setup_symtab_display(ctx, fns, wrappers, imports0) {
+    // Display label mapping used by the embedded debug-info table.
+    // - key: real function name (used to look up code offsets)
+    // - value: display label (may include source location)
+    ctx["symtab_display"] = {"__entry_stub__": "__entry_stub__", "__top_level__": "__top_level__@<top-level>"}
+
+    // User functions (deterministic: source order).
+    var si0 = 0
+    while si0 < oren_list_len(fns) {
+        var fn0 = fns[si0]
+        if fn0 != nil && fn0["name"] != nil && fn0["name"] != "" {
+            var nm1 = fn0["name"]
+            var disp = nm1
+            var tok0 = fn0["token"]
+            if tok0 != nil && tok0["file"] != nil && tok0["line"] != nil {
+                disp = nm1 + "@" + tok0["file"] + ":" + oren_int_to_string(tok0["line"])
+            }
+            ctx["symtab_display"][nm1] = disp
+        }
+        si0 = si0 + 1
+    }
+    // Wrappers (deterministic: synthesis order).
+    si0 = 0
+    while si0 < oren_list_len(wrappers) {
+        var w0 = wrappers[si0]
+        if w0 != nil && w0["name"] != nil && w0["name"] != "" {
+            var wnm = w0["name"]
+            // Wrappers are compiler-synthesized; keep them clearly marked in stack traces.
+            ctx["symtab_display"][wnm] = wnm + "@<generated>"
+        }
+        si0 = si0 + 1
+    }
+
+    // FFI stubs (deterministic: declaration order).
+    if imports0 != nil {
+        var ii0 = 0
+        while ii0 < oren_list_len(imports0) {
+            var inm = imports0[ii0]
+            if inm != nil && inm != "" {
+                ctx["symtab_display"][inm] = inm + "@<ffi>"
+            }
+            ii0 = ii0 + 1
+        }
+    }
+    return nil
+}
+
+fn _x64_push_rtobj_symtab_names(ctx, sym_seen, sym_names) {
+    var pend = ctx["rtobj_pending"]
+    var rt_fn_compact = nil
+    if pend != nil { rt_fn_compact = pend["fn_offsets_compact"] }
+    var rt_names = nil
+    if rt_fn_compact != nil { rt_names = rt_fn_compact["names"] }
+    if rt_names != nil {
+        var rn_i = 0
+        while rn_i < oren_list_len(rt_names) {
+            var rnm0 = rt_names[rn_i]
+            if rnm0 != nil && rnm0 != "" {
+                _x64_symtab_push_unique(sym_seen, sym_names, rnm0)
+                if ctx["symtab_display"][rnm0] == nil {
+                    ctx["symtab_display"][rnm0] = rnm0 + "@<runtime>"
+                }
+            }
+            rn_i = rn_i + 1
+        }
+    } else if pend != nil && pend["fn_offs_enc"] != nil {
+        var idxr = 0
+        var pairr = [nil, nil]
+        while 1 {
+            var okr = oren_iter_next_entry(pend["fn_offs_enc"], idxr, pairr)
+            if okr == 0 { break }
+            var rnm = pairr[0]
+            if rnm != nil && rnm != "" {
+                _x64_symtab_push_unique(sym_seen, sym_names, rnm)
+                if ctx["symtab_display"][rnm] == nil {
+                    ctx["symtab_display"][rnm] = rnm + "@<runtime>"
+                }
+            }
+            idxr = idxr + 1
+        }
+    }
+    return nil
+}
+
+fn _x64_reserve_debug_symtab(ctx, fns, wrappers, imports0, used_rtobj) {
+    // Reserve a symbol table region early so stack trace codegen can refer to it
+    // with stable RIP-relative fixups. We fill the table later, after compilation
+    // (when function code offsets are known).
+    var sym_names = []
+    var sym_seen = {}
+    _x64_symtab_push_unique(sym_seen, sym_names, "__entry_stub__")
+    _x64_symtab_push_unique(sym_seen, sym_names, "__top_level__")
+
+    // If we used a cached compiled runtime object, the `fns` list only contains user functions.
+    // Add runtime symbols from the cached meta so best-effort traces can resolve runtime frames too.
+    if used_rtobj == true { _x64_push_rtobj_symtab_names(ctx, sym_seen, sym_names) }
+
+    // User functions (deterministic: source order).
+    var si0 = 0
+    while si0 < oren_list_len(fns) {
+        var fn1 = fns[si0]
+        if fn1 != nil && fn1["name"] != nil && fn1["name"] != "" {
+            _x64_symtab_push_unique(sym_seen, sym_names, fn1["name"])
+        }
+        si0 = si0 + 1
+    }
+    // Wrappers (deterministic: synthesis order).
+    si0 = 0
+    while si0 < oren_list_len(wrappers) {
+        var w1 = wrappers[si0]
+        if w1 != nil && w1["name"] != nil && w1["name"] != "" {
+            _x64_symtab_push_unique(sym_seen, sym_names, w1["name"])
+        }
+        si0 = si0 + 1
+    }
+    // FFI stubs (deterministic: declaration order).
+    if imports0 != nil {
+        var ii1 = 0
+        while ii1 < oren_list_len(imports0) {
+            var inm1 = imports0[ii1]
+            if inm1 != nil && inm1 != "" {
+                _x64_symtab_push_unique(sym_seen, sym_names, inm1)
+            }
+            ii1 = ii1 + 1
+        }
+    }
+
+    _data_reserve_symtab(ctx, sym_names)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return true
+}
+
 fn _x64_setup_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, want_resolve_symbol) {
     if platform != nil && platform["debug"] == true {
-        // Display label mapping used by the embedded debug-info table.
-        // - key: real function name (used to look up code offsets)
-        // - value: display label (may include source location)
-        ctx["symtab_display"] = {"__entry_stub__": "__entry_stub__", "__top_level__": "__top_level__@<top-level>"}
-
-        // User functions (deterministic: source order).
-        var si0 = 0
-        while si0 < oren_list_len(fns) {
-            var fn0 = fns[si0]
-            if fn0 != nil && fn0["name"] != nil && fn0["name"] != "" {
-                var nm1 = fn0["name"]
-                var disp = nm1
-                var tok0 = fn0["token"]
-                if tok0 != nil && tok0["file"] != nil && tok0["line"] != nil {
-                    disp = nm1 + "@" + tok0["file"] + ":" + oren_int_to_string(tok0["line"])
-                }
-                ctx["symtab_display"][nm1] = disp
-            }
-            si0 = si0 + 1
-        }
-        // Wrappers (deterministic: synthesis order).
-        si0 = 0
-        while si0 < oren_list_len(wrappers) {
-            var w0 = wrappers[si0]
-            if w0 != nil && w0["name"] != nil && w0["name"] != "" {
-                var wnm = w0["name"]
-                // Wrappers are compiler-synthesized; keep them clearly marked in stack traces.
-                ctx["symtab_display"][wnm] = wnm + "@<generated>"
-            }
-            si0 = si0 + 1
-        }
-
-        // FFI stubs (deterministic: declaration order).
         var imports0 = ctx["import_list"]
-        if imports0 != nil {
-            var ii0 = 0
-            while ii0 < oren_list_len(imports0) {
-                var inm = imports0[ii0]
-                if inm != nil && inm != "" {
-                    ctx["symtab_display"][inm] = inm + "@<ffi>"
-                }
-                ii0 = ii0 + 1
-            }
-        }
-
+        _x64_setup_symtab_display(ctx, fns, wrappers, imports0)
         if want_resolve_symbol == true {
-            // Reserve a symbol table region early so stack trace codegen can refer to it
-            // with stable RIP-relative fixups. We fill the table later, after compilation
-            // (when function code offsets are known).
-            var sym_names = []
-            var sym_seen = {}
-            _x64_symtab_push_unique(sym_seen, sym_names, "__entry_stub__")
-            _x64_symtab_push_unique(sym_seen, sym_names, "__top_level__")
-
-            // If we used a cached compiled runtime object, the `fns` list only contains user functions.
-            // Add runtime symbols from the cached meta so best-effort traces can resolve runtime frames too.
-            if used_rtobj == true {
-                var pend = ctx["rtobj_pending"]
-                var rt_fn_compact = nil
-                if pend != nil { rt_fn_compact = pend["fn_offsets_compact"] }
-                var rt_names = nil
-                if rt_fn_compact != nil { rt_names = rt_fn_compact["names"] }
-                if rt_names != nil {
-                    var rn_i = 0
-                    while rn_i < oren_list_len(rt_names) {
-                        var rnm0 = rt_names[rn_i]
-                        if rnm0 != nil && rnm0 != "" {
-                            _x64_symtab_push_unique(sym_seen, sym_names, rnm0)
-                            if ctx["symtab_display"][rnm0] == nil {
-                                ctx["symtab_display"][rnm0] = rnm0 + "@<runtime>"
-                            }
-                        }
-                        rn_i = rn_i + 1
-                    }
-                } else if pend != nil && pend["fn_offs_enc"] != nil {
-                    var idxr = 0
-                    var pairr = [nil, nil]
-                    while 1 {
-                        var okr = oren_iter_next_entry(pend["fn_offs_enc"], idxr, pairr)
-                        if okr == 0 { break }
-                        var rnm = pairr[0]
-                        if rnm != nil && rnm != "" {
-                            _x64_symtab_push_unique(sym_seen, sym_names, rnm)
-                            if ctx["symtab_display"][rnm] == nil {
-                                ctx["symtab_display"][rnm] = rnm + "@<runtime>"
-                            }
-                        }
-                        idxr = idxr + 1
-                    }
-                }
-            }
-
-            // User functions (deterministic: source order).
-            si0 = 0
-            while si0 < oren_list_len(fns) {
-                var fn1 = fns[si0]
-                if fn1 != nil && fn1["name"] != nil && fn1["name"] != "" {
-                    _x64_symtab_push_unique(sym_seen, sym_names, fn1["name"])
-                }
-                si0 = si0 + 1
-            }
-            // Wrappers (deterministic: synthesis order).
-            si0 = 0
-            while si0 < oren_list_len(wrappers) {
-                var w1 = wrappers[si0]
-                if w1 != nil && w1["name"] != nil && w1["name"] != "" {
-                    _x64_symtab_push_unique(sym_seen, sym_names, w1["name"])
-                }
-                si0 = si0 + 1
-            }
-            // FFI stubs (deterministic: declaration order).
-            if imports0 != nil {
-                var ii1 = 0
-                while ii1 < oren_list_len(imports0) {
-                    var inm1 = imports0[ii1]
-                    if inm1 != nil && inm1 != "" {
-                        _x64_symtab_push_unique(sym_seen, sym_names, inm1)
-                    }
-                    ii1 = ii1 + 1
-                }
-            }
-
-            _data_reserve_symtab(ctx, sym_names)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if _x64_reserve_debug_symtab(ctx, fns, wrappers, imports0, used_rtobj) == nil { return nil }
         }
     }
 

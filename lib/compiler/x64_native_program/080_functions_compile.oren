@@ -634,6 +634,119 @@ fn _x64_emit_function_done_phase(phase_log, name, ops, locals, local_fixups, pha
     return nil
 }
 
+fn _x64_begin_function_compile_phase(ctx, name) {
+    var trace_this = _x64_function_trace_enabled(name)
+    var phase_log = nil
+    if ctx != nil { phase_log = ctx["phase_log"] }
+    var phase_summary_only = _x64_function_phase_summary_only(ctx, name, trace_this)
+    var phase_this = _x64_function_phase_enabled(ctx, name, trace_this, phase_summary_only)
+    var phase_start = 0
+    if phase_this {
+        phase_start = oren_time_now_ns()
+        if phase_summary_only != true {
+            _x64_program_phase_log_append(phase_log, "x64.codegen.function.start", "name=" + name)
+        }
+    }
+    var trace_stage = 0
+    if trace_this { trace_stage = oren_time_now_ns(); print("[x64_fn] start name=" + name) }
+    return {
+        "log": phase_log,
+        "enabled": phase_this,
+        "summary_only": phase_summary_only,
+        "start_ns": phase_start,
+        "trace": trace_this,
+        "trace_stage_ns": trace_stage,
+        "max_call_argc": 0,
+        "after_frame_ns": 0,
+        "after_spill_ns": 0,
+        "after_label_ns": 0,
+        "after_call_depth_gate_ns": 0,
+        "after_call_depth_emit_ns": 0,
+        "after_tick_ns": 0
+    }
+}
+
+fn _x64_mark_function_phase_after(phase_state, key) {
+    if phase_state != nil && phase_state["summary_only"] == true {
+        phase_state[key] = oren_time_now_ns()
+    }
+    return nil
+}
+
+fn _x64_register_function_entry(ctx, name) {
+    var fn_off = bytes_len(ctx["code"])
+    ctx["functions"][name] = fn_off
+    bytes_extend(ctx["code"], core.insn_push_rbp())
+    bytes_extend(ctx["code"], core.insn_mov_rbp_rsp())
+    return fn_off
+}
+
+fn _x64_emit_compiled_function_body(ctx, name, fn_state, compile_opts, phase_state) {
+    var fn_node = fn_state["fn_node"]
+    var ops = fn_state["ops"]
+    var frame = fn_state["frame"]
+    var locals = frame["locals"]
+    var labels = fn_state["labels"]
+    var local_fixups = fn_state["local_fixups"]
+    var epilogue_label = fn_state["epilogue_label"]
+    var params = frame["params"]
+    var pc = frame["pc"]
+    var regc = frame["regc"]
+    var shadow = frame["shadow"]
+    var save_regs = frame["save_regs"]
+    var save_n = frame["save_n"]
+    var locals_size = frame["locals_size"]
+    var frame_size = frame["frame_size"]
+
+    if _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, save_n, locals_size) == nil {
+        return nil
+    }
+    _x64_mark_function_phase_after(phase_state, "after_spill_ns")
+
+    var call_depth_enabled = _x64_function_call_depth_enabled(fn_node, name,
+        compile_opts["user_fn_fast_call_depth"], compile_opts["call_depth_default_enabled"])
+    _x64_mark_function_phase_after(phase_state, "after_call_depth_gate_ns")
+    // Never instrument the slow-path helpers either, otherwise:
+    //   enter() -> native_call_depth_enter_slow() -> enter() -> ...
+    // once multithreading disables the single-thread fast-path.
+    _x64_emit_function_call_depth_enter(ctx, call_depth_enabled)
+    _x64_mark_function_phase_after(phase_state, "after_call_depth_emit_ns")
+    if _x64_emit_function_gc_tick_init(ctx, locals) == nil { return nil }
+    _x64_mark_function_phase_after(phase_state, "after_tick_ns")
+
+    var phase_body_ms = _x64_emit_function_body_ops(ctx, name, ops, locals, labels, local_fixups,
+        epilogue_label, compile_opts["platform"], phase_state["trace"], phase_state["enabled"],
+        phase_state["summary_only"], phase_state["log"], phase_state["start_ns"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if phase_state["trace"] { phase_state["trace_stage_ns"] = oren_time_now_ns() }
+
+    if _x64_emit_function_epilogue(ctx, locals, labels, local_fixups, epilogue_label,
+                                   call_depth_enabled, save_regs, save_n, locals_size, frame_size) == nil {
+        return nil
+    }
+    if phase_state["enabled"] {
+        _x64_emit_function_done_phase(phase_state["log"], name, ops, locals, local_fixups, {
+            "frame_size": frame_size,
+            "literal_slot_count": frame["literal_slot_count"],
+            "body_ms": phase_body_ms,
+            "start_ns": phase_state["start_ns"],
+            "summary_only": phase_state["summary_only"],
+            "after_frame_ns": phase_state["after_frame_ns"],
+            "after_spill_ns": phase_state["after_spill_ns"],
+            "after_label_ns": phase_state["after_label_ns"],
+            "after_call_depth_gate_ns": phase_state["after_call_depth_gate_ns"],
+            "after_call_depth_emit_ns": phase_state["after_call_depth_emit_ns"],
+            "after_tick_ns": phase_state["after_tick_ns"],
+            "code_bytes": bytes_len(ctx["code"])
+        })
+    }
+    if phase_state["trace"] {
+        var dt2 = (oren_time_now_ns() - phase_state["trace_stage_ns"]) / 1000000
+        print("[x64_fn] patch_fixups done ms=" + oren_int_to_string(dt2))
+    }
+    return true
+}
+
 fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_depth_default_enabled) {
     if fn_node == nil { return nil }
     var name = fn_node["name"]
@@ -641,123 +754,47 @@ fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_de
     // Targeted tracing for pathological compile-time hot spots (self-host / cross-target).
     // Example:
     //   OREN_TRACE_X64_FN=M9_native_call_chunk_070_lowering_g
-    var trace_this = _x64_function_trace_enabled(name)
-    var phase_log = nil
-    if ctx != nil { phase_log = ctx["phase_log"] }
-    var phase_summary_only = _x64_function_phase_summary_only(ctx, name, trace_this)
-    var phase_this = _x64_function_phase_enabled(ctx, name, trace_this, phase_summary_only)
-    var phase_start = 0
-    var phase_after_frame = 0
-    var phase_after_spill = 0
-    var phase_after_label = 0
-    var phase_after_call_depth_gate = 0
-    var phase_after_call_depth_emit = 0
-    var phase_after_tick = 0
-    if phase_this {
-        phase_start = oren_time_now_ns()
-        if phase_summary_only != true {
-            _x64_program_phase_log_append(phase_log, "x64.codegen.function.start", "name=" + name)
-        }
-    }
-    var phase_state = {
-        "log": phase_log,
-        "enabled": phase_this,
-        "summary_only": phase_summary_only,
-        "start_ns": phase_start,
-        "trace": trace_this,
-        "trace_stage_ns": 0,
-        "max_call_argc": 0
-    }
-    var t_stage = 0
-    if trace_this { t_stage = oren_time_now_ns(); print("[x64_fn] start name=" + name) }
+    var phase_state = _x64_begin_function_compile_phase(ctx, name)
     _x64_function_reset_context(ctx, name)
 
     var analyzed = _x64_function_analyze_ops(ctx, fn_node, name, phase_state)
     if analyzed == nil { return nil }
     var ops = analyzed["ops"]
     var needs_literal_slots = analyzed["needs_literal_slots"]
-    if trace_this { t_stage = _x64_function_trace_analyze_done(name, ops, t_stage) }
+    if phase_state["trace"] {
+        phase_state["trace_stage_ns"] = _x64_function_trace_analyze_done(name, ops, phase_state["trace_stage_ns"])
+    }
 
     // Compute the maximum argument count among calls in this function so we can:
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ctx, ops)
     phase_state["max_call_argc"] = max_call_argc
 
-    var fn_off = bytes_len(ctx["code"])
-    ctx["functions"][name] = fn_off
-
-    bytes_extend(ctx["code"], core.insn_push_rbp())
-    bytes_extend(ctx["code"], core.insn_mov_rbp_rsp())
+    _x64_register_function_entry(ctx, name)
 
     var frame = _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots)
     if frame == nil { return nil }
-    var locals = frame["locals"]
-    var params = frame["params"]
-    var pc = frame["pc"]
-    var regc = frame["regc"]
-    var shadow = frame["shadow"]
-    var max_intr = frame["max_intr"]
-    var intr_lim = frame["intr_lim"]
-    var literal_slot_count = frame["literal_slot_count"]
-    var locals_pre_align_bytes = frame["locals_pre_align_bytes"]
-    var locals_size = frame["locals_size"]
-    var call_area = frame["call_area"]
-    var save_regs = frame["save_regs"]
-    var save_n = frame["save_n"]
-    var frame_size = frame["frame_size"]
-    phase_state["trace_stage_ns"] = t_stage
-    t_stage = _x64_emit_function_frame_header(ctx, name, frame, phase_state)
-    if phase_summary_only == true { phase_after_frame = oren_time_now_ns() }
-
-    if _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, save_n, locals_size) == nil {
-        return nil
-    }
-    if phase_summary_only == true { phase_after_spill = oren_time_now_ns() }
+    phase_state["trace_stage_ns"] = _x64_emit_function_frame_header(ctx, name, frame, phase_state)
+    _x64_mark_function_phase_after(phase_state, "after_frame_ns")
 
     var labels = {}
     var local_fixups = []
     // `_new_label` returns compact counter keys; keep the cosmetic prefix constant so
     // every function prologue does not rebuild a long mangled function-name string.
     var epilogue_label = _new_label(ctx, "fn_epilogue")
-    if phase_summary_only == true { phase_after_label = oren_time_now_ns() }
+    _x64_mark_function_phase_after(phase_state, "after_label_ns")
 
-    var call_depth_enabled = _x64_function_call_depth_enabled(fn_node, name, user_fn_fast_call_depth, call_depth_default_enabled)
-    if phase_summary_only == true { phase_after_call_depth_gate = oren_time_now_ns() }
-    // Never instrument the slow-path helpers either, otherwise:
-    //   enter() -> native_call_depth_enter_slow() -> enter() -> ...
-    // once multithreading disables the single-thread fast-path.
-    _x64_emit_function_call_depth_enter(ctx, call_depth_enabled)
-    if phase_summary_only == true { phase_after_call_depth_emit = oren_time_now_ns() }
-    if _x64_emit_function_gc_tick_init(ctx, locals) == nil { return nil }
-    if phase_summary_only == true { phase_after_tick = oren_time_now_ns() }
-    var phase_body_ms = _x64_emit_function_body_ops(ctx, name, ops, locals, labels, local_fixups,
-        epilogue_label, platform, trace_this, phase_this, phase_summary_only, phase_log, phase_start)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if trace_this { t_stage = oren_time_now_ns() }
-
-    if _x64_emit_function_epilogue(ctx, locals, labels, local_fixups, epilogue_label,
-                                   call_depth_enabled, save_regs, save_n, locals_size, frame_size) == nil {
-        return nil
-    }
-    if phase_this {
-        _x64_emit_function_done_phase(phase_log, name, ops, locals, local_fixups, {
-            "frame_size": frame_size,
-            "literal_slot_count": literal_slot_count,
-            "body_ms": phase_body_ms,
-            "start_ns": phase_start,
-            "summary_only": phase_summary_only,
-            "after_frame_ns": phase_after_frame,
-            "after_spill_ns": phase_after_spill,
-            "after_label_ns": phase_after_label,
-            "after_call_depth_gate_ns": phase_after_call_depth_gate,
-            "after_call_depth_emit_ns": phase_after_call_depth_emit,
-            "after_tick_ns": phase_after_tick,
-            "code_bytes": bytes_len(ctx["code"])
-        })
-    }
-    if trace_this {
-        var dt2 = (oren_time_now_ns() - t_stage) / 1000000
-        print("[x64_fn] patch_fixups done ms=" + oren_int_to_string(dt2))
-    }
+    _x64_emit_compiled_function_body(ctx, name, {
+        "fn_node": fn_node,
+        "ops": ops,
+        "frame": frame,
+        "labels": labels,
+        "local_fixups": local_fixups,
+        "epilogue_label": epilogue_label
+    }, {
+        "platform": platform,
+        "user_fn_fast_call_depth": user_fn_fast_call_depth,
+        "call_depth_default_enabled": call_depth_default_enabled
+    }, phase_state)
     return nil
 }

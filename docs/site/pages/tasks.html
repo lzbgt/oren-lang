@@ -599,9 +599,18 @@
 <p>																											 state spilling, capsule pre/post hooks, IAT call setup, and pending/error</p>
 <p>																											 normalization to focused helpers. Windows <code>getsockopt</code> lowering delegates</p>
 <p>																											 spill state, capsule prehook, level/option translation, IAT call setup, and</p>
-<p>																											 SO_ERROR normalization. The capped profile now shows</p>
-<p>																											 <code>x64_native_program.oren</code> at about 41.2s total / 30.8s parse, with</p>
-<p>																											 <code>_compile_function_v0</code> exposed at about 134ms as the next parser body.</p>
+<p>																												 SO_ERROR normalization. The capped profile now shows</p>
+<p>																												 <code>x64_native_program.oren</code> at about 41.2s total / 30.8s parse, with</p>
+<p>																												 <code>_compile_function_v0</code> exposed at about 134ms as the next parser body.</p>
+<p>																												 <code>_compile_function_v0</code> now delegates phase-state setup, function entry</p>
+<p>																												 registration, phase timestamp marks, and body/epilogue emission; Windows</p>
+<p>																												 x64 <code>sys_read</code> now delegates argument spill/prehook setup, handle</p>
+<p>																												 selection, and <code>ReadFile</code> result normalization; debug metadata setup now</p>
+<p>																												 delegates display labels, runtime-object symbol collection, and symtab</p>
+<p>																												 reservation. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																												 about 40.0s total / 29.9s parse, with</p>
+<p>																												 <code>_emit_intrinsic_sys_linux_cwd_sched_sleep_x64</code> exposed at about 121ms as</p>
+<p>																												 the next parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

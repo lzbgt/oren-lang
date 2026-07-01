@@ -157,14 +157,7 @@ fn _emit_translate_fcntl_getfl_return_linux_x64(ctx) {
     return nil
 }
 
-fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
-    // Windows: ReadFile-based reader.
-    // - fd 0 => STD_INPUT_HANDLE (GetStdHandle(-10))
-    // - other fds => treat as Win32 HANDLE (returned by sys_open)
-    //
-    // ReadFile(handle, ptr, (u32)len, &read, NULL) => return bytes read
-    // - EOF: ReadFile succeeds and bytesRead==0 => return 0
-    // - error: return -EIO (rolling)
+fn _x64_prepare_sys_read_windows_args(ctx, locals, args, capsule) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -191,18 +184,10 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    var labels = {}
-    var local_fixups = []
-    var l_ret0 = _new_label(ctx, "sys_read_ret0")
-    var l_fail = _new_label(ctx, "sys_read_fail")
-    var l_have_handle = _new_label(ctx, "sys_read_have_handle")
-    var l_done = _new_label(ctx, "sys_read_done")
+    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+}
 
-    // if len <= 0 => return 0
-    _intr_load_x64(ctx, 0, tmp_len)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
-
+fn _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
     // Determine handle:
     // - fd==0 => GetStdHandle(STD_INPUT_HANDLE)
     // - else  => fd itself is a Win32 HANDLE
@@ -229,7 +214,10 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_skip_fd)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd(handle)
     _emit_label(ctx, labels, l_skip_fd)
+    return nil
+}
 
+fn _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done) {
     // rdx = ptr
     _intr_load_x64(ctx, 2, tmp_ptr)
     // r8 = len (low 32 used)
@@ -249,6 +237,7 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
 
     // if eax == 0 => failure => return -EIO (rolling)
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
+    var l_fail = _new_label(ctx, "sys_read_fail")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
     // rax = *(u64*)(&read)
@@ -262,6 +251,37 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
+
+fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
+    // Windows: ReadFile-based reader.
+    // - fd 0 => STD_INPUT_HANDLE (GetStdHandle(-10))
+    // - other fds => treat as Win32 HANDLE (returned by sys_open)
+    //
+    // ReadFile(handle, ptr, (u32)len, &read, NULL) => return bytes read
+    // - EOF: ReadFile succeeds and bytesRead==0 => return 0
+    // - error: return -EIO (rolling)
+    var state = _x64_prepare_sys_read_windows_args(ctx, locals, args, capsule)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_fd = state["tmp_fd"]
+    var tmp_ptr = state["tmp_ptr"]
+    var tmp_len = state["tmp_len"]
+
+    var labels = {}
+    var local_fixups = []
+    var l_ret0 = _new_label(ctx, "sys_read_ret0")
+    var l_have_handle = _new_label(ctx, "sys_read_have_handle")
+    var l_done = _new_label(ctx, "sys_read_done")
+
+    // if len <= 0 => return 0
+    _intr_load_x64(ctx, 0, tmp_len)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
+
+    _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle)
+    _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done)
 
     _emit_label(ctx, labels, l_ret0)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
