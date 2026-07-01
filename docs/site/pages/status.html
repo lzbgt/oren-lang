@@ -648,6 +648,14 @@
 <p>																					  39.6s total / 29.4s parse, with</p>
 <p>																					  <code>_x64_collect_top_level_globals_and_stmts</code> exposed at about</p>
 <p>																					  107ms as the next parser body.</p>
+<p>																					  X64 top-level global collection now delegates debug top-level</p>
+<p>																					  statement tracing, trace metadata formatting, slice-bound</p>
+<p>																					  parsing, slice tracing, and slice application while preserving</p>
+<p>																					  the <code>OREN_TRACE_TOP_LEVEL_*</code> and <code>OREN_TOP_LEVEL_*</code> debug</p>
+<p>																					  environment contracts. The capped profile now shows</p>
+<p>																					  <code>x64_native_program.oren</code> at about 39.8s total / 29.4s parse,</p>
+<p>																					  with <code>_x64_fast_list_push_validate_lists</code> exposed at about</p>
+<p>																					  107ms as the next parser body.</p>
 <p>												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

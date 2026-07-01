@@ -751,6 +751,80 @@ fn _x64_build_top_level_init_stmts(ctx, user_ordered, user_global_init_in_data_f
     return state["top_stmts"]
 }
 
+fn _x64_trace_top_level_stmt_list_enabled() {
+    var v_list = oren_env("OREN_TRACE_TOP_LEVEL_LIST")
+    if v_list == nil || v_list == "" { return false }
+    if x64_env_str_eq(v_list, "0") == true || x64_env_str_eq(v_list, "false") == true { return false }
+    return true
+}
+
+fn _x64_trace_top_level_stmt_extra(stl) {
+    if stl == nil { return {"kind": "nil", "extra": "", "tok": nil} }
+    var kind = stl["type"]
+    var extra = ""
+    if kind == "Assign" && stl["name"] != nil { extra = " name=" + stl["name"]["value"] }
+    if kind == "ExprStmt" && stl["expr"] != nil { extra = " expr=" + stl["expr"]["type"] }
+    return {"kind": kind, "extra": extra, "tok": stl["token"]}
+}
+
+fn _x64_trace_top_level_stmt_loc(tok) {
+    if tok == nil { return "" }
+    var tf = tok["file"]
+    var tl = tok["line"]
+    if tf == nil || tl == nil { return "" }
+    return " @" + tf + ":" + oren_int_to_string(tl)
+}
+
+fn _x64_trace_top_level_stmt_list(top_stmts, top_len) {
+    if _x64_trace_top_level_stmt_list_enabled() != true { return nil }
+    var li = 0
+    while li < top_len {
+        var info = _x64_trace_top_level_stmt_extra(top_stmts[li])
+        print("[x64_top_level] idx=" + oren_int_to_string(li) +
+            " type=" + info["kind"] + info["extra"] + _x64_trace_top_level_stmt_loc(info["tok"]))
+        li = li + 1
+    }
+    return nil
+}
+
+fn _x64_top_level_slice_bounds(top_len) {
+    var slice_from = 0
+    var slice_to = top_len
+    var v_from = oren_env("OREN_TOP_LEVEL_FROM")
+    if v_from != nil && v_from != "" { slice_from = core.parse_int_decimal(v_from, slice_from) }
+    var v_to = oren_env("OREN_TOP_LEVEL_TO")
+    if v_to != nil && v_to != "" { slice_to = core.parse_int_decimal(v_to, slice_to) }
+    if slice_from < 0 { slice_from = 0 }
+    if slice_to < 0 { slice_to = 0 }
+    if slice_from > top_len { slice_from = top_len }
+    if slice_to > top_len { slice_to = top_len }
+    if slice_to < slice_from { slice_to = slice_from }
+    return {"from": slice_from, "to": slice_to}
+}
+
+fn _x64_trace_top_level_slice(top_len, bounds) {
+    var v_trace = oren_env("OREN_TRACE_TOP_LEVEL_SLICE")
+    if v_trace == nil || v_trace == "" { return nil }
+    if x64_env_str_eq(v_trace, "0") == true || x64_env_str_eq(v_trace, "false") == true { return nil }
+    print("[x64_top_level] stmts=" + oren_int_to_string(top_len) + " slice=" +
+        oren_int_to_string(bounds["from"]) + ":" + oren_int_to_string(bounds["to"]))
+    return nil
+}
+
+fn _x64_apply_top_level_slice(top_stmts, top_len) {
+    // Debug-only bisecting: slice the synthesized top-level statements by index.
+    // - OREN_TOP_LEVEL_FROM / OREN_TOP_LEVEL_TO are inclusive-exclusive indexes.
+    // - OREN_TRACE_TOP_LEVEL_SLICE=1 prints the slice + total count at compile time.
+    var bounds = _x64_top_level_slice_bounds(top_len)
+    _x64_trace_top_level_slice(top_len, bounds)
+    if bounds["from"] <= 0 && bounds["to"] >= top_len { return top_stmts }
+
+    var sliced = []
+    var k = bounds["from"]
+    while k < bounds["to"] { oren_list_push(sliced, top_stmts[k]); k = k + 1 }
+    return sliced
+}
+
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Collect top-level `var` declarations as globals and build the statement list to run
     // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
@@ -794,60 +868,8 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
 
     var top_len = oren_list_len(top_stmts)
     // Debug-only tracing: list synthesized top-level statements with indices.
-    var v_list = oren_env("OREN_TRACE_TOP_LEVEL_LIST")
-    if v_list != nil && v_list != "" {
-        if x64_env_str_eq(v_list, "0") != true && x64_env_str_eq(v_list, "false") != true {
-            var li = 0
-            while li < top_len {
-                var stl = top_stmts[li]
-                var kind = "nil"
-                var extra = ""
-                var tok = nil
-                if stl != nil {
-                    kind = stl["type"]
-                    tok = stl["token"]
-                    if kind == "Assign" && stl["name"] != nil { extra = " name=" + stl["name"]["value"] }
-                    if kind == "ExprStmt" && stl["expr"] != nil { extra = " expr=" + stl["expr"]["type"] }
-                }
-                var loc = ""
-                if tok != nil {
-                    var tf = tok["file"]
-                    var tl = tok["line"]
-                    if tf != nil && tl != nil {
-                        loc = " @" + tf + ":" + oren_int_to_string(tl)
-                    }
-                }
-                print("[x64_top_level] idx=" + oren_int_to_string(li) + " type=" + kind + extra + loc)
-                li = li + 1
-            }
-        }
-    }
-    // Debug-only bisecting: slice the synthesized top-level statements by index.
-    // - OREN_TOP_LEVEL_FROM / OREN_TOP_LEVEL_TO are inclusive-exclusive indexes.
-    // - OREN_TRACE_TOP_LEVEL_SLICE=1 prints the slice + total count at compile time.
-    var slice_from = 0
-    var slice_to = top_len
-    var v_from = oren_env("OREN_TOP_LEVEL_FROM")
-    if v_from != nil && v_from != "" { slice_from = core.parse_int_decimal(v_from, slice_from) }
-    var v_to = oren_env("OREN_TOP_LEVEL_TO")
-    if v_to != nil && v_to != "" { slice_to = core.parse_int_decimal(v_to, slice_to) }
-    if slice_from < 0 { slice_from = 0 }
-    if slice_to < 0 { slice_to = 0 }
-    if slice_from > top_len { slice_from = top_len }
-    if slice_to > top_len { slice_to = top_len }
-    if slice_to < slice_from { slice_to = slice_from }
-    var v_trace = oren_env("OREN_TRACE_TOP_LEVEL_SLICE")
-    if v_trace != nil && v_trace != "" {
-        if x64_env_str_eq(v_trace, "0") != true && x64_env_str_eq(v_trace, "false") != true {
-            print("[x64_top_level] stmts=" + oren_int_to_string(top_len) + " slice=" + oren_int_to_string(slice_from) + ":" + oren_int_to_string(slice_to))
-        }
-    }
-    if slice_from > 0 || slice_to < top_len {
-        var sliced = []
-        var k = slice_from
-        while k < slice_to { oren_list_push(sliced, top_stmts[k]); k = k + 1 }
-        top_stmts = sliced
-    }
+    _x64_trace_top_level_stmt_list(top_stmts, top_len)
+    top_stmts = _x64_apply_top_level_slice(top_stmts, top_len)
     return {"top_level_fn": _x64_synth_top_level_fn(top_stmts), "top_stmt_count": oren_list_len(top_stmts)}
 }
 

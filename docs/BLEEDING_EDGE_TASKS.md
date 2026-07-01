@@ -601,6 +601,14 @@ This file is the concise task view. Detailed implementation status lives in
 																 shows `x64_native_program.oren` at about 39.6s total / 29.4s parse,
 																 with `_x64_collect_top_level_globals_and_stmts` exposed at about
 																 107ms as the next parser body.
+																 X64 top-level global collection now delegates debug top-level
+																 statement tracing, trace metadata formatting, slice-bound parsing,
+																 slice tracing, and slice application while preserving the
+																 `OREN_TRACE_TOP_LEVEL_*` and `OREN_TOP_LEVEL_*` debug environment
+																 contracts. The capped profile now shows `x64_native_program.oren`
+																 at about 39.8s total / 29.4s parse, with
+																 `_x64_fast_list_push_validate_lists` exposed at about 107ms as the
+																 next parser body.
 																     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
