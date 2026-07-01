@@ -954,9 +954,16 @@
 <p>																																	 X64 expression lowering now splits call target normalization, zero-arg GC</p>
 <p>																																	 calls, <code>oren_</code> prefix classification, intrinsic/syscall routing, shift</p>
 <p>																																	 count lowering, and LIST_INT get-sum validation substeps into focused helpers.</p>
-<p>																																	 The capped profile now shows <code>x64_native_program.oren</code> at about 42.4s total /</p>
-<p>																																	 31.1s parse, with <code>_x64_fast_list_dot_validate_lists</code> exposed at about 80ms</p>
-<p>																																	 as the next parser body.</p>
+<p>																																		 The capped profile now shows <code>x64_native_program.oren</code> at about 42.4s total /</p>
+<p>																																		 31.1s parse, with <code>_x64_fast_list_dot_validate_lists</code> exposed at about 80ms</p>
+<p>																																		 as the next parser body.</p>
+<p>																																		 X64 LIST/LIST_INT dot fast-loop lowering now splits generic LIST validation</p>
+<p>																																		 into slot-state, capture, header, count, and buffer helpers, and keeps the</p>
+<p>																																		 LIST_INT dot wrapper as validation/helper, loop-core, and finish/slow-path</p>
+<p>																																		 orchestration helpers. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>																																		 at about 43.6s total / 32.3s parse, with</p>
+<p>																																		 <code>_emit_win32_last_error_to_neg_errno_common_x64</code> exposed at about 83ms as the</p>
+<p>																																		 next parser body.</p>
 <p>																																     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

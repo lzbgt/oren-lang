@@ -916,10 +916,17 @@ Facts from the 2026-05-28 implementation pass:
 																																							  X64 expression lowering now splits call target normalization, zero-arg GC
 																																							  calls, `oren_` prefix classification, intrinsic/syscall routing, shift
 																																							  count lowering, and LIST_INT get-sum validation substeps into focused helpers.
-																																							  The capped profile now shows `x64_native_program.oren` at about 42.4s total /
-																																							  31.1s parse, with `_x64_fast_list_dot_validate_lists` exposed at about 80ms
-																																							  as the next parser body.
-																												  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																								  The capped profile now shows `x64_native_program.oren` at about 42.4s total /
+																																								  31.1s parse, with `_x64_fast_list_dot_validate_lists` exposed at about 80ms
+																																								  as the next parser body.
+																																								  X64 LIST/LIST_INT dot fast-loop lowering now splits generic LIST validation
+																																								  into slot-state, capture, header, count, and buffer helpers, and keeps the
+																																								  LIST_INT dot wrapper as validation/helper, loop-core, and finish/slow-path
+																																								  orchestration helpers. The capped profile now shows `x64_native_program.oren`
+																																								  at about 43.6s total / 32.3s parse, with
+																																								  `_emit_win32_last_error_to_neg_errno_common_x64` exposed at about 83ms as the
+																																								  next parser body.
+																													  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
