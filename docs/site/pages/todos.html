@@ -888,6 +888,14 @@
 <p>  <code>x64_native_program.oren</code> at ~40.8s total / ~30.1s parse, with</p>
 <p>  <code>_data_finalize_dbginfo_table</code> exposed at ~97ms as the next parser body.</p>
 <ul>
+<li>X64 debug-info table finalization now delegates debug-build slot gating,</li>
+</ul>
+<p>  function-entry collection/sorting, per-entry emission, display-name lookup,</p>
+<p>  and reserved-slot patching to focused helpers while preserving the runtime</p>
+<p>  symbolication table layout. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~42.8s total / ~32.0s parse, with</p>
+<p>  <code>_x64_fast_lcg_emit_fullmod_loop</code> exposed at ~108ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

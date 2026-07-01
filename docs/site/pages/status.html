@@ -768,6 +768,13 @@
 <p>																						  <code>x64_native_program.oren</code> at about 40.8s total / 30.1s parse,</p>
 <p>																						  with <code>_data_finalize_dbginfo_table</code> exposed at about 97ms as</p>
 <p>																						  the next parser body.</p>
+<p>																						  X64 debug-info table finalization now delegates debug-build slot</p>
+<p>																						  gating, function-entry collection/sorting, per-entry emission,</p>
+<p>																						  display-name lookup, and reserved-slot patching to focused</p>
+<p>																						  helpers while preserving the runtime symbolication table layout.</p>
+<p>																						  The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																						  42.8s total / 32.0s parse, with <code>_x64_fast_lcg_emit_fullmod_loop</code></p>
+<p>																						  exposed at about 108ms as the next parser body.</p>
 <p>														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

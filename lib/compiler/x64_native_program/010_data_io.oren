@@ -628,6 +628,110 @@ fn _data_finalize_linetab(ctx) {
     return nil
 }
 
+fn _data_dbginfo_slot_off(ctx, platform) {
+    if ctx == nil { return nil }
+    if platform == nil || platform["debug"] != true { return nil }
+    var slot_enc = ctx["dbginfo_table_slot_enc"]
+    if oren_type_tag(slot_enc) != 1 { return nil }
+    if slot_enc <= 0 { return nil }
+    return slot_enc - 1
+}
+
+fn _data_collect_dbginfo_entries(ctx) {
+    var fns = ctx["functions"]
+    if fns == nil { fns = {} }
+    var entries = []
+    oren_list_push(entries, {"name": "__entry_stub__", "off": 0})
+    var idx = 0
+    var pair = [nil, nil]
+    while 1 {
+        var ok = oren_iter_next_entry(fns, idx, pair)
+        if ok == 0 { break }
+        var nm = pair[0]
+        var off = pair[1]
+        if nm != nil && nm != "" && off != nil && off >= 0 {
+            oren_list_push(entries, {"name": nm, "off": off})
+        }
+        idx = idx + 1
+    }
+    return entries
+}
+
+fn _data_sort_dbginfo_entries_by_off(entries) {
+    var si = 1
+    while si < oren_list_len(entries) {
+        var key = entries[si]
+        var k_off = key["off"]
+        var k = si - 1
+        while k >= 0 {
+            if entries[k]["off"] <= k_off { break }
+            entries[k + 1] = entries[k]
+            k = k - 1
+        }
+        entries[k + 1] = key
+        si = si + 1
+    }
+    return entries
+}
+
+fn _data_dbginfo_display_name(ctx, nm0) {
+    if ctx != nil && ctx["symtab_display"] != nil && nm0 != nil && ctx["symtab_display"][nm0] != nil {
+        return ctx["symtab_display"][nm0]
+    }
+    if nm0 == nil { return "" }
+    return nm0
+}
+
+fn _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len) {
+    var e = entries[i]
+    var nm0 = e["name"]
+    var start_off = e["off"]
+    var end_off = code_len
+    if i + 1 < oren_list_len(entries) {
+        end_off = entries[i + 1]["off"]
+    }
+    // Offsets are always integers (0 is valid). Treat missing offsets as a bug upstream.
+    if end_off < start_off { end_off = start_off }
+
+    var text_base = abi.x64_v0_text_base_addr(platform)
+    push_u64_le(ctx["data"], text_base + start_off)
+    push_u64_le(ctx["data"], text_base + end_off)
+
+    var disp = _data_dbginfo_display_name(ctx, nm0)
+    var nb_len = oren_string_len(disp)
+    push_u64_le(ctx["data"], nb_len)
+    bytes_extend_string(ctx["data"], disp)
+    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+
+    // File/line/column/parameter metadata is reserved for later native debug data.
+    push_u64_le(ctx["data"], 0)
+    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    push_u64_le(ctx["data"], 0)
+    push_u64_le(ctx["data"], 0)
+    push_u64_le(ctx["data"], 0)
+    return nil
+}
+
+fn _data_emit_dbginfo_entries(ctx, platform, entries) {
+    var code_len = 0
+    if ctx["code"] != nil { code_len = bytes_len(ctx["code"]) }
+    var i = 0
+    while i < oren_list_len(entries) {
+        _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _data_patch_dbginfo_table_slot(ctx, slot_off, table_off) {
+    var lo = core.int_mod(table_off, 4294967296)
+    var hi = 0
+    if table_off >= 4294967296 { hi = table_off / 4294967296 }
+    set_u32_le(ctx["data"], slot_off + 0, lo)
+    set_u32_le(ctx["data"], slot_off + 4, core.int_mod(hi, 4294967296))
+    return nil
+}
+
 fn _data_finalize_dbginfo_table(ctx, platform) {
     // Emit an embedded debug-info table (function-range map) for runtime symbolication.
     //
@@ -649,46 +753,13 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
     // - x64 emitters are fixed-base and do not emit relocations, so PCs are resolved using
     //   absolute addresses `text_base + code_off`.
     // - We only emit this in debug builds to keep release artifacts small.
-    if ctx == nil { return nil }
-    if platform == nil || platform["debug"] != true { return nil }
-    var slot_enc = ctx["dbginfo_table_slot_enc"]
-    if oren_type_tag(slot_enc) != 1 { return nil }
-    if slot_enc <= 0 { return nil }
+    var slot_off = _data_dbginfo_slot_off(ctx, platform)
+    if slot_off == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
-    var fns = ctx["functions"]
-    if fns == nil { fns = {} }
-
     // Collect entries (name + code offset). Include a synthetic entry for the entry stub.
-    var entries = []
-    oren_list_push(entries, {"name": "__entry_stub__", "off": 0})
-    var idx = 0
-    var pair = [nil, nil]
-    while 1 {
-        var ok = oren_iter_next_entry(fns, idx, pair)
-        if ok == 0 { break }
-        var nm = pair[0]
-        var off = pair[1]
-        if nm != nil && nm != "" && off != nil && off >= 0 {
-            oren_list_push(entries, {"name": nm, "off": off})
-        }
-        idx = idx + 1
-    }
-
-    // Sort ascending by code offset (insertion sort; deterministic for small N).
-    var si = 1
-    while si < oren_list_len(entries) {
-        var key = entries[si]
-        var k_off = key["off"]
-        var k = si - 1
-        while k >= 0 {
-            if entries[k]["off"] <= k_off { break }
-            entries[k + 1] = entries[k]
-            k = k - 1
-        }
-        entries[k + 1] = key
-        si = si + 1
-    }
+    var entries = _data_collect_dbginfo_entries(ctx)
+    _data_sort_dbginfo_entries_by_off(entries)
 
     // Align `.data` to 8B for u64 reads.
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
@@ -696,58 +767,9 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
 
     // Build the table.
     push_u64_le(ctx["data"], oren_list_len(entries))
-    var text_base = abi.x64_v0_text_base_addr(platform)
-    var code_len = 0
-    if ctx["code"] != nil { code_len = bytes_len(ctx["code"]) }
-
-    var i = 0
-    while i < oren_list_len(entries) {
-        var e = entries[i]
-        var nm0 = e["name"]
-        var start_off = e["off"]
-        var end_off = code_len
-        if i + 1 < oren_list_len(entries) {
-            end_off = entries[i + 1]["off"]
-        }
-        // Offsets are always integers (0 is valid). Treat missing offsets as a bug upstream
-        // (do not use `== nil` on numeric offsets).
-        if end_off < start_off { end_off = start_off }
-
-        // start/end absolute PCs.
-        push_u64_le(ctx["data"], text_base + start_off)
-        push_u64_le(ctx["data"], text_base + end_off)
-
-        // name (display label if available)
-        var disp = nm0
-        if ctx["symtab_display"] != nil && nm0 != nil && ctx["symtab_display"][nm0] != nil {
-            disp = ctx["symtab_display"][nm0]
-        }
-        if disp == nil { disp = "" }
-        var nb_len = oren_string_len(disp)
-        push_u64_le(ctx["data"], nb_len)
-        bytes_extend_string(ctx["data"], disp)
-        while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-
-        // file (omitted for now)
-        push_u64_le(ctx["data"], 0)
-        while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-
-        // line + col (0 for now)
-        push_u64_le(ctx["data"], 0)
-        push_u64_le(ctx["data"], 0)
-
-        // p_count = 0
-        push_u64_le(ctx["data"], 0)
-
-        i = i + 1
-    }
+    _data_emit_dbginfo_entries(ctx, platform, entries)
 
     // Patch table_off into the reserved slot as a u64 (little-endian).
-    var slot_off = slot_enc - 1
-    var lo = core.int_mod(table_off, 4294967296)
-    var hi = 0
-    if table_off >= 4294967296 { hi = table_off / 4294967296 }
-    set_u32_le(ctx["data"], slot_off + 0, lo)
-    set_u32_le(ctx["data"], slot_off + 4, core.int_mod(hi, 4294967296))
+    _data_patch_dbginfo_table_slot(ctx, slot_off, table_off)
     return table_off
 }
