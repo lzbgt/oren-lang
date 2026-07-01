@@ -975,14 +975,11 @@ fn _x64_emit_entry_register_thread_call(ctx, platform, entry_opts, phase_log) {
     return nil
 }
 
-fn _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase_log) {
+fn _x64_emit_entry_top_level_call(ctx, platform, entry_opts) {
     var trace_prog = entry_opts["trace_prog"] == true
     var trace_entry = entry_opts["trace_entry"] == true
     var trace_entry_after_reg = entry_opts["trace_entry_after_reg"] == true
     var skip_top_level = entry_opts["skip_top_level"] == true
-    var skip_main = entry_opts["skip_main"] == true
-    var is_dll = entry_opts["is_dll"] == true
-    var is_so = entry_opts["is_so"] == true
     // Run top-level statements (including non-constant global initializers) before `main`.
     //
     // This converges x64 behavior with the other backends while keeping the x64 v0
@@ -1004,11 +1001,15 @@ fn _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase
             _emit_windows_write_cstr(ctx, "ENTRY: top_level skip")
         }
     }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.top_level_call.done",
-            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
-    }
+    return nil
+}
 
+fn _x64_emit_entry_main_or_zero(ctx, platform, has_main, entry_opts) {
+    var trace_entry = entry_opts["trace_entry"] == true
+    var trace_entry_after_reg = entry_opts["trace_entry_after_reg"] == true
+    var skip_main = entry_opts["skip_main"] == true
+    var is_dll = entry_opts["is_dll"] == true
+    var is_so = entry_opts["is_so"] == true
     if is_dll != true && is_so != true && has_main && skip_main != true {
         var call_pos = bytes_len(ctx["code"])
         // placeholder rel32=0
@@ -1021,6 +1022,17 @@ fn _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase
         }
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     }
+    return nil
+}
+
+fn _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase_log) {
+    _x64_emit_entry_top_level_call(ctx, platform, entry_opts)
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.entry.top_level_call.done",
+            "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
+    }
+
+    _x64_emit_entry_main_or_zero(ctx, platform, has_main, entry_opts)
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.entry.main_call.done",
             "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))

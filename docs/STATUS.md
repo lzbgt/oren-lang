@@ -697,6 +697,13 @@ Facts from the 2026-05-28 implementation pass:
 																						  now shows `x64_native_program.oren` at about 41.3s total / 30.5s
 																						  parse, with `_x64_emit_entry_top_and_main_calls` exposed at about
 																						  116ms as the next parser body.
+																						  X64 entry top/main call emission now delegates top-level call/skip
+																						  tracing and executable main-or-zero return setup to focused
+																						  helpers while preserving DLL/SO no-main behavior and phase-log
+																						  fixup counters. The capped profile now shows
+																						  `x64_native_program.oren` at about 42.6s total / 31.6s parse,
+																						  with `_data_finalize_cstr0_table` exposed at about 140ms as the
+																						  next parser body.
 													  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
