@@ -471,12 +471,20 @@
 <p>												  39.2s total / 29.5s parse, with <code>_emit_list_int_set_intrinsic_v0_x64</code></p>
 <p>												  exposed at about 164ms as the next parser body. X64 <code>oren_list_int_set</code></p>
 <p>												  lowering now delegates LTR argument spills, argument reloads, list-int</p>
-<p>												  validation, value/count checks, and slow/fast store emission through</p>
-<p>												  focused helper bodies. The capped profile now shows</p>
-<p>												  <code>x64_native_program.oren</code> at about 38.9s total / 29.1s parse, with</p>
-<p>												  <code>_emit_intrinsic_sys_getentropy_windows_x64</code> exposed at about 159ms as the</p>
-<p>												  next parser body.</p>
-<p>									  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>													  validation, value/count checks, and slow/fast store emission through</p>
+<p>													  focused helper bodies. The capped profile now shows</p>
+<p>													  <code>x64_native_program.oren</code> at about 38.9s total / 29.1s parse, with</p>
+<p>													  <code>_emit_intrinsic_sys_getentropy_windows_x64</code> exposed at about 159ms as the</p>
+<p>													  next parser body. Windows x64 <code>sys_getentropy</code> lowering now delegates</p>
+<p>													  entropy data assets, argument spills, buffer/length guards, dynamic</p>
+<p>													  <code>bcrypt</code> resolution, RNG call emission, and finish/error mapping to</p>
+<p>													  focused helpers. The resolver reloads the cached-function-pointer slot</p>
+<p>													  address after WinAPI calls before storing the resolved pointer, avoiding</p>
+<p>													  reliance on volatile <code>r10</code>. The capped profile now shows</p>
+<p>													  <code>x64_native_program.oren</code> at about 37.7s total / 28.2s parse, with</p>
+<p>													  <code>_emit_stack_trace_best_effort</code> exposed at about 153ms as the next parser</p>
+<p>													  body.</p>
+<p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

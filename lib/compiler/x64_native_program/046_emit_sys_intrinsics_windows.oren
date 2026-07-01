@@ -595,31 +595,18 @@ fn _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_getentropy expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getentropy does not support spread"); return nil }
-
-    // Windows: fill entropy using bcrypt!BCryptGenRandom via LoadLibraryA + GetProcAddress.
-    //
-    // Contract: sys_getentropy(buf, len) returns 0 on success, or -errno.
-    //
-    // Notes:
-    // - We avoid adding a new PE import descriptor by resolving bcrypt dynamically.
-    // - We cache the resolved function pointer in `.data` to keep repeated calls cheap.
-    // - Use BCRYPT_USE_SYSTEM_PREFERRED_RNG (0x2) with hAlgorithm=NULL.
-
-    // Reserve a global slot for the function pointer (per-program).
+fn _x64_getentropy_windows_assets(ctx) {
     if ctx["win_bcryptgenrandom_slot_enc"] == nil {
         var off_slot = _data_add_u64(ctx, 0)
         ctx["win_bcryptgenrandom_slot_enc"] = off_slot + 1
     }
     var slot_off = ctx["win_bcryptgenrandom_slot_enc"] - 1
-
-    // Embed strings once (deduped by `_data_add_cstr0`).
     var off_dll = _data_add_cstr0(ctx, "bcrypt.dll")
     var off_sym = _data_add_cstr0(ctx, "BCryptGenRandom")
+    return {"slot_off": slot_off, "off_dll": off_dll, "off_sym": off_sym}
+}
 
+fn _x64_getentropy_windows_spill_args(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // buf, len
     if oren_type_tag(base) == 0 { return nil }
     var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
@@ -629,24 +616,46 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_buf)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_buf": tmp_buf, "tmp_len": tmp_len}
+}
 
+fn _x64_getentropy_windows_init_state(ctx, locals, args) {
+    var assets = _x64_getentropy_windows_assets(ctx)
+    var spills = _x64_getentropy_windows_spill_args(ctx, locals, args)
+    if spills == nil { return nil }
     var labels = {}
     var fixups = []
-    var l_have_fp = _new_label(ctx, "sys_getentropy_have_fp")
-    var l_fail = _new_label(ctx, "sys_getentropy_fail")
-    var l_done = _new_label(ctx, "sys_getentropy_done")
-    var l_ret0 = _new_label(ctx, "sys_getentropy_ret0")
+    return {
+        "base": spills["base"],
+        "tmp_buf": spills["tmp_buf"],
+        "tmp_len": spills["tmp_len"],
+        "slot_off": assets["slot_off"],
+        "off_dll": assets["off_dll"],
+        "off_sym": assets["off_sym"],
+        "labels": labels,
+        "fixups": fixups,
+        "l_have_fp": _new_label(ctx, "sys_getentropy_have_fp"),
+        "l_fail": _new_label(ctx, "sys_getentropy_fail"),
+        "l_done": _new_label(ctx, "sys_getentropy_done"),
+        "l_ret0": _new_label(ctx, "sys_getentropy_ret0")
+    }
+}
 
+fn _x64_emit_getentropy_windows_guards(ctx, state) {
+    var labels = state["labels"]
+    var fixups = state["fixups"]
+    var tmp_buf = state["tmp_buf"]
+    var tmp_len = state["tmp_len"]
     // if len <= 0 => return 0
     _intr_load_x64(ctx, 0, tmp_len)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "g", l_have_fp)
+    _emit_jcc_to_label(ctx, fixups, "g", state["l_have_fp"])
     // return 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, state["l_done"])
 
-    _emit_label(ctx, labels, l_have_fp)
+    _emit_label(ctx, labels, state["l_have_fp"])
 
     // Validate buf != 0
     _intr_load_x64(ctx, 0, tmp_buf)
@@ -656,18 +665,30 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     // -14 (EFAULT)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967282))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, state["l_done"])
     _emit_label(ctx, labels, l_buf_ok)
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_slot_lea(ctx, state, dst_reg) {
     // Load &slot into r10
+    var slot_off = state["slot_off"]
     var lea_slot = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(dst_reg, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot + 3, "data_off": slot_off})
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_resolve_fp(ctx, state) {
+    var labels = state["labels"]
+    var fixups = state["fixups"]
+    var off_dll = state["off_dll"]
+    var off_sym = state["off_sym"]
+    _x64_emit_getentropy_windows_slot_lea(ctx, state, 10)
     // r11 = *(u64*)slot
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ret0) // fp already cached in r11
+    _emit_jcc_to_label(ctx, fixups, "ne", state["l_ret0"]) // fp already cached in r11
 
     // Resolve: LoadLibraryA("bcrypt.dll")
     // rcx = &"bcrypt.dll"
@@ -681,7 +702,7 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_call_rax())
     // if rax == 0 => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", l_fail)
+    _emit_jcc_to_label(ctx, fixups, "e", state["l_fail"])
 
     // Resolve: GetProcAddress(h, "BCryptGenRandom")
     // rcx = h
@@ -696,14 +717,22 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_call_rax())
     // if rax == 0 => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", l_fail)
+    _emit_jcc_to_label(ctx, fixups, "e", state["l_fail"])
 
     // Cache fp in slot and r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
+    _x64_emit_getentropy_windows_slot_lea(ctx, state, 10)
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 11))
 
-    _emit_label(ctx, labels, l_ret0)
+    _emit_label(ctx, labels, state["l_ret0"])
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
+    var labels = state["labels"]
+    var fixups = state["fixups"]
+    var tmp_buf = state["tmp_buf"]
+    var tmp_len = state["tmp_len"]
     // Call BCryptGenRandom(NULL, buf, (u32)len, 0x2)
     // rcx = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
@@ -719,7 +748,7 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     // -22 (EINVAL)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967274))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, state["l_done"])
     _emit_label(ctx, labels, l_len_ok)
     // r9d = flags (BCRYPT_USE_SYSTEM_PREFERRED_RNG = 2)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 2))
@@ -728,20 +757,42 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_call_rax())
     // NTSTATUS in eax: 0 => success
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_fail)
+    _emit_jcc_to_label(ctx, fixups, "ne", state["l_fail"])
 
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, state["l_done"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_fail)
-    // -5 (EIO)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291))
+fn _x64_emit_getentropy_windows_finish(ctx, state) {
+    _emit_label(ctx, state["labels"], state["l_fail"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291)) // -EIO
     bytes_extend(ctx["code"], core.insn_cdqe())
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    return nil
+}
+
+fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_getentropy expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getentropy does not support spread"); return nil }
+
+    // Windows: fill entropy using bcrypt!BCryptGenRandom via LoadLibraryA + GetProcAddress.
+    //
+    // Contract: sys_getentropy(buf, len) returns 0 on success, or -errno.
+    // We resolve bcrypt dynamically and cache the function pointer in `.data`.
+    var state = _x64_getentropy_windows_init_state(ctx, locals, args)
+    if state == nil { return nil }
+
+    _x64_emit_getentropy_windows_guards(ctx, state)
+    _x64_emit_getentropy_windows_resolve_fp(ctx, state)
+    _x64_emit_getentropy_windows_call_rng(ctx, state)
+    _x64_emit_getentropy_windows_finish(ctx, state)
+
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 
