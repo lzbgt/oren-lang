@@ -735,7 +735,6 @@ fn _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info) {
     var argc = info["argc"]
     var fixed_direct_arity = info["fixed_direct_arity"]
     var is_varargs_named = info["is_varargs_named"] == true
-    var varargs_fixed = info["varargs_fixed"]
     var is_import = info["is_import"] == true
 
     // Tier-1 parity: when runtime injection is enabled, lower varargs named calls through the
@@ -745,11 +744,25 @@ fn _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info) {
         return nil
     }
 
+    var state = _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity)
+    if state == nil { return nil }
+    var base2 = state["base"]
+    var call_argc = state["call_argc"]
+    if _x64_load_direct_call_args_v0(ctx, locals, base2, call_argc) != true {
+        _intr_tmp_pop(ctx, base2)
+        return nil
+    }
+
+    _x64_emit_direct_call_fixup_and_return_v0(ctx, nm, is_import)
+    _intr_tmp_pop(ctx, base2)
+    return nil
+}
+
+fn _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity) {
     // Evaluate explicit args left-to-right, spill to stack temps, then load into ABI arg registers.
     // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
     var spill_n2 = argc
     if fixed_direct_arity != nil && fixed_direct_arity > spill_n2 { spill_n2 = fixed_direct_arity }
-    if is_varargs_named { spill_n2 = argc + 1 } // +1 for the packed rest_list
     var base2 = _intr_tmp_push(ctx, spill_n2)
     if oren_type_tag(base2) == 0 { return nil }
     var i2 = 0
@@ -771,69 +784,44 @@ fn _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info) {
         i2 = iadd(i2, 1)
     }
 
-    // Varargs packing: build rest_list and spill it in the extra slot.
     var call_argc = argc
     if fixed_direct_arity != nil { call_argc = fixed_direct_arity }
-    if is_varargs_named {
-        var fixed2 = varargs_fixed
-        // rest_list lives in the extra spill slot at base2+argc
-        var rest_idx = iadd(base2, argc)
-        var rest_off = _intr_tmp_off(ctx, locals, rest_idx)
-        if oren_type_tag(rest_off) == 0 { _intr_tmp_pop(ctx, base2); return nil }
+    return {"base": base2, "call_argc": call_argc}
+}
 
-        // rest_list = oren_new_list(0)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - rest_off, 0)
-
-        // push extra args into rest_list
-        var rest_tmp = {"type": "IntrTmp", "idx": rest_idx}
-        var j2 = fixed2
-        while j2 < argc {
-            var arg_tmp = {"type": "IntrTmp", "idx": iadd(base2, j2)}
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [rest_tmp, arg_tmp]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            j2 = iadd(j2, 1)
-        }
-
-        // Call the real function with fixed args + rest_list as the last arg.
-        call_argc = fixed2 + 1
-    }
-
+fn _x64_load_direct_call_args_v0(ctx, locals, base2, call_argc) {
     var regc2 = abi.max_int_reg_args(ctx["abi"])
     var shadow2 = abi.caller_shadow_bytes(ctx["abi"])
     var slot2 = abi.stack_arg_slot_bytes(ctx["abi"])
     var i3 = 0
     while i3 < call_argc {
         var src_idx2 = iadd(base2, i3)
-        if is_varargs_named && i3 == varargs_fixed {
-            // last arg is rest_list (spilled at base2+argc)
-            src_idx2 = iadd(base2, argc)
-        }
         var tmp_off2 = _intr_tmp_off(ctx, locals, src_idx2)
-        if oren_type_tag(tmp_off2) == 0 { _intr_tmp_pop(ctx, base2); return nil }
+        if oren_type_tag(tmp_off2) == 0 { return false }
 
         if i3 < regc2 {
             var reg2_enc = abi.int_arg_reg(ctx["abi"], i3)
-            if oren_type_tag(reg2_enc) == 0 { _intr_tmp_pop(ctx, base2); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+            if oren_type_tag(reg2_enc) == 0 { err(ctx, "x64 native v0: unsupported call arg index"); return false }
             var reg2 = reg2_enc - 1
             _emit_mov_r64_mrbp(ctx, reg2, 0 - tmp_off2)
         } else {
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
             var stack_disp2 = shadow2 + slot2 * (i3 - regc2)
             var call_area2 = ctx["cur_call_area_bytes"]
             if oren_type_tag(call_area2) == 0 { call_area2 = 0 }
             if stack_disp2 + slot2 > call_area2 {
-                _intr_tmp_pop(ctx, base2)
                 err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp2+slot2) + ", have " + oren_int_to_string(call_area2) + ")")
-                return nil
+                return false
             }
             _emit_mov_mrsp_r64(ctx, stack_disp2, 0)
         }
         i3 = iadd(i3, 1)
     }
+    return true
+}
 
+fn _x64_emit_direct_call_fixup_and_return_v0(ctx, nm, is_import) {
     var call_pos2 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos2, "name": nm})
@@ -853,7 +841,6 @@ fn _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info) {
             bytes_extend(ctx["code"], core.insn_cdqe())
         }
     }
-    _intr_tmp_pop(ctx, base2)
     return nil
 }
 

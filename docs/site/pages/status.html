@@ -511,7 +511,15 @@
 <p>													  helpers while preserving <code>sys_gettid</code> dispatch and the clone capsule</p>
 <p>													  prehook. The capped profile now shows <code>x64_native_program.oren</code> at</p>
 <p>													  about 38.3s total / 28.5s parse, with <code>_x64_emit_direct_named_call_v0</code></p>
-<p>													  exposed at about 150ms as the next parser body.</p>
+<p>													  exposed at about 150ms as the next parser body. X64 direct named-call</p>
+<p>													  lowering now delegates explicit/default-<code>nil</code> argument spills, ABI</p>
+<p>													  register/stack loading, and call-fixup/FFI return normalization to</p>
+<p>													  focused helpers while leaving varargs on the fnobj ABI path. Linux x64</p>
+<p>													  epoll lowering now delegates <code>sys_epoll_create1</code>, <code>sys_epoll_ctl</code>, and</p>
+<p>													  <code>sys_epoll_pwait</code> to syscall-family helpers. The capped profile now</p>
+<p>													  shows <code>x64_native_program.oren</code> at about 39.9s total / 29.9s parse, with</p>
+<p>													  <code>_emit_stack_trace_windows_best_effort</code> exposed at about 160ms as the</p>
+<p>													  next parser body.</p>
 <p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
