@@ -383,7 +383,7 @@ fn _emit_string_literal_expr_to_rax(ctx, expr) {
     return nil
 }
 
-fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
+fn _x64_prepare_lambda_literal_meta(ctx, expr) {
     var name = expr["name"]
     if name != "" { err(ctx, "x64 native v0: function decl not allowed in expression position"); return nil }
     if ctx == nil || ctx["runtime_injected"] != true {
@@ -400,7 +400,10 @@ fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
     var lname = expr["lambda_name"]
     var caps = expr["captures"]
     if caps == nil { caps = [] }
+    return {"name": lname, "captures": caps}
+}
 
+fn _x64_prepare_lambda_literal_env_slot(ctx, locals) {
     var base = _intr_tmp_push(ctx, 1)
     if oren_type_tag(base) == 0 { return nil }
     var slot_env = base
@@ -410,7 +413,13 @@ fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
         err(ctx, "x64 native v0: missing spill slot for lambda literal env")
         return nil
     }
+    return {"base": base, "slot_env": slot_env, "tmp_env": tmp_env}
+}
 
+fn _x64_emit_lambda_literal_env(ctx, locals, caps, env_state) {
+    var base = env_state["base"]
+    var slot_env = env_state["slot_env"]
+    var tmp_env = env_state["tmp_env"]
     if oren_list_len(caps) == 0 {
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
         bytes_extend(ctx["code"], core.insn_cdqe())
@@ -428,7 +437,12 @@ fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
             i = iadd(i, 1)
         }
     }
+    return true
+}
 
+fn _x64_emit_lambda_literal_func_obj(ctx, lname, env_state) {
+    var base = env_state["base"]
+    var tmp_env = env_state["tmp_env"]
     var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
     var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
@@ -445,6 +459,16 @@ fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
     oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
     _emit_call_rel32_named_x64(ctx, "oren_func")
     _intr_tmp_pop(ctx, base)
+    return true
+}
+
+fn _emit_lambda_literal_expr_to_rax(ctx, expr, locals) {
+    var meta = _x64_prepare_lambda_literal_meta(ctx, expr)
+    if meta == nil { return nil }
+    var env_state = _x64_prepare_lambda_literal_env_slot(ctx, locals)
+    if env_state == nil { return nil }
+    if _x64_emit_lambda_literal_env(ctx, locals, meta["captures"], env_state) != true { return nil }
+    _x64_emit_lambda_literal_func_obj(ctx, meta["name"], env_state)
     return nil
 }
 

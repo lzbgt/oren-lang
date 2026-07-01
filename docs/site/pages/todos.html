@@ -1014,6 +1014,16 @@
 <p>  <code>_emit_intrinsic_sys_linux_net_msg_x64</code> exposed at ~85ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>Linux x64 <code>sendto</code>/<code>recvfrom</code> message syscall lowering now delegates syscall</li>
+</ul>
+<p>  name matching, six-argument spill state, capsule prehook argument loading,</p>
+<p>  syscall argument loading, and syscall-number emission to focused helpers.</p>
+<p>  Lambda literal lowering now delegates metadata/capture registration, env spill</p>
+<p>  allocation, capture-env materialization, and <code>oren_func</code> object construction.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at ~41.8s total /</p>
+<p>  ~30.8s parse, with <code>_emit_intrinsic_sys_stat_windows_x64</code> exposed at ~83ms as</p>
+<p>  the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

@@ -886,6 +886,15 @@
 <p>																																  <code>x64_native_program.oren</code> at about 41.5s total / 30.7s parse, with</p>
 <p>																																  <code>_emit_intrinsic_sys_linux_net_msg_x64</code> exposed at about 85ms as the</p>
 <p>																																  next parser body.</p>
+<p>																																  Linux x64 <code>sendto</code>/<code>recvfrom</code> message syscall lowering now delegates</p>
+<p>																																  syscall name matching, six-argument spill state, capsule prehook</p>
+<p>																																  argument loading, syscall argument loading, and syscall-number emission</p>
+<p>																																  to focused helpers. Lambda literal lowering now delegates metadata/</p>
+<p>																																  capture registration, env spill allocation, capture-env materialization,</p>
+<p>																																  and <code>oren_func</code> object construction. The capped profile now shows</p>
+<p>																																  <code>x64_native_program.oren</code> at about 41.8s total / 30.8s parse, with</p>
+<p>																																  <code>_emit_intrinsic_sys_stat_windows_x64</code> exposed at about 83ms as the</p>
+<p>																																  next parser body.</p>
 <p>																						  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
