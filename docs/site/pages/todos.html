@@ -596,6 +596,13 @@
 <p>  <code>_emit_stack_trace_windows_best_effort</code> exposed at ~160ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>Windows x64 best-effort stack tracing now delegates frame guards, raw return-PC</li>
+</ul>
+<p>  line formatting/writing, and frame-chain advance to focused helpers while the</p>
+<p>  wrapper retains label/fixup ownership. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~38.9s total / ~29.0s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_dispatch_x64</code> exposed at ~146ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

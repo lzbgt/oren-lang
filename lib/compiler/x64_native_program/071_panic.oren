@@ -535,20 +535,7 @@ fn _emit_format_plus0x_u64_hex_line(ctx, val_reg, buf_reg) {
     return nil
 }
 
-fn _emit_stack_trace_windows_best_effort(ctx, scratch_save_off, scratch_ret_addr) {
-    // Header
-    _emit_windows_write_cstr(ctx, "STACK_TRACE:")
-    // Cursor (r12) = rbp
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 5))
-    // frame counter (rbx) = 0
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(3, 0))
-
-    var labels = {}
-    var fixups = []
-    var l_loop = _new_label(ctx, "stack_trace_loop")
-    var l_done = _new_label(ctx, "stack_trace_done")
-    _emit_label(ctx, labels, l_loop)
-
+fn _emit_stack_trace_windows_loop_guards(ctx, fixups, l_done) {
     // if rbx >= 16 => done
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(3, 16))
     _emit_jcc_to_label(ctx, fixups, "ge", l_done)
@@ -569,7 +556,10 @@ fn _emit_stack_trace_windows_best_effort(ctx, scratch_save_off, scratch_ret_addr
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 1048576)) // r11 = rsp + 1MiB
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 11))      // fp > rsp+1MiB => done
     _emit_jcc_to_label(ctx, fixups, "a", l_done)
+    return nil
+}
 
+fn _emit_stack_trace_windows_write_pc_line(ctx, scratch_ret_addr) {
     // ret = *(r12 + 8) into r10
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 12))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
@@ -590,7 +580,10 @@ fn _emit_stack_trace_windows_best_effort(ctx, scratch_save_off, scratch_ret_addr
     bytes_extend(ctx["code"], core.insn_mov_mr8_al_disp(11, 18))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 19))
     _emit_windows_write_ptr_len(ctx, 11, 10)
+    return nil
+}
 
+fn _emit_stack_trace_windows_advance(ctx, scratch_save_off, fixups, l_done, l_loop) {
     // next_fp = *(fp); require monotonic growth to avoid loops.
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(scratch_save_off, 12))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(12, 12))
@@ -600,6 +593,26 @@ fn _emit_stack_trace_windows_best_effort(ctx, scratch_save_off, scratch_ret_addr
     // rbx++
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(3, 1))
     _emit_jmp_to_label(ctx, fixups, l_loop)
+    return nil
+}
+
+fn _emit_stack_trace_windows_best_effort(ctx, scratch_save_off, scratch_ret_addr) {
+    // Header
+    _emit_windows_write_cstr(ctx, "STACK_TRACE:")
+    // Cursor (r12) = rbp
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 5))
+    // frame counter (rbx) = 0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(3, 0))
+
+    var labels = {}
+    var fixups = []
+    var l_loop = _new_label(ctx, "stack_trace_loop")
+    var l_done = _new_label(ctx, "stack_trace_done")
+    _emit_label(ctx, labels, l_loop)
+
+    _emit_stack_trace_windows_loop_guards(ctx, fixups, l_done)
+    _emit_stack_trace_windows_write_pc_line(ctx, scratch_ret_addr)
+    _emit_stack_trace_windows_advance(ctx, scratch_save_off, fixups, l_done, l_loop)
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)

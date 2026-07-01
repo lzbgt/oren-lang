@@ -478,7 +478,12 @@ This file is the concise task view. Detailed implementation status lives in
 																								 `sys_epoll_pwait` to syscall-family helpers. The capped profile now shows
 																								 `x64_native_program.oren` at about 39.9s total / 29.9s parse, with
 																								 `_emit_stack_trace_windows_best_effort` exposed at about 160ms as the next
-																								 parser body.
+																								 parser body. Windows x64 best-effort stack tracing now delegates frame guards,
+																								 raw return-PC line formatting/writing, and frame-chain advance to focused
+																								 helpers while the wrapper retains label/fixup ownership. The capped profile
+																								 now shows `x64_native_program.oren` at about 38.9s total / 29.0s parse, with
+																								 `_emit_intrinsic_sys_dispatch_x64` exposed at about 146ms as the next parser
+																								 body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
