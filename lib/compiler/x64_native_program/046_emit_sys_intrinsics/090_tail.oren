@@ -1,4 +1,17 @@
-fn _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) {
+fn _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, argc) {
+    if args == nil || oren_list_len(args) != argc {
+        err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(argc) + " args")
+        return nil
+    }
+    if expr != nil && expr["spread"] != nil {
+        err(ctx, "x64 native v0: " + nm + " does not support spread")
+        return nil
+    }
+    _emit_return_enosys_x64(ctx)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_windows_qpc_compat_x64(ctx, nm, expr, args) {
     if nm == "sys_qpc_frequency" {
         // Windows-only intrinsic (QueryPerformanceFrequency).
         // On non-Windows targets we still want builds to succeed, because sources commonly gate
@@ -6,63 +19,54 @@ fn _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) {
         // the call site while parsing/compiling the full function body.
         //
         // Return -ENOSYS so accidental non-Windows calls fail cleanly.
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_qpc_frequency expects 1 arg"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_qpc_frequency does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 1)
     }
+    return false
+}
 
+fn _emit_intrinsic_sys_linux_windows_iocp_compat_x64(ctx, nm, expr, args) {
     if nm == "sys_create_io_completion_port" {
         // Windows-only intrinsic (CreateIoCompletionPort).
-        if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_create_io_completion_port expects 4 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_create_io_completion_port does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 4)
     }
     if nm == "sys_get_queued_completion_status_ex" {
         // Windows-only intrinsic (GetQueuedCompletionStatusEx).
-        if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex expects 6 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 6)
     }
     if nm == "sys_post_queued_completion_status" {
         // Windows-only intrinsic (PostQueuedCompletionStatus).
-        if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_post_queued_completion_status expects 4 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_post_queued_completion_status does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 4)
     }
     if nm == "sys_cancel_io_ex" {
         // Windows-only intrinsic (CancelIoEx).
-        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_cancel_io_ex expects 2 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_cancel_io_ex does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 2)
     }
+    return false
+}
 
+fn _emit_intrinsic_sys_linux_windows_wsa_compat_x64(ctx, nm, expr, args) {
     if nm == "sys_wsarecv" {
         // Windows-only intrinsic (WSARecv overlapped).
-        if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsarecv expects 6 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecv does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 6)
     }
     if nm == "sys_wsarecvfrom" {
         // Windows-only intrinsic (WSARecvFrom overlapped).
-        if args == nil || oren_list_len(args) != 8 { err(ctx, "x64 native v0: sys_wsarecvfrom expects 8 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecvfrom does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 8)
     }
     if nm == "sys_wsasend" {
         // Windows-only intrinsic (WSASend overlapped).
-        if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsasend expects 6 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsasend does not support spread"); return nil }
-        _emit_return_enosys_x64(ctx)
-        return true
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 6)
     }
+    return false
+}
 
+fn _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) {
+    var qpc = _emit_intrinsic_sys_linux_windows_qpc_compat_x64(ctx, nm, expr, args)
+    if qpc != false { return qpc }
+    var iocp = _emit_intrinsic_sys_linux_windows_iocp_compat_x64(ctx, nm, expr, args)
+    if iocp != false { return iocp }
+    var wsa = _emit_intrinsic_sys_linux_windows_wsa_compat_x64(ctx, nm, expr, args)
+    if wsa != false { return wsa }
     return false
 }
 

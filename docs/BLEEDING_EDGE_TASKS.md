@@ -518,6 +518,12 @@ This file is the concise task view. Detailed implementation status lives in
 																								 wrapper-owned fixup patching. The capped profile now shows
 																								 `x64_native_program.oren` at about 39.1s total / 29.0s parse, with
 																								 `_emit_intrinsic_sys_linux_windows_compat_x64` exposed at about 149ms as the
+																								 next parser body. Linux x64 lowering for Windows-only compatibility intrinsics
+																								 now shares ENOSYS validation/emission and delegates QPC, IOCP/cancel, and WSA
+																								 families to focused helpers while preserving validation errors and handled
+																								 return values. The capped profile now shows `x64_native_program.oren` at about
+																								 39.0s total / 28.9s parse, with
+																								 `_emit_eval_call_runtime_or_fast_generic_x64` exposed at about 135ms as the
 																								 next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
