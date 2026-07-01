@@ -491,7 +491,13 @@ Facts from the 2026-05-28 implementation pass:
 													  lowering. The capped profile now shows `x64_native_program.oren` at
 													  about 38.7s total / 28.9s parse, with
 													  `_emit_intrinsic_sys_wsarecvfrom_windows_x64` exposed at about 147ms as
-													  the next parser body.
+													  the next parser body. Windows x64 `WSARecvFrom` lowering now delegates
+													  argument spill/state setup, capsule pre/post hooks, WSABUF/IAT call
+													  emission, and pending/error result normalization to focused helpers while
+													  preserving the same `WSA_IO_PENDING` success mapping. The capped profile
+													  now shows `x64_native_program.oren` at about 38.6s total / 28.8s parse,
+													  with `_emit_cmp_r64_r64_maybe_string_x64` exposed at about 178ms as the
+													  next parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
