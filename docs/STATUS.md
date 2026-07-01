@@ -532,10 +532,18 @@ Facts from the 2026-05-28 implementation pass:
 														  typed-buffer runtime name detection to focused helpers; native-call intrinsic
 														  lowering delegates `native_call1`, allocator, and panic paths; list-int
 														  unchecked dot-slot lowering delegates validation/spill setup and loop-body
-														  emission. The capped profile now shows `x64_native_program.oren` at about
-														  39.4s total / 29.2s parse, with
-														  `_emit_intrinsic_sys_write_windows_x64` exposed at about 133ms as the next
-														  parser body.
+															  emission. The capped profile now shows `x64_native_program.oren` at about
+															  39.4s total / 29.2s parse, with
+															  `_emit_intrinsic_sys_write_windows_x64` exposed at about 133ms as the next
+															  parser body. Windows x64 `sys_write` lowering now delegates argument
+															  spill/prehook setup, standard-handle selection, and `WriteFile` result
+															  normalization to focused helpers. Missing fnwrap compilation delegates
+															  per-function synthesis/compile and phase logging, and the x64 SIMD dot
+															  intrinsic delegates argument setup, vector loop emission, and scalar tail
+															  emission. The capped profile now shows `x64_native_program.oren` at about
+															  39.3s total / 29.0s parse, with
+															  `_emit_intrinsic_sys_wsarecv_windows_x64` exposed at about 125ms as the next
+															  parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

@@ -572,10 +572,18 @@
 <p>														  typed-buffer runtime name detection to focused helpers; native-call intrinsic</p>
 <p>														  lowering delegates <code>native_call1</code>, allocator, and panic paths; list-int</p>
 <p>														  unchecked dot-slot lowering delegates validation/spill setup and loop-body</p>
-<p>														  emission. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>														  39.4s total / 29.2s parse, with</p>
-<p>														  <code>_emit_intrinsic_sys_write_windows_x64</code> exposed at about 133ms as the next</p>
-<p>														  parser body.</p>
+<p>															  emission. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>															  39.4s total / 29.2s parse, with</p>
+<p>															  <code>_emit_intrinsic_sys_write_windows_x64</code> exposed at about 133ms as the next</p>
+<p>															  parser body. Windows x64 <code>sys_write</code> lowering now delegates argument</p>
+<p>															  spill/prehook setup, standard-handle selection, and <code>WriteFile</code> result</p>
+<p>															  normalization to focused helpers. Missing fnwrap compilation delegates</p>
+<p>															  per-function synthesis/compile and phase logging, and the x64 SIMD dot</p>
+<p>															  intrinsic delegates argument setup, vector loop emission, and scalar tail</p>
+<p>															  emission. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>															  39.3s total / 29.0s parse, with</p>
+<p>															  <code>_emit_intrinsic_sys_wsarecv_windows_x64</code> exposed at about 125ms as the next</p>
+<p>															  parser body.</p>
 <p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

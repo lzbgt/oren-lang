@@ -1,9 +1,7 @@
 // x64-native: SIMD intrinsics (SSE2 baseline for typed-buffer kernels)
 // These provide parity with arm64 NEON dot product acceleration.
 
-fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
-    // simd_dot_i32_ptr(a_ptr, b_ptr, n) -> i64
-    // SSE2 implementation: processes 2 i32s per iteration using PMULUDQ
+fn _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals) {
     var args = expr["args"]
     if args == nil || oren_list_len(args) != 3 { 
         err(ctx, "x64 native v0: simd_dot_i32_ptr expects 3 args")
@@ -38,6 +36,10 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_n, 0)
 
+    return {"base": base, "tmp_a": tmp_a, "tmp_b": tmp_b, "tmp_n": tmp_n}
+}
+
+fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
     // Register allocation:
     //   RAX = accumulator (return value)
     //   RCX = a_ptr
@@ -102,7 +104,10 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
 
     // Extract to RAX: MOVQ rax, xmm0
     bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))
+    return nil
+}
 
+fn _x64_emit_simd_dot_i32_ptr_scalar_tail(ctx, tmp_a, tmp_b, tmp_n) {
     // Handle remaining scalar elements (n & 1)
     _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_n) // reload n
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(8, 1)) // n & 1
@@ -132,7 +137,21 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     // Patch scalar skip jump
     var scalar_end_label = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], jmp_scalar_end + 1, scalar_end_label - (jmp_scalar_end + 5))
+    return nil
+}
 
+fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
+    // simd_dot_i32_ptr(a_ptr, b_ptr, n) -> i64
+    // SSE2 implementation: processes 2 i32s per iteration using PMULUDQ
+    var state = _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_a = state["tmp_a"]
+    var tmp_b = state["tmp_b"]
+    var tmp_n = state["tmp_n"]
+
+    _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n)
+    _x64_emit_simd_dot_i32_ptr_scalar_tail(ctx, tmp_a, tmp_b, tmp_n)
     _intr_tmp_pop(ctx, base)
     return nil
 }

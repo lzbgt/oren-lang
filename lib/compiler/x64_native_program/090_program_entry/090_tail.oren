@@ -802,6 +802,46 @@ fn _x64_compile_lambda_wrappers(ctx, wrappers, platform, call_depth_default_enab
     return nil
 }
 
+fn _x64_compile_one_missing_fnwrap(ctx, platform, call_depth_default_enabled, need, fname) {
+    if fname == nil || fname == "" { return nil }
+    if need == nil || need[fname] == nil { return nil }
+    var wname = "__oren_fnwrap_" + fname
+    if ctx["functions"][wname] != nil { return nil }
+
+    var ar_enc = nil
+    if ctx["func_arity"] != nil { ar_enc = ctx["func_arity"][fname] }
+    if oren_type_tag(ar_enc) == 0 { return nil }
+
+    var ar = ar_enc - 1
+    var vf = nil
+    if ctx["func_varargs_fixed"] != nil {
+        var vf_enc = ctx["func_varargs_fixed"][fname]
+        if oren_type_tag(vf_enc) != 0 { vf = vf_enc - 1 }
+    }
+    var st = callable.synth_fnwrap(fname, ar, vf)
+    if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+        var wfn = st["expr"]
+        // Keep stack traces readable even for late-synthesized wrappers.
+        if ctx["symtab_display"] != nil && ctx["symtab_display"][wname] == nil {
+            ctx["symtab_display"][wname] = wname + "@<generated>"
+        }
+        _compile_function_v0(ctx, wfn, platform, false, call_depth_default_enabled)
+        return nil
+    }
+
+    err(ctx, "x64 native v0: failed to synthesize fnwrap for " + fname)
+    return nil
+}
+
+fn _x64_log_missing_fnwraps_done(ctx, phase_log, need) {
+    if phase_log == nil { return nil }
+    var fnwrap_needed_n = 0
+    if need != nil { fnwrap_needed_n = oren_map_len(need) }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.fnwrap.done",
+        "needed=" + oren_int_to_string(fnwrap_needed_n))
+    return nil
+}
+
 fn _x64_compile_missing_fnwraps(ctx, platform, call_depth_default_enabled, phase_log) {
     // Ensure any missing fnwraps are synthesized and compiled.
     //
@@ -816,43 +856,12 @@ fn _x64_compile_missing_fnwraps(ctx, platform, call_depth_default_enabled, phase
         var wi2 = 0
         while wi2 < oren_list_len(ctx["func_decl_order"]) {
             var fname2 = ctx["func_decl_order"][wi2]
-            if fname2 == nil || fname2 == "" { wi2 = wi2 + 1; continue }
-            if need2[fname2] == nil { wi2 = wi2 + 1; continue }
-            var wname2 = "__oren_fnwrap_" + fname2
-            if ctx["functions"][wname2] == nil {
-                var ar_enc2 = nil
-                if ctx["func_arity"] != nil { ar_enc2 = ctx["func_arity"][fname2] }
-                if oren_type_tag(ar_enc2) != 0 {
-                    var ar2 = ar_enc2 - 1
-                    var vf2 = nil
-                    if ctx["func_varargs_fixed"] != nil {
-                        var vf_enc2 = ctx["func_varargs_fixed"][fname2]
-                        if oren_type_tag(vf_enc2) != 0 { vf2 = vf_enc2 - 1 }
-                    }
-                    var st2 = callable.synth_fnwrap(fname2, ar2, vf2)
-                    if st2 != nil && st2["type"] == "ExprStmt" && st2["expr"] != nil && st2["expr"]["type"] == "Function" {
-                        var wfn2 = st2["expr"]
-                        // Keep stack traces readable even for late-synthesized wrappers.
-                        if ctx["symtab_display"] != nil && ctx["symtab_display"][wname2] == nil {
-                            ctx["symtab_display"][wname2] = wname2 + "@<generated>"
-                        }
-                        _compile_function_v0(ctx, wfn2, platform, false, call_depth_default_enabled)
-                        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                    } else {
-                        err(ctx, "x64 native v0: failed to synthesize fnwrap for " + fname2)
-                        return nil
-                    }
-                }
-            }
+            _x64_compile_one_missing_fnwrap(ctx, platform, call_depth_default_enabled, need2, fname2)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             wi2 = wi2 + 1
         }
     }
-    if phase_log != nil {
-        var fnwrap_needed_n = 0
-        if need2 != nil { fnwrap_needed_n = oren_map_len(need2) }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.fnwrap.done",
-            "needed=" + oren_int_to_string(fnwrap_needed_n))
-    }
+    _x64_log_missing_fnwraps_done(ctx, phase_log, need2)
     return nil
 }
 

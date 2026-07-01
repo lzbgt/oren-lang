@@ -319,13 +319,7 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
     return _emit_intrinsic_sys_read_linux_x64(ctx, locals, args, capsule)
 }
 
-fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
-    // Windows: WriteFile-based writer.
-    // - fd 1/2 => STDOUT/STDERR (GetStdHandle)
-    // - other  => treat fd as Win32 HANDLE (returned by sys_open)
-    //
-    // WriteFile(handle, ptr, (u32)len, &written, NULL)
-    // Returns bytes written, or -EIO on failure (rolling).
+fn _x64_prepare_sys_write_windows_args(ctx, locals, args, capsule) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -349,23 +343,13 @@ fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    var labels = {}
-    var local_fixups = []
-    var l_ret0 = _new_label(ctx, "sys_write_ret0")
-    var l_done = _new_label(ctx, "sys_write_done")
+    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+}
 
-    // if len <= 0 => return 0
-    _intr_load_x64(ctx, 0, tmp_len)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
-
-    // Determine handle:
-    // - fd==1 => STD_OUTPUT_HANDLE (-11)
-    // - fd==2 => STD_ERROR_HANDLE  (-12)
-    // - else  => fd itself is the handle
+fn _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
+    // fd 1/2 => STDOUT/STDERR via GetStdHandle; otherwise fd is already a HANDLE.
     var l_use_stdout = _new_label(ctx, "sys_write_use_stdout")
     var l_use_stderr = _new_label(ctx, "sys_write_use_stderr")
-    var l_have_handle = _new_label(ctx, "sys_write_have_handle")
     _intr_load_x64(ctx, 0, tmp_fd) // rax = fd
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stdout)
@@ -390,8 +374,10 @@ fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetStdHandle")
     bytes_extend(ctx["code"], core.insn_call_rax())
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
+    return nil
+}
 
-    _emit_label(ctx, labels, l_have_handle)
+fn _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done) {
     _intr_load_x64(ctx, 2, tmp_ptr) // rdx = ptr
     _intr_load_x64(ctx, 8, tmp_len) // r8  = len (low 32 used by WinAPI)
 
@@ -420,6 +406,32 @@ fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291)) // -5 (EIO)
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
+
+fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
+    // Windows: WriteFile-based writer. Returns bytes written or -EIO on failure.
+    var state = _x64_prepare_sys_write_windows_args(ctx, locals, args, capsule)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_fd = state["tmp_fd"]
+    var tmp_ptr = state["tmp_ptr"]
+    var tmp_len = state["tmp_len"]
+
+    var labels = {}
+    var local_fixups = []
+    var l_ret0 = _new_label(ctx, "sys_write_ret0")
+    var l_done = _new_label(ctx, "sys_write_done")
+
+    // if len <= 0 => return 0
+    _intr_load_x64(ctx, 0, tmp_len)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
+
+    var l_have_handle = _new_label(ctx, "sys_write_have_handle")
+    _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle)
+    _emit_label(ctx, labels, l_have_handle)
+    _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done)
 
     _emit_label(ctx, labels, l_ret0)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))

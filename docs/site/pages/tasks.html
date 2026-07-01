@@ -583,11 +583,19 @@
 <p>																									 next parser body. X64 call fast-path classification now delegates</p>
 <p>																									 runtime-required generic calls, internal-prefix generic calls, and typed-buffer</p>
 <p>																									 runtime name detection to focused helpers; native-call intrinsic lowering</p>
-<p>																									 delegates <code>native_call1</code>, allocator, and panic paths; list-int unchecked</p>
-<p>																									 dot-slot lowering delegates validation/spill setup and loop-body emission. The</p>
-<p>																									 capped profile now shows <code>x64_native_program.oren</code> at about 39.4s total /</p>
-<p>																									 29.2s parse, with <code>_emit_intrinsic_sys_write_windows_x64</code> exposed at about</p>
-<p>																									 133ms as the next parser body.</p>
+<p>																										 delegates <code>native_call1</code>, allocator, and panic paths; list-int unchecked</p>
+<p>																										 dot-slot lowering delegates validation/spill setup and loop-body emission. The</p>
+<p>																										 capped profile now shows <code>x64_native_program.oren</code> at about 39.4s total /</p>
+<p>																										 29.2s parse, with <code>_emit_intrinsic_sys_write_windows_x64</code> exposed at about</p>
+<p>																										 133ms as the next parser body. Windows x64 <code>sys_write</code> lowering now delegates</p>
+<p>																										 argument spill/prehook setup, standard-handle selection, and <code>WriteFile</code></p>
+<p>																										 result normalization to focused helpers. Missing fnwrap compilation delegates</p>
+<p>																										 per-function synthesis/compile and phase logging, and the x64 SIMD dot</p>
+<p>																										 intrinsic delegates argument setup, vector loop emission, and scalar tail</p>
+<p>																										 emission. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																										 39.3s total / 29.0s parse, with</p>
+<p>																										 <code>_emit_intrinsic_sys_wsarecv_windows_x64</code> exposed at about 125ms as the next</p>
+<p>																										 parser body.</p>
 <p>														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
