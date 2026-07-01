@@ -616,6 +616,14 @@ This file is the concise task view. Detailed implementation status lives in
 																 `x64_native_program.oren` at about 40.0s total / 29.8s parse, with
 																 `_x64_emit_entry_prologue_and_args` exposed at about 105ms as the
 																 next parser body.
+																 X64 entry prologue emission now delegates platform-kind detection,
+																 DLL attach gating, Win64/SysV register preservation, executable
+																 stack alignment, stack layout/reservation, prologue phase logging,
+																 and Windows argv/env capture while preserving the returned entry
+																 setup map. The capped profile now shows `x64_native_program.oren`
+																 at about 40.2s total / 29.7s parse, with
+																 `_x64_emit_ffi_stub_linux_dyn` exposed at about 104ms as the next
+																 parser body.
 																     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

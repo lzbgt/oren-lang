@@ -559,6 +559,12 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~40.0s total / ~29.8s parse,
   with `_x64_emit_entry_prologue_and_args` exposed at ~105ms as the next parser
   body.
+- X64 entry prologue emission now delegates platform-kind detection, DLL attach
+  gating, Win64/SysV register preservation, executable stack alignment, stack
+  layout/reservation, prologue phase logging, and Windows argv/env capture to
+  focused helpers while preserving the returned entry setup map. The capped
+  profile now shows `x64_native_program.oren` at ~40.2s total / ~29.7s parse,
+  with `_x64_emit_ffi_stub_linux_dyn` exposed at ~104ms as the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

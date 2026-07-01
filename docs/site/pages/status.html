@@ -663,6 +663,14 @@
 <p>																					  <code>x64_native_program.oren</code> at about 40.0s total / 29.8s parse,</p>
 <p>																					  with <code>_x64_emit_entry_prologue_and_args</code> exposed at about 105ms</p>
 <p>																					  as the next parser body.</p>
+<p>																					  X64 entry prologue emission now delegates platform-kind</p>
+<p>																					  detection, DLL attach gating, Win64/SysV register preservation,</p>
+<p>																					  executable stack alignment, stack layout/reservation, prologue</p>
+<p>																					  phase logging, and Windows argv/env capture while preserving the</p>
+<p>																					  returned entry setup map. The capped profile now shows</p>
+<p>																					  <code>x64_native_program.oren</code> at about 40.2s total / 29.7s parse,</p>
+<p>																					  with <code>_x64_emit_ffi_stub_linux_dyn</code> exposed at about 104ms as</p>
+<p>																					  the next parser body.</p>
 <p>												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
