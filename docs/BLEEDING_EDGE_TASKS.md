@@ -399,7 +399,11 @@ This file is the concise task view. Detailed implementation status lives in
 																		 under the fd-misc router. The capped profile now shows
 																		 `x64_native_program.oren` at about 38.2s total / 28.6s parse, with
 																		 `_emit_intrinsic_sys_write_x64` exposed at about 167ms as the next parser
-																		 body.
+																		 body. X64 `sys_write` lowering now delegates Windows `WriteFile` and Linux
+																		 syscall paths through platform-specific helper bodies while preserving
+																		 capsule prehook and zero-length write behavior. The capped profile now
+																		 shows `x64_native_program.oren` at about 38.1s total / 28.6s parse, with
+																		 `_emit_malloc_size_in_rax` exposed at about 164ms as the next parser body.
 												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

@@ -319,15 +319,13 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
     return _emit_intrinsic_sys_read_linux_x64(ctx, locals, args, capsule)
 }
 
-fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_write expects 3 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_write does not support spread"); return nil }
-
-    var platform = ctx["platform"]
-    var capsule = _x64_capsule_enabled(ctx)
-
-    // Spill args LTR.
+fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
+    // Windows: WriteFile-based writer.
+    // - fd 1/2 => STDOUT/STDERR (GetStdHandle)
+    // - other  => treat fd as Win32 HANDLE (returned by sys_open)
+    //
+    // WriteFile(handle, ptr, (u32)len, &written, NULL)
+    // Returns bytes written, or -EIO on failure (rolling).
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -338,20 +336,11 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     // fd (with capsule gating)
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    if platform != nil && platform["os"] == "windows" {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx=fd
-    } else {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
-    }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx=fd
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
     } else {
-        // rax = fd (from the ABI arg register)
-        if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 1)) // rax = rcx
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = rdi
-        }
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 1)) // rax = rcx
     }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
@@ -370,92 +359,67 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
 
-    if platform != nil && platform["os"] == "windows" {
-        // Windows: WriteFile-based writer.
-        // - fd 1/2 => STDOUT/STDERR (GetStdHandle)
-        // - other  => treat fd as Win32 HANDLE (returned by sys_open)
-        //
-        // WriteFile(handle, ptr, (u32)len, &written, NULL)
-        //
-        // Returns bytes written, or -EIO on failure (rolling).
+    // Determine handle:
+    // - fd==1 => STD_OUTPUT_HANDLE (-11)
+    // - fd==2 => STD_ERROR_HANDLE  (-12)
+    // - else  => fd itself is the handle
+    var l_use_stdout = _new_label(ctx, "sys_write_use_stdout")
+    var l_use_stderr = _new_label(ctx, "sys_write_use_stderr")
+    var l_have_handle = _new_label(ctx, "sys_write_have_handle")
+    _intr_load_x64(ctx, 0, tmp_fd) // rax = fd
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stdout)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 2))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stderr)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd (HANDLE)
+    _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
 
-        // Determine handle:
-        // - fd==1 => STD_OUTPUT_HANDLE (-11)
-        // - fd==2 => STD_ERROR_HANDLE  (-12)
-        // - else  => fd itself is the handle
-        var l_use_stdout = _new_label(ctx, "sys_write_use_stdout")
-        var l_use_stderr = _new_label(ctx, "sys_write_use_stderr")
-        var l_have_handle = _new_label(ctx, "sys_write_have_handle")
-        _intr_load_x64(ctx, 0, tmp_fd) // rax = fd
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stdout)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 2))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stderr)
-        // rcx = fd (HANDLE)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
-        _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
+    _emit_label(ctx, labels, l_use_stdout)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
+    var mov_iat0 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
+    bytes_extend(ctx["code"], core.insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
+    _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
 
-        _emit_label(ctx, labels, l_use_stdout)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
-        var mov_iat0 = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-        _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
-        bytes_extend(ctx["code"], core.insn_call_rax())
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
-        _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
+    _emit_label(ctx, labels, l_use_stderr)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
+    var mov_iat1 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetStdHandle")
+    bytes_extend(ctx["code"], core.insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
 
-        _emit_label(ctx, labels, l_use_stderr)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
-        var mov_iat1 = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-        _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetStdHandle")
-        bytes_extend(ctx["code"], core.insn_call_rax())
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
+    _emit_label(ctx, labels, l_have_handle)
+    _intr_load_x64(ctx, 2, tmp_ptr) // rdx = ptr
+    _intr_load_x64(ctx, 8, tmp_len) // r8  = len (low 32 used by WinAPI)
 
-        _emit_label(ctx, labels, l_have_handle)
-        // rdx = ptr
-        _intr_load_x64(ctx, 2, tmp_ptr)
-        // r8  = len (low 32 used by WinAPI)
-        _intr_load_x64(ctx, 8, tmp_len)
+    // lpOverlapped (arg5) = NULL at [rsp+0x20]; bytesWritten storage at [rsp+0x28].
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40)) // r9 = &written
 
-        // lpOverlapped (arg5) = NULL at [rsp+0x20]; bytesWritten storage at [rsp+0x28].
-        bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
-        bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
-        bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
-        bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
-        bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40)) // r9 = &written
+    var mov_iat2 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat2 + 3, "IAT_WriteFile")
+    bytes_extend(ctx["code"], core.insn_call_rax())
 
-        // call WriteFile
-        var mov_iat2 = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-        _x64_add_rip_data32_fixup(ctx, mov_iat2 + 3, "IAT_WriteFile")
-        bytes_extend(ctx["code"], core.insn_call_rax())
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
+    var l_fail = _new_label(ctx, "sys_write_fail")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
-        // if eax == 0 => failure => return -EIO (rolling)
-        bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-        var l_fail = _new_label(ctx, "sys_write_fail")
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(10, 40))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
 
-        // rax = *(u64*)(&written)
-        bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(10, 40))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-        _emit_label(ctx, labels, l_fail)
-        // -5 (EIO)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291))
-        bytes_extend(ctx["code"], core.insn_cdqe())
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    } else {
-        // Linux x86_64: write(fd, ptr, len) via syscall.
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_ptr)
-        _intr_load_x64(ctx, 2, tmp_len)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_write()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-    }
+    _emit_label(ctx, labels, l_fail)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291)) // -5 (EIO)
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_ret0)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
@@ -464,6 +428,67 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     _patch_local_fixups(ctx, labels, local_fixups)
     _intr_tmp_pop(ctx, base)
     return nil
+}
+
+fn _emit_intrinsic_sys_write_linux_x64(ctx, locals, args, capsule) {
+    var base = _intr_tmp_push(ctx, 3)
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = rdi
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    var labels = {}
+    var local_fixups = []
+    var l_ret0 = _new_label(ctx, "sys_write_ret0")
+    var l_done = _new_label(ctx, "sys_write_done")
+
+    _intr_load_x64(ctx, 0, tmp_len)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
+
+    _intr_load_x64(ctx, 7, tmp_fd)
+    _intr_load_x64(ctx, 6, tmp_ptr)
+    _intr_load_x64(ctx, 2, tmp_len)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_write()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _emit_label(ctx, labels, l_ret0)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_write expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_write does not support spread"); return nil }
+
+    var platform = ctx["platform"]
+    var capsule = _x64_capsule_enabled(ctx)
+    if platform != nil && platform["os"] == "windows" {
+        return _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule)
+    }
+    return _emit_intrinsic_sys_write_linux_x64(ctx, locals, args, capsule)
 }
 
 fn _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) {
