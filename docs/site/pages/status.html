@@ -966,8 +966,15 @@
 <p>																																								  at about 43.6s total / 32.3s parse, with</p>
 <p>																																								  <code>_emit_win32_last_error_to_neg_errno_common_x64</code> exposed at about 83ms as the</p>
 <p>																																								  next parser body.</p>
-<p>																													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																								  Windows x64 Win32 <code>GetLastError</code> errno lowering now shares the repeated</p>
+<p>																																								  compare/set/jump case emission through <code>_emit_win32_neg_errno_case_x64</code> while</p>
+<p>																																								  preserving the POSIX-style ENOENT, EACCES, EBADF, EBUSY, EEXIST, ENOTEMPTY,</p>
+<p>																																								  EXDEV, and fallback EIO mappings. The capped profile now shows</p>
+<p>																																								  <code>x64_native_program.oren</code> at about 41.4s total / 30.5s parse, with</p>
+<p>																																								  <code>_emit_intrinsic_sys_rename_windows_x64</code> exposed at about 79ms as the next</p>
+<p>																																								  parser body.</p>
+<p>																														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>			  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>

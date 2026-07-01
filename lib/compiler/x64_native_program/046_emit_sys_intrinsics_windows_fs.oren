@@ -147,6 +147,16 @@ fn _emit_win32_get_last_error_x64(ctx) {
     return nil
 }
 
+fn _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, next_prefix, winerr, posix_errno) {
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, winerr))
+    var l_next = _new_label(ctx, next_prefix)
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next)
+    _emit_set_rax_neg_errno_x64(ctx, posix_errno)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next)
+    return nil
+}
+
 fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     // rax = -errno (POSIX-like) mapped from Win32 GetLastError()
     //
@@ -158,74 +168,27 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
     var l_done = _new_label(ctx, "win32_err_done")
 
     // ERROR_FILE_NOT_FOUND(2) / ERROR_PATH_NOT_FOUND(3) -> ENOENT(2)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 2))
-    var l_next0 = _new_label(ctx, "win32_err_next0")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
-    _emit_set_rax_neg_errno_x64(ctx, 2)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next0)
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 3))
-    var l_next1 = _new_label(ctx, "win32_err_next1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
-    _emit_set_rax_neg_errno_x64(ctx, 2)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next1)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next0", 2, 2)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next1", 3, 2)
 
     // ERROR_ACCESS_DENIED(5) -> EACCES(13)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 5))
-    var l_next2 = _new_label(ctx, "win32_err_next2")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
-    _emit_set_rax_neg_errno_x64(ctx, 13)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next2)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next2", 5, 13)
 
     // ERROR_INVALID_HANDLE(6) -> EBADF(9)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6))
-    var l_next3 = _new_label(ctx, "win32_err_next3")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
-    _emit_set_rax_neg_errno_x64(ctx, 9)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next3)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next3", 6, 9)
 
     // ERROR_SHARING_VIOLATION(32) -> EBUSY(16)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 32))
-    var l_next4 = _new_label(ctx, "win32_err_next4")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next4)
-    _emit_set_rax_neg_errno_x64(ctx, 16)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next4)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next4", 32, 16)
 
     // ERROR_FILE_EXISTS(80) / ERROR_ALREADY_EXISTS(183) -> EEXIST(17)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 80))
-    var l_next5 = _new_label(ctx, "win32_err_next5")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next5)
-    _emit_set_rax_neg_errno_x64(ctx, 17)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next5)
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 183))
-    var l_next6 = _new_label(ctx, "win32_err_next6")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next6)
-    _emit_set_rax_neg_errno_x64(ctx, 17)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next6)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next5", 80, 17)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next6", 183, 17)
 
     // ERROR_DIR_NOT_EMPTY(145) -> ENOTEMPTY(39)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 145))
-    var l_next7 = _new_label(ctx, "win32_err_next7")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next7)
-    _emit_set_rax_neg_errno_x64(ctx, 39)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next7)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next7", 145, 39)
 
     // ERROR_NOT_SAME_DEVICE(17) -> EXDEV(18)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 17))
-    var l_next8 = _new_label(ctx, "win32_err_next8")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next8)
-    _emit_set_rax_neg_errno_x64(ctx, 18)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next8)
+    _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next8", 17, 18)
 
     // Default: -EIO(5)
     _emit_set_rax_neg_errno_x64(ctx, 5)
