@@ -665,6 +665,13 @@
 <p>																 at about 39.8s total / 29.4s parse, with</p>
 <p>																 <code>_x64_fast_list_push_validate_lists</code> exposed at about 107ms as the</p>
 <p>																 next parser body.</p>
+<p>																 X64 fast generic list-push validation now delegates loop-bound</p>
+<p>																 checks, per-list temporary-slot state, list capture, tracked</p>
+<p>																 LIST/magic validation, reserve emission, and count/buffer capture</p>
+<p>																 to focused helpers. The capped profile now shows</p>
+<p>																 <code>x64_native_program.oren</code> at about 40.0s total / 29.8s parse, with</p>
+<p>																 <code>_x64_emit_entry_prologue_and_args</code> exposed at about 105ms as the</p>
+<p>																 next parser body.</p>
 <p>																     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
