@@ -939,6 +939,12 @@
 <p>																															 <code>x64_native_program.oren</code> at about 41.7s total / 30.5s parse, with</p>
 <p>																															 <code>_emit_intrinsic_sys_sendto_windows_x64</code> exposed at about 79ms as the next</p>
 <p>																															 parser body.</p>
+<p>																															 Windows x64 <code>sys_sendto</code> / <code>sys_recvfrom</code> lowering now shares six-argument</p>
+<p>																															 socket message helpers for temp-state setup, Win64 stack-arg loading,</p>
+<p>																															 capsule prehooks, IAT dispatch, and WSA errno normalization. The capped</p>
+<p>																															 profile now shows <code>x64_native_program.oren</code> at about 42.4s total / 31.4s</p>
+<p>																															 parse, with <code>_x64_fast_list_dot_emit_single</code> exposed at about 82ms as the</p>
+<p>																															 next parser body.</p>
 <p>																														     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

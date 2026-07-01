@@ -901,6 +901,12 @@ Facts from the 2026-05-28 implementation pass:
 																																					  `x64_native_program.oren` at about 41.7s total / 30.5s parse, with
 																																					  `_emit_intrinsic_sys_sendto_windows_x64` exposed at about 79ms as the next
 																																					  parser body.
+																																					  Windows x64 `sys_sendto` / `sys_recvfrom` lowering now shares six-argument
+																																					  socket message helpers for temp-state setup, Win64 stack-arg loading,
+																																					  capsule prehooks, IAT dispatch, and WSA errno normalization. The capped
+																																					  profile now shows `x64_native_program.oren` at about 42.4s total / 31.4s
+																																					  parse, with `_x64_fast_list_dot_emit_single` exposed at about 82ms as the
+																																					  next parser body.
 																										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

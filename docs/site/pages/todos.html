@@ -1082,6 +1082,14 @@
 <p>  <code>_emit_intrinsic_sys_sendto_windows_x64</code> exposed at ~79ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>Windows x64 <code>sys_sendto</code> / <code>sys_recvfrom</code> lowering now shares six-argument</li>
+</ul>
+<p>  socket message helpers for temp-state setup, Win64 stack-arg loading,</p>
+<p>  capsule prehooks, IAT dispatch, and WSA errno normalization. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~42.4s total / ~31.4s parse,</p>
+<p>  with <code>_x64_fast_list_dot_emit_single</code> exposed at ~82ms as the next parser</p>
+<p>  body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>
