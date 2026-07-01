@@ -404,6 +404,13 @@ This file is the concise task view. Detailed implementation status lives in
 																		 capsule prehook and zero-length write behavior. The capped profile now
 																		 shows `x64_native_program.oren` at about 38.1s total / 28.6s parse, with
 																		 `_emit_malloc_size_in_rax` exposed at about 164ms as the next parser body.
+																		 X64 malloc lowering now delegates 64KiB chunk sizing, Windows
+																		 `VirtualAlloc`, Linux `mmap`, heap-register commit, fast bump allocation,
+																		 and zero-size return through focused helpers while preserving the
+																		 `malloc`/`malloc_raw`/`malloc_k` entry contract. The capped profile now
+																		 shows `x64_native_program.oren` at about 37.9s total / 28.3s parse, with
+																		 `_emit_intrinsic_sys_linux_open_close_access_x64` exposed at about 163ms as
+																		 the next parser body.
 												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

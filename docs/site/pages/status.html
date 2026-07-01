@@ -443,6 +443,13 @@
 <p>																	  capsule prehook and zero-length write behavior. The capped profile now</p>
 <p>																	  shows <code>x64_native_program.oren</code> at about 38.1s total / 28.6s parse, with</p>
 <p>																	  <code>_emit_malloc_size_in_rax</code> exposed at about 164ms as the next parser body.</p>
+<p>																	  X64 malloc lowering now delegates 64KiB chunk sizing, Windows</p>
+<p>																	  <code>VirtualAlloc</code>, Linux <code>mmap</code>, heap-register commit, fast bump allocation,</p>
+<p>																	  and zero-size return through focused helpers while preserving the</p>
+<p>																	  <code>malloc</code>/<code>malloc_raw</code>/<code>malloc_k</code> entry contract. The capped profile now</p>
+<p>																	  shows <code>x64_native_program.oren</code> at about 37.9s total / 28.3s parse, with</p>
+<p>																	  <code>_emit_intrinsic_sys_linux_open_close_access_x64</code> exposed at about 163ms as</p>
+<p>																	  the next parser body.</p>
 <p>						  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
