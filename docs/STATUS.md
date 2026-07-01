@@ -749,6 +749,13 @@ Facts from the 2026-05-28 implementation pass:
 																						  `x64_native_program.oren` at about 40.8s total / 29.9s parse,
 																						  with `_emit_malloc_size_in_rax` exposed at about 141ms as the next
 																						  parser body.
+																						  X64 malloc core lowering now delegates `$tmp0` validation,
+																						  allocation labels, size alignment, native reuse probing, heap
+																						  fast-path probing, and platform slow-path routing to focused
+																						  helpers while preserving heap register semantics. The capped
+																						  profile now shows `x64_native_program.oren` at about 40.6s total /
+																						  30.0s parse, with `_emit_call_spread_via_runtime_helper_fnexpr_x64`
+																						  exposed at about 96ms as the next parser body.
 														  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

@@ -144,55 +144,82 @@ fn _emit_malloc_ret0_path_x64(ctx, labels, local_fixups, l_ret0, l_done) {
     return nil
 }
 
-fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
-    // malloc(size) / malloc_raw(size) intrinsic core.
-    // Input: RAX=requested size. Output: RAX=allocated pointer or 0 on size<=0.
-    var platform = ctx["platform"]
+fn _x64_malloc_tmp0_slot(ctx, locals) {
     if locals == nil { err(ctx, "x64 native v0: malloc intrinsic requires locals context"); return nil }
     var tmp0 = locals["$tmp0"]
     if oren_type_tag(tmp0) != 1 { tmp0 = 0 }
     if tmp0 <= 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc"); return nil }
-    var labels = {}
-    var local_fixups = []
-    var l_ret0 = _new_label(ctx, "malloc_ret0")
-    var l_fast = _new_label(ctx, "malloc_fast")
-    var l_done = _new_label(ctx, "malloc_done")
+    return tmp0
+}
 
+fn _x64_malloc_labels(ctx) {
+    return {
+        "fixups": [],
+        "ret0": _new_label(ctx, "malloc_ret0"),
+        "fast": _new_label(ctx, "malloc_fast"),
+        "done": _new_label(ctx, "malloc_done")
+    }
+}
+
+fn _x64_malloc_emit_size_prepare(ctx, tmp0, state) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
+    _emit_jcc_to_label(ctx, state["fixups"], "le", state["ret0"])
 
     // Align up to 16: (size + 15) & ~15.
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 15))
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, 4294967280)) // 0xFFFFFFF0 (-16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // r11 = aligned size
     _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
+    return nil
+}
 
-    if reuse_mode == 1 {
-        var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
-        if oren_type_tag(a0m_enc) == 0 { err(ctx, "x64 native v0: missing ABI arg reg for native_try_reuse"); return nil }
-        var a0m = a0m_enc - 1
-        _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp0)
-        _emit_call_rel32_named_x64(ctx, "native_try_reuse")
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
-    }
+fn _x64_malloc_emit_reuse_probe(ctx, locals, tmp0, reuse_mode, state) {
+    if reuse_mode != 1 { return nil }
+    var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if oren_type_tag(a0m_enc) == 0 { err(ctx, "x64 native v0: missing ABI arg reg for native_try_reuse"); return nil }
+    var a0m = a0m_enc - 1
+    _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp0)
+    _emit_call_rel32_named_x64(ctx, "native_try_reuse")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, state["fixups"], "ne", state["done"])
+    return nil
+}
 
+fn _x64_malloc_emit_heap_probe(ctx, state) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 15)) // r10 = heap_ptr
     bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11)) // r10 = candidate_end
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 14))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_fast)
+    _emit_jcc_to_label(ctx, state["fixups"], "le", state["fast"])
+    return nil
+}
 
-    _emit_malloc_chunk_max_64k_x64(ctx, labels, local_fixups, "malloc_chunk_ok")
+fn _x64_malloc_emit_slow_path(ctx, platform, tmp0, labels, state) {
+    _emit_malloc_chunk_max_64k_x64(ctx, labels, state["fixups"], "malloc_chunk_ok")
     if platform != nil && platform["os"] == "windows" {
-        _emit_malloc_slow_windows_x64(ctx, tmp0, labels, local_fixups, l_done)
+        _emit_malloc_slow_windows_x64(ctx, tmp0, labels, state["fixups"], state["done"])
     } else {
-        _emit_malloc_slow_linux_x64(ctx, tmp0, labels, local_fixups, l_done)
+        _emit_malloc_slow_linux_x64(ctx, tmp0, labels, state["fixups"], state["done"])
     }
+    return nil
+}
 
-    _emit_malloc_fast_path_x64(ctx, labels, local_fixups, l_fast, l_done)
-    _emit_malloc_ret0_path_x64(ctx, labels, local_fixups, l_ret0, l_done)
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
+    // malloc(size) / malloc_raw(size) intrinsic core.
+    // Input: RAX=requested size. Output: RAX=allocated pointer or 0 on size<=0.
+    var platform = ctx["platform"]
+    var tmp0 = _x64_malloc_tmp0_slot(ctx, locals)
+    if tmp0 == nil { return nil }
+    var labels = {}
+    var state = _x64_malloc_labels(ctx)
+    _x64_malloc_emit_size_prepare(ctx, tmp0, state)
+    _x64_malloc_emit_reuse_probe(ctx, locals, tmp0, reuse_mode, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_malloc_emit_heap_probe(ctx, state)
+    _x64_malloc_emit_slow_path(ctx, platform, tmp0, labels, state)
+    _emit_malloc_fast_path_x64(ctx, labels, state["fixups"], state["fast"], state["done"])
+    _emit_malloc_ret0_path_x64(ctx, labels, state["fixups"], state["ret0"], state["done"])
+    _emit_label(ctx, labels, state["done"])
+    _patch_local_fixups(ctx, labels, state["fixups"])
     return nil
 }
 
