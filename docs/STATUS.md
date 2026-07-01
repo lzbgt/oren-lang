@@ -986,6 +986,12 @@ Facts from the 2026-05-28 implementation pass:
 																																														  `x64_native_program.oren` at about 42.6s total / 31.5s parse, with
 																																														  `_x64_fast_list_int_push_validate_one_list` exposed at about 77ms as the next
 																																														  parser body.
+																																														  X64 fast LIST_INT push validation now mirrors the generic LIST push helper
+																																														  shape with separate list-state capture, nil/list capture, tracked LIST_INT
+																																														  validation, reserve/count check, and buffer-slot capture helpers. The capped
+																																														  profile now shows `x64_native_program.oren` at about 41.8s total / 30.7s
+																																														  parse, with `_emit_intrinsic_sys_linux_pipe_x64` exposed at about 74ms as the
+																																														  next parser body.
 																																					  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

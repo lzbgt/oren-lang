@@ -247,25 +247,27 @@ fn _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, sl
     return nil
 }
 
-fn _x64_fast_list_int_push_validate_one_list(ctx, prep, locals, labels, label_names, local_fixups, li) {
-    var lists = prep["lists"]
+fn _x64_fast_list_int_push_list_state(ctx, prep, locals, li) {
     var base = prep["base"]
-    var off_idx = prep["off_idx"]
-    var l_slow = label_names["slow"]
-
-    var list_name = lists[li]
+    var list_name = prep["lists"][li]
     var off_list = locals[list_name]
-    if oren_type_tag(off_list) == 0 { return false }
+    if oren_type_tag(off_list) == 0 { return nil }
     var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
     var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
-    if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return false }
+    if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return nil }
+    return {"off_list": off_list, "slot_list": slot_list, "slot_buf": slot_buf}
+}
 
+fn _x64_fast_list_int_push_capture_list(ctx, st, l_slow, local_fixups) {
     // list -> slot
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_list)
-    _emit_mov_mrbp_r64(ctx, 0 - slot_list, 0)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["off_list"])
+    _emit_mov_mrbp_r64(ctx, 0 - st["slot_list"], 0)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+    return nil
+}
 
+fn _x64_fast_list_int_push_validate_tracked_list(ctx, st, l_slow, local_fixups) {
     // tracked node
     _emit_find_tracked_node_x64(ctx, 0, 11)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
@@ -280,31 +282,45 @@ fn _x64_fast_list_int_push_validate_one_list(ctx, prep, locals, labels, label_na
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
 
     // magic check
-    _emit_mov_r64_mrbp(ctx, 0, 0 - slot_list)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["slot_list"])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+    return true
+}
 
+fn _x64_fast_list_int_push_validate_count_and_buf(ctx, prep, st, labels, l_slow, local_fixups) {
     var l_cap_ok = _new_label(ctx, "list_push_cap_ok")
-    _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, slot_list, l_cap_ok)
+    _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, st["slot_list"], l_cap_ok)
 
     // count == i
-    _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
+    _emit_mov_r64_mrbp(ctx, 9, 0 - prep["off_idx"])
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
 
     // buf -> slot
-    _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st["slot_buf"], 0)
+    return nil
+}
+
+fn _x64_fast_list_int_push_validate_one_list(ctx, prep, locals, labels, label_names, local_fixups, li) {
+    var st = _x64_fast_list_int_push_list_state(ctx, prep, locals, li)
+    if st == nil { return false }
+    var l_slow = label_names["slow"]
+
+    _x64_fast_list_int_push_capture_list(ctx, st, l_slow, local_fixups)
+    if _x64_fast_list_int_push_validate_tracked_list(ctx, st, l_slow, local_fixups) != true { return false }
+    _x64_fast_list_int_push_validate_count_and_buf(ctx, prep, st, labels, l_slow, local_fixups)
     return true
 }
 
