@@ -382,7 +382,12 @@ Facts from the 2026-05-28 implementation pass:
 																	  file-success translation/close, and capsule post hooks through focused
 																	  helpers. The capped profile now shows `x64_native_program.oren` at about
 																	  38.5s total / 28.9s parse, with `_x64_emit_entry_return_path` exposed at
-																	  about 173ms as the next parser body.
+																	  about 173ms as the next parser body. X64 entry return-path emission now
+																	  delegates Windows DLL, Windows executable, Linux `.so`, and Linux
+																	  executable return paths through focused helpers and shares heap-spill
+																	  emission. The capped profile now shows `x64_native_program.oren` at about
+																	  38.3s total / 28.7s parse, with `_emit_intrinsic_sys_open_windows_x64`
+																	  exposed at about 172ms as the next parser body.
 						  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

@@ -897,128 +897,125 @@ fn _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase
     return nil
 }
 
+fn _x64_emit_shared_entry_heap_spills(ctx, missing_msg) {
+    var heap_limit_off = _rtobj_decode_int_enc(ctx["heap_limit_slot_enc"])
+    var heap_ptr_off = _rtobj_decode_int_enc(ctx["heap_ptr_slot_enc"])
+    if heap_limit_off == nil || heap_ptr_off == nil {
+        err(ctx, missing_msg)
+        return nil
+    }
+
+    var lea_hl = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 14))
+
+    var lea_hp = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 15))
+    return true
+}
+
+fn _x64_emit_windows_dll_return_path(ctx, entry_total, entry_opts) {
+    // DllMain return path: persist heap registers, restore callee-saved regs, return TRUE.
+    if _x64_emit_shared_entry_heap_spills(ctx,
+        "x64 native: missing heap spill slots for DLL entry (heap_limit_slot_enc/heap_ptr_slot_enc)") != true {
+        return nil
+    }
+
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // eax=TRUE
+    if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
+    // Restore non-volatile regs in reverse order.
+    bytes_extend(ctx["code"], core.insn_pop_r64(15))
+    bytes_extend(ctx["code"], core.insn_pop_r64(14))
+    bytes_extend(ctx["code"], core.insn_pop_r64(13))
+    bytes_extend(ctx["code"], core.insn_pop_r64(12))
+    bytes_extend(ctx["code"], core.insn_pop_r64(6))
+    bytes_extend(ctx["code"], core.insn_pop_r64(7))
+    bytes_extend(ctx["code"], core.insn_pop_r64(5))
+    bytes_extend(ctx["code"], core.insn_pop_r64(3))
+    bytes_extend(ctx["code"], core.insn_ret())
+
+    var dll_labels = entry_opts["dll_labels"]
+    var dll_fixups = entry_opts["dll_fixups"]
+    if dll_labels != nil && dll_fixups != nil {
+        _patch_local_fixups(ctx, dll_labels, dll_fixups)
+    }
+    ctx["entry_off"] = 0
+    return true
+}
+
+fn _x64_emit_windows_exe_return_path(ctx, entry_total) {
+    // Windows x64 executable entry: ExitProcess(ret). rcx = u32 exit code.
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0)) // r12 = main ret
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12)) // rcx = main ret
+    var call_run_json_win = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_run_json_win, "name": "native_runtime_run_json_maybe_print"})
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12)) // restore rax
+    bytes_extend(ctx["code"], core.insn_mov_r32_r32(1, 0)) // mov ecx, eax
+
+    var mov_iat_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
+    _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_ExitProcess")
+    bytes_extend(ctx["code"], core.insn_call_rax())
+    // Should not return; if it does, just ret.
+    if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
+    bytes_extend(ctx["code"], core.insn_ret())
+    ctx["entry_off"] = 0
+    return true
+}
+
+fn _x64_emit_linux_so_return_path(ctx, entry_total) {
+    // Linux x86_64 shared-library ctor return path: persist heap registers, restore regs, return 0.
+    if _x64_emit_shared_entry_heap_spills(ctx,
+        "x64 native: missing heap spill slots for ELF .so entry (heap_limit_slot_enc/heap_ptr_slot_enc)") != true {
+        return nil
+    }
+
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
+    bytes_extend(ctx["code"], core.insn_pop_r64(15))
+    bytes_extend(ctx["code"], core.insn_pop_r64(14))
+    bytes_extend(ctx["code"], core.insn_pop_r64(13))
+    bytes_extend(ctx["code"], core.insn_pop_r64(12))
+    bytes_extend(ctx["code"], core.insn_pop_r64(5))
+    bytes_extend(ctx["code"], core.insn_pop_r64(3))
+    bytes_extend(ctx["code"], core.insn_ret())
+    ctx["entry_off"] = 0
+    return true
+}
+
+fn _x64_emit_linux_exe_return_path(ctx, entry_total) {
+    // Linux x86_64: exit_group(main_ret) via syscall (process-wide).
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0)) // r12 = main ret
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12)) // rdi = main ret
+    var call_run_json_linux = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_run_json_linux, "name": "native_runtime_run_json_maybe_print"})
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12)) // restore rax
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // mov rdi, rax
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    // Should not return; if it does, ret.
+    if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
+    bytes_extend(ctx["code"], core.insn_ret())
+    ctx["entry_off"] = 0
+    return true
+}
+
 fn _x64_emit_entry_return_path(ctx, platform, entry_opts) {
     var is_dll = entry_opts["is_dll"] == true
     var is_so = entry_opts["is_so"] == true
     var entry_total = entry_opts["entry_total"]
     if oren_type_tag(entry_total) == 0 { entry_total = 0 }
     if platform != nil && platform["os"] == "windows" {
-        if is_dll {
-            // DllMain return path:
-            // - persist heap registers to `.data` spill slots for export wrappers
-            // - restore callee-saved regs and return TRUE
-            var heap_limit_off = _rtobj_decode_int_enc(ctx["heap_limit_slot_enc"])
-            var heap_ptr_off = _rtobj_decode_int_enc(ctx["heap_ptr_slot_enc"])
-            if heap_limit_off == nil || heap_ptr_off == nil {
-                err(ctx, "x64 native: missing heap spill slots for DLL entry (heap_limit_slot_enc/heap_ptr_slot_enc)")
-                return nil
-            }
-
-            var lea_hl = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
-            bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 14))
-
-            var lea_hp = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
-            bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 15))
-
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // eax=TRUE
-            if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
-            // Restore non-volatile regs in reverse order.
-            bytes_extend(ctx["code"], core.insn_pop_r64(15))
-            bytes_extend(ctx["code"], core.insn_pop_r64(14))
-            bytes_extend(ctx["code"], core.insn_pop_r64(13))
-            bytes_extend(ctx["code"], core.insn_pop_r64(12))
-            bytes_extend(ctx["code"], core.insn_pop_r64(6))
-            bytes_extend(ctx["code"], core.insn_pop_r64(7))
-            bytes_extend(ctx["code"], core.insn_pop_r64(5))
-            bytes_extend(ctx["code"], core.insn_pop_r64(3))
-            bytes_extend(ctx["code"], core.insn_ret())
-
-            var dll_labels = entry_opts["dll_labels"]
-            var dll_fixups = entry_opts["dll_fixups"]
-            if dll_labels != nil && dll_fixups != nil {
-                _patch_local_fixups(ctx, dll_labels, dll_fixups)
-            }
-            ctx["entry_off"] = 0
-        } else {
-            // Windows x64 executable entry: ExitProcess(ret)
-            //
-            // - rcx = u32 exit code
-            // - call [IAT ExitProcess]
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0)) // r12 = main ret
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12)) // rcx = main ret
-            var call_run_json_win = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_run_json_win, "name": "native_runtime_run_json_maybe_print"})
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12)) // restore rax
-            bytes_extend(ctx["code"], core.insn_mov_r32_r32(1, 0)) // mov ecx, eax
-
-            var mov_iat_pos = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
-            _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_ExitProcess")
-            bytes_extend(ctx["code"], core.insn_call_rax())
-            // Should not return; if it does, just ret.
-            if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
-            bytes_extend(ctx["code"], core.insn_ret())
-            // Record entrypoint offset (start of code).
-            ctx["entry_off"] = 0
-        }
-    } else {
-        if is_so {
-            // Linux x86_64 shared library ctor return path:
-            // - persist heap registers to `.data` spill slots for export wrappers
-            // - restore SysV callee-saved regs and return
-            var heap_limit_off = _rtobj_decode_int_enc(ctx["heap_limit_slot_enc"])
-            var heap_ptr_off = _rtobj_decode_int_enc(ctx["heap_ptr_slot_enc"])
-            if heap_limit_off == nil || heap_ptr_off == nil {
-                err(ctx, "x64 native: missing heap spill slots for ELF .so entry (heap_limit_slot_enc/heap_ptr_slot_enc)")
-                return nil
-            }
-
-            var lea_hl = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
-            bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 14))
-
-            var lea_hp = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
-            bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 15))
-
-            // return 0
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-            if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
-            bytes_extend(ctx["code"], core.insn_pop_r64(15))
-            bytes_extend(ctx["code"], core.insn_pop_r64(14))
-            bytes_extend(ctx["code"], core.insn_pop_r64(13))
-            bytes_extend(ctx["code"], core.insn_pop_r64(12))
-            bytes_extend(ctx["code"], core.insn_pop_r64(5))
-            bytes_extend(ctx["code"], core.insn_pop_r64(3))
-            bytes_extend(ctx["code"], core.insn_ret())
-            ctx["entry_off"] = 0
-        } else {
-            // Linux x86_64: exit_group(main_ret) via syscall (process-wide)
-            // rdi = rax
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0)) // r12 = main ret
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12)) // rdi = main ret
-            var call_run_json_linux = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_run_json_linux, "name": "native_runtime_run_json_maybe_print"})
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12)) // restore rax
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // mov rdi, rax
-            // rax = SYS_exit_group
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-            // Should not return; if it does, ret.
-            if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
-            bytes_extend(ctx["code"], core.insn_ret())
-            ctx["entry_off"] = 0
-        }
+        if is_dll { return _x64_emit_windows_dll_return_path(ctx, entry_total, entry_opts) }
+        return _x64_emit_windows_exe_return_path(ctx, entry_total)
     }
-    return nil
+    if is_so { return _x64_emit_linux_so_return_path(ctx, entry_total) }
+    return _x64_emit_linux_exe_return_path(ctx, entry_total)
 }
 
 fn _x64_emit_entry_prologue_and_args(ctx, platform, trace_prog, trace_entry, phase_log) {
