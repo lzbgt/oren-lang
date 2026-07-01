@@ -267,78 +267,88 @@ fn _emit_intrinsic_sys_linux_runtime_stub_x64(ctx, nm) {
     return false
 }
 
-fn _emit_intrinsic_sys_linux_pipe_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_pipe" {
-        if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_pipe expects 1 arg"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_pipe does not support spread"); return true }
+fn _x64_linux_pipe_prepare(ctx, locals, args) {
+    var base = _intr_tmp_push(ctx, 2) // ptr, rc
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_rc = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_rc) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
-        var base = _intr_tmp_push(ctx, 2) // ptr, rc
-        if oren_type_tag(base) == 0 { return true }
-        var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-        var tmp_rc = _intr_tmp_off(ctx, locals, base + 1)
-        if oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_rc) == 0 { _intr_tmp_pop(ctx, base); return true }
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_ptr": tmp_ptr, "tmp_rc": tmp_rc}
+}
 
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return true }
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=ptr
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_pre")
-        } else {
-            // rax = ptr
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
-        }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0) // save ptr
-
-        _intr_load_x64(ctx, 7, tmp_ptr) // rdi = ptr
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, 0)) // esi = flags=0
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_pipe2()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_rc, 0) // save rc
-
-        var labels = {}
-        var fixups = []
-        _intr_load_x64(ctx, 11, tmp_rc) // r11 = rc
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-        var l_skip_widen = _new_label(ctx, "pipe_skip_widen")
-        _emit_jcc_to_label(ctx, fixups, "ne", l_skip_widen)
-
-        // Widen int[2] (32-bit fds) into two u64 slots in-place.
-        _intr_load_x64(ctx, 10, tmp_ptr) // r10 = ptr
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10)) // r11 = packed (wfd<<32 | rfd)
-
-        // rfd = (u32)r11
-        //
-        // IMPORTANT: do not clobber RAX here: it carries the syscall return code (rc),
-        // and callers commonly store/branch on it immediately after the intrinsic.
-        bytes_extend(ctx["code"], core.insn_mov_r32_r32(8, 11)) // r8d = r11d => r8 = rfd (zero-extend)
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8)) // [ptr] = rfd (u64)
-
-        // wfd = (u32)(r11 >> 32)
-        bytes_extend(ctx["code"], core.insn_shr_r64_imm8(11, 32))
-        bytes_extend(ctx["code"], core.insn_mov_r32_r32(8, 11)) // r8d = wfd (zero-extend)
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8)) // ptr += 8
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))  // [ptr+8] = wfd (u64)
-
-        _emit_label(ctx, labels, l_skip_widen)
-        _patch_local_fixups(ctx, labels, fixups)
-
-        // IMPORTANT: preserve the syscall return value in RAX.
-        //
-        // The widening block above uses RAX as a scratch register when rewriting the two
-        // 32-bit fds in-place, which would otherwise clobber the rc (0 on success).
-        _intr_load_x64(ctx, 0, tmp_rc) // rax = rc
-
-        // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
-        if capsule {
-            _intr_load_x64(ctx, 7, tmp_ptr) // rdi = ptr
-            _intr_load_x64(ctx, 6, tmp_rc)  // rsi = rc
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_post")
-        }
-        _intr_tmp_pop(ctx, base)
-        return true
+fn _x64_linux_pipe_emit_prehook(ctx, st, capsule) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=ptr
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_pre")
+    } else {
+        // rax = ptr
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
     }
+    _emit_mov_mrbp_r64(ctx, 0 - st["tmp_ptr"], 0) // save ptr
+}
 
-    return false
+fn _x64_linux_pipe_emit_syscall(ctx, st) {
+    _intr_load_x64(ctx, 7, st["tmp_ptr"]) // rdi = ptr
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, 0)) // esi = flags=0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_pipe2()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    _emit_mov_mrbp_r64(ctx, 0 - st["tmp_rc"], 0) // save rc
+}
+
+fn _x64_linux_pipe_emit_widen_success(ctx, st) {
+    var labels = {}
+    var fixups = []
+    _intr_load_x64(ctx, 11, st["tmp_rc"]) // r11 = rc
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    var l_skip_widen = _new_label(ctx, "pipe_skip_widen")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_skip_widen)
+
+    // Widen int[2] (32-bit fds) into two u64 slots in-place.
+    _intr_load_x64(ctx, 10, st["tmp_ptr"]) // r10 = ptr
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10)) // r11 = packed (wfd<<32 | rfd)
+
+    // rfd = (u32)r11
+    bytes_extend(ctx["code"], core.insn_mov_r32_r32(8, 11)) // r8d = r11d => r8 = rfd (zero-extend)
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8)) // [ptr] = rfd (u64)
+
+    // wfd = (u32)(r11 >> 32)
+    bytes_extend(ctx["code"], core.insn_shr_r64_imm8(11, 32))
+    bytes_extend(ctx["code"], core.insn_mov_r32_r32(8, 11)) // r8d = wfd (zero-extend)
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8)) // ptr += 8
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))  // [ptr+8] = wfd (u64)
+
+    _emit_label(ctx, labels, l_skip_widen)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    // IMPORTANT: preserve the syscall return value in RAX for callers.
+    _intr_load_x64(ctx, 0, st["tmp_rc"]) // rax = rc
+}
+
+fn _x64_linux_pipe_emit_posthook(ctx, st, capsule) {
+    // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
+    if capsule {
+        _intr_load_x64(ctx, 7, st["tmp_ptr"]) // rdi = ptr
+        _intr_load_x64(ctx, 6, st["tmp_rc"])  // rsi = rc
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_post")
+    }
+}
+
+fn _emit_intrinsic_sys_linux_pipe_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm != "sys_pipe" { return false }
+    if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_pipe expects 1 arg"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_pipe does not support spread"); return true }
+
+    var st = _x64_linux_pipe_prepare(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_pipe_emit_prehook(ctx, st, capsule)
+    _x64_linux_pipe_emit_syscall(ctx, st)
+    _x64_linux_pipe_emit_widen_success(ctx, st)
+    _x64_linux_pipe_emit_posthook(ctx, st, capsule)
+    _intr_tmp_pop(ctx, st["base"])
+    return true
 }
 
 fn _emit_intrinsic_sys_linux_open_x64(ctx, expr, locals, args, capsule) {

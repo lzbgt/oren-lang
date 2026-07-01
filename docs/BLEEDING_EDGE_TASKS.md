@@ -974,6 +974,12 @@ This file is the concise task view. Detailed implementation status lives in
 																																										 profile now shows `x64_native_program.oren` at about 41.8s total / 30.7s
 																																										 parse, with `_emit_intrinsic_sys_linux_pipe_x64` exposed at about 74ms as the
 																																										 next parser body.
+																																										 Linux x64 `sys_pipe` lowering now delegates pointer/rc spill setup, capsule
+																																										 prehook, `pipe2` syscall setup, success-only int[2]-to-u64 fd widening, and
+																																										 capsule posthook emission to focused helpers while preserving the saved-rc
+																																										 RAX contract. The capped profile now shows `x64_native_program.oren` at about
+																																										 42.0s total / 30.9s parse, with `_x64_match_fast_list_int_dot_while` exposed
+																																										 at about 75ms as the next parser body.
 																																								     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
