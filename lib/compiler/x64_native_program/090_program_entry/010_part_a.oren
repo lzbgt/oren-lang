@@ -327,71 +327,80 @@ fn _x64_rtobj_apply_append_code(ctx, meta, trace, phase_log) {
     return base_code
 }
 
-fn _x64_rtobj_apply_function_offsets(ctx, meta, base_code, trace, phase_log) {
-    // Merge runtime function code offsets (name -> off+1 encoding in meta).
-    //
-    // Prefer the compact parallel-list form. The legacy map is kept for older cache entries, but
-    // repeatedly walking that map during stage2 x64 cache hits is a measurable bottleneck.
-    var fn_compact = meta["fn_offsets_compact"]
+fn _x64_rtobj_apply_compact_function_offsets(ctx, fn_compact, base_code, trace, phase_log) {
     var fn_compact_names = nil
     var fn_compact_n = 0
     if fn_compact != nil {
         fn_compact_names = fn_compact["names"]
         if fn_compact_names != nil { fn_compact_n = oren_list_len(fn_compact_names) }
     }
-    var fn_offs_enc = meta["fn_offs_enc"]
-    if fn_compact_n > 0 {
-        ctx["runtime_x64_fn_offsets_compact"] = fn_compact
-        ctx["runtime_x64_fn_offsets_base_code"] = base_code
-        var fn_compact_offs = fn_compact["offs_enc"]
-        var hook_i = 0
-        var hook_found = 0
-        while hook_i < fn_compact_n && hook_found < 2 {
-            var hook_name = fn_compact_names[hook_i]
-            if hook_name == "oren_call_depth_enter" || hook_name == "oren_call_depth_exit" {
-                var hook_off = nil
-                if fn_compact_offs != nil { hook_off = _rtobj_decode_int_enc(fn_compact_offs[hook_i]) }
-                if hook_off != nil {
-                    if hook_name == "oren_call_depth_enter" { ctx["runtime_x64_call_depth_enter_off"] = base_code + hook_off }
-                    else { ctx["runtime_x64_call_depth_exit_off"] = base_code + hook_off }
-                    hook_found = hook_found + 1
-                }
+    if fn_compact_n <= 0 { return false }
+
+    ctx["runtime_x64_fn_offsets_compact"] = fn_compact
+    ctx["runtime_x64_fn_offsets_base_code"] = base_code
+    var fn_compact_offs = fn_compact["offs_enc"]
+    var hook_i = 0
+    var hook_found = 0
+    while hook_i < fn_compact_n && hook_found < 2 {
+        var hook_name = fn_compact_names[hook_i]
+        if hook_name == "oren_call_depth_enter" || hook_name == "oren_call_depth_exit" {
+            var hook_off = nil
+            if fn_compact_offs != nil { hook_off = _rtobj_decode_int_enc(fn_compact_offs[hook_i]) }
+            if hook_off != nil {
+                if hook_name == "oren_call_depth_enter" { ctx["runtime_x64_call_depth_enter_off"] = base_code + hook_off }
+                else { ctx["runtime_x64_call_depth_exit_off"] = base_code + hook_off }
+                hook_found = hook_found + 1
             }
-            hook_i = hook_i + 1
         }
-        if trace { print("[x64_rtobj_apply] function offsets compact attached count=" + oren_int_to_string(fn_compact_n)) }
-        if phase_log != nil {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
-                "path=compact count=" + oren_int_to_string(fn_compact_n) +
-                " hooks=" + oren_int_to_string(hook_found))
+        hook_i = hook_i + 1
+    }
+    if trace { print("[x64_rtobj_apply] function offsets compact attached count=" + oren_int_to_string(fn_compact_n)) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
+            "path=compact count=" + oren_int_to_string(fn_compact_n) +
+            " hooks=" + oren_int_to_string(hook_found))
+    }
+    return true
+}
+
+fn _x64_rtobj_apply_legacy_function_offsets(ctx, fn_offs_enc, base_code, trace, phase_log) {
+    if fn_offs_enc == nil { return false }
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    var fn_map_n = oren_map_len(fn_offs_enc)
+    if trace { print("[x64_rtobj_apply] function offsets start count=" + oren_int_to_string(fn_map_n)) }
+    var idxf = 0
+    var pairf = [nil, nil]
+    while 1 {
+        if trace && idxf >= 0 && (idxf / 1000) * 1000 == idxf {
+            print("[x64_rtobj_apply] function offset " + oren_int_to_string(idxf) + "/" + oren_int_to_string(fn_map_n))
         }
-    } else if fn_offs_enc != nil {
-        if ctx["functions"] == nil { ctx["functions"] = {} }
-        var fn_map_n = oren_map_len(fn_offs_enc)
-        if trace { print("[x64_rtobj_apply] function offsets start count=" + oren_int_to_string(fn_map_n)) }
-        var idxf = 0
-        var pairf = [nil, nil]
-        while 1 {
-            if trace && idxf >= 0 && (idxf / 1000) * 1000 == idxf {
-                print("[x64_rtobj_apply] function offset " + oren_int_to_string(idxf) + "/" + oren_int_to_string(fn_map_n))
-            }
-            var okf = oren_iter_next_entry(fn_offs_enc, idxf, pairf)
-            if okf == 0 { break }
-            var nm = pairf[0]
-            var off_enc3 = pairf[1]
-            var off3 = _rtobj_decode_int_enc(off_enc3)
-            if nm != nil && off3 != nil {
-                ctx["functions"][nm] = base_code + off3
-            }
-            idxf = idxf + 1
+        var okf = oren_iter_next_entry(fn_offs_enc, idxf, pairf)
+        if okf == 0 { break }
+        var nm = pairf[0]
+        var off_enc3 = pairf[1]
+        var off3 = _rtobj_decode_int_enc(off_enc3)
+        if nm != nil && off3 != nil {
+            ctx["functions"][nm] = base_code + off3
         }
-        if trace { print("[x64_rtobj_apply] function offsets done count=" + oren_int_to_string(idxf)) }
-        if phase_log != nil {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
-                "path=legacy count=" + oren_int_to_string(idxf))
+        idxf = idxf + 1
+    }
+    if trace { print("[x64_rtobj_apply] function offsets done count=" + oren_int_to_string(idxf)) }
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
+            "path=legacy count=" + oren_int_to_string(idxf))
+    }
+    return true
+}
+
+fn _x64_rtobj_apply_function_offsets(ctx, meta, base_code, trace, phase_log) {
+    // Merge runtime function code offsets (name -> off+1 encoding in meta).
+    //
+    // Prefer the compact parallel-list form. The legacy map is kept for older cache entries, but
+    // repeatedly walking that map during stage2 x64 cache hits is a measurable bottleneck.
+    if _x64_rtobj_apply_compact_function_offsets(ctx, meta["fn_offsets_compact"], base_code, trace, phase_log) != true {
+        if _x64_rtobj_apply_legacy_function_offsets(ctx, meta["fn_offs_enc"], base_code, trace, phase_log) != true && phase_log != nil {
+            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done", "path=none count=0")
         }
-    } else if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done", "path=none count=0")
     }
     return nil
 }

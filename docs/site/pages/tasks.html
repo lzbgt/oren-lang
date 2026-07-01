@@ -992,12 +992,18 @@
 <p>																																							 79ms as the next parser body.</p>
 <p>																																							 X64 callable-use collection now separates lambda scanning/phase logging,</p>
 <p>																																							 optional <code>OREN_DEBUG_X64_LAMBDAS</code> reporting, and named function value-use</p>
-<p>																																							 discovery while preserving the same statement-set return and wrapper</p>
-<p>																																							 preparation contract. The capped profile now shows <code>x64_native_program.oren</code></p>
-<p>																																							 at about 42.8s total / 31.7s parse, with <code>_x64_rtobj_apply_function_offsets</code></p>
-<p>																																							 exposed at about 80ms as the next parser body.</p>
-<p>																																					     Serial/thread module</p>
-<p>													     ASTBIN writes are now explicit prewarm work via</p>
+<p>																																								 discovery while preserving the same statement-set return and wrapper</p>
+<p>																																								 preparation contract. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>																																								 at about 42.8s total / 31.7s parse, with <code>_x64_rtobj_apply_function_offsets</code></p>
+<p>																																								 exposed at about 80ms as the next parser body.</p>
+<p>																																								 X64 runtime-object function-offset replay now routes compact sidecar</p>
+<p>																																								 attachment and legacy map replay through focused helpers while preserving</p>
+<p>																																								 call-depth hook discovery, base-code adjustment, and phase-log path reporting.</p>
+<p>																																								 The capped profile now shows <code>x64_native_program.oren</code> at about 41.6s total /</p>
+<p>																																								 30.7s parse, with <code>_emit_intrinsic_sys_linux_net_sockopt_x64</code> exposed at about</p>
+<p>																																								 77ms as the next parser body.</p>
+<p>																																						     Serial/thread module</p>
+<p>														     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
 <p>									     serial ASTBIN writes stay opt-in behind</p>
