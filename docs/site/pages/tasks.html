@@ -729,6 +729,12 @@
 <p>																	 returned to the compile summary. The capped profile now shows</p>
 <p>																	 <code>x64_native_program.oren</code> at about 41.7s total / 31.0s parse, with</p>
 <p>																	 <code>_x64_emit_ffi_stub_win64</code> exposed at about 105ms as the next parser body.</p>
+<p>																	 Win64 x64 dynamic FFI stubs now delegate data materialization, cached</p>
+<p>																	 fnptr load, shadow-space argument spill/restore, resolver call,</p>
+<p>																	 cache-store, target tailcall, and unresolved-symbol panic emission to</p>
+<p>																	 focused helpers. The capped profile now shows</p>
+<p>																	 <code>x64_native_program.oren</code> at about 40.7s total / 30.1s parse, with</p>
+<p>																	 <code>_x64_emit_regular_op</code> exposed at about 101ms as the next parser body.</p>
 <p>																	     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>

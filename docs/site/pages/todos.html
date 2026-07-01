@@ -841,6 +841,13 @@
 <p>  ~41.7s total / ~31.0s parse, with <code>_x64_emit_ffi_stub_win64</code> exposed at ~105ms</p>
 <p>  as the next parser body.</p>
 <ul>
+<li>Win64 x64 dynamic FFI stubs now delegate data materialization, cached fnptr</li>
+</ul>
+<p>  load, shadow-space argument spill/restore, resolver call, cache-store,</p>
+<p>  target tailcall, and unresolved-symbol panic emission to focused helpers. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~40.7s total / ~30.1s</p>
+<p>  parse, with <code>_x64_emit_regular_op</code> exposed at ~101ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

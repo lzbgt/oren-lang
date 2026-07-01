@@ -673,6 +673,12 @@ This file is the concise task view. Detailed implementation status lives in
 																	 returned to the compile summary. The capped profile now shows
 																	 `x64_native_program.oren` at about 41.7s total / 31.0s parse, with
 																	 `_x64_emit_ffi_stub_win64` exposed at about 105ms as the next parser body.
+																	 Win64 x64 dynamic FFI stubs now delegate data materialization, cached
+																	 fnptr load, shadow-space argument spill/restore, resolver call,
+																	 cache-store, target tailcall, and unresolved-symbol panic emission to
+																	 focused helpers. The capped profile now shows
+																	 `x64_native_program.oren` at about 40.7s total / 30.1s parse, with
+																	 `_x64_emit_regular_op` exposed at about 101ms as the next parser body.
 																	     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
