@@ -433,7 +433,12 @@
 <p>																	  CreateFileA/error mapping through focused helpers. The capped profile now</p>
 <p>																	  shows <code>x64_native_program.oren</code> at about 37.8s total / 28.3s parse, with</p>
 <p>																	  <code>_emit_intrinsic_sys_linux_fcntl_x64</code> exposed at about 166ms as the next</p>
-<p>																	  parser body.</p>
+<p>																	  parser body. X64 Linux fd-control lowering now delegates raw <code>sys_fcntl</code>,</p>
+<p>																	  <code>F_GETFL</code>, <code>F_SETFL</code>, and <code>getpath</code> fallback handling through focused</p>
+<p>																	  helpers under the fd-misc router. The capped profile now shows</p>
+<p>																	  <code>x64_native_program.oren</code> at about 38.2s total / 28.6s parse, with</p>
+<p>																	  <code>_emit_intrinsic_sys_write_x64</code> exposed at about 167ms as the next parser</p>
+<p>																	  body.</p>
 <p>						  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

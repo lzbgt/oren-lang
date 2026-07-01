@@ -478,6 +478,13 @@
 <p>  with <code>_emit_intrinsic_sys_linux_fcntl_x64</code> exposed at ~166ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 Linux fd-control lowering now delegates raw <code>sys_fcntl</code>, <code>F_GETFL</code>,</li>
+</ul>
+<p>  <code>F_SETFL</code>, and <code>getpath</code> fallback handling through focused helpers under the</p>
+<p>  fd-misc router. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~38.2s total / ~28.6s parse, with <code>_emit_intrinsic_sys_write_x64</code> exposed at</p>
+<p>  ~167ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

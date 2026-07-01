@@ -394,7 +394,12 @@ This file is the concise task view. Detailed implementation status lives in
 																		 focused helpers. The capped profile now shows `x64_native_program.oren` at
 																		 about 37.8s total / 28.3s parse, with
 																		 `_emit_intrinsic_sys_linux_fcntl_x64` exposed at about 166ms as the next
-																		 parser body.
+																		 parser body. X64 Linux fd-control lowering now delegates raw `sys_fcntl`,
+																		 `F_GETFL`, `F_SETFL`, and `getpath` fallback handling through focused helpers
+																		 under the fd-misc router. The capped profile now shows
+																		 `x64_native_program.oren` at about 38.2s total / 28.6s parse, with
+																		 `_emit_intrinsic_sys_write_x64` exposed at about 167ms as the next parser
+																		 body.
 												     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
