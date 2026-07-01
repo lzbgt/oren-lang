@@ -454,7 +454,12 @@ This file is the concise task view. Detailed implementation status lives in
 																							 magic-check paths. The capped profile now shows
 																							 `x64_native_program.oren` at about 39.8s total / 29.9s parse, with
 																							 `_x64_compile_user_function_set` exposed at about 180ms as the next parser
-																							 body.
+																							 body. X64 user-function-set compilation now delegates option unpacking,
+																							 per-function name/progress logging, detail toggling, slow-function live
+																							 recording, and slow-summary emission to state-map helpers while preserving
+																							 the low-arity loop call contract. The capped profile now shows
+																							 `x64_native_program.oren` at about 39.5s total / 29.8s parse, with
+																							 `_emit_ops_in_fn` exposed at about 164ms as the next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
