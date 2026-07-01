@@ -448,7 +448,13 @@ Facts from the 2026-05-28 implementation pass:
 													  while keeping the shared scratch reservation wrapper small. The capped
 													  profile now shows `x64_native_program.oren` at about 38.0s total / 28.5s
 													  parse, with `_emit_list_len_intrinsic_v0_x64` exposed at about 179ms as
-													  the next parser body.
+													  the next parser body. X64 `oren_list_len` lowering now delegates argument
+													  validation/spilling, label setup, nil handling, untracked-list fallback,
+													  and tracked LIST/LIST_INT count emission to focused helper bodies while
+													  preserving the same panic and magic-check paths. The capped profile now
+													  shows `x64_native_program.oren` at about 39.8s total / 29.9s parse, with
+													  `_x64_compile_user_function_set` exposed at about 180ms as the next parser
+													  body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

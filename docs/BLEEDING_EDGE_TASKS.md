@@ -448,6 +448,12 @@ This file is the concise task view. Detailed implementation status lives in
 																							 keeping the shared scratch reservation wrapper small. The capped profile now
 																							 shows `x64_native_program.oren` at about 38.0s total / 28.5s parse, with
 																							 `_emit_list_len_intrinsic_v0_x64` exposed at about 179ms as the next parser
+																							 body. X64 `oren_list_len` lowering now delegates argument validation/spilling,
+																							 label setup, nil handling, untracked-list fallback, and tracked LIST/LIST_INT
+																							 count emission to focused helper bodies while preserving the same panic and
+																							 magic-check paths. The capped profile now shows
+																							 `x64_native_program.oren` at about 39.8s total / 29.9s parse, with
+																							 `_x64_compile_user_function_set` exposed at about 180ms as the next parser
 																							 body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
