@@ -237,58 +237,58 @@ fn _x64_fast_list_int_dot_emit_loop_header(ctx, prep, locals, labels, label_name
     return nil
 }
 
-fn _x64_fast_list_int_dot_emit_unroll2(ctx, prep, locals, labels, label_names, local_fixups, l_fast_single) {
-    var unroll2 = prep["unroll2"]
-    if unroll2 != true { return true }
-
+fn _x64_fast_list_int_dot_find_mul_slots(ctx, prep, locals, mul2) {
     var lists = prep["lists"]
-    var muls = prep["muls"]
     var list_count = prep["list_count"]
     var base = prep["base"]
+    var left2 = mul2["left"]
+    var right2 = mul2["right"]
+
+    var li_left2 = 0
+    while li_left2 < list_count {
+        if _x64_str_eq_bytes(lists[li_left2], left2) { break }
+        li_left2 = li_left2 + 1
+    }
+    var li_right2 = 0
+    while li_right2 < list_count {
+        if _x64_str_eq_bytes(lists[li_right2], right2) { break }
+        li_right2 = li_right2 + 1
+    }
+    var slot_buf_left2 = _intr_tmp_off(ctx, locals, base + li_left2 * 2 + 1)
+    var slot_buf_right2 = _intr_tmp_off(ctx, locals, base + li_right2 * 2 + 1)
+    if oren_type_tag(slot_buf_left2) == 0 || oren_type_tag(slot_buf_right2) == 0 { return nil }
+    return {"left": slot_buf_left2, "right": slot_buf_right2}
+}
+
+fn _x64_fast_list_int_dot_emit_unroll2_mul_step(ctx, slots) {
+    var slot_buf_left2 = slots["left"]
+    var slot_buf_right2 = slots["right"]
+
+    // left ptr -> r12
+    _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf_left2)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))              // v0
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 12, 8))       // v1
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 16))
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf_left2, 12)
+
+    // right ptr -> r11
+    _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_right2)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(15, 11))             // w0
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(12, 11, 8))     // w1
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf_right2, 11)
+
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(14, 15))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(8, 12))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 8))
+    return nil
+}
+
+fn _x64_fast_list_int_dot_emit_unroll2_tail(ctx, prep, locals, labels, label_names, local_fixups, l_fast_single) {
     var off_idx = prep["off_idx"]
     var off_sum = prep["off_sum"]
     var l_fast_cond = label_names["cond"]
-
-    var mi2 = 0
-    while mi2 < oren_list_len(muls) {
-        var mul2 = muls[mi2]
-        var left2 = mul2["left"]
-        var right2 = mul2["right"]
-        var li_left2 = 0
-        while li_left2 < list_count {
-            if _x64_str_eq_bytes(lists[li_left2], left2) { break }
-            li_left2 = li_left2 + 1
-        }
-        var li_right2 = 0
-        while li_right2 < list_count {
-            if _x64_str_eq_bytes(lists[li_right2], right2) { break }
-            li_right2 = li_right2 + 1
-        }
-        var slot_buf_left2 = _intr_tmp_off(ctx, locals, base + li_left2 * 2 + 1)
-        var slot_buf_right2 = _intr_tmp_off(ctx, locals, base + li_right2 * 2 + 1)
-        if oren_type_tag(slot_buf_left2) == 0 || oren_type_tag(slot_buf_right2) == 0 { return false }
-
-        // left ptr -> r12
-        _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf_left2)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))              // v0
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 12, 8))       // v1
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 16))
-        _emit_mov_mrbp_r64(ctx, 0 - slot_buf_left2, 12)
-
-        // right ptr -> r11
-        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_right2)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(15, 11))             // w0
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(12, 11, 8))     // w1
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
-        _emit_mov_mrbp_r64(ctx, 0 - slot_buf_right2, 11)
-
-        bytes_extend(ctx["code"], core.insn_imul_r64_r64(14, 15))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
-        bytes_extend(ctx["code"], core.insn_imul_r64_r64(8, 12))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 8))
-
-        mi2 = mi2 + 1
-    }
 
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 13)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 2))
@@ -298,6 +298,26 @@ fn _x64_fast_list_int_dot_emit_unroll2(ctx, prep, locals, labels, label_names, l
     _emit_label(ctx, labels, l_fast_single)
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+    return nil
+}
+
+fn _x64_fast_list_int_dot_emit_unroll2(ctx, prep, locals, labels, label_names, local_fixups, l_fast_single) {
+    var unroll2 = prep["unroll2"]
+    if unroll2 != true { return true }
+
+    var muls = prep["muls"]
+
+    var mi2 = 0
+    while mi2 < oren_list_len(muls) {
+        var mul2 = muls[mi2]
+        var slots = _x64_fast_list_int_dot_find_mul_slots(ctx, prep, locals, mul2)
+        if slots == nil { return false }
+        _x64_fast_list_int_dot_emit_unroll2_mul_step(ctx, slots)
+
+        mi2 = mi2 + 1
+    }
+
+    _x64_fast_list_int_dot_emit_unroll2_tail(ctx, prep, locals, labels, label_names, local_fixups, l_fast_single)
     return true
 }
 

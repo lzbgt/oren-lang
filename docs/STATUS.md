@@ -570,10 +570,19 @@ Facts from the 2026-05-28 implementation pass:
 																			  `fork`, `execve`, and `wait4` to focused helpers, and x64 context
 																			  creation now delegates progress-trace detection, base map setup,
 																			  alias/lambda state, runtime data-slot reservation, and debug trace flags.
-																			  The capped profile now shows `x64_native_program.oren` at about 40.4s
-																			  total / 30.1s parse, with `_emit_indirect_call_via_fnobj_x64` exposed
-																			  at about 120ms as the next parser body.
-										  Serial/thread module ASTBIN writes are explicit prewarm work via
+																				  The capped profile now shows `x64_native_program.oren` at about 40.4s
+																				  total / 30.1s parse, with `_emit_indirect_call_via_fnobj_x64` exposed
+																				  at about 120ms as the next parser body.
+																				  X64 indirect fn-object calls now delegate argument spilling,
+																				  args-list materialization, callee spilling, and wrapper-call
+																				  emission; fast list-int dot unroll2 lowering delegates per-multiply
+																				  slot lookup, unrolled pair emission, and loop-tail emission; and
+																				  fast list-int push validation delegates entry gates, reserve
+																				  emission, and per-list validation. The capped profile now shows
+																				  `x64_native_program.oren` at about 40.3s total / 30.0s parse, with
+																				  `_emit_eval_scalar_call_intrinsic_x64` exposed at about 118ms as
+																				  the next parser body.
+											  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

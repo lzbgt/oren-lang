@@ -622,10 +622,18 @@
 <p>																														 <code>fork</code>, <code>execve</code>, and <code>wait4</code> to focused helpers, and x64 context</p>
 <p>																														 creation now delegates progress-trace detection, base map setup,</p>
 <p>																														 alias/lambda state, runtime data-slot reservation, and debug trace flags.</p>
-<p>																														 The capped profile now shows <code>x64_native_program.oren</code> at about 40.4s</p>
-<p>																														 total / 30.1s parse, with <code>_emit_indirect_call_via_fnobj_x64</code> exposed</p>
-<p>																														 at about 120ms as the next parser body.</p>
-<p>														     Serial/thread module</p>
+<p>															 The capped profile now shows <code>x64_native_program.oren</code> at about 40.4s</p>
+<p>															 total / 30.1s parse, with <code>_emit_indirect_call_via_fnobj_x64</code> exposed</p>
+<p>															 at about 120ms as the next parser body.</p>
+<p>															 X64 indirect fn-object calls now delegate argument spilling, args-list</p>
+<p>															 materialization, callee spilling, and wrapper-call emission; fast list-int</p>
+<p>															 dot unroll2 lowering delegates per-multiply slot lookup, unrolled pair</p>
+<p>															 emission, and loop-tail emission; and fast list-int push validation</p>
+<p>															 delegates entry gates, reserve emission, and per-list validation. The</p>
+<p>															 capped profile now shows <code>x64_native_program.oren</code> at about 40.3s total</p>
+<p>															 / 30.0s parse, with <code>_emit_eval_scalar_call_intrinsic_x64</code> exposed at</p>
+<p>															 about 118ms as the next parser body.</p>
+<p>															     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

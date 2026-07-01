@@ -722,6 +722,16 @@
 <p>  parse, with <code>_emit_indirect_call_via_fnobj_x64</code> exposed at ~120ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 indirect fn-object calls now delegate argument spilling, args-list</li>
+</ul>
+<p>  materialization, callee spilling, and wrapper-call emission to focused helpers.</p>
+<p>  Fast list-int dot unroll2 lowering now delegates per-multiply slot lookup,</p>
+<p>  unrolled pair emission, and loop-tail emission; fast list-int push validation</p>
+<p>  now delegates entry gates, reserve emission, and per-list validation. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~40.3s total / ~30.0s</p>
+<p>  parse, with <code>_emit_eval_scalar_call_intrinsic_x64</code> exposed at ~118ms as the</p>
+<p>  next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

@@ -610,10 +610,19 @@
 <p>																			  <code>fork</code>, <code>execve</code>, and <code>wait4</code> to focused helpers, and x64 context</p>
 <p>																			  creation now delegates progress-trace detection, base map setup,</p>
 <p>																			  alias/lambda state, runtime data-slot reservation, and debug trace flags.</p>
-<p>																			  The capped profile now shows <code>x64_native_program.oren</code> at about 40.4s</p>
-<p>																			  total / 30.1s parse, with <code>_emit_indirect_call_via_fnobj_x64</code> exposed</p>
-<p>																			  at about 120ms as the next parser body.</p>
-<p>										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																				  The capped profile now shows <code>x64_native_program.oren</code> at about 40.4s</p>
+<p>																				  total / 30.1s parse, with <code>_emit_indirect_call_via_fnobj_x64</code> exposed</p>
+<p>																				  at about 120ms as the next parser body.</p>
+<p>																				  X64 indirect fn-object calls now delegate argument spilling,</p>
+<p>																				  args-list materialization, callee spilling, and wrapper-call</p>
+<p>																				  emission; fast list-int dot unroll2 lowering delegates per-multiply</p>
+<p>																				  slot lookup, unrolled pair emission, and loop-tail emission; and</p>
+<p>																				  fast list-int push validation delegates entry gates, reserve</p>
+<p>																				  emission, and per-list validation. The capped profile now shows</p>
+<p>																				  <code>x64_native_program.oren</code> at about 40.3s total / 30.0s parse, with</p>
+<p>																				  <code>_emit_eval_scalar_call_intrinsic_x64</code> exposed at about 118ms as</p>
+<p>																				  the next parser body.</p>
+<p>											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

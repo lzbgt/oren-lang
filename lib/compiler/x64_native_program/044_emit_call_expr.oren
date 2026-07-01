@@ -153,33 +153,7 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
     return nil
 }
 
-fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
-    // Indirect call path (Tier-1 convergence): callee is a first-class function value, not a direct symbol call.
-    //
-    // Lowering:
-    // - without spread: build args_list and call the uniform callable ABI wrapper
-    // - with spread: call the shared runtime helper `oren_call_obj_spread(fn_obj, fixed_list, spread_list)`
-    //
-    // This mirrors the arm64 native semantics in `lib/compiler/arm64_native_expr/020_lowering_b.oren`.
-    if ctx == nil { return nil }
-    if fn_obj_expr == nil { err(ctx, "x64 native v0: indirect call missing callee"); return nil }
-
-    var argc = 0
-    if args != nil { argc = oren_list_len(args) }
-    var has_spread = (spread != nil)
-
-    // Indirect calls use runtime container helpers for argument packing.
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: indirect calls require injected native runtime")
-        return nil
-    }
-
-    // Spread always uses the shared runtime helper (matches arm64).
-    if has_spread {
-        _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, args, spread)
-        return nil
-    }
-
+fn _x64_indirect_call_prepare(ctx, fn_obj_expr, args, argc) {
     // Spill layout:
     // - explicit args: [base + 0 .. base + argc-1]
     // - args_list:     base + argc
@@ -187,53 +161,96 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     var spill_n = argc + 2
     var base = _intr_tmp_push(ctx, spill_n)
     if oren_type_tag(base) == 0 { return nil }
+    var st = {}
+    st["fn_obj_expr"] = fn_obj_expr
+    st["args"] = args
+    st["argc"] = argc
+    st["base"] = base
+    st["args_slot"] = iadd(base, argc)
+    st["callee_slot"] = iadd(base, argc + 1)
+    return st
+}
 
+fn _x64_indirect_call_spill_explicit_args(ctx, st, locals) {
     // Spill explicit args (evaluate once; preserve LTR semantics).
+    var args = st["args"]
+    var argc = st["argc"]
+    var base = st["base"]
     var i = 0
     while i < argc {
         _emit_eval_int_to_rax(ctx, args[i], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
         var off = _intr_tmp_off(ctx, locals, iadd(base, i))
-        if oren_type_tag(off) == 0 { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(off) == 0 { _intr_tmp_pop(ctx, base); return false }
         _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         i = iadd(i, 1)
     }
+    return true
+}
 
-    var args_slot = iadd(base, argc)
+fn _x64_indirect_call_prepare_slots(ctx, st, locals) {
+    var base = st["base"]
+    var args_slot = st["args_slot"]
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
-    if oren_type_tag(args_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    var args_tmp = {"type": "IntrTmp", "idx": args_slot}
+    if oren_type_tag(args_off) == 0 { _intr_tmp_pop(ctx, base); return false }
+    st["args_off"] = args_off
+    st["args_tmp"] = {"type": "IntrTmp", "idx": args_slot}
 
     // Spill callee fnobj value (can be an arbitrary expression).
-    var callee_slot = iadd(args_slot, 1)
+    var callee_slot = st["callee_slot"]
     var callee_off = _intr_tmp_off(ctx, locals, callee_slot)
-    if oren_type_tag(callee_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - callee_off, 0)
+    if oren_type_tag(callee_off) == 0 { _intr_tmp_pop(ctx, base); return false }
+    st["callee_off"] = callee_off
+    return true
+}
 
+fn _x64_indirect_call_spill_callee(ctx, st, locals) {
+    var base = st["base"]
+    var fn_obj_expr = st["fn_obj_expr"]
+    var callee_off = st["callee_off"]
+    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
+    _emit_mov_mrbp_r64(ctx, 0 - callee_off, 0)
+    return true
+}
+
+fn _x64_indirect_call_build_args_list(ctx, st, locals) {
+    var base = st["base"]
+    var args_off = st["args_off"]
     // Build args_list.
     // args_list = oren_new_list(0)
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
     _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+    return true
+}
 
+fn _x64_indirect_call_push_explicit_args(ctx, st, locals) {
     // Push explicit args in order.
+    var args_tmp = st["args_tmp"]
+    var argc = st["argc"]
+    var base = st["base"]
     var k0 = 0
     while k0 < argc {
         var arg_tmp0 = {"type": "IntrTmp", "idx": iadd(base, k0)}
         _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [args_tmp, arg_tmp0]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
         k0 = iadd(k0, 1)
     }
+    return true
+}
 
+fn _x64_indirect_call_emit_wrapper_call(ctx, st) {
+    var base = st["base"]
+    var args_off = st["args_off"]
+    var callee_off = st["callee_off"]
     // Load wrapper args and call wrapper(env_ptr, args_list).
     var env_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
     var args_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(env_reg_enc) == 0 || oren_type_tag(args_reg_enc) == 0 {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing ABI arg regs for indirect call")
-        return nil
+        return false
     }
     var env_reg = env_reg_enc - 1
     var args_reg = args_reg_enc - 1
@@ -262,6 +279,44 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     bytes_extend(ctx["code"], core.insn_call_rax())
 
     _intr_tmp_pop(ctx, base)
+    return true
+}
+
+fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
+    // Indirect call path (Tier-1 convergence): callee is a first-class function value, not a direct symbol call.
+    //
+    // Lowering:
+    // - without spread: build args_list and call the uniform callable ABI wrapper
+    // - with spread: call the shared runtime helper `oren_call_obj_spread(fn_obj, fixed_list, spread_list)`
+    //
+    // This mirrors the arm64 native semantics in `lib/compiler/arm64_native_expr/020_lowering_b.oren`.
+    if ctx == nil { return nil }
+    if fn_obj_expr == nil { err(ctx, "x64 native v0: indirect call missing callee"); return nil }
+
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+    var has_spread = (spread != nil)
+
+    // Indirect calls use runtime container helpers for argument packing.
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: indirect calls require injected native runtime")
+        return nil
+    }
+
+    // Spread always uses the shared runtime helper (matches arm64).
+    if has_spread {
+        _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, args, spread)
+        return nil
+    }
+
+    var st = _x64_indirect_call_prepare(ctx, fn_obj_expr, args, argc)
+    if st == nil { return nil }
+    if _x64_indirect_call_spill_explicit_args(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_prepare_slots(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_spill_callee(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_build_args_list(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_push_explicit_args(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_emit_wrapper_call(ctx, st) != true { return nil }
     return nil
 }
 

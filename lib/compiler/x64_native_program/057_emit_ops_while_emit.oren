@@ -199,16 +199,9 @@ fn _x64_fast_list_int_push_labels(ctx) {
     }
 }
 
-fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, label_names, local_fixups) {
-    var lists = prep["lists"]
-    var list_count = prep["list_count"]
-    var base = prep["base"]
+fn _x64_fast_list_int_push_emit_entry_gates(ctx, prep, label_names, local_fixups) {
     var off_idx = prep["off_idx"]
     var off_n = prep["off_n"]
-    var a0 = prep["a0"]
-    var a1 = prep["a1"]
-    var a2 = prep["a2"]
-    var trace_reserve = prep["trace_reserve"]
     var l_slow = label_names["slow"]
 
     // i < 0 => slow
@@ -220,82 +213,108 @@ fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, label_names
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_n)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+    return nil
+}
 
-    var li = 0
-    while li < list_count {
-        var list_name = lists[li]
-        var off_list = locals[list_name]
-        if oren_type_tag(off_list) == 0 { return false }
-        var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
-        var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
-        if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return false }
+fn _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, slot_list, l_cap_ok) {
+    var off_n = prep["off_n"]
+    var a0 = prep["a0"]
+    var a1 = prep["a1"]
+    var a2 = prep["a2"]
+    var trace_reserve = prep["trace_reserve"]
 
-        // list -> slot
-        _emit_mov_r64_mrbp(ctx, 0, 0 - off_list)
-        _emit_mov_mrbp_r64(ctx, 0 - slot_list, 0)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+    // cap >= n (else reserve)
+    _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
 
-        // tracked node
-        _emit_find_tracked_node_x64(ctx, 0, 11)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
-
-        // kind == LIST_INT (8)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
-
-        // magic check
-        _emit_mov_r64_mrbp(ctx, 0, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
-
-        // cap >= n (else reserve)
-        var l_cap_ok = _new_label(ctx, "list_push_cap_ok")
-        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
-        _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
-
-        // list_int_reserve(list, n)
-        if trace_reserve {
-            _emit_mov_r64_mrbp(ctx, a0, 0 - slot_list)
-            _emit_mov_r64_mrbp(ctx, a1, 0 - off_n)
-            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(a2, 8))
-            _emit_call_rel32_named_x64(ctx, "oren_trace_list_reserve_fast")
-        }
+    // list_int_reserve(list, n)
+    if trace_reserve {
         _emit_mov_r64_mrbp(ctx, a0, 0 - slot_list)
         _emit_mov_r64_mrbp(ctx, a1, 0 - off_n)
-        _emit_call_rel32_named_x64(ctx, "oren_list_int_reserve")
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(a2, 8))
+        _emit_call_rel32_named_x64(ctx, "oren_trace_list_reserve_fast")
+    }
+    _emit_mov_r64_mrbp(ctx, a0, 0 - slot_list)
+    _emit_mov_r64_mrbp(ctx, a1, 0 - off_n)
+    _emit_call_rel32_named_x64(ctx, "oren_list_int_reserve")
 
-        _emit_label(ctx, labels, l_cap_ok)
+    _emit_label(ctx, labels, l_cap_ok)
+    return nil
+}
 
-        // count == i
-        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+fn _x64_fast_list_int_push_validate_one_list(ctx, prep, locals, labels, label_names, local_fixups, li) {
+    var lists = prep["lists"]
+    var base = prep["base"]
+    var off_idx = prep["off_idx"]
+    var l_slow = label_names["slow"]
 
-        // buf -> slot
-        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
+    var list_name = lists[li]
+    var off_list = locals[list_name]
+    if oren_type_tag(off_list) == 0 { return false }
+    var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
+    var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
+    if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return false }
 
+    // list -> slot
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_list)
+    _emit_mov_mrbp_r64(ctx, 0 - slot_list, 0)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+
+    // tracked node
+    _emit_find_tracked_node_x64(ctx, 0, 11)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+
+    // kind == LIST_INT (8)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+    // magic check
+    _emit_mov_r64_mrbp(ctx, 0, 0 - slot_list)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+    var l_cap_ok = _new_label(ctx, "list_push_cap_ok")
+    _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, slot_list, l_cap_ok)
+
+    // count == i
+    _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+    // buf -> slot
+    _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
+    return true
+}
+
+fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, label_names, local_fixups) {
+    var list_count = prep["list_count"]
+
+    _x64_fast_list_int_push_emit_entry_gates(ctx, prep, label_names, local_fixups)
+    var li = 0
+    while li < list_count {
+        if _x64_fast_list_int_push_validate_one_list(ctx, prep, locals, labels, label_names, local_fixups, li) != true { return false }
         li = li + 1
     }
     return true
