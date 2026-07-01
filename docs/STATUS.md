@@ -823,10 +823,18 @@ Facts from the 2026-05-28 implementation pass:
 																														  helpers. Runtime-object global metadata apply now delegates root
 																														  metadata extraction, whole-map adoption, root progress logging,
 																														  per-global fallback merge, and final adopted/count logging. The
-																														  capped profile now shows `x64_native_program.oren` at about 40.8s
-																														  total / 30.1s parse, with
-																														  `_x64_emit_list_int_dot_slots_unchecked_body` exposed at about
-																														  92ms as the next parser body.
+																															  capped profile now shows `x64_native_program.oren` at about 40.8s
+																															  total / 30.1s parse, with
+																															  `_x64_emit_list_int_dot_slots_unchecked_body` exposed at about
+																															  92ms as the next parser body.
+																															  X64 unchecked list-int dot-slots lowering now delegates label/fixup
+																															  state, nil/length checks, pointer setup, and loop emission to
+																															  focused helpers. The fast list-int dot single-step loop now reuses
+																															  the mul-slot resolver and delegates unique cursor reads, indexed
+																															  reads, and tail writeback. The capped profile now shows
+																															  `x64_native_program.oren` at about 40.8s total / 30.0s parse, with
+																															  `_x64_match_fast_lcg_sum_while` exposed at about 87ms as the next
+																															  parser body.
 																					  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

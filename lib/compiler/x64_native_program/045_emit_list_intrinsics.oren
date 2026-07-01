@@ -1349,15 +1349,31 @@ fn _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals) {
     return {"base": base, "off_a": off_a, "off_b": off_b}
 }
 
-fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
-    var labels = {}
-    var local_fixups = []
-    var l_a_non_nil = _new_label(ctx, "list_int_dot_slots_unchecked_a_non_nil")
-    var l_b_non_nil = _new_label(ctx, "list_int_dot_slots_unchecked_b_non_nil")
-    var l_lengths_ok = _new_label(ctx, "list_int_dot_slots_unchecked_lengths_ok")
-    var l_cond = _new_label(ctx, "list_int_dot_slots_unchecked_cond")
-    var l_done = _new_label(ctx, "list_int_dot_slots_unchecked_done")
+fn _x64_list_int_dot_slots_unchecked_state(ctx, locals, off_a, off_b) {
+    return {
+        "locals": locals,
+        "off_a": off_a,
+        "off_b": off_b,
+        "labels": {},
+        "local_fixups": [],
+        "l_a_non_nil": _new_label(ctx, "list_int_dot_slots_unchecked_a_non_nil"),
+        "l_b_non_nil": _new_label(ctx, "list_int_dot_slots_unchecked_b_non_nil"),
+        "l_lengths_ok": _new_label(ctx, "list_int_dot_slots_unchecked_lengths_ok"),
+        "l_same_n": _new_label(ctx, "list_int_dot_slots_unchecked_same_n"),
+        "l_cond": _new_label(ctx, "list_int_dot_slots_unchecked_cond"),
+        "l_done": _new_label(ctx, "list_int_dot_slots_unchecked_done")
+    }
+}
 
+fn _x64_emit_list_int_dot_slots_unchecked_nil_cases(ctx, st) {
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
+    var l_a_non_nil = st["l_a_non_nil"]
+    var l_b_non_nil = st["l_b_non_nil"]
+    var l_done = st["l_done"]
+
+    var off_a = st["off_a"]
+    var off_b = st["off_b"]
     _emit_mov_r64_mrbp(ctx, 12, 0 - off_a) // r12 = a
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_b) // r13 = b
 
@@ -1372,8 +1388,16 @@ fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
     _emit_label(ctx, labels, l_a_non_nil)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(13, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_lengths_ok)
+    _emit_jcc_to_label(ctx, local_fixups, "ne", st["l_lengths_ok"])
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
+    return nil
+}
+
+fn _x64_emit_list_int_dot_slots_unchecked_length_checks(ctx, st) {
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
+    var l_lengths_ok = st["l_lengths_ok"]
+    var l_same_n = st["l_same_n"]
 
     _emit_label(ctx, labels, l_lengths_ok)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 12))
@@ -1383,11 +1407,13 @@ fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 13))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(3, 0))
-    var l_same_n = _new_label(ctx, "list_int_dot_slots_unchecked_same_n")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_same_n)
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
     _emit_label(ctx, labels, l_same_n)
+    return nil
+}
 
+fn _x64_emit_list_int_dot_slots_unchecked_ptrs(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 12))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(12, 10)) // r12 = pa
@@ -1397,6 +1423,15 @@ fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
 
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(14, 14)) // r14 = sum
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(15, 15)) // r15 = i
+    return nil
+}
+
+fn _x64_emit_list_int_dot_slots_unchecked_loop(ctx, st) {
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
+    var locals = st["locals"]
+    var l_cond = st["l_cond"]
+    var l_done = st["l_done"]
 
     _emit_label(ctx, labels, l_cond)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(15, 3))
@@ -1414,6 +1449,15 @@ fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
     _emit_label(ctx, labels, l_done)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 14))
     _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
+    var st = _x64_list_int_dot_slots_unchecked_state(ctx, locals, off_a, off_b)
+    _x64_emit_list_int_dot_slots_unchecked_nil_cases(ctx, st)
+    _x64_emit_list_int_dot_slots_unchecked_length_checks(ctx, st)
+    _x64_emit_list_int_dot_slots_unchecked_ptrs(ctx)
+    _x64_emit_list_int_dot_slots_unchecked_loop(ctx, st)
     return nil
 }
 
