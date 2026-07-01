@@ -225,9 +225,7 @@ fn _emit_eval_scalar_call_intrinsic_x64(ctx, nm, expr, locals, args) {
     return 0
 }
 
-fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
-    var fn_expr = expr["fn"]
-    var args = expr["args"]
+fn _x64_call_expr_normalize_target(ctx, fn_expr, locals, args, spread) {
     if fn_expr == nil { err(ctx, "x64 native v0: call missing target"); return nil }
     // Tier‑1 parity: allow calling a function-valued expression directly.
     // (arm64 supports this; x64 converges via the uniform callable ABI in `044_emit_call_expr.oren`).
@@ -245,19 +243,19 @@ fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
             }
         }
         if fn_expr["type"] != "Identifier" {
-            _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_expr, args, expr["spread"])
-            return nil
+            _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_expr, args, spread)
+            return {"handled": true}
         }
     }
+    return {"handled": false, "fn": fn_expr}
+}
 
-    var nm = fn_expr["value"]
-    var nm_len = 0
-    if nm != nil { nm_len = oren_string_len(nm) }
+fn _x64_emit_zero_arg_gc_call_x64(ctx, nm, expr, locals, args) {
     if nm == "oren_gc_safepoint" {
         if args == nil || oren_list_len(args) == 0 {
             if expr["spread"] == nil {
                 _emit_gc_safepoint_call_x64(ctx)
-                return nil
+                return 1
             }
         }
     }
@@ -265,15 +263,17 @@ fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
         if args == nil || oren_list_len(args) == 0 {
             if expr["spread"] == nil {
                 _emit_gc_collect_call_x64(ctx, locals)
-                return nil
+                return 1
             }
         }
     }
+    return 0
+}
 
+fn _x64_call_name_has_oren_prefix(nm, nm_len) {
     // PERF (x64 self-host builds):
     // Most compiler-internal calls (encoder helpers, backend emitters, etc) are *not* `oren_*`.
     // Avoid paying the large runtime-call classification chain for those names.
-    var nm_is_oren = false
     if nm != nil && nm_len >= 5 {
         // Avoid `oren_string_slice` allocations in hot call paths (x64 self-host builds).
         if (oren_string_byte_at_unchecked(nm, 0) & 255) == 111 && // o
@@ -281,14 +281,13 @@ fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
            (oren_string_byte_at_unchecked(nm, 2) & 255) == 101 && // e
            (oren_string_byte_at_unchecked(nm, 3) & 255) == 110 && // n
            (oren_string_byte_at_unchecked(nm, 4) & 255) == 95 {   // _
-            nm_is_oren = true
+            return true
         }
     }
+    return false
+}
 
-    if _emit_eval_call_runtime_or_fast_generic_x64(ctx, expr, locals, nm, nm_len, nm_is_oren, args) == 1 {
-        return nil
-    }
-
+fn _x64_emit_eval_call_intrinsic_chain(ctx, nm, expr, locals, args) {
     // --- Intrinsics (Tier-1 convergence step) ---
     //
     // Treat core runtime/ABI helpers as compiler intrinsics so x64 can grow toward
@@ -296,33 +295,61 @@ fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
     //
     // Note: these intrinsics operate in the "int as i64 carrier" model where pointers
     // are plain 64-bit values.
-    if _emit_eval_scalar_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 {
-        return nil
-    }
-    if _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 {
-        return nil
-    }
-    if _emit_eval_native_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 {
-        return nil
-    }
-
-    if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+    if _emit_eval_scalar_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 { return 1 }
+    if _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 { return 1 }
+    if _emit_eval_native_call_intrinsic_x64(ctx, nm, expr, locals, args) == 1 { return 1 }
+    if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return 1 }
 
     var stack_intr = _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args)
-    if stack_intr == 1 { return nil }
+    if stack_intr == 1 { return 1 }
+    return 0
+}
 
+fn _x64_call_name_is_shadowed(ctx, locals, nm) {
+    var is_shadowed = false
+    if locals != nil && locals[nm] != nil { is_shadowed = true }
+    else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
+    return is_shadowed
+}
+
+fn _x64_emit_sys_or_exit_call_x64(ctx, nm, expr, locals, args) {
     // System-call boundary: keep all host effects gated behind syscall intrinsics
     // so the capsule sandbox can enforce policy consistently.
     //
     // NOTE: not every `sys_*` function is a syscall intrinsic (some are normal runtime
     // wrappers like `sys_send`, `sys_recv`, `sys_read_u8_buf`).
-    var is_shadowed = false
-    if locals != nil && locals[nm] != nil { is_shadowed = true }
-    else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
-    if is_shadowed != true && _x64_is_syscall_intrinsic_name(nm) {
-        return _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args)
+    if _x64_call_name_is_shadowed(ctx, locals, nm) != true && _x64_is_syscall_intrinsic_name(nm) {
+        _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args)
+        return 1
     }
-    if nm == "exit" { return _emit_intrinsic_exit_x64(ctx, expr, locals, args) }
+    if nm == "exit" {
+        _emit_intrinsic_exit_x64(ctx, expr, locals, args)
+        return 1
+    }
+    return 0
+}
+
+fn _emit_eval_call_expr_to_rax(ctx, expr, locals) {
+    var fn_expr = expr["fn"]
+    var args = expr["args"]
+    var target = _x64_call_expr_normalize_target(ctx, fn_expr, locals, args, expr["spread"])
+    if target == nil { return nil }
+    if target["handled"] == true { return nil }
+
+    fn_expr = target["fn"]
+    var nm = fn_expr["value"]
+    var nm_len = 0
+    if nm != nil { nm_len = oren_string_len(nm) }
+    if _x64_emit_zero_arg_gc_call_x64(ctx, nm, expr, locals, args) == 1 { return nil }
+
+    var nm_is_oren = _x64_call_name_has_oren_prefix(nm, nm_len)
+
+    if _emit_eval_call_runtime_or_fast_generic_x64(ctx, expr, locals, nm, nm_len, nm_is_oren, args) == 1 {
+        return nil
+    }
+
+    if _x64_emit_eval_call_intrinsic_chain(ctx, nm, expr, locals, args) == 1 { return nil }
+    if _x64_emit_sys_or_exit_call_x64(ctx, nm, expr, locals, args) == 1 { return nil }
 
     // All non-intrinsic calls (direct/indirect, varargs, spread) are handled by the
     // dedicated call-lowering chunk for reviewability.

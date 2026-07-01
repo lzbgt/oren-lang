@@ -891,11 +891,17 @@ This file is the concise task view. Detailed implementation status lives in
 																																 next parser body.
 																																 Generic x64 LIST dot fast-loop single-step lowering now mirrors the LIST_INT
 																																 split shape with focused helpers for multiplication slot resolution,
-																																 unique-cursor reads, indexed reads, multiply/add emission, and tail writeback.
-																																 The capped profile now shows `x64_native_program.oren` at about 41.2s total /
-																																 30.3s parse, with `_emit_eval_call_expr_to_rax` exposed at about 79ms as the
-																																 next parser body.
-																															     Serial/thread module
+																																	 unique-cursor reads, indexed reads, multiply/add emission, and tail writeback.
+																																	 The capped profile now shows `x64_native_program.oren` at about 41.2s total /
+																																	 30.3s parse, with `_emit_eval_call_expr_to_rax` exposed at about 79ms as the
+																																	 next parser body.
+																																	 X64 expression lowering now splits call target normalization, zero-arg GC
+																																	 calls, `oren_` prefix classification, intrinsic/syscall routing, shift
+																																	 count lowering, and LIST_INT get-sum validation substeps into focused helpers.
+																																	 The capped profile now shows `x64_native_program.oren` at about 42.4s total /
+																																	 31.1s parse, with `_x64_fast_list_dot_validate_lists` exposed at about 80ms
+																																	 as the next parser body.
+																																     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

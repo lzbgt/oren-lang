@@ -803,6 +803,12 @@ design evidence lives under `project-doc/`.
   The capped profile now shows `x64_native_program.oren` at ~41.2s total /
   ~30.3s parse, with `_emit_eval_call_expr_to_rax` exposed at ~79ms as the next
   parser body.
+- X64 expression lowering now splits call target normalization, zero-arg GC
+  calls, `oren_` prefix classification, intrinsic/syscall routing, shift
+  count lowering, and LIST_INT get-sum validation substeps into focused helpers.
+  The capped profile now shows `x64_native_program.oren` at ~42.4s total /
+  ~31.1s parse, with `_x64_fast_list_dot_validate_lists` exposed at ~80ms as
+  the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.
