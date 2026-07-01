@@ -1455,14 +1455,17 @@ fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used
     }
 }
 
-fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log) {
+fn _x64_rewrite_program_local_function_sets(ctx, runtime_stmts, user_stmts, used_rtobj, trace_prog) {
     if used_rtobj != true {
         if trace_prog { print("[x64_compile] runtime local-fn rewrite") }
         callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
     }
     if trace_prog { print("[x64_compile] user local-fn rewrite") }
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
+    return nil
+}
 
+fn _x64_collect_program_function_list(ctx, linked2, used_rtobj, trace_prog) {
     var fns = nil
     if used_rtobj == true {
         if trace_prog { print("[x64_compile] collect functions (rtobj merge)") }
@@ -1473,7 +1476,10 @@ fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, u
     }
     if fns == nil { return nil }
     if trace_prog { print("[x64_compile] collect functions done fns=" + oren_int_to_string(oren_list_len(fns))) }
+    return fns
+}
 
+fn _x64_collect_program_type_constructors(ctx, linked2, fns, trace_prog, phase_log) {
     if trace_prog { print("[x64_compile] type constructors start") }
     var type_ctors = _x64_extract_type_constructors_v0(ctx, linked2)
     if type_ctors == nil { return nil }
@@ -1485,10 +1491,10 @@ fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, u
             "fns=" + oren_int_to_string(oren_list_len(fns)) +
             " type_ctors=" + oren_int_to_string(oren_list_len(type_ctors)))
     }
+    return type_ctors
+}
 
-    var has_main = false
-    if ctx["declared_functions"] != nil && ctx["declared_functions"]["main"] != nil { has_main = true }
-
+fn _x64_collect_program_ffi_and_globals(ctx, runtime_stmts, user_stmts, trace_prog, phase_log) {
     if trace_prog { print("[x64_compile] ffi decls start") }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ffi.start", "") }
     _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts)
@@ -1507,11 +1513,35 @@ fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, u
         _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.done",
             "top_stmts=" + oren_int_to_string(top_ops))
     }
+    return top_info
+}
 
+fn _x64_prepare_program_callable_wrappers(ctx, linked2, top_info, type_ctors, trace_prog, phase_log) {
     _x64_collect_callable_uses(ctx, linked2, top_info, type_ctors, trace_prog, phase_log)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     var wrappers = _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log)
+    if wrappers == nil { return nil }
+    return wrappers
+}
+
+fn _x64_prepare_program_has_main(ctx) {
+    if ctx["declared_functions"] != nil && ctx["declared_functions"]["main"] != nil { return true }
+    return false
+}
+
+fn _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log) {
+    _x64_rewrite_program_local_function_sets(ctx, runtime_stmts, user_stmts, used_rtobj, trace_prog)
+
+    var fns = _x64_collect_program_function_list(ctx, linked2, used_rtobj, trace_prog)
+    if fns == nil { return nil }
+    var type_ctors = _x64_collect_program_type_constructors(ctx, linked2, fns, trace_prog, phase_log)
+    if type_ctors == nil { return nil }
+    var has_main = _x64_prepare_program_has_main(ctx)
+
+    var top_info = _x64_collect_program_ffi_and_globals(ctx, runtime_stmts, user_stmts, trace_prog, phase_log)
+    if top_info == nil { return nil }
+    var wrappers = _x64_prepare_program_callable_wrappers(ctx, linked2, top_info, type_ctors, trace_prog, phase_log)
     if wrappers == nil { return nil }
     return {"fns": fns, "type_ctors": type_ctors, "has_main": has_main, "top_info": top_info, "wrappers": wrappers}
 }

@@ -872,10 +872,21 @@
 <p>																															  focused helpers. The fast list-int dot single-step loop now reuses</p>
 <p>																															  the mul-slot resolver and delegates unique cursor reads, indexed</p>
 <p>																															  reads, and tail writeback. The capped profile now shows</p>
-<p>																															  <code>x64_native_program.oren</code> at about 40.8s total / 30.0s parse, with</p>
-<p>																															  <code>_x64_match_fast_lcg_sum_while</code> exposed at about 87ms as the next</p>
-<p>																															  parser body.</p>
-<p>																					  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																  <code>x64_native_program.oren</code> at about 40.8s total / 30.0s parse, with</p>
+<p>																																  <code>_x64_match_fast_lcg_sum_while</code> exposed at about 87ms as the next</p>
+<p>																																  parser body.</p>
+<p>																																  X64 fast LCG sum-while matching now delegates condition/local-int</p>
+<p>																																  gates, body-shape extraction, LCG/mod validation, and accumulator</p>
+<p>																																  validation to focused helpers. X64 program function-set preparation</p>
+<p>																																  now delegates local-fn rewrites, function/type-constructor</p>
+<p>																																  collection, FFI/top-level global collection, callable-use scanning,</p>
+<p>																																  and wrapper prep. Unchecked list-int reduce-sum slots lowering now</p>
+<p>																																  delegates argument preparation, label state, nil/setup, loop</p>
+<p>																																  emission, and finish/patching. The capped profile now shows</p>
+<p>																																  <code>x64_native_program.oren</code> at about 41.5s total / 30.7s parse, with</p>
+<p>																																  <code>_emit_intrinsic_sys_linux_net_msg_x64</code> exposed at about 85ms as the</p>
+<p>																																  next parser body.</p>
+<p>																						  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

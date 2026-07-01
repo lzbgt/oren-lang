@@ -470,7 +470,14 @@ fn _x64_match_sum_mod_update(expr, sum_name, x_name, idx_name, mod_name, mod_con
     return {"mod_x": mod_x, "mod_i": mod_i}
 }
 
-fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
+fn _x64_match_local_inty(ctx, locals, name) {
+    if name == nil { return false }
+    if oren_type_tag(locals[name]) == 0 { return false }
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][name] != true { return false }
+    return true
+}
+
+fn _x64_match_fast_lcg_sum_condition(ctx, op, locals) {
     if op == nil || op["op"] != "while" { return nil }
     if locals == nil { return nil }
     var cond = op["cond"]
@@ -479,11 +486,12 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     var idx_name = _x64_is_ident(cond["left"])
     var n_name = _x64_is_ident(cond["right"])
     if idx_name == nil || n_name == nil { return nil }
-    if oren_type_tag(locals[idx_name]) == 0 || oren_type_tag(locals[n_name]) == 0 { return nil }
-    if ctx["locals_inty"] != nil {
-        if ctx["locals_inty"][idx_name] != true { return nil }
-        if ctx["locals_inty"][n_name] != true { return nil }
-    }
+    if _x64_match_local_inty(ctx, locals, idx_name) != true { return nil }
+    if _x64_match_local_inty(ctx, locals, n_name) != true { return nil }
+    return {"idx": idx_name, "n": n_name}
+}
+
+fn _x64_match_fast_lcg_sum_body_ops(op, idx_name) {
     var body = op["body"]
     if body == nil || oren_list_len(body) != 3 { return nil }
 
@@ -491,12 +499,16 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     var sum_op = body[1]
     var inc_op = body[2]
     if _x64_is_simple_inc_op(inc_op, idx_name) != true { return nil }
+    return {"lcg_op": lcg_op, "sum_op": sum_op}
+}
 
+fn _x64_match_fast_lcg_source(ctx, locals, ids, lcg_op) {
+    var idx_name = ids["idx"]
+    var n_name = ids["n"]
     if lcg_op == nil || lcg_op["op"] != "assign_i32" { return nil }
     var x_name = lcg_op["name"]
     if x_name == nil || _x64_str_eq_bytes(x_name, idx_name) || _x64_str_eq_bytes(x_name, n_name) { return nil }
-    if oren_type_tag(locals[x_name]) == 0 { return nil }
-    if ctx["locals_inty"] != nil && ctx["locals_inty"][x_name] != true { return nil }
+    if _x64_match_local_inty(ctx, locals, x_name) != true { return nil }
 
     var lcg = _x64_match_lcg_update(lcg_op["expr"], x_name)
     if lcg == nil { return nil }
@@ -504,34 +516,50 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     var mod_const = lcg["mod_const"]
     if mod_name != nil {
         if _x64_str_eq_bytes(mod_name, idx_name) || _x64_str_eq_bytes(mod_name, n_name) || _x64_str_eq_bytes(mod_name, x_name) { return nil }
-        if oren_type_tag(locals[mod_name]) == 0 { return nil }
-        if ctx["locals_inty"] != nil && ctx["locals_inty"][mod_name] != true { return nil }
+        if _x64_match_local_inty(ctx, locals, mod_name) != true { return nil }
     } else {
         if mod_const == nil || mod_const <= 0 { return nil }
     }
+    return {"x": x_name, "mod": mod_name, "mod_const": mod_const, "mul": lcg["mul"], "add": lcg["add"]}
+}
 
+fn _x64_match_fast_lcg_sum_accumulator(ctx, locals, ids, lcg, sum_op) {
+    var idx_name = ids["idx"]
+    var n_name = ids["n"]
+    var x_name = lcg["x"]
     if sum_op == nil || sum_op["op"] != "assign_i32" { return nil }
     var sum_name = sum_op["name"]
     if sum_name == nil { return nil }
     if _x64_str_eq_bytes(sum_name, idx_name) || _x64_str_eq_bytes(sum_name, n_name) || _x64_str_eq_bytes(sum_name, x_name) { return nil }
-    if oren_type_tag(locals[sum_name]) == 0 { return nil }
-    if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
+    if _x64_match_local_inty(ctx, locals, sum_name) != true { return nil }
 
-    var sum_info = _x64_match_sum_mod_update(sum_op["expr"], sum_name, x_name, idx_name, mod_name, mod_const)
+    var sum_info = _x64_match_sum_mod_update(sum_op["expr"], sum_name, x_name, idx_name, lcg["mod"], lcg["mod_const"])
     if sum_info == nil { return nil }
     if _x64_expr_is_inty(ctx, sum_op["expr"]) != true { return nil }
+    return {"sum": sum_name, "mod_x": sum_info["mod_x"], "mod_i": sum_info["mod_i"]}
+}
+
+fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
+    var ids = _x64_match_fast_lcg_sum_condition(ctx, op, locals)
+    if ids == nil { return nil }
+    var ops = _x64_match_fast_lcg_sum_body_ops(op, ids["idx"])
+    if ops == nil { return nil }
+    var lcg = _x64_match_fast_lcg_source(ctx, locals, ids, ops["lcg_op"])
+    if lcg == nil { return nil }
+    var sum = _x64_match_fast_lcg_sum_accumulator(ctx, locals, ids, lcg, ops["sum_op"])
+    if sum == nil { return nil }
 
     return {
-        "idx": idx_name,
-        "n": n_name,
-        "x": x_name,
-        "sum": sum_name,
-        "mod": mod_name,
-        "mod_const": mod_const,
+        "idx": ids["idx"],
+        "n": ids["n"],
+        "x": lcg["x"],
+        "sum": sum["sum"],
+        "mod": lcg["mod"],
+        "mod_const": lcg["mod_const"],
         "mul": lcg["mul"],
         "add": lcg["add"],
-        "mod_x": sum_info["mod_x"],
-        "mod_i": sum_info["mod_i"]
+        "mod_x": sum["mod_x"],
+        "mod_i": sum["mod_i"]
     }
 }
 

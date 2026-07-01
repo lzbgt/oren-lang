@@ -832,10 +832,21 @@ Facts from the 2026-05-28 implementation pass:
 																															  focused helpers. The fast list-int dot single-step loop now reuses
 																															  the mul-slot resolver and delegates unique cursor reads, indexed
 																															  reads, and tail writeback. The capped profile now shows
-																															  `x64_native_program.oren` at about 40.8s total / 30.0s parse, with
-																															  `_x64_match_fast_lcg_sum_while` exposed at about 87ms as the next
-																															  parser body.
-																					  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																  `x64_native_program.oren` at about 40.8s total / 30.0s parse, with
+																																  `_x64_match_fast_lcg_sum_while` exposed at about 87ms as the next
+																																  parser body.
+																																  X64 fast LCG sum-while matching now delegates condition/local-int
+																																  gates, body-shape extraction, LCG/mod validation, and accumulator
+																																  validation to focused helpers. X64 program function-set preparation
+																																  now delegates local-fn rewrites, function/type-constructor
+																																  collection, FFI/top-level global collection, callable-use scanning,
+																																  and wrapper prep. Unchecked list-int reduce-sum slots lowering now
+																																  delegates argument preparation, label state, nil/setup, loop
+																																  emission, and finish/patching. The capped profile now shows
+																																  `x64_native_program.oren` at about 41.5s total / 30.7s parse, with
+																																  `_emit_intrinsic_sys_linux_net_msg_x64` exposed at about 85ms as the
+																																  next parser body.
+																						  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
