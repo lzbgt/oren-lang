@@ -501,7 +501,12 @@ This file is the concise task view. Detailed implementation status lives in
 																								 now delegates cache identity, cache-hit apply, seed-hit apply, and store/apply
 																								 finalization. The capped profile now shows `x64_native_program.oren` at about
 																								 40.2s total / 30.3s parse, with `_emit_intrinsic_sys_linux_dup_ioctl_x64`
-																								 exposed at about 152ms as the next parser body.
+																								 exposed at about 152ms as the next parser body. Linux x64 dup/ioctl lowering
+																								 now delegates raw `dup`, `dup2`/`dup3`, and `ioctl` syscall families to focused
+																								 helpers while preserving capsule hook ordering and syscall register setup. The
+																								 capped profile now shows `x64_native_program.oren` at about 39.7s total / 29.8s
+																								 parse, with `_emit_intrinsic_sys_fstat_windows_x64` exposed at about 145ms as
+																								 the next parser body.
 														     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
