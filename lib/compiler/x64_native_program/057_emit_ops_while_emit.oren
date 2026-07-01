@@ -1523,6 +1523,80 @@ fn _x64_fast_list_get_sum_validate_lists(ctx, locals, labels, local_fixups, list
     return true
 }
 
+fn _x64_fast_list_get_sum_load_index(lists, list_count, list_name) {
+    var list_index = 0
+    while list_index < list_count {
+        if _x64_str_eq_bytes(lists[list_index], list_name) { break }
+        list_index = list_index + 1
+    }
+    return list_index
+}
+
+fn _x64_fast_list_get_sum_load_value(ctx, locals, lists, list_count, base, list_name, unique_lists) {
+    var list_index = _x64_fast_list_get_sum_load_index(lists, list_count, list_name)
+    var slot_buf2 = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
+    if oren_type_tag(slot_buf2) == 0 { _intr_tmp_pop(ctx, base); return false }
+
+    if unique_lists {
+        _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf2)
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
+        _emit_mov_mrbp_r64(ctx, 0 - slot_buf2, 12)
+    } else {
+        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+        bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
+    }
+    return true
+}
+
+fn _x64_fast_list_get_sum_emit_dynamic_add(ctx, labels, local_fixups, a0, a1) {
+    var l_iadd = _new_label(ctx, "list_get_iadd")
+    var l_after = _new_label(ctx, "list_get_after")
+
+    // If sum was not a string at loop entry, oren_add always reduces to iadd.
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(3, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
+
+    if a0 != 13 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 13)) }
+    var call_sum = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_sum, "name": "native_is_string_ptr"})
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
+
+    if a0 != 14 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 14)) }
+    var call_val = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_val, "name": "native_is_string_ptr"})
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
+
+    if a0 != 13 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 13)) }
+    if a1 != 14 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a1, 14)) }
+    var call_concat = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_concat, "name": "string_concat"})
+    if 13 != 0 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(13, 0)) }
+    _emit_jmp_to_label(ctx, local_fixups, l_after)
+
+    _emit_label(ctx, labels, l_iadd)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+    _emit_label(ctx, labels, l_after)
+    return nil
+}
+
+fn _x64_fast_list_get_sum_emit_accumulate(ctx, labels, local_fixups, sum_inty, a0, a1) {
+    if sum_inty == true {
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+        return nil
+    }
+    _x64_fast_list_get_sum_emit_dynamic_add(ctx, labels, local_fixups, a0, a1)
+    return nil
+}
+
 fn _x64_fast_list_get_sum_emit_single(ctx, locals, labels, local_fixups, lists, loads, list_count, base, off_sum, off_idx, unique_lists, sum_inty, a0, a1) {
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
 
@@ -1531,65 +1605,8 @@ fn _x64_fast_list_get_sum_emit_single(ctx, locals, labels, local_fixups, lists, 
 
     var pi = 0
     while pi < oren_list_len(loads) {
-        var list_name2 = loads[pi]
-        var list_index = 0
-        while list_index < list_count {
-            if _x64_str_eq_bytes(lists[list_index], list_name2) { break }
-            list_index = list_index + 1
-        }
-        var slot_buf2 = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
-        if oren_type_tag(slot_buf2) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-        if unique_lists {
-            _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf2)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
-            bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
-            _emit_mov_mrbp_r64(ctx, 0 - slot_buf2, 12)
-        } else {
-            _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-            bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-            bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
-        }
-
-        if sum_inty == true {
-            bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
-        } else {
-            var l_iadd = _new_label(ctx, "list_get_iadd")
-            var l_after = _new_label(ctx, "list_get_after")
-
-            // If sum was not a string at loop entry, oren_add always reduces to iadd.
-            bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(3, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
-
-            if a0 != 13 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 13)) }
-            var call_sum = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_sum, "name": "native_is_string_ptr"})
-            bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
-
-            if a0 != 14 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 14)) }
-            var call_val = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_val, "name": "native_is_string_ptr"})
-            bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
-
-            if a0 != 13 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 13)) }
-            if a1 != 14 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a1, 14)) }
-            var call_concat = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_concat, "name": "string_concat"})
-            if 13 != 0 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(13, 0)) }
-            _emit_jmp_to_label(ctx, local_fixups, l_after)
-
-            _emit_label(ctx, labels, l_iadd)
-            bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
-            _emit_label(ctx, labels, l_after)
-        }
-
+        if _x64_fast_list_get_sum_load_value(ctx, locals, lists, list_count, base, loads[pi], unique_lists) != true { return nil }
+        _x64_fast_list_get_sum_emit_accumulate(ctx, labels, local_fixups, sum_inty, a0, a1)
         pi = pi + 1
     }
 

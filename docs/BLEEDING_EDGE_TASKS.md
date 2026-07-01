@@ -660,6 +660,13 @@ This file is the concise task view. Detailed implementation status lives in
 																	 capped profile now shows `x64_native_program.oren` at about 43.0s
 																	 total / 32.3s parse, with `_x64_fast_list_get_sum_emit_single` exposed
 																	 at about 112ms as the next parser body.
+																	 X64 generic list get-sum single-step lowering now delegates list-index
+																	 resolution, element load emission, and integer/string-aware accumulation
+																	 to focused helpers while preserving the fast-loop sum and index
+																	 writeback contract. The capped profile now shows
+																	 `x64_native_program.oren` at about 40.7s total / 30.1s parse, with
+																	 `_x64_compile_program_function_sequence` exposed at about 221ms as the
+																	 next parser body.
 																	     Serial/thread module
 								     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
