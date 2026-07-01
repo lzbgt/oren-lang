@@ -459,7 +459,13 @@ Facts from the 2026-05-28 implementation pass:
 													  recording, and slow-summary emission to state-map helpers while preserving
 													  the low-arity loop call contract. The capped profile now shows
 													  `x64_native_program.oren` at about 39.5s total / 29.8s parse, with
-													  `_emit_ops_in_fn` exposed at about 164ms as the next parser body.
+													  `_emit_ops_in_fn` exposed at about 164ms as the next parser body. X64
+													  function-op emission now delegates loop-state setup, gas-note charging,
+													  prebuilt top-level batch fast paths, post-op gas/slow logging, and body
+													  summary emission to focused helpers while preserving regular-op dispatch.
+													  The capped profile now shows `x64_native_program.oren` at about 38.3s
+													  total / 28.6s parse, with `_emit_intrinsic_sys_linux_proc_clone_x64`
+													  exposed at about 150ms as the next parser body.
 										  Serial/thread module ASTBIN writes are explicit prewarm work via
 		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

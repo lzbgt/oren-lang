@@ -973,6 +973,146 @@ fn _x64_emit_ops_record_slow(ctx, trace_op_slow, phase_log, phase_name, op, op_k
     return nil
 }
 
+fn _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label) {
+    var n = 0
+    if ops != nil { n = oren_list_len(ops) }
+    var trace = false
+    if ctx != nil && ctx["trace_emit_ops"] == true { trace = true }
+    var trace_stride = 200
+    if trace {
+        trace_stride = core.parse_int_decimal(oren_env("OREN_TRACE_X64_EMIT_OPS_STRIDE"), trace_stride)
+        if trace_stride < 1 { trace_stride = 1 }
+    }
+    var phase_log = nil
+    var phase_name = nil
+    var phase_stride = 0
+    var phase_outer = false
+    if ctx != nil {
+        phase_log = ctx["emit_ops_phase_log"]
+        phase_name = ctx["emit_ops_phase_name"]
+        var stride_enc = ctx["emit_ops_phase_stride"]
+        if oren_type_tag(stride_enc) != 0 { phase_stride = stride_enc }
+    }
+    if phase_log != nil && phase_name != nil && phase_stride > 0 && loop_cond_label == nil && loop_end_label == nil {
+        phase_outer = true
+    }
+    var op_slow_ms = 0
+    var v_op_slow = oren_env("OREN_TRACE_X64_EMIT_OP_SLOW_MS")
+    if v_op_slow != nil && v_op_slow != "" {
+        op_slow_ms = core.parse_int_decimal(v_op_slow, op_slow_ms)
+    }
+    var trace_op_slow = false
+    if phase_log != nil && phase_name != nil && op_slow_ms > 0 { trace_op_slow = true }
+    var gas_mode = "none"
+    if ctx != nil { gas_mode = _x64_native_gas_accounting_mode(ctx) }
+    return {
+        "n": n,
+        "trace": trace,
+        "trace_stride": trace_stride,
+        "phase_log": phase_log,
+        "phase_name": phase_name,
+        "phase_stride": phase_stride,
+        "phase_outer": phase_outer,
+        "op_slow_ms": op_slow_ms,
+        "trace_op_slow": trace_op_slow,
+        "top_string_fast_stats": {"candidates": 0, "hits": 0, "miss_type": 0},
+        "gas_stmt": gas_mode == "stmt",
+        "gas_basic": gas_mode == "basic-block" || gas_mode == "block-weighted",
+        "gas_weighted": gas_mode == "block-weighted",
+        "gas_dynamic": gas_mode == "dynamic-emitter",
+        "charge_basic_block_next": true
+    }
+}
+
+fn _x64_emit_ops_charge_gas(ctx, ops, state, op_kind, j) {
+    var dynamic_note_pos = nil
+    var dynamic_span_start = nil
+    if state["gas_dynamic"] == true && op_kind != "if" && op_kind != "while" && op_kind != "for" {
+        dynamic_note_pos = _emit_native_gas_note_x64_patchable_u32(ctx)
+        dynamic_span_start = bytes_len(ctx["code"])
+    } else if state["gas_stmt"] == true {
+        _emit_native_gas_note_x64(ctx, 1)
+    } else if state["gas_basic"] == true && state["charge_basic_block_next"] == true {
+        var block_gas_amount = 1
+        if state["gas_weighted"] == true {
+            block_gas_amount = _x64_native_block_weighted_gas_amount(ops, j)
+        }
+        _emit_native_gas_note_x64(ctx, block_gas_amount)
+        state["charge_basic_block_next"] = false
+    }
+    return {"note_pos": dynamic_note_pos, "span_start": dynamic_span_start}
+}
+
+fn _x64_emit_prebuilt_batch_op(ctx, op, platform, state, j) {
+    var op_kind = op["op"]
+    var trace_op_slow = state["trace_op_slow"]
+    var op_slow_ms = state["op_slow_ms"]
+    var phase_log = state["phase_log"]
+    var phase_name = state["phase_name"]
+    if op_kind == "global_string_init_batch" && oren_type_tag(op["table_off"]) == 1 {
+        var prebuilt_batch_start_ns = 0
+        if trace_op_slow == true { prebuilt_batch_start_ns = oren_time_now_ns() }
+        _x64_emit_top_string_global_batch_loop(ctx, op["table_off"])
+        if trace_op_slow == true {
+            var prebuilt_batch_ms = (oren_time_now_ns() - prebuilt_batch_start_ns) / 1000000
+            if prebuilt_batch_ms >= op_slow_ms {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
+                    "name=" + phase_name +
+                    " i=" + oren_int_to_string(j) +
+                    " op=global_string_init_batch" +
+                    " path=prebuilt_table" +
+                    " ms=" + oren_int_to_string(prebuilt_batch_ms) +
+                    " count=" + oren_int_to_string(op["count"]))
+            }
+        }
+        return true
+    }
+    if op_kind == "global_empty_container_init_batch" && oren_type_tag(op["table_off"]) == 1 {
+        var empty_batch_start_ns = 0
+        if trace_op_slow == true { empty_batch_start_ns = oren_time_now_ns() }
+        _x64_emit_top_empty_container_batch_loop(ctx, op["table_off"], op["kind"], platform)
+        if trace_op_slow == true {
+            var empty_batch_ms = (oren_time_now_ns() - empty_batch_start_ns) / 1000000
+            if empty_batch_ms >= op_slow_ms {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
+                    "name=" + phase_name +
+                    " i=" + oren_int_to_string(j) +
+                    " op=global_empty_container_init_batch" +
+                    " path=prebuilt_table" +
+                    " kind=" + op["kind"] +
+                    " ms=" + oren_int_to_string(empty_batch_ms) +
+                    " count=" + oren_int_to_string(op["count"]))
+            }
+        }
+        return true
+    }
+    return false
+}
+
+fn _x64_emit_ops_finish_regular(ctx, state, dynamic_gas, op, op_kind, j) {
+    _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
+    if state["gas_basic"] == true {
+        var opk_bb = op_kind
+        if opk_bb == "if" || opk_bb == "while" || opk_bb == "for" {
+            state["charge_basic_block_next"] = true
+        }
+    }
+    _x64_emit_ops_record_slow(ctx, state["trace_op_slow"], state["phase_log"], state["phase_name"],
+        op, op_kind, j, state["op_start_ns"], state["op_slow_ms"])
+    return nil
+}
+
+fn _x64_emit_ops_summary(ctx, state) {
+    if state["phase_outer"] != true { return nil }
+    var stats = state["top_string_fast_stats"]
+    _x64_program_phase_log_append(state["phase_log"], "x64.codegen.function.body.summary",
+        "name=" + state["phase_name"] +
+        " top_string_candidates=" + oren_int_to_string(stats["candidates"]) +
+        " top_string_hits=" + oren_int_to_string(stats["hits"]) +
+        " top_string_miss_type=" + oren_int_to_string(stats["miss_type"]))
+    return nil
+}
+
 fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns, op_slow_ms, top_string_fast_stats, gas_weighted, gas_dynamic) {
     if op_kind == "var_i32" {
         _emit_var_i32_op_x64(ctx, op, locals)
@@ -1057,48 +1197,14 @@ fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue
 }
 
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
-    var n = 0
-    if ops != nil { n = oren_list_len(ops) }
-    var trace = false
-    if ctx != nil && ctx["trace_emit_ops"] == true { trace = true }
-    var trace_stride = 200
-    if trace {
-        trace_stride = core.parse_int_decimal(oren_env("OREN_TRACE_X64_EMIT_OPS_STRIDE"), trace_stride)
-        if trace_stride < 1 { trace_stride = 1 }
-    }
-    var phase_log = nil
-    var phase_name = nil
-    var phase_stride = 0
-    var phase_outer = false
-    if ctx != nil {
-        phase_log = ctx["emit_ops_phase_log"]
-        phase_name = ctx["emit_ops_phase_name"]
-        var stride_enc = ctx["emit_ops_phase_stride"]
-        if oren_type_tag(stride_enc) != 0 { phase_stride = stride_enc }
-    }
-    if phase_log != nil && phase_name != nil && phase_stride > 0 && loop_cond_label == nil && loop_end_label == nil {
-        phase_outer = true
-    }
-    var op_slow_ms = 0
-    var v_op_slow = oren_env("OREN_TRACE_X64_EMIT_OP_SLOW_MS")
-    if v_op_slow != nil && v_op_slow != "" {
-        op_slow_ms = core.parse_int_decimal(v_op_slow, op_slow_ms)
-    }
-    var trace_op_slow = false
-    if phase_log != nil && phase_name != nil && op_slow_ms > 0 { trace_op_slow = true }
-    var top_string_fast_stats = {"candidates": 0, "hits": 0, "miss_type": 0}
-    if trace { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
-    var gas_mode = "none"
-    if ctx != nil { gas_mode = _x64_native_gas_accounting_mode(ctx) }
-    var gas_stmt = gas_mode == "stmt"
-    var gas_basic = gas_mode == "basic-block" || gas_mode == "block-weighted"
-    var gas_weighted = gas_mode == "block-weighted"
-    var gas_dynamic = gas_mode == "dynamic-emitter"
+    var state = _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label)
+    var n = state["n"]
+    if state["trace"] == true { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
     var j = 0
-    var charge_basic_block_next = true
     while j < n {
         var op_start_ns = 0
-        if trace_op_slow == true { op_start_ns = oren_time_now_ns() }
+        if state["trace_op_slow"] == true { op_start_ns = oren_time_now_ns() }
+        state["op_start_ns"] = op_start_ns
         var op = oren_list_get(ops, j)
         if op == nil { j = j + 1; continue }
         var next = nil
@@ -1108,90 +1214,28 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             continue
         }
         var op_kind = op["op"]
-        _x64_emit_ops_trace_progress(ctx, trace, trace_stride, j, n, op, op_kind)
-        _x64_emit_ops_phase_progress(ctx, phase_outer, phase_log, phase_name, phase_stride, j, n, op, op_kind)
+        _x64_emit_ops_trace_progress(ctx, state["trace"], state["trace_stride"], j, n, op, op_kind)
+        _x64_emit_ops_phase_progress(ctx, state["phase_outer"], state["phase_log"], state["phase_name"],
+            state["phase_stride"], j, n, op, op_kind)
         _linetab_record_tok(ctx, op["tok"])
-        var dynamic_note_pos = nil
-        var dynamic_span_start = nil
-        if gas_dynamic == true && op_kind != "if" && op_kind != "while" && op_kind != "for" {
-            dynamic_note_pos = _emit_native_gas_note_x64_patchable_u32(ctx)
-            dynamic_span_start = bytes_len(ctx["code"])
-        } else if gas_stmt == true {
-            _emit_native_gas_note_x64(ctx, 1)
-        } else if gas_basic == true && charge_basic_block_next == true {
-            var block_gas_amount = 1
-            if gas_weighted == true {
-                block_gas_amount = _x64_native_block_weighted_gas_amount(ops, j)
-            }
-            _emit_native_gas_note_x64(ctx, block_gas_amount)
-            charge_basic_block_next = false
-        }
-        if op_kind == "global_string_init_batch" && oren_type_tag(op["table_off"]) == 1 {
-            var prebuilt_batch_start_ns = 0
-            if trace_op_slow == true { prebuilt_batch_start_ns = oren_time_now_ns() }
-            _x64_emit_top_string_global_batch_loop(ctx, op["table_off"])
-            if trace_op_slow == true {
-                var prebuilt_batch_ms = (oren_time_now_ns() - prebuilt_batch_start_ns) / 1000000
-                if prebuilt_batch_ms >= op_slow_ms {
-                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                        "name=" + phase_name +
-                        " i=" + oren_int_to_string(j) +
-                        " op=global_string_init_batch" +
-                        " path=prebuilt_table" +
-                        " ms=" + oren_int_to_string(prebuilt_batch_ms) +
-                        " count=" + oren_int_to_string(op["count"]))
-                }
-            }
-            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
-            j = j + 1
-            continue
-        }
-        if op_kind == "global_empty_container_init_batch" && oren_type_tag(op["table_off"]) == 1 {
-            var empty_batch_start_ns = 0
-            if trace_op_slow == true { empty_batch_start_ns = oren_time_now_ns() }
-            _x64_emit_top_empty_container_batch_loop(ctx, op["table_off"], op["kind"], platform)
-            if trace_op_slow == true {
-                var empty_batch_ms = (oren_time_now_ns() - empty_batch_start_ns) / 1000000
-                if empty_batch_ms >= op_slow_ms {
-                    _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                        "name=" + phase_name +
-                        " i=" + oren_int_to_string(j) +
-                        " op=global_empty_container_init_batch" +
-                        " path=prebuilt_table" +
-                        " kind=" + op["kind"] +
-                        " ms=" + oren_int_to_string(empty_batch_ms) +
-                        " count=" + oren_int_to_string(op["count"]))
-                }
-            }
-            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
+        var dynamic_gas = _x64_emit_ops_charge_gas(ctx, ops, state, op_kind, j)
+        if _x64_emit_prebuilt_batch_op(ctx, op, platform, state, j) == true {
+            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
             j = j + 1
             continue
         }
         var op_status = _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups,
             epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns,
-            op_slow_ms, top_string_fast_stats, gas_weighted, gas_dynamic)
+            state["op_slow_ms"], state["top_string_fast_stats"], state["gas_weighted"], state["gas_dynamic"])
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if op_status == 1 {
-            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
+            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
             j = j + 1
             continue
         }
-        _x64_patch_dynamic_gas_if_needed(ctx, dynamic_note_pos, dynamic_span_start)
-        if gas_basic == true {
-            var opk_bb = op_kind
-            if opk_bb == "if" || opk_bb == "while" || opk_bb == "for" {
-                charge_basic_block_next = true
-            }
-        }
-        _x64_emit_ops_record_slow(ctx, trace_op_slow, phase_log, phase_name, op, op_kind, j, op_start_ns, op_slow_ms)
+        _x64_emit_ops_finish_regular(ctx, state, dynamic_gas, op, op_kind, j)
         j = j + 1
     }
-    if phase_outer {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.summary",
-            "name=" + phase_name +
-            " top_string_candidates=" + oren_int_to_string(top_string_fast_stats["candidates"]) +
-            " top_string_hits=" + oren_int_to_string(top_string_fast_stats["hits"]) +
-            " top_string_miss_type=" + oren_int_to_string(top_string_fast_stats["miss_type"]))
-    }
+    _x64_emit_ops_summary(ctx, state)
     return nil
 }
