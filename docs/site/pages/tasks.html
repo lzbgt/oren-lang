@@ -472,11 +472,16 @@
 <p>																			 37.6s total / 28.1s parse, with <code>_x64_prepare_function_frame_v0</code> exposed at</p>
 <p>																			 about 162ms as the next parser body. X64 function-frame preparation now</p>
 <p>																			 delegates parameter slot/type inference, reserved scratch slots,</p>
-<p>																			 intrinsic-temp sizing, literal spill slots, and ABI layout calculation to</p>
-<p>																			 focused helpers while preserving the same frame map contract. The capped</p>
-<p>																			 profile now shows <code>x64_native_program.oren</code> at about 38.2s total / 28.6s</p>
-<p>																			 parse, with <code>_emit_intrinsic_sys_linux_ulock_x64</code> exposed at about 162ms as</p>
-<p>																			 the next parser body.</p>
+<p>																				 intrinsic-temp sizing, literal spill slots, and ABI layout calculation to</p>
+<p>																				 focused helpers while preserving the same frame map contract. The capped</p>
+<p>																				 profile now shows <code>x64_native_program.oren</code> at about 38.2s total / 28.6s</p>
+<p>																				 parse, with <code>_emit_intrinsic_sys_linux_ulock_x64</code> exposed at about 162ms as</p>
+<p>																				 the next parser body. Linux x64 ulock/futex lowering now delegates shared</p>
+<p>																				 futex syscall setup, timeout-timespec emission, timeout errno mapping,</p>
+<p>																				 wait lowering, and wake lowering to focused helpers. The capped profile now</p>
+<p>																				 shows <code>x64_native_program.oren</code> at about 40.1s total / 30.3s parse, with</p>
+<p>																				 <code>_x64_program_compile_options</code> exposed at about 203ms as the next parser</p>
+<p>																				 body.</p>
 <p>													     Serial/thread module</p>
 <p>								     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
