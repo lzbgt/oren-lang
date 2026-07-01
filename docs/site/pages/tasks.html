@@ -1033,10 +1033,16 @@
 <p>																																										 Linux x64 <code>sys_pipe</code> lowering now delegates pointer/rc spill setup, capsule</p>
 <p>																																										 prehook, <code>pipe2</code> syscall setup, success-only int[2]-to-u64 fd widening, and</p>
 <p>																																										 capsule posthook emission to focused helpers while preserving the saved-rc</p>
-<p>																																										 RAX contract. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																																										 42.0s total / 30.9s parse, with <code>_x64_match_fast_list_int_dot_while</code> exposed</p>
-<p>																																										 at about 75ms as the next parser body.</p>
-<p>																																								     Serial/thread module</p>
+<p>																																											 RAX contract. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																											 42.0s total / 30.9s parse, with <code>_x64_match_fast_list_int_dot_while</code> exposed</p>
+<p>																																											 at about 75ms as the next parser body.</p>
+<p>																																											 X64 fast LIST_INT/LIST dot-while matching now shares counted-loop validation,</p>
+<p>																																											 typed/generic dot step dispatch, and dot-body accumulation helpers while</p>
+<p>																																											 keeping the public matcher entrypoints tiny. The capped profile now shows</p>
+<p>																																											 <code>x64_native_program.oren</code> at about 43.0s total / 31.6s parse, with</p>
+<p>																																											 <code>_x64_extract_type_constructors_v0</code> exposed at about 80ms as the next parser</p>
+<p>																																											 body.</p>
+<p>																																									     Serial/thread module</p>
 <p>															     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

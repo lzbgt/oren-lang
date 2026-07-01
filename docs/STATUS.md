@@ -995,10 +995,16 @@ Facts from the 2026-05-28 implementation pass:
 																																														  Linux x64 `sys_pipe` lowering now delegates pointer/rc spill setup, capsule
 																																														  prehook, `pipe2` syscall setup, success-only int[2]-to-u64 fd widening, and
 																																														  capsule posthook emission to focused helpers while preserving the saved-rc
-																																														  RAX contract. The capped profile now shows `x64_native_program.oren` at about
-																																														  42.0s total / 30.9s parse, with `_x64_match_fast_list_int_dot_while` exposed
-																																														  at about 75ms as the next parser body.
-																																					  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																															  RAX contract. The capped profile now shows `x64_native_program.oren` at about
+																																															  42.0s total / 30.9s parse, with `_x64_match_fast_list_int_dot_while` exposed
+																																															  at about 75ms as the next parser body.
+																																															  X64 fast LIST_INT/LIST dot-while matching now shares counted-loop validation,
+																																															  typed/generic dot step dispatch, and dot-body accumulation helpers while
+																																															  keeping the public matcher entrypoints tiny. The capped profile now shows
+																																															  `x64_native_program.oren` at about 43.0s total / 31.6s parse, with
+																																															  `_x64_extract_type_constructors_v0` exposed at about 80ms as the next parser
+																																															  body.
+																																						  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
