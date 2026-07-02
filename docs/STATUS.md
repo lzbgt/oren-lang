@@ -1421,6 +1421,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  `x64_native_program.oren` at about 44.0s total / 32.4s parse, with
 																																																																								  `_emit_translate_open_flags_linux_x64` exposed at about 62ms as the next parser
 																																																																								  body.
+																																																																								  Linux x64 open-flag translation now delegates access-bit initialization and
+																																																																								  each optional Oren-to-Linux flag OR to focused helpers while preserving the
+																																																																								  stable Oren flag ABI. The capped profile now shows `x64_native_program.oren`
+																																																																								  at about 44.7s total / 33.1s parse, with
+																																																																								  `_emit_intrinsic_sys_linux_fcntl_getfl_x64` exposed at about 96ms as the next
+																																																																								  parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

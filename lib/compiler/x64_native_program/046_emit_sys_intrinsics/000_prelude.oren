@@ -53,54 +53,44 @@ fn _intr_load_x64(ctx, dst_reg, off) {
     return nil
 }
 
+fn _x64_linux_open_flags_emit_base(ctx, off_oren_flags) {
+    // Input stack slot contains Oren-level flags. Output starts in rdx with access bits.
+    _intr_load_x64(ctx, 8, off_oren_flags)              // r8 = oren_flags
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 8))    // rdx = oren_flags
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(2, 3))  // rdx = access bits
+    return nil
+}
+
+fn _x64_linux_open_flags_emit_optional(ctx, labels, fixups, oren_flag, linux_flag, label_suffix) {
+    // If (r8 & oren_flag) != 0, OR the translated Linux flag into rdx.
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(9, oren_flag))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
+    var l_skip = _new_label(ctx, "open_flags_skip_" + label_suffix)
+    _emit_jcc_to_label(ctx, fixups, "e", l_skip)
+    bytes_extend(ctx["code"], core.insn_or_r64_imm32(2, linux_flag))
+    _emit_label(ctx, labels, l_skip)
+    return nil
+}
+
+fn _x64_linux_open_flags_emit_optional_set(ctx, labels, fixups) {
+    _x64_linux_open_flags_emit_optional(ctx, labels, fixups, OREN_O_CREAT, labi.linux_open_flag_creat(), "creat")
+    _x64_linux_open_flags_emit_optional(ctx, labels, fixups, OREN_O_TRUNC, labi.linux_open_flag_trunc(), "trunc")
+    _x64_linux_open_flags_emit_optional(ctx, labels, fixups, OREN_O_NONBLOCK, labi.linux_open_flag_nonblock(), "nb")
+    _x64_linux_open_flags_emit_optional(ctx, labels, fixups, OREN_O_APPEND, labi.linux_open_flag_append(), "append")
+    return nil
+}
+
 fn _emit_translate_open_flags_linux_x64(ctx, locals, off_oren_flags) {
     // Input:  stack slot off_oren_flags contains Oren-level flags (i64)
     // Output: rdx = os_flags (i64)
     //
     // Scratch: r8, r9
-    _intr_load_x64(ctx, 8, off_oren_flags)              // r8 = oren_flags
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 8))    // rdx = oren_flags
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(2, 3))  // rdx = access bits
+    _x64_linux_open_flags_emit_base(ctx, off_oren_flags)
 
     var labels = {}
     var fixups = []
-
-    // if (flags & OREN_O_CREAT) != 0 => rdx |= O_CREAT
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(9, OREN_O_CREAT))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
-    var l_skip_creat = _new_label(ctx, "open_flags_skip_creat")
-    _emit_jcc_to_label(ctx, fixups, "e", l_skip_creat)
-    bytes_extend(ctx["code"], core.insn_or_r64_imm32(2, labi.linux_open_flag_creat()))
-    _emit_label(ctx, labels, l_skip_creat)
-
-    // if (flags & OREN_O_TRUNC) != 0 => rdx |= O_TRUNC
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(9, OREN_O_TRUNC))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
-    var l_skip_trunc = _new_label(ctx, "open_flags_skip_trunc")
-    _emit_jcc_to_label(ctx, fixups, "e", l_skip_trunc)
-    bytes_extend(ctx["code"], core.insn_or_r64_imm32(2, labi.linux_open_flag_trunc()))
-    _emit_label(ctx, labels, l_skip_trunc)
-
-    // if (flags & OREN_O_NONBLOCK) != 0 => rdx |= O_NONBLOCK
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(9, OREN_O_NONBLOCK))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
-    var l_skip_nb = _new_label(ctx, "open_flags_skip_nb")
-    _emit_jcc_to_label(ctx, fixups, "e", l_skip_nb)
-    bytes_extend(ctx["code"], core.insn_or_r64_imm32(2, labi.linux_open_flag_nonblock()))
-    _emit_label(ctx, labels, l_skip_nb)
-
-    // if (flags & OREN_O_APPEND) != 0 => rdx |= O_APPEND
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(9, OREN_O_APPEND))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
-    var l_skip_append = _new_label(ctx, "open_flags_skip_append")
-    _emit_jcc_to_label(ctx, fixups, "e", l_skip_append)
-    bytes_extend(ctx["code"], core.insn_or_r64_imm32(2, labi.linux_open_flag_append()))
-    _emit_label(ctx, labels, l_skip_append)
-
+    _x64_linux_open_flags_emit_optional_set(ctx, labels, fixups)
     _patch_local_fixups(ctx, labels, fixups)
     return nil
 }

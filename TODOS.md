@@ -312,6 +312,11 @@ design evidence lives under `project-doc/`.
   dispatch to focused helpers. The capped profile now shows
   `x64_native_program.oren` at ~44.0s total / ~32.4s parse, with
   `_emit_translate_open_flags_linux_x64` (~62ms) as the next parser-body target.
+- Linux x64 open-flag translation now delegates access-bit initialization and
+  each optional Oren-to-Linux flag OR to focused helpers while preserving the
+  stable Oren flag ABI. The capped profile now shows `x64_native_program.oren`
+  at ~44.7s total / ~33.1s parse, with `_emit_intrinsic_sys_linux_fcntl_getfl_x64`
+  (~96ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
