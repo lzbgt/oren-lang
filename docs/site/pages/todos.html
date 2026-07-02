@@ -259,6 +259,13 @@
 <p>  The capped profile now exposes <code>_x64_prepare_runtime_global_slots</code> (~99ms)</p>
 <p>  as the next parser-body target.</p>
 <ul>
+<li>X64 runtime-global slot preparation now separates GC-root env flag parsing,</li>
+</ul>
+<p>  runtime-name collection, per-global zero-slot allocation/root bookkeeping,</p>
+<p>  and phase logging while preserving the <code>g_storage</code> bootstrap exception. The</p>
+<p>  capped profile now exposes <code>_data_finalize_symtab</code> (~67ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

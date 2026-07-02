@@ -188,12 +188,7 @@ fn _x64_direct_data_ptr_const_init(ctx, expr) {
     return enc - 1
 }
 
-fn _x64_prepare_runtime_global_slots(ctx, runtime_vars) {
-    if ctx == nil { return nil }
-    var phase_log = ctx["phase_log"]
-    if runtime_vars == nil { runtime_vars = [] }
-    if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
-    var runtime_globals = ctx["runtime_globals"]
+fn _x64_configure_runtime_global_root_flags(ctx) {
     var v_trace_names = oren_env("OREN_TRACE_GC_REGISTER_ROOT_NAMES")
     if v_trace_names != nil && v_trace_names != "" &&
        x64_env_str_eq(v_trace_names, "0") != true &&
@@ -206,43 +201,72 @@ fn _x64_prepare_runtime_global_slots(ctx, runtime_vars) {
        x64_env_str_eq(v_skip, "false") != true {
         ctx["skip_runtime_global_roots"] = 1
     }
+    return nil
+}
+
+fn _x64_runtime_global_name(st) {
+    if st == nil || st["name"] == nil { return nil }
+    return st["name"]["value"]
+}
+
+fn _x64_collect_runtime_global_names(runtime_vars, runtime_globals) {
     var ri = 0
     while ri < oren_list_len(runtime_vars) {
-        var rst = runtime_vars[ri]
-        if rst != nil && rst["name"] != nil {
-            var rnm = rst["name"]["value"]
-            if rnm != nil { runtime_globals[rnm] = true }
-        }
+        var rnm = _x64_runtime_global_name(runtime_vars[ri])
+        if rnm != nil { runtime_globals[rnm] = true }
         ri = ri + 1
     }
+    return nil
+}
 
-    // Allocate runtime global slots (always zero-initialized; runtime init owns their values).
+fn _x64_prepare_one_runtime_global_slot(ctx, nm) {
+    if nm == nil { return true }
+    // `g_storage` is reserved in the native entry stub `.data` prefix (Tier-1 bootstrap).
+    if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { return true }
+    if ctx["globals"] != nil && ctx["globals"][nm] != nil {
+        err(ctx, "x64 native v0: duplicate global var " + nm)
+        return false
+    }
+    var off0 = _data_add_u64(ctx, 0)
+    // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+    // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
+    ctx["globals"][nm] = off0 + 1
+    if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
+    if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
+    if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
+    return true
+}
+
+fn _x64_allocate_runtime_global_slots(ctx, runtime_vars) {
     var i = 0
     while i < oren_list_len(runtime_vars) {
-        var st = runtime_vars[i]
-        if st != nil {
-            var nm = st["name"]["value"]
-            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier-1 bootstrap).
-            if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { i = i + 1; continue }
-            if ctx["globals"] != nil && ctx["globals"][nm] != nil {
-                err(ctx, "x64 native v0: duplicate global var " + nm)
-                return nil
-            }
-            var off0 = _data_add_u64(ctx, 0)
-            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
-            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
-            ctx["globals"][nm] = off0 + 1
-            if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
-            if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
-            if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
-        }
+        if _x64_prepare_one_runtime_global_slot(ctx, _x64_runtime_global_name(runtime_vars[i])) != true { return false }
         i = i + 1
     }
+    return true
+}
+
+fn _x64_log_runtime_global_slots(ctx, runtime_vars) {
+    var phase_log = ctx["phase_log"]
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.runtime_slots.done",
             "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
             " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
     }
+    return nil
+}
+
+fn _x64_prepare_runtime_global_slots(ctx, runtime_vars) {
+    if ctx == nil { return nil }
+    if runtime_vars == nil { runtime_vars = [] }
+    if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
+    var runtime_globals = ctx["runtime_globals"]
+    _x64_configure_runtime_global_root_flags(ctx)
+    _x64_collect_runtime_global_names(runtime_vars, runtime_globals)
+
+    // Allocate runtime global slots (always zero-initialized; runtime init owns their values).
+    if _x64_allocate_runtime_global_slots(ctx, runtime_vars) != true { return nil }
+    _x64_log_runtime_global_slots(ctx, runtime_vars)
     return runtime_globals
 }
 

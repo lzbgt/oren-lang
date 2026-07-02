@@ -170,6 +170,11 @@ design evidence lives under `project-doc/`.
   into focused helpers while preserving conservative unknown-shape allocation.
   The capped profile now exposes `_x64_prepare_runtime_global_slots` (~99ms)
   as the next parser-body target.
+- X64 runtime-global slot preparation now separates GC-root env flag parsing,
+  runtime-name collection, per-global zero-slot allocation/root bookkeeping,
+  and phase logging while preserving the `g_storage` bootstrap exception. The
+  capped profile now exposes `_data_finalize_symtab` (~67ms) as the next
+  parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

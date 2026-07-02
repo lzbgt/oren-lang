@@ -1257,6 +1257,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  The capped profile now shows `x64_native_program.oren` at about 44.0s total /
 																																																																			  32.3s parse, with `_x64_prepare_runtime_global_slots` exposed at about 99ms
 																																																																			  as the next parser body.
+																																																																			  X64 runtime-global slot preparation now separates GC-root env flag parsing,
+																																																																			  runtime-name collection, per-global zero-slot allocation/root bookkeeping,
+																																																																			  and phase logging while preserving the `g_storage` bootstrap exception. The
+																																																																			  capped profile now shows `x64_native_program.oren` at about 43.6s total /
+																																																																			  32.2s parse, with `_data_finalize_symtab` exposed at about 67ms as the next
+																																																																			  parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial
