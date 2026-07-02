@@ -1464,12 +1464,18 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  `_x64_emit_sys_fstat_x64` exposed at about 58ms as the next parser body.
 																																																																								  Linux x64 `sys_fstat` lowering now delegates host-stat temp layout, fd
 																																																																								  prehook/capture, stat-pointer spilling, syscall setup, and capsule posthook
-																																																																								  emission to focused helpers while preserving the 37-qword spill gap. The
-																																																																								  capped profile now shows `x64_native_program.oren` at about 43.9s total /
-																																																																								  32.1s parse, with `_x64_user_function_loop_options` exposed at about 60ms as
-																																																																								  the next parser body.
-																																																																							  Serial/thread module ASTBIN writes are explicit prewarm work via
-																							  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																									  emission to focused helpers while preserving the 37-qword spill gap. The
+																																																																									  capped profile now shows `x64_native_program.oren` at about 43.9s total /
+																																																																									  32.1s parse, with `_x64_user_function_loop_options` exposed at about 60ms as
+																																																																									  the next parser body.
+																																																																									  X64 user-function loop option normalization now shares nil/default option
+																																																																									  reads and mirrors compile-option grouping with progress, slow-function, and
+																																																																									  phase-detail helper packers. The capped profile now shows
+																																																																									  `x64_native_program.oren` at about 43.2s total / 31.6s parse, with
+																																																																									  `_x64_emit_sys_getdirentries64_x64` exposed at about 57ms as the next parser
+																																																																									  body.
+																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
+																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

@@ -519,6 +519,13 @@
 <p>  parse, with <code>_x64_user_function_loop_options</code> (~60ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 user-function loop option normalization now shares nil/default option</li>
+</ul>
+<p>  reads and mirrors compile-option grouping with progress, slow-function, and</p>
+<p>  phase-detail helper packers. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.2s total / ~31.6s parse, with</p>
+<p>  <code>_x64_emit_sys_getdirentries64_x64</code> (~57ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

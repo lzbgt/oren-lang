@@ -369,58 +369,64 @@ fn _x64_emit_entry_runtime_bootstrap(ctx, platform, scratch_base, is_so, trace_p
     return nil
 }
 
-fn _x64_user_function_loop_options(opts) {
-    var trace_prog = false
-    var focus_enabled = false
-    var prog_focus_from = -1
-    var prog_focus_to = -1
-    var prog_stride = 200
-    var prog_slow_fn_ms = 2000
-    var trace_top_slow = false
-    var top_slow_n = 20
-    var top_slow_min_ms = 50
-    var top_slow_live = false
-    var top_slow_live_n = 20
-    var fns_progress_interval = 250
-    var fns_detail_limit = 0
-    if opts != nil {
-        if opts["trace_prog"] == true { trace_prog = true }
-        if opts["focus_enabled"] == true { focus_enabled = true }
-        var v_focus_from = opts["prog_focus_from"]
-        if oren_type_tag(v_focus_from) != 0 { prog_focus_from = v_focus_from }
-        var v_focus_to = opts["prog_focus_to"]
-        if oren_type_tag(v_focus_to) != 0 { prog_focus_to = v_focus_to }
-        var v_stride = opts["prog_stride"]
-        if oren_type_tag(v_stride) != 0 { prog_stride = v_stride }
-        var v_slow_ms = opts["prog_slow_fn_ms"]
-        if oren_type_tag(v_slow_ms) != 0 { prog_slow_fn_ms = v_slow_ms }
-        if opts["trace_top_slow"] == true { trace_top_slow = true }
-        var v_top_slow_n = opts["top_slow_n"]
-        if oren_type_tag(v_top_slow_n) != 0 { top_slow_n = v_top_slow_n }
-        var v_top_slow_min_ms = opts["top_slow_min_ms"]
-        if oren_type_tag(v_top_slow_min_ms) != 0 { top_slow_min_ms = v_top_slow_min_ms }
-        if opts["top_slow_live"] == true { top_slow_live = true }
-        var v_top_slow_live_n = opts["top_slow_live_n"]
-        if oren_type_tag(v_top_slow_live_n) != 0 { top_slow_live_n = v_top_slow_live_n }
-        var v_fns_progress_interval = opts["fns_progress_interval"]
-        if oren_type_tag(v_fns_progress_interval) != 0 { fns_progress_interval = v_fns_progress_interval }
-        var v_fns_detail_limit = opts["fns_detail_limit"]
-        if oren_type_tag(v_fns_detail_limit) != 0 { fns_detail_limit = v_fns_detail_limit }
-    }
+fn _x64_opts_bool_true_or(opts, key, default_value) {
+    if opts != nil && opts[key] == true { return true }
+    return default_value
+}
+
+fn _x64_opts_value_or(opts, key, default_value) {
+    if opts == nil { return default_value }
+    var v = opts[key]
+    if oren_type_tag(v) != 0 { return v }
+    return default_value
+}
+
+fn _x64_user_function_progress_loop_options(opts) {
     return {
-        "trace_prog": trace_prog,
-        "focus_enabled": focus_enabled,
-        "prog_focus_from": prog_focus_from,
-        "prog_focus_to": prog_focus_to,
-        "prog_stride": prog_stride,
-        "prog_slow_fn_ms": prog_slow_fn_ms,
-        "trace_top_slow": trace_top_slow,
-        "top_slow_n": top_slow_n,
-        "top_slow_min_ms": top_slow_min_ms,
-        "top_slow_live": top_slow_live,
-        "top_slow_live_n": top_slow_live_n,
-        "fns_progress_interval": fns_progress_interval,
-        "fns_detail_limit": fns_detail_limit
+        "trace_prog": _x64_opts_bool_true_or(opts, "trace_prog", false),
+        "focus_enabled": _x64_opts_bool_true_or(opts, "focus_enabled", false),
+        "prog_focus_from": _x64_opts_value_or(opts, "prog_focus_from", -1),
+        "prog_focus_to": _x64_opts_value_or(opts, "prog_focus_to", -1),
+        "prog_stride": _x64_opts_value_or(opts, "prog_stride", 200),
+        "prog_slow_fn_ms": _x64_opts_value_or(opts, "prog_slow_fn_ms", 2000)
+    }
+}
+
+fn _x64_user_function_slow_loop_options(opts) {
+    return {
+        "trace_top_slow": _x64_opts_bool_true_or(opts, "trace_top_slow", false),
+        "top_slow_n": _x64_opts_value_or(opts, "top_slow_n", 20),
+        "top_slow_min_ms": _x64_opts_value_or(opts, "top_slow_min_ms", 50),
+        "top_slow_live": _x64_opts_bool_true_or(opts, "top_slow_live", false),
+        "top_slow_live_n": _x64_opts_value_or(opts, "top_slow_live_n", 20)
+    }
+}
+
+fn _x64_user_function_phase_loop_options(opts) {
+    return {
+        "fns_progress_interval": _x64_opts_value_or(opts, "fns_progress_interval", 250),
+        "fns_detail_limit": _x64_opts_value_or(opts, "fns_detail_limit", 0)
+    }
+}
+
+fn _x64_user_function_loop_options(opts) {
+    var progress = _x64_user_function_progress_loop_options(opts)
+    var slow = _x64_user_function_slow_loop_options(opts)
+    var phase = _x64_user_function_phase_loop_options(opts)
+    return {
+        "trace_prog": progress["trace_prog"],
+        "focus_enabled": progress["focus_enabled"],
+        "prog_focus_from": progress["prog_focus_from"],
+        "prog_focus_to": progress["prog_focus_to"],
+        "prog_stride": progress["prog_stride"],
+        "prog_slow_fn_ms": progress["prog_slow_fn_ms"],
+        "trace_top_slow": slow["trace_top_slow"],
+        "top_slow_n": slow["top_slow_n"],
+        "top_slow_min_ms": slow["top_slow_min_ms"],
+        "top_slow_live": slow["top_slow_live"],
+        "top_slow_live_n": slow["top_slow_live_n"],
+        "fns_progress_interval": phase["fns_progress_interval"],
+        "fns_detail_limit": phase["fns_detail_limit"]
     }
 }
 

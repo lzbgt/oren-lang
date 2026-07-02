@@ -356,6 +356,11 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~43.9s total / ~32.1s
   parse, with `_x64_user_function_loop_options` (~60ms) as the next parser-body
   target.
+- X64 user-function loop option normalization now shares nil/default option
+  reads and mirrors compile-option grouping with progress, slow-function, and
+  phase-detail helper packers. The capped profile now shows
+  `x64_native_program.oren` at ~43.2s total / ~31.6s parse, with
+  `_x64_emit_sys_getdirentries64_x64` (~57ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
