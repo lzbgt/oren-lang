@@ -511,6 +511,14 @@
 <p>  <code>x64_native_program.oren</code> at ~43.5s total / ~31.8s parse, with</p>
 <p>  <code>_x64_emit_sys_fstat_x64</code> (~58ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_fstat</code> lowering now delegates host-stat temp layout, fd</li>
+</ul>
+<p>  prehook/capture, stat-pointer spilling, syscall setup, and capsule posthook</p>
+<p>  emission to focused helpers while preserving the 37-qword spill gap. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~43.9s total / ~32.1s</p>
+<p>  parse, with <code>_x64_user_function_loop_options</code> (~60ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

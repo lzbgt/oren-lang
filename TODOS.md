@@ -350,6 +350,12 @@ design evidence lives under `project-doc/`.
   keeping typed/generic validation separate. The capped profile now shows
   `x64_native_program.oren` at ~43.5s total / ~31.8s parse, with
   `_x64_emit_sys_fstat_x64` (~58ms) as the next parser-body target.
+- Linux x64 `sys_fstat` lowering now delegates host-stat temp layout, fd
+  prehook/capture, stat-pointer spilling, syscall setup, and capsule posthook
+  emission to focused helpers while preserving the 37-qword spill gap. The
+  capped profile now shows `x64_native_program.oren` at ~43.9s total / ~32.1s
+  parse, with `_x64_user_function_loop_options` (~60ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

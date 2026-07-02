@@ -144,55 +144,84 @@ fn _x64_emit_sys_stat_or_lstat_x64(ctx, nm, expr, locals, args, capsule) {
     return true
 }
 
+fn _x64_prepare_sys_fstat_x64(ctx, locals) {
+    // See sys_stat: `fstat(2)` writes `struct stat` upwards from the provided buffer.
+    // Keep a full `struct stat` worth of padding between spilled args (fd/st_ptr)
+    // and the host buffer start so the syscall cannot clobber spill slots on success.
+    //
+    // Layout (qwords):
+    // - fd, st_ptr: 2
+    // - pad: 17
+    // - host_stat: 18
+    // Total: 37
+    var base6 = _intr_tmp_push(ctx, 37)
+    if oren_type_tag(base6) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base6 + 0)
+    var tmp_st = _intr_tmp_off(ctx, locals, base6 + 1)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_st) == 0 {
+        _intr_tmp_pop(ctx, base6)
+        return nil
+    }
+    var host_qwords = 18
+    var off_host0 = _intr_tmp_off(ctx, locals, base6 + 1 + host_qwords)
+    if off_host0 == nil {
+        _intr_tmp_pop(ctx, base6)
+        return nil
+    }
+    return {"base": base6, "tmp_fd": tmp_fd, "tmp_st": tmp_st, "off_host0": off_host0}
+}
+
+fn _x64_emit_sys_fstat_fd_arg_x64(ctx, locals, fd_expr, tmp_fd, capsule) {
+    _emit_eval_int_to_rax(ctx, fd_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre")
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    return true
+}
+
+fn _x64_emit_sys_fstat_stat_arg_x64(ctx, locals, st_expr, tmp_st) {
+    _intr_eval_spill_x64(ctx, locals, st_expr, tmp_st)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_emit_sys_fstat_syscall_x64(ctx, st) {
+    _intr_load_x64(ctx, 7, st["tmp_fd"])
+    _emit_addr_rbp_minus_off_x64(ctx, 6, st["off_host0"]) // rsi = tmp_host_stat
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fstat()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_sys_fstat_post_x64(ctx, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+    return nil
+}
+
 fn _x64_emit_sys_fstat_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_fstat" {
         if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fstat expects 2 args"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fstat does not support spread"); return true }
 
-        // See sys_stat: `fstat(2)` writes `struct stat` upwards from the provided buffer.
-        // Leave a full `struct stat` worth of padding between spilled args (fd/st_ptr)
-        // and the host buffer start so the syscall cannot clobber spill slots on success.
-        //
-        // Layout (qwords):
-        // - fd, st_ptr: 2
-        // - pad: 17
-        // - host_stat: 18
-        // Total: 37
-        var base6 = _intr_tmp_push(ctx, 37)
-        if oren_type_tag(base6) == 0 { return true }
-        var tmp_fd = _intr_tmp_off(ctx, locals, base6 + 0)
-        var tmp_st = _intr_tmp_off(ctx, locals, base6 + 1)
-        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_st) == 0 { _intr_tmp_pop(ctx, base6); return true }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base6); return true }
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre")
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
+        var st = _x64_prepare_sys_fstat_x64(ctx, locals)
+        if st == nil { return true }
+        if _x64_emit_sys_fstat_fd_arg_x64(ctx, locals, args[0], st["tmp_fd"], capsule) != true ||
+           _x64_emit_sys_fstat_stat_arg_x64(ctx, locals, args[1], st["tmp_st"]) != true {
+            _intr_tmp_pop(ctx, st["base"])
+            return true
         }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+        _x64_emit_sys_fstat_syscall_x64(ctx, st)
+        _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, st["tmp_st"], st["off_host0"], "sys_fstat_norm_done")
+        _x64_emit_sys_fstat_post_x64(ctx, capsule)
 
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base6); return true }
-
-        var host_qwords = 18
-        var off_host0 = _intr_tmp_off(ctx, locals, base6 + 1 + host_qwords)
-        if off_host0 == nil { _intr_tmp_pop(ctx, base6); return true }
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fstat()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, "sys_fstat_norm_done")
-
-        if capsule {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
-        }
-        _intr_tmp_pop(ctx, base6)
+        _intr_tmp_pop(ctx, st["base"])
         return true
     }
     return false
