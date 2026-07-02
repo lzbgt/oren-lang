@@ -1457,8 +1457,13 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  and capsule pre/post hooks to focused helpers. The capped profile now shows
 																																																																								  `x64_native_program.oren` at about 43.1s total / 31.5s parse, with
 																																																																								  `_x64_fast_list_push_emit_loop` exposed at about 58ms as the next parser body.
-																																																																					  Serial/thread module ASTBIN writes are explicit prewarm work via
-																					  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																								  X64 fast LIST and LIST_INT push-loop emission now share per-push list lookup,
+																																																																								  temp-slot derivation, value lowering, and buffer store emission helpers while
+																																																																								  keeping typed/generic validation separate. The capped profile now shows
+																																																																								  `x64_native_program.oren` at about 43.5s total / 31.8s parse, with
+																																																																								  `_x64_emit_sys_fstat_x64` exposed at about 58ms as the next parser body.
+																																																																						  Serial/thread module ASTBIN writes are explicit prewarm work via
+																						  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

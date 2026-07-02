@@ -504,6 +504,13 @@
 <p>  <code>x64_native_program.oren</code> at ~43.1s total / ~31.5s parse, with</p>
 <p>  <code>_x64_fast_list_push_emit_loop</code> (~58ms) as the next parser-body target.</p>
 <ul>
+<li>X64 fast LIST and LIST_INT push-loop emission now share per-push list lookup,</li>
+</ul>
+<p>  temp-slot derivation, value lowering, and buffer store emission helpers while</p>
+<p>  keeping typed/generic validation separate. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.5s total / ~31.8s parse, with</p>
+<p>  <code>_x64_emit_sys_fstat_x64</code> (~58ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

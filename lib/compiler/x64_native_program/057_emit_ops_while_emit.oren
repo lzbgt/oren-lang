@@ -336,11 +336,42 @@ fn _x64_fast_list_int_push_validate_lists(ctx, prep, locals, labels, label_names
     return true
 }
 
-fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
-    var lists = prep["lists"]
-    var pushes = prep["pushes"]
-    var list_count = prep["list_count"]
+fn _x64_fast_push_list_index(lists, list_count, list_name) {
+    var list_index = 0
+    while list_index < list_count {
+        if _x64_str_eq_bytes(lists[list_index], list_name) { return list_index }
+        list_index = list_index + 1
+    }
+    return list_count
+}
+
+fn _x64_fast_push_slots(ctx, prep, locals, list_index) {
     var base = prep["base"]
+    var slot_list = _intr_tmp_off(ctx, locals, base + list_index * 2)
+    var slot_buf = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
+    if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return nil }
+    return {"list": slot_list, "buf": slot_buf}
+}
+
+fn _x64_fast_push_emit_value_store(ctx, prep, locals, push) {
+    var list_index = _x64_fast_push_list_index(prep["lists"], prep["list_count"], push["list"])
+    var slots = _x64_fast_push_slots(ctx, prep, locals, list_index)
+    if slots == nil { return false }
+
+    _emit_eval_int_to_rax(ctx, push["value"], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+
+    _emit_mov_r64_mrbp(ctx, 10, 0 - prep["off_idx"])
+    _emit_mov_r64_mrbp(ctx, 11, 0 - slots["buf"])
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(12, 0))
+    return true
+}
+
+fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
+    var pushes = prep["pushes"]
     var off_idx = prep["off_idx"]
     var off_n = prep["off_n"]
     var l_fast_cond = label_names["cond"]
@@ -356,27 +387,7 @@ fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, label_names, loc
 
     var pi = 0
     while pi < oren_list_len(pushes) {
-        var push = pushes[pi]
-        var list_name2 = push["list"]
-        var list_index = 0
-        while list_index < list_count {
-            if _x64_str_eq_bytes(lists[list_index], list_name2) { break }
-            list_index = list_index + 1
-        }
-        var slot_list2 = _intr_tmp_off(ctx, locals, base + list_index * 2)
-        var slot_buf2 = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
-        if oren_type_tag(slot_list2) == 0 || oren_type_tag(slot_buf2) == 0 { return false }
-
-        _emit_eval_int_to_rax(ctx, push["value"], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-
-        _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
-        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(12, 0))
-
+        if _x64_fast_push_emit_value_store(ctx, prep, locals, pushes[pi]) != true { return false }
         pi = pi + 1
     }
 
@@ -625,10 +636,7 @@ fn _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, label_names, lo
 }
 
 fn _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
-    var lists = prep["lists"]
     var pushes = prep["pushes"]
-    var list_count = prep["list_count"]
-    var base = prep["base"]
     var off_idx = prep["off_idx"]
     var off_n = prep["off_n"]
     var l_fast_cond = label_names["cond"]
@@ -644,27 +652,7 @@ fn _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, label_names, local_f
 
     var pi = 0
     while pi < oren_list_len(pushes) {
-        var push = pushes[pi]
-        var list_name2 = push["list"]
-        var list_index = 0
-        while list_index < list_count {
-            if _x64_str_eq_bytes(lists[list_index], list_name2) { break }
-            list_index = list_index + 1
-        }
-        var slot_list2 = _intr_tmp_off(ctx, locals, base + list_index * 2)
-        var slot_buf2 = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
-        if oren_type_tag(slot_list2) == 0 || oren_type_tag(slot_buf2) == 0 { return false }
-
-        _emit_eval_int_to_rax(ctx, push["value"], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-
-        _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
-        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-        bytes_extend(ctx["code"], core.insn_mov_mr64_r64(12, 0))
-
+        if _x64_fast_push_emit_value_store(ctx, prep, locals, pushes[pi]) != true { return false }
         pi = pi + 1
     }
 
