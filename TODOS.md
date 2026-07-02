@@ -334,6 +334,12 @@ design evidence lives under `project-doc/`.
   `x64_native_program.oren` at ~43.2s total / ~31.4s parse, with
   `_emit_intrinsic_sys_listen_windows_x64` (~58ms) as the next parser-body
   target.
+- Windows x64 `sys_listen` / `sys_shutdown` lowering now shares fd/argument
+  spill state, Win64 argument loads, IAT dispatch, and SOCKET_ERROR
+  normalization helpers, with listen posthook emission kept as the only
+  listen-specific tail. The capped profile now shows `x64_native_program.oren`
+  at ~42.9s total / ~31.3s parse, with `_emit_intrinsic_sys_linux_dup23_x64`
+  (~58ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

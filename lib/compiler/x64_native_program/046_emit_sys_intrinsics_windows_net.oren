@@ -472,50 +472,88 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
+fn _x64_windows_fd2_state(ctx, locals, args) {
+    var base = _intr_tmp_push(ctx, 2) // fd, arg
+    if oren_type_tag(base) == 0 { return nil }
+    var fd = _intr_tmp_off(ctx, locals, base + 0)
+    var arg = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(fd) == 0 || oren_type_tag(arg) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], arg)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "fd": fd, "arg": arg}
+}
+
+fn _x64_windows_fd2_load(ctx, st) {
+    _intr_load_x64(ctx, 1, st["fd"])
+    _intr_load_x64(ctx, 2, st["arg"])
+    return nil
+}
+
+fn _x64_windows_fd2_emit_prehook(ctx, nm, st, capsule) {
+    if !capsule { return nil }
+    _x64_windows_fd2_load(ctx, st)
+    if nm == "sys_listen" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
+    } else {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
+    }
+    return nil
+}
+
+fn _x64_windows_fd2_iat_name(nm) {
+    if nm == "sys_listen" { return "IAT_listen" }
+    return "IAT_shutdown"
+}
+
+fn _x64_windows_fd2_emit_iat_call(ctx, nm, st) {
+    _x64_windows_fd2_load(ctx, st)
+    _emit_call_iat_x64(ctx, _x64_windows_fd2_iat_name(nm))
+    return nil
+}
+
+fn _x64_windows_fd2_normalize_result(ctx, labels, fixups, label_prefix) {
+    var l_ok = _new_label(ctx, label_prefix + "_ok")
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, label_prefix + "_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    return nil
+}
+
+fn _x64_windows_listen_emit_post(ctx, st, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, st["fd"])
+    _intr_load_x64(ctx, 8, st["arg"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_listen expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_listen does not support spread"); return nil }
 
     var capsule = _x64_capsule_enabled(ctx)
-
-    var base = _intr_tmp_push(ctx, 2) // fd, backlog
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_backlog = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_backlog) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_backlog)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_backlog)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre") }
-
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_backlog)
-    _emit_call_iat_x64(ctx, "IAT_listen")
+    var st = _x64_windows_fd2_state(ctx, locals, args)
+    if st == nil { return nil }
 
     var labels = {}
     var fixups = []
-    var l_ok = _new_label(ctx, "sys_listen_ok")
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
-    var l_post = _new_label(ctx, "sys_listen_post")
-    _emit_jmp_to_label(ctx, fixups, l_post)
-    _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_post)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, tmp_fd)
-    _intr_load_x64(ctx, 8, tmp_backlog)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post") }
+    _x64_windows_fd2_emit_prehook(ctx, "sys_listen", st, capsule)
+    _x64_windows_fd2_emit_iat_call(ctx, "sys_listen", st)
+    _x64_windows_fd2_normalize_result(ctx, labels, fixups, "sys_listen")
+    _x64_windows_listen_emit_post(ctx, st, capsule)
     _patch_local_fixups(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
@@ -837,40 +875,17 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_shutdown does not support spread"); return nil }
 
     var capsule = _x64_capsule_enabled(ctx)
-
-    var base = _intr_tmp_push(ctx, 2) // fd, how
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_how = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_how) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_how)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_how)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre") }
-
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_how)
-    _emit_call_iat_x64(ctx, "IAT_shutdown")
+    var st = _x64_windows_fd2_state(ctx, locals, args)
+    if st == nil { return nil }
 
     var labels = {}
     var fixups = []
-    var l_ok = _new_label(ctx, "sys_shutdown_ok")
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
-    var l_done = _new_label(ctx, "sys_shutdown_done")
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_done)
+    _x64_windows_fd2_emit_prehook(ctx, "sys_shutdown", st, capsule)
+    _x64_windows_fd2_emit_iat_call(ctx, "sys_shutdown", st)
+    _x64_windows_fd2_normalize_result(ctx, labels, fixups, "sys_shutdown")
     _patch_local_fixups(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
