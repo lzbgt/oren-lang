@@ -230,6 +230,13 @@
 <p>  <code>WSAEWOULDBLOCK</code> to <code>-EINPROGRESS</code> normalization. The capped profile now</p>
 <p>  exposes <code>_x64_emit_cmp_string_path</code> (~67ms) as the next parser-body target.</p>
 <ul>
+<li>X64 string-aware compare lowering now separates inline string-compare label</li>
+</ul>
+<p>  creation, cursor setup, byte-loop emission, and normalized -1/0/+1 return</p>
+<p>  emission while preserving caller-owned local fixup patching. The capped</p>
+<p>  profile now exposes <code>_emit_intrinsic_sys_bind_windows_x64</code> (~73ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

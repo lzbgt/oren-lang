@@ -149,6 +149,11 @@ design evidence lives under `project-doc/`.
   capsule posthook emission to focused helpers while preserving nonblocking
   `WSAEWOULDBLOCK` to `-EINPROGRESS` normalization. The capped profile now
   exposes `_x64_emit_cmp_string_path` (~67ms) as the next parser-body target.
+- X64 string-aware compare lowering now separates inline string-compare label
+  creation, cursor setup, byte-loop emission, and normalized -1/0/+1 return
+  emission while preserving caller-owned local fixup patching. The capped
+  profile now exposes `_emit_intrinsic_sys_bind_windows_x64` (~73ms) as the
+  next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
