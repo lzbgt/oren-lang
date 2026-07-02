@@ -1022,12 +1022,19 @@ This file is the concise task view. Detailed implementation status lives in
 																																																	 the next parser body.
 																																																	 X64 fast LIST_INT dot validation now delegates per-list temp state, list
 																																																	 capture, tracked LIST_INT kind validation, magic/count checks, and buffer
-																																																	 capture to focused helpers while preserving slow-path jumps and temp cleanup
-																																																	 on setup/compiler failure. The capped profile now shows
-																																																	 `x64_native_program.oren` at about 45.0s total / 33.5s parse, with
-																																																	 `_x64_emit_compiled_function_body` exposed at about 81ms as the next parser
-																																																	 body.
-																																															     Serial/thread module
+																																																		 capture to focused helpers while preserving slow-path jumps and temp cleanup
+																																																		 on setup/compiler failure. The capped profile now shows
+																																																		 `x64_native_program.oren` at about 45.0s total / 33.5s parse, with
+																																																		 `_x64_emit_compiled_function_body` exposed at about 81ms as the next parser
+																																																		 body.
+																																																		 X64 compiled function-body orchestration now delegates runtime entry setup,
+																																																		 body-op emission, done-phase detail packing, and epilogue/reporting to
+																																																		 focused helpers while preserving call-depth, GC tick, phase-log, and trace
+																																																		 ordering. The capped profile now shows `x64_native_program.oren` at about
+																																																		 42.3s total / 30.9s parse, with
+																																																		 `_emit_intrinsic_sys_unlink_or_rmdir_windows_x64` exposed at about 73ms as
+																																																		 the next parser body.
+																																																     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
