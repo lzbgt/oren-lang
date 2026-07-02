@@ -1373,12 +1373,18 @@
 <p>																																																																							  parser body.</p>
 <p>																																																																							  Windows x64 <code>sys_socket</code> lowering now delegates argument spill state, capsule</p>
 <p>																																																																							  prehook, <code>socket</code> IAT dispatch, <code>INVALID_SOCKET</code> result mapping, and capsule</p>
-<p>																																																																							  posthook to focused helpers. The capped profile now shows</p>
-<p>																																																																							  <code>x64_native_program.oren</code> at about 43.9s total / 32.2s parse, with</p>
-<p>																																																																							  <code>_x64_emit_windows_dll_return_path</code> exposed at about 90ms as the next parser</p>
-<p>																																																																							  body.</p>
-<p>																																																															  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>															  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																																																								  posthook to focused helpers. The capped profile now shows</p>
+<p>																																																																								  <code>x64_native_program.oren</code> at about 43.9s total / 32.2s parse, with</p>
+<p>																																																																								  <code>_x64_emit_windows_dll_return_path</code> exposed at about 90ms as the next parser</p>
+<p>																																																																								  body.</p>
+<p>																																																																								  Windows x64 DLL entry return lowering now delegates TRUE epilogue emission,</p>
+<p>																																																																								  Win64 nonvolatile restore, DLL attach-gate fixup patching, and shared</p>
+<p>																																																																								  return-path finalization to focused helpers. The capped profile now shows</p>
+<p>																																																																								  <code>x64_native_program.oren</code> at about 42.7s total / 31.2s parse, with</p>
+<p>																																																																								  <code>_emit_intrinsic_sys_accept_windows_x64</code> exposed at about 62ms as the next</p>
+<p>																																																																								  parser body.</p>
+<p>																																																																  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>				  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>

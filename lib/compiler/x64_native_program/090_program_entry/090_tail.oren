@@ -1128,8 +1128,21 @@ fn _x64_emit_windows_dll_return_path(ctx, entry_total, entry_opts) {
         return nil
     }
 
+    _x64_emit_windows_dll_true_epilogue(ctx, entry_total)
+    _x64_patch_windows_dll_attach_fixups(ctx, entry_opts)
+    _x64_finalize_entry_return_path(ctx)
+    return true
+}
+
+fn _x64_emit_windows_dll_true_epilogue(ctx, entry_total) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1)) // eax=TRUE
     if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
+    _x64_emit_win64_entry_restore(ctx)
+    bytes_extend(ctx["code"], core.insn_ret())
+    return nil
+}
+
+fn _x64_emit_win64_entry_restore(ctx) {
     // Restore non-volatile regs in reverse order.
     bytes_extend(ctx["code"], core.insn_pop_r64(15))
     bytes_extend(ctx["code"], core.insn_pop_r64(14))
@@ -1139,15 +1152,21 @@ fn _x64_emit_windows_dll_return_path(ctx, entry_total, entry_opts) {
     bytes_extend(ctx["code"], core.insn_pop_r64(7))
     bytes_extend(ctx["code"], core.insn_pop_r64(5))
     bytes_extend(ctx["code"], core.insn_pop_r64(3))
-    bytes_extend(ctx["code"], core.insn_ret())
+    return nil
+}
 
+fn _x64_patch_windows_dll_attach_fixups(ctx, entry_opts) {
     var dll_labels = entry_opts["dll_labels"]
     var dll_fixups = entry_opts["dll_fixups"]
     if dll_labels != nil && dll_fixups != nil {
         _patch_local_fixups(ctx, dll_labels, dll_fixups)
     }
+    return nil
+}
+
+fn _x64_finalize_entry_return_path(ctx) {
     ctx["entry_off"] = 0
-    return true
+    return nil
 }
 
 fn _x64_emit_windows_exe_return_path(ctx, entry_total) {
@@ -1167,7 +1186,7 @@ fn _x64_emit_windows_exe_return_path(ctx, entry_total) {
     // Should not return; if it does, just ret.
     if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
     bytes_extend(ctx["code"], core.insn_ret())
-    ctx["entry_off"] = 0
+    _x64_finalize_entry_return_path(ctx)
     return true
 }
 
@@ -1187,7 +1206,7 @@ fn _x64_emit_linux_so_return_path(ctx, entry_total) {
     bytes_extend(ctx["code"], core.insn_pop_r64(5))
     bytes_extend(ctx["code"], core.insn_pop_r64(3))
     bytes_extend(ctx["code"], core.insn_ret())
-    ctx["entry_off"] = 0
+    _x64_finalize_entry_return_path(ctx)
     return true
 }
 
@@ -1205,7 +1224,7 @@ fn _x64_emit_linux_exe_return_path(ctx, entry_total) {
     // Should not return; if it does, ret.
     if entry_total > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(entry_total)) }
     bytes_extend(ctx["code"], core.insn_ret())
-    ctx["entry_off"] = 0
+    _x64_finalize_entry_return_path(ctx)
     return true
 }
 
