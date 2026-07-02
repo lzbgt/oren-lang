@@ -120,6 +120,11 @@ design evidence lives under `project-doc/`.
   sec+nsec timestamp packing to focused helpers while preserving all Linux
   `struct stat` and OrenStatV0 offsets. The capped profile now exposes
   `_x64_rtobj_encode_fixups_compact` (~73ms) as the next parser-body target.
+- X64 runtime-object compact fixup encoding now uses explicit bucket state,
+  per-fixup routing, and result materialization helpers while preserving the
+  persisted compact metadata keys consumed by runtime-object replay. The capped
+  profile now exposes `_x64_index_emit_list_path` (~67ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

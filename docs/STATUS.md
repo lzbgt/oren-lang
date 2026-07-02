@@ -1195,6 +1195,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																		  `x64_native_program.oren` at about 44.3s total / 32.4s parse, with
 																																																																		  `_x64_rtobj_encode_fixups_compact` exposed at about 73ms as the next parser
 																																																																		  body.
+																																																																		  X64 runtime-object compact fixup encoding now uses explicit bucket state,
+																																																																		  per-fixup routing, and result materialization helpers while preserving the
+																																																																		  persisted compact metadata keys consumed by runtime-object replay. The
+																																																																		  capped profile now shows `x64_native_program.oren` at about 42.7s total /
+																																																																		  31.1s parse, with `_x64_index_emit_list_path` exposed at about 67ms as the
+																																																																		  next parser body.
 																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via
 										  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

@@ -660,63 +660,81 @@ fn _x64_rtobj_fixup_push_data_name(offs, names, f0) {
     return true
 }
 
+fn _x64_rtobj_compact_fixup_state() {
+    return {
+        "call_pos_enc": [],
+        "call_name": [],
+        "rip_data_lea_pos_enc": [],
+        "rip_data_lea_data_off_enc": [],
+        "rip_data_lea_rsi_pos_enc": [],
+        "rip_data_lea_rsi_data_off_enc": [],
+        "rip_data_mov_rax_pos_enc": [],
+        "rip_data_mov_rax_data_off_enc": [],
+        "data_fnobj_code_ptr_data_off_enc": [],
+        "data_fnobj_code_ptr_name": [],
+        "rip_code_lea_pos_enc": [],
+        "rip_code_lea_name": [],
+        "rip_rdata_lea_pos_enc": [],
+        "rip_rdata_lea_data_off_enc": [],
+        "any": false
+    }
+}
+
+fn _x64_rtobj_compact_mark_any(st, pushed) {
+    if pushed == true { st["any"] = true }
+    return nil
+}
+
+fn _x64_rtobj_compact_push_fixup(st, f0) {
+    if f0 == nil { return nil }
+    var ty = f0["type"]
+    if ty == "call_rel32" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_pos_name(st["call_pos_enc"], st["call_name"], f0))
+    } else if ty == "rip_data_lea" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_data(st["rip_data_lea_pos_enc"], st["rip_data_lea_data_off_enc"], f0))
+    } else if ty == "rip_data_lea_rsi" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_data(st["rip_data_lea_rsi_pos_enc"], st["rip_data_lea_rsi_data_off_enc"], f0))
+    } else if ty == "rip_data_mov_rax" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_data(st["rip_data_mov_rax_pos_enc"], st["rip_data_mov_rax_data_off_enc"], f0))
+    } else if ty == "data_fnobj_code_ptr" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_data_name(st["data_fnobj_code_ptr_data_off_enc"], st["data_fnobj_code_ptr_name"], f0))
+    } else if ty == "rip_code_lea" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_pos_name(st["rip_code_lea_pos_enc"], st["rip_code_lea_name"], f0))
+    } else if ty == "rip_rdata_lea" {
+        _x64_rtobj_compact_mark_any(st, _x64_rtobj_fixup_push_data(st["rip_rdata_lea_pos_enc"], st["rip_rdata_lea_data_off_enc"], f0))
+    }
+    return nil
+}
+
+fn _x64_rtobj_compact_result(st) {
+    if st == nil || st["any"] != true { return nil }
+    return {
+        "call_pos_enc": st["call_pos_enc"],
+        "call_name": st["call_name"],
+        "rip_data_lea_pos_enc": st["rip_data_lea_pos_enc"],
+        "rip_data_lea_data_off_enc": st["rip_data_lea_data_off_enc"],
+        "rip_data_lea_rsi_pos_enc": st["rip_data_lea_rsi_pos_enc"],
+        "rip_data_lea_rsi_data_off_enc": st["rip_data_lea_rsi_data_off_enc"],
+        "rip_data_mov_rax_pos_enc": st["rip_data_mov_rax_pos_enc"],
+        "rip_data_mov_rax_data_off_enc": st["rip_data_mov_rax_data_off_enc"],
+        "data_fnobj_code_ptr_data_off_enc": st["data_fnobj_code_ptr_data_off_enc"],
+        "data_fnobj_code_ptr_name": st["data_fnobj_code_ptr_name"],
+        "rip_code_lea_pos_enc": st["rip_code_lea_pos_enc"],
+        "rip_code_lea_name": st["rip_code_lea_name"],
+        "rip_rdata_lea_pos_enc": st["rip_rdata_lea_pos_enc"],
+        "rip_rdata_lea_data_off_enc": st["rip_rdata_lea_data_off_enc"]
+    }
+}
+
 fn _x64_rtobj_encode_fixups_compact(fixups) {
     if fixups == nil { return nil }
-    var call_pos_enc = []
-    var call_name = []
-    var rip_data_lea_pos_enc = []
-    var rip_data_lea_data_off_enc = []
-    var rip_data_lea_rsi_pos_enc = []
-    var rip_data_lea_rsi_data_off_enc = []
-    var rip_data_mov_rax_pos_enc = []
-    var rip_data_mov_rax_data_off_enc = []
-    var data_fnobj_code_ptr_data_off_enc = []
-    var data_fnobj_code_ptr_name = []
-    var rip_code_lea_pos_enc = []
-    var rip_code_lea_name = []
-    var rip_rdata_lea_pos_enc = []
-    var rip_rdata_lea_data_off_enc = []
-    var any = false
+    var st = _x64_rtobj_compact_fixup_state()
     var i = 0
     while i < oren_list_len(fixups) {
-        var f0 = fixups[i]
-        if f0 != nil {
-            var ty = f0["type"]
-            if ty == "call_rel32" {
-                if _x64_rtobj_fixup_push_pos_name(call_pos_enc, call_name, f0) { any = true }
-            } else if ty == "rip_data_lea" {
-                if _x64_rtobj_fixup_push_data(rip_data_lea_pos_enc, rip_data_lea_data_off_enc, f0) { any = true }
-            } else if ty == "rip_data_lea_rsi" {
-                if _x64_rtobj_fixup_push_data(rip_data_lea_rsi_pos_enc, rip_data_lea_rsi_data_off_enc, f0) { any = true }
-            } else if ty == "rip_data_mov_rax" {
-                if _x64_rtobj_fixup_push_data(rip_data_mov_rax_pos_enc, rip_data_mov_rax_data_off_enc, f0) { any = true }
-            } else if ty == "data_fnobj_code_ptr" {
-                if _x64_rtobj_fixup_push_data_name(data_fnobj_code_ptr_data_off_enc, data_fnobj_code_ptr_name, f0) { any = true }
-            } else if ty == "rip_code_lea" {
-                if _x64_rtobj_fixup_push_pos_name(rip_code_lea_pos_enc, rip_code_lea_name, f0) { any = true }
-            } else if ty == "rip_rdata_lea" {
-                if _x64_rtobj_fixup_push_data(rip_rdata_lea_pos_enc, rip_rdata_lea_data_off_enc, f0) { any = true }
-            }
-        }
+        _x64_rtobj_compact_push_fixup(st, fixups[i])
         i = i + 1
     }
-    if any != true { return nil }
-    return {
-        "call_pos_enc": call_pos_enc,
-        "call_name": call_name,
-        "rip_data_lea_pos_enc": rip_data_lea_pos_enc,
-        "rip_data_lea_data_off_enc": rip_data_lea_data_off_enc,
-        "rip_data_lea_rsi_pos_enc": rip_data_lea_rsi_pos_enc,
-        "rip_data_lea_rsi_data_off_enc": rip_data_lea_rsi_data_off_enc,
-        "rip_data_mov_rax_pos_enc": rip_data_mov_rax_pos_enc,
-        "rip_data_mov_rax_data_off_enc": rip_data_mov_rax_data_off_enc,
-        "data_fnobj_code_ptr_data_off_enc": data_fnobj_code_ptr_data_off_enc,
-        "data_fnobj_code_ptr_name": data_fnobj_code_ptr_name,
-        "rip_code_lea_pos_enc": rip_code_lea_pos_enc,
-        "rip_code_lea_name": rip_code_lea_name,
-        "rip_rdata_lea_pos_enc": rip_rdata_lea_pos_enc,
-        "rip_rdata_lea_data_off_enc": rip_rdata_lea_data_off_enc
-    }
+    return _x64_rtobj_compact_result(st)
 }
 
 fn _x64_rtobj_encode_fixups(fixups) {

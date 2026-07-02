@@ -189,6 +189,13 @@
 <p>  <code>struct stat</code> and OrenStatV0 offsets. The capped profile now exposes</p>
 <p>  <code>_x64_rtobj_encode_fixups_compact</code> (~73ms) as the next parser-body target.</p>
 <ul>
+<li>X64 runtime-object compact fixup encoding now uses explicit bucket state,</li>
+</ul>
+<p>  per-fixup routing, and result materialization helpers while preserving the</p>
+<p>  persisted compact metadata keys consumed by runtime-object replay. The capped</p>
+<p>  profile now exposes <code>_x64_index_emit_list_path</code> (~67ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
