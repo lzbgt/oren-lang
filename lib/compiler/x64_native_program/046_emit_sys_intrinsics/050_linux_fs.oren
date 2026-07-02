@@ -300,63 +300,83 @@ fn _x64_emit_sys_rename_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
-fn _x64_emit_sys_mkdir_or_chmod_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_mkdir" || nm == "sys_chmod" {
-        var want = 2
-        if oren_list_len(args) != want { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
-
-        var base9 = _intr_tmp_push(ctx, 3) // path, mode, pair
-        if oren_type_tag(base9) == 0 { return true }
-        var tmp_path = _intr_tmp_off(ctx, locals, base9 + 0)
-        var tmp_mode = _intr_tmp_off(ctx, locals, base9 + 1)
-        var tmp_pair = _intr_tmp_off(ctx, locals, base9 + 2)
-        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base9); return true }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base9); return true }
-
-        if capsule {
-            // pre: mkdir_pre(path) / chmod_pre(path) -> pair
-            _intr_load_x64(ctx, 7, tmp_path)
-            if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
-            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
-
-            // path_ptr from pair[0] into RSI
-            _intr_load_x64(ctx, 11, tmp_pair)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
-        } else {
-            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
-        }
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        _intr_load_x64(ctx, 2, tmp_mode) // rdx = mode
-        if nm == "sys_mkdir" {
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_mkdirat()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-            if capsule {
-                bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-                _intr_load_x64(ctx, 7, tmp_pair)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post")
-            }
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0)) // r10d = flags=0
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fchmodat()))
-            bytes_extend(ctx["code"], core.insn_syscall())
-            if capsule {
-                bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-                _intr_load_x64(ctx, 7, tmp_pair)
-                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post")
-            }
-        }
-
+fn _x64_prepare_sys_mkdir_or_chmod_x64(ctx, locals, args) {
+    var base9 = _intr_tmp_push(ctx, 3) // path, mode, pair
+    if oren_type_tag(base9) == 0 { return nil }
+    var state = {}
+    state["base"] = base9
+    state["tmp_path"] = _intr_tmp_off(ctx, locals, base9 + 0)
+    state["tmp_mode"] = _intr_tmp_off(ctx, locals, base9 + 1)
+    state["tmp_pair"] = _intr_tmp_off(ctx, locals, base9 + 2)
+    if oren_type_tag(state["tmp_path"]) == 0 ||
+       oren_type_tag(state["tmp_mode"]) == 0 ||
+       oren_type_tag(state["tmp_pair"]) == 0 {
         _intr_tmp_pop(ctx, base9)
-        return true
+        return nil
     }
 
-    return false
+    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_path"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_mode"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base9)
+        return nil
+    }
+    return state
+}
+
+fn _x64_emit_sys_mkdir_or_chmod_path_arg_x64(ctx, nm, capsule, state) {
+    if capsule {
+        // pre: mkdir_pre(path) / chmod_pre(path) -> pair
+        _intr_load_x64(ctx, 7, state["tmp_path"])
+        if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
+        _emit_mov_mrbp_r64(ctx, 0 - state["tmp_pair"], 0)
+
+        // path_ptr from pair[0] into RSI
+        _intr_load_x64(ctx, 11, state["tmp_pair"])
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+        return nil
+    }
+    _intr_load_x64(ctx, 6, state["tmp_path"]) // rsi = path
+    return nil
+}
+
+fn _x64_emit_sys_mkdir_or_chmod_syscall_x64(ctx, nm, state) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+    _intr_load_x64(ctx, 2, state["tmp_mode"]) // rdx = mode
+    if nm == "sys_mkdir" {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_mkdirat()))
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0)) // r10d = flags=0
+        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fchmodat()))
+    }
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_sys_mkdir_or_chmod_post_x64(ctx, nm, capsule, state) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+    _intr_load_x64(ctx, 7, state["tmp_pair"])
+    if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
+    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }
+    return nil
+}
+
+fn _x64_emit_sys_mkdir_or_chmod_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm != "sys_mkdir" && nm != "sys_chmod" { return false }
+    var want = 2
+    if oren_list_len(args) != want { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+    var state = _x64_prepare_sys_mkdir_or_chmod_x64(ctx, locals, args)
+    if state == nil { return true }
+    _x64_emit_sys_mkdir_or_chmod_path_arg_x64(ctx, nm, capsule, state)
+    _x64_emit_sys_mkdir_or_chmod_syscall_x64(ctx, nm, state)
+    _x64_emit_sys_mkdir_or_chmod_post_x64(ctx, nm, capsule, state)
+
+    _intr_tmp_pop(ctx, state["base"])
+    return true
 }
 
 fn _x64_emit_sys_getdirentries64_x64(ctx, nm, expr, locals, args, capsule) {
