@@ -1247,6 +1247,12 @@
 <p>																																																																			  <code>x64_native_program.oren</code> at about 42.7s total / 31.4s parse, with</p>
 <p>																																																																			  <code>_emit_intrinsic_sys_close_windows_x64</code> exposed at about 67ms as the next</p>
 <p>																																																																			  parser body.</p>
+<p>																																																																			  Windows x64 <code>sys_close</code> lowering now delegates fd spill/eval, capsule</p>
+<p>																																																																			  pre/post hooks, socket close attempt, handle fallback, and result mapping</p>
+<p>																																																																			  to focused helpers while preserving the socket-then-<code>CloseHandle</code></p>
+<p>																																																																			  contract. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																																																			  42.3s total / 30.9s parse, with <code>_emit_stack_trace_linux_best_effort</code></p>
+<p>																																																																			  exposed at about 65ms as the next parser body.</p>
 <p>																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

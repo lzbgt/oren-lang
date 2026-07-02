@@ -202,6 +202,13 @@
 <p>  the same buffer/value load emission. The capped profile now exposes</p>
 <p>  <code>_emit_intrinsic_sys_close_windows_x64</code> (~67ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 <code>sys_close</code> lowering now delegates fd spill/eval, capsule</li>
+</ul>
+<p>  pre/post hooks, socket close attempt, handle fallback, and result mapping to</p>
+<p>  focused helpers while preserving the socket-then-<code>CloseHandle</code> contract. The</p>
+<p>  capped profile now exposes <code>_emit_stack_trace_linux_best_effort</code> (~65ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

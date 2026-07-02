@@ -1002,13 +1002,7 @@ fn _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) {
     return _emit_intrinsic_sys_windows_msg6_x64(ctx, "sys_recvfrom", expr, locals, args)
 }
 
-fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_windows_close_spill_fd(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 1) // fd
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -1017,33 +1011,28 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    return {"base": base, "tmp_fd": tmp_fd}
+}
 
+fn _x64_windows_close_prehook(ctx, tmp_fd, capsule) {
     // pre: native_capsule_sys_close_pre(fd) -> fd
     if capsule {
         _intr_load_x64(ctx, 1, tmp_fd)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
     }
+    return nil
+}
 
-    // Close semantics (rolling):
-    // - Prefer closesocket(fd) (socket handles)
-    // - If it fails, fall back to CloseHandle(fd) (file/thread/process handles)
-    //
-    // Note:
-    // - Some non-socket HANDLE values can cause closesocket to fail with WSA errors
-    //   other than WSAENOTSOCK. To make sys_close robust for files created by `sys_open`,
-    //   we always attempt CloseHandle on closesocket failure and only return an error
-    //   if BOTH close paths fail.
+fn _x64_windows_close_emit_socket_attempt(ctx, tmp_fd, fixups, l_ok) {
     _intr_load_x64(ctx, 1, tmp_fd)
     _emit_call_iat_x64(ctx, "IAT_closesocket")
-
-    var labels = {}
-    var fixups = []
-    var l_ok = _new_label(ctx, "sys_close_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-    var l_post = _new_label(ctx, "sys_close_post")
+    return nil
+}
 
+fn _x64_windows_close_emit_handle_fallback(ctx, tmp_fd, labels, fixups, l_post) {
     // closesocket failed => attempt CloseHandle(fd).
     _intr_load_x64(ctx, 1, tmp_fd) // rcx = HANDLE
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
@@ -1057,19 +1046,56 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_post)
+    return nil
+}
+
+fn _x64_windows_close_emit_result(ctx, tmp_fd, labels, fixups) {
+    // Close semantics (rolling):
+    // - Prefer closesocket(fd) (socket handles)
+    // - If it fails, fall back to CloseHandle(fd) (file/thread/process handles)
+    //
+    // Some non-socket HANDLE values can cause closesocket to fail with WSA errors
+    // other than WSAENOTSOCK. To make sys_close robust for files created by
+    // `sys_open`, always attempt CloseHandle on closesocket failure and only
+    // return an error if BOTH close paths fail.
+    var l_ok = _new_label(ctx, "sys_close_ok")
+    var l_post = _new_label(ctx, "sys_close_post")
+    _x64_windows_close_emit_socket_attempt(ctx, tmp_fd, fixups, l_ok)
+    _x64_windows_close_emit_handle_fallback(ctx, tmp_fd, labels, fixups, l_post)
 
     _emit_label(ctx, labels, l_ok)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-
     _emit_label(ctx, labels, l_post)
+    return nil
+}
+
+fn _x64_windows_close_posthook(ctx, tmp_fd, capsule) {
     // post: native_capsule_sys_close_post(rc, fd) -> rc
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
         _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
     }
+    return nil
+}
 
+fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_windows_close_spill_fd(ctx, locals, args)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_fd = state["tmp_fd"]
+    var labels = {}
+    var fixups = []
+
+    _x64_windows_close_prehook(ctx, tmp_fd, capsule)
+    _x64_windows_close_emit_result(ctx, tmp_fd, labels, fixups)
+    _x64_windows_close_posthook(ctx, tmp_fd, capsule)
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
     return nil

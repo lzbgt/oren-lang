@@ -129,6 +129,11 @@ design evidence lives under `project-doc/`.
   bounds, buffer, and element-load helpers, and the assume-list fast path shares
   the same buffer/value load emission. The capped profile now exposes
   `_emit_intrinsic_sys_close_windows_x64` (~67ms) as the next parser-body target.
+- Windows x64 `sys_close` lowering now delegates fd spill/eval, capsule
+  pre/post hooks, socket close attempt, handle fallback, and result mapping to
+  focused helpers while preserving the socket-then-`CloseHandle` contract. The
+  capped profile now exposes `_emit_stack_trace_linux_best_effort` (~65ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
