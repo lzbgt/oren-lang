@@ -285,41 +285,26 @@ fn _x64_emit_bitwise_r64(ctx, op, rhs_reg) {
     return nil
 }
 
+fn _x64_emit_bitwise_imm32(ctx, op, imm_u32) {
+    if op == "&" { bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, imm_u32)) }
+    else if op == "|" { bytes_extend(ctx["code"], core.insn_or_r64_imm32(0, imm_u32)) }
+    else { bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, imm_u32)) }
+    return nil
+}
+
 fn _emit_eval_bitwise_infix_to_rax(ctx, op, l, r, locals) {
     _emit_eval_int_to_rax(ctx, l, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     if r != nil && r["type"] == "Integer" {
-        var n3 = intparse.parse_int_lit(r["value"])
-        if oren_is_err(n3) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
-        if _is_i32(n3) {
-            var imm_u32_3 = n3
-            if n3 < 0 { imm_u32_3 = 4294967296 + n3 }
-            if op == "&" { bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, imm_u32_3)) }
-            else if op == "|" { bytes_extend(ctx["code"], core.insn_or_r64_imm32(0, imm_u32_3)) }
-            else { bytes_extend(ctx["code"], core.insn_xor_r64_imm32(0, imm_u32_3)) }
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n3))
-            _x64_emit_bitwise_r64(ctx, op, 2)
-        }
+        _x64_emit_integer_infix_const_rhs(ctx, "bitwise", op, r)
         return nil
     }
     if r != nil && r["type"] == "Identifier" {
-        if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
-        _x64_emit_bitwise_r64(ctx, op, 2)
+        _x64_emit_integer_infix_identifier_rhs(ctx, "bitwise", op, r, locals)
         return nil
     }
 
-    var baseb = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(baseb) == 0 { return nil }
-    var tmp_offb = _intr_tmp_off(ctx, locals, baseb + 0)
-    if oren_type_tag(tmp_offb) == 0 { _intr_tmp_pop(ctx, baseb); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_offb, 0)
-    _emit_eval_int_to_rax(ctx, r, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, baseb); return nil }
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offb)
-    _x64_emit_bitwise_r64(ctx, op, 2)
-    _intr_tmp_pop(ctx, baseb)
+    _x64_emit_integer_infix_general_rhs(ctx, "bitwise", op, r, locals)
     return nil
 }
 
@@ -330,40 +315,72 @@ fn _x64_emit_arith_r64(ctx, op, rhs_reg) {
     return nil
 }
 
+fn _x64_emit_arith_imm32(ctx, op, imm_u32) {
+    if op == "+" { bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, imm_u32)) }
+    else if op == "-" { bytes_extend(ctx["code"], core.insn_sub_r64_imm32(0, imm_u32)) }
+    else { bytes_extend(ctx["code"], core.insn_imul_r64_imm32(0, imm_u32)) }
+    return nil
+}
+
+fn _x64_emit_integer_infix_r64(ctx, kind, op, rhs_reg) {
+    if kind == "bitwise" { _x64_emit_bitwise_r64(ctx, op, rhs_reg) }
+    else { _x64_emit_arith_r64(ctx, op, rhs_reg) }
+    return nil
+}
+
+fn _x64_emit_integer_infix_imm32(ctx, kind, op, imm_u32) {
+    if kind == "bitwise" { _x64_emit_bitwise_imm32(ctx, op, imm_u32) }
+    else { _x64_emit_arith_imm32(ctx, op, imm_u32) }
+    return nil
+}
+
+fn _x64_emit_integer_infix_const_rhs(ctx, kind, op, r) {
+    var n = intparse.parse_int_lit(r["value"])
+    if oren_is_err(n) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
+    if _is_i32(n) {
+        var imm_u32 = n
+        if n < 0 { imm_u32 = 4294967296 + n }
+        _x64_emit_integer_infix_imm32(ctx, kind, op, imm_u32)
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n))
+        _x64_emit_integer_infix_r64(ctx, kind, op, 2)
+    }
+    return nil
+}
+
+fn _x64_emit_integer_infix_identifier_rhs(ctx, kind, op, r, locals) {
+    if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
+    _x64_emit_integer_infix_r64(ctx, kind, op, 2)
+    return nil
+}
+
+fn _x64_emit_integer_infix_general_rhs(ctx, kind, op, r, locals) {
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_off = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(tmp_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off)
+    _x64_emit_integer_infix_r64(ctx, kind, op, 2)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
 fn _emit_eval_integer_arith_infix_to_rax(ctx, op, l, r, locals) {
     _emit_eval_int_to_rax(ctx, l, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     if r != nil && r["type"] == "Integer" {
-        var n2 = intparse.parse_int_lit(r["value"])
-        if oren_is_err(n2) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
-        if _is_i32(n2) {
-            var imm_u32_2 = n2
-            if n2 < 0 { imm_u32_2 = 4294967296 + n2 }
-            if op == "+" { bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, imm_u32_2)) }
-            else if op == "-" { bytes_extend(ctx["code"], core.insn_sub_r64_imm32(0, imm_u32_2)) }
-            else { bytes_extend(ctx["code"], core.insn_imul_r64_imm32(0, imm_u32_2)) }
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, n2))
-            _x64_emit_arith_r64(ctx, op, 2)
-        }
+        _x64_emit_integer_infix_const_rhs(ctx, "arith", op, r)
         return nil
     }
     if r != nil && r["type"] == "Identifier" {
-        if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
-        _x64_emit_arith_r64(ctx, op, 2)
+        _x64_emit_integer_infix_identifier_rhs(ctx, "arith", op, r, locals)
         return nil
     }
 
-    var base4 = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base4) == 0 { return nil }
-    var tmp_off4 = _intr_tmp_off(ctx, locals, base4 + 0)
-    if oren_type_tag(tmp_off4) == 0 { _intr_tmp_pop(ctx, base4); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_off4, 0)
-    _emit_eval_int_to_rax(ctx, r, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0))
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off4)
-    _x64_emit_arith_r64(ctx, op, 2)
-    _intr_tmp_pop(ctx, base4)
+    _x64_emit_integer_infix_general_rhs(ctx, "arith", op, r, locals)
     return nil
 }

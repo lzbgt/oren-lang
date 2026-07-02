@@ -454,6 +454,12 @@ design evidence lives under `project-doc/`.
   state map consumed by the emit loop. The capped profile now shows
   `x64_native_program.oren` at ~43.9s total / ~31.9s parse, with
   `_emit_eval_bitwise_infix_to_rax` (~54ms) as the next parser-body target.
+- X64 bitwise and arithmetic integer infix lowering now share constant,
+  identifier, and general-expression RHS emission, with small operation
+  dispatch helpers preserving the existing immediate and register x64 forms.
+  The capped profile now shows `x64_native_program.oren` at ~43.9s total /
+  ~31.9s parse, with `_emit_list_int_len_unchecked_intrinsic_v0_x64` (~54ms)
+  as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

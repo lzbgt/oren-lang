@@ -1566,6 +1566,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  state map consumed by the emit loop. The capped profile now shows
 																																																																																									  `x64_native_program.oren` at about 43.9s total / 31.9s parse, with
 																																																																																									  `_emit_eval_bitwise_infix_to_rax` exposed at about 54ms as the next parser body.
+																																																																																									  X64 bitwise and arithmetic integer infix lowering now share constant,
+																																																																																									  identifier, and general-expression RHS emission, with small operation
+																																																																																									  dispatch helpers preserving the existing immediate and register x64 forms.
+																																																																																									  The capped profile now shows `x64_native_program.oren` at about 43.9s total /
+																																																																																									  31.9s parse, with `_emit_list_int_len_unchecked_intrinsic_v0_x64` exposed at
+																																																																																									  about 54ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial
