@@ -576,6 +576,13 @@
 <p>  <code>_x64_fast_list_get_sum_emit_dynamic_add</code> (~60ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 fast LIST get-sum dynamic addition now delegates label allocation,</li>
+</ul>
+<p>  string-entry gating, string-pointer checks, concat dispatch, and integer-add</p>
+<p>  fallback to focused helpers while preserving register argument setup. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~45.0s total / ~33.0s</p>
+<p>  parse, with <code>_x64_fast_lcg_prepare</code> (~62ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

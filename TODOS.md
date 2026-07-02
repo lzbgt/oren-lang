@@ -397,6 +397,11 @@ design evidence lives under `project-doc/`.
   shows `x64_native_program.oren` at ~43.4s total / ~31.8s parse, with
   `_x64_fast_list_get_sum_emit_dynamic_add` (~60ms) as the next parser-body
   target.
+- X64 fast LIST get-sum dynamic addition now delegates label allocation,
+  string-entry gating, string-pointer checks, concat dispatch, and integer-add
+  fallback to focused helpers while preserving register argument setup. The
+  capped profile now shows `x64_native_program.oren` at ~45.0s total / ~33.0s
+  parse, with `_x64_fast_lcg_prepare` (~62ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
