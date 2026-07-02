@@ -1149,6 +1149,12 @@
 <p>																																																												  order. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>																																																												  42.6s total / 31.1s parse, with <code>_x64_classify_named_call_v0</code> exposed at</p>
 <p>																																																												  about 97ms as the next parser body.</p>
+<p>																																																												  X64 named-call classification now separates shadow-aware direct/import lookup,</p>
+<p>																																																												  varargs fixed-arity metadata lookup, wrapper/self-recursion suppression, and</p>
+<p>																																																												  direct-call arity validation while preserving the downstream call-info map</p>
+<p>																																																												  contract. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																																												  43.2s total / 31.7s parse, with <code>_emit_intrinsic_sys_read_linux_x64</code> exposed</p>
+<p>																																																												  at about 106ms as the next parser body.</p>
 <p>																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>									  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

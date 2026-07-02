@@ -1109,6 +1109,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																												  order. The capped profile now shows `x64_native_program.oren` at about
 																																																												  42.6s total / 31.1s parse, with `_x64_classify_named_call_v0` exposed at
 																																																												  about 97ms as the next parser body.
+																																																												  X64 named-call classification now separates shadow-aware direct/import lookup,
+																																																												  varargs fixed-arity metadata lookup, wrapper/self-recursion suppression, and
+																																																												  direct-call arity validation while preserving the downstream call-info map
+																																																												  contract. The capped profile now shows `x64_native_program.oren` at about
+																																																												  43.2s total / 31.7s parse, with `_emit_intrinsic_sys_read_linux_x64` exposed
+																																																												  at about 106ms as the next parser body.
 																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial

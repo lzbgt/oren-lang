@@ -808,8 +808,7 @@ fn _x64_emit_named_call_intrinsic_or_spread_v0(ctx, expr, locals, nm, args, argc
     return false
 }
 
-fn _x64_classify_named_call_v0(ctx, expr, locals, nm, argc) {
-    var is_direct = false
+fn _x64_named_call_direct_info(ctx, locals, nm) {
     var declared = ctx["declared_functions"]
     var is_import = false
     if ctx != nil && ctx["imports"] != nil && ctx["imports"][nm] != nil { is_import = true }
@@ -818,59 +817,81 @@ fn _x64_classify_named_call_v0(ctx, expr, locals, nm, argc) {
     var is_shadowed = false
     if locals != nil && locals[nm] != nil { is_shadowed = true }
     else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
+    var is_direct = false
     if is_shadowed != true && declared != nil && declared[nm] != nil { is_direct = true }
+    return {"is_direct": is_direct, "is_import": is_import}
+}
 
-    // Varargs packing (rolling): if the callee is a known named function with a trailing
-    // `...rest`, pack extra args into a list and call the real function with:
-    //   fn(fixed0, fixed1, ..., rest_list)
+fn _x64_named_call_varargs_fixed(ctx, nm) {
     var varargs_fixed = nil
     if ctx["func_varargs_fixed"] != nil {
         var vf_enc = ctx["func_varargs_fixed"][nm]
         if oren_type_tag(vf_enc) != 0 { varargs_fixed = vf_enc - 1 }
     }
-    var is_varargs_named = (is_direct == true && varargs_fixed != nil)
-    // Wrapper functions (`__oren_fnwrap_<name>`) already receive a pre-packed `rest_list` and
+    return varargs_fixed
+}
+
+fn _x64_named_call_should_pack_varargs(ctx, expr, nm, is_direct, varargs_fixed) {
+    if is_direct != true || varargs_fixed == nil { return false }
+    var cur_fn = ctx["cur_fn_name"]
+    // Wrapper functions (`__oren_fnwrap_*`) already receive a pre-packed `rest_list` and
     // must call the real varargs function at fixed arity (fixed args + rest_list).
     //
-    // Avoid applying call-site packing inside wrappers, otherwise we would produce nested rest
-    // lists (`rest = [[...]]`).
-    if is_varargs_named {
-        var cur_fn = ctx["cur_fn_name"]
-        // Wrapper functions (`__oren_fnwrap_*`) already receive a pre-packed `rest_list` and
-        // must call the real varargs function at fixed arity (fixed args + rest_list).
-        //
-        // Avoid applying call-site packing inside wrappers, otherwise we can produce:
-        // - nested rest lists (`rest = [[...]]`)
-        // - or accidental self-recursion via the uniform callable ABI.
-        //
-        // Prefer an explicit marker from wrapper synthesis when present; fall back to a
-        // name-based check for backwards compatibility.
-        if expr["__oren_varargs_packed"] != nil {
-            is_varargs_named = false
-            varargs_fixed = nil
-        } else if cur_fn != nil && cur_fn == "__oren_fnwrap_" + nm {
-            is_varargs_named = false
-            varargs_fixed = nil
-        }
+    // Avoid applying call-site packing inside wrappers, otherwise we can produce:
+    // - nested rest lists (`rest = [[...]]`)
+    // - or accidental self-recursion via the uniform callable ABI.
+    //
+    // Prefer an explicit marker from wrapper synthesis when present; fall back to a
+    // name-based check for backwards compatibility.
+    if expr["__oren_varargs_packed"] != nil { return false }
+    if cur_fn != nil && cur_fn == "__oren_fnwrap_" + nm { return false }
+    return true
+}
+
+fn _x64_validate_named_call_arity_v0(ctx, nm, argc, is_direct, is_import, is_varargs_named, varargs_fixed) {
+    if is_direct != true || is_import == true { return nil }
+    var arity2_enc = ctx["func_arity"][nm]
+    if oren_type_tag(arity2_enc) == 0 {
+        err(ctx, "x64 native v0: missing arity for function " + nm)
+        return nil
     }
 
-    var fixed_direct_arity = nil
-    if is_direct == true && is_import != true {
-        var arity2_enc = ctx["func_arity"][nm]
-        if oren_type_tag(arity2_enc) == 0 { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
-        var arity2 = arity2_enc - 1
-        if is_varargs_named {
-            var fixed = varargs_fixed
-            if argc < fixed { err(ctx, "x64 native v0: varargs arity mismatch for " + nm); return nil }
-            if arity2 != fixed + 1 {
-                err(ctx, "x64 native v0: inconsistent varargs signature for " + nm)
-                return nil
-            }
-        } else {
-            if argc > arity2 { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
-            fixed_direct_arity = arity2
+    var arity2 = arity2_enc - 1
+    if is_varargs_named {
+        var fixed = varargs_fixed
+        if argc < fixed {
+            err(ctx, "x64 native v0: varargs arity mismatch for " + nm)
+            return nil
         }
+        if arity2 != fixed + 1 {
+            err(ctx, "x64 native v0: inconsistent varargs signature for " + nm)
+            return nil
+        }
+        return {"fixed_direct_arity": nil}
     }
+    if argc > arity2 {
+        err(ctx, "x64 native v0: call arity mismatch for " + nm)
+        return nil
+    }
+    return {"fixed_direct_arity": arity2}
+}
+
+fn _x64_classify_named_call_v0(ctx, expr, locals, nm, argc) {
+    var direct_info = _x64_named_call_direct_info(ctx, locals, nm)
+    var is_direct = direct_info["is_direct"]
+    var is_import = direct_info["is_import"]
+
+    // Varargs packing (rolling): if the callee is a known named function with a trailing
+    // `...rest`, pack extra args into a list and call the real function with:
+    //   fn(fixed0, fixed1, ..., rest_list)
+    var varargs_fixed = _x64_named_call_varargs_fixed(ctx, nm)
+    var is_varargs_named = _x64_named_call_should_pack_varargs(ctx, expr, nm, is_direct, varargs_fixed)
+    if is_varargs_named != true { varargs_fixed = nil }
+
+    var arity_info = _x64_validate_named_call_arity_v0(ctx, nm, argc, is_direct, is_import, is_varargs_named, varargs_fixed)
+    if is_direct == true && is_import != true && arity_info == nil { return nil }
+    var fixed_direct_arity = nil
+    if arity_info != nil { fixed_direct_arity = arity_info["fixed_direct_arity"] }
 
     return {
         "is_direct": is_direct,
