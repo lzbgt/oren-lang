@@ -1372,6 +1372,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  preserving the existing WinSock select ABI path. The capped profile now shows
 																																																																								  `x64_native_program.oren` at about 43.1s total / 31.6s parse, with
 																																																																								  `_x64_prepare_user_global_slots` exposed at about 63ms as the next parser body.
+																																																																								  X64 user-global slot preparation now uses an explicit prep-state object plus
+																																																																								  separate loop, path-accounting, and done-log helpers while preserving direct
+																																																																								  data init and runtime-zero slot behavior. The capped profile now shows
+																																																																								  `x64_native_program.oren` at about 42.7s total / 31.3s parse, with
+																																																																								  `_x64_emit_list_int_push_validate` exposed at about 61ms as the next parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

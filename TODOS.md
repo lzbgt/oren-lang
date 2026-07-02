@@ -265,6 +265,11 @@ design evidence lives under `project-doc/`.
   preserving the existing WinSock select ABI path. The capped profile now shows
   `x64_native_program.oren` at ~43.1s total / ~31.6s parse, with
   `_x64_prepare_user_global_slots` (~63ms) as the next parser-body target.
+- X64 user-global slot preparation now uses an explicit prep-state object plus
+  separate loop, path-accounting, and done-log helpers while preserving direct
+  data init and runtime-zero slot behavior. The capped profile now shows
+  `x64_native_program.oren` at ~42.7s total / ~31.3s parse, with
+  `_x64_emit_list_int_push_validate` (~61ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

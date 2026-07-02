@@ -394,6 +394,13 @@
 <p>  <code>x64_native_program.oren</code> at ~43.1s total / ~31.6s parse, with</p>
 <p>  <code>_x64_prepare_user_global_slots</code> (~63ms) as the next parser-body target.</p>
 <ul>
+<li>X64 user-global slot preparation now uses an explicit prep-state object plus</li>
+</ul>
+<p>  separate loop, path-accounting, and done-log helpers while preserving direct</p>
+<p>  data init and runtime-zero slot behavior. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~42.7s total / ~31.3s parse, with</p>
+<p>  <code>_x64_emit_list_int_push_validate</code> (~61ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

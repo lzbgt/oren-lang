@@ -512,9 +512,70 @@ fn _x64_prepare_one_user_global_slot(ctx, st2, runtime_vars, runtime_globals,
     }
 }
 
+fn _x64_user_global_slots_state(ctx, user_vars) {
+    return {
+        "phase_log": ctx["phase_log"],
+        "direct_string_globals": _x64_direct_data_string_globals_enabled(),
+        "user_global_init_in_data_flags": [],
+        "user_global_off_encs": [],
+        "data_const_alias_targets": _x64_collect_data_const_alias_targets(ctx, user_vars),
+        "slot_direct_int": 0,
+        "slot_direct_string": 0,
+        "slot_direct_singleton": 0,
+        "slot_direct_alias": 0,
+        "slot_zero_runtime": 0,
+        "slot_slow_ms": _x64_user_global_slot_slow_threshold_ms(),
+        "total": oren_list_len(user_vars)
+    }
+}
+
+fn _x64_user_global_slots_record(state, slot_info) {
+    var slot_path = slot_info["path"]
+    if slot_path == "direct_int" { state["slot_direct_int"] = state["slot_direct_int"] + 1 }
+    else if slot_path == "direct_string" { state["slot_direct_string"] = state["slot_direct_string"] + 1 }
+    else if slot_path == "direct_singleton" { state["slot_direct_singleton"] = state["slot_direct_singleton"] + 1 }
+    else if slot_path == "direct_alias" { state["slot_direct_alias"] = state["slot_direct_alias"] + 1 }
+    else { state["slot_zero_runtime"] = state["slot_zero_runtime"] + 1 }
+    oren_list_push(state["user_global_init_in_data_flags"], slot_info["direct_init_in_data"])
+    oren_list_push(state["user_global_off_encs"], slot_info["off_enc"])
+    return nil
+}
+
+fn _x64_prepare_user_global_slots_loop(ctx, state, runtime_vars, user_vars, runtime_globals) {
+    var i = 0
+    while i < oren_list_len(user_vars) {
+        var st2 = user_vars[i]
+        if st2 != nil {
+            var slot_info = _x64_prepare_one_user_global_slot(ctx, st2, runtime_vars, runtime_globals,
+                state["direct_string_globals"], state["data_const_alias_targets"], state["slot_slow_ms"], i, state["total"])
+            if slot_info == nil { return false }
+            _x64_user_global_slots_record(state, slot_info)
+        }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_log_user_global_slots_done(ctx, state) {
+    var phase_log = state["phase_log"]
+    if phase_log == nil { return nil }
+    var direct_string_globals_label = "false"
+    if state["direct_string_globals"] == true { direct_string_globals_label = "true" }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.user_slots.done",
+        "user_vars=" + oren_int_to_string(state["total"]) +
+        " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
+        " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])) +
+        " direct_string_globals=" + direct_string_globals_label +
+        " direct_int=" + oren_int_to_string(state["slot_direct_int"]) +
+        " direct_string=" + oren_int_to_string(state["slot_direct_string"]) +
+        " direct_singleton=" + oren_int_to_string(state["slot_direct_singleton"]) +
+        " direct_alias=" + oren_int_to_string(state["slot_direct_alias"]) +
+        " runtime_zero=" + oren_int_to_string(state["slot_zero_runtime"]))
+    return nil
+}
+
 fn _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals) {
     if ctx == nil { return nil }
-    var phase_log = ctx["phase_log"]
     if runtime_vars == nil { runtime_vars = [] }
     if user_vars == nil { user_vars = [] }
 
@@ -522,53 +583,14 @@ fn _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals)
     // materialized directly in `.data`. Direct string globals stay opt-in because measured
     // self-host probes show slot-time string data relocation is slower than emitting the
     // synthesized `__top_level__` assignments through the dedicated string fast path.
-    var direct_string_globals = _x64_direct_data_string_globals_enabled()
-    var user_global_init_in_data_flags = []
-    var user_global_off_encs = []
-    var data_const_alias_targets = _x64_collect_data_const_alias_targets(ctx, user_vars)
-    var slot_direct_int = 0
-    var slot_direct_string = 0
-    var slot_direct_singleton = 0
-    var slot_direct_alias = 0
-    var slot_zero_runtime = 0
-    var slot_slow_ms = _x64_user_global_slot_slow_threshold_ms()
-    var i = 0
-    while i < oren_list_len(user_vars) {
-        var st2 = user_vars[i]
-        if st2 != nil {
-            var slot_info = _x64_prepare_one_user_global_slot(ctx, st2, runtime_vars, runtime_globals,
-                direct_string_globals, data_const_alias_targets, slot_slow_ms, i, oren_list_len(user_vars))
-            if slot_info == nil { return nil }
-            var slot_path = slot_info["path"]
-            if slot_path == "direct_int" { slot_direct_int = slot_direct_int + 1 }
-            else if slot_path == "direct_string" { slot_direct_string = slot_direct_string + 1 }
-            else if slot_path == "direct_singleton" { slot_direct_singleton = slot_direct_singleton + 1 }
-            else if slot_path == "direct_alias" { slot_direct_alias = slot_direct_alias + 1 }
-            else { slot_zero_runtime = slot_zero_runtime + 1 }
-            oren_list_push(user_global_init_in_data_flags, slot_info["direct_init_in_data"])
-            oren_list_push(user_global_off_encs, slot_info["off_enc"])
-        }
-        i = i + 1
-    }
-    if phase_log != nil {
-        var direct_string_globals_label = "false"
-        if direct_string_globals == true { direct_string_globals_label = "true" }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.user_slots.done",
-            "user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
-            " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
-            " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])) +
-            " direct_string_globals=" + direct_string_globals_label +
-            " direct_int=" + oren_int_to_string(slot_direct_int) +
-            " direct_string=" + oren_int_to_string(slot_direct_string) +
-            " direct_singleton=" + oren_int_to_string(slot_direct_singleton) +
-            " direct_alias=" + oren_int_to_string(slot_direct_alias) +
-            " runtime_zero=" + oren_int_to_string(slot_zero_runtime))
-    }
+    var state = _x64_user_global_slots_state(ctx, user_vars)
+    if _x64_prepare_user_global_slots_loop(ctx, state, runtime_vars, user_vars, runtime_globals) != true { return nil }
+    _x64_log_user_global_slots_done(ctx, state)
 
     _x64_trace_global_slots(ctx, "after_prepare_globals")
     return {
-        "user_global_init_in_data_flags": user_global_init_in_data_flags,
-        "user_global_off_encs": user_global_off_encs,
+        "user_global_init_in_data_flags": state["user_global_init_in_data_flags"],
+        "user_global_off_encs": state["user_global_off_encs"],
     }
 }
 
