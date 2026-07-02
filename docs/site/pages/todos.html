@@ -266,6 +266,13 @@
 <p>  capped profile now exposes <code>_data_finalize_symtab</code> (~67ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>X64 symbol-table finalization now separates reserved-table decoding, entry</li>
+</ul>
+<p>  offset/display-name collection, deterministic descending sort, and reserved</p>
+<p>  region patching while preserving <code>__entry_stub__</code> offset-zero encoding. The</p>
+<p>  capped profile now exposes <code>_x64_emit_top_string_global_batch_loop</code> (~71ms)</p>
+<p>  as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -1303,6 +1303,12 @@
 <p>																																																																			  capped profile now shows <code>x64_native_program.oren</code> at about 43.6s total /</p>
 <p>																																																																			  32.2s parse, with <code>_data_finalize_symtab</code> exposed at about 67ms as the next</p>
 <p>																																																																			  parser body.</p>
+<p>																																																																			  X64 symbol-table finalization now separates reserved-table decoding, entry</p>
+<p>																																																																			  offset/display-name collection, deterministic descending sort, and reserved</p>
+<p>																																																																			  region patching while preserving <code>__entry_stub__</code> offset-zero encoding. The</p>
+<p>																																																																			  capped profile now shows <code>x64_native_program.oren</code> at about 45.3s total /</p>
+<p>																																																																			  33.6s parse, with <code>_x64_emit_top_string_global_batch_loop</code> exposed at about</p>
+<p>																																																																			  71ms as the next parser body.</p>
 <p>																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

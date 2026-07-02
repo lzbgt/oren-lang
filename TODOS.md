@@ -175,6 +175,11 @@ design evidence lives under `project-doc/`.
   and phase logging while preserving the `g_storage` bootstrap exception. The
   capped profile now exposes `_data_finalize_symtab` (~67ms) as the next
   parser-body target.
+- X64 symbol-table finalization now separates reserved-table decoding, entry
+  offset/display-name collection, deterministic descending sort, and reserved
+  region patching while preserving `__entry_stub__` offset-zero encoding. The
+  capped profile now exposes `_x64_emit_top_string_global_batch_loop` (~71ms)
+  as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

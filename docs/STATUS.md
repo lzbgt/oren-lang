@@ -1263,6 +1263,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  capped profile now shows `x64_native_program.oren` at about 43.6s total /
 																																																																			  32.2s parse, with `_data_finalize_symtab` exposed at about 67ms as the next
 																																																																			  parser body.
+																																																																			  X64 symbol-table finalization now separates reserved-table decoding, entry
+																																																																			  offset/display-name collection, deterministic descending sort, and reserved
+																																																																			  region patching while preserving `__entry_stub__` offset-zero encoding. The
+																																																																			  capped profile now shows `x64_native_program.oren` at about 45.3s total /
+																																																																			  33.6s parse, with `_x64_emit_top_string_global_batch_loop` exposed at about
+																																																																			  71ms as the next parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

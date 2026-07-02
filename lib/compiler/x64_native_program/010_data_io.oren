@@ -441,58 +441,64 @@ fn _x64_data_lookup_function_offset(ctx, nm) {
     return nil
 }
 
-fn _data_finalize_symtab(ctx) {
-    // Fill the reserved symtab region (see `_data_reserve_symtab`).
-    if ctx == nil { return nil }
-    // Offsets can legitimately be 0; store/read as `off+1` so offset 0 is representable while
-    // still using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
+fn _data_symtab_state(ctx) {
     var symtab_off_enc = ctx["symtab_off"]
     var sym_names = ctx["symtab_names"]
     if oren_type_tag(symtab_off_enc) != 1 { return nil }
     if symtab_off_enc <= 0 { return nil }
     if sym_names == nil { return nil }
-    var symtab_off = symtab_off_enc - 1
+    return {"off": symtab_off_enc - 1, "names": sym_names, "count": oren_list_len(sym_names)}
+}
 
-    var count = oren_list_len(sym_names)
+fn _data_reset_reserved_symtab_header(ctx, symtab_off) {
     // Header is patched after we know how many valid entries we wrote.
     set_u32_le(ctx["data"], symtab_off + 0, 0)
     set_u32_le(ctx["data"], symtab_off + 4, 0)
+    return nil
+}
 
-    // Build entries as {off:int, name:string, name_off:int} then sort descending by off.
-    // Descending order lets symbol resolution pick the closest preceding function via:
-    //   if off_target >= entry.off { return entry.name }
-    var entries = []
+fn _data_symtab_offset_enc(ctx, nm) {
+    if nm == "__entry_stub__" { return 1 }
+    var off0 = _x64_data_lookup_function_offset(ctx, nm)
+    if oren_type_tag(off0) != 0 { return off0 + 1 }
+    return 0
+}
 
-    var i = 0
-    while i < count {
-        var nm = sym_names[i]
-        if nm == nil { i = i + 1; continue }
+fn _data_symtab_display_name(ctx, nm) {
+    if ctx["symtab_display"] != nil && ctx["symtab_display"][nm] != nil {
+        return ctx["symtab_display"][nm]
+    }
+    return nm
+}
 
-        // Encode offsets as `off+1` so a real offset 0 (`__entry_stub__`) is representable.
-        var off_enc = 0
-        if nm == "__entry_stub__" {
-            off_enc = 1
-        } else {
-            var off0 = _x64_data_lookup_function_offset(ctx, nm)
-            if oren_type_tag(off0) != 0 { off_enc = off0 + 1 }
-        }
-        if off_enc == 0 {
-            err(ctx, "x64 native v0: symtab missing function offset for " + nm)
-            // Do not create a bogus entry that matches everything.
-            i = i + 1
-            continue
-        }
+fn _data_symtab_collect_one_entry(ctx, nm) {
+    if nm == nil { return nil }
 
-        var disp = nm
-        if ctx["symtab_display"] != nil && ctx["symtab_display"][nm] != nil {
-            disp = ctx["symtab_display"][nm]
-        }
-        var name_off = _data_add_cstr0(ctx, disp)
-        // name_off can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
-        oren_list_push(entries, {"off_enc": off_enc, "name": nm, "name_off": name_off})
-        i = i + 1
+    // Encode offsets as `off+1` so a real offset 0 (`__entry_stub__`) is representable.
+    var off_enc = _data_symtab_offset_enc(ctx, nm)
+    if off_enc == 0 {
+        err(ctx, "x64 native v0: symtab missing function offset for " + nm)
+        // Do not create a bogus entry that matches everything.
+        return nil
     }
 
+    var name_off = _data_add_cstr0(ctx, _data_symtab_display_name(ctx, nm))
+    // name_off can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
+    return {"off_enc": off_enc, "name": nm, "name_off": name_off}
+}
+
+fn _data_symtab_collect_entries(ctx, sym_names) {
+    var entries = []
+    var i = 0
+    while i < oren_list_len(sym_names) {
+        var e = _data_symtab_collect_one_entry(ctx, sym_names[i])
+        if e != nil { oren_list_push(entries, e) }
+        i = i + 1
+    }
+    return entries
+}
+
+fn _data_symtab_sort_entries(entries) {
     // Insertion sort (descending by off). Small N expected; keep deterministic.
     var si = 1
     while si < oren_list_len(entries) {
@@ -507,7 +513,10 @@ fn _data_finalize_symtab(ctx) {
         entries[k + 1] = key
         si = si + 1
     }
+    return nil
+}
 
+fn _data_symtab_write_entries(ctx, symtab_off, entries, count) {
     // Write entries into the reserved table region (truncate/pad if needed).
     // NOTE: we reserved `count` entries, but we may have fewer if errors occurred.
     var write_n = oren_list_len(entries)
@@ -524,6 +533,27 @@ fn _data_finalize_symtab(ctx) {
         set_u32_le(ctx["data"], pos + 4, core.int_mod(e_name_off, 4294967296))
         j = j + 1
     }
+    return nil
+}
+
+fn _data_finalize_symtab(ctx) {
+    // Fill the reserved symtab region (see `_data_reserve_symtab`).
+    if ctx == nil { return nil }
+    // Offsets can legitimately be 0; store/read as `off+1` so offset 0 is representable while
+    // still using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
+    var st = _data_symtab_state(ctx)
+    if st == nil { return nil }
+    var symtab_off = st["off"]
+    var sym_names = st["names"]
+    var count = st["count"]
+    _data_reset_reserved_symtab_header(ctx, symtab_off)
+
+    // Build entries as {off:int, name:string, name_off:int} then sort descending by off.
+    // Descending order lets symbol resolution pick the closest preceding function via:
+    //   if off_target >= entry.off { return entry.name }
+    var entries = _data_symtab_collect_entries(ctx, sym_names)
+    _data_symtab_sort_entries(entries)
+    _data_symtab_write_entries(ctx, symtab_off, entries, count)
     return nil
 }
 
