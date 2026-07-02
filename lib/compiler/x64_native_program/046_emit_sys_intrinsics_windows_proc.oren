@@ -199,32 +199,36 @@ fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
     return nil
 }
 
-fn _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup) {
-    var tmp_to = st["tmp_to"]
-    var PROC_OFF = st["proc_off"]
-    // Wait:
-    // - timeout < 0: WaitForSingleObject(hProcess, INFINITE)
-    // - timeout >=0: poll WaitForSingleObject(hProcess, 0) `timeout` times (budget), else -ETIMEDOUT
-    var l_poll = _new_label(ctx, "win_cp_poll")
-    var l_wait_done = _new_label(ctx, "win_cp_wait_done")
-    var l_timeout = _new_label(ctx, "win_cp_timeout")
+fn _x64_win_cp_emit_wait_error(ctx, fixups, l_cleanup) {
+    _emit_win32_get_last_error_x64(ctx)
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    bytes_extend(ctx["code"], core.insn_neg_r64(0))
+    _emit_jmp_to_label(ctx, fixups, l_cleanup)
+    return nil
+}
 
+fn _x64_win_cp_emit_wait_dispatch(ctx, st, fixups, l_poll) {
+    var tmp_to = st["tmp_to"]
     _intr_load_x64(ctx, 0, tmp_to)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ge", l_poll)
+    return nil
+}
 
-    // Infinite wait
+fn _x64_win_cp_emit_infinite_wait(ctx, st, fixups, l_wait_done, l_cleanup) {
+    var PROC_OFF = st["proc_off"]
     _emit_mov_r64_mrsp(ctx, 1, PROC_OFF)                            // rcx = hProcess
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 4294967295))     // edx = INFINITE
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))             // WAIT_OBJECT_0 == 0
     _emit_jcc_to_label(ctx, fixups, "e", l_wait_done)
-    _emit_win32_get_last_error_x64(ctx)
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    bytes_extend(ctx["code"], core.insn_neg_r64(0))
-    _emit_jmp_to_label(ctx, fixups, l_cleanup)
+    _x64_win_cp_emit_wait_error(ctx, fixups, l_cleanup)
+    return nil
+}
 
-    // Poll wait
+fn _x64_win_cp_emit_poll_wait(ctx, st, labels, fixups, l_poll, l_wait_done, l_timeout, l_cleanup) {
+    var tmp_to = st["tmp_to"]
+    var PROC_OFF = st["proc_off"]
     _emit_label(ctx, labels, l_poll)
     // if timeout_budget <= 0 => timeout
     _intr_load_x64(ctx, 0, tmp_to)
@@ -240,10 +244,7 @@ fn _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     var l_poll_continue = _new_label(ctx, "win_cp_poll_continue")
     _emit_jcc_to_label(ctx, fixups, "ne", l_poll_continue)
-    _emit_win32_get_last_error_x64(ctx)
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    bytes_extend(ctx["code"], core.insn_neg_r64(0))
-    _emit_jmp_to_label(ctx, fixups, l_cleanup)
+    _x64_win_cp_emit_wait_error(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_poll_continue)
 
@@ -252,11 +253,28 @@ fn _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup) {
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(0, 1))
     _emit_mov_mrbp_r64(ctx, 0 - tmp_to, 0)
     _emit_jmp_to_label(ctx, fixups, l_poll)
+    return nil
+}
 
+fn _x64_win_cp_emit_wait_timeout(ctx, labels, fixups, l_timeout, l_cleanup) {
     _emit_label(ctx, labels, l_timeout)
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
+    return nil
+}
 
+fn _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup) {
+    // Wait:
+    // - timeout < 0: WaitForSingleObject(hProcess, INFINITE)
+    // - timeout >=0: poll WaitForSingleObject(hProcess, 0) `timeout` times (budget), else -ETIMEDOUT
+    var l_poll = _new_label(ctx, "win_cp_poll")
+    var l_wait_done = _new_label(ctx, "win_cp_wait_done")
+    var l_timeout = _new_label(ctx, "win_cp_timeout")
+
+    _x64_win_cp_emit_wait_dispatch(ctx, st, fixups, l_poll)
+    _x64_win_cp_emit_infinite_wait(ctx, st, fixups, l_wait_done, l_cleanup)
+    _x64_win_cp_emit_poll_wait(ctx, st, labels, fixups, l_poll, l_wait_done, l_timeout, l_cleanup)
+    _x64_win_cp_emit_wait_timeout(ctx, labels, fixups, l_timeout, l_cleanup)
     _emit_label(ctx, labels, l_wait_done)
     return nil
 }

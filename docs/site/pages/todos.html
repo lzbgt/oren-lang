@@ -325,6 +325,13 @@
 <p>  Win64 stack-argument layout for timeout and alertable. The capped profile now</p>
 <p>  exposes <code>_x64_win_cp_emit_wait</code> (~63ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 <code>sys_win_createprocess</code> wait lowering now delegates timeout-mode</li>
+</ul>
+<p>  dispatch, infinite wait, poll wait, timeout return, and shared Win32 wait-error</p>
+<p>  mapping to focused helpers while preserving deterministic timeout-budget</p>
+<p>  polling. The capped profile now exposes <code>_emit_float64_binop_x64</code> (~63ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

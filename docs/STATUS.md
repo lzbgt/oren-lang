@@ -1313,6 +1313,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																				  Win64 stack-argument layout for timeout and alertable. The capped profile now
 																																																																				  shows `x64_native_program.oren` at about 42.9s total / 31.4s parse, with
 																																																																				  `_x64_win_cp_emit_wait` exposed at about 63ms as the next parser body.
+																																																																				  Windows x64 `sys_win_createprocess` wait lowering now delegates timeout-mode
+																																																																				  dispatch, infinite wait, poll wait, timeout return, and shared Win32 wait-error
+																																																																				  mapping to focused helpers while preserving deterministic timeout-budget
+																																																																				  polling. The capped profile now shows `x64_native_program.oren` at about
+																																																																				  42.9s total / 31.5s parse, with `_emit_float64_binop_x64` exposed at about
+																																																																				  63ms as the next parser body.
 																																																												  Serial/thread module ASTBIN writes are explicit prewarm work via
 												  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 				  as a candidate and `false` disables serial-write candidates. Actual serial
