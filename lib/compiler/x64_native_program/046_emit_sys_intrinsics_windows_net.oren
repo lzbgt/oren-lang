@@ -203,11 +203,7 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_select expects 5 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_select does not support spread"); return nil }
-
+fn _x64_windows_select_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 5) // nfds, readfds, writefds, exceptfds, tv
     if oren_type_tag(base) == 0 { return nil }
     var tmp_nfds = _intr_tmp_off(ctx, locals, base + 0)
@@ -223,19 +219,28 @@ fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_e)
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_tv)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_nfds": tmp_nfds, "tmp_r": tmp_r, "tmp_w": tmp_w, "tmp_e": tmp_e, "tmp_tv": tmp_tv}
+}
 
+fn _x64_windows_select_load_args(ctx, st) {
+    _intr_load_x64(ctx, 1, st["tmp_nfds"]) // rcx
+    _intr_load_x64(ctx, 2, st["tmp_r"])    // rdx
+    _intr_load_x64(ctx, 8, st["tmp_w"])    // r8
+    _intr_load_x64(ctx, 9, st["tmp_e"])    // r9
+    _intr_load_x64(ctx, 10, st["tmp_tv"])  // r10 = tv
+    return nil
+}
+
+fn _x64_windows_select_emit_call(ctx, st) {
     // select(nfds, readfds, writefds, exceptfds, tv)
-    _intr_load_x64(ctx, 1, tmp_nfds) // rcx
-    _intr_load_x64(ctx, 2, tmp_r)    // rdx
-    _intr_load_x64(ctx, 8, tmp_w)    // r8
-    _intr_load_x64(ctx, 9, tmp_e)    // r9
-    _intr_load_x64(ctx, 10, tmp_tv)  // r10 = tv
+    _x64_windows_select_load_args(ctx, st)
     _emit_mov_mrsp_r64(ctx, 32, 10)  // arg5 at [rsp+0x20]
     _emit_call_iat_x64(ctx, "IAT_select")
+    return nil
+}
 
+fn _x64_windows_select_normalize_result(ctx, labels, fixups) {
     // If rc == SOCKET_ERROR (-1), translate WSAGetLastError to -errno.
-    var labels = {}
-    var fixups = []
     var l_ok = _new_label(ctx, "sys_select_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
@@ -245,8 +250,23 @@ fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_ok)
     bytes_extend(ctx["code"], core.insn_cdqe()) // widen rc to i64
     _emit_label(ctx, labels, l_done)
+    return nil
+}
+
+fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_select expects 5 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_select does not support spread"); return nil }
+
+    var st = _x64_windows_select_state(ctx, locals, args)
+    if st == nil { return nil }
+    var labels = {}
+    var fixups = []
+
+    _x64_windows_select_emit_call(ctx, st)
+    _x64_windows_select_normalize_result(ctx, labels, fixups)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 

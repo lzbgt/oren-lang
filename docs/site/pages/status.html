@@ -1407,6 +1407,11 @@
 <p>																																																																								  now shows <code>x64_native_program.oren</code> at about 43.9s total / 32.2s parse, with</p>
 <p>																																																																								  <code>_emit_intrinsic_sys_select_windows_x64</code> exposed at about 63ms as the next</p>
 <p>																																																																								  parser body.</p>
+<p>																																																																								  Windows x64 <code>sys_select</code> lowering now splits temp-state capture, Win64 arg5</p>
+<p>																																																																								  call setup, and SOCKET_ERROR-to-errno normalization into focused helpers while</p>
+<p>																																																																								  preserving the existing WinSock select ABI path. The capped profile now shows</p>
+<p>																																																																								  <code>x64_native_program.oren</code> at about 43.1s total / 31.6s parse, with</p>
+<p>																																																																								  <code>_x64_prepare_user_global_slots</code> exposed at about 63ms as the next parser body.</p>
 <p>																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
