@@ -53,76 +53,93 @@ fn _emit_eval_call_runtime_required_x64(ctx, expr, locals, nm, nm_len, nm_is_ore
     return 0
 }
 
+fn _x64_emit_generic_call_expr_handled(ctx, expr, locals, nm, args) {
+    _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
+    return 1
+}
+
+fn _x64_call_name_has_prefix4(nm, c0, c1, c2, c3) {
+    if (oren_string_byte_at_unchecked(nm, 0) & 255) != c0 { return false }
+    if (oren_string_byte_at_unchecked(nm, 1) & 255) != c1 { return false }
+    if (oren_string_byte_at_unchecked(nm, 2) & 255) != c2 { return false }
+    if (oren_string_byte_at_unchecked(nm, 3) & 255) != c3 { return false }
+    return true
+}
+
+fn _x64_call_name_has_prefix5(nm, c0, c1, c2, c3, c4) {
+    if _x64_call_name_has_prefix4(nm, c0, c1, c2, c3) != true { return false }
+    if (oren_string_byte_at_unchecked(nm, 4) & 255) != c4 { return false }
+    return true
+}
+
+fn _x64_call_name_has_prefix6(nm, c0, c1, c2, c3, c4, c5) {
+    if _x64_call_name_has_prefix5(nm, c0, c1, c2, c3, c4) != true { return false }
+    if (oren_string_byte_at_unchecked(nm, 5) & 255) != c5 { return false }
+    return true
+}
+
+fn _x64_call_name_has_prefix7(nm, c0, c1, c2, c3, c4, c5, c6) {
+    if _x64_call_name_has_prefix6(nm, c0, c1, c2, c3, c4, c5) != true { return false }
+    if (oren_string_byte_at_unchecked(nm, 6) & 255) != c6 { return false }
+    return true
+}
+
+fn _x64_emit_internal_fast_core_or_push(ctx, expr, locals, nm, nm_len, args) {
+    if nm_len < 5 { return 0 }
+    // "core.insn_" lowers to a call name starting with "insn_" after dot resolution.
+    if _x64_call_name_has_prefix5(nm, 105, 110, 115, 110, 95) { // insn_
+        return _x64_emit_generic_call_expr_handled(ctx, expr, locals, nm, args)
+    }
+    if _x64_call_name_has_prefix5(nm, 112, 117, 115, 104, 95) { // push_
+        return _x64_emit_generic_call_expr_handled(ctx, expr, locals, nm, args)
+    }
+    return 0
+}
+
+fn _x64_emit_internal_fast_set_or_bytes(ctx, expr, locals, nm, nm_len, args) {
+    if nm_len >= 4 {
+        if _x64_call_name_has_prefix4(nm, 115, 101, 116, 95) { // set_
+            return _x64_emit_generic_call_expr_handled(ctx, expr, locals, nm, args)
+        }
+    }
+    if nm_len >= 6 {
+        if _x64_call_name_has_prefix6(nm, 98, 121, 116, 101, 115, 95) { // bytes_
+            return _x64_emit_generic_call_expr_handled(ctx, expr, locals, nm, args)
+        }
+    }
+    return 0
+}
+
+fn _x64_internal_fast_name_is_native_call1(nm, nm_len) {
+    if nm_len != 12 { return false }
+    if _x64_call_name_has_prefix7(nm, 110, 97, 116, 105, 118, 101, 95) != true { return false }
+    if (oren_string_byte_at_unchecked(nm, 7) & 255) != 99 { return false }  // c
+    if (oren_string_byte_at_unchecked(nm, 8) & 255) != 97 { return false }  // a
+    if (oren_string_byte_at_unchecked(nm, 9) & 255) != 108 { return false } // l
+    if (oren_string_byte_at_unchecked(nm, 10) & 255) != 108 { return false } // l
+    if (oren_string_byte_at_unchecked(nm, 11) & 255) != 49 { return false } // 1
+    return true
+}
+
+fn _x64_emit_internal_fast_native(ctx, expr, locals, nm, nm_len, args) {
+    if nm_len < 7 { return 0 }
+    if _x64_call_name_has_prefix7(nm, 110, 97, 116, 105, 118, 101, 95) != true { return 0 } // native_
+    // `native_call1(addr, arg0)` is a compiler intrinsic (runtime ABI helper);
+    // all other `native_*` helpers are normal direct calls.
+    if _x64_internal_fast_name_is_native_call1(nm, nm_len) == true { return 0 }
+    return _x64_emit_generic_call_expr_handled(ctx, expr, locals, nm, args)
+}
+
 fn _emit_eval_call_internal_fast_generic_x64(ctx, expr, locals, nm, nm_len, args) {
     if nm == nil { return 0 }
     // Fast-path: most compiler/backend helper calls are plain functions and do not need
     // any intrinsic-special handling. Avoid the long intrinsic chain for these names.
     //
     // Keep this conservative: only short-circuit on well-known internal prefixes.
-    if nm_len >= 5 {
-        // "core.insn_" / "push_"
-        var b0 = oren_string_byte_at_unchecked(nm, 0) & 255
-        var b1 = oren_string_byte_at_unchecked(nm, 1) & 255
-        var b2 = oren_string_byte_at_unchecked(nm, 2) & 255
-        var b3 = oren_string_byte_at_unchecked(nm, 3) & 255
-        var b4 = oren_string_byte_at_unchecked(nm, 4) & 255
-        if b0 == 105 && b1 == 110 && b2 == 115 && b3 == 110 && b4 == 95 { // core.insn_
-            _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
-            return 1
-        }
-        if b0 == 112 && b1 == 117 && b2 == 115 && b3 == 104 && b4 == 95 { // push_
-            _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
-            return 1
-        }
-    }
-    if nm_len >= 4 {
-        // "set_"
-        if (oren_string_byte_at_unchecked(nm, 0) & 255) == 115 && // s
-           (oren_string_byte_at_unchecked(nm, 1) & 255) == 101 && // e
-           (oren_string_byte_at_unchecked(nm, 2) & 255) == 116 && // t
-           (oren_string_byte_at_unchecked(nm, 3) & 255) == 95 {   // _
-            _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
-            return 1
-        }
-    }
-    if nm_len >= 6 {
-        // "bytes_"
-        if (oren_string_byte_at_unchecked(nm, 0) & 255) == 98 &&  // b
-           (oren_string_byte_at_unchecked(nm, 1) & 255) == 121 && // y
-           (oren_string_byte_at_unchecked(nm, 2) & 255) == 116 && // t
-           (oren_string_byte_at_unchecked(nm, 3) & 255) == 101 && // e
-           (oren_string_byte_at_unchecked(nm, 4) & 255) == 115 && // s
-           (oren_string_byte_at_unchecked(nm, 5) & 255) == 95 {   // _
-            _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
-            return 1
-        }
-    }
-    if nm_len >= 7 {
-        // "native_"
-        if (oren_string_byte_at_unchecked(nm, 0) & 255) == 110 && // n
-           (oren_string_byte_at_unchecked(nm, 1) & 255) == 97 &&  // a
-           (oren_string_byte_at_unchecked(nm, 2) & 255) == 116 && // t
-           (oren_string_byte_at_unchecked(nm, 3) & 255) == 105 && // i
-           (oren_string_byte_at_unchecked(nm, 4) & 255) == 118 && // v
-           (oren_string_byte_at_unchecked(nm, 5) & 255) == 101 && // e
-           (oren_string_byte_at_unchecked(nm, 6) & 255) == 95 {   // _
-            // `native_call1(addr, arg0)` is a compiler intrinsic (runtime ABI helper);
-            // all other `native_*` helpers are normal direct calls.
-            var is_native_call1 = false
-            if nm_len == 12 {
-                if (oren_string_byte_at_unchecked(nm, 7) & 255) == 99 &&  // c
-                   (oren_string_byte_at_unchecked(nm, 8) & 255) == 97 &&  // a
-                   (oren_string_byte_at_unchecked(nm, 9) & 255) == 108 && // l
-                   (oren_string_byte_at_unchecked(nm, 10) & 255) == 108 && // l
-                   (oren_string_byte_at_unchecked(nm, 11) & 255) == 49 {  // 1
-                    is_native_call1 = true
-                }
-            }
-            if is_native_call1 != true {
-                _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
-                return 1
-            }
-        }
+    if _x64_emit_internal_fast_core_or_push(ctx, expr, locals, nm, nm_len, args) == 1 { return 1 }
+    if _x64_emit_internal_fast_set_or_bytes(ctx, expr, locals, nm, nm_len, args) == 1 { return 1 }
+    if _x64_emit_internal_fast_native(ctx, expr, locals, nm, nm_len, args) == 1 {
+        return 1
     }
     return 0
 }

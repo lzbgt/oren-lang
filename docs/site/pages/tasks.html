@@ -1093,11 +1093,18 @@
 <p>																																																			 Windows x64 <code>sys_unlink</code> / <code>sys_rmdir</code> lowering now delegates temp path</p>
 <p>																																																			 state, capsule prehook, DeleteFile/RemoveDirectory dispatch,</p>
 <p>																																																			 BOOL-to-errno mapping, and capsule posthook to focused helpers while</p>
-<p>																																																			 preserving the resolved-path pair and rc posthook ordering. The capped</p>
-<p>																																																			 profile now shows <code>x64_native_program.oren</code> at about 42.6s total / 31.4s</p>
-<p>																																																			 parse, with <code>_emit_eval_call_internal_fast_generic_x64</code> exposed at about</p>
-<p>																																																			 74ms as the next parser body.</p>
-<p>																																																	     Serial/thread module</p>
+<p>																																																				 preserving the resolved-path pair and rc posthook ordering. The capped</p>
+<p>																																																				 profile now shows <code>x64_native_program.oren</code> at about 42.6s total / 31.4s</p>
+<p>																																																				 parse, with <code>_emit_eval_call_internal_fast_generic_x64</code> exposed at about</p>
+<p>																																																				 74ms as the next parser body.</p>
+<p>																																																				 X64 internal fast-call routing now delegates generic-call emission,</p>
+<p>																																																				 fixed-width prefix checks, <code>insn_</code>/<code>push_</code>, <code>set_</code>/<code>bytes_</code>, and</p>
+<p>																																																				 <code>native_</code> handling to focused helpers while preserving the <code>native_call1</code></p>
+<p>																																																				 intrinsic escape hatch. The capped profile now shows</p>
+<p>																																																				 <code>x64_native_program.oren</code> at about 42.5s total / 31.2s parse, with</p>
+<p>																																																				 <code>_x64_fast_lcg_emit_unsigned_loop</code> exposed at about 76ms as the next parser</p>
+<p>																																																				 body.</p>
+<p>																																																		     Serial/thread module</p>
 <p>															     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>
