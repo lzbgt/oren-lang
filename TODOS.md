@@ -77,6 +77,11 @@ design evidence lives under `project-doc/`.
   invalid-parameter/invalid-handle/default errno mappings. The capped profile
   now exposes `_emit_intrinsic_sys_create_io_completion_port_windows_x64`
   (~70ms) as the next parser-body target.
+- Windows x64 IOCP create-port lowering now delegates state setup,
+  `CreateIoCompletionPort` call emission, and handle result normalization to
+  focused helpers, and create/post/cancel share one invalid-parameter /
+  invalid-handle / default-EIO mapper. The capped profile now exposes
+  `native_compile_program_x64` (~80ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

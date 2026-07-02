@@ -128,6 +128,13 @@
 <p>  now exposes <code>_emit_intrinsic_sys_create_io_completion_port_windows_x64</code></p>
 <p>  (~70ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 IOCP create-port lowering now delegates state setup,</li>
+</ul>
+<p>  <code>CreateIoCompletionPort</code> call emission, and handle result normalization to</p>
+<p>  focused helpers, and create/post/cancel share one invalid-parameter /</p>
+<p>  invalid-handle / default-EIO mapper. The capped profile now exposes</p>
+<p>  <code>native_compile_program_x64</code> (~80ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
