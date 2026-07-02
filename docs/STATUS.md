@@ -1198,11 +1198,17 @@ Facts from the 2026-05-28 implementation pass:
 																																																																		  X64 runtime-object compact fixup encoding now uses explicit bucket state,
 																																																																		  per-fixup routing, and result materialization helpers while preserving the
 																																																																		  persisted compact metadata keys consumed by runtime-object replay. The
-																																																																		  capped profile now shows `x64_native_program.oren` at about 42.7s total /
-																																																																		  31.1s parse, with `_x64_index_emit_list_path` exposed at about 67ms as the
-																																																																		  next parser body.
-																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via
-										  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																			  capped profile now shows `x64_native_program.oren` at about 42.7s total /
+																																																																			  31.1s parse, with `_x64_index_emit_list_path` exposed at about 67ms as the
+																																																																			  next parser body.
+																																																																			  X64 list index lowering now splits checked list gets into focused magic,
+																																																																			  bounds, buffer, and element-load helpers, and the assume-list fast path
+																																																																			  shares the same buffer/value load emission. The capped profile now shows
+																																																																			  `x64_native_program.oren` at about 42.7s total / 31.4s parse, with
+																																																																			  `_emit_intrinsic_sys_close_windows_x64` exposed at about 67ms as the next
+																																																																			  parser body.
+																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via
+											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

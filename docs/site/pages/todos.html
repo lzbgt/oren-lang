@@ -196,6 +196,12 @@
 <p>  profile now exposes <code>_x64_index_emit_list_path</code> (~67ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 list index lowering now splits checked list gets into focused magic,</li>
+</ul>
+<p>  bounds, buffer, and element-load helpers, and the assume-list fast path shares</p>
+<p>  the same buffer/value load emission. The capped profile now exposes</p>
+<p>  <code>_emit_intrinsic_sys_close_windows_x64</code> (~67ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

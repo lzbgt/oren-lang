@@ -114,20 +114,83 @@ fn _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx,
 fn _x64_index_emit_assume_list_fast(ctx, labels, local_fixups, tmp_idx, l_idx_done) {
     // rcx = idx
     _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx)
-    // buf -> r9 = *(list+16)
+    _x64_index_emit_list_buffer_load(ctx)
+    _x64_index_emit_list_value_load(ctx)
+    _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
+    return nil
+}
+
+fn _x64_index_emit_list_magic_check(ctx, labels, local_fixups) {
+    // Tier-1 parity: validate list magic (matches native runtime + arm64).
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    var l_magic_ok = _new_label(ctx, "idx_list_magic_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+    _emit_abort_panic_str(ctx, "Indexing on non-list")
+    _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
+
+fn _x64_index_emit_list_count_to_r8(ctx) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 0))
+    return nil
+}
+
+fn _x64_index_emit_list_bounds_check(ctx, labels, local_fixups) {
+    _x64_index_emit_list_count_to_r8(ctx)
+
+    // idx >= 0
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
+    var l_idx_nonneg = _new_label(ctx, "idx_nonneg")
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
+    _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
+    _emit_label(ctx, labels, l_idx_nonneg)
+
+    // idx < count
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(1, 8))
+    var l_inbounds = _new_label(ctx, "idx_inbounds")
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
+    _emit_abort_panic_str(ctx, "Index out of bounds")
+    _emit_label(ctx, labels, l_inbounds)
+    return nil
+}
+
+fn _x64_index_emit_list_buffer_load(ctx) {
+    // r9 = *(list + 16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
-    // addr = buf + idx*8  (r10)
+    return nil
+}
+
+fn _x64_index_emit_list_buffer_check(ctx, labels, local_fixups) {
+    _x64_index_emit_list_buffer_load(ctx)
+
+    // buf != 0
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
+    var l_buf_ok = _new_label(ctx, "idx_buf_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
+    _emit_abort_panic_str(ctx, "list buffer is nil")
+    _emit_label(ctx, labels, l_buf_ok)
+    return nil
+}
+
+fn _x64_index_emit_list_value_load(ctx) {
+    // addr = buf + idx*8 (r10)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 1))
     bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
+
     // load *(addr) into rax
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
     return nil
 }
 
@@ -223,59 +286,10 @@ fn _x64_index_emit_list_path(ctx, tmp_idx, labels, local_fixups, l_is_list, l_id
     _emit_label(ctx, labels, l_is_list)
     _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx) // rcx = idx
 
-    // Tier-1 parity: validate list magic (matches native runtime + arm64).
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
-    var l_magic_ok = _new_label(ctx, "idx_list_magic_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
-    _emit_abort_panic_str(ctx, "Indexing on non-list")
-    _emit_label(ctx, labels, l_magic_ok)
-
-    // load count -> r8
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 0))
-
-    // idx >= 0
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
-    var l_idx_nonneg = _new_label(ctx, "idx_nonneg")
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
-    _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
-    _emit_label(ctx, labels, l_idx_nonneg)
-
-    // idx < count
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(1, 8))
-    var l_inbounds = _new_label(ctx, "idx_inbounds")
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-    _emit_abort_panic_str(ctx, "Index out of bounds")
-    _emit_label(ctx, labels, l_inbounds)
-
-    // buf -> r9 = *(list+16)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
-
-    // buf != 0
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
-    var l_buf_ok = _new_label(ctx, "idx_buf_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-    _emit_abort_panic_str(ctx, "list buffer is nil")
-    _emit_label(ctx, labels, l_buf_ok)
-
-    // addr = buf + idx*8  (r10)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 1))
-    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-
-    // load *(addr) into rax
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-
+    _x64_index_emit_list_magic_check(ctx, labels, local_fixups)
+    _x64_index_emit_list_bounds_check(ctx, labels, local_fixups)
+    _x64_index_emit_list_buffer_check(ctx, labels, local_fixups)
+    _x64_index_emit_list_value_load(ctx)
     _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
     return nil
 }
