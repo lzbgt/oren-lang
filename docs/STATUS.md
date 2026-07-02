@@ -1577,6 +1577,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  while preserving the unchecked nil contract. The capped profile now shows
 																																																																																									  `x64_native_program.oren` at about 45.3s total / 33.0s parse, with
 																																																																																									  `_x64_emit_regular_straightline_op` exposed at about 59ms as the next parser body.
+																																																																																									  X64 straight-line regular-op dispatch now routes declaration/global-init,
+																																																																																									  value/expression, print, and return op families through focused helpers while
+																																																																																									  preserving `nil`/`0`/`1` handled-status semantics. The capped profile now shows
+																																																																																									  `x64_native_program.oren` at about 43.8s total / 31.9s parse, with
+																																																																																									  `_x64_collect_ffi_decls_from_stmt_list` exposed at about 54ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial

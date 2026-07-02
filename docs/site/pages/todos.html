@@ -670,6 +670,13 @@
 <p>  <code>x64_native_program.oren</code> at ~45.3s total / ~33.0s parse, with</p>
 <p>  <code>_x64_emit_regular_straightline_op</code> (~59ms) as the next parser-body target.</p>
 <ul>
+<li>X64 straight-line regular-op dispatch now routes declaration/global-init,</li>
+</ul>
+<p>  value/expression, print, and return op families through focused helpers while</p>
+<p>  preserving <code>nil</code>/<code>0</code>/<code>1</code> handled-status semantics. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.8s total / ~31.9s parse, with</p>
+<p>  <code>_x64_collect_ffi_decls_from_stmt_list</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
