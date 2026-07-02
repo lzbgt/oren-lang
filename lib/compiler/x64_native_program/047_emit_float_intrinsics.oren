@@ -338,50 +338,29 @@ fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
     if ctx == nil { return nil }
     if left_expr == nil || right_expr == nil { err(ctx, "x64 native v0: float binop missing operands"); return nil }
 
-    var base = _intr_tmp_push(ctx, 2)
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // Evaluate LTR.
-    _emit_eval_int_to_rax(ctx, left_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
-
-    _emit_eval_int_to_rax(ctx, right_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
-
-    // Load/convert A into XMM0.
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
-    if _x64_expr_is_floaty(ctx, left_expr) {
-        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
-    } else {
-        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
-    }
-
-    // Load/convert B into XMM1.
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_b) // rax = b
-    if _x64_expr_is_floaty(ctx, right_expr) {
-        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
-    } else {
-        bytes_extend(ctx["code"], core.insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
-    }
-
-    if op == "+" { bytes_extend(ctx["code"], core.insn_addsd_xmm_xmm(0, 1)) }
-    else if op == "-" { bytes_extend(ctx["code"], core.insn_subsd_xmm_xmm(0, 1)) }
-    else if op == "*" { bytes_extend(ctx["code"], core.insn_mulsd_xmm_xmm(0, 1)) }
-    else if op == "/" { bytes_extend(ctx["code"], core.insn_divsd_xmm_xmm(0, 1)) }
-    else {
-        _intr_tmp_pop(ctx, base)
+    var state = _x64_float_binary_spill_operands(ctx, left_expr, right_expr, locals)
+    if state == nil { return nil }
+    _x64_float_binary_load_xmms(ctx, left_expr, right_expr, state)
+    if _x64_float64_binop_emit_op(ctx, op) != true {
+        _intr_tmp_pop(ctx, state["base"])
         err(ctx, "x64 native v0: unsupported float binop op: " + op)
         return nil
     }
+    _x64_float64_binop_return_bits(ctx)
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
 
-    // Return bits in RAX.
+fn _x64_float64_binop_emit_op(ctx, op) {
+    if op == "+" { bytes_extend(ctx["code"], core.insn_addsd_xmm_xmm(0, 1)); return true }
+    if op == "-" { bytes_extend(ctx["code"], core.insn_subsd_xmm_xmm(0, 1)); return true }
+    if op == "*" { bytes_extend(ctx["code"], core.insn_mulsd_xmm_xmm(0, 1)); return true }
+    if op == "/" { bytes_extend(ctx["code"], core.insn_divsd_xmm_xmm(0, 1)); return true }
+    return false
+}
+
+fn _x64_float64_binop_return_bits(ctx) {
     bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))
-    _intr_tmp_pop(ctx, base)
     return nil
 }
 
@@ -425,7 +404,7 @@ fn _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals) {
     return nil
 }
 
-fn _x64_float_cmp_spill_operands(ctx, left_expr, right_expr, locals) {
+fn _x64_float_binary_spill_operands(ctx, left_expr, right_expr, locals) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
@@ -443,7 +422,7 @@ fn _x64_float_cmp_spill_operands(ctx, left_expr, right_expr, locals) {
     return {"base": base, "tmp_a": tmp_a, "tmp_b": tmp_b}
 }
 
-fn _x64_float_cmp_load_xmms(ctx, left_expr, right_expr, state) {
+fn _x64_float_binary_load_xmms(ctx, left_expr, right_expr, state) {
     // Load/convert A into XMM0.
     _emit_mov_r64_mrbp(ctx, 0, 0 - state["tmp_a"]) // rax = a
     if _x64_expr_is_floaty(ctx, left_expr) {
@@ -533,9 +512,9 @@ fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     if ctx == nil { return nil }
     if left_expr == nil || right_expr == nil { err(ctx, "x64 native v0: float cmp missing operands"); return nil }
 
-    var state = _x64_float_cmp_spill_operands(ctx, left_expr, right_expr, locals)
+    var state = _x64_float_binary_spill_operands(ctx, left_expr, right_expr, locals)
     if state == nil { return nil }
-    _x64_float_cmp_load_xmms(ctx, left_expr, right_expr, state)
+    _x64_float_binary_load_xmms(ctx, left_expr, right_expr, state)
 
     // Compare XMM0 vs XMM1 (sets ZF/PF/CF).
     bytes_extend(ctx["code"], core.insn_ucomisd_xmm_xmm(0, 1))

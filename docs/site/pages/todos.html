@@ -332,6 +332,13 @@
 <p>  polling. The capped profile now exposes <code>_emit_float64_binop_x64</code> (~63ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>X64 float64 arithmetic lowering now shares operand spill and XMM materialization</li>
+</ul>
+<p>  with float comparison lowering, leaving <code>_emit_float64_binop_x64</code> as a thin</p>
+<p>  arithmetic-dispatch/result-pack wrapper. The capped profile now exposes</p>
+<p>  <code>_x64_emit_top_empty_container_batch_loop</code> (~78ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

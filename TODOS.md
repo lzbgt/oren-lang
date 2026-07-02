@@ -221,6 +221,11 @@ design evidence lives under `project-doc/`.
   mapping to focused helpers while preserving deterministic timeout-budget
   polling. The capped profile now exposes `_emit_float64_binop_x64` (~63ms) as
   the next parser-body target.
+- X64 float64 arithmetic lowering now shares operand spill and XMM materialization
+  with float comparison lowering, leaving `_emit_float64_binop_x64` as a thin
+  arithmetic-dispatch/result-pack wrapper. The capped profile now exposes
+  `_x64_emit_top_empty_container_batch_loop` (~78ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -1356,11 +1356,17 @@
 <p>																																																																				  Windows x64 <code>sys_win_createprocess</code> wait lowering now delegates timeout-mode</p>
 <p>																																																																				  dispatch, infinite wait, poll wait, timeout return, and shared Win32 wait-error</p>
 <p>																																																																				  mapping to focused helpers while preserving deterministic timeout-budget</p>
-<p>																																																																				  polling. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																																																																				  42.9s total / 31.5s parse, with <code>_emit_float64_binop_x64</code> exposed at about</p>
-<p>																																																																				  63ms as the next parser body.</p>
-<p>																																																												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>												  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																																																					  polling. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																																																					  42.9s total / 31.5s parse, with <code>_emit_float64_binop_x64</code> exposed at about</p>
+<p>																																																																					  63ms as the next parser body.</p>
+<p>																																																																					  X64 float64 arithmetic lowering now shares operand spill and XMM</p>
+<p>																																																																					  materialization with float comparison lowering, leaving <code>_emit_float64_binop_x64</code></p>
+<p>																																																																					  as a thin arithmetic-dispatch/result-pack wrapper. The capped profile now shows</p>
+<p>																																																																					  <code>x64_native_program.oren</code> at about 43.3s total / 31.9s parse, with</p>
+<p>																																																																					  <code>_x64_emit_top_empty_container_batch_loop</code> exposed at about 78ms as the next</p>
+<p>																																																																					  parser body.</p>
+<p>																																																													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>													  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>				  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>
