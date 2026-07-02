@@ -154,6 +154,12 @@ design evidence lives under `project-doc/`.
   emission while preserving caller-owned local fixup patching. The capped
   profile now exposes `_emit_intrinsic_sys_bind_windows_x64` (~73ms) as the
   next parser-body target.
+- Windows x64 `sys_connect` / `sys_bind` lowering now shares fd/sockaddr/addrlen
+  spill state, argument reload, capsule pre/post hook dispatch, IAT calls, and
+  SOCKET_ERROR result normalization while keeping connect's nonblocking errno
+  mapper explicit. The capped profile now exposes
+  `_x64_fast_list_int_dot_emit_whole_helper` (~73ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

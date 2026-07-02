@@ -305,7 +305,7 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _x64_windows_connect_state(ctx, locals, args) {
+fn _x64_windows_sockaddr3_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // fd, addr, len
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -322,33 +322,35 @@ fn _x64_windows_connect_state(ctx, locals, args) {
     return {"base": base, "tmp_fd": tmp_fd, "tmp_addr": tmp_addr, "tmp_len": tmp_len}
 }
 
-fn _x64_windows_connect_load_args(ctx, st) {
+fn _x64_windows_sockaddr3_load_args(ctx, st) {
     _intr_load_x64(ctx, 1, st["tmp_fd"])
     _intr_load_x64(ctx, 2, st["tmp_addr"])
     _intr_load_x64(ctx, 8, st["tmp_len"])
     return nil
 }
 
-fn _x64_windows_connect_prehook(ctx, st, capsule) {
-    // pre: native_capsule_sys_connect_pre(fd, addr, addrlen)
-    _x64_windows_connect_load_args(ctx, st)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre") }
+fn _x64_windows_sockaddr3_prehook(ctx, st, capsule, hook_name) {
+    _x64_windows_sockaddr3_load_args(ctx, st)
+    if capsule { _emit_call_rel32_named_x64(ctx, hook_name) }
     return nil
 }
 
-fn _x64_windows_connect_call(ctx, st) {
-    // connect(fd, addr, len) -> 0 or SOCKET_ERROR(-1)
-    _x64_windows_connect_load_args(ctx, st)
-    _emit_call_iat_x64(ctx, "IAT_connect")
+fn _x64_windows_sockaddr3_iat_call(ctx, st, iat_name) {
+    _x64_windows_sockaddr3_load_args(ctx, st)
+    _emit_call_iat_x64(ctx, iat_name)
     return nil
 }
 
-fn _x64_windows_connect_result(ctx, labels, fixups) {
-    var l_ok = _new_label(ctx, "sys_connect_ok")
+fn _x64_windows_sockaddr3_result(ctx, labels, fixups, label_prefix, errno_kind) {
+    var l_ok = _new_label(ctx, label_prefix + "_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-    _emit_wsa_last_error_to_neg_errno_connect_x64(ctx)
-    var l_post = _new_label(ctx, "sys_connect_post")
+    if errno_kind == "connect" {
+        _emit_wsa_last_error_to_neg_errno_connect_x64(ctx)
+    } else {
+        _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    }
+    var l_post = _new_label(ctx, label_prefix + "_post")
     _emit_jmp_to_label(ctx, fixups, l_post)
 
     _emit_label(ctx, labels, l_ok)
@@ -358,13 +360,12 @@ fn _x64_windows_connect_result(ctx, labels, fixups) {
     return nil
 }
 
-fn _x64_windows_connect_posthook(ctx, st, capsule) {
-    // post: native_capsule_sys_connect_post(rc, fd, addr, addrlen) -> rc
+fn _x64_windows_sockaddr3_posthook(ctx, st, capsule, hook_name) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
     _intr_load_x64(ctx, 2, st["tmp_fd"])
     _intr_load_x64(ctx, 8, st["tmp_addr"])
     _intr_load_x64(ctx, 9, st["tmp_len"])
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post") }
+    if capsule { _emit_call_rel32_named_x64(ctx, hook_name) }
     return nil
 }
 
@@ -374,15 +375,16 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_connect does not support spread"); return nil }
 
     var capsule = _x64_capsule_enabled(ctx)
-    var st = _x64_windows_connect_state(ctx, locals, args)
+    var st = _x64_windows_sockaddr3_state(ctx, locals, args)
     if st == nil { return nil }
     var labels = {}
     var fixups = []
 
-    _x64_windows_connect_prehook(ctx, st, capsule)
-    _x64_windows_connect_call(ctx, st)
-    _x64_windows_connect_result(ctx, labels, fixups)
-    _x64_windows_connect_posthook(ctx, st, capsule)
+    // connect(fd, addr, len) -> 0 or SOCKET_ERROR(-1)
+    _x64_windows_sockaddr3_prehook(ctx, st, capsule, "native_capsule_sys_connect_pre")
+    _x64_windows_sockaddr3_iat_call(ctx, st, "IAT_connect")
+    _x64_windows_sockaddr3_result(ctx, labels, fixups, "sys_connect", "connect")
+    _x64_windows_sockaddr3_posthook(ctx, st, capsule, "native_capsule_sys_connect_post")
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, st["base"])
     return nil
@@ -394,50 +396,18 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_bind does not support spread"); return nil }
 
     var capsule = _x64_capsule_enabled(ctx)
-
-    var base = _intr_tmp_push(ctx, 3) // fd, addr, len
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // pre
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_addr)
-    _intr_load_x64(ctx, 8, tmp_len)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre") }
-
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_addr)
-    _intr_load_x64(ctx, 8, tmp_len)
-    _emit_call_iat_x64(ctx, "IAT_bind")
-
+    var st = _x64_windows_sockaddr3_state(ctx, locals, args)
+    if st == nil { return nil }
     var labels = {}
     var fixups = []
-    var l_ok = _new_label(ctx, "sys_bind_ok")
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
-    var l_post = _new_label(ctx, "sys_bind_post")
-    _emit_jmp_to_label(ctx, fixups, l_post)
-    _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_post)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, tmp_fd)
-    _intr_load_x64(ctx, 8, tmp_addr)
-    _intr_load_x64(ctx, 9, tmp_len)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post") }
-    _patch_local_fixups(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, base)
+    // bind(fd, addr, len) -> 0 or SOCKET_ERROR(-1)
+    _x64_windows_sockaddr3_prehook(ctx, st, capsule, "native_capsule_sys_bind_pre")
+    _x64_windows_sockaddr3_iat_call(ctx, st, "IAT_bind")
+    _x64_windows_sockaddr3_result(ctx, labels, fixups, "sys_bind", "common")
+    _x64_windows_sockaddr3_posthook(ctx, st, capsule, "native_capsule_sys_bind_post")
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
