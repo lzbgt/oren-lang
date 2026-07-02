@@ -873,10 +873,85 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     return {"top_level_fn": _x64_synth_top_level_fn(top_stmts), "top_stmt_count": oren_list_len(top_stmts)}
 }
 
-fn _x64_extract_type_constructors_v0(ctx, linked) {
-    if ctx == nil { return nil }
+fn _x64_type_constructor_stmts(linked) {
     var stmts = nil
     if linked != nil { stmts = linked["statements"] }
+    return stmts
+}
+
+fn _x64_type_constructor_name(ctx, st) {
+    var name_node = st["name"]
+    if name_node == nil || name_node["type"] != "Identifier" {
+        err(ctx, "x64 native v0: Type name must be identifier")
+        return nil
+    }
+    var nm = name_node["value"]
+    if nm == nil || nm == "" {
+        err(ctx, "x64 native v0: Type name is empty")
+        return nil
+    }
+    if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
+        err(ctx, "x64 native v0: Type constructor name conflicts with existing function " + nm)
+        return nil
+    }
+    return nm
+}
+
+fn _x64_type_constructor_params_and_pairs(ctx, nm, fields) {
+    var params = []
+    var pairs = []
+    var n_fields = 0
+    if fields != nil { n_fields = oren_list_len(fields) }
+
+    // Rolling reflection v0: tag type ctor maps with a stable type name.
+    //   User(id, name) => {"__oren_type":"User","id":id,"name":name}
+    oren_list_push(pairs, {"key": callable.node_string("__oren_type"), "value": callable.node_string(nm)})
+    var j = 0
+    while j < n_fields {
+        var f = fields[j]
+        if f == nil || f["type"] != "Identifier" {
+            err(ctx, "x64 native v0: Type field must be identifier")
+            return nil
+        }
+        var fnm = f["value"]
+        if fnm == nil || fnm == "" {
+            err(ctx, "x64 native v0: Type field name is empty")
+            return nil
+        }
+        oren_list_push(params, callable.node_id(fnm))
+        oren_list_push(pairs, {"key": callable.node_string(fnm), "value": callable.node_id(fnm)})
+        j = j + 1
+    }
+    return {"params": params, "pairs": pairs, "n_fields": n_fields}
+}
+
+fn _x64_type_constructor_function(st, nm, shaped) {
+    var ret = callable.node_return({"type": "Hash", "pairs": shaped["pairs"]})
+    return {"type": "Function", "token": st["token"], "name": nm, "params": shaped["params"], "body": callable.node_block([ret])}
+}
+
+fn _x64_register_type_constructor(ctx, nm, n_fields) {
+    if ctx["declared_functions"] == nil { ctx["declared_functions"] = {} }
+    ctx["declared_functions"][nm] = true
+    if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
+    ctx["func_arity"][nm] = n_fields + 1
+    if ctx["func_decl_order"] != nil { oren_list_push(ctx["func_decl_order"], nm) }
+    return nil
+}
+
+fn _x64_extract_type_constructor_one(ctx, st) {
+    var nm = _x64_type_constructor_name(ctx, st)
+    if nm == nil { return nil }
+    var shaped = _x64_type_constructor_params_and_pairs(ctx, nm, st["fields"])
+    if shaped == nil { return nil }
+    var fun = _x64_type_constructor_function(st, nm, shaped)
+    _x64_register_type_constructor(ctx, nm, shaped["n_fields"])
+    return fun
+}
+
+fn _x64_extract_type_constructors_v0(ctx, linked) {
+    if ctx == nil { return nil }
+    var stmts = _x64_type_constructor_stmts(linked)
     if stmts == nil { return [] }
 
     var out = []
@@ -886,46 +961,9 @@ fn _x64_extract_type_constructors_v0(ctx, linked) {
         if st == nil { i = i + 1; continue }
         if st["type"] != "Type" { i = i + 1; continue }
 
-        var name_node = st["name"]
-        var fields = st["fields"]
-        if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: Type name must be identifier"); return nil }
-        var nm = name_node["value"]
-        if nm == nil || nm == "" { err(ctx, "x64 native v0: Type name is empty"); return nil }
-        if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
-            err(ctx, "x64 native v0: Type constructor name conflicts with existing function " + nm)
-            return nil
-        }
-
-        // Params: one per field.
-        var params = []
-        var pairs = []
-        var n_fields = 0
-        if fields != nil { n_fields = oren_list_len(fields) }
-        // Rolling reflection v0: tag type ctor maps with a stable type name.
-        //   User(id, name) => {"__oren_type":"User","id":id,"name":name}
-        oren_list_push(pairs, {"key": callable.node_string("__oren_type"), "value": callable.node_string(nm)})
-        var j = 0
-        while j < n_fields {
-            var f = fields[j]
-            if f == nil || f["type"] != "Identifier" { err(ctx, "x64 native v0: Type field must be identifier"); return nil }
-            var fnm = f["value"]
-            if fnm == nil || fnm == "" { err(ctx, "x64 native v0: Type field name is empty"); return nil }
-            oren_list_push(params, callable.node_id(fnm))
-            oren_list_push(pairs, {"key": callable.node_string(fnm), "value": callable.node_id(fnm)})
-            j = j + 1
-        }
-
-        // Body: return {"field": field, ...}
-        var ret = callable.node_return({"type": "Hash", "pairs": pairs})
-        var fun = {"type": "Function", "token": st["token"], "name": nm, "params": params, "body": callable.node_block([ret])}
+        var fun = _x64_extract_type_constructor_one(ctx, st)
+        if fun == nil { return nil }
         oren_list_push(out, fun)
-
-        // Register arity + declaration (needed for wrappers + function values).
-        if ctx["declared_functions"] == nil { ctx["declared_functions"] = {} }
-        ctx["declared_functions"][nm] = true
-        if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
-        ctx["func_arity"][nm] = n_fields + 1
-        if ctx["func_decl_order"] != nil { oren_list_push(ctx["func_decl_order"], nm) }
 
         i = i + 1
     }
