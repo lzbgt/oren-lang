@@ -199,6 +199,10 @@ design evidence lives under `project-doc/`.
   decomposition as the rest of the path-family emitters while preserving the
   capsule bundle layout for from/to path rewrites. The capped profile now exposes
   `_emit_eval_mod_infix_to_rax` (~64ms) as the next parser-body target.
+- X64 `%` infix lowering now separates the safe constant-RHS `idiv` fast path
+  from runtime `oren_mod` argument spilling and ABI call emission, preserving
+  deterministic modulo semantics for non-constant divisors. The capped profile
+  now exposes `_x64_wsasend_spill_state` (~88ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

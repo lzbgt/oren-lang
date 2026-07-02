@@ -1292,6 +1292,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  capsule bundle layout for from/to path rewrites. The capped profile now shows
 																																																																			  `x64_native_program.oren` at about 43.3s total / 31.5s parse, with
 																																																																			  `_emit_eval_mod_infix_to_rax` exposed at about 64ms as the next parser body.
+																																																																			  X64 `%` infix lowering now separates the safe constant-RHS `idiv` fast path
+																																																																			  from runtime `oren_mod` argument spilling and ABI call emission, preserving
+																																																																			  deterministic modulo semantics for non-constant divisors. The capped profile
+																																																																			  now shows `x64_native_program.oren` at about 43.3s total / 31.7s parse, with
+																																																																			  `_x64_wsasend_spill_state` exposed at about 88ms as the next parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

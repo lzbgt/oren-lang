@@ -89,31 +89,27 @@ fn _emit_eval_compare_infix_to_rax(ctx, expr, op, l, r, locals) {
     return nil
 }
 
-fn _emit_eval_mod_infix_to_rax(ctx, l, r, locals) {
-    // Fast-path constant RHS: inline deterministic modulo for safe non-zero constants
-    // (and not -1), avoiding a runtime call on hot loops.
+fn _x64_emit_mod_const_rhs_if_safe(ctx, l, r, locals) {
     var rhs_const = _x64_expr_int_const(ctx, r)
-    if rhs_const != nil && rhs_const != 0 && rhs_const != -1 {
-        _emit_eval_int_to_rax(ctx, l, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(1, rhs_const)) // rcx = divisor
-        bytes_extend(ctx["code"], core.insn_cqo()) // sign-extend rax into rdx
-        bytes_extend(ctx["code"], core.insn_idiv_r64(1)) // idiv rcx (quotient=rax, remainder=rdx)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2)) // rax = rdx (remainder)
-        return nil
-    }
+    if rhs_const == nil || rhs_const == 0 || rhs_const == -1 { return false }
+    _emit_eval_int_to_rax(ctx, l, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return true }
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(1, rhs_const)) // rcx = divisor
+    bytes_extend(ctx["code"], core.insn_cqo()) // sign-extend rax into rdx
+    bytes_extend(ctx["code"], core.insn_idiv_r64(1)) // idiv rcx (quotient=rax, remainder=rdx)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2)) // rax = rdx (remainder)
+    return true
+}
 
-    // Deterministic modulo semantics are implemented in the injected runtime helper `oren_mod`.
-    if ctx == nil || ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: '%' requires injected native runtime (oren_mod)")
-        return nil
-    }
-
+fn _x64_prepare_mod_runtime_args(ctx, l, r, locals) {
     var base_mod = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base_mod) == 0 { return nil }
     var tmp_a = _intr_tmp_off(ctx, locals, base_mod + 0)
     var tmp_b = _intr_tmp_off(ctx, locals, base_mod + 1)
-    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base_mod); return nil }
+    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 {
+        _intr_tmp_pop(ctx, base_mod)
+        return nil
+    }
 
     _emit_eval_int_to_rax(ctx, l, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
@@ -122,7 +118,11 @@ fn _emit_eval_mod_infix_to_rax(ctx, l, r, locals) {
     _emit_eval_int_to_rax(ctx, r, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
+    return {"base": base_mod, "lhs": tmp_a, "rhs": tmp_b}
+}
 
+fn _x64_emit_mod_runtime_call(ctx, state) {
+    var base_mod = state["base"]
     var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1m_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(a0m_enc) == 0 || oren_type_tag(a1m_enc) == 0 {
@@ -132,13 +132,28 @@ fn _emit_eval_mod_infix_to_rax(ctx, l, r, locals) {
     }
     var a0m = a0m_enc - 1
     var a1m = a1m_enc - 1
-    _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp_a)
-    _emit_mov_r64_mrbp(ctx, a1m, 0 - tmp_b)
+    _emit_mov_r64_mrbp(ctx, a0m, 0 - state["lhs"])
+    _emit_mov_r64_mrbp(ctx, a1m, 0 - state["rhs"])
     var call_posm = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_posm, "name": "oren_mod"})
-
     _intr_tmp_pop(ctx, base_mod)
+    return nil
+}
+
+fn _emit_eval_mod_infix_to_rax(ctx, l, r, locals) {
+    // Fast-path constant RHS: inline deterministic modulo for safe non-zero constants
+    // (and not -1), avoiding a runtime call on hot loops.
+    if _x64_emit_mod_const_rhs_if_safe(ctx, l, r, locals) == true { return nil }
+
+    // Deterministic modulo semantics are implemented in the injected runtime helper `oren_mod`.
+    if ctx == nil || ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: '%' requires injected native runtime (oren_mod)")
+        return nil
+    }
+    var state = _x64_prepare_mod_runtime_args(ctx, l, r, locals)
+    if state == nil { return nil }
+    _x64_emit_mod_runtime_call(ctx, state)
     return nil
 }
 

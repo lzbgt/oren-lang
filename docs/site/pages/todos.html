@@ -300,6 +300,12 @@
 <p>  capsule bundle layout for from/to path rewrites. The capped profile now exposes</p>
 <p>  <code>_emit_eval_mod_infix_to_rax</code> (~64ms) as the next parser-body target.</p>
 <ul>
+<li>X64 <code>%</code> infix lowering now separates the safe constant-RHS <code>idiv</code> fast path</li>
+</ul>
+<p>  from runtime <code>oren_mod</code> argument spilling and ABI call emission, preserving</p>
+<p>  deterministic modulo semantics for non-constant divisors. The capped profile</p>
+<p>  now exposes <code>_x64_wsasend_spill_state</code> (~88ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
