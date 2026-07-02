@@ -417,19 +417,7 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_qpc_frequency expects 1 arg"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_qpc_frequency does not support spread"); return nil }
-
-    // Signature:
-    //   sys_qpc_frequency(freq_ptr) -> 0_or_neg_errno
-    //
-    // Writes the QueryPerformanceCounter frequency (ticks/sec) as a u64 to *freq_ptr.
-    //
-    // Return:
-    // - 0 on success
-    // - -14 (EFAULT) on invalid pointer
+fn _x64_qpc_frequency_prepare_windows(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 1) // freq_ptr
     if oren_type_tag(base) == 0 { return nil }
     var tmp_p = _intr_tmp_off(ctx, locals, base + 0)
@@ -437,13 +425,10 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_p)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_p": tmp_p}
+}
 
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "sys_qpc_freq_done")
-    var l_ok = _new_label(ctx, "sys_qpc_freq_ok")
-    var l_ret0 = _new_label(ctx, "sys_qpc_freq_ret0")
-
+fn _x64_qpc_frequency_emit_ptr_guard_windows(ctx, tmp_p, fixups, l_ok, l_done) {
     // Validate ptr != 0.
     _intr_load_x64(ctx, 0, tmp_p)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
@@ -452,8 +437,10 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967282))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_ok)
+    return nil
+}
 
+fn _x64_qpc_frequency_emit_call_windows(ctx, tmp_p) {
     // QueryPerformanceFrequency(freq_ptr) writes ticks/sec to *freq_ptr.
     //
     // Avoid using fixed stack scratch offsets here: the intrinsic temp stack space can be smaller
@@ -463,7 +450,10 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat + 3, "IAT_QueryPerformanceFrequency")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
 
+fn _x64_qpc_frequency_emit_result_windows(ctx, labels, fixups, l_ret0, l_done) {
     // If the call fails, return a generic -EIO-ish error so callers don't treat a zero frequency as valid.
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0)) // eax == 0?
     _emit_jcc_to_label(ctx, fixups, "ne", l_ret0)
@@ -474,10 +464,35 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_ret0)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
+    return nil
+}
+
+fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_qpc_frequency expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_qpc_frequency does not support spread"); return nil }
+
+    // Signature:
+    //   sys_qpc_frequency(freq_ptr) -> 0_or_neg_errno
+    //
+    // Writes the QueryPerformanceCounter frequency (ticks/sec) as a u64 to *freq_ptr.
+    var state = _x64_qpc_frequency_prepare_windows(ctx, locals, args)
+    if state == nil { return nil }
+
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "sys_qpc_freq_done")
+    var l_ok = _new_label(ctx, "sys_qpc_freq_ok")
+    var l_ret0 = _new_label(ctx, "sys_qpc_freq_ret0")
+
+    _x64_qpc_frequency_emit_ptr_guard_windows(ctx, state["tmp_p"], fixups, l_ok, l_done)
+    _emit_label(ctx, labels, l_ok)
+    _x64_qpc_frequency_emit_call_windows(ctx, state["tmp_p"])
+    _x64_qpc_frequency_emit_result_windows(ctx, labels, fixups, l_ret0, l_done)
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }
 

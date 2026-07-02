@@ -208,6 +208,10 @@ design evidence lives under `project-doc/`.
   `WSASend`; `WSARecvFrom` layers only its sockaddr slots on top. The capped
   profile now exposes `_emit_intrinsic_sys_qpc_frequency_windows_x64` (~63ms) as
   the next parser-body target.
+- Windows x64 `sys_qpc_frequency` lowering now delegates frequency-pointer
+  spill state, null-pointer guard, `QueryPerformanceFrequency` IAT dispatch,
+  and BOOL-to-errno result mapping to focused helpers. The capped profile now
+  exposes `_x64_gqcsx_spill_state` (~94ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
