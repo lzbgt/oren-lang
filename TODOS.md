@@ -361,6 +361,11 @@ design evidence lives under `project-doc/`.
   phase-detail helper packers. The capped profile now shows
   `x64_native_program.oren` at ~43.2s total / ~31.6s parse, with
   `_x64_emit_sys_getdirentries64_x64` (~57ms) as the next parser-body target.
+- Linux x64 `sys_getdirentries64` lowering now delegates temp-slot setup, fd
+  prehook/capture, buffer/size/ignored-position evaluation, `getdents64`
+  syscall setup, and capsule posthook emission to focused helpers. The capped
+  profile now shows `x64_native_program.oren` at ~43.5s total / ~31.7s parse,
+  with `_x64_emit_program_entry_sequence` (~59ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

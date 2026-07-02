@@ -465,50 +465,78 @@ fn _x64_emit_sys_mkdir_or_chmod_x64(ctx, nm, expr, locals, args, capsule) {
     return true
 }
 
-fn _x64_emit_sys_getdirentries64_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_getdirentries64" {
-        if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_getdirentries64 expects 4 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getdirentries64 does not support spread"); return true }
-
-        var base10 = _intr_tmp_push(ctx, 3) // fd, buf, bufsize
-        if oren_type_tag(base10) == 0 { return true }
-        var tmp_fd = _intr_tmp_off(ctx, locals, base10 + 0)
-        var tmp_buf = _intr_tmp_off(ctx, locals, base10 + 1)
-        var tmp_sz = _intr_tmp_off(ctx, locals, base10 + 2)
-        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_sz) == 0 { _intr_tmp_pop(ctx, base10); return true }
-
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base10); return true }
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
-        if capsule {
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_pre")
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
-        }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
-
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_sz)
-        // Evaluate pos_ptr for side-effect compatibility (ignored by Linux getdents64).
-        _emit_eval_int_to_rax(ctx, args[3], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base10); return true }
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_buf)
-        _intr_load_x64(ctx, 2, tmp_sz)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getdents64()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            // post: native_capsule_sys_getdirentries64_post(rc) -> rc
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_post")
-        }
+fn _x64_prepare_sys_getdirentries64_x64(ctx, locals) {
+    var base10 = _intr_tmp_push(ctx, 3) // fd, buf, bufsize
+    if oren_type_tag(base10) == 0 { return nil }
+    var state = {}
+    state["base"] = base10
+    state["tmp_fd"] = _intr_tmp_off(ctx, locals, base10 + 0)
+    state["tmp_buf"] = _intr_tmp_off(ctx, locals, base10 + 1)
+    state["tmp_sz"] = _intr_tmp_off(ctx, locals, base10 + 2)
+    if oren_type_tag(state["tmp_fd"]) == 0 ||
+       oren_type_tag(state["tmp_buf"]) == 0 ||
+       oren_type_tag(state["tmp_sz"]) == 0 {
         _intr_tmp_pop(ctx, base10)
+        return nil
+    }
+    return state
+}
+
+fn _x64_emit_sys_getdirentries64_fd_arg_x64(ctx, locals, fd_expr, state, capsule) {
+    _emit_eval_int_to_rax(ctx, fd_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_pre")
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    return true
+}
+
+fn _x64_emit_sys_getdirentries64_buffer_args_x64(ctx, locals, args, state) {
+    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_buf"])
+    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_sz"])
+    // Evaluate pos_ptr for side-effect compatibility (ignored by Linux getdents64).
+    _emit_eval_int_to_rax(ctx, args[3], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_emit_sys_getdirentries64_syscall_x64(ctx, state) {
+    _intr_load_x64(ctx, 7, state["tmp_fd"])
+    _intr_load_x64(ctx, 6, state["tmp_buf"])
+    _intr_load_x64(ctx, 2, state["tmp_sz"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getdents64()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_sys_getdirentries64_post_x64(ctx, capsule) {
+    if !capsule { return nil }
+    // post: native_capsule_sys_getdirentries64_post(rc) -> rc
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = rc
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_post")
+    return nil
+}
+
+fn _x64_emit_sys_getdirentries64_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm != "sys_getdirentries64" { return false }
+    if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_getdirentries64 expects 4 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getdirentries64 does not support spread"); return true }
+
+    var state = _x64_prepare_sys_getdirentries64_x64(ctx, locals)
+    if state == nil { return true }
+    if _x64_emit_sys_getdirentries64_fd_arg_x64(ctx, locals, args[0], state, capsule) != true ||
+       _x64_emit_sys_getdirentries64_buffer_args_x64(ctx, locals, args, state) != true {
+        _intr_tmp_pop(ctx, state["base"])
         return true
     }
-
-    return false
+    _x64_emit_sys_getdirentries64_syscall_x64(ctx, state)
+    _x64_emit_sys_getdirentries64_post_x64(ctx, capsule)
+    _intr_tmp_pop(ctx, state["base"])
+    return true
 }
 
 fn _emit_intrinsic_sys_linux_path_family_x64(ctx, nm, expr, locals, args, capsule) {

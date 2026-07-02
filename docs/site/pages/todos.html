@@ -526,6 +526,13 @@
 <p>  <code>x64_native_program.oren</code> at ~43.2s total / ~31.6s parse, with</p>
 <p>  <code>_x64_emit_sys_getdirentries64_x64</code> (~57ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_getdirentries64</code> lowering now delegates temp-slot setup, fd</li>
+</ul>
+<p>  prehook/capture, buffer/size/ignored-position evaluation, <code>getdents64</code></p>
+<p>  syscall setup, and capsule posthook emission to focused helpers. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~43.5s total / ~31.7s parse,</p>
+<p>  with <code>_x64_emit_program_entry_sequence</code> (~59ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
