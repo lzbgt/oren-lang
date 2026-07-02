@@ -203,6 +203,11 @@ design evidence lives under `project-doc/`.
   from runtime `oren_mod` argument spilling and ABI call emission, preserving
   deterministic modulo semantics for non-constant divisors. The capped profile
   now exposes `_x64_wsasend_spill_state` (~88ms) as the next parser-body target.
+- Windows x64 overlapped WSA message lowering now shares the common six-argument
+  spill state and WSABUF temp-slot setup across `WSARecv`, `WSARecvFrom`, and
+  `WSASend`; `WSARecvFrom` layers only its sockaddr slots on top. The capped
+  profile now exposes `_emit_intrinsic_sys_qpc_frequency_windows_x64` (~63ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -1292,14 +1292,20 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  capsule bundle layout for from/to path rewrites. The capped profile now shows
 																																																																			  `x64_native_program.oren` at about 43.3s total / 31.5s parse, with
 																																																																			  `_emit_eval_mod_infix_to_rax` exposed at about 64ms as the next parser body.
-																																																																			  X64 `%` infix lowering now separates the safe constant-RHS `idiv` fast path
-																																																																			  from runtime `oren_mod` argument spilling and ABI call emission, preserving
-																																																																			  deterministic modulo semantics for non-constant divisors. The capped profile
-																																																																			  now shows `x64_native_program.oren` at about 43.3s total / 31.7s parse, with
-																																																																			  `_x64_wsasend_spill_state` exposed at about 88ms as the next parser body.
-																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
-											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
-			  as a candidate and `false` disables serial-write candidates. Actual serial
+																																																																				  X64 `%` infix lowering now separates the safe constant-RHS `idiv` fast path
+																																																																				  from runtime `oren_mod` argument spilling and ABI call emission, preserving
+																																																																				  deterministic modulo semantics for non-constant divisors. The capped profile
+																																																																				  now shows `x64_native_program.oren` at about 43.3s total / 31.7s parse, with
+																																																																				  `_x64_wsasend_spill_state` exposed at about 88ms as the next parser body.
+																																																																				  Windows x64 overlapped WSA message lowering now shares common six-argument
+																																																																				  spill state and WSABUF temp-slot setup across `WSARecv`, `WSARecvFrom`, and
+																																																																				  `WSASend`, while `WSARecvFrom` layers only its sockaddr slots on top. The
+																																																																				  capped profile now shows `x64_native_program.oren` at about 42.8s total /
+																																																																				  31.3s parse, with `_emit_intrinsic_sys_qpc_frequency_windows_x64` exposed at
+																																																																				  about 63ms as the next parser body.
+																																																												  Serial/thread module ASTBIN writes are explicit prewarm work via
+												  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+				  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
 		  one-pass cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase

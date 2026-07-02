@@ -306,6 +306,13 @@
 <p>  deterministic modulo semantics for non-constant divisors. The capped profile</p>
 <p>  now exposes <code>_x64_wsasend_spill_state</code> (~88ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 overlapped WSA message lowering now shares the common six-argument</li>
+</ul>
+<p>  spill state and WSABUF temp-slot setup across <code>WSARecv</code>, <code>WSARecvFrom</code>, and</p>
+<p>  <code>WSASend</code>; <code>WSARecvFrom</code> layers only its sockaddr slots on top. The capped</p>
+<p>  profile now exposes <code>_emit_intrinsic_sys_qpc_frequency_windows_x64</code> (~63ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
