@@ -292,37 +292,50 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     return nil
 }
 
-fn _emit_intrinsic_sys_read_linux_x64(ctx, locals, args, capsule) {
-    // Linux x86_64
-    var base2 = _intr_tmp_push(ctx, 3)
-    if oren_type_tag(base2) == 0 { return nil }
-    var tmp_fd2 = _intr_tmp_off(ctx, locals, base2 + 0)
-    var tmp_ptr2 = _intr_tmp_off(ctx, locals, base2 + 1)
-    var tmp_len2 = _intr_tmp_off(ctx, locals, base2 + 2)
-    if oren_type_tag(tmp_fd2) == 0 || oren_type_tag(tmp_ptr2) == 0 || oren_type_tag(tmp_len2) == 0 { _intr_tmp_pop(ctx, base2); return nil }
+fn _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, prehook_name) {
+    var base = _intr_tmp_push(ctx, 3)
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
 
     _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
     if capsule {
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_read_pre")
+        _emit_call_rel32_named_x64(ctx, prehook_name)
     } else {
-        // rax = fd
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
     }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd2, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr2)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len2)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+}
 
-    _intr_load_x64(ctx, 7, tmp_fd2)
-    _intr_load_x64(ctx, 6, tmp_ptr2)
-    _intr_load_x64(ctx, 2, tmp_len2)
+fn _x64_emit_linux_fd_buf_syscall_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["tmp_fd"])
+    _intr_load_x64(ctx, 6, st["tmp_ptr"])
+    _intr_load_x64(ctx, 2, st["tmp_len"])
+    return nil
+}
+
+fn _emit_intrinsic_sys_read_linux_x64(ctx, locals, args, capsule) {
+    // Linux x86_64
+    var st = _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, "native_capsule_sys_read_pre")
+    if st == nil { return nil }
+
+    _x64_emit_linux_fd_buf_syscall_args(ctx, st)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_read()))
     bytes_extend(ctx["code"], core.insn_syscall())
-    _intr_tmp_pop(ctx, base2)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
@@ -463,27 +476,10 @@ fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
 }
 
 fn _emit_intrinsic_sys_write_linux_x64(ctx, locals, args, capsule) {
-    var base = _intr_tmp_push(ctx, 3)
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
-    if capsule {
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
-    } else {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = rdi
-    }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
-
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    var st = _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, "native_capsule_sys_write_pre")
+    if st == nil { return nil }
+    var base = st["base"]
+    var tmp_len = st["tmp_len"]
 
     var labels = {}
     var local_fixups = []
@@ -494,9 +490,7 @@ fn _emit_intrinsic_sys_write_linux_x64(ctx, locals, args, capsule) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
 
-    _intr_load_x64(ctx, 7, tmp_fd)
-    _intr_load_x64(ctx, 6, tmp_ptr)
-    _intr_load_x64(ctx, 2, tmp_len)
+    _x64_emit_linux_fd_buf_syscall_args(ctx, st)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_write()))
     bytes_extend(ctx["code"], core.insn_syscall())
     _emit_jmp_to_label(ctx, local_fixups, l_done)

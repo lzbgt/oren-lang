@@ -1115,6 +1115,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																												  contract. The capped profile now shows `x64_native_program.oren` at about
 																																																												  43.2s total / 31.7s parse, with `_emit_intrinsic_sys_read_linux_x64` exposed
 																																																												  at about 106ms as the next parser body.
+																																																												  Linux x64 `sys_read` / `sys_write` lowering now shares fd/pointer/length spill
+																																																												  state setup, capsule prehook dispatch, and syscall argument reload helpers
+																																																												  while preserving read passthrough semantics and write's nonpositive-length
+																																																												  zero return. The capped profile now shows `x64_native_program.oren` at about
+																																																												  43.8s total / 32.3s parse, with `_compile_function_v0` exposed at about
+																																																												  87ms as the next parser body.
 																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
