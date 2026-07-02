@@ -242,56 +242,77 @@ fn _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg) {
     return roots_scanned
 }
 
+fn _x64_append_global_root_table_data(ctx, root_offsets, root_count) {
+    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var root_table_off = bytes_len(ctx["data"])
+    var ri = 0
+    while ri < root_count {
+        push_u64_le(ctx["data"], root_offsets[ri])
+        ri = ri + 1
+    }
+    return root_table_off
+}
+
+fn _x64_new_global_root_loop_state(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "loop": _new_label(ctx, "global_roots_loop"),
+        "done": _new_label(ctx, "global_roots_done"),
+    }
+}
+
+fn _x64_emit_global_root_loop_init(ctx, scratch_base, root_table_off, root_count) {
+    // scratch[0] = cursor, scratch[8] = remaining, scratch[16] = data_base.
+    var lea_roots_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0)) // r10 = &root_table[0]
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_roots_pos + 3, "data_off": root_table_off})
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(11, root_count)) // r11 = remaining
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10)) // r12 = data_base
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(root_table_off, 4294967296)))
+    _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+    _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
+    _emit_mov_mrsp_r64(ctx, scratch_base + 16, 12)
+    return nil
+}
+
+fn _x64_emit_global_root_loop_header(ctx, scratch_base, st) {
+    _emit_label(ctx, st["labels"], st["loop"])
+    _emit_mov_r64_mrsp(ctx, 11, scratch_base + 8)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, st["fixups"], "e", st["done"])
+    return nil
+}
+
+fn _x64_emit_global_root_loop_step(ctx, scratch_base, arg_reg, st) {
+    _emit_mov_r64_mrsp(ctx, 10, scratch_base + 0)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(13, 10)) // r13 = root offset
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
+    _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(11, 1))
+    _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
+
+    _emit_mov_r64_mrsp(ctx, 12, scratch_base + 16)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 13)) // r12 = root pointer
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(arg_reg, 12))
+    var call_root_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_root_pos, "name": "native_gc_register_root"})
+    _emit_jmp_to_label(ctx, st["fixups"], st["loop"])
+    return nil
+}
+
 fn _x64_emit_global_root_table_loop(ctx, scratch_base, root_offsets, arg_reg) {
     var root_count = oren_list_len(root_offsets)
-    if root_count > 0 {
-        while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-        var root_table_off = bytes_len(ctx["data"])
-        var ri = 0
-        while ri < root_count {
-            push_u64_le(ctx["data"], root_offsets[ri])
-            ri = ri + 1
-        }
+    if root_count <= 0 { return root_count }
 
-        var labels_roots = {}
-        var fixups_roots = []
-        var l_roots_loop = _new_label(ctx, "global_roots_loop")
-        var l_roots_done = _new_label(ctx, "global_roots_done")
-
-        // scratch[0] = cursor, scratch[8] = remaining, scratch[16] = data_base.
-        var lea_roots_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0)) // r10 = &root_table[0]
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_roots_pos + 3, "data_off": root_table_off})
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(11, root_count)) // r11 = remaining
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10)) // r12 = data_base
-        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(root_table_off, 4294967296)))
-        _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
-        _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
-        _emit_mov_mrsp_r64(ctx, scratch_base + 16, 12)
-
-        _emit_label(ctx, labels_roots, l_roots_loop)
-        _emit_mov_r64_mrsp(ctx, 11, scratch_base + 8)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-        _emit_jcc_to_label(ctx, fixups_roots, "e", l_roots_done)
-
-        _emit_mov_r64_mrsp(ctx, 10, scratch_base + 0)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(13, 10)) // r13 = root offset
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
-        _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
-        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(11, 1))
-        _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
-
-        _emit_mov_r64_mrsp(ctx, 12, scratch_base + 16)
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 13)) // r12 = root pointer
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(arg_reg, 12))
-        var call_root_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_root_pos, "name": "native_gc_register_root"})
-        _emit_jmp_to_label(ctx, fixups_roots, l_roots_loop)
-
-        _emit_label(ctx, labels_roots, l_roots_done)
-        _patch_local_fixups(ctx, labels_roots, fixups_roots)
-    }
+    var root_table_off = _x64_append_global_root_table_data(ctx, root_offsets, root_count)
+    var st = _x64_new_global_root_loop_state(ctx)
+    _x64_emit_global_root_loop_init(ctx, scratch_base, root_table_off, root_count)
+    _x64_emit_global_root_loop_header(ctx, scratch_base, st)
+    _x64_emit_global_root_loop_step(ctx, scratch_base, arg_reg, st)
+    _emit_label(ctx, st["labels"], st["done"])
+    _patch_local_fixups(ctx, st["labels"], st["fixups"])
     return root_count
 }
 

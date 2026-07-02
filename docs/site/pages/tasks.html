@@ -1135,6 +1135,12 @@
 <p>																																																								 profile now shows <code>x64_native_program.oren</code> at about 43.4s total / 31.9s</p>
 <p>																																																								 parse, with <code>_x64_emit_global_root_table_loop</code> exposed at about 74ms as the</p>
 <p>																																																								 next parser body.</p>
+<p>																																																								 X64 global-root table registration now separates root-offset data</p>
+<p>																																																								 serialization, loop state creation, scratch initialization, loop header, and</p>
+<p>																																																								 per-root registration step emission while preserving the one-table/one-loop</p>
+<p>																																																								 runtime strategy. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																																																								 about 42.5s total / 31.2s parse, with <code>_emit_intrinsic_sys_windows_net_x64</code></p>
+<p>																																																								 exposed at about 71ms as the next parser body.</p>
 <p>																																																						     Serial/thread module</p>
 <p>															     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
