@@ -1188,6 +1188,13 @@ Facts from the 2026-05-28 implementation pass:
 																																																																		  The capped profile now shows `x64_native_program.oren` at about 42.7s total /
 																																																																		  31.5s parse, with `_x64_emit_linux_stat_copy_to_oren_v0` exposed at about
 																																																																		  101ms as the next parser body.
+																																																																		  Linux x64 stat-result normalization now delegates rc gating, low-register
+																																																																		  base setup, deterministic OrenStatV0 zeroing, size/mode copying, and
+																																																																		  sec+nsec timestamp packing to focused helpers while preserving Linux
+																																																																		  `struct stat` and OrenStatV0 offsets. The capped profile now shows
+																																																																		  `x64_native_program.oren` at about 44.3s total / 32.4s parse, with
+																																																																		  `_x64_rtobj_encode_fixups_compact` exposed at about 73ms as the next parser
+																																																																		  body.
 																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via
 										  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

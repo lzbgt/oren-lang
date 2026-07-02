@@ -182,6 +182,13 @@
 <p>  prefixes. The capped profile now exposes <code>_x64_emit_linux_stat_copy_to_oren_v0</code></p>
 <p>  (~101ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 stat-result normalization now delegates rc gating, low-register</li>
+</ul>
+<p>  base setup, deterministic OrenStatV0 zeroing, size/mode copying, and</p>
+<p>  sec+nsec timestamp packing to focused helpers while preserving all Linux</p>
+<p>  <code>struct stat</code> and OrenStatV0 offsets. The capped profile now exposes</p>
+<p>  <code>_x64_rtobj_encode_fixups_compact</code> (~73ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

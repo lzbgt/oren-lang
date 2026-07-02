@@ -115,6 +115,11 @@ design evidence lives under `project-doc/`.
   `WSA_IO_PENDING`, and WSA errno mapping contract with per-intrinsic label
   prefixes. The capped profile now exposes `_x64_emit_linux_stat_copy_to_oren_v0`
   (~101ms) as the next parser-body target.
+- Linux x64 stat-result normalization now delegates rc gating, low-register
+  base setup, deterministic OrenStatV0 zeroing, size/mode copying, and
+  sec+nsec timestamp packing to focused helpers while preserving all Linux
+  `struct stat` and OrenStatV0 offsets. The capped profile now exposes
+  `_x64_rtobj_encode_fixups_compact` (~73ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

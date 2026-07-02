@@ -1,58 +1,63 @@
-fn _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, label_name) {
-    // If rc >= 0, translate tmp_host_stat into OrenStatV0 at st_ptr.
+fn _x64_linux_stat_copy_gate(ctx, label_name) {
     var labels = {}
     var fixups = []
-    var l_norm_done = _new_label(ctx, label_name)
+    var l_done = _new_label(ctx, label_name)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "l", l_norm_done)
+    _emit_jcc_to_label(ctx, fixups, "l", l_done)
+    return {"labels": labels, "fixups": fixups, "done": l_done}
+}
 
-    // Use low registers as base pointers for memory operations.
-    //
-    // Rationale:
-    // - The x64 backend must correctly encode ModRM/SIB for r8-r15, but historically
-    //   some "mem op with disp" helpers have been brittle on those high regs.
-    // - sys_stat/sys_fstat are on the compiler hot path (build cache, file ingest),
-    //   so we keep this conservative and robust.
+fn _x64_linux_stat_copy_load_bases(ctx, tmp_st, off_host0) {
+    // Keep low base registers for robust ModRM/SIB memory encodings.
     _intr_load_x64(ctx, 7, tmp_st) // rdi = st_ptr
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
+    _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
+    return nil
+}
 
-    // Zero OrenStatV0 (64 bytes) for determinism.
+fn _x64_linux_stat_zero_oren_v0(ctx) {
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
     var zoff = 0
     while zoff < nstat.oren_stat_v0_size_bytes() {
         bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, zoff, 9))
         zoff = zoff + 4
     }
+    return nil
+}
 
-    // size (i64)
-    _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
+fn _x64_linux_stat_copy_size_mode(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_size()))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(7, 10)) // [st_ptr+0] = size
-
-    // mode (u32)
     bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(10, 6, labi.linux_stat_off_st_mode()))
     bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(7, nstat.oren_stat_v0_off_mode(), 10))
+    return nil
+}
 
-    // times (i64 ns): sec*1_000_000_000 + nsec
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_atime_sec()))
+fn _x64_linux_stat_copy_time_ns(ctx, src_sec_off, src_nsec_off, dst_off) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, src_sec_off))
     bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_atime_nsec()))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, src_nsec_off))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_atime_ns(), 10))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, dst_off, 10))
+    return nil
+}
 
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_mtime_sec()))
-    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_mtime_nsec()))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_mtime_ns(), 10))
+fn _x64_linux_stat_copy_times(ctx) {
+    _x64_linux_stat_copy_time_ns(ctx, labi.linux_stat_off_st_atime_sec(), labi.linux_stat_off_st_atime_nsec(), nstat.oren_stat_v0_off_atime_ns())
+    _x64_linux_stat_copy_time_ns(ctx, labi.linux_stat_off_st_mtime_sec(), labi.linux_stat_off_st_mtime_nsec(), nstat.oren_stat_v0_off_mtime_ns())
+    _x64_linux_stat_copy_time_ns(ctx, labi.linux_stat_off_st_ctime_sec(), labi.linux_stat_off_st_ctime_nsec(), nstat.oren_stat_v0_off_ctime_ns())
+    return nil
+}
 
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(10, 6, labi.linux_stat_off_st_ctime_sec()))
-    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(9, 6, labi.linux_stat_off_st_ctime_nsec()))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(7, nstat.oren_stat_v0_off_ctime_ns(), 10))
+fn _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, label_name) {
+    // If rc >= 0, translate tmp_host_stat into OrenStatV0 at st_ptr.
+    var gate = _x64_linux_stat_copy_gate(ctx, label_name)
+    _x64_linux_stat_copy_load_bases(ctx, tmp_st, off_host0)
+    _x64_linux_stat_zero_oren_v0(ctx)
+    _x64_linux_stat_copy_size_mode(ctx)
+    _x64_linux_stat_copy_times(ctx)
 
-    _emit_label(ctx, labels, l_norm_done)
-    _patch_local_fixups(ctx, labels, fixups)
+    _emit_label(ctx, gate["labels"], gate["done"])
+    _patch_local_fixups(ctx, gate["labels"], gate["fixups"])
     return nil
 }
 
