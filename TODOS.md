@@ -371,6 +371,11 @@ design evidence lives under `project-doc/`.
   focused helpers while preserving DLL/SO entry metadata. The capped profile now
   shows `x64_native_program.oren` at ~43.7s total / ~31.8s parse, with
   `_emit_ops_in_fn` (~58ms) as the next parser-body target.
+- `_emit_ops_in_fn` now delegates one-op iteration orchestration to a focused
+  helper while preserving reserve-skip, tracing, gas patching, prebuilt batch,
+  regular-op, and slow-op accounting semantics. The capped profile now shows
+  `x64_native_program.oren` at ~45.2s total / ~33.3s parse, with
+  `_x64_emit_getentropy_windows_resolve_fp` (~61ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

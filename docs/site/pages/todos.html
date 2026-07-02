@@ -540,6 +540,13 @@
 <p>  shows <code>x64_native_program.oren</code> at ~43.7s total / ~31.8s parse, with</p>
 <p>  <code>_emit_ops_in_fn</code> (~58ms) as the next parser-body target.</p>
 <ul>
+<li><code>_emit_ops_in_fn</code> now delegates one-op iteration orchestration to a focused</li>
+</ul>
+<p>  helper while preserving reserve-skip, tracing, gas patching, prebuilt batch,</p>
+<p>  regular-op, and slow-op accounting semantics. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~45.2s total / ~33.3s parse, with</p>
+<p>  <code>_x64_emit_getentropy_windows_resolve_fp</code> (~61ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

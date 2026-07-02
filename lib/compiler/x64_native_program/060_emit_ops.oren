@@ -1287,44 +1287,46 @@ fn _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue
     return 0
 }
 
+fn _x64_emit_ops_one_in_fn(ctx, ops, state, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, j, n) {
+    var op_start_ns = 0
+    if state["trace_op_slow"] == true { op_start_ns = oren_time_now_ns() }
+    state["op_start_ns"] = op_start_ns
+    var op = oren_list_get(ops, j)
+    if op == nil { return 0 }
+    var next = nil
+    if j + 1 < n { next = oren_list_get(ops, j + 1) }
+    if _x64_should_skip_reserve_op(op, next, ctx, locals) == true { return 0 }
+
+    var op_kind = op["op"]
+    _x64_emit_ops_trace_progress(ctx, state["trace"], state["trace_stride"], j, n, op, op_kind)
+    _x64_emit_ops_phase_progress(ctx, state["phase_outer"], state["phase_log"], state["phase_name"],
+        state["phase_stride"], j, n, op, op_kind)
+    _linetab_record_tok(ctx, op["tok"])
+    var dynamic_gas = _x64_emit_ops_charge_gas(ctx, ops, state, op_kind, j)
+    if _x64_emit_prebuilt_batch_op(ctx, op, platform, state, j) == true {
+        _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
+        return 0
+    }
+    var op_status = _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups,
+        epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns,
+        state["op_slow_ms"], state["top_string_fast_stats"], state["gas_weighted"], state["gas_dynamic"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if op_status == 1 {
+        _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
+        return 0
+    }
+    _x64_emit_ops_finish_regular(ctx, state, dynamic_gas, op, op_kind, j)
+    return 0
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var state = _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label)
     var n = state["n"]
     if state["trace"] == true { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
     var j = 0
     while j < n {
-        var op_start_ns = 0
-        if state["trace_op_slow"] == true { op_start_ns = oren_time_now_ns() }
-        state["op_start_ns"] = op_start_ns
-        var op = oren_list_get(ops, j)
-        if op == nil { j = j + 1; continue }
-        var next = nil
-        if j + 1 < n { next = oren_list_get(ops, j + 1) }
-        if _x64_should_skip_reserve_op(op, next, ctx, locals) == true {
-            j = j + 1
-            continue
-        }
-        var op_kind = op["op"]
-        _x64_emit_ops_trace_progress(ctx, state["trace"], state["trace_stride"], j, n, op, op_kind)
-        _x64_emit_ops_phase_progress(ctx, state["phase_outer"], state["phase_log"], state["phase_name"],
-            state["phase_stride"], j, n, op, op_kind)
-        _linetab_record_tok(ctx, op["tok"])
-        var dynamic_gas = _x64_emit_ops_charge_gas(ctx, ops, state, op_kind, j)
-        if _x64_emit_prebuilt_batch_op(ctx, op, platform, state, j) == true {
-            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
-            j = j + 1
-            continue
-        }
-        var op_status = _x64_emit_regular_op(ctx, op_kind, op, locals, labels, local_fixups,
-            epilogue_label, platform, loop_cond_label, loop_end_label, j, op_start_ns,
-            state["op_slow_ms"], state["top_string_fast_stats"], state["gas_weighted"], state["gas_dynamic"])
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        if op_status == 1 {
-            _x64_patch_dynamic_gas_if_needed(ctx, dynamic_gas["note_pos"], dynamic_gas["span_start"])
-            j = j + 1
-            continue
-        }
-        _x64_emit_ops_finish_regular(ctx, state, dynamic_gas, op, op_kind, j)
+        if _x64_emit_ops_one_in_fn(ctx, ops, state, locals, labels, local_fixups, epilogue_label,
+            platform, loop_cond_label, loop_end_label, j, n) == nil { return nil }
         j = j + 1
     }
     _x64_emit_ops_summary(ctx, state)

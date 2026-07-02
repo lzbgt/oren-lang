@@ -1521,12 +1521,18 @@
 <p>																																																																											  parse, with <code>_x64_emit_program_entry_sequence</code> exposed at about 59ms as the</p>
 <p>																																																																											  next parser body.</p>
 <p>																																																																											  X64 program-entry sequence emission now delegates prologue/bootstrap/root</p>
-<p>																																																																											  state, entry-option packing, register/top/main/return emission, and done</p>
-<p>																																																																											  logging to focused helpers while preserving DLL/SO entry metadata. The capped</p>
-<p>																																																																											  profile now shows <code>x64_native_program.oren</code> at about 43.7s total / 31.8s</p>
-<p>																																																																											  parse, with <code>_emit_ops_in_fn</code> exposed at about 58ms as the next parser body.</p>
-<p>																																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>																										  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																																																												  state, entry-option packing, register/top/main/return emission, and done</p>
+<p>																																																																												  logging to focused helpers while preserving DLL/SO entry metadata. The capped</p>
+<p>																																																																												  profile now shows <code>x64_native_program.oren</code> at about 43.7s total / 31.8s</p>
+<p>																																																																												  parse, with <code>_emit_ops_in_fn</code> exposed at about 58ms as the next parser body.</p>
+<p>																																																																												  <code>_emit_ops_in_fn</code> now delegates one-op iteration orchestration to a focused</p>
+<p>																																																																												  helper while preserving reserve-skip, tracing, gas patching, prebuilt batch,</p>
+<p>																																																																												  regular-op, and slow-op accounting semantics. The capped profile now shows</p>
+<p>																																																																												  <code>x64_native_program.oren</code> at about 45.2s total / 33.3s parse, with</p>
+<p>																																																																												  <code>_x64_emit_getentropy_windows_resolve_fp</code> exposed at about 61ms as the next</p>
+<p>																																																																												  parser body.</p>
+<p>																																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>
