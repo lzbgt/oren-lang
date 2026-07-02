@@ -620,6 +620,13 @@
 <p>  at ~43.4s total / ~31.7s parse, with <code>_x64_emit_list_push_validate</code> (~54ms)</p>
 <p>  as the next parser-body target.</p>
 <ul>
+<li>X64 generic LIST push validation now matches the LIST_INT push structure with</li>
+</ul>
+<p>  separate nil, tracked-lookup, node, kind, and magic guards while preserving</p>
+<p>  the list push register reload contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.4s total / ~31.7s parse, with</p>
+<p>  <code>_x64_emit_list_int_get_validate_list</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

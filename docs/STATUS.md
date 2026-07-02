@@ -1536,14 +1536,19 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																						  preserving the rtobj metadata schema keys. The capped profile now shows
 																																																																																						  `x64_native_program.oren` at about 44.4s total / 32.5s parse, with
 																																																																																						  `_emit_format_plus0x_u64_hex_line` exposed at about 57ms as the next parser body.
-																																																																																						  X64 panic stack-trace hex formatting now shares ASCII byte stores and the
-																																																																																						  fixed-width 16-digit hex emission between `0x... ` PC prefixes and
-																																																																																						  `+0x...\n` offsets. The capped profile now shows `x64_native_program.oren`
-																																																																																						  at about 43.4s total / 31.7s parse, with `_x64_emit_list_push_validate`
-																																																																																						  exposed at about 54ms as the next parser body.
-																																																																																					  Serial/thread module ASTBIN writes are explicit prewarm work via
-																																					  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
-							  as a candidate and `false` disables serial-write candidates. Actual serial
+																																																																																							  X64 panic stack-trace hex formatting now shares ASCII byte stores and the
+																																																																																							  fixed-width 16-digit hex emission between `0x... ` PC prefixes and
+																																																																																							  `+0x...\n` offsets. The capped profile now shows `x64_native_program.oren`
+																																																																																							  at about 43.4s total / 31.7s parse, with `_x64_emit_list_push_validate`
+																																																																																							  exposed at about 54ms as the next parser body.
+																																																																																							  X64 generic LIST push validation now matches the LIST_INT push structure with
+																																																																																							  separate nil, tracked-lookup, node, kind, and magic guards while preserving
+																																																																																							  the list push register reload contract. The capped profile now shows
+																																																																																							  `x64_native_program.oren` at about 43.4s total / 31.7s parse, with
+																																																																																							  `_x64_emit_list_int_get_validate_list` exposed at about 54ms as the next parser body.
+																																																																																						  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																						  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+								  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
 		  one-pass cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase
