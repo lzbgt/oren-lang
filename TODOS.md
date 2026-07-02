@@ -255,6 +255,11 @@ design evidence lives under `project-doc/`.
   preserving the existing summary field order. The capped profile now shows
   `x64_native_program.oren` at ~42.4s total / ~30.9s parse, with
   `_emit_intrinsic_sys_windows_core_x64` (~61ms) as the next parser-body target.
+- Windows x64 core intrinsic dispatch now routes shared-memory, read/write,
+  filesystem, process-basics, and time/sync/random syscall families through
+  focused helper routers while preserving dispatch order. The capped profile now
+  shows `x64_native_program.oren` at ~43.9s total / ~32.2s parse, with
+  `_emit_intrinsic_sys_select_windows_x64` (~63ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

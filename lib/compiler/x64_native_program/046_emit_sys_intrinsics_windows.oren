@@ -906,15 +906,23 @@ fn _x64_dispatch_target_is_windows(ctx) {
     return false
 }
 
-fn _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) {
+fn _emit_intrinsic_sys_windows_shared_memory_x64(ctx, nm, expr, locals, args) {
     // Some cross-platform syscalls are implemented in the shared syscall module but have a
     // Windows mapping (VirtualAlloc/VirtualFree). Delegate those to the shared dispatcher.
     if nm == "sys_mmap_private_anon" || nm == "sys_munmap" {
         _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args)
         return true
     }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_io_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_write" { _emit_intrinsic_sys_write_x64(ctx, expr, locals, args); return true }
     if nm == "sys_read" { _emit_intrinsic_sys_read_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_fs_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_open" { _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args); return true }
     // FS substrate (rolling, Tier-1): Win32 API shims + capsule gating.
     if nm == "sys_stat" || nm == "sys_lstat" { _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args); return true }
@@ -922,8 +930,16 @@ fn _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_unlink" || nm == "sys_rmdir" { _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args); return true }
     if nm == "sys_rename" { _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_mkdir" || nm == "sys_chmod" { _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_process_basic_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_gettid" { _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_exit" { _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_time_sync_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_nanosleep" { _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_ulock_wait" { _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_ulock_wake" { _emit_intrinsic_sys_ulock_wake_windows_x64(ctx, expr, locals, args); return true }
@@ -932,6 +948,15 @@ fn _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_qpc_frequency" { _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_getentropy" { _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_getrandom" { _emit_return_enosys_x64(ctx); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) {
+    if _emit_intrinsic_sys_windows_shared_memory_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_io_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_fs_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_process_basic_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_time_sync_x64(ctx, nm, expr, locals, args) { return true }
     return false
 }
 
