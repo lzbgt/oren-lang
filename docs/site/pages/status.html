@@ -1074,11 +1074,18 @@
 <p>																																																				  Windows x64 <code>sys_post_queued_completion_status</code> lowering now delegates</p>
 <p>																																																				  argument spill state, <code>PostQueuedCompletionStatus</code> call setup, BOOL dispatch,</p>
 <p>																																																				  Win32 error mapping, success emission, and temp cleanup to focused helpers</p>
-<p>																																																				  while preserving the <code>0</code> / <code>-EINVAL</code> / <code>-EBADF</code> / <code>-EIO</code> contract. The capped</p>
-<p>																																																				  profile now shows <code>x64_native_program.oren</code> at about 43.4s total / 32.1s</p>
-<p>																																																				  parse, with <code>_x64_fast_list_int_dot_validate_lists</code> exposed at about 78ms as</p>
-<p>																																																				  the next parser body.</p>
-<p>																																											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																																					  while preserving the <code>0</code> / <code>-EINVAL</code> / <code>-EBADF</code> / <code>-EIO</code> contract. The capped</p>
+<p>																																																					  profile now shows <code>x64_native_program.oren</code> at about 43.4s total / 32.1s</p>
+<p>																																																					  parse, with <code>_x64_fast_list_int_dot_validate_lists</code> exposed at about 78ms as</p>
+<p>																																																					  the next parser body.</p>
+<p>																																																					  X64 fast LIST_INT dot validation now delegates per-list temp state, list</p>
+<p>																																																					  capture, tracked LIST_INT kind validation, magic/count checks, and buffer</p>
+<p>																																																					  capture to focused helpers while preserving slow-path jumps and temp cleanup</p>
+<p>																																																					  on setup/compiler failure. The capped profile now shows</p>
+<p>																																																					  <code>x64_native_program.oren</code> at about 45.0s total / 33.5s parse, with</p>
+<p>																																																					  <code>_x64_emit_compiled_function_body</code> exposed at about 81ms as the next parser</p>
+<p>																																																					  body.</p>
+<p>																																												  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>									  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

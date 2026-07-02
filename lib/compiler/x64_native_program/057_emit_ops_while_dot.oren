@@ -47,61 +47,79 @@ fn _x64_fast_list_int_dot_prepare(ctx, info, locals) {
     }
 }
 
+fn _x64_fast_list_int_dot_validate_state(ctx, locals, lists, li, base, off_n) {
+    var list_name = lists[li]
+    var off_list = locals[list_name]
+    if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
+    var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
+    if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return {"off_list": off_list, "slot_list": slot_list, "slot_buf": slot_buf, "off_n": off_n, "base": base}
+}
+
+fn _x64_fast_list_int_dot_capture_list(ctx, st, local_fixups, l_slow) {
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["off_list"])
+    _emit_mov_mrbp_r64(ctx, 0 - st["slot_list"], 0)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+    return nil
+}
+
+fn _x64_fast_list_int_dot_validate_tracked(ctx, st, local_fixups, l_slow) {
+    _emit_find_tracked_node_x64(ctx, 0, 11)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return false }
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+
+    // kind == LIST_INT (8)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+    return true
+}
+
+fn _x64_fast_list_int_dot_validate_magic_and_count(ctx, st, local_fixups, l_slow) {
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["slot_list"])
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+    // count >= n
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_mov_r64_mrbp(ctx, 9, 0 - st["off_n"])
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+    return nil
+}
+
+fn _x64_fast_list_int_dot_capture_buf(ctx, st) {
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - st["slot_buf"], 0)
+    return nil
+}
+
 fn _x64_fast_list_int_dot_validate_lists(ctx, locals, labels, local_fixups, lists, list_count, base, off_n, l_slow) {
     var li = 0
     while li < list_count {
-        var list_name = lists[li]
-        var off_list = locals[list_name]
-        if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return false }
-        var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
-        var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
-        if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 {
-            _intr_tmp_pop(ctx, base)
-            return false
-        }
-
-        // list -> slot
-        _emit_mov_r64_mrbp(ctx, 0, 0 - off_list)
-        _emit_mov_mrbp_r64(ctx, 0 - slot_list, 0)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
-
-        // tracked node
-        _emit_find_tracked_node_x64(ctx, 0, 11)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
-
-        // kind == LIST_INT (8)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
-
-        // magic check
-        _emit_mov_r64_mrbp(ctx, 0, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
-
-        // count >= n
-        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
-        bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
-        _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
-
-        // buf -> slot
-        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
+        var st = _x64_fast_list_int_dot_validate_state(ctx, locals, lists, li, base, off_n)
+        if st == nil { return false }
+        _x64_fast_list_int_dot_capture_list(ctx, st, local_fixups, l_slow)
+        if _x64_fast_list_int_dot_validate_tracked(ctx, st, local_fixups, l_slow) != true { return false }
+        _x64_fast_list_int_dot_validate_magic_and_count(ctx, st, local_fixups, l_slow)
+        _x64_fast_list_int_dot_capture_buf(ctx, st)
 
         li = li + 1
     }
