@@ -101,6 +101,10 @@ design evidence lives under `project-doc/`.
   routing to focused helpers while preserving existing panic strings and branch
   targets. The capped profile now exposes `_x64_match_fast_list_int_push_while`
   (~70ms) as the next parser-body target.
+- X64 fast LIST_INT and generic LIST push-loop matching now share counted-loop
+  recognition, optional constant-bound handling, push-body validation, duplicate
+  list rejection, and pushed-value dependency guards. The capped profile now
+  exposes `_x64_collect_ffi_ret_attrs` (~70ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

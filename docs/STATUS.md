@@ -1169,6 +1169,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																		  at about 43.1s total / 31.3s parse, with
 																																																																		  `_x64_match_fast_list_int_push_while` exposed at about 70ms as the next
 																																																																		  parser body.
+																																																																		  X64 fast LIST_INT and generic LIST push-loop matching now share counted-loop
+																																																																		  recognition, optional constant-bound handling, push-body validation,
+																																																																		  duplicate list rejection, and pushed-value dependency guards. The capped
+																																																																		  profile now shows `x64_native_program.oren` at about 42.6s total / 31.2s
+																																																																		  parse, with `_x64_collect_ffi_ret_attrs` exposed at about 70ms as the next
+																																																																		  parser body.
 																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via
 										  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

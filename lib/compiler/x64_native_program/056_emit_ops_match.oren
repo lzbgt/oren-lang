@@ -563,7 +563,7 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     }
 }
 
-fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
+fn _x64_match_fast_counted_int_loop_bound(ctx, op, locals, allow_const_bound) {
     if op == nil || op["op"] != "while" { return nil }
     if locals == nil { return nil }
     var cond = op["cond"]
@@ -574,6 +574,7 @@ fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
     var n_name = _x64_is_ident(right)
     var n_const = nil
     if n_name == nil {
+        if allow_const_bound != true { return nil }
         n_const = _x64_parse_int_lit_expr(right)
         if n_const == nil { return nil }
     }
@@ -596,6 +597,12 @@ fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
     if n < 1 { return nil }
     var last = body[n - 1]
     if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "body": body, "body_n": n}
+}
+
+fn _x64_match_fast_push_loop_body(ctx, locals, loop, list_kind) {
+    var body = loop["body"]
+    var n = loop["body_n"]
     var lists = []
     var pushes = []
     var i = 0
@@ -603,12 +610,17 @@ fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
         var st = body[i]
         if st == nil || st["op"] != "expr" { return nil }
         var exp = st["expr"]
-        var info = _x64_is_list_int_push_call(ctx, exp)
+        var info = nil
+        if list_kind == "list_int" {
+            info = _x64_is_list_int_push_call(ctx, exp)
+        } else {
+            info = _x64_is_list_push_call(ctx, exp)
+        }
         if info == nil { return nil }
         var list_name = info["list"]
         if oren_type_tag(locals[list_name]) == 0 { return nil }
         if _x64_list_contains(lists, list_name) { return nil }
-        if _x64_expr_is_inty(ctx, info["value"]) != true { return nil }
+        if list_kind == "list_int" && _x64_expr_is_inty(ctx, info["value"]) != true { return nil }
         oren_list_push(lists, list_name)
         oren_list_push(pushes, info)
         i = i + 1
@@ -619,90 +631,27 @@ fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
         if _x64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
-    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
+    return {"lists": lists, "pushes": pushes}
+}
+
+fn _x64_match_fast_push_while(ctx, op, locals, list_kind) {
+    var loop = _x64_match_fast_counted_int_loop_bound(ctx, op, locals, true)
+    if loop == nil { return nil }
+    var body = _x64_match_fast_push_loop_body(ctx, locals, loop, list_kind)
+    if body == nil { return nil }
+    return {"idx": loop["idx"], "n": loop["n"], "n_const": loop["n_const"], "lists": body["lists"], "pushes": body["pushes"]}
+}
+
+fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
+    return _x64_match_fast_push_while(ctx, op, locals, "list_int")
 }
 
 fn _x64_match_fast_list_push_while(ctx, op, locals) {
-    if op == nil || op["op"] != "while" { return nil }
-    if locals == nil { return nil }
-    var cond = op["cond"]
-    if cond == nil || cond["type"] != "Infix" { return nil }
-    if cond["op"] != "<" { return nil }
-    var idx_name = _x64_is_ident(cond["left"])
-    var right = cond["right"]
-    var n_name = _x64_is_ident(right)
-    var n_const = nil
-    if n_name == nil {
-        n_const = _x64_parse_int_lit_expr(right)
-        if n_const == nil { return nil }
-    }
-    if idx_name == nil { return nil }
-    var off_idx = locals[idx_name]
-    if oren_type_tag(off_idx) == 0 { return nil }
-    if ctx["locals_inty"] != nil {
-        if ctx["locals_inty"][idx_name] != true { return nil }
-        if n_name != nil && ctx["locals_inty"][n_name] != true { return nil }
-    }
-    if n_name != nil {
-        var off_n = locals[n_name]
-        if oren_type_tag(off_n) == 0 { return nil }
-    } else if n_const < 0 {
-        return nil
-    }
-    var body = op["body"]
-    if body == nil { return nil }
-    var n = oren_list_len(body)
-    if n < 1 { return nil }
-    var last = body[n - 1]
-    if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
-    var lists = []
-    var pushes = []
-    var i = 0
-    while i < n - 1 {
-        var st = body[i]
-        if st == nil || st["op"] != "expr" { return nil }
-        var exp = st["expr"]
-        var info = _x64_is_list_push_call(ctx, exp)
-        if info == nil { return nil }
-        var list_name = info["list"]
-        if oren_type_tag(locals[list_name]) == 0 { return nil }
-        if _x64_list_contains(lists, list_name) { return nil }
-        oren_list_push(lists, list_name)
-        oren_list_push(pushes, info)
-        i = i + 1
-    }
-    if oren_list_len(lists) == 0 { return nil }
-    var pi = 0
-    while pi < oren_list_len(pushes) {
-        if _x64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
-        pi = pi + 1
-    }
-    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
+    return _x64_match_fast_push_while(ctx, op, locals, "list")
 }
 
 fn _x64_match_fast_counted_int_loop(ctx, op, locals) {
-    if op == nil || op["op"] != "while" { return nil }
-    if locals == nil { return nil }
-    var cond = op["cond"]
-    if cond == nil || cond["type"] != "Infix" { return nil }
-    if cond["op"] != "<" { return nil }
-    var idx_name = _x64_is_ident(cond["left"])
-    var n_name = _x64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return nil }
-    if ctx["locals_inty"] != nil {
-        if ctx["locals_inty"][idx_name] != true { return nil }
-        if ctx["locals_inty"][n_name] != true { return nil }
-    }
-    var body = op["body"]
-    if body == nil { return nil }
-    var n = oren_list_len(body)
-    if n < 1 { return nil }
-    var last = body[n - 1]
-    if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
-    return {"idx": idx_name, "n": n_name, "body": body, "body_n": n}
+    return _x64_match_fast_counted_int_loop_bound(ctx, op, locals, false)
 }
 
 fn _x64_match_fast_list_int_get_sum_body(ctx, locals, loop) {

@@ -162,6 +162,12 @@
 <p>  targets. The capped profile now exposes <code>_x64_match_fast_list_int_push_while</code></p>
 <p>  (~70ms) as the next parser-body target.</p>
 <ul>
+<li>X64 fast LIST_INT and generic LIST push-loop matching now share counted-loop</li>
+</ul>
+<p>  recognition, optional constant-bound handling, push-body validation, duplicate</p>
+<p>  list rejection, and pushed-value dependency guards. The capped profile now</p>
+<p>  exposes <code>_x64_collect_ffi_ret_attrs</code> (~70ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
