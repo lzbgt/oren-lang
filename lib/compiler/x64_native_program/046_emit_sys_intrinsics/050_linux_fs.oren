@@ -252,57 +252,80 @@ fn _x64_emit_sys_unlink_or_rmdir_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
-fn _x64_emit_sys_rename_x64(ctx, nm, expr, locals, args, capsule) {
-    if nm == "sys_rename" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_rename expects 2 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_rename does not support spread"); return true }
-
-        var base8 = _intr_tmp_push(ctx, 3) // from, to, bundle
-        if oren_type_tag(base8) == 0 { return true }
-        var tmp_from = _intr_tmp_off(ctx, locals, base8 + 0)
-        var tmp_to = _intr_tmp_off(ctx, locals, base8 + 1)
-        var tmp_bundle = _intr_tmp_off(ctx, locals, base8 + 2)
-        if oren_type_tag(tmp_from) == 0 || oren_type_tag(tmp_to) == 0 || oren_type_tag(tmp_bundle) == 0 { _intr_tmp_pop(ctx, base8); return true }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_from)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base8); return true }
-
-        if capsule {
-            // pre: native_capsule_sys_rename_pre(from, to) -> bundle
-            _intr_load_x64(ctx, 7, tmp_from)
-            _intr_load_x64(ctx, 6, tmp_to)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
-
-            // Load from_ptr into RSI = *(u64*)bundle
-            _intr_load_x64(ctx, 11, tmp_bundle)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
-            // Load to_ptr into R10 = *(u64*)(bundle+16)
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-            bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-        } else {
-            _intr_load_x64(ctx, 6, tmp_from) // rsi = from
-            _intr_load_x64(ctx, 10, tmp_to)  // r10 = to
-        }
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, labi.linux_at_fdcwd()))
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_renameat()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            // post: native_capsule_sys_rename_post(bundle, rc) -> rc
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_bundle)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
-        }
+fn _x64_prepare_sys_rename_x64(ctx, locals, args) {
+    var base8 = _intr_tmp_push(ctx, 3) // from, to, bundle
+    if oren_type_tag(base8) == 0 { return nil }
+    var state = {}
+    state["base"] = base8
+    state["tmp_from"] = _intr_tmp_off(ctx, locals, base8 + 0)
+    state["tmp_to"] = _intr_tmp_off(ctx, locals, base8 + 1)
+    state["tmp_bundle"] = _intr_tmp_off(ctx, locals, base8 + 2)
+    if oren_type_tag(state["tmp_from"]) == 0 ||
+       oren_type_tag(state["tmp_to"]) == 0 ||
+       oren_type_tag(state["tmp_bundle"]) == 0 {
         _intr_tmp_pop(ctx, base8)
-        return true
+        return nil
     }
 
-    return false
+    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_from"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_to"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base8)
+        return nil
+    }
+    return state
+}
+
+fn _x64_emit_sys_rename_path_args_x64(ctx, capsule, state) {
+    if capsule {
+        // pre: native_capsule_sys_rename_pre(from, to) -> bundle
+        _intr_load_x64(ctx, 7, state["tmp_from"])
+        _intr_load_x64(ctx, 6, state["tmp_to"])
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - state["tmp_bundle"], 0)
+
+        // Load from_ptr into RSI = *(u64*)bundle, to_ptr into R10 = *(u64*)(bundle+16).
+        _intr_load_x64(ctx, 11, state["tmp_bundle"])
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+        return nil
+    }
+    _intr_load_x64(ctx, 6, state["tmp_from"]) // rsi = from
+    _intr_load_x64(ctx, 10, state["tmp_to"])  // r10 = to
+    return nil
+}
+
+fn _x64_emit_sys_rename_syscall_x64(ctx) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(2, labi.linux_at_fdcwd()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_renameat()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_sys_rename_post_x64(ctx, capsule, state) {
+    if !capsule { return nil }
+    // post: native_capsule_sys_rename_post(bundle, rc) -> rc
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+    _intr_load_x64(ctx, 7, state["tmp_bundle"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+    return nil
+}
+
+fn _x64_emit_sys_rename_x64(ctx, nm, expr, locals, args, capsule) {
+    if nm != "sys_rename" { return false }
+    if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_rename expects 2 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_rename does not support spread"); return true }
+
+    var state = _x64_prepare_sys_rename_x64(ctx, locals, args)
+    if state == nil { return true }
+    _x64_emit_sys_rename_path_args_x64(ctx, capsule, state)
+    _x64_emit_sys_rename_syscall_x64(ctx)
+    _x64_emit_sys_rename_post_x64(ctx, capsule, state)
+    _intr_tmp_pop(ctx, state["base"])
+    return true
 }
 
 fn _x64_prepare_sys_mkdir_or_chmod_x64(ctx, locals, args) {

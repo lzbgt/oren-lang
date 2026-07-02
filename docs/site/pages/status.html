@@ -1327,6 +1327,11 @@
 <p>																																																																			  flag translation. The capped profile now shows <code>x64_native_program.oren</code> at</p>
 <p>																																																																			  about 43.1s total / 31.5s parse, with <code>_x64_emit_sys_rename_x64</code> exposed at</p>
 <p>																																																																			  about 64ms as the next parser body.</p>
+<p>																																																																			  Linux x64 <code>sys_rename</code> lowering now uses the same state/prehook/syscall/posthook</p>
+<p>																																																																			  decomposition as the rest of the path-family emitters while preserving the</p>
+<p>																																																																			  capsule bundle layout for from/to path rewrites. The capped profile now shows</p>
+<p>																																																																			  <code>x64_native_program.oren</code> at about 43.3s total / 31.5s parse, with</p>
+<p>																																																																			  <code>_emit_eval_mod_infix_to_rax</code> exposed at about 64ms as the next parser body.</p>
 <p>																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

@@ -294,6 +294,12 @@
 <p>  translation. The capped profile now exposes <code>_x64_emit_sys_rename_x64</code></p>
 <p>  (~64ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_rename</code> lowering now uses the same state/prehook/syscall/posthook</li>
+</ul>
+<p>  decomposition as the rest of the path-family emitters while preserving the</p>
+<p>  capsule bundle layout for from/to path rewrites. The capped profile now exposes</p>
+<p>  <code>_emit_eval_mod_infix_to_rax</code> (~64ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

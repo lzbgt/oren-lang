@@ -195,6 +195,10 @@ design evidence lives under `project-doc/`.
   setup, and capsule posthook are separate helpers while preserving flag
   translation. The capped profile now exposes `_x64_emit_sys_rename_x64`
   (~64ms) as the next parser-body target.
+- Linux x64 `sys_rename` lowering now uses the same state/prehook/syscall/posthook
+  decomposition as the rest of the path-family emitters while preserving the
+  capsule bundle layout for from/to path rewrites. The capped profile now exposes
+  `_emit_eval_mod_infix_to_rax` (~64ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
