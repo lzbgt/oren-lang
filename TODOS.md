@@ -439,6 +439,11 @@ design evidence lives under `project-doc/`.
   phases. The capped profile now shows `x64_native_program.oren` at ~45.2s
   total / ~33.1s parse, with `_x64_emit_function_frame_header` (~101ms) as the
   next parser-body target.
+- X64 function frame-header emission now separates phase-state capture, locals
+  logging, trace printing, frame diagnostics, stack allocation, and frame-done
+  logging while preserving frame-size emission. The capped profile now shows
+  `x64_native_program.oren` at ~45.0s total / ~33.0s parse, with
+  `_x64_fast_list_int_push_prepare` (~57ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

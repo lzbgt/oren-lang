@@ -537,34 +537,47 @@ fn _x64_function_trace_analyze_done(name, ops, t_stage) {
     return oren_time_now_ns()
 }
 
-fn _x64_emit_function_frame_header(ctx, name, frame, phase_state) {
-    var phase_this = false
-    var phase_summary_only = false
-    var phase_log = nil
-    var phase_start = 0
-    var trace_this = false
-    var t_stage = 0
-    var max_call_argc = 0
-    if phase_state != nil {
-        phase_this = phase_state["enabled"]
-        phase_summary_only = phase_state["summary_only"]
-        phase_log = phase_state["log"]
-        phase_start = phase_state["start_ns"]
-        trace_this = phase_state["trace"]
-        t_stage = phase_state["trace_stage_ns"]
-        max_call_argc = phase_state["max_call_argc"]
+fn _x64_function_frame_phase_state(phase_state) {
+    var st = {
+        "enabled": false,
+        "summary_only": false,
+        "log": nil,
+        "start_ns": 0,
+        "trace": false,
+        "trace_stage_ns": 0,
+        "max_call_argc": 0
     }
-    if phase_this && phase_summary_only != true {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.function.locals.done",
+    if phase_state != nil {
+        st["enabled"] = phase_state["enabled"]
+        st["summary_only"] = phase_state["summary_only"]
+        st["log"] = phase_state["log"]
+        st["start_ns"] = phase_state["start_ns"]
+        st["trace"] = phase_state["trace"]
+        st["trace_stage_ns"] = phase_state["trace_stage_ns"]
+        st["max_call_argc"] = phase_state["max_call_argc"]
+    }
+    return st
+}
+
+fn _x64_emit_function_locals_phase_done(name, frame, phase) {
+    if phase["enabled"] && phase["summary_only"] != true {
+        _x64_program_phase_log_append(phase["log"], "x64.codegen.function.locals.done",
             "name=" + name +
             " locals=" + oren_int_to_string(oren_map_len(frame["locals"])) +
-            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase["start_ns"]) / 1000000))
     }
-    if trace_this {
-        var dt0 = (oren_time_now_ns() - t_stage) / 1000000
+    return nil
+}
+
+fn _x64_trace_function_collect_locals_done(phase) {
+    if phase["trace"] {
+        var dt0 = (oren_time_now_ns() - phase["trace_stage_ns"]) / 1000000
         print("[x64_fn] collect_locals done ms=" + oren_int_to_string(dt0))
     }
+    return nil
+}
 
+fn _x64_emit_function_frame_debug(name, frame, max_call_argc) {
     // Bounded debug aid: print frame sizing for one function name.
     // Example:
     //   OREN_TRACE_X64_FN_FRAME=oren_string_from_bytes OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1 ...
@@ -573,23 +586,40 @@ fn _x64_emit_function_frame_header(ctx, name, frame, phase_state) {
         print("[x64_fn] name=" + name +
               " max_call_argc=" + oren_int_to_string(max_call_argc) +
               " max_intr=" + oren_int_to_string(frame["max_intr"]) +
-		      " intr_lim=" + oren_int_to_string(frame["intr_lim"]) +
+              " intr_lim=" + oren_int_to_string(frame["intr_lim"]) +
 		      " literal_slots=" + oren_int_to_string(frame["literal_slot_count"]) +
-		      " locals_pre_align_bytes=" + oren_int_to_string(frame["locals_pre_align_bytes"]))
+              " locals_pre_align_bytes=" + oren_int_to_string(frame["locals_pre_align_bytes"]))
     }
+    return nil
+}
 
+fn _x64_emit_function_frame_alloc(ctx, frame) {
     var frame_size = frame["frame_size"]
     if frame_size > 0 { bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(frame_size)) }
-    if phase_this && phase_summary_only != true {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.function.frame.done",
+    return frame_size
+}
+
+fn _x64_emit_function_frame_phase_done(ctx, name, frame, frame_size, phase) {
+    if phase["enabled"] && phase["summary_only"] != true {
+        _x64_program_phase_log_append(phase["log"], "x64.codegen.function.frame.done",
             "name=" + name +
             " frame_bytes=" + oren_int_to_string(frame_size) +
             " literal_slots=" + oren_int_to_string(frame["literal_slot_count"]) +
             " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
-            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
+            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase["start_ns"]) / 1000000))
     }
-    if trace_this { return oren_time_now_ns() }
-    return t_stage
+    return nil
+}
+
+fn _x64_emit_function_frame_header(ctx, name, frame, phase_state) {
+    var phase = _x64_function_frame_phase_state(phase_state)
+    _x64_emit_function_locals_phase_done(name, frame, phase)
+    _x64_trace_function_collect_locals_done(phase)
+    _x64_emit_function_frame_debug(name, frame, phase["max_call_argc"])
+    var frame_size = _x64_emit_function_frame_alloc(ctx, frame)
+    _x64_emit_function_frame_phase_done(ctx, name, frame, frame_size, phase)
+    if phase["trace"] { return oren_time_now_ns() }
+    return phase["trace_stage_ns"]
 }
 
 fn _x64_emit_function_call_depth_enter(ctx, call_depth_enabled) {

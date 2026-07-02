@@ -634,6 +634,13 @@
 <p>  total / ~33.1s parse, with <code>_x64_emit_function_frame_header</code> (~101ms) as the</p>
 <p>  next parser-body target.</p>
 <ul>
+<li>X64 function frame-header emission now separates phase-state capture, locals</li>
+</ul>
+<p>  logging, trace printing, frame diagnostics, stack allocation, and frame-done</p>
+<p>  logging while preserving frame-size emission. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~45.0s total / ~33.0s parse, with</p>
+<p>  <code>_x64_fast_list_int_push_prepare</code> (~57ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
