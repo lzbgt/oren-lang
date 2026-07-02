@@ -1377,6 +1377,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  data init and runtime-zero slot behavior. The capped profile now shows
 																																																																								  `x64_native_program.oren` at about 42.7s total / 31.3s parse, with
 																																																																								  `_x64_emit_list_int_push_validate` exposed at about 61ms as the next parser body.
+																																																																								  X64 LIST_INT push validation now splits nil, tracked-node lookup, node-kind,
+																																																																								  and list-magic guards into focused helpers while preserving diagnostic footer
+																																																																								  calls. The capped profile now shows `x64_native_program.oren` at about 42.4s
+																																																																								  total / 30.9s parse, with `_emit_eval_float_bits_call_intrinsic_x64` exposed at
+																																																																								  about 60ms as the next parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

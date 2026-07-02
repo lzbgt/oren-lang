@@ -401,6 +401,13 @@
 <p>  <code>x64_native_program.oren</code> at ~42.7s total / ~31.3s parse, with</p>
 <p>  <code>_x64_emit_list_int_push_validate</code> (~61ms) as the next parser-body target.</p>
 <ul>
+<li>X64 LIST_INT push validation now splits nil, tracked-node lookup, node-kind,</li>
+</ul>
+<p>  and list-magic guards into focused helpers while preserving diagnostic footer</p>
+<p>  calls. The capped profile now shows <code>x64_native_program.oren</code> at ~42.4s total</p>
+<p>  / ~30.9s parse, with <code>_emit_eval_float_bits_call_intrinsic_x64</code> (~60ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
