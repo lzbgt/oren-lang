@@ -391,6 +391,12 @@ design evidence lives under `project-doc/`.
   validation cleanup and cursor contracts. The capped profile now shows
   `x64_native_program.oren` at ~44.3s total / ~32.6s parse, with
   `_x64_print_program_compile_summary` (~59ms) as the next parser-body target.
+- X64 compile-summary emission now lives in a bounded program-entry helper
+  fragment with separate platform, timing, count, and line-format helpers while
+  keeping `090_tail.oren` under the source line ceiling. The capped profile now
+  shows `x64_native_program.oren` at ~43.4s total / ~31.8s parse, with
+  `_x64_fast_list_get_sum_emit_dynamic_add` (~60ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

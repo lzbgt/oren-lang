@@ -1503,11 +1503,16 @@ Facts from the 2026-05-28 implementation pass:
 																																																																															  `_emit_fast_list_dot_while_x64` exposed at about 60ms as the next parser body.
 																																																																															  X64 fast LIST dot-product while lowering now delegates generic fallback,
 																																																																															  loop-body finish, and slow-path emission to focused helpers while preserving
-																																																																															  validation cleanup and cursor contracts. The capped profile now shows
-																																																																															  `x64_native_program.oren` at about 44.3s total / 32.6s parse, with
-																																																																															  `_x64_print_program_compile_summary` exposed at about 59ms as the next parser body.
-																																																																														  Serial/thread module ASTBIN writes are explicit prewarm work via
-																														  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																																  validation cleanup and cursor contracts. The capped profile now shows
+																																																																																  `x64_native_program.oren` at about 44.3s total / 32.6s parse, with
+																																																																																  `_x64_print_program_compile_summary` exposed at about 59ms as the next parser body.
+																																																																																  X64 compile-summary emission now lives in a bounded program-entry helper
+																																																																																  fragment with separate platform, timing, count, and line-format helpers while
+																																																																																  keeping `090_tail.oren` under the source line ceiling. The capped profile now
+																																																																																  shows `x64_native_program.oren` at about 43.4s total / 31.8s parse, with
+																																																																																  `_x64_fast_list_get_sum_emit_dynamic_add` exposed at about 60ms as the next parser body.
+																																																																															  Serial/thread module ASTBIN writes are explicit prewarm work via
+																															  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

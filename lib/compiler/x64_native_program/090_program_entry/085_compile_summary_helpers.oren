@@ -1,0 +1,68 @@
+fn _x64_program_compile_summary_platform(platform, used_rtobj) {
+    var os = "unknown"
+    var dbg = 0
+    var used_rtobj_i = 0
+    if platform != nil {
+        if platform["os"] != nil { os = platform["os"] }
+        if platform["debug"] == true { dbg = 1 }
+    }
+    // Avoid passing bool-like values to `oren_int_to_string` (native value-model hazard).
+    if used_rtobj == true { used_rtobj_i = 1 }
+    return {"os": os, "dbg": dbg, "used_rtobj": used_rtobj_i}
+}
+
+fn _x64_program_compile_summary_times(t0, times) {
+    var t_finalize_done = times["finalize_done"]
+    var t_rtobj_done = times["rtobj_done"]
+    var t_entry_done = times["entry_done"]
+    var t_apply_rtobj_done = times["apply_rtobj_done"]
+    var t_top_done = times["top_done"]
+    var t_fns_done = times["fns_done"]
+    var t_wrappers_done = times["wrappers_done"]
+    var t_fnwrap_done = times["fnwrap_done"]
+    var t_panic_done = times["panic_done"]
+    return {
+        "total": (t_finalize_done - t0) / 1000000,
+        "rtobj": (t_rtobj_done - t0) / 1000000,
+        "entry": (t_entry_done - t_rtobj_done) / 1000000,
+        "apply": (t_apply_rtobj_done - t_entry_done) / 1000000,
+        "top": (t_top_done - t_apply_rtobj_done) / 1000000,
+        "fns": (t_fns_done - t_top_done) / 1000000,
+        "wrappers": (t_wrappers_done - t_fns_done) / 1000000,
+        "fnwrap": (t_fnwrap_done - t_wrappers_done) / 1000000,
+        "panic": (t_panic_done - t_fnwrap_done) / 1000000,
+        "finalize": (t_finalize_done - t_panic_done) / 1000000
+    }
+}
+
+fn _x64_program_compile_summary_counts(ctx) {
+    var fx_n = 0
+    if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
+    return {"code_bytes": bytes_len(ctx["code"]), "fixups_n": fx_n}
+}
+
+fn _x64_program_compile_summary_line(meta, durations, counts) {
+    return "[x64_compile] os=" + meta["os"] +
+        " dbg=" + oren_int_to_string(meta["dbg"]) +
+        " used_rtobj=" + oren_int_to_string(meta["used_rtobj"]) +
+        " total_ms=" + oren_int_to_string(durations["total"]) +
+        " rtobj_ms=" + oren_int_to_string(durations["rtobj"]) +
+        " entry_ms=" + oren_int_to_string(durations["entry"]) +
+        " apply_rtobj_ms=" + oren_int_to_string(durations["apply"]) +
+        " top_ms=" + oren_int_to_string(durations["top"]) +
+        " fns_ms=" + oren_int_to_string(durations["fns"]) +
+        " wrappers_ms=" + oren_int_to_string(durations["wrappers"]) +
+        " fnwrap_ms=" + oren_int_to_string(durations["fnwrap"]) +
+        " panic_ms=" + oren_int_to_string(durations["panic"]) +
+        " finalize_ms=" + oren_int_to_string(durations["finalize"]) +
+        " code_bytes=" + oren_int_to_string(counts["code_bytes"]) +
+        " fixups_n=" + oren_int_to_string(counts["fixups_n"])
+}
+
+fn _x64_print_program_compile_summary(ctx, platform, used_rtobj, t0, times) {
+    var meta = _x64_program_compile_summary_platform(platform, used_rtobj)
+    var durations = _x64_program_compile_summary_times(t0, times)
+    var counts = _x64_program_compile_summary_counts(ctx)
+    print(_x64_program_compile_summary_line(meta, durations, counts))
+    return nil
+}

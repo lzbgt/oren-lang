@@ -1822,56 +1822,6 @@ fn _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers
     }
 }
 
-fn _x64_print_program_compile_summary(ctx, platform, used_rtobj, t0, times) {
-    var t_finalize_done = times["finalize_done"]
-    var t_rtobj_done = times["rtobj_done"]
-    var t_entry_done = times["entry_done"]
-    var t_apply_rtobj_done = times["apply_rtobj_done"]
-    var t_top_done = times["top_done"]
-    var t_fns_done = times["fns_done"]
-    var t_wrappers_done = times["wrappers_done"]
-    var t_fnwrap_done = times["fnwrap_done"]
-    var t_panic_done = times["panic_done"]
-    var os = "unknown"
-    var dbg = 0
-    var used_rtobj_i = 0
-    if platform != nil {
-        if platform["os"] != nil { os = platform["os"] }
-        if platform["debug"] == true { dbg = 1 }
-    }
-    // Avoid passing bool-like values to `oren_int_to_string` (native value-model hazard).
-    if used_rtobj == true { used_rtobj_i = 1 }
-    var total_ms = (t_finalize_done - t0) / 1000000
-    var rtobj_ms = (t_rtobj_done - t0) / 1000000
-    var entry_ms = (t_entry_done - t_rtobj_done) / 1000000
-    var apply_ms = (t_apply_rtobj_done - t_entry_done) / 1000000
-    var top_ms = (t_top_done - t_apply_rtobj_done) / 1000000
-    var fns_ms = (t_fns_done - t_top_done) / 1000000
-    var wrappers_ms = (t_wrappers_done - t_fns_done) / 1000000
-    var fnwrap_ms = (t_fnwrap_done - t_wrappers_done) / 1000000
-    var panic_ms = (t_panic_done - t_fnwrap_done) / 1000000
-    var finalize_ms = (t_finalize_done - t_panic_done) / 1000000
-    var code_bytes = bytes_len(ctx["code"])
-    var fx_n = 0
-    if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
-    print("[x64_compile] os=" + os +
-        " dbg=" + oren_int_to_string(dbg) +
-        " used_rtobj=" + oren_int_to_string(used_rtobj_i) +
-        " total_ms=" + oren_int_to_string(total_ms) +
-        " rtobj_ms=" + oren_int_to_string(rtobj_ms) +
-        " entry_ms=" + oren_int_to_string(entry_ms) +
-        " apply_rtobj_ms=" + oren_int_to_string(apply_ms) +
-        " top_ms=" + oren_int_to_string(top_ms) +
-        " fns_ms=" + oren_int_to_string(fns_ms) +
-        " wrappers_ms=" + oren_int_to_string(wrappers_ms) +
-        " fnwrap_ms=" + oren_int_to_string(fnwrap_ms) +
-        " panic_ms=" + oren_int_to_string(panic_ms) +
-        " finalize_ms=" + oren_int_to_string(finalize_ms) +
-        " code_bytes=" + oren_int_to_string(code_bytes) +
-        " fixups_n=" + oren_int_to_string(fx_n))
-    return nil
-}
-
 fn _x64_native_program_start(linked, platform, opts_compile) {
     var trace_sum = opts_compile["trace_sum"] == true
     var phase_log = opts_compile["phase_log"]
