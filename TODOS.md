@@ -250,6 +250,11 @@ design evidence lives under `project-doc/`.
   allocation. The capped profile now shows `x64_native_program.oren` at ~42.7s
   total / ~31.2s parse, with `_x64_rtobj_print_build_summary` (~63ms) as the
   next parser-body target.
+- X64 runtime-object build summary tracing now splits timing delta capture,
+  build-count capture, and final log-line assembly into focused helpers while
+  preserving the existing summary field order. The capped profile now shows
+  `x64_native_program.oren` at ~42.4s total / ~30.9s parse, with
+  `_emit_intrinsic_sys_windows_core_x64` (~61ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

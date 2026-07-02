@@ -864,8 +864,7 @@ fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
     return {"meta": meta, "code_u8": code_u8, "data_u8": data_u8, "data_tail_u8": tail, "cstr0_offsets_u8": cstr0_offsets_u8}
 }
 
-fn _x64_rtobj_print_build_summary(ctx, timing, fns, wrappers, runtime_vars, built) {
-    if timing == nil { return nil }
+fn _x64_rtobj_summary_timing_ms(timing) {
     var total_ms = (timing["finalize"] - timing["t0"]) / 1000000
     var parse_ms = (timing["parse"] - timing["t0"]) / 1000000
     var meta_ms = (timing["meta"] - timing["parse"]) / 1000000
@@ -875,27 +874,59 @@ fn _x64_rtobj_print_build_summary(ctx, timing, fns, wrappers, runtime_vars, buil
     var decls_ms = (timing["decls"] - timing["globals"]) / 1000000
     var wrap_ms = (timing["wrap"] - timing["decls"]) / 1000000
     var fin_ms = (timing["finalize"] - timing["wrap"]) / 1000000
+    return {
+        "total_ms": total_ms,
+        "parse_ms": parse_ms,
+        "meta_ms": meta_ms,
+        "lambdas_ms": lambdas_ms,
+        "split_ms": split_ms,
+        "globals_ms": globals_ms,
+        "decls_ms": decls_ms,
+        "wrap_ms": wrap_ms,
+        "fin_ms": fin_ms
+    }
+}
+
+fn _x64_rtobj_summary_counts(ctx, fns, wrappers, runtime_vars, built) {
     var fx_n = 0
     if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
     var fn_n = 0
     if fns != nil { fn_n = oren_list_len(fns) }
     var wrap_n = 0
     if wrappers != nil { wrap_n = oren_list_len(wrappers) }
-    print("[x64_rtobj] total_ms=" + oren_int_to_string(total_ms) +
-          " parse_ms=" + oren_int_to_string(parse_ms) +
-          " meta_ms=" + oren_int_to_string(meta_ms) +
-          " lambdas_ms=" + oren_int_to_string(lambdas_ms) +
-          " split_ms=" + oren_int_to_string(split_ms) +
-          " globals_ms=" + oren_int_to_string(globals_ms) +
-          " decls_ms=" + oren_int_to_string(decls_ms) +
-          " wrappers_ms=" + oren_int_to_string(wrap_ms) +
-          " finalize_ms=" + oren_int_to_string(fin_ms) +
-          " fns_n=" + oren_int_to_string(fn_n) +
-          " wrappers_n=" + oren_int_to_string(wrap_n) +
-          " vars_n=" + oren_int_to_string(oren_list_len(runtime_vars)) +
-          " code_bytes=" + oren_int_to_string(oren_buf_len(built["code_u8"])) +
-          " data_bytes=" + oren_int_to_string(oren_buf_len(built["data_u8"])) +
-          " fixups_n=" + oren_int_to_string(fx_n))
+    return {
+        "fn_n": fn_n,
+        "wrap_n": wrap_n,
+        "vars_n": oren_list_len(runtime_vars),
+        "code_bytes": oren_buf_len(built["code_u8"]),
+        "data_bytes": oren_buf_len(built["data_u8"]),
+        "fx_n": fx_n
+    }
+}
+
+fn _x64_rtobj_summary_line(ms, counts) {
+    return "[x64_rtobj] total_ms=" + oren_int_to_string(ms["total_ms"]) +
+          " parse_ms=" + oren_int_to_string(ms["parse_ms"]) +
+          " meta_ms=" + oren_int_to_string(ms["meta_ms"]) +
+          " lambdas_ms=" + oren_int_to_string(ms["lambdas_ms"]) +
+          " split_ms=" + oren_int_to_string(ms["split_ms"]) +
+          " globals_ms=" + oren_int_to_string(ms["globals_ms"]) +
+          " decls_ms=" + oren_int_to_string(ms["decls_ms"]) +
+          " wrappers_ms=" + oren_int_to_string(ms["wrap_ms"]) +
+          " finalize_ms=" + oren_int_to_string(ms["fin_ms"]) +
+          " fns_n=" + oren_int_to_string(counts["fn_n"]) +
+          " wrappers_n=" + oren_int_to_string(counts["wrap_n"]) +
+          " vars_n=" + oren_int_to_string(counts["vars_n"]) +
+          " code_bytes=" + oren_int_to_string(counts["code_bytes"]) +
+          " data_bytes=" + oren_int_to_string(counts["data_bytes"]) +
+          " fixups_n=" + oren_int_to_string(counts["fx_n"])
+}
+
+fn _x64_rtobj_print_build_summary(ctx, timing, fns, wrappers, runtime_vars, built) {
+    if timing == nil { return nil }
+    print(_x64_rtobj_summary_line(
+        _x64_rtobj_summary_timing_ms(timing),
+        _x64_rtobj_summary_counts(ctx, fns, wrappers, runtime_vars, built)))
     return nil
 }
 

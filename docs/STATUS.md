@@ -1355,6 +1355,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  allocation. The capped profile now shows `x64_native_program.oren` at about
 																																																																								  42.7s total / 31.2s parse, with `_x64_rtobj_print_build_summary` exposed at
 																																																																								  about 63ms as the next parser body.
+																																																																								  X64 runtime-object build summary tracing now splits timing delta capture,
+																																																																								  build-count capture, and final log-line assembly into focused helpers while
+																																																																								  preserving the existing summary field order. The capped profile now shows
+																																																																								  `x64_native_program.oren` at about 42.4s total / 30.9s parse, with
+																																																																								  `_emit_intrinsic_sys_windows_core_x64` exposed at about 61ms as the next
+																																																																								  parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

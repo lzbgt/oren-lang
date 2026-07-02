@@ -373,6 +373,13 @@
 <p>  total / ~31.2s parse, with <code>_x64_rtobj_print_build_summary</code> (~63ms) as the</p>
 <p>  next parser-body target.</p>
 <ul>
+<li>X64 runtime-object build summary tracing now splits timing delta capture,</li>
+</ul>
+<p>  build-count capture, and final log-line assembly into focused helpers while</p>
+<p>  preserving the existing summary field order. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~42.4s total / ~30.9s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_windows_core_x64</code> (~61ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
