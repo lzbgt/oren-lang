@@ -322,6 +322,12 @@ design evidence lives under `project-doc/`.
   flag normalization to focused helpers. The capped profile now shows
   `x64_native_program.oren` at ~44.7s total / ~32.7s parse, with
   `_x64_emit_sys_unlink_or_rmdir_x64` (~63ms) as the next parser-body target.
+- Linux x64 `sys_unlink` / `sys_rmdir` lowering now delegates temp-state setup,
+  capsule path resolution, `unlinkat` flag/syscall emission, and capsule
+  posthook handling to focused helpers while preserving `AT_REMOVEDIR`
+  selection. The capped profile now shows `x64_native_program.oren` at ~44.1s
+  total / ~32.3s parse, with `_emit_intrinsic_sys_linux_net_fd2_x64` (~60ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

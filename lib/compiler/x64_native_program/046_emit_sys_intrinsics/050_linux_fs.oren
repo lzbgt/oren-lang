@@ -204,48 +204,77 @@ fn _emit_intrinsic_sys_linux_stat_family_x64(ctx, nm, expr, locals, args, capsul
     return false
 }
 
+fn _x64_prepare_sys_unlink_or_rmdir_x64(ctx, locals, args) {
+    var base7 = _intr_tmp_push(ctx, 2) // path, pair
+    if oren_type_tag(base7) == 0 { return nil }
+    var state = {}
+    state["base"] = base7
+    state["tmp_path"] = _intr_tmp_off(ctx, locals, base7 + 0)
+    state["tmp_pair"] = _intr_tmp_off(ctx, locals, base7 + 1)
+    if oren_type_tag(state["tmp_path"]) == 0 || oren_type_tag(state["tmp_pair"]) == 0 {
+        _intr_tmp_pop(ctx, base7)
+        return nil
+    }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_path"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base7)
+        return nil
+    }
+    return state
+}
+
+fn _x64_emit_sys_unlink_or_rmdir_path_arg_x64(ctx, nm, capsule, state) {
+    if capsule {
+        // pre: native_capsule_sys_unlink_pre(path) / rmdir_pre(path) -> pair
+        _intr_load_x64(ctx, 7, state["tmp_path"])
+        if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
+        _emit_mov_mrbp_r64(ctx, 0 - state["tmp_pair"], 0)
+
+        _intr_load_x64(ctx, 11, state["tmp_pair"])
+        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11)) // rsi = path_ptr
+        return nil
+    }
+    _intr_load_x64(ctx, 6, state["tmp_path"]) // rsi = path
+    return nil
+}
+
+fn _x64_unlink_or_rmdir_flags_x64(nm) {
+    if nm == "sys_rmdir" { return labi.linux_at_removedir() }
+    return 0
+}
+
+fn _x64_emit_sys_unlink_or_rmdir_syscall_x64(ctx, nm) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, _x64_unlink_or_rmdir_flags_x64(nm))) // edx = flags
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_unlinkat()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_sys_unlink_or_rmdir_post_x64(ctx, nm, capsule, state) {
+    if !capsule { return nil }
+    // post: unlink_post(pair, rc) / rmdir_post(pair, rc)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
+    _intr_load_x64(ctx, 7, state["tmp_pair"])
+    if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
+    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
+    return nil
+}
+
 fn _x64_emit_sys_unlink_or_rmdir_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_unlink" || nm == "sys_rmdir" {
         if oren_list_len(args) != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 arg"); return true }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
 
-        var base7 = _intr_tmp_push(ctx, 2) // path, pair
-        if oren_type_tag(base7) == 0 { return true }
-        var tmp_path = _intr_tmp_off(ctx, locals, base7 + 0)
-        var tmp_pair = _intr_tmp_off(ctx, locals, base7 + 1)
-        if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base7); return true }
+        var state = _x64_prepare_sys_unlink_or_rmdir_x64(ctx, locals, args)
+        if state == nil { return true }
+        _x64_emit_sys_unlink_or_rmdir_path_arg_x64(ctx, nm, capsule, state)
+        _x64_emit_sys_unlink_or_rmdir_syscall_x64(ctx, nm)
+        _x64_emit_sys_unlink_or_rmdir_post_x64(ctx, nm, capsule, state)
 
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base7); return true }
-
-        if capsule {
-            // pre: native_capsule_sys_unlink_pre(path) / rmdir_pre(path) -> pair
-            _intr_load_x64(ctx, 7, tmp_path)
-            if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
-            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
-
-            _intr_load_x64(ctx, 11, tmp_pair)
-            bytes_extend(ctx["code"], core.insn_mov_r64_mr64(6, 11)) // rsi = path_ptr
-        } else {
-            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
-        }
-
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        var flags2 = 0
-        if nm == "sys_rmdir" { flags2 = labi.linux_at_removedir() }
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, flags2)) // edx = flags
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_unlinkat()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            // post: unlink_post(pair, rc) / rmdir_post(pair, rc)
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_pair)
-            if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
-            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
-        }
-        _intr_tmp_pop(ctx, base7)
+        _intr_tmp_pop(ctx, state["base"])
         return true
     }
 

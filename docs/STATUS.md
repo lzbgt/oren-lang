@@ -1433,8 +1433,14 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  `x64_native_program.oren` at about 44.7s total / 32.7s parse, with
 																																																																								  `_x64_emit_sys_unlink_or_rmdir_x64` exposed at about 63ms as the next parser
 																																																																								  body.
-																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
-																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																								  Linux x64 `sys_unlink` / `sys_rmdir` lowering now delegates temp-state setup,
+																																																																								  capsule path resolution, `unlinkat` flag/syscall emission, and capsule
+																																																																								  posthook handling to focused helpers while preserving `AT_REMOVEDIR`
+																																																																								  selection. The capped profile now shows `x64_native_program.oren` at about
+																																																																								  44.1s total / 32.3s parse, with `_emit_intrinsic_sys_linux_net_fd2_x64`
+																																																																								  exposed at about 60ms as the next parser body.
+																																																																		  Serial/thread module ASTBIN writes are explicit prewarm work via
+																		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
