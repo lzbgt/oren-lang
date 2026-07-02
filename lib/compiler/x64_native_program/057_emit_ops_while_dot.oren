@@ -799,45 +799,64 @@ fn _x64_fast_list_dot_emit_single(ctx, prep, locals) {
     return true
 }
 
-fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
-    if ctx == nil || op == nil || info == nil { return nil }
-    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+fn _x64_emit_fast_list_dot_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+}
 
-    var prep = _x64_fast_list_dot_prepare(ctx, info, locals)
-    if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+fn _x64_fast_list_dot_emit_loop_body(ctx, prep, locals, labels, label_names, local_fixups) {
+    _x64_fast_list_dot_emit_loop_header(ctx, prep, locals, labels, label_names, local_fixups)
+    if _x64_fast_list_dot_emit_single(ctx, prep, locals) != true { return false }
+
+    _emit_jmp_to_label(ctx, local_fixups, label_names["cond"])
+
+    _emit_label(ctx, labels, label_names["end"])
+    _emit_jmp_to_label(ctx, local_fixups, label_names["done"])
+    return true
+}
+
+fn _x64_fast_list_dot_emit_slow_path(ctx, op, locals, labels, local_fixups, epilogue_label, platform, label_names) {
+    _emit_label(ctx, labels, label_names["slow"])
+    _x64_emit_fast_list_dot_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform)
+    _emit_label(ctx, labels, label_names["done"])
+    return nil
+}
+
+fn _x64_fast_list_dot_emit_checked_path(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, label_names) {
     var base = prep["base"]
+    var l_slow = label_names["slow"]
 
-    var dot_labels = _x64_fast_list_dot_labels(ctx)
-    var l_slow = dot_labels["slow"]
-    var l_done = dot_labels["done"]
-
-    _x64_fast_list_dot_emit_entry_gates(ctx, prep, dot_labels, local_fixups)
+    _x64_fast_list_dot_emit_entry_gates(ctx, prep, label_names, local_fixups)
     if _x64_fast_list_dot_validate_lists(ctx, prep, locals, local_fixups, l_slow) != true {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+        return false
     }
 
     if _x64_fast_list_dot_init_unique_cursors(ctx, prep, locals) != true {
         _intr_tmp_pop(ctx, base)
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+        return false
     }
 
-    _x64_fast_list_dot_emit_loop_header(ctx, prep, locals, labels, dot_labels, local_fixups)
-    if _x64_fast_list_dot_emit_single(ctx, prep, locals) != true {
+    if _x64_fast_list_dot_emit_loop_body(ctx, prep, locals, labels, label_names, local_fixups) != true {
         _intr_tmp_pop(ctx, base)
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+        return false
     }
-
-    _emit_jmp_to_label(ctx, local_fixups, dot_labels["cond"])
-
-    _emit_label(ctx, labels, dot_labels["end"])
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _intr_tmp_pop(ctx, base)
+    _x64_fast_list_dot_emit_slow_path(ctx, op, locals, labels, local_fixups, epilogue_label, platform, label_names)
+    return true
+}
 
-    _emit_label(ctx, labels, l_slow)
-    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    _emit_label(ctx, labels, l_done)
+fn _emit_fast_list_dot_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    if locals == nil { return _x64_emit_fast_list_dot_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform) }
+    if ctx["runtime_injected"] != true { return _x64_emit_fast_list_dot_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform) }
+
+    var prep = _x64_fast_list_dot_prepare(ctx, info, locals)
+    if prep == nil { return _x64_emit_fast_list_dot_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform) }
+
+    var dot_labels = _x64_fast_list_dot_labels(ctx)
+    var emitted = _x64_fast_list_dot_emit_checked_path(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, dot_labels)
+    if emitted == nil { return nil }
+    if emitted != true { return _x64_emit_fast_list_dot_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform) }
     return nil
 }
