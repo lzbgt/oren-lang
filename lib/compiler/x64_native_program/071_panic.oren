@@ -247,6 +247,24 @@ fn _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, shift, pos) {
     return nil
 }
 
+fn _emit_ascii_byte_to_buf_at(ctx, buf_reg, pos, byte_val) {
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, byte_val))
+    bytes_extend(ctx["code"], core.insn_mov_mr8_al_disp(buf_reg, pos))
+    return nil
+}
+
+fn _emit_format_u64_hex_digits(ctx, val_reg, buf_reg, first_pos) {
+    // Emit 16 fixed-width hex digits, most-significant first.
+    var shift = 60
+    var pos = first_pos
+    while shift >= 0 {
+        _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, shift, pos)
+        shift = shift - 4
+        pos = pos + 1
+    }
+    return nil
+}
+
 fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
     // Format into memory at buf_reg:
     //   0x<16 hex digits><space>
@@ -256,34 +274,10 @@ fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
     // - r13: hex table ptr (must be initialized)
     // Clobbers: rax, rcx, rdx
 
-    // buf[0]='0'
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 48))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al_disp(buf_reg, 0))
-    // buf[1]='x'
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 120))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al_disp(buf_reg, 1))
-
-    // 16 hex digits, most-significant first.
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 60, 2)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 56, 3)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 52, 4)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 48, 5)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 44, 6)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 40, 7)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 36, 8)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 32, 9)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 28, 10)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 24, 11)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 20, 12)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 16, 13)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 12, 14)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 8, 15)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 4, 16)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 0, 17)
-
-    // trailing space at buf[18]
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 32))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al_disp(buf_reg, 18))
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 0, 48) // '0'
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 1, 120) // 'x'
+    _emit_format_u64_hex_digits(ctx, val_reg, buf_reg, 2)
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 18, 32) // trailing space
     return nil
 }
 
@@ -536,41 +530,11 @@ fn _emit_format_plus0x_u64_hex_line(ctx, val_reg, buf_reg) {
     // - r13: hex table ptr
     //
     // Clobbers: rax, rcx, rdx
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 43)) // '+'
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al(2))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 48)) // '0'
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(2, 1))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al(2))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 120)) // 'x'
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(2, 2))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al(2))
-
-    // 16 hex digits at buf[3..18]
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 60, 3)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 56, 4)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 52, 5)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 48, 6)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 44, 7)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 40, 8)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 36, 9)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 32, 10)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 28, 11)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 24, 12)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 20, 13)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 16, 14)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 12, 15)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 8, 16)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 4, 17)
-    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 0, 18)
-
-    // newline at buf[19]
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 10))
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(2, 19))
-    bytes_extend(ctx["code"], core.insn_mov_mr8_al(2))
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 0, 43) // '+'
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 1, 48) // '0'
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 2, 120) // 'x'
+    _emit_format_u64_hex_digits(ctx, val_reg, buf_reg, 3)
+    _emit_ascii_byte_to_buf_at(ctx, buf_reg, 19, 10) // newline
     return nil
 }
 

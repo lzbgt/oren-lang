@@ -613,6 +613,13 @@
 <p>  <code>x64_native_program.oren</code> at ~44.4s total / ~32.5s parse, with</p>
 <p>  <code>_emit_format_plus0x_u64_hex_line</code> (~57ms) as the next parser-body target.</p>
 <ul>
+<li>X64 panic stack-trace hex formatting now shares ASCII byte stores and the</li>
+</ul>
+<p>  fixed-width 16-digit hex emission between <code>0x... </code> PC prefixes and</p>
+<p>  <code>+0x...\n</code> offsets. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at ~43.4s total / ~31.7s parse, with <code>_x64_emit_list_push_validate</code> (~54ms)</p>
+<p>  as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

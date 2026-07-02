@@ -424,6 +424,11 @@ design evidence lives under `project-doc/`.
   preserving the rtobj metadata schema keys. The capped profile now shows
   `x64_native_program.oren` at ~44.4s total / ~32.5s parse, with
   `_emit_format_plus0x_u64_hex_line` (~57ms) as the next parser-body target.
+- X64 panic stack-trace hex formatting now shares ASCII byte stores and the
+  fixed-width 16-digit hex emission between `0x... ` PC prefixes and
+  `+0x...\n` offsets. The capped profile now shows `x64_native_program.oren`
+  at ~43.4s total / ~31.7s parse, with `_x64_emit_list_push_validate` (~54ms)
+  as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
