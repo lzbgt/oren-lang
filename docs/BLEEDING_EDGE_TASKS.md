@@ -1085,6 +1085,12 @@ This file is the concise task view. Detailed implementation status lives in
 																																																								 runtime strategy. The capped profile now shows `x64_native_program.oren` at
 																																																								 about 42.5s total / 31.2s parse, with `_emit_intrinsic_sys_windows_net_x64`
 																																																								 exposed at about 71ms as the next parser body.
+																																																								 Windows x64 net syscall dispatch now routes through focused family helpers for
+																																																								 WSA bootstrap/close, IOCP, socket lifecycle, sockopt/shutdown, message I/O,
+																																																								 and overlapped WSA operations while preserving the existing syscall match
+																																																								 order. The capped profile now shows `x64_native_program.oren` at about
+																																																								 42.6s total / 31.1s parse, with `_x64_classify_named_call_v0` exposed at
+																																																								 about 97ms as the next parser body.
 																																																						     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

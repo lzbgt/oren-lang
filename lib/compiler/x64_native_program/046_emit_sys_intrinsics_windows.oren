@@ -920,14 +920,24 @@ fn _emit_intrinsic_sys_windows_core_x64(ctx, nm, expr, locals, args) {
     return false
 }
 
-fn _emit_intrinsic_sys_windows_net_x64(ctx, nm, expr, locals, args) {
+fn _emit_intrinsic_sys_windows_net_bootstrap_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_wsa_startup" { _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_select" { _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_wsa_get_last_error" { _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args); return true }
+    if nm == "sys_close" { _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_iocp_x64(ctx, nm, expr, locals, args) {
     // IOCP (kernel32) (future Windows netpoll backend; still runtime-gated)
     if nm == "sys_create_io_completion_port" { _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_get_queued_completion_status_ex" { _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_post_queued_completion_status" { _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_cancel_io_ex" { _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_socket_lifecycle_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_socket" { _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_connect" { _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_bind" { _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args); return true }
@@ -935,17 +945,37 @@ fn _emit_intrinsic_sys_windows_net_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_accept" { _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_getsockname" { _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_getpeername" { _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_sockopt_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_setsockopt" { _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_getsockopt" { _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_shutdown" { _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_message_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_sendto" { _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_recvfrom" { _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_overlapped_x64(ctx, nm, expr, locals, args) {
     // WinSock overlapped I/O (IOCP bring-up)
     if nm == "sys_wsarecv" { _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_wsarecvfrom" { _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args); return true }
     if nm == "sys_wsasend" { _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args); return true }
-    if nm == "sys_wsa_get_last_error" { _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args); return true }
-    if nm == "sys_close" { _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args); return true }
+    return false
+}
+
+fn _emit_intrinsic_sys_windows_net_x64(ctx, nm, expr, locals, args) {
+    if _emit_intrinsic_sys_windows_net_bootstrap_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_net_iocp_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_net_socket_lifecycle_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_net_sockopt_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_net_message_x64(ctx, nm, expr, locals, args) { return true }
+    if _emit_intrinsic_sys_windows_net_overlapped_x64(ctx, nm, expr, locals, args) { return true }
     return false
 }
 
