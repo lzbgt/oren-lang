@@ -131,63 +131,96 @@ fn _emit_fastmod_u64_const_x64(ctx, n_reg, d_reg, recip, dst_reg, tmp_recip_reg,
     return nil
 }
 
-fn _x64_fast_list_int_push_prepare(ctx, info, locals) {
+fn _x64_fast_push_abi_state(ctx, trace_reserve_requested) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 { return nil }
     var a0 = a0_enc - 1
     var a1 = a1_enc - 1
-    var trace_reserve = oren_env("OREN_TRACE_NATIVE_LIST_RESERVE") != nil
+    var trace_reserve = trace_reserve_requested == true
     var a2 = 0
     if trace_reserve {
         var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
         if oren_type_tag(a2_enc) == 0 { trace_reserve = false }
         else { a2 = a2_enc - 1 }
     }
+    return {"a0": a0, "a1": a1, "a2": a2, "trace_reserve": trace_reserve}
+}
 
-    var idx_name = info["idx"]
-    var n_name = info["n"]
-    var n_const = info["n_const"]
+fn _x64_fast_push_inputs(info) {
     var lists = info["lists"]
-    var pushes = info["pushes"]
+    return {
+        "idx": info["idx"],
+        "n": info["n"],
+        "n_const": info["n_const"],
+        "lists": lists,
+        "pushes": info["pushes"],
+        "list_count": oren_list_len(lists)
+    }
+}
 
-    var off_idx = locals[idx_name]
+fn _x64_fast_push_local_offsets(locals, inputs) {
+    var n_name = inputs["n"]
     var off_n = nil
     if n_name != nil { off_n = locals[n_name] }
+    var off_idx = locals[inputs["idx"]]
     if oren_type_tag(off_idx) == 0 { return nil }
     if n_name != nil && oren_type_tag(off_n) == 0 { return nil }
-    if n_name == nil && n_const == nil { return nil }
+    if n_name == nil && inputs["n_const"] == nil { return nil }
+    return {"off_idx": off_idx, "off_n": off_n}
+}
 
-    var list_count = oren_list_len(lists)
+fn _x64_fast_push_alloc_base(ctx, locals, inputs, offsets) {
+    var list_count = inputs["list_count"]
     var extra = 0
-    if n_name == nil { extra = 1 }
+    if inputs["n"] == nil { extra = 1 }
     var base = _intr_tmp_push(ctx, iadd(list_count, list_count) + extra)
     if oren_type_tag(base) == 0 { return nil }
-    if n_name == nil {
+    var off_n = offsets["off_n"]
+    if inputs["n"] == nil {
         var n_slot = _intr_tmp_off(ctx, locals, base + list_count * 2)
         if oren_type_tag(n_slot) == 0 {
             _intr_tmp_pop(ctx, base)
             return nil
         }
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, n_const))
+        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, inputs["n_const"]))
         _emit_mov_mrbp_r64(ctx, 0 - n_slot, 0)
         off_n = n_slot
     }
+    return {"base": base, "off_n": off_n}
+}
 
+fn _x64_fast_push_pack_prepare(abi_state, inputs, offsets, slots) {
     return {
-        "a0": a0,
-        "a1": a1,
-        "a2": a2,
-        "trace_reserve": trace_reserve,
-        "idx": idx_name,
-        "n": n_name,
-        "lists": lists,
-        "pushes": pushes,
-        "off_idx": off_idx,
-        "off_n": off_n,
-        "list_count": list_count,
-        "base": base
+        "a0": abi_state["a0"],
+        "a1": abi_state["a1"],
+        "a2": abi_state["a2"],
+        "trace_reserve": abi_state["trace_reserve"],
+        "idx": inputs["idx"],
+        "n": inputs["n"],
+        "lists": inputs["lists"],
+        "pushes": inputs["pushes"],
+        "off_idx": offsets["off_idx"],
+        "off_n": slots["off_n"],
+        "list_count": inputs["list_count"],
+        "base": slots["base"]
     }
+}
+
+fn _x64_fast_push_prepare_common(ctx, info, locals, trace_reserve_requested) {
+    var abi_state = _x64_fast_push_abi_state(ctx, trace_reserve_requested)
+    if abi_state == nil { return nil }
+    var inputs = _x64_fast_push_inputs(info)
+    var offsets = _x64_fast_push_local_offsets(locals, inputs)
+    if offsets == nil { return nil }
+    var slots = _x64_fast_push_alloc_base(ctx, locals, inputs, offsets)
+    if slots == nil { return nil }
+    return _x64_fast_push_pack_prepare(abi_state, inputs, offsets, slots)
+}
+
+fn _x64_fast_list_int_push_prepare(ctx, info, locals) {
+    return _x64_fast_push_prepare_common(ctx, info, locals,
+        oren_env("OREN_TRACE_NATIVE_LIST_RESERVE") != nil)
 }
 
 fn _x64_fast_list_int_push_labels(ctx) {
@@ -458,53 +491,7 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
 }
 
 fn _x64_fast_list_push_prepare(ctx, info, locals) {
-    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 { return nil }
-    var a0 = a0_enc - 1
-    var a1 = a1_enc - 1
-
-    var idx_name = info["idx"]
-    var n_name = info["n"]
-    var n_const = info["n_const"]
-    var lists = info["lists"]
-    var pushes = info["pushes"]
-
-    var off_idx = locals[idx_name]
-    var off_n = nil
-    if n_name != nil { off_n = locals[n_name] }
-    if oren_type_tag(off_idx) == 0 { return nil }
-    if n_name != nil && oren_type_tag(off_n) == 0 { return nil }
-    if n_name == nil && n_const == nil { return nil }
-
-    var list_count = oren_list_len(lists)
-    var extra = 0
-    if n_name == nil { extra = 1 }
-    var base = _intr_tmp_push(ctx, iadd(list_count, list_count) + extra)
-    if oren_type_tag(base) == 0 { return nil }
-    if n_name == nil {
-        var n_slot = _intr_tmp_off(ctx, locals, base + list_count * 2)
-        if oren_type_tag(n_slot) == 0 {
-            _intr_tmp_pop(ctx, base)
-            return nil
-        }
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, n_const))
-        _emit_mov_mrbp_r64(ctx, 0 - n_slot, 0)
-        off_n = n_slot
-    }
-
-    return {
-        "a0": a0,
-        "a1": a1,
-        "idx": idx_name,
-        "n": n_name,
-        "lists": lists,
-        "pushes": pushes,
-        "off_idx": off_idx,
-        "off_n": off_n,
-        "list_count": list_count,
-        "base": base
-    }
+    return _x64_fast_push_prepare_common(ctx, info, locals, false)
 }
 
 fn _x64_fast_list_push_labels(ctx) {

@@ -1556,6 +1556,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  logging while preserving frame-size emission. The capped profile now shows
 																																																																																									  `x64_native_program.oren` at about 45.0s total / 33.0s parse, with
 																																																																																									  `_x64_fast_list_int_push_prepare` exposed at about 57ms as the next parser body.
+																																																																																									  X64 fast LIST/LIST_INT push-loop preparation now shares ABI register lookup,
+																																																																																									  loop input extraction, local-offset validation, temp-slot allocation, and
+																																																																																									  prep-map packing, with LIST_INT layering only reserve tracing. The capped
+																																																																																									  profile now shows `x64_native_program.oren` at about 44.4s total / 32.6s parse,
+																																																																																									  with `_x64_emit_ops_loop_state` exposed at about 56ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial

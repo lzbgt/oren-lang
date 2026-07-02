@@ -641,6 +641,13 @@
 <p>  <code>x64_native_program.oren</code> at ~45.0s total / ~33.0s parse, with</p>
 <p>  <code>_x64_fast_list_int_push_prepare</code> (~57ms) as the next parser-body target.</p>
 <ul>
+<li>X64 fast LIST/LIST_INT push-loop preparation now shares ABI register lookup,</li>
+</ul>
+<p>  loop input extraction, local-offset validation, temp-slot allocation, and</p>
+<p>  prep-map packing, with LIST_INT layering only reserve tracing. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~44.4s total / ~32.6s parse,</p>
+<p>  with <code>_x64_emit_ops_loop_state</code> (~56ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
