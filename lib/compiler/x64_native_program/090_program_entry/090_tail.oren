@@ -1800,36 +1800,12 @@ fn _x64_print_program_compile_summary(ctx, platform, used_rtobj, t0, times) {
     return nil
 }
 
-fn native_compile_program_x64(linked, platform) {
-    // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
-    //
-    // Goal: converge with the ARM64 native backend, which injects `lib/runtime_native.oren`
-    // (expanded from `lib/runtime_native/**`) into the compiled program.
-    //
-    // Default:
-    // - x86_64 now injects the native runtime by default, matching arm64.
-    //
-    // Note:
-    //
-    // Rationale:
-    // - this is the primary architectural lever for removing x86_64 bring-up-only intrinsics
-    //   and converging semantics across native backends.
-    //
-    // Implementation strategy (rolling):
-    // - Parse the expanded runtime source into an AST program.
-    // - Merge runtime statements ahead of user statements so function/var declarations are
-    //   available to user code just like on arm64.
-    // - Keep x64's existing intrinsics for now; as we converge, we will progressively replace
-    //   intrinsic implementations with calls into injected runtime functions.
-    var opts_compile = _x64_program_compile_options()
+fn _x64_native_program_start(linked, platform, opts_compile) {
     var trace_sum = opts_compile["trace_sum"] == true
     var phase_log = opts_compile["phase_log"]
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.enter", "") }
     var trace_prog = opts_compile["trace_prog"] == true
     var t0 = 0
-    var t_rtobj_done = 0
-    var t_entry_done = 0
-    var t_finalize_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
 
     if trace_prog { print("[x64_compile] ctx init") }
@@ -1837,83 +1813,80 @@ fn native_compile_program_x64(linked, platform) {
     ctx["phase_log"] = phase_log
     if trace_prog { print("[x64_compile] ctx init done") }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.ctx.done", "") }
+    return {"ctx": ctx, "t0": t0}
+}
 
-    // Runtime injection (default-on; see comment at top of function).
-    //
-    // Use the shared Tier‑1 native runtime bundle so arm64/x64 converge on:
-    // - identical include expansion + parsing,
-    // - capsule enforcement (compile-time) when `--capsule` is enabled,
-    // - post-injection DCE + pinned entry-stub roots.
+fn _x64_native_program_prepare_inputs(ctx, linked, platform, opts_compile) {
+    var trace_sum = opts_compile["trace_sum"] == true
+    var trace_prog = opts_compile["trace_prog"] == true
+    var phase_log = opts_compile["phase_log"]
+    var t_rtobj_done = 0
     var rtobj_choice = _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log)
     var runtime_path = rtobj_choice["runtime_path"]
     var used_rtobj = rtobj_choice["used_rtobj"] == true
     if trace_sum { t_rtobj_done = oren_time_now_ns() }
     var runtime_info = _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used_rtobj, trace_prog, phase_log)
-    if runtime_info == nil { return ctx }
+    if runtime_info == nil { return nil }
     var linked2 = runtime_info["linked"]
     var runtime_stmts = runtime_info["runtime_stmts"]
     var user_stmts = runtime_info["user_stmts"]
 
     var prep = _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log)
-    if prep == nil { return ctx }
+    if prep == nil { return nil }
     var fns = prep["fns"]
     var has_main = prep["has_main"] == true
     var top_info = prep["top_info"]
     var wrappers = prep["wrappers"]
+    return {
+        "used_rtobj": used_rtobj,
+        "t_rtobj_done": t_rtobj_done,
+        "fns": fns,
+        "has_main": has_main,
+        "top_info": top_info,
+        "wrappers": wrappers
+    }
+}
 
-    // --- Panic symbolication (best-effort) ---
-    //
-    // --- Debug-info table (stack traces; debug builds only) ---
-    //
-    // The injected runtime provides `oren_resolve_symbol(pc)` which prefers an embedded
-    // debug-info table (range-based) when `oren_set_debug_info(ptr, static_addr)` is called.
-    //
-    // In practice, we need this even in rolling v0 because:
-    // - the runtime is usually provided via the compiled runtime-object cache (rtobj),
-    // - rtobj code cannot embed final-program symtab references (those are reserved/finalized
-    //   in this file), so `resolve_symbol(pc)` inside rtobj would otherwise degrade to "???".
-    //
-    // Symbol table for `resolve_symbol(pc)` (optional; rolling):
-    // - Debug builds already embed a range-based debug-info table used by `oren_resolve_symbol(pc)`.
-    // - A full symtab can still be useful for postmortem/debugging when debug-info is missing,
-    //   but it can materially increase compile time (rtobj contributes many symbols).
-    //
-    // Policy:
-    // - Default: skip symtab+linetab generation (even in debug builds).
-    // - Opt-in: set `OREN_NATIVE_RESOLVE_SYMBOL=1` to generate the full tables.
-    if _x64_prepare_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, trace_prog, phase_log) != true { return ctx }
-
-    // --- Stack safety (call depth guard; Tier‑1 parity) ---
-    //
-    // With runtime injection enabled (default), x64 uses the injected runtime hooks:
-    // - `oren_call_depth_enter()` / `oren_call_depth_exit()` inserted by the function compiler
-    //   (see `080_functions_compile.oren`)
-    // - `native_runtime_call_depth_apply_env()` applied during `native_runtime_capsule_init()`
-
-    // --- Entry stub ---
-    //
-    // Stack safety: call depth max config.
-    //
-    // With runtime injection enabled, call depth max is configured by the injected runtime
-    // using envp (`native_runtime_call_depth_apply_env()`), so we do not parse env in the
-    // entry stub.
-    //
-    if _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) != true { return ctx }
+fn _x64_native_program_emit_body(ctx, platform, prep, opts_compile) {
+    var trace_sum = opts_compile["trace_sum"] == true
+    var trace_prog = opts_compile["trace_prog"] == true
+    var phase_log = opts_compile["phase_log"]
+    var used_rtobj = prep["used_rtobj"] == true
+    var fns = prep["fns"]
+    var wrappers = prep["wrappers"]
+    var top_info = prep["top_info"]
+    var has_main = prep["has_main"] == true
+    var t_entry_done = 0
+    if _x64_prepare_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, trace_prog, phase_log) != true { return nil }
+    if _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) != true { return nil }
     if trace_sum { t_entry_done = oren_time_now_ns() }
 
     var fn_times = _x64_compile_program_function_sequence(ctx, platform, top_info, fns, wrappers, used_rtobj, opts_compile)
-    if fn_times == nil { return ctx }
-
+    if fn_times == nil { return nil }
 
     _x64_finalize_program_data(ctx, platform, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     if trace_sum {
-        t_finalize_done = oren_time_now_ns()
-        fn_times["rtobj_done"] = t_rtobj_done
+        fn_times["finalize_done"] = oren_time_now_ns()
+        fn_times["rtobj_done"] = prep["t_rtobj_done"]
         fn_times["entry_done"] = t_entry_done
-        fn_times["finalize_done"] = t_finalize_done
-        _x64_print_program_compile_summary(ctx, platform, used_rtobj, t0, fn_times)
+    }
+    return fn_times
+}
+
+fn native_compile_program_x64(linked, platform) {
+    // x64 uses the shared native runtime bundle/object cache so arm64 and x64
+    // converge on include expansion, capsule enforcement, DCE, and pinned roots.
+    var opts_compile = _x64_program_compile_options()
+    var start = _x64_native_program_start(linked, platform, opts_compile)
+    var ctx = start["ctx"]
+    var prep = _x64_native_program_prepare_inputs(ctx, linked, platform, opts_compile)
+    if prep == nil { return ctx }
+    var fn_times = _x64_native_program_emit_body(ctx, platform, prep, opts_compile)
+    if fn_times == nil { return ctx }
+    if opts_compile["trace_sum"] == true {
+        _x64_print_program_compile_summary(ctx, platform, prep["used_rtobj"] == true, start["t0"], fn_times)
     }
 
     return ctx

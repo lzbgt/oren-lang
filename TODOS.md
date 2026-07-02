@@ -82,6 +82,11 @@ design evidence lives under `project-doc/`.
   focused helpers, and create/post/cancel share one invalid-parameter /
   invalid-handle / default-EIO mapper. The capped profile now exposes
   `native_compile_program_x64` (~80ms) as the next parser-body target.
+- `native_compile_program_x64` now delegates context/timing start,
+  runtime/function metadata preparation, debug/entry/function/finalize body
+  emission, and trace-summary reporting to focused helpers. The capped profile
+  now exposes `_emit_eval_native_alloc_intrinsic_x64` (~69ms) as the next
+  parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

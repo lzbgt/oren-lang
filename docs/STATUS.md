@@ -1140,10 +1140,16 @@ Facts from the 2026-05-28 implementation pass:
 																																																														  `CreateIoCompletionPort` call setup, and handle result normalization to
 																																																														  focused helpers. The repeated IOCP `ERROR_INVALID_PARAMETER` /
 																																																														  `ERROR_INVALID_HANDLE` / default `-EIO` mapping is shared across create,
-																																																														  post, and cancel paths. The capped profile now shows
-																																																														  `x64_native_program.oren` at about 43.1s total / 31.2s parse, with
-																																																														  `native_compile_program_x64` exposed at about 80ms as the next parser body.
-																																																					  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																															  post, and cancel paths. The capped profile now shows
+																																																															  `x64_native_program.oren` at about 43.1s total / 31.2s parse, with
+																																																															  `native_compile_program_x64` exposed at about 80ms as the next parser body.
+																																																															  `native_compile_program_x64` is now a thin pipeline over context/timing
+																																																															  start, runtime/function metadata preparation, debug/entry/function/finalize
+																																																															  body emission, and trace-summary reporting helpers. The capped profile now
+																																																															  shows `x64_native_program.oren` at about 42.5s total / 31.0s parse, with
+																																																															  `_emit_eval_native_alloc_intrinsic_x64` exposed at about 69ms as the next
+																																																															  parser body.
+																																																						  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

@@ -135,6 +135,13 @@
 <p>  invalid-handle / default-EIO mapper. The capped profile now exposes</p>
 <p>  <code>native_compile_program_x64</code> (~80ms) as the next parser-body target.</p>
 <ul>
+<li><code>native_compile_program_x64</code> now delegates context/timing start,</li>
+</ul>
+<p>  runtime/function metadata preparation, debug/entry/function/finalize body</p>
+<p>  emission, and trace-summary reporting to focused helpers. The capped profile</p>
+<p>  now exposes <code>_emit_eval_native_alloc_intrinsic_x64</code> (~69ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
