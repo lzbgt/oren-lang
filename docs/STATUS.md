@@ -1526,14 +1526,19 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																				  preserving batch timing/result keys. The capped profile now shows
 																																																																																				  `x64_native_program.oren` at about 43.5s total / 31.6s parse, with
 																																																																																				  `_x64_emit_named_call_intrinsic_or_spread_v0` exposed at about 56ms as the next parser body.
-																																																																																				  X64 named-call intrinsic/spread routing now separates statement-only rejection,
-																																																																																				  core intrinsic dispatch, `oren_call_obj_list`, and spread-call lowering while
-																																																																																				  preserving dispatch order. The capped profile now shows
-																																																																																				  `x64_native_program.oren` at about 43.3s total / 31.6s parse, with
-																																																																																				  `_x64_rtobj_finalize_build` exposed at about 56ms as the next parser body.
-																																																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via
-																																			  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
-					  as a candidate and `false` disables serial-write candidates. Actual serial
+																																																																																					  X64 named-call intrinsic/spread routing now separates statement-only rejection,
+																																																																																					  core intrinsic dispatch, `oren_call_obj_list`, and spread-call lowering while
+																																																																																					  preserving dispatch order. The capped profile now shows
+																																																																																					  `x64_native_program.oren` at about 43.3s total / 31.6s parse, with
+																																																																																					  `_x64_rtobj_finalize_build` exposed at about 56ms as the next parser body.
+																																																																																					  X64 runtime-object build finalization now separates blob materialization,
+																																																																																					  persisted metadata assembly, finalize-done logging, and result packing while
+																																																																																					  preserving the rtobj metadata schema keys. The capped profile now shows
+																																																																																					  `x64_native_program.oren` at about 44.4s total / 32.5s parse, with
+																																																																																					  `_emit_format_plus0x_u64_hex_line` exposed at about 57ms as the next parser body.
+																																																																																				  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																				  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+						  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
 		  one-pass cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase

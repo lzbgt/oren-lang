@@ -419,6 +419,11 @@ design evidence lives under `project-doc/`.
   lowering while preserving dispatch order. The capped profile now shows
   `x64_native_program.oren` at ~43.3s total / ~31.6s parse, with
   `_x64_rtobj_finalize_build` (~56ms) as the next parser-body target.
+- X64 runtime-object build finalization now separates blob materialization,
+  persisted metadata assembly, finalize-done logging, and result packing while
+  preserving the rtobj metadata schema keys. The capped profile now shows
+  `x64_native_program.oren` at ~44.4s total / ~32.5s parse, with
+  `_emit_format_plus0x_u64_hex_line` (~57ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

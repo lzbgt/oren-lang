@@ -606,6 +606,13 @@
 <p>  <code>x64_native_program.oren</code> at ~43.3s total / ~31.6s parse, with</p>
 <p>  <code>_x64_rtobj_finalize_build</code> (~56ms) as the next parser-body target.</p>
 <ul>
+<li>X64 runtime-object build finalization now separates blob materialization,</li>
+</ul>
+<p>  persisted metadata assembly, finalize-done logging, and result packing while</p>
+<p>  preserving the rtobj metadata schema keys. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~44.4s total / ~32.5s parse, with</p>
+<p>  <code>_emit_format_plus0x_u64_hex_line</code> (~57ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

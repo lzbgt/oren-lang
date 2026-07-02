@@ -812,9 +812,7 @@ fn _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) {
     return nil
 }
 
-fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
-    // Materialize blobs for cache storage.
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.finalize.start", "") }
+fn _x64_rtobj_finalize_blobs(ctx) {
     var code_u8 = bytes_finalize(ctx["code"])
     var data_u8 = bytes_finalize(ctx["data"])
     var dn = oren_buf_len(data_u8)
@@ -822,13 +820,16 @@ fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
     if dn < prefix { return nil }
     var tail = oren_u8_buf_from_bytes_slice(data_u8, prefix, dn - prefix)
     if oren_is_err(tail) { return nil }
+    return {"code_u8": code_u8, "data_u8": data_u8, "data_tail_u8": tail, "data_prefix_len": prefix}
+}
 
-    var meta = {
+fn _x64_rtobj_finalize_meta(ctx, runtime_hash, backend_sig, data_prefix_len) {
+    return {
         "schema": rtobj.RUNTIME_OBJ_SCHEMA,
         "backend": "x64",
         "backend_sig": backend_sig,
         "runtime_hash": runtime_hash,
-        "data_prefix_len": prefix,
+        "data_prefix_len": data_prefix_len,
         "fn_offs_enc": _x64_rtobj_encode_offsets_map_int(ctx["functions"]),
         "fn_offsets_compact": _x64_rtobj_encode_fn_offsets_compact(ctx["functions"]),
         "x64_fixups_compact": _x64_rtobj_encode_fixups_compact(ctx["fixups"]),
@@ -852,6 +853,9 @@ fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
         "func_decl_order": ctx["func_decl_order"],
         "lambda_counter_enc": ctx["lambda_counter"] + 1
     }
+}
+
+fn _x64_rtobj_log_finalize_done(ctx, code_u8, data_u8, phase_log) {
     if phase_log != nil {
         var fx_n0 = 0
         if ctx["fixups"] != nil { fx_n0 = oren_list_len(ctx["fixups"]) }
@@ -860,8 +864,20 @@ fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
             " data_bytes=" + oren_int_to_string(oren_buf_len(data_u8)) +
             " fixups=" + oren_int_to_string(fx_n0))
     }
+    return nil
+}
+
+fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
+    // Materialize blobs for cache storage.
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.finalize.start", "") }
+    var blobs = _x64_rtobj_finalize_blobs(ctx)
+    if blobs == nil { return nil }
+    var code_u8 = blobs["code_u8"]
+    var data_u8 = blobs["data_u8"]
+    var meta = _x64_rtobj_finalize_meta(ctx, runtime_hash, backend_sig, blobs["data_prefix_len"])
+    _x64_rtobj_log_finalize_done(ctx, code_u8, data_u8, phase_log)
     var cstr0_offsets_u8 = _x64_rtobj_encode_offsets_u8_from_int_list(ctx["cstr0_list"])
-    return {"meta": meta, "code_u8": code_u8, "data_u8": data_u8, "data_tail_u8": tail, "cstr0_offsets_u8": cstr0_offsets_u8}
+    return {"meta": meta, "code_u8": code_u8, "data_u8": data_u8, "data_tail_u8": blobs["data_tail_u8"], "cstr0_offsets_u8": cstr0_offsets_u8}
 }
 
 fn _x64_rtobj_summary_timing_ms(timing) {
