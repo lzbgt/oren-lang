@@ -287,6 +287,13 @@
 <p>  calls. The capped profile now exposes <code>_emit_intrinsic_sys_linux_open_x64</code></p>
 <p>  (~65ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_open</code> lowering now mirrors the helper shape used by adjacent</li>
+</ul>
+<p>  filesystem intrinsics: spill/eval state, capsule prehook, <code>openat</code> syscall</p>
+<p>  setup, and capsule posthook are separate helpers while preserving flag</p>
+<p>  translation. The capped profile now exposes <code>_x64_emit_sys_rename_x64</code></p>
+<p>  (~64ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

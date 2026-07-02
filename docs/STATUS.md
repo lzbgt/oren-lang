@@ -1281,6 +1281,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  calls. The capped profile now shows `x64_native_program.oren` at about 43.1s
 																																																																			  total / 31.6s parse, with `_emit_intrinsic_sys_linux_open_x64` exposed at about
 																																																																			  65ms as the next parser body.
+																																																																			  Linux x64 `sys_open` lowering now mirrors the helper shape used by adjacent
+																																																																			  filesystem intrinsics: spill/eval state, capsule prehook, `openat` syscall
+																																																																			  setup, and capsule posthook are separate helpers while preserving Oren-to-Linux
+																																																																			  flag translation. The capped profile now shows `x64_native_program.oren` at
+																																																																			  about 43.1s total / 31.5s parse, with `_x64_emit_sys_rename_x64` exposed at
+																																																																			  about 64ms as the next parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial
