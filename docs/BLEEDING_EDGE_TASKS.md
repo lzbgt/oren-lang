@@ -1002,11 +1002,18 @@ This file is the concise task view. Detailed implementation status lives in
 																																														 Windows x64 `sys_ulock_wait` result mapping now delegates label/fixup state,
 																																														 BOOL dispatch, `GetLastError` timeout dispatch, and success/timeout/failure
 																																														 return emission to focused helpers while preserving the `0` / `-ETIMEDOUT` /
-																																														 `-EIO` contract. The capped profile now shows `x64_native_program.oren` at
-																																														 about 42.9s total / 31.6s parse, with
-																																														 `_x64_fast_list_get_sum_validate_lists` exposed at about 76ms as the next
-																																														 parser body.
-																																												     Serial/thread module
+																																															 `-EIO` contract. The capped profile now shows `x64_native_program.oren` at
+																																															 about 42.9s total / 31.6s parse, with
+																																															 `_x64_fast_list_get_sum_validate_lists` exposed at about 76ms as the next
+																																															 parser body.
+																																															 X64 fast LIST get-sum validation now delegates per-list temp state, list
+																																															 capture, tracked LIST kind validation, magic/count checks, and buffer capture
+																																															 to focused helpers while preserving slow-path jumps and temp cleanup on setup
+																																															 failure. The capped profile now shows `x64_native_program.oren` at about
+																																															 42.1s total / 31.1s parse, with
+																																															 `_emit_intrinsic_sys_post_queued_completion_status_windows_x64` exposed at
+																																															 about 74ms as the next parser body.
+																																													     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
