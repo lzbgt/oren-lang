@@ -223,6 +223,13 @@
 <p>  exposes <code>_emit_intrinsic_sys_connect_windows_x64</code> (~67ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>Windows x64 <code>sys_connect</code> lowering now delegates argument spill state,</li>
+</ul>
+<p>  capsule prehook, <code>connect</code> dispatch, connect-specific WSA errno mapping, and</p>
+<p>  capsule posthook emission to focused helpers while preserving nonblocking</p>
+<p>  <code>WSAEWOULDBLOCK</code> to <code>-EINPROGRESS</code> normalization. The capped profile now</p>
+<p>  exposes <code>_x64_emit_cmp_string_path</code> (~67ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

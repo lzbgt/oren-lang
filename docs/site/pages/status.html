@@ -1265,7 +1265,14 @@
 <p>																																																																			  shows <code>x64_native_program.oren</code> at about 43.3s total / 31.9s parse, with</p>
 <p>																																																																			  <code>_emit_intrinsic_sys_connect_windows_x64</code> exposed at about 67ms as the next</p>
 <p>																																																																			  parser body.</p>
-<p>																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																																																			  Windows x64 <code>sys_connect</code> lowering now delegates argument spill state,</p>
+<p>																																																																			  capsule prehook, <code>connect</code> dispatch, connect-specific WSA errno mapping,</p>
+<p>																																																																			  and capsule posthook emission to focused helpers while preserving</p>
+<p>																																																																			  nonblocking <code>WSAEWOULDBLOCK</code> to <code>-EINPROGRESS</code> normalization. The capped</p>
+<p>																																																																			  profile now shows <code>x64_native_program.oren</code> at about 42.4s total / 31.2s</p>
+<p>																																																																			  parse, with <code>_x64_emit_cmp_string_path</code> exposed at about 67ms as the next</p>
+<p>																																																																			  parser body.</p>
+<p>																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

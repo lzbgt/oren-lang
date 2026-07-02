@@ -1225,7 +1225,14 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  shows `x64_native_program.oren` at about 43.3s total / 31.9s parse, with
 																																																																			  `_emit_intrinsic_sys_connect_windows_x64` exposed at about 67ms as the next
 																																																																			  parser body.
-																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																																			  Windows x64 `sys_connect` lowering now delegates argument spill state,
+																																																																			  capsule prehook, `connect` dispatch, connect-specific WSA errno mapping,
+																																																																			  and capsule posthook emission to focused helpers while preserving
+																																																																			  nonblocking `WSAEWOULDBLOCK` to `-EINPROGRESS` normalization. The capped
+																																																																			  profile now shows `x64_native_program.oren` at about 42.4s total / 31.2s
+																																																																			  parse, with `_x64_emit_cmp_string_path` exposed at about 67ms as the next
+																																																																			  parser body.
+																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

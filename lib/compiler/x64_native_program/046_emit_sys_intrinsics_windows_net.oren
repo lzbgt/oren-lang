@@ -305,39 +305,45 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_connect expects 3 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_connect does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-
+fn _x64_windows_connect_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // fd, addr, len
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_fd": tmp_fd, "tmp_addr": tmp_addr, "tmp_len": tmp_len}
+}
 
+fn _x64_windows_connect_load_args(ctx, st) {
+    _intr_load_x64(ctx, 1, st["tmp_fd"])
+    _intr_load_x64(ctx, 2, st["tmp_addr"])
+    _intr_load_x64(ctx, 8, st["tmp_len"])
+    return nil
+}
+
+fn _x64_windows_connect_prehook(ctx, st, capsule) {
     // pre: native_capsule_sys_connect_pre(fd, addr, addrlen)
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_addr)
-    _intr_load_x64(ctx, 8, tmp_len)
+    _x64_windows_connect_load_args(ctx, st)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre") }
+    return nil
+}
 
+fn _x64_windows_connect_call(ctx, st) {
     // connect(fd, addr, len) -> 0 or SOCKET_ERROR(-1)
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _intr_load_x64(ctx, 2, tmp_addr)
-    _intr_load_x64(ctx, 8, tmp_len)
+    _x64_windows_connect_load_args(ctx, st)
     _emit_call_iat_x64(ctx, "IAT_connect")
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
+fn _x64_windows_connect_result(ctx, labels, fixups) {
     var l_ok = _new_label(ctx, "sys_connect_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
@@ -348,17 +354,37 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_ok)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-
     _emit_label(ctx, labels, l_post)
+    return nil
+}
+
+fn _x64_windows_connect_posthook(ctx, st, capsule) {
     // post: native_capsule_sys_connect_post(rc, fd, addr, addrlen) -> rc
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, tmp_fd)
-    _intr_load_x64(ctx, 8, tmp_addr)
-    _intr_load_x64(ctx, 9, tmp_len)
+    _intr_load_x64(ctx, 2, st["tmp_fd"])
+    _intr_load_x64(ctx, 8, st["tmp_addr"])
+    _intr_load_x64(ctx, 9, st["tmp_len"])
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post") }
+    return nil
+}
 
+fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_connect expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_connect does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var st = _x64_windows_connect_state(ctx, locals, args)
+    if st == nil { return nil }
+    var labels = {}
+    var fixups = []
+
+    _x64_windows_connect_prehook(ctx, st, capsule)
+    _x64_windows_connect_call(ctx, st)
+    _x64_windows_connect_result(ctx, labels, fixups)
+    _x64_windows_connect_posthook(ctx, st, capsule)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
