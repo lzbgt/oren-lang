@@ -209,6 +209,13 @@
 <p>  capped profile now exposes <code>_emit_stack_trace_linux_best_effort</code> (~65ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>X64 best-effort stack tracing now shares frame guards, return-PC loading, and</li>
+</ul>
+<p>  monotonic frame advance across Linux and Windows; Linux stack trace output is</p>
+<p>  split into focused PC prefix, symbol, location, and offset-line emitters. The</p>
+<p>  capped profile now exposes <code>_x64_emit_entry_register_thread_call</code> (~72ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

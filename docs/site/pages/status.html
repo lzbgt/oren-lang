@@ -1253,6 +1253,12 @@
 <p>																																																																			  contract. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>																																																																			  42.3s total / 30.9s parse, with <code>_emit_stack_trace_linux_best_effort</code></p>
 <p>																																																																			  exposed at about 65ms as the next parser body.</p>
+<p>																																																																			  X64 best-effort stack tracing now shares frame guards, return-PC loading,</p>
+<p>																																																																			  and monotonic frame advance across Linux and Windows; Linux stack trace</p>
+<p>																																																																			  output is split into focused PC prefix, symbol, location, and offset-line</p>
+<p>																																																																			  emitters. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																																																			  44.4s total / 33.0s parse, with <code>_x64_emit_entry_register_thread_call</code></p>
+<p>																																																																			  exposed at about 72ms as the next parser body.</p>
 <p>																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

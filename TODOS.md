@@ -134,6 +134,11 @@ design evidence lives under `project-doc/`.
   focused helpers while preserving the socket-then-`CloseHandle` contract. The
   capped profile now exposes `_emit_stack_trace_linux_best_effort` (~65ms) as
   the next parser-body target.
+- X64 best-effort stack tracing now shares frame guards, return-PC loading, and
+  monotonic frame advance across Linux and Windows; Linux stack trace output is
+  split into focused PC prefix, symbol, location, and offset-line emitters. The
+  capped profile now exposes `_x64_emit_entry_register_thread_call` (~72ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
