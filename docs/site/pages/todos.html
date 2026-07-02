@@ -648,6 +648,13 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~44.4s total / ~32.6s parse,</p>
 <p>  with <code>_x64_emit_ops_loop_state</code> (~56ms) as the next parser-body target.</p>
 <ul>
+<li>X64 emit-ops loop-state assembly now separates op-count, trace cadence,</li>
+</ul>
+<p>  phase logging, slow-op tracing, and gas-mode flag setup while preserving the</p>
+<p>  state map consumed by the emit loop. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.9s total / ~31.9s parse, with</p>
+<p>  <code>_emit_eval_bitwise_infix_to_rax</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

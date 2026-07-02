@@ -1561,6 +1561,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  prep-map packing, with LIST_INT layering only reserve tracing. The capped
 																																																																																									  profile now shows `x64_native_program.oren` at about 44.4s total / 32.6s parse,
 																																																																																									  with `_x64_emit_ops_loop_state` exposed at about 56ms as the next parser body.
+																																																																																									  X64 emit-ops loop-state assembly now separates op-count, trace cadence,
+																																																																																									  phase logging, slow-op tracing, and gas-mode flag setup while preserving the
+																																																																																									  state map consumed by the emit loop. The capped profile now shows
+																																																																																									  `x64_native_program.oren` at about 43.9s total / 31.9s parse, with
+																																																																																									  `_emit_eval_bitwise_infix_to_rax` exposed at about 54ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial

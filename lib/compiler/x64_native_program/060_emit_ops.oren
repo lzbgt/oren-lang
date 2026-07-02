@@ -1080,9 +1080,13 @@ fn _x64_emit_ops_record_slow(ctx, trace_op_slow, phase_log, phase_name, op, op_k
     return nil
 }
 
-fn _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label) {
+fn _x64_emit_ops_count(ops) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
+    return n
+}
+
+fn _x64_emit_ops_trace_state(ctx) {
     var trace = false
     if ctx != nil && ctx["trace_emit_ops"] == true { trace = true }
     var trace_stride = 200
@@ -1090,6 +1094,10 @@ fn _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label) {
         trace_stride = core.parse_int_decimal(oren_env("OREN_TRACE_X64_EMIT_OPS_STRIDE"), trace_stride)
         if trace_stride < 1 { trace_stride = 1 }
     }
+    return {"trace": trace, "trace_stride": trace_stride}
+}
+
+fn _x64_emit_ops_phase_state(ctx, loop_cond_label, loop_end_label) {
     var phase_log = nil
     var phase_name = nil
     var phase_stride = 0
@@ -1103,30 +1111,57 @@ fn _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label) {
     if phase_log != nil && phase_name != nil && phase_stride > 0 && loop_cond_label == nil && loop_end_label == nil {
         phase_outer = true
     }
+    return {
+        "phase_log": phase_log,
+        "phase_name": phase_name,
+        "phase_stride": phase_stride,
+        "phase_outer": phase_outer
+    }
+}
+
+fn _x64_emit_ops_slow_state(phase_state) {
     var op_slow_ms = 0
     var v_op_slow = oren_env("OREN_TRACE_X64_EMIT_OP_SLOW_MS")
     if v_op_slow != nil && v_op_slow != "" {
         op_slow_ms = core.parse_int_decimal(v_op_slow, op_slow_ms)
     }
     var trace_op_slow = false
-    if phase_log != nil && phase_name != nil && op_slow_ms > 0 { trace_op_slow = true }
+    if phase_state["phase_log"] != nil && phase_state["phase_name"] != nil && op_slow_ms > 0 { trace_op_slow = true }
+    return {"op_slow_ms": op_slow_ms, "trace_op_slow": trace_op_slow}
+}
+
+fn _x64_emit_ops_gas_state(ctx) {
     var gas_mode = "none"
     if ctx != nil { gas_mode = _x64_native_gas_accounting_mode(ctx) }
     return {
-        "n": n,
-        "trace": trace,
-        "trace_stride": trace_stride,
-        "phase_log": phase_log,
-        "phase_name": phase_name,
-        "phase_stride": phase_stride,
-        "phase_outer": phase_outer,
-        "op_slow_ms": op_slow_ms,
-        "trace_op_slow": trace_op_slow,
-        "top_string_fast_stats": {"candidates": 0, "hits": 0, "miss_type": 0},
         "gas_stmt": gas_mode == "stmt",
         "gas_basic": gas_mode == "basic-block" || gas_mode == "block-weighted",
         "gas_weighted": gas_mode == "block-weighted",
-        "gas_dynamic": gas_mode == "dynamic-emitter",
+        "gas_dynamic": gas_mode == "dynamic-emitter"
+    }
+}
+
+fn _x64_emit_ops_loop_state(ctx, ops, loop_cond_label, loop_end_label) {
+    var n = _x64_emit_ops_count(ops)
+    var trace_state = _x64_emit_ops_trace_state(ctx)
+    var phase_state = _x64_emit_ops_phase_state(ctx, loop_cond_label, loop_end_label)
+    var slow_state = _x64_emit_ops_slow_state(phase_state)
+    var gas_state = _x64_emit_ops_gas_state(ctx)
+    return {
+        "n": n,
+        "trace": trace_state["trace"],
+        "trace_stride": trace_state["trace_stride"],
+        "phase_log": phase_state["phase_log"],
+        "phase_name": phase_state["phase_name"],
+        "phase_stride": phase_state["phase_stride"],
+        "phase_outer": phase_state["phase_outer"],
+        "op_slow_ms": slow_state["op_slow_ms"],
+        "trace_op_slow": slow_state["trace_op_slow"],
+        "top_string_fast_stats": {"candidates": 0, "hits": 0, "miss_type": 0},
+        "gas_stmt": gas_state["gas_stmt"],
+        "gas_basic": gas_state["gas_basic"],
+        "gas_weighted": gas_state["gas_weighted"],
+        "gas_dynamic": gas_state["gas_dynamic"],
         "charge_basic_block_next": true
     }
 }

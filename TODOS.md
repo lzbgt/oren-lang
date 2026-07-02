@@ -449,6 +449,11 @@ design evidence lives under `project-doc/`.
   prep-map packing, with LIST_INT layering only reserve tracing. The capped
   profile now shows `x64_native_program.oren` at ~44.4s total / ~32.6s parse,
   with `_x64_emit_ops_loop_state` (~56ms) as the next parser-body target.
+- X64 emit-ops loop-state assembly now separates op-count, trace cadence,
+  phase logging, slow-op tracing, and gas-mode flag setup while preserving the
+  state map consumed by the emit loop. The capped profile now shows
+  `x64_native_program.oren` at ~43.9s total / ~31.9s parse, with
+  `_emit_eval_bitwise_infix_to_rax` (~54ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
