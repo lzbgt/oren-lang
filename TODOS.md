@@ -238,6 +238,12 @@ design evidence lives under `project-doc/`.
   Win64 nonvolatile restore, DLL attach-gate fixup patching, and shared
   return-path finalization to focused helpers. The capped profile now exposes
   `_emit_intrinsic_sys_accept_windows_x64` (~62ms) as the next parser-body target.
+- Windows x64 accept/getname fd-sockaddr lowering now reuses the shared
+  three-argument sockaddr helper path, with accept-specific invalid-socket
+  mapping and new-fd posthook emission isolated in focused helpers. The capped
+  profile now shows `x64_native_program.oren` at ~42.6s total / ~31.3s parse,
+  with `_emit_gc_collect_visible_call_x64` (~63ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

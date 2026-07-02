@@ -1343,9 +1343,15 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  `x64_native_program.oren` at about 42.7s total / 31.2s parse, with
 																																																																								  `_emit_intrinsic_sys_accept_windows_x64` exposed at about 62ms as the next
 																																																																								  parser body.
-																																																																  Serial/thread module ASTBIN writes are explicit prewarm work via
-																  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
-				  as a candidate and `false` disables serial-write candidates. Actual serial
+																																																																								  Windows x64 accept/getname fd-sockaddr lowering now reuses the shared
+																																																																								  three-argument sockaddr helper path, with accept-specific invalid-socket
+																																																																								  mapping and new-fd posthook emission isolated in focused helpers. The capped
+																																																																								  profile now shows `x64_native_program.oren` at about 42.6s total / 31.3s
+																																																																								  parse, with `_emit_gc_collect_visible_call_x64` exposed at about 63ms as the
+																																																																								  next parser body.
+																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
+																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
 		  one-pass cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase

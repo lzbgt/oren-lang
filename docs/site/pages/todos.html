@@ -357,6 +357,14 @@
 <p>  return-path finalization to focused helpers. The capped profile now exposes</p>
 <p>  <code>_emit_intrinsic_sys_accept_windows_x64</code> (~62ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 accept/getname fd-sockaddr lowering now reuses the shared</li>
+</ul>
+<p>  three-argument sockaddr helper path, with accept-specific invalid-socket</p>
+<p>  mapping and new-fd posthook emission isolated in focused helpers. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~42.6s total / ~31.3s parse,</p>
+<p>  with <code>_emit_gc_collect_visible_call_x64</code> (~63ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
