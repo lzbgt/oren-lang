@@ -301,6 +301,12 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~45.4s total / ~33.7s
   parse, with `_emit_sys_open_windows_creation_stack_args_x64` (~65ms) as the
   next parser-body target.
+- Windows x64 `sys_open` stack-argument lowering now delegates flag tests,
+  CREAT/TRUNC disposition branches, and immediate Win64 stack-arg stores to
+  focused helpers while preserving the `CreateFileA` argument layout. The capped
+  profile now shows `x64_native_program.oren` at ~44.6s total / ~32.9s parse,
+  with `_emit_intrinsic_sys_linux_epoll_pwait_x64` (~62ms) as the next
+  parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

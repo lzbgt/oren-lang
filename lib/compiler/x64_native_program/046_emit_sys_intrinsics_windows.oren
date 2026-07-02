@@ -558,57 +558,71 @@ fn _emit_sys_open_windows_access_args_x64(ctx, tmp_flags, labels, fixups) {
     return nil
 }
 
-fn _emit_sys_open_windows_creation_stack_args_x64(ctx, tmp_flags, labels, fixups) {
-    // Derive creation disposition from Oren flags:
-    // - CREAT + TRUNC => CREATE_ALWAYS (2)
-    // - CREAT        => OPEN_ALWAYS (4)
-    // - TRUNC        => TRUNCATE_EXISTING (5)
-    // - default      => OPEN_EXISTING (3)
-    _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
+fn _emit_sys_open_windows_test_flag_r10_x64(ctx, flag) {
+    // r10 is the preserved Oren open flags; r11 is scratch for a single flag test.
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 10))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(11, OREN_O_CREAT))
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(11, flag))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    var l_no_creat = _new_label(ctx, "sys_open_no_creat")
-    _emit_jcc_to_label(ctx, fixups, "e", l_no_creat)
+    return nil
+}
 
-    // has CREAT
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 10))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(11, OREN_O_TRUNC))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+fn _emit_sys_open_windows_creation_creat_path_x64(ctx, labels, fixups, l_disp_done) {
+    _emit_sys_open_windows_test_flag_r10_x64(ctx, OREN_O_TRUNC)
     var l_creat_no_trunc = _new_label(ctx, "sys_open_creat_no_trunc")
     _emit_jcc_to_label(ctx, fixups, "e", l_creat_no_trunc)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 2)) // CREATE_ALWAYS
-    var l_disp_done = _new_label(ctx, "sys_open_disp_done")
     _emit_jmp_to_label(ctx, fixups, l_disp_done)
     _emit_label(ctx, labels, l_creat_no_trunc)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 4)) // OPEN_ALWAYS
     _emit_jmp_to_label(ctx, fixups, l_disp_done)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_no_creat)
-    // no CREAT
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 10))
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(11, OREN_O_TRUNC))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+fn _emit_sys_open_windows_creation_no_creat_path_x64(ctx, labels, fixups, l_disp_done) {
+    _emit_sys_open_windows_test_flag_r10_x64(ctx, OREN_O_TRUNC)
     var l_no_creat_no_trunc = _new_label(ctx, "sys_open_no_creat_no_trunc")
     _emit_jcc_to_label(ctx, fixups, "e", l_no_creat_no_trunc)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 5)) // TRUNCATE_EXISTING
     _emit_jmp_to_label(ctx, fixups, l_disp_done)
     _emit_label(ctx, labels, l_no_creat_no_trunc)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 3)) // OPEN_EXISTING
+    return nil
+}
+
+fn _emit_sys_open_windows_stack_arg_imm_x64(ctx, rsp_off, imm) {
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, imm))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_mov_mrsp_r64(ctx, rsp_off, 10)
+    return nil
+}
+
+fn _emit_sys_open_windows_creation_disposition_x64(ctx, tmp_flags, labels, fixups) {
+    // Derive creation disposition from Oren flags:
+    // - CREAT + TRUNC => CREATE_ALWAYS (2)
+    // - CREAT        => OPEN_ALWAYS (4)
+    // - TRUNC        => TRUNCATE_EXISTING (5)
+    // - default      => OPEN_EXISTING (3)
+    _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
+    _emit_sys_open_windows_test_flag_r10_x64(ctx, OREN_O_CREAT)
+    var l_no_creat = _new_label(ctx, "sys_open_no_creat")
+    _emit_jcc_to_label(ctx, fixups, "e", l_no_creat)
+    var l_disp_done = _new_label(ctx, "sys_open_disp_done")
+
+    _emit_sys_open_windows_creation_creat_path_x64(ctx, labels, fixups, l_disp_done)
+
+    _emit_label(ctx, labels, l_no_creat)
+    _emit_sys_open_windows_creation_no_creat_path_x64(ctx, labels, fixups, l_disp_done)
 
     _emit_label(ctx, labels, l_disp_done)
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_mov_mrsp_r64(ctx, 32, 10) // arg5 dwCreationDisposition
+    return nil
+}
 
-    // arg6 dwFlagsAndAttributes = FILE_ATTRIBUTE_NORMAL (0x80)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 128))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrsp_r64(ctx, 40, 10)
-
-    // arg7 hTemplateFile = NULL
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrsp_r64(ctx, 48, 10)
+fn _emit_sys_open_windows_creation_stack_args_x64(ctx, tmp_flags, labels, fixups) {
+    _emit_sys_open_windows_creation_disposition_x64(ctx, tmp_flags, labels, fixups)
+    _emit_sys_open_windows_stack_arg_imm_x64(ctx, 40, 128) // arg6 dwFlagsAndAttributes
+    _emit_sys_open_windows_stack_arg_imm_x64(ctx, 48, 0)   // arg7 hTemplateFile
     return nil
 }
 

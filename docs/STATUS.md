@@ -1409,6 +1409,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  capped profile now shows `x64_native_program.oren` at about 45.4s total / 33.7s
 																																																																								  parse, with `_emit_sys_open_windows_creation_stack_args_x64` exposed at about
 																																																																								  65ms as the next parser body.
+																																																																								  Windows x64 `sys_open` stack-argument lowering now delegates flag tests,
+																																																																								  CREAT/TRUNC disposition branches, and immediate Win64 stack-arg stores to
+																																																																								  focused helpers while preserving the `CreateFileA` argument layout. The capped
+																																																																								  profile now shows `x64_native_program.oren` at about 44.6s total / 32.9s parse,
+																																																																								  with `_emit_intrinsic_sys_linux_epoll_pwait_x64` exposed at about 62ms as the
+																																																																								  next parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
