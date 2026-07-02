@@ -80,14 +80,14 @@ fn _x64_wsarecv_emit_call(ctx, state) {
     return nil
 }
 
-fn _x64_wsarecv_normalize_result(ctx) {
+fn _x64_wsa_overlapped_normalize_result(ctx, label_prefix) {
     // rc == 0 => ok
     // rc == SOCKET_ERROR(-1) => if WSAGetLastError == WSA_IO_PENDING => ok, else map to -errno
     var labels = {}
     var fixups = []
-    var l_ok = _new_label(ctx, "wsarecv_ok")
-    var l_pending_ok = _new_label(ctx, "wsarecv_pending_ok")
-    var l_done = _new_label(ctx, "wsarecv_done")
+    var l_ok = _new_label(ctx, label_prefix + "_ok")
+    var l_pending_ok = _new_label(ctx, label_prefix + "_pending_ok")
+    var l_done = _new_label(ctx, label_prefix + "_done")
 
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
@@ -110,6 +110,10 @@ fn _x64_wsarecv_normalize_result(ctx) {
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
     return nil
+}
+
+fn _x64_wsarecv_normalize_result(ctx) {
+    return _x64_wsa_overlapped_normalize_result(ctx, "wsarecv")
 }
 
 fn _x64_wsarecv_capsule_post(ctx, state, capsule) {
@@ -247,33 +251,7 @@ fn _x64_wsarecvfrom_emit_call(ctx, state) {
 }
 
 fn _x64_wsarecvfrom_normalize_result(ctx) {
-    var labels = {}
-    var fixups = []
-    var l_ok = _new_label(ctx, "wsarecvfrom_ok")
-    var l_pending_ok = _new_label(ctx, "wsarecvfrom_pending_ok")
-    var l_done = _new_label(ctx, "wsarecvfrom_done")
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-
-    _emit_wsa_get_last_error_x64(ctx)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
-    _emit_jcc_to_label(ctx, fixups, "e", l_pending_ok)
-    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-
-    _emit_label(ctx, labels, l_pending_ok)
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-    _emit_jmp_to_label(ctx, fixups, l_done)
-
-    _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    return nil
+    return _x64_wsa_overlapped_normalize_result(ctx, "wsarecvfrom")
 }
 
 fn _x64_wsarecvfrom_capsule_post(ctx, state, capsule) {
@@ -404,33 +382,7 @@ fn _x64_wsasend_emit_call(ctx, state) {
 }
 
 fn _x64_wsasend_normalize_result(ctx) {
-    var labels = {}
-    var fixups = []
-    var l_ok = _new_label(ctx, "wsasend_ok")
-    var l_pending_ok = _new_label(ctx, "wsasend_pending_ok")
-    var l_done = _new_label(ctx, "wsasend_done")
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-
-    _emit_wsa_get_last_error_x64(ctx)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
-    _emit_jcc_to_label(ctx, fixups, "e", l_pending_ok)
-    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-
-    _emit_label(ctx, labels, l_pending_ok)
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-    _emit_jmp_to_label(ctx, fixups, l_done)
-
-    _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    return nil
+    return _x64_wsa_overlapped_normalize_result(ctx, "wsasend")
 }
 
 fn _x64_wsasend_capsule_post(ctx, state, capsule) {

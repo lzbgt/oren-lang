@@ -175,6 +175,13 @@
 <p>  The capped profile now exposes <code>_x64_wsasend_normalize_result</code> (~76ms) as the</p>
 <p>  next parser-body target.</p>
 <ul>
+<li>Windows x64 overlapped WSA result normalization is now shared across</li>
+</ul>
+<p>  <code>WSARecv</code>, <code>WSARecvFrom</code>, and <code>WSASend</code>, preserving the immediate-success,</p>
+<p>  <code>WSA_IO_PENDING</code>, and WSA errno mapping contract with per-intrinsic label</p>
+<p>  prefixes. The capped profile now exposes <code>_x64_emit_linux_stat_copy_to_oren_v0</code></p>
+<p>  (~101ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

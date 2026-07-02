@@ -110,6 +110,11 @@ design evidence lives under `project-doc/`.
   marking to focused helpers while preserving existing `ffi_ret_*` context maps.
   The capped profile now exposes `_x64_wsasend_normalize_result` (~76ms) as the
   next parser-body target.
+- Windows x64 overlapped WSA result normalization is now shared across
+  `WSARecv`, `WSARecvFrom`, and `WSASend`, preserving the immediate-success,
+  `WSA_IO_PENDING`, and WSA errno mapping contract with per-intrinsic label
+  prefixes. The capped profile now exposes `_x64_emit_linux_stat_copy_to_oren_v0`
+  (~101ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

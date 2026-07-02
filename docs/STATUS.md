@@ -1182,6 +1182,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																		  `x64_native_program.oren` at about 43.4s total / 31.8s parse, with
 																																																																		  `_x64_wsasend_normalize_result` exposed at about 76ms as the next parser
 																																																																		  body.
+																																																																		  Windows x64 overlapped WSA result normalization is now shared across
+																																																																		  `WSARecv`, `WSARecvFrom`, and `WSASend`, preserving immediate success,
+																																																																		  `WSA_IO_PENDING`, and WSA errno mapping with per-intrinsic label prefixes.
+																																																																		  The capped profile now shows `x64_native_program.oren` at about 42.7s total /
+																																																																		  31.5s parse, with `_x64_emit_linux_stat_copy_to_oren_v0` exposed at about
+																																																																		  101ms as the next parser body.
 																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via
 										  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial
