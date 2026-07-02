@@ -290,6 +290,11 @@ design evidence lives under `project-doc/`.
   an explicit `-1` miss sentinel. The capped profile now shows
   `x64_native_program.oren` at ~45.1s total / ~33.1s parse, with
   `_emit_intrinsic_sys_ulock_wait_linux_x64` (~119ms) as the next parser-body target.
+- Linux x64 `sys_ulock_wait` now delegates futex wait temp-state setup, argument
+  spilling, futex argument emission, and timeout/result normalization to focused
+  helpers while preserving the `FUTEX_WAIT_PRIVATE` ABI path. The capped profile
+  now shows `x64_native_program.oren` at ~45.4s total / ~33.8s parse, with
+  `_x64_emit_entry_debug_info` (~66ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

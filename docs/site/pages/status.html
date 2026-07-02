@@ -1438,6 +1438,11 @@
 <p>																																																																								  <code>x64_native_program.oren</code> at about 45.1s total / 33.1s parse, with</p>
 <p>																																																																								  <code>_emit_intrinsic_sys_ulock_wait_linux_x64</code> exposed at about 119ms as the next</p>
 <p>																																																																								  parser body.</p>
+<p>																																																																								  Linux x64 <code>sys_ulock_wait</code> now delegates futex wait temp-state setup, argument</p>
+<p>																																																																								  spilling, futex argument emission, and timeout/result normalization to focused</p>
+<p>																																																																								  helpers while preserving the <code>FUTEX_WAIT_PRIVATE</code> ABI path. The capped profile</p>
+<p>																																																																								  now shows <code>x64_native_program.oren</code> at about 45.4s total / 33.8s parse, with</p>
+<p>																																																																								  <code>_x64_emit_entry_debug_info</code> exposed at about 66ms as the next parser body.</p>
 <p>																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

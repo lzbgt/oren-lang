@@ -429,6 +429,13 @@
 <p>  <code>x64_native_program.oren</code> at ~45.1s total / ~33.1s parse, with</p>
 <p>  <code>_emit_intrinsic_sys_ulock_wait_linux_x64</code> (~119ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_ulock_wait</code> now delegates futex wait temp-state setup, argument</li>
+</ul>
+<p>  spilling, futex argument emission, and timeout/result normalization to focused</p>
+<p>  helpers while preserving the <code>FUTEX_WAIT_PRIVATE</code> ABI path. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~45.4s total / ~33.8s parse, with</p>
+<p>  <code>_x64_emit_entry_debug_info</code> (~66ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
