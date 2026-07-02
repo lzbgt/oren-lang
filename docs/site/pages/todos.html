@@ -415,6 +415,13 @@
 <p>  ~31.1s parse, with <code>_x64_emit_ffi_resolver_win64</code> (~60ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>Windows x64 FFI resolver emission now separates function registration,</li>
+</ul>
+<p>  callee-saved/shadow-space prologue, per-DLL LoadLibrary/GetProcAddress attempts,</p>
+<p>  and epilogue emission while preserving the <code>__oren_ffi_resolve0</code> ABI. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~43.4s total / ~31.8s parse, with</p>
+<p>  <code>_data_add_cstr0_cached</code> (~90ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

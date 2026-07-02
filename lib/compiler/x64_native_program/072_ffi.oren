@@ -281,23 +281,15 @@ fn _x64_emit_call_iat_rax(ctx, iat_label) {
     return nil
 }
 
-fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
-    // fn __oren_ffi_resolve0(sym_ptr) -> fn_ptr (0 if unresolved)
-    //
-    // ABI: Win64 int args in rcx,rdx,r8,r9; return in rax.
-    // - sym_ptr is a cstr0 pointer.
-    //
-    // Implementation:
-    // - preserves r12 (callee-saved) while using it to hold sym_ptr
-    // - allocates 32B shadow for each WinAPI call
-    var name = "__oren_ffi_resolve0"
-    if ctx == nil { return nil }
+fn _x64_emit_ffi_resolver_win64_register(ctx, name) {
     if ctx["functions"] == nil { ctx["functions"] = {} }
-    if ctx["functions"][name] != nil { return name }
-
+    if ctx["functions"][name] != nil { return true }
     var start = bytes_len(ctx["code"])
     ctx["functions"][name] = start
+    return false
+}
 
+fn _x64_emit_ffi_resolver_win64_prologue(ctx) {
     // push r12
     bytes_push(ctx["code"], 65) // REX.B
     bytes_push(ctx["code"], 84) // PUSH r12
@@ -305,43 +297,52 @@ fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 1))
     // sub rsp, 0x20 (shadow space for LoadLibraryA/GetProcAddress)
     bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(32))
+    return nil
+}
 
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "ffi_resolve_done")
+fn _x64_emit_ffi_resolver_win64_load_dll_arg(ctx, dll) {
+    // rcx = &dll_cstr0
+    var dll_off = _data_add_cstr0(ctx, dll)
+    var lea_dll = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": dll_off})
+    return nil
+}
 
+fn _x64_emit_ffi_resolver_win64_try_dll(ctx, labels, local_fixups, l_done, dll) {
+    if dll == nil || dll == "" { return nil }
+
+    _x64_emit_ffi_resolver_win64_load_dll_arg(ctx, dll)
+    _x64_emit_call_iat_rax(ctx, "IAT_LoadLibraryA")
+
+    // if rax == 0: continue
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    var l_skip = _new_label(ctx, "ffi_resolve_skip")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_skip)
+
+    // GetProcAddress(hmodule=rax, sym_ptr=r12)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12))
+    _x64_emit_call_iat_rax(ctx, "IAT_GetProcAddress")
+
+    // if rax != 0: done
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
+
+    _emit_label(ctx, labels, l_skip)
+    return nil
+}
+
+fn _x64_emit_ffi_resolver_win64_dll_loop(ctx, labels, local_fixups, l_done, dlls) {
     var i = 0
     while i < oren_list_len(dlls) {
-        var dll = dlls[i]
-        if dll == nil || dll == "" { i = i + 1; continue }
-
-        // rcx = &dll_cstr0
-        var dll_off = _data_add_cstr0(ctx, dll)
-        var lea_dll = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": dll_off})
-
-        _x64_emit_call_iat_rax(ctx, "IAT_LoadLibraryA")
-
-        // if rax == 0: continue
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        var l_skip = _new_label(ctx, "ffi_resolve_skip")
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_skip)
-
-        // rcx = hmodule (rax)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
-        // rdx = sym_ptr (r12)
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12))
-        _x64_emit_call_iat_rax(ctx, "IAT_GetProcAddress")
-
-        // if rax != 0: done
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
-
-        _emit_label(ctx, labels, l_skip)
+        _x64_emit_ffi_resolver_win64_try_dll(ctx, labels, local_fixups, l_done, dlls[i])
         i = i + 1
     }
+    return nil
+}
 
+fn _x64_emit_ffi_resolver_win64_epilogue(ctx, labels, local_fixups, l_done) {
     // unresolved => rax=0
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(0, 0))
 
@@ -354,6 +355,28 @@ fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
     bytes_push(ctx["code"], 65) // REX.B
     bytes_push(ctx["code"], 92) // POP r12
     bytes_extend(ctx["code"], core.insn_ret())
+    return nil
+}
+
+fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
+    // fn __oren_ffi_resolve0(sym_ptr) -> fn_ptr (0 if unresolved)
+    //
+    // ABI: Win64 int args in rcx,rdx,r8,r9; return in rax.
+    // - sym_ptr is a cstr0 pointer.
+    //
+    // Implementation:
+    // - preserves r12 (callee-saved) while using it to hold sym_ptr
+    // - allocates 32B shadow for each WinAPI call
+    var name = "__oren_ffi_resolve0"
+    if ctx == nil { return nil }
+    if _x64_emit_ffi_resolver_win64_register(ctx, name) == true { return name }
+
+    _x64_emit_ffi_resolver_win64_prologue(ctx)
+    var labels = {}
+    var local_fixups = []
+    var l_done = _new_label(ctx, "ffi_resolve_done")
+    _x64_emit_ffi_resolver_win64_dll_loop(ctx, labels, local_fixups, l_done, dlls)
+    _x64_emit_ffi_resolver_win64_epilogue(ctx, labels, local_fixups, l_done)
     return name
 }
 

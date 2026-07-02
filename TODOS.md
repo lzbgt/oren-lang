@@ -280,6 +280,11 @@ design evidence lives under `project-doc/`.
   The capped profile now shows `x64_native_program.oren` at ~42.5s total /
   ~31.1s parse, with `_x64_emit_ffi_resolver_win64` (~60ms) as the next
   parser-body target.
+- Windows x64 FFI resolver emission now separates function registration,
+  callee-saved/shadow-space prologue, per-DLL LoadLibrary/GetProcAddress attempts,
+  and epilogue emission while preserving the `__oren_ffi_resolve0` ABI. The capped
+  profile now shows `x64_native_program.oren` at ~43.4s total / ~31.8s parse, with
+  `_data_add_cstr0_cached` (~90ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

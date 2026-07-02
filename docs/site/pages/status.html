@@ -1427,6 +1427,11 @@
 <p>																																																																								  The capped profile now shows <code>x64_native_program.oren</code> at about 42.5s total /</p>
 <p>																																																																								  31.1s parse, with <code>_x64_emit_ffi_resolver_win64</code> exposed at about 60ms as the</p>
 <p>																																																																								  next parser body.</p>
+<p>																																																																								  Windows x64 FFI resolver emission now separates function registration,</p>
+<p>																																																																								  callee-saved/shadow-space prologue, per-DLL LoadLibrary/GetProcAddress attempts,</p>
+<p>																																																																								  and epilogue emission while preserving the <code>__oren_ffi_resolve0</code> ABI. The capped</p>
+<p>																																																																								  profile now shows <code>x64_native_program.oren</code> at about 43.4s total / 31.8s parse,</p>
+<p>																																																																								  with <code>_data_add_cstr0_cached</code> exposed at about 90ms as the next parser body.</p>
 <p>																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
