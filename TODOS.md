@@ -381,6 +381,11 @@ design evidence lives under `project-doc/`.
   focused helpers while preserving the cached `r11` contract. The capped profile
   now shows `x64_native_program.oren` at ~44.3s total / ~32.6s parse, with
   `_x64_emit_function_body_ops` (~61ms) as the next parser-body target.
+- X64 function-body op emission now delegates trace-env parsing, phase-log
+  begin/end wiring, and `_emit_ops_in_fn` payload emission to focused helpers
+  while preserving emit-ops trace cleanup. The capped profile now shows
+  `x64_native_program.oren` at ~44.3s total / ~32.7s parse, with
+  `_emit_fast_list_dot_while_x64` (~60ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -554,6 +554,13 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~44.3s total / ~32.6s parse, with</p>
 <p>  <code>_x64_emit_function_body_ops</code> (~61ms) as the next parser-body target.</p>
 <ul>
+<li>X64 function-body op emission now delegates trace-env parsing, phase-log</li>
+</ul>
+<p>  begin/end wiring, and <code>_emit_ops_in_fn</code> payload emission to focused helpers</p>
+<p>  while preserving emit-ops trace cleanup. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~44.3s total / ~32.7s parse, with</p>
+<p>  <code>_emit_fast_list_dot_while_x64</code> (~60ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

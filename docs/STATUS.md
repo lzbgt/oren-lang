@@ -1492,12 +1492,17 @@ Facts from the 2026-05-28 implementation pass:
 																																																																													  `_x64_emit_getentropy_windows_resolve_fp` exposed at about 61ms as the next
 																																																																													  parser body.
 																																																																													  Windows x64 `sys_getentropy` function-pointer resolution now delegates cached
-																																																																													  pointer probing, `LoadLibraryA`, `GetProcAddress`, and cache-store emission to
-																																																																													  focused helpers while preserving the cached `r11` contract. The capped profile
-																																																																													  now shows `x64_native_program.oren` at about 44.3s total / 32.6s parse, with
-																																																																													  `_x64_emit_function_body_ops` exposed at about 61ms as the next parser body.
-																																																																												  Serial/thread module ASTBIN writes are explicit prewarm work via
-																												  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																														  pointer probing, `LoadLibraryA`, `GetProcAddress`, and cache-store emission to
+																																																																														  focused helpers while preserving the cached `r11` contract. The capped profile
+																																																																														  now shows `x64_native_program.oren` at about 44.3s total / 32.6s parse, with
+																																																																														  `_x64_emit_function_body_ops` exposed at about 61ms as the next parser body.
+																																																																														  X64 function-body op emission now delegates trace-env parsing, phase-log
+																																																																														  begin/end wiring, and `_emit_ops_in_fn` payload emission to focused helpers
+																																																																														  while preserving emit-ops trace cleanup. The capped profile now shows
+																																																																														  `x64_native_program.oren` at about 44.3s total / 32.7s parse, with
+																																																																														  `_emit_fast_list_dot_while_x64` exposed at about 60ms as the next parser body.
+																																																																													  Serial/thread module ASTBIN writes are explicit prewarm work via
+																													  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

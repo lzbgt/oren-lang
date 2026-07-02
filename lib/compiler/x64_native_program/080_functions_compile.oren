@@ -368,48 +368,66 @@ fn _x64_emit_function_gc_tick_init(ctx, locals) {
     return true
 }
 
+fn _x64_function_body_trace_emit_ops_enabled(trace_this) {
+    if trace_this != true { return false }
+    var v_ops = oren_env("OREN_TRACE_X64_FN_EMIT_OPS")
+    if v_ops == nil || v_ops == "" { return false }
+    if core.string_eq_bytes(v_ops, "0") == true || core.string_eq_bytes(v_ops, "false") == true { return false }
+    return true
+}
+
+fn _x64_begin_function_body_phase(ctx, name, local_fixups, phase_state) {
+    if phase_state["enabled"] != true || phase_state["summary_only"] == true { return nil }
+    ctx["emit_ops_phase_log"] = phase_state["log"]
+    ctx["emit_ops_phase_name"] = name
+    ctx["emit_ops_phase_stride"] = 50
+    _x64_program_phase_log_append(phase_state["log"], "x64.codegen.function.body.start",
+        "name=" + name +
+        " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+        " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
+        " elapsed_ms=" + oren_int_to_string((phase_state["body_start_ns"] - phase_state["start_ns"]) / 1000000))
+    return nil
+}
+
+fn _x64_end_function_body_phase(ctx, name, local_fixups, phase_state) {
+    if phase_state["enabled"] != true || phase_state["summary_only"] == true { return nil }
+    ctx["emit_ops_phase_log"] = nil
+    ctx["emit_ops_phase_name"] = nil
+    ctx["emit_ops_phase_stride"] = nil
+    _x64_program_phase_log_append(phase_state["log"], "x64.codegen.function.body.done",
+        "name=" + name +
+        " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
+        " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
+        " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_state["start_ns"]) / 1000000))
+    return nil
+}
+
+fn _x64_emit_function_body_ops_payload(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, trace_emit_ops) {
+    if trace_emit_ops { ctx["trace_emit_ops"] = true }
+    _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    if trace_emit_ops { ctx["trace_emit_ops"] = nil }
+    return nil
+}
+
 fn _x64_emit_function_body_ops(ctx, name, ops, locals, labels, local_fixups, epilogue_label,
                                platform, trace_this, phase_this, phase_summary_only, phase_log, phase_start) {
     var phase_body_start = 0
     if phase_this { phase_body_start = oren_time_now_ns() }
     var t_stage = 0
     if trace_this { print("[x64_fn] emit_ops start"); t_stage = oren_time_now_ns() }
-    var trace_emit_ops = false
-    if trace_this {
-        var v_ops = oren_env("OREN_TRACE_X64_FN_EMIT_OPS")
-        if v_ops != nil && v_ops != "" {
-            if core.string_eq_bytes(v_ops, "0") != true && core.string_eq_bytes(v_ops, "false") != true {
-                trace_emit_ops = true
-            }
-        }
+    var trace_emit_ops = _x64_function_body_trace_emit_ops_enabled(trace_this)
+    var phase_state = {
+        "enabled": phase_this,
+        "summary_only": phase_summary_only,
+        "log": phase_log,
+        "start_ns": phase_start,
+        "body_start_ns": phase_body_start
     }
-    if trace_emit_ops { ctx["trace_emit_ops"] = true }
-    if phase_this && phase_summary_only != true {
-        ctx["emit_ops_phase_log"] = phase_log
-        ctx["emit_ops_phase_name"] = name
-        ctx["emit_ops_phase_stride"] = 50
-        _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.start",
-            "name=" + name +
-            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
-            " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
-            " elapsed_ms=" + oren_int_to_string((phase_body_start - phase_start) / 1000000))
-    }
-    _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    _x64_begin_function_body_phase(ctx, name, local_fixups, phase_state)
+    _x64_emit_function_body_ops_payload(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, trace_emit_ops)
     var phase_body_ms = 0
     if phase_body_start > 0 { phase_body_ms = (oren_time_now_ns() - phase_body_start) / 1000000 }
-    if phase_this && phase_summary_only != true {
-        ctx["emit_ops_phase_log"] = nil
-        ctx["emit_ops_phase_name"] = nil
-        ctx["emit_ops_phase_stride"] = nil
-    }
-    if trace_emit_ops { ctx["trace_emit_ops"] = nil }
-    if phase_this && phase_summary_only != true {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.function.body.done",
-            "name=" + name +
-            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
-            " fixups=" + oren_int_to_string(oren_list_len(local_fixups)) +
-            " elapsed_ms=" + oren_int_to_string((oren_time_now_ns() - phase_start) / 1000000))
-    }
+    _x64_end_function_body_phase(ctx, name, local_fixups, phase_state)
     if trace_this {
         var dt1 = (oren_time_now_ns() - t_stage) / 1000000
         print("[x64_fn] emit_ops done ms=" + oren_int_to_string(dt1))
