@@ -1245,6 +1245,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  `x64_native_program.oren` at about 45.8s total / 34.1s parse, with
 																																																																			  `_x64_fast_list_int_dot_emit_whole_helper` exposed at about 73ms as the next
 																																																																			  parser body.
+																																																																			  X64 fast LIST_INT dot lowering now shares list-name lookup and temp-slot
+																																																																			  derivation between whole-list helper and per-step paths, and splits the
+																																																																			  whole-list helper into count guards, unchecked runtime call, and result
+																																																																			  writeback. The capped profile now shows `x64_native_program.oren` at about
+																																																																			  43.2s total / 31.9s parse, with `_x64_expr_needs_literal_slots` exposed at
+																																																																			  about 67ms as the next parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

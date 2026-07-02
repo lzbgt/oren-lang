@@ -245,6 +245,13 @@
 <p>  <code>_x64_fast_list_int_dot_emit_whole_helper</code> (~73ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 fast LIST_INT dot lowering now shares list-name lookup and temp-slot</li>
+</ul>
+<p>  derivation between whole-list helper and per-step paths, and splits the</p>
+<p>  whole-list helper into count guards, unchecked runtime call, and result</p>
+<p>  writeback. The capped profile now exposes <code>_x64_expr_needs_literal_slots</code></p>
+<p>  (~67ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

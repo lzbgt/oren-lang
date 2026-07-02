@@ -160,6 +160,11 @@ design evidence lives under `project-doc/`.
   mapper explicit. The capped profile now exposes
   `_x64_fast_list_int_dot_emit_whole_helper` (~73ms) as the next parser-body
   target.
+- X64 fast LIST_INT dot lowering now shares list-name lookup and temp-slot
+  derivation between whole-list helper and per-step paths, and splits the
+  whole-list helper into count guards, unchecked runtime call, and result
+  writeback. The capped profile now exposes `_x64_expr_needs_literal_slots`
+  (~67ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
