@@ -317,6 +317,11 @@ design evidence lives under `project-doc/`.
   stable Oren flag ABI. The capped profile now shows `x64_native_program.oren`
   at ~44.7s total / ~33.1s parse, with `_emit_intrinsic_sys_linux_fcntl_getfl_x64`
   (~96ms) as the next parser-body target.
+- Linux x64 `sys_fcntl_getfl` lowering now delegates fd temp-state setup,
+  F_GETFL argument loading, capsule pre/post hooks, syscall dispatch, and Oren
+  flag normalization to focused helpers. The capped profile now shows
+  `x64_native_program.oren` at ~44.7s total / ~32.7s parse, with
+  `_x64_emit_sys_unlink_or_rmdir_x64` (~63ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -466,6 +466,13 @@
 <p>  at ~44.7s total / ~33.1s parse, with <code>_emit_intrinsic_sys_linux_fcntl_getfl_x64</code></p>
 <p>  (~96ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_fcntl_getfl</code> lowering now delegates fd temp-state setup,</li>
+</ul>
+<p>  F_GETFL argument loading, capsule pre/post hooks, syscall dispatch, and Oren</p>
+<p>  flag normalization to focused helpers. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~44.7s total / ~32.7s parse, with</p>
+<p>  <code>_x64_emit_sys_unlink_or_rmdir_x64</code> (~63ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

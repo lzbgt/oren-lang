@@ -39,41 +39,61 @@ fn _emit_intrinsic_sys_linux_fcntl_raw_x64(ctx, expr, locals, args, capsule) {
     return true
 }
 
+fn _x64_linux_fcntl_getfl_state(ctx, locals, args) {
+    var base17 = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base17) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base17 + 0)
+    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base17); return nil }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base17); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    return {"base": base17, "fd": tmp_fd}
+}
+
+fn _x64_linux_fcntl_getfl_load_args(ctx, tmp_fd) {
+    _intr_load_x64(ctx, 7, tmp_fd)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, labi.posix_fcntl_f_getfl()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))
+    return nil
+}
+
+fn _x64_linux_fcntl_getfl_emit_pre(ctx, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_fcntl_getfl_load_args(ctx, st["fd"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+    return nil
+}
+
+fn _x64_linux_fcntl_getfl_emit_syscall(ctx, st) {
+    _x64_linux_fcntl_getfl_load_args(ctx, st["fd"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fcntl()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    _emit_translate_fcntl_getfl_return_linux_x64(ctx)
+    return nil
+}
+
+fn _x64_linux_fcntl_getfl_emit_post(ctx, st, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+    _intr_load_x64(ctx, 6, st["fd"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_linux_fcntl_getfl_x64(ctx, expr, locals, args, capsule) {
     if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_fcntl_getfl expects 1 arg"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_getfl does not support spread"); return true }
 
-    var base17 = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base17) == 0 { return true }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base17 + 0)
-    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base17); return true }
+    var st = _x64_linux_fcntl_getfl_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_fcntl_getfl_emit_pre(ctx, st, capsule)
+    _x64_linux_fcntl_getfl_emit_syscall(ctx, st)
+    _x64_linux_fcntl_getfl_emit_post(ctx, st, capsule)
 
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base17); return true }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
-
-    _intr_load_x64(ctx, 7, tmp_fd)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, labi.posix_fcntl_f_getfl()))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
-
-    _intr_load_x64(ctx, 7, tmp_fd)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, labi.posix_fcntl_f_getfl()))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fcntl()))
-    bytes_extend(ctx["code"], core.insn_syscall())
-
-    _emit_translate_fcntl_getfl_return_linux_x64(ctx)
-
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _intr_load_x64(ctx, 6, tmp_fd)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
-    }
-
-    _intr_tmp_pop(ctx, base17)
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

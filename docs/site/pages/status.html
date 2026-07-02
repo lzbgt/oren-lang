@@ -1467,6 +1467,12 @@
 <p>																																																																								  at about 44.7s total / 33.1s parse, with</p>
 <p>																																																																								  <code>_emit_intrinsic_sys_linux_fcntl_getfl_x64</code> exposed at about 96ms as the next</p>
 <p>																																																																								  parser body.</p>
+<p>																																																																								  Linux x64 <code>sys_fcntl_getfl</code> lowering now delegates fd temp-state setup,</p>
+<p>																																																																								  F_GETFL argument loading, capsule pre/post hooks, syscall dispatch, and Oren</p>
+<p>																																																																								  flag normalization to focused helpers. The capped profile now shows</p>
+<p>																																																																								  <code>x64_native_program.oren</code> at about 44.7s total / 32.7s parse, with</p>
+<p>																																																																								  <code>_x64_emit_sys_unlink_or_rmdir_x64</code> exposed at about 63ms as the next parser</p>
+<p>																																																																								  body.</p>
 <p>																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
