@@ -894,12 +894,7 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
     return nil
 }
 
-fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_cancel_io_ex expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_cancel_io_ex does not support spread"); return nil }
-
-    // CancelIoEx(file_handle, overlapped_ptr) -> 0 or -errno
+fn _x64_cancel_io_ex_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_file = _intr_tmp_off(ctx, locals, base + 0)
@@ -909,12 +904,18 @@ fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_file)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_ov)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_file": tmp_file, "tmp_ov": tmp_ov}
+}
 
-    _intr_load_x64(ctx, 1, tmp_file) // rcx = file_handle
-    _intr_load_x64(ctx, 2, tmp_ov)   // rdx = overlapped_ptr (NULL cancels all)
+fn _x64_cancel_io_ex_emit_call(ctx, state) {
+    _intr_load_x64(ctx, 1, state["tmp_file"]) // rcx = file_handle
+    _intr_load_x64(ctx, 2, state["tmp_ov"])   // rdx = overlapped_ptr (NULL cancels all)
     _emit_call_iat_x64(ctx, "IAT_CancelIoEx")
-    // BOOL in eax (0 => failure)
+    return nil
+}
 
+fn _x64_cancel_io_ex_emit_result(ctx) {
+    // BOOL in eax (0 => failure)
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "iocp_cancel_ok")
@@ -955,6 +956,19 @@ fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_cancel_io_ex expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_cancel_io_ex does not support spread"); return nil }
+
+    // CancelIoEx(file_handle, overlapped_ptr) -> 0 or -errno
+    var state = _x64_cancel_io_ex_state(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_cancel_io_ex_emit_call(ctx, state)
+    _x64_cancel_io_ex_emit_result(ctx)
+    _intr_tmp_pop(ctx, state["base"])
     return nil
 }

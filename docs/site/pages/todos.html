@@ -120,6 +120,14 @@
 <p>  ~38.0s total / ~27.4s parse, with the exposed hot parser body back at</p>
 <p>  <code>_emit_eval_int_to_rax</code> (~1.06s).</p>
 <ul>
+<li>Windows x64 <code>sys_cancel_io_ex</code> lowering now delegates spill-state setup,</li>
+</ul>
+<p>  <code>CancelIoEx</code> call emission, and BOOL/<code>GetLastError</code> mapping to focused</p>
+<p>  helpers while preserving <code>ERROR_NOT_FOUND</code> as idempotent success and keeping</p>
+<p>  invalid-parameter/invalid-handle/default errno mappings. The capped profile</p>
+<p>  now exposes <code>_emit_intrinsic_sys_create_io_completion_port_windows_x64</code></p>
+<p>  (~70ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

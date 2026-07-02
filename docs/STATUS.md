@@ -1125,10 +1125,18 @@ Facts from the 2026-05-28 implementation pass:
 																																																												  frame preparation/header emission, function-state packing, and compile-option
 																																																												  packing to focused helpers while keeping `_compile_function_v0` as a thin
 																																																												  coordinator. The capped profile now shows `x64_native_program.oren` at about
-																																																												  42.7s total / 31.1s parse, with
-																																																												  `_emit_intrinsic_sys_cancel_io_ex_windows_x64` exposed at about 72ms as the
-																																																												  next parser body.
-																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																													  42.7s total / 31.1s parse, with
+																																																													  `_emit_intrinsic_sys_cancel_io_ex_windows_x64` exposed at about 72ms as the
+																																																													  next parser body.
+																																																													  Windows x64 `sys_cancel_io_ex` lowering now delegates argument spill state,
+																																																													  `CancelIoEx` call setup, and BOOL/`GetLastError` result mapping to focused
+																																																													  helpers while preserving idempotent `ERROR_NOT_FOUND` success,
+																																																													  `ERROR_INVALID_PARAMETER` -> `-EINVAL`, `ERROR_INVALID_HANDLE` -> `-EBADF`,
+																																																													  and default `-EIO`. The capped profile now shows
+																																																													  `x64_native_program.oren` at about 42.4s total / 31.1s parse, with
+																																																													  `_emit_intrinsic_sys_create_io_completion_port_windows_x64` exposed at about
+																																																													  70ms as the next parser body.
+																																																				  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

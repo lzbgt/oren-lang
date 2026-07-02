@@ -1165,10 +1165,18 @@
 <p>																																																												  frame preparation/header emission, function-state packing, and compile-option</p>
 <p>																																																												  packing to focused helpers while keeping <code>_compile_function_v0</code> as a thin</p>
 <p>																																																												  coordinator. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																																																												  42.7s total / 31.1s parse, with</p>
-<p>																																																												  <code>_emit_intrinsic_sys_cancel_io_ex_windows_x64</code> exposed at about 72ms as the</p>
-<p>																																																												  next parser body.</p>
-<p>																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																																													  42.7s total / 31.1s parse, with</p>
+<p>																																																													  <code>_emit_intrinsic_sys_cancel_io_ex_windows_x64</code> exposed at about 72ms as the</p>
+<p>																																																													  next parser body.</p>
+<p>																																																													  Windows x64 <code>sys_cancel_io_ex</code> lowering now delegates argument spill state,</p>
+<p>																																																													  <code>CancelIoEx</code> call setup, and BOOL/<code>GetLastError</code> result mapping to focused</p>
+<p>																																																													  helpers while preserving idempotent <code>ERROR_NOT_FOUND</code> success,</p>
+<p>																																																													  <code>ERROR_INVALID_PARAMETER</code> -&gt; <code>-EINVAL</code>, <code>ERROR_INVALID_HANDLE</code> -&gt; <code>-EBADF</code>,</p>
+<p>																																																													  and default <code>-EIO</code>. The capped profile now shows</p>
+<p>																																																													  <code>x64_native_program.oren</code> at about 42.4s total / 31.1s parse, with</p>
+<p>																																																													  <code>_emit_intrinsic_sys_create_io_completion_port_windows_x64</code> exposed at about</p>
+<p>																																																													  70ms as the next parser body.</p>
+<p>																																																				  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>									  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

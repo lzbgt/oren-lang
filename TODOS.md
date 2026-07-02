@@ -71,6 +71,12 @@ design evidence lives under `project-doc/`.
   The capped x64 self-host profile now shows `x64_native_program.oren` at
   ~38.0s total / ~27.4s parse, with the exposed hot parser body back at
   `_emit_eval_int_to_rax` (~1.06s).
+- Windows x64 `sys_cancel_io_ex` lowering now delegates spill-state setup,
+  `CancelIoEx` call emission, and BOOL/`GetLastError` mapping to focused
+  helpers while preserving `ERROR_NOT_FOUND` as idempotent success and keeping
+  invalid-parameter/invalid-handle/default errno mappings. The capped profile
+  now exposes `_emit_intrinsic_sys_create_io_completion_port_windows_x64`
+  (~70ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
