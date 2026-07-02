@@ -1439,8 +1439,14 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  selection. The capped profile now shows `x64_native_program.oren` at about
 																																																																								  44.1s total / 32.3s parse, with `_emit_intrinsic_sys_linux_net_fd2_x64`
 																																																																								  exposed at about 60ms as the next parser body.
-																																																																		  Serial/thread module ASTBIN writes are explicit prewarm work via
-																		  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																								  Linux x64 `sys_listen` / `sys_shutdown` lowering now shares fd/argument
+																																																																								  spill state, capsule prehook dispatch, syscall-number selection, and listen
+																																																																								  posthook emission through focused helpers. The capped profile now shows
+																																																																								  `x64_native_program.oren` at about 43.2s total / 31.4s parse, with
+																																																																								  `_emit_intrinsic_sys_listen_windows_x64` exposed at about 58ms as the next
+																																																																								  parser body.
+																																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via
+																			  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

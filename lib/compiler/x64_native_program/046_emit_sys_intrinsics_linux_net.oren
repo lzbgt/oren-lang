@@ -150,53 +150,69 @@ fn _emit_intrinsic_sys_linux_epoll_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
+fn _x64_linux_net_fd2_state(ctx, locals, args) {
+    var base28 = _intr_tmp_push(ctx, 2) // fd, arg
+    if oren_type_tag(base28) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base28 + 0)
+    var tmp_arg = _intr_tmp_off(ctx, locals, base28 + 1)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_arg) == 0 { _intr_tmp_pop(ctx, base28); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base28); return nil }
+    return {"base": base28, "fd": tmp_fd, "arg": tmp_arg}
+}
+
+fn _x64_linux_net_fd2_load(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
+    _intr_load_x64(ctx, 6, st["arg"])
+    return nil
+}
+
+fn _x64_linux_net_fd2_emit_pre(ctx, nm, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_net_fd2_load(ctx, st)
+    if nm == "sys_listen" {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
+    } else {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
+    }
+    return nil
+}
+
+fn _x64_linux_net_fd2_syscall_num(nm) {
+    if nm == "sys_listen" { return labi.linux_sys_listen() }
+    return labi.linux_sys_shutdown()
+}
+
+fn _x64_linux_net_fd2_emit_syscall(ctx, nm, st) {
+    _x64_linux_net_fd2_load(ctx, st)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, _x64_linux_net_fd2_syscall_num(nm)))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_linux_net_fd2_emit_post(ctx, nm, st, capsule) {
+    if !capsule || nm != "sys_listen" { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
+    _intr_load_x64(ctx, 6, st["fd"])
+    _intr_load_x64(ctx, 2, st["arg"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_linux_net_fd2_x64(ctx, nm, expr, locals, args, capsule) {
     if nm != "sys_listen" && nm != "sys_shutdown" { return false }
     if oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
 
-    var base28 = _intr_tmp_push(ctx, 2) // fd, arg
-    if oren_type_tag(base28) == 0 { return true }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base28 + 0)
-    var tmp_arg = _intr_tmp_off(ctx, locals, base28 + 1)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_arg) == 0 { _intr_tmp_pop(ctx, base28); return true }
+    var st = _x64_linux_net_fd2_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_net_fd2_emit_pre(ctx, nm, st, capsule)
+    _x64_linux_net_fd2_emit_syscall(ctx, nm, st)
+    _x64_linux_net_fd2_emit_post(ctx, nm, st, capsule)
 
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base28); return true }
-
-    if nm == "sys_listen" {
-        if capsule {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_arg)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
-        }
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_arg)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_listen()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        if capsule {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
-            _intr_load_x64(ctx, 6, tmp_fd)
-            _intr_load_x64(ctx, 2, tmp_arg)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
-        }
-    } else {
-        if capsule {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_arg)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
-        }
-
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_arg)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_shutdown()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-    }
-
-    _intr_tmp_pop(ctx, base28)
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

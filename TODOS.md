@@ -328,6 +328,12 @@ design evidence lives under `project-doc/`.
   selection. The capped profile now shows `x64_native_program.oren` at ~44.1s
   total / ~32.3s parse, with `_emit_intrinsic_sys_linux_net_fd2_x64` (~60ms) as
   the next parser-body target.
+- Linux x64 `sys_listen` / `sys_shutdown` lowering now shares fd/argument
+  spill state, capsule prehook dispatch, syscall-number selection, and listen
+  posthook emission through focused helpers. The capped profile now shows
+  `x64_native_program.oren` at ~43.2s total / ~31.4s parse, with
+  `_emit_intrinsic_sys_listen_windows_x64` (~58ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -1479,8 +1479,14 @@
 <p>																																																																								  selection. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>																																																																								  44.1s total / 32.3s parse, with <code>_emit_intrinsic_sys_linux_net_fd2_x64</code></p>
 <p>																																																																								  exposed at about 60ms as the next parser body.</p>
-<p>																																																																		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>																		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																																																								  Linux x64 <code>sys_listen</code> / <code>sys_shutdown</code> lowering now shares fd/argument</p>
+<p>																																																																								  spill state, capsule prehook dispatch, syscall-number selection, and listen</p>
+<p>																																																																								  posthook emission through focused helpers. The capped profile now shows</p>
+<p>																																																																								  <code>x64_native_program.oren</code> at about 43.2s total / 31.4s parse, with</p>
+<p>																																																																								  <code>_emit_intrinsic_sys_listen_windows_x64</code> exposed at about 58ms as the next</p>
+<p>																																																																								  parser body.</p>
+<p>																																																																			  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																			  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>
