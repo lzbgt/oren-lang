@@ -693,7 +693,7 @@ fn _emit_var_i32_op_x64(ctx, op, locals) {
     return nil
 }
 
-fn _emit_global_string_init_op_x64(ctx, op, j, op_start_ns, op_slow_ms) {
+fn _x64_top_string_trace_state(ctx, op_slow_ms) {
     var phase_log = nil
     var phase_name = nil
     if ctx != nil {
@@ -702,64 +702,16 @@ fn _emit_global_string_init_op_x64(ctx, op, j, op_start_ns, op_slow_ms) {
     }
     var trace_op_slow = false
     if phase_log != nil && phase_name != nil && op_slow_ms > 0 { trace_op_slow = true }
-    var global_string_data_ms = 0
-    var global_string_code_ms = 0
-    var global_string_step_ns = 0
-    var name_gs = op["name"]
-    var goff_enc_gs = op["__oren_global_off_enc"]
-    if oren_type_tag(goff_enc_gs) != 1 && ctx["globals"] != nil { goff_enc_gs = ctx["globals"][name_gs] }
-    if oren_type_tag(goff_enc_gs) != 1 { err(ctx, "x64 native v0: assign unknown var " + name_gs); return nil }
-    var s_gs = op["value"]
-    if s_gs == nil { s_gs = "" }
-    if trace_op_slow == true { global_string_step_ns = oren_time_now_ns() }
-    var cstr_off_gs = _data_add_cstr0_nodedup(ctx, s_gs)
-    if trace_op_slow == true { global_string_data_ms = (oren_time_now_ns() - global_string_step_ns) / 1000000 }
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if trace_op_slow == true { global_string_step_ns = oren_time_now_ns() }
-    var goff_gs = goff_enc_gs - 1
-    _x64_emit_top_string_global_store(ctx, cstr_off_gs, goff_gs)
-    if trace_op_slow == true { global_string_code_ms = (oren_time_now_ns() - global_string_step_ns) / 1000000 }
-    if trace_op_slow == true {
-        var global_string_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
-        if global_string_elapsed_ms >= op_slow_ms {
-            var loc_gs = ""
-            var tok_gs = op["tok"]
-            if tok_gs != nil && tok_gs["file"] != nil && tok_gs["line"] != nil {
-                loc_gs = " file=" + tok_gs["file"] + " line=" + oren_int_to_string(tok_gs["line"])
-            }
-            _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                "name=" + phase_name +
-                " i=" + oren_int_to_string(j) +
-                " op=global_string_init" +
-                " path=top_string_direct" +
-                " ms=" + oren_int_to_string(global_string_elapsed_ms) +
-                " data_ms=" + oren_int_to_string(global_string_data_ms) +
-                " code_ms=" + oren_int_to_string(global_string_code_ms) +
-                " global=" + name_gs +
-                loc_gs)
-        }
-    }
-    return nil
+    return {"log": phase_log, "name": phase_name, "enabled": trace_op_slow}
 }
 
-fn _x64_emit_assign_top_string_fast(ctx, op, j, op_start_ns, op_slow_ms, top_string_fast_stats) {
-    var phase_log = nil
-    var phase_name = nil
-    if ctx != nil {
-        phase_log = ctx["emit_ops_phase_log"]
-        phase_name = ctx["emit_ops_phase_name"]
-    }
-    var trace_op_slow = false
-    if phase_log != nil && phase_name != nil && op_slow_ms > 0 { trace_op_slow = true }
-    if op["expr"] == nil || op["expr"]["type"] != "String" { return 0 }
-    top_string_fast_stats["hits"] = top_string_fast_stats["hits"] + 1
-    var fast_data_ms = 0
-    var fast_code_ms = 0
-    var fast_step_ns = 0
-    var name_fast = op["name"]
-    var goff_enc_fast = op["__oren_global_off_enc"]
-    if oren_type_tag(goff_enc_fast) != 1 && ctx["globals"] != nil { goff_enc_fast = ctx["globals"][name_fast] }
-    if oren_type_tag(goff_enc_fast) != 1 { err(ctx, "x64 native v0: assign unknown var " + name_fast); return nil }
+fn _x64_top_string_global_offset_enc(ctx, name, goff_enc) {
+    if oren_type_tag(goff_enc) != 1 && ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
+    if oren_type_tag(goff_enc) != 1 { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
+    return goff_enc
+}
+
+fn _x64_assign_top_string_literal_value(op) {
     var s_fast = op["expr"]["value"]
     if s_fast == nil || oren_is_string(s_fast) != true {
         var tok_fast = op["expr"]["token"]
@@ -768,33 +720,83 @@ fn _x64_emit_assign_top_string_fast(ctx, op, j, op_start_ns, op_slow_ms, top_str
         }
     }
     if s_fast == nil { s_fast = "" }
-    if trace_op_slow == true { fast_step_ns = oren_time_now_ns() }
-    var cstr_off_fast = _data_add_cstr0_nodedup(ctx, s_fast)
-    if trace_op_slow == true { fast_data_ms = (oren_time_now_ns() - fast_step_ns) / 1000000 }
+    return s_fast
+}
+
+fn _x64_top_string_append_data(ctx, trace, s) {
+    var data_ms = 0
+    var step_ns = 0
+    if trace["enabled"] == true { step_ns = oren_time_now_ns() }
+    var cstr_off = _data_add_cstr0_nodedup(ctx, s)
+    if trace["enabled"] == true { data_ms = (oren_time_now_ns() - step_ns) / 1000000 }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if trace_op_slow == true { fast_step_ns = oren_time_now_ns() }
-    var goff_fast = goff_enc_fast - 1
-    _x64_emit_top_string_global_store(ctx, cstr_off_fast, goff_fast)
-    if trace_op_slow == true { fast_code_ms = (oren_time_now_ns() - fast_step_ns) / 1000000 }
-    if trace_op_slow == true {
-        var op_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
-        if op_elapsed_ms >= op_slow_ms {
-            var loc_fast = ""
-            var tok_fast2 = op["tok"]
-            if tok_fast2 != nil && tok_fast2["file"] != nil && tok_fast2["line"] != nil {
-                loc_fast = " file=" + tok_fast2["file"] + " line=" + oren_int_to_string(tok_fast2["line"])
-            }
-            _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                "name=" + phase_name +
-                " i=" + oren_int_to_string(j) +
-                " op=assign_i32" +
-                " path=top_string_fast" +
-                " ms=" + oren_int_to_string(op_elapsed_ms) +
-                " data_ms=" + oren_int_to_string(fast_data_ms) +
-                " code_ms=" + oren_int_to_string(fast_code_ms) +
-                " global=" + name_fast +
-                loc_fast)
-        }
+    return {"cstr_off": cstr_off, "data_ms": data_ms}
+}
+
+fn _x64_top_string_emit_store_timed(ctx, trace, cstr_off, goff_enc) {
+    var code_ms = 0
+    var step_ns = 0
+    if trace["enabled"] == true { step_ns = oren_time_now_ns() }
+    _x64_emit_top_string_global_store(ctx, cstr_off, goff_enc - 1)
+    if trace["enabled"] == true { code_ms = (oren_time_now_ns() - step_ns) / 1000000 }
+    return code_ms
+}
+
+fn _x64_top_string_slow_loc(op) {
+    var loc = ""
+    var tok = op["tok"]
+    if tok != nil && tok["file"] != nil && tok["line"] != nil {
+        loc = " file=" + tok["file"] + " line=" + oren_int_to_string(tok["line"])
+    }
+    return loc
+}
+
+fn _x64_top_string_record_slow(ctx, trace, op, j, op_start_ns, op_slow_ms, op_label, path, data_ms, code_ms) {
+    if trace["enabled"] != true { return nil }
+    var elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
+    if elapsed_ms < op_slow_ms { return nil }
+    _x64_program_phase_log_append(trace["log"], "x64.codegen.function.op.slow",
+        "name=" + trace["name"] +
+        " i=" + oren_int_to_string(j) +
+        " op=" + op_label +
+        " path=" + path +
+        " ms=" + oren_int_to_string(elapsed_ms) +
+        " data_ms=" + oren_int_to_string(data_ms) +
+        " code_ms=" + oren_int_to_string(code_ms) +
+        " global=" + op["name"] +
+        _x64_top_string_slow_loc(op))
+    return nil
+}
+
+fn _x64_emit_top_string_literal_store(ctx, op, j, op_start_ns, op_slow_ms, s, op_label, path) {
+    var trace = _x64_top_string_trace_state(ctx, op_slow_ms)
+    var goff_enc = _x64_top_string_global_offset_enc(ctx, op["name"], op["__oren_global_off_enc"])
+    if goff_enc == nil { return nil }
+    var data = _x64_top_string_append_data(ctx, trace, s)
+    if data == nil { return nil }
+    var code_ms = _x64_top_string_emit_store_timed(ctx, trace, data["cstr_off"], goff_enc)
+    _x64_top_string_record_slow(ctx, trace, op, j, op_start_ns, op_slow_ms,
+        op_label, path, data["data_ms"], code_ms)
+    return true
+}
+
+fn _emit_global_string_init_op_x64(ctx, op, j, op_start_ns, op_slow_ms) {
+    var s_gs = op["value"]
+    if s_gs == nil { s_gs = "" }
+    if _x64_emit_top_string_literal_store(ctx, op, j, op_start_ns, op_slow_ms,
+        s_gs, "global_string_init", "top_string_direct") == nil {
+        return nil
+    }
+    return nil
+}
+
+fn _x64_emit_assign_top_string_fast(ctx, op, j, op_start_ns, op_slow_ms, top_string_fast_stats) {
+    if op["expr"] == nil || op["expr"]["type"] != "String" { return 0 }
+    top_string_fast_stats["hits"] = top_string_fast_stats["hits"] + 1
+    var s_fast = _x64_assign_top_string_literal_value(op)
+    if _x64_emit_top_string_literal_store(ctx, op, j, op_start_ns, op_slow_ms,
+        s_fast, "assign_i32", "top_string_fast") == nil {
+        return nil
     }
     return 1
 }

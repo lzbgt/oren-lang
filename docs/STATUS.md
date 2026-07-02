@@ -1074,11 +1074,17 @@ Facts from the 2026-05-28 implementation pass:
 																																																										  about 74ms as the next parser body.
 																																																										  X64 counted fast-loop matching now shares one integer counted-loop recognizer
 																																																										  across LIST_INT get-sum, generic LIST get-sum, and dot-product matchers, with
-																																																										  LIST_INT/LIST get-sum accumulation split into focused helpers. The capped
-																																																										  profile now shows `x64_native_program.oren` at about 42.6s total / 31.1s
-																																																										  parse, with `_x64_emit_assign_top_string_fast` exposed at about 76ms as the
-																																																										  next parser body.
-																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																											  LIST_INT/LIST get-sum accumulation split into focused helpers. The capped
+																																																											  profile now shows `x64_native_program.oren` at about 42.6s total / 31.1s
+																																																											  parse, with `_x64_emit_assign_top_string_fast` exposed at about 76ms as the
+																																																											  next parser body.
+																																																											  X64 top-level string assignment now shares one literal-store path between
+																																																											  direct global-string init and assign-fast lowering, including global offset
+																																																											  resolution, C-string table append timing, global-store emission, and slow-op
+																																																											  phase logging. The capped profile now shows `x64_native_program.oren` at
+																																																											  about 42.3s total / 31.0s parse, with `_emit_hash_literal_expr` exposed at
+																																																											  about 72ms as the next parser body.
+																																																		  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
