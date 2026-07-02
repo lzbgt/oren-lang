@@ -1088,11 +1088,18 @@
 <p>																																																						  X64 compiled function-body orchestration now delegates runtime entry setup,</p>
 <p>																																																						  body-op emission, done-phase detail packing, and epilogue/reporting to</p>
 <p>																																																						  focused helpers while preserving call-depth, GC tick, phase-log, and trace</p>
-<p>																																																						  ordering. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
-<p>																																																						  42.3s total / 30.9s parse, with</p>
-<p>																																																						  <code>_emit_intrinsic_sys_unlink_or_rmdir_windows_x64</code> exposed at about 73ms as</p>
-<p>																																																						  the next parser body.</p>
-<p>																																													  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																																							  ordering. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>																																																							  42.3s total / 30.9s parse, with</p>
+<p>																																																							  <code>_emit_intrinsic_sys_unlink_or_rmdir_windows_x64</code> exposed at about 73ms as</p>
+<p>																																																							  the next parser body.</p>
+<p>																																																							  Windows x64 <code>sys_unlink</code> / <code>sys_rmdir</code> lowering now delegates temp path</p>
+<p>																																																							  state, capsule prehook, DeleteFile/RemoveDirectory dispatch,</p>
+<p>																																																							  BOOL-to-errno mapping, and capsule posthook to focused helpers while</p>
+<p>																																																							  preserving the resolved-path pair and rc posthook ordering. The capped</p>
+<p>																																																							  profile now shows <code>x64_native_program.oren</code> at about 42.6s total / 31.4s</p>
+<p>																																																							  parse, with <code>_emit_eval_call_internal_fast_generic_x64</code> exposed at about</p>
+<p>																																																							  74ms as the next parser body.</p>
+<p>																																														  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>									  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

@@ -1048,11 +1048,18 @@ Facts from the 2026-05-28 implementation pass:
 																																																						  X64 compiled function-body orchestration now delegates runtime entry setup,
 																																																						  body-op emission, done-phase detail packing, and epilogue/reporting to
 																																																						  focused helpers while preserving call-depth, GC tick, phase-log, and trace
-																																																						  ordering. The capped profile now shows `x64_native_program.oren` at about
-																																																						  42.3s total / 30.9s parse, with
-																																																						  `_emit_intrinsic_sys_unlink_or_rmdir_windows_x64` exposed at about 73ms as
-																																																						  the next parser body.
-																																													  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																							  ordering. The capped profile now shows `x64_native_program.oren` at about
+																																																							  42.3s total / 30.9s parse, with
+																																																							  `_emit_intrinsic_sys_unlink_or_rmdir_windows_x64` exposed at about 73ms as
+																																																							  the next parser body.
+																																																							  Windows x64 `sys_unlink` / `sys_rmdir` lowering now delegates temp path
+																																																							  state, capsule prehook, DeleteFile/RemoveDirectory dispatch,
+																																																							  BOOL-to-errno mapping, and capsule posthook to focused helpers while
+																																																							  preserving the resolved-path pair and rc posthook ordering. The capped
+																																																							  profile now shows `x64_native_program.oren` at about 42.6s total / 31.4s
+																																																							  parse, with `_emit_eval_call_internal_fast_generic_x64` exposed at about
+																																																							  74ms as the next parser body.
+																																														  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
