@@ -295,6 +295,12 @@ design evidence lives under `project-doc/`.
   helpers while preserving the `FUTEX_WAIT_PRIVATE` ABI path. The capped profile
   now shows `x64_native_program.oren` at ~45.4s total / ~33.8s parse, with
   `_x64_emit_entry_debug_info` (~66ms) as the next parser-body target.
+- X64 entry debug-info registration now delegates slot-offset decoding, static
+  address reconstruction, ABI argument setup, runtime call emission, and phase
+  logging to focused helpers while preserving the optional null-slot skip. The
+  capped profile now shows `x64_native_program.oren` at ~45.4s total / ~33.7s
+  parse, with `_emit_sys_open_windows_creation_stack_args_x64` (~65ms) as the
+  next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

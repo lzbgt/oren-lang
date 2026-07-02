@@ -116,49 +116,71 @@ fn _x64_emit_entry_static_cstr_table(ctx, platform, trace_prog, trace_entry, pha
     }
 }
 
-fn _x64_emit_entry_debug_info(ctx, platform, trace_prog, trace_entry, phase_log) {
+fn _x64_entry_debug_info_slot_off(ctx) {
     var dbg_slot_off_enc = ctx["dbginfo_table_slot_enc"]
-    if oren_type_tag(dbg_slot_off_enc) == 1 {
-      if dbg_slot_off_enc > 0 {
-        var dbg_slot_off = dbg_slot_off_enc - 1
-        var lea_dbg_slot_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dbg_slot_pos + 3, "data_off": dbg_slot_off})
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
+    if oren_type_tag(dbg_slot_off_enc) != 1 { return -1 }
+    if dbg_slot_off_enc <= 0 { return -1 }
+    return dbg_slot_off_enc - 1
+}
 
-        var labels_dbg = {}
-        var fixups_dbg = []
-        var l_skip_dbg = _new_label(ctx, "dbginfo_skip")
-        bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-        _emit_jcc_to_label(ctx, fixups_dbg, "e", l_skip_dbg)
+fn _x64_emit_entry_debug_info_static_addr(ctx, dbg_slot_off, labels_dbg, fixups_dbg, l_skip_dbg) {
+    var lea_dbg_slot_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dbg_slot_pos + 3, "data_off": dbg_slot_off})
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
 
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(dbg_slot_off, 4294967296)))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, fixups_dbg, "e", l_skip_dbg)
 
-        if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12))
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12))
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12))
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 12))
-        }
-        var call_dbg_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_dbg_pos, "name": "oren_set_debug_info"})
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            _emit_windows_write_cstr(ctx, "ENTRY: set_debug_info ok")
-        }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(dbg_slot_off, 4294967296)))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+    return nil
+}
 
-        _emit_label(ctx, labels_dbg, l_skip_dbg)
-        _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
-      }
+fn _x64_emit_entry_debug_info_args(ctx, platform) {
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 12))
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12))
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 12))
     }
+    return nil
+}
+
+fn _x64_emit_entry_debug_info_call(ctx, platform, trace_entry) {
+    _x64_emit_entry_debug_info_args(ctx, platform)
+    var call_dbg_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_dbg_pos, "name": "oren_set_debug_info"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: set_debug_info ok")
+    }
+    return nil
+}
+
+fn _x64_log_entry_debug_info_done(ctx, trace_prog, phase_log) {
     if trace_prog { print("[x64_compile] debug-info call emitted") }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.entry.dbginfo_call.done",
             "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
+    return nil
+}
+
+fn _x64_emit_entry_debug_info(ctx, platform, trace_prog, trace_entry, phase_log) {
+    var dbg_slot_off = _x64_entry_debug_info_slot_off(ctx)
+    if dbg_slot_off >= 0 {
+        var labels_dbg = {}
+        var fixups_dbg = []
+        var l_skip_dbg = _new_label(ctx, "dbginfo_skip")
+        _x64_emit_entry_debug_info_static_addr(ctx, dbg_slot_off, labels_dbg, fixups_dbg, l_skip_dbg)
+        _x64_emit_entry_debug_info_call(ctx, platform, trace_entry)
+        _emit_label(ctx, labels_dbg, l_skip_dbg)
+        _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
+    }
+    _x64_log_entry_debug_info_done(ctx, trace_prog, phase_log)
 }
 
 fn _x64_emit_entry_set_args(ctx, platform, scratch_base, trace_prog, trace_entry, phase_log) {

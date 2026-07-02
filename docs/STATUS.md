@@ -1403,6 +1403,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  helpers while preserving the `FUTEX_WAIT_PRIVATE` ABI path. The capped profile
 																																																																								  now shows `x64_native_program.oren` at about 45.4s total / 33.8s parse, with
 																																																																								  `_x64_emit_entry_debug_info` exposed at about 66ms as the next parser body.
+																																																																								  X64 entry debug-info registration now delegates slot-offset decoding, static
+																																																																								  address reconstruction, ABI argument setup, runtime call emission, and phase
+																																																																								  logging to focused helpers while preserving the optional null-slot skip. The
+																																																																								  capped profile now shows `x64_native_program.oren` at about 45.4s total / 33.7s
+																																																																								  parse, with `_emit_sys_open_windows_creation_stack_args_x64` exposed at about
+																																																																								  65ms as the next parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

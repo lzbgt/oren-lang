@@ -436,6 +436,14 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~45.4s total / ~33.8s parse, with</p>
 <p>  <code>_x64_emit_entry_debug_info</code> (~66ms) as the next parser-body target.</p>
 <ul>
+<li>X64 entry debug-info registration now delegates slot-offset decoding, static</li>
+</ul>
+<p>  address reconstruction, ABI argument setup, runtime call emission, and phase</p>
+<p>  logging to focused helpers while preserving the optional null-slot skip. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~45.4s total / ~33.7s</p>
+<p>  parse, with <code>_emit_sys_open_windows_creation_stack_args_x64</code> (~65ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
