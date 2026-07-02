@@ -87,6 +87,11 @@ design evidence lives under `project-doc/`.
   emission, and trace-summary reporting to focused helpers. The capped profile
   now exposes `_emit_eval_native_alloc_intrinsic_x64` (~69ms) as the next
   parser-body target.
+- X64 native allocation intrinsic lowering now delegates expected arity,
+  `malloc_k` kind preservation, reuse-mode selection, and allocation tracking
+  emission to focused helpers while preserving `malloc_raw` as the explicit
+  no-tracking path. The capped profile now exposes
+  `_x64_fast_lcg_emit_unsigned_setup` (~117ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

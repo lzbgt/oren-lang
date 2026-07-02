@@ -1145,11 +1145,18 @@ Facts from the 2026-05-28 implementation pass:
 																																																															  `native_compile_program_x64` exposed at about 80ms as the next parser body.
 																																																															  `native_compile_program_x64` is now a thin pipeline over context/timing
 																																																															  start, runtime/function metadata preparation, debug/entry/function/finalize
-																																																															  body emission, and trace-summary reporting helpers. The capped profile now
-																																																															  shows `x64_native_program.oren` at about 42.5s total / 31.0s parse, with
-																																																															  `_emit_eval_native_alloc_intrinsic_x64` exposed at about 69ms as the next
-																																																															  parser body.
-																																																						  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																																  body emission, and trace-summary reporting helpers. The capped profile now
+																																																																  shows `x64_native_program.oren` at about 42.5s total / 31.0s parse, with
+																																																																  `_emit_eval_native_alloc_intrinsic_x64` exposed at about 69ms as the next
+																																																																  parser body.
+																																																																  X64 native allocation intrinsic lowering now delegates expected arity,
+																																																																  `malloc_k` kind preservation, reuse-mode selection, and allocation tracking
+																																																																  emission to focused helpers while preserving `malloc_raw` as the explicit
+																																																																  no-tracking path. The capped profile now shows `x64_native_program.oren` at
+																																																																  about 42.7s total / 31.1s parse, with
+																																																																  `_x64_fast_lcg_emit_unsigned_setup` exposed at about 117ms as the next parser
+																																																																  body.
+																																																							  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

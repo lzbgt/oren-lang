@@ -142,6 +142,13 @@
 <p>  now exposes <code>_emit_eval_native_alloc_intrinsic_x64</code> (~69ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>X64 native allocation intrinsic lowering now delegates expected arity,</li>
+</ul>
+<p>  <code>malloc_k</code> kind preservation, reuse-mode selection, and allocation tracking</p>
+<p>  emission to focused helpers while preserving <code>malloc_raw</code> as the explicit</p>
+<p>  no-tracking path. The capped profile now exposes</p>
+<p>  <code>_x64_fast_lcg_emit_unsigned_setup</code> (~117ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
