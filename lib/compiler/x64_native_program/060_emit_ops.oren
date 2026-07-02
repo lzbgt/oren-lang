@@ -75,12 +75,7 @@ fn _x64_emit_global_store_rax(ctx, goff) {
     return nil
 }
 
-fn _x64_emit_top_string_global_batch_loop(ctx, table_off) {
-    // Runtime loop over a `.data` table:
-    //   u64 count; repeated { u64 global_slot_off; u64 cstr_off }
-    //
-    // This keeps compiler-time emission constant-size for large top-level string
-    // batches while preserving source-order initialization after runtime startup.
+fn _x64_emit_top_string_batch_base_setup(ctx, table_off) {
     var code = ctx["code"]
     var lea_base = bytes_len(code)
     bytes_push(code, 76)  // REX.W | REX.R
@@ -97,16 +92,28 @@ fn _x64_emit_top_string_global_batch_loop(ctx, table_off) {
     bytes_push(code, 77); bytes_push(code, 137); bytes_push(code, 211)
     bytes_push(code, 73); bytes_push(code, 129); bytes_push(code, 195)
     push_u32_le(code, table_off)
+    return nil
+}
 
+fn _x64_emit_top_string_batch_count_setup(ctx) {
+    var code = ctx["code"]
     // rcx = count; r11 = first pair
     bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 11)
     bytes_push(code, 73); bytes_push(code, 131); bytes_push(code, 195); bytes_push(code, 8)
+    return nil
+}
 
+fn _x64_emit_top_string_batch_loop_header(ctx) {
+    var code = ctx["code"]
     var loop_pos = bytes_len(code)
     bytes_push(code, 72); bytes_push(code, 133); bytes_push(code, 201) // test rcx, rcx
     var jz_pos = bytes_len(code)
     bytes_push(code, 15); bytes_push(code, 132); push_u32_le(code, 0)   // jz done
+    return {"loop": loop_pos, "jz": jz_pos}
+}
 
+fn _x64_emit_top_string_batch_loop_body(ctx) {
+    var code = ctx["code"]
     // rdx = data_base + slot_off
     bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 3)     // mov rax, [r11]
     bytes_push(code, 76); bytes_push(code, 137); bytes_push(code, 210)   // mov rdx, r10
@@ -121,10 +128,30 @@ fn _x64_emit_top_string_global_batch_loop(ctx, table_off) {
     bytes_push(code, 72); bytes_push(code, 255); bytes_push(code, 201)   // dec rcx
     var jmp_pos = bytes_len(code)
     bytes_push(code, 233); push_u32_le(code, 0)                          // jmp loop
+    return jmp_pos
+}
 
+fn _x64_patch_top_string_batch_loop(ctx, loop_state, jmp_pos) {
+    var code = ctx["code"]
     var done_pos = bytes_len(code)
+    var loop_pos = loop_state["loop"]
+    var jz_pos = loop_state["jz"]
     set_u32_le(code, jz_pos + 2, done_pos - (jz_pos + 6))
     set_u32_le(code, jmp_pos + 1, core.int_mod(loop_pos - (jmp_pos + 5), 4294967296))
+    return nil
+}
+
+fn _x64_emit_top_string_global_batch_loop(ctx, table_off) {
+    // Runtime loop over a `.data` table:
+    //   u64 count; repeated { u64 global_slot_off; u64 cstr_off }
+    //
+    // This keeps compiler-time emission constant-size for large top-level string
+    // batches while preserving source-order initialization after runtime startup.
+    _x64_emit_top_string_batch_base_setup(ctx, table_off)
+    _x64_emit_top_string_batch_count_setup(ctx)
+    var loop_state = _x64_emit_top_string_batch_loop_header(ctx)
+    var jmp_pos = _x64_emit_top_string_batch_loop_body(ctx)
+    _x64_patch_top_string_batch_loop(ctx, loop_state, jmp_pos)
     return nil
 }
 

@@ -1269,6 +1269,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  capped profile now shows `x64_native_program.oren` at about 45.3s total /
 																																																																			  33.6s parse, with `_x64_emit_top_string_global_batch_loop` exposed at about
 																																																																			  71ms as the next parser body.
+																																																																			  X64 top-level string global batch loop emission now separates data-base/table
+																																																																			  pointer setup, count setup, loop header/body emission, and local jump
+																																																																			  patching while preserving the fixed `.data` table layout. The capped profile
+																																																																			  now shows `x64_native_program.oren` at about 43.5s total / 31.9s parse, with
+																																																																			  `_emit_intrinsic_oren_call_obj_list_x64` exposed at about 66ms as the next
+																																																																			  parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

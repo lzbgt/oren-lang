@@ -273,6 +273,13 @@
 <p>  capped profile now exposes <code>_x64_emit_top_string_global_batch_loop</code> (~71ms)</p>
 <p>  as the next parser-body target.</p>
 <ul>
+<li>X64 top-level string global batch loop emission now separates data-base/table</li>
+</ul>
+<p>  pointer setup, count setup, loop header/body emission, and local jump patching</p>
+<p>  while preserving the fixed <code>.data</code> table layout. The capped profile now exposes</p>
+<p>  <code>_emit_intrinsic_oren_call_obj_list_x64</code> (~66ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

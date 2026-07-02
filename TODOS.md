@@ -180,6 +180,11 @@ design evidence lives under `project-doc/`.
   region patching while preserving `__entry_stub__` offset-zero encoding. The
   capped profile now exposes `_x64_emit_top_string_global_batch_loop` (~71ms)
   as the next parser-body target.
+- X64 top-level string global batch loop emission now separates data-base/table
+  pointer setup, count setup, loop header/body emission, and local jump patching
+  while preserving the fixed `.data` table layout. The capped profile now exposes
+  `_emit_intrinsic_oren_call_obj_list_x64` (~66ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
