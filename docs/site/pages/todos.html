@@ -252,6 +252,13 @@
 <p>  writeback. The capped profile now exposes <code>_x64_expr_needs_literal_slots</code></p>
 <p>  (~67ms) as the next parser-body target.</p>
 <ul>
+<li>X64 literal-slot frame analysis now splits expression argument scanning,</li>
+</ul>
+<p>  call/spawn walking, binary/index walking, and if-expression branch walking</p>
+<p>  into focused helpers while preserving conservative unknown-shape allocation.</p>
+<p>  The capped profile now exposes <code>_x64_prepare_runtime_global_slots</code> (~99ms)</p>
+<p>  as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

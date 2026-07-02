@@ -1251,6 +1251,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  writeback. The capped profile now shows `x64_native_program.oren` at about
 																																																																			  43.2s total / 31.9s parse, with `_x64_expr_needs_literal_slots` exposed at
 																																																																			  about 67ms as the next parser body.
+																																																																			  X64 literal-slot frame analysis now splits expression argument scanning,
+																																																																			  call/spawn walking, binary/index walking, and if-expression branch walking
+																																																																			  into focused helpers while preserving conservative unknown-shape allocation.
+																																																																			  The capped profile now shows `x64_native_program.oren` at about 44.0s total /
+																																																																			  32.3s parse, with `_x64_prepare_runtime_global_slots` exposed at about 99ms
+																																																																			  as the next parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

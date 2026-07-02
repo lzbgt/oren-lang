@@ -25,6 +25,36 @@ fn _x64_tmp_names_init(ctx) {
     return nil
 }
 
+fn _x64_expr_args_need_literal_slots(args) {
+    var i = 0
+    while args != nil && i < oren_list_len(args) {
+        if _x64_expr_needs_literal_slots(args[i]) == true { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_call_like_needs_literal_slots(call_expr) {
+    if call_expr == nil { return false }
+    if _x64_expr_needs_literal_slots(call_expr["fn"]) == true { return true }
+    if _x64_expr_args_need_literal_slots(call_expr["args"]) == true { return true }
+    return _x64_expr_needs_literal_slots(call_expr["spread"])
+}
+
+fn _x64_binary_expr_needs_literal_slots(expr, right_key) {
+    if _x64_expr_needs_literal_slots(expr["left"]) == true { return true }
+    return _x64_expr_needs_literal_slots(expr[right_key])
+}
+
+fn _x64_if_expr_needs_literal_slots(expr) {
+    if _x64_expr_needs_literal_slots(expr["cond"]) == true { return true }
+    var consq = expr["consq"]
+    if consq != nil && _x64_expr_needs_literal_slots(consq["expr"]) == true { return true }
+    var alt = expr["alt"]
+    if alt != nil && _x64_expr_needs_literal_slots(alt["expr"]) == true { return true }
+    return false
+}
+
 fn _x64_expr_needs_literal_slots(expr) {
     if expr == nil { return false }
     var t = expr["type"]
@@ -33,48 +63,13 @@ fn _x64_expr_needs_literal_slots(expr) {
        t == "String" || t == "Identifier" || t == "IntrTmp" || t == "Function" {
         return false
     }
-    if t == "Call" {
-        if _x64_expr_needs_literal_slots(expr["fn"]) == true { return true }
-        var args = expr["args"]
-        var i = 0
-        while args != nil && i < oren_list_len(args) {
-            if _x64_expr_needs_literal_slots(args[i]) == true { return true }
-            i = i + 1
-        }
-        if _x64_expr_needs_literal_slots(expr["spread"]) == true { return true }
-        return false
-    }
-    if t == "SpawnExpr" {
-        var call2 = expr["call"]
-        if call2 == nil { return false }
-        if _x64_expr_needs_literal_slots(call2["fn"]) == true { return true }
-        var args2 = call2["args"]
-        var j = 0
-        while args2 != nil && j < oren_list_len(args2) {
-            if _x64_expr_needs_literal_slots(args2[j]) == true { return true }
-            j = j + 1
-        }
-        if _x64_expr_needs_literal_slots(call2["spread"]) == true { return true }
-        return false
-    }
-    if t == "Infix" {
-        if _x64_expr_needs_literal_slots(expr["left"]) == true { return true }
-        return _x64_expr_needs_literal_slots(expr["right"])
-    }
+    if t == "Call" { return _x64_call_like_needs_literal_slots(expr) }
+    if t == "SpawnExpr" { return _x64_call_like_needs_literal_slots(expr["call"]) }
+    if t == "Infix" { return _x64_binary_expr_needs_literal_slots(expr, "right") }
     if t == "Prefix" { return _x64_expr_needs_literal_slots(expr["right"]) }
     if t == "Member" { return _x64_expr_needs_literal_slots(expr["left"]) }
-    if t == "Index" {
-        if _x64_expr_needs_literal_slots(expr["left"]) == true { return true }
-        return _x64_expr_needs_literal_slots(expr["index"])
-    }
-    if t == "If" {
-        if _x64_expr_needs_literal_slots(expr["cond"]) == true { return true }
-        var consq = expr["consq"]
-        if consq != nil && _x64_expr_needs_literal_slots(consq["expr"]) == true { return true }
-        var alt = expr["alt"]
-        if alt != nil && _x64_expr_needs_literal_slots(alt["expr"]) == true { return true }
-        return false
-    }
+    if t == "Index" { return _x64_binary_expr_needs_literal_slots(expr, "index") }
+    if t == "If" { return _x64_if_expr_needs_literal_slots(expr) }
     // Unknown expression shapes keep the historical frame layout rather than risking
     // missing literal spill slots if a newer lowering path starts using them.
     return true

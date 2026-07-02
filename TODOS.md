@@ -165,6 +165,11 @@ design evidence lives under `project-doc/`.
   whole-list helper into count guards, unchecked runtime call, and result
   writeback. The capped profile now exposes `_x64_expr_needs_literal_slots`
   (~67ms) as the next parser-body target.
+- X64 literal-slot frame analysis now splits expression argument scanning,
+  call/spawn walking, binary/index walking, and if-expression branch walking
+  into focused helpers while preserving conservative unknown-shape allocation.
+  The capped profile now exposes `_x64_prepare_runtime_global_slots` (~99ms)
+  as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
