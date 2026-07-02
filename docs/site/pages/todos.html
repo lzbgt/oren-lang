@@ -663,6 +663,13 @@
 <p>  ~31.9s parse, with <code>_emit_list_int_len_unchecked_intrinsic_v0_x64</code> (~54ms)</p>
 <p>  as the next parser-body target.</p>
 <ul>
+<li>X64 unchecked LIST_INT length lowering now separates argument validation,</li>
+</ul>
+<p>  list spill/reload, label setup, nil-to-zero branching, and raw count loading</p>
+<p>  while preserving the unchecked nil contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~45.3s total / ~33.0s parse, with</p>
+<p>  <code>_x64_emit_regular_straightline_op</code> (~59ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
