@@ -599,6 +599,13 @@
 <p>  <code>_x64_emit_named_call_intrinsic_or_spread_v0</code> (~56ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 named-call intrinsic/spread routing now separates statement-only</li>
+</ul>
+<p>  rejection, core intrinsic dispatch, <code>oren_call_obj_list</code>, and spread-call</p>
+<p>  lowering while preserving dispatch order. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.3s total / ~31.6s parse, with</p>
+<p>  <code>_x64_rtobj_finalize_build</code> (~56ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

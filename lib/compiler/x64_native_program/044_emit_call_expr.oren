@@ -735,9 +735,12 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     return nil
 }
 
-fn _x64_emit_named_call_intrinsic_or_spread_v0(ctx, expr, locals, nm, args, argc, spread) {
+fn _x64_emit_named_call_statement_only_v0(ctx, nm) {
     if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return true }
+    return false
+}
 
+fn _x64_emit_named_call_core_intrinsic_v0(ctx, expr, locals, nm) {
     // Tier-1 parity + performance: inline `oren_index_set(container, index, value)` so
     // list in-bounds stores do not pay an extra runtime call.
     if nm == "oren_index_set" {
@@ -786,20 +789,34 @@ fn _x64_emit_named_call_intrinsic_or_spread_v0(ctx, expr, locals, nm, args, argc
         _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
         return true
     }
+    return false
+}
 
+fn _x64_emit_named_call_call_obj_list_v0(ctx, locals, nm, args, argc, spread) {
     if nm == "oren_call_obj_list" {
         if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return true }
         if argc != 2 { err(ctx, "x64 native v0: oren_call_obj_list expects 2 args"); return true }
         _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, args[0], args[1])
         return true
     }
+    return false
+}
 
+fn _x64_emit_named_call_spread_v0(ctx, locals, nm, args, spread) {
     // Tier-1 parity: when runtime injection is enabled, lower call-site spread through the
     // shared runtime helper (matches arm64). This also works for indirect calls (callee in a var).
     if spread != nil {
         _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
         return true
     }
+    return false
+}
+
+fn _x64_emit_named_call_intrinsic_or_spread_v0(ctx, expr, locals, nm, args, argc, spread) {
+    if _x64_emit_named_call_statement_only_v0(ctx, nm) == true { return true }
+    if _x64_emit_named_call_core_intrinsic_v0(ctx, expr, locals, nm) == true { return true }
+    if _x64_emit_named_call_call_obj_list_v0(ctx, locals, nm, args, argc, spread) == true { return true }
+    if _x64_emit_named_call_spread_v0(ctx, locals, nm, args, spread) == true { return true }
     return false
 }
 
