@@ -244,6 +244,12 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~42.6s total / ~31.3s parse,
   with `_emit_gc_collect_visible_call_x64` (~63ms) as the next parser-body
   target.
+- X64 GC-visible call lowering now emits register spill surfaces through shared
+  push/pop helpers with cached surface metadata, preserving the safepoint and
+  explicit-collect register contracts while avoiding repeated compile-time list
+  allocation. The capped profile now shows `x64_native_program.oren` at ~42.7s
+  total / ~31.2s parse, with `_x64_rtobj_print_build_summary` (~63ms) as the
+  next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -1349,6 +1349,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  profile now shows `x64_native_program.oren` at about 42.6s total / 31.3s
 																																																																								  parse, with `_emit_gc_collect_visible_call_x64` exposed at about 63ms as the
 																																																																								  next parser body.
+																																																																								  X64 GC-visible call lowering now emits register spill surfaces through shared
+																																																																								  push/pop helpers with cached surface metadata, preserving the safepoint and
+																																																																								  explicit-collect register contracts while avoiding repeated compile-time list
+																																																																								  allocation. The capped profile now shows `x64_native_program.oren` at about
+																																																																								  42.7s total / 31.2s parse, with `_x64_rtobj_print_build_summary` exposed at
+																																																																								  about 63ms as the next parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial
