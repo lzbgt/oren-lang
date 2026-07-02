@@ -1103,6 +1103,13 @@ This file is the concise task view. Detailed implementation status lives in
 																																																								 zero return. The capped profile now shows `x64_native_program.oren` at about
 																																																								 43.8s total / 32.3s parse, with `_compile_function_v0` exposed at about
 																																																								 87ms as the next parser body.
+																																																								 X64 function compilation now delegates function start/reset, ops analysis,
+																																																								 frame preparation/header emission, function-state packing, and compile-option
+																																																								 packing to focused helpers while keeping `_compile_function_v0` as a thin
+																																																								 coordinator. The capped profile now shows `x64_native_program.oren` at about
+																																																								 42.7s total / 31.1s parse, with
+																																																								 `_emit_intrinsic_sys_cancel_io_ex_windows_x64` exposed at about 72ms as the
+																																																								 next parser body.
 																																																						     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed

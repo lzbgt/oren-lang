@@ -780,20 +780,22 @@ fn _x64_emit_compiled_function_body(ctx, name, fn_state, compile_opts, phase_sta
     return _x64_emit_compiled_function_finish(ctx, name, fn_state, phase_state, call_depth_state, body_state)
 }
 
-fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_depth_default_enabled) {
+fn _x64_compile_function_start(ctx, fn_node) {
     if fn_node == nil { return nil }
     var name = fn_node["name"]
-    if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
-    // Targeted tracing for pathological compile-time hot spots (self-host / cross-target).
-    // Example:
-    //   OREN_TRACE_X64_FN=M9_native_call_chunk_070_lowering_g
+    if name == nil {
+        err(ctx, "x64 native v0: function missing name")
+        return nil
+    }
     var phase_state = _x64_begin_function_compile_phase(ctx, name)
     _x64_function_reset_context(ctx, name)
+    return {"name": name, "phase_state": phase_state}
+}
 
+fn _x64_compile_function_analyze(ctx, fn_node, name, phase_state) {
     var analyzed = _x64_function_analyze_ops(ctx, fn_node, name, phase_state)
     if analyzed == nil { return nil }
     var ops = analyzed["ops"]
-    var needs_literal_slots = analyzed["needs_literal_slots"]
     if phase_state["trace"] {
         phase_state["trace_stage_ns"] = _x64_function_trace_analyze_done(name, ops, phase_state["trace_stage_ns"])
     }
@@ -802,32 +804,66 @@ fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_de
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ctx, ops)
     phase_state["max_call_argc"] = max_call_argc
+    return {
+        "ops": ops,
+        "needs_literal_slots": analyzed["needs_literal_slots"],
+        "max_call_argc": max_call_argc
+    }
+}
 
+fn _x64_compile_function_frame(ctx, fn_node, name, analysis, phase_state) {
     _x64_register_function_entry(ctx, name)
 
-    var frame = _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots)
+    var frame = _x64_prepare_function_frame_v0(ctx, fn_node, name,
+        analysis["ops"], analysis["max_call_argc"], analysis["needs_literal_slots"])
     if frame == nil { return nil }
     phase_state["trace_stage_ns"] = _x64_emit_function_frame_header(ctx, name, frame, phase_state)
     _x64_mark_function_phase_after(phase_state, "after_frame_ns")
+    return frame
+}
 
+fn _x64_compile_function_make_state(ctx, fn_node, ops, frame, phase_state) {
     var labels = {}
     var local_fixups = []
     // `_new_label` returns compact counter keys; keep the cosmetic prefix constant so
     // every function prologue does not rebuild a long mangled function-name string.
     var epilogue_label = _new_label(ctx, "fn_epilogue")
     _x64_mark_function_phase_after(phase_state, "after_label_ns")
-
-    _x64_emit_compiled_function_body(ctx, name, {
+    return {
         "fn_node": fn_node,
         "ops": ops,
         "frame": frame,
         "labels": labels,
         "local_fixups": local_fixups,
         "epilogue_label": epilogue_label
-    }, {
+    }
+}
+
+fn _x64_compile_function_opts(platform, user_fn_fast_call_depth, call_depth_default_enabled) {
+    return {
         "platform": platform,
         "user_fn_fast_call_depth": user_fn_fast_call_depth,
         "call_depth_default_enabled": call_depth_default_enabled
-    }, phase_state)
+    }
+}
+
+fn _compile_function_v0(ctx, fn_node, platform, user_fn_fast_call_depth, call_depth_default_enabled) {
+    // Targeted tracing for pathological compile-time hot spots (self-host / cross-target).
+    // Example:
+    //   OREN_TRACE_X64_FN=M9_native_call_chunk_070_lowering_g
+    var start = _x64_compile_function_start(ctx, fn_node)
+    if start == nil { return nil }
+    var name = start["name"]
+    var phase_state = start["phase_state"]
+
+    var analysis = _x64_compile_function_analyze(ctx, fn_node, name, phase_state)
+    if analysis == nil { return nil }
+    var frame = _x64_compile_function_frame(ctx, fn_node, name, analysis, phase_state)
+    if frame == nil { return nil }
+
+    _x64_emit_compiled_function_body(ctx, name,
+        _x64_compile_function_make_state(ctx, fn_node, analysis["ops"], frame, phase_state),
+        _x64_compile_function_opts(platform, user_fn_fast_call_depth, call_depth_default_enabled),
+        phase_state)
     return nil
 }
