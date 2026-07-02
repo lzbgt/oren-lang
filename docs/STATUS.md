@@ -1415,6 +1415,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  profile now shows `x64_native_program.oren` at about 44.6s total / 32.9s parse,
 																																																																								  with `_emit_intrinsic_sys_linux_epoll_pwait_x64` exposed at about 62ms as the
 																																																																								  next parser body.
+																																																																								  Linux x64 `sys_epoll_pwait` lowering now delegates six-argument temp-state
+																																																																								  setup, argument spilling, capsule prehook register loading, and syscall
+																																																																								  dispatch to focused helpers. The capped profile now shows
+																																																																								  `x64_native_program.oren` at about 44.0s total / 32.4s parse, with
+																																																																								  `_emit_translate_open_flags_linux_x64` exposed at about 62ms as the next parser
+																																																																								  body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

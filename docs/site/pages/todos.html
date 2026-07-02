@@ -452,6 +452,13 @@
 <p>  with <code>_emit_intrinsic_sys_linux_epoll_pwait_x64</code> (~62ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_epoll_pwait</code> lowering now delegates six-argument temp-state</li>
+</ul>
+<p>  setup, argument spilling, capsule prehook register loading, and syscall</p>
+<p>  dispatch to focused helpers. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~44.0s total / ~32.4s parse, with</p>
+<p>  <code>_emit_translate_open_flags_linux_x64</code> (~62ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
