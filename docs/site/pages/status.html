@@ -1192,11 +1192,17 @@
 <p>																																																																  X64 native allocation intrinsic lowering now delegates expected arity,</p>
 <p>																																																																  <code>malloc_k</code> kind preservation, reuse-mode selection, and allocation tracking</p>
 <p>																																																																  emission to focused helpers while preserving <code>malloc_raw</code> as the explicit</p>
-<p>																																																																  no-tracking path. The capped profile now shows <code>x64_native_program.oren</code> at</p>
-<p>																																																																  about 42.7s total / 31.1s parse, with</p>
-<p>																																																																  <code>_x64_fast_lcg_emit_unsigned_setup</code> exposed at about 117ms as the next parser</p>
-<p>																																																																  body.</p>
-<p>																																																							  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																																																	  no-tracking path. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																																																																	  about 42.7s total / 31.1s parse, with</p>
+<p>																																																																	  <code>_x64_fast_lcg_emit_unsigned_setup</code> exposed at about 117ms as the next parser</p>
+<p>																																																																	  body.</p>
+<p>																																																																	  X64 fast LCG unsigned setup now delegates invariant register materialization,</p>
+<p>																																																																	  loop-state loads, and <code>i % mod_i</code> setup to separate helpers while preserving</p>
+<p>																																																																	  the unsigned-loop register contract. The capped profile now shows</p>
+<p>																																																																	  <code>x64_native_program.oren</code> at about 42.2s total / 30.9s parse, with</p>
+<p>																																																																	  <code>_x64_index_set_emit_recv_kind_dispatch</code> exposed at about 68ms as the next</p>
+<p>																																																																	  parser body.</p>
+<p>																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>									  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>		  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>

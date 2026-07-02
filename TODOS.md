@@ -92,6 +92,10 @@ design evidence lives under `project-doc/`.
   emission to focused helpers while preserving `malloc_raw` as the explicit
   no-tracking path. The capped profile now exposes
   `_x64_fast_lcg_emit_unsigned_setup` (~117ms) as the next parser-body target.
+- X64 fast LCG unsigned setup now delegates invariant register materialization,
+  loop-state loads, and `i % mod_i` setup to separate helpers while preserving
+  the unsigned-loop register contract. The capped profile now exposes
+  `_x64_index_set_emit_recv_kind_dispatch` (~68ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

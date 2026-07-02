@@ -149,6 +149,12 @@
 <p>  no-tracking path. The capped profile now exposes</p>
 <p>  <code>_x64_fast_lcg_emit_unsigned_setup</code> (~117ms) as the next parser-body target.</p>
 <ul>
+<li>X64 fast LCG unsigned setup now delegates invariant register materialization,</li>
+</ul>
+<p>  loop-state loads, and <code>i % mod_i</code> setup to separate helpers while preserving</p>
+<p>  the unsigned-loop register contract. The capped profile now exposes</p>
+<p>  <code>_x64_index_set_emit_recv_kind_dispatch</code> (~68ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

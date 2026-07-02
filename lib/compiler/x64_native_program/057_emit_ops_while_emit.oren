@@ -1226,20 +1226,11 @@ fn _x64_fast_lcg_emit_entry_gates(ctx, prep, labels, local_fixups) {
     return nil
 }
 
-fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
-    var mod_name = prep["mod"]
-    var mod_const = prep["mod_const"]
+fn _x64_fast_lcg_unsigned_setup_constants(ctx, prep) {
     var mul = prep["mul"]
     var add = prep["add"]
     var mod_x = prep["mod_x"]
     var mod_i = prep["mod_i"]
-    var modi_recip = prep["modi_recip"]
-    var use_fastmod = prep["use_fastmod"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
-    var off_mod = prep["off_mod"]
 
     // constants in callee-saved regs (survive runtime calls)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(13, mul))  // r13 = mul
@@ -1249,7 +1240,17 @@ fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
 
     // tick (r8) for throttled safepoint
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8))
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_setup_loop_vars(ctx, prep) {
+    var mod_name = prep["mod"]
+    var mod_const = prep["mod_const"]
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var off_x = prep["off_x"]
+    var off_sum = prep["off_sum"]
+    var off_mod = prep["off_mod"]
     // load loop vars into regs once
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx) // r9 = i
     _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
@@ -1260,7 +1261,12 @@ fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_imm64(12, mod_const))
     }
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_setup_i_mod(ctx, prep, labels, local_fixups) {
+    var modi_recip = prep["modi_recip"]
+    var use_fastmod = prep["use_fastmod"]
     // i_mod = i % mod_i (fast path only)
     if use_fastmod == true {
         _emit_fastmod_u64_const_x64(ctx, 9, 3, modi_recip, 7, 6, labels, local_fixups, "lcg_i_mod")
@@ -1270,6 +1276,13 @@ fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
         bytes_extend(ctx["code"], core.insn_div_r64(3)) // rbx
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 2)) // rdi = rdx
     }
+    return nil
+}
+
+fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
+    _x64_fast_lcg_unsigned_setup_constants(ctx, prep)
+    _x64_fast_lcg_unsigned_setup_loop_vars(ctx, prep)
+    _x64_fast_lcg_unsigned_setup_i_mod(ctx, prep, labels, local_fixups)
     return nil
 }
 
