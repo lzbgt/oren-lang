@@ -216,6 +216,13 @@
 <p>  capped profile now exposes <code>_x64_emit_entry_register_thread_call</code> (~72ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>X64 entry-thread registration now delegates active/skip routing, ABI stack</li>
+</ul>
+<p>  argument setup, <code>oren_register_thread</code> fixup emission, Windows RSP drift</p>
+<p>  diagnostics, and phase logging to focused helpers. The capped profile now</p>
+<p>  exposes <code>_emit_intrinsic_sys_connect_windows_x64</code> (~67ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

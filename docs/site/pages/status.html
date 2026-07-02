@@ -1259,6 +1259,12 @@
 <p>																																																																			  emitters. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>																																																																			  44.4s total / 33.0s parse, with <code>_x64_emit_entry_register_thread_call</code></p>
 <p>																																																																			  exposed at about 72ms as the next parser body.</p>
+<p>																																																																			  X64 entry-thread registration now delegates active/skip routing, ABI stack</p>
+<p>																																																																			  argument setup, <code>oren_register_thread</code> fixup emission, Windows RSP drift</p>
+<p>																																																																			  diagnostics, and phase logging to focused helpers. The capped profile now</p>
+<p>																																																																			  shows <code>x64_native_program.oren</code> at about 43.3s total / 31.9s parse, with</p>
+<p>																																																																			  <code>_emit_intrinsic_sys_connect_windows_x64</code> exposed at about 67ms as the next</p>
+<p>																																																																			  parser body.</p>
 <p>																																																										  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>											  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

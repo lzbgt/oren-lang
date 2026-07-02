@@ -963,44 +963,72 @@ fn _x64_emit_entry_register_thread_call(ctx, platform, entry_opts, phase_log) {
     var trace_entry_after_reg = entry_opts["trace_entry_after_reg"] == true
     var skip_register_thread = entry_opts["skip_register_thread"] == true
     var exit_after_register_thread = entry_opts["exit_after_register_thread"] == true
-    // Register main thread for GC/stack safety (allow skip for bisecting entry crashes).
+    var trace_windows = trace_entry && platform != nil && platform["os"] == "windows"
     if skip_register_thread != true {
-        if trace_prog { print("[x64_compile] register thread call start") }
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            // Save current RSP in a non-volatile register to detect stack drift.
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 4)) // r12 = rsp
-        }
-        if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 4)) // rcx = rsp
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 4)) // rdi = rsp
-        }
-        var call_reg_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            var labels_rsp = {}
-            var fixups_rsp = []
-            var l_rsp_ok = _new_label(ctx, "entry_rsp_ok")
-            bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 4)) // r12 (saved) vs rsp
-            _emit_jcc_to_label(ctx, fixups_rsp, "e", l_rsp_ok)
-            _emit_windows_write_cstr(ctx, "ENTRY: rsp drift after register_thread")
-            _emit_abort_exitcode(ctx, 244)
-            _emit_label(ctx, labels_rsp, l_rsp_ok)
-            _patch_local_fixups(ctx, labels_rsp, fixups_rsp)
-        }
-        if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
-            _emit_windows_write_cstr(ctx, "ENTRY: register_thread ok")
-        }
-        if exit_after_register_thread == true {
-            _emit_abort_exitcode(ctx, 241)
-        }
-        if trace_prog { print("[x64_compile] register thread call emitted") }
+        _x64_emit_entry_register_thread_active(ctx, platform, trace_prog, trace_windows, trace_entry_after_reg, exit_after_register_thread)
     } else {
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            _emit_windows_write_cstr(ctx, "ENTRY: register_thread skip")
-        }
+        _x64_emit_entry_register_thread_skip(ctx, trace_windows)
     }
+    _x64_log_entry_register_thread_done(ctx, phase_log)
+    return nil
+}
+
+fn _x64_emit_entry_register_thread_active(ctx, platform, trace_prog, trace_windows, trace_entry_after_reg, exit_after_register_thread) {
+    // Register main thread for GC/stack safety.
+    if trace_prog { print("[x64_compile] register thread call start") }
+    _x64_emit_entry_register_thread_arg(ctx, platform, trace_windows)
+    _x64_emit_entry_register_thread_fixup_call(ctx)
+    _x64_emit_entry_register_thread_after_call(ctx, trace_prog, trace_windows, trace_entry_after_reg, exit_after_register_thread)
+    return nil
+}
+
+fn _x64_emit_entry_register_thread_arg(ctx, platform, trace_windows) {
+    if trace_windows {
+        // Save current RSP in a non-volatile register to detect stack drift.
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 4)) // r12 = rsp
+    }
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 4)) // rcx = rsp
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 4)) // rdi = rsp
+    }
+    return nil
+}
+
+fn _x64_emit_entry_register_thread_fixup_call(ctx) {
+    var call_reg_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
+    return nil
+}
+
+fn _x64_emit_entry_register_thread_after_call(ctx, trace_prog, trace_windows, trace_entry_after_reg, exit_after_register_thread) {
+    if trace_windows { _x64_emit_entry_register_thread_rsp_check(ctx) }
+    if trace_windows && trace_entry_after_reg { _emit_windows_write_cstr(ctx, "ENTRY: register_thread ok") }
+    if exit_after_register_thread == true { _emit_abort_exitcode(ctx, 241) }
+    if trace_prog { print("[x64_compile] register thread call emitted") }
+    return nil
+}
+
+fn _x64_emit_entry_register_thread_rsp_check(ctx) {
+    var labels_rsp = {}
+    var fixups_rsp = []
+    var l_rsp_ok = _new_label(ctx, "entry_rsp_ok")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 4)) // r12 (saved) vs rsp
+    _emit_jcc_to_label(ctx, fixups_rsp, "e", l_rsp_ok)
+    _emit_windows_write_cstr(ctx, "ENTRY: rsp drift after register_thread")
+    _emit_abort_exitcode(ctx, 244)
+    _emit_label(ctx, labels_rsp, l_rsp_ok)
+    _patch_local_fixups(ctx, labels_rsp, fixups_rsp)
+    return nil
+}
+
+fn _x64_emit_entry_register_thread_skip(ctx, trace_windows) {
+    if trace_windows { _emit_windows_write_cstr(ctx, "ENTRY: register_thread skip") }
+    return nil
+}
+
+fn _x64_log_entry_register_thread_done(ctx, phase_log) {
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.entry.register_thread.done",
             "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
