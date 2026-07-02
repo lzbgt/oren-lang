@@ -1045,11 +1045,17 @@
 <p>																																												 X64 synthesized type-constructor extraction now delegates linked-statement</p>
 <p>																																												 access, type-name validation, field parameter/hash shaping, function synthesis,</p>
 <p>																																												 and context registration to focused helpers while preserving function arity and</p>
-<p>																																												 declaration-order side effects. The capped profile now shows</p>
-<p>																																												 <code>x64_native_program.oren</code> at about 42.1s total / 30.9s parse, with</p>
-<p>																																												 <code>_emit_fast_list_get_sum_while_x64</code> exposed at about 79ms as the next parser</p>
-<p>																																												 body.</p>
-<p>																																										     Serial/thread module</p>
+<p>																																													 declaration-order side effects. The capped profile now shows</p>
+<p>																																													 <code>x64_native_program.oren</code> at about 42.1s total / 30.9s parse, with</p>
+<p>																																													 <code>_emit_fast_list_get_sum_while_x64</code> exposed at about 79ms as the next parser</p>
+<p>																																													 body.</p>
+<p>																																													 X64 fast LIST get-sum loop lowering now delegates label setup, entry gates,</p>
+<p>																																													 validation fallback, loop condition/body emission, and finish/slow-path</p>
+<p>																																													 orchestration to focused helpers while preserving the generic slow fallback.</p>
+<p>																																													 The capped profile now shows <code>x64_native_program.oren</code> at about 42.4s total /</p>
+<p>																																													 31.3s parse, with <code>_x64_ulock_wait_emit_result_windows</code> exposed at about</p>
+<p>																																													 84ms as the next parser body.</p>
+<p>																																											     Serial/thread module</p>
 <p>															     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

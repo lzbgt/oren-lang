@@ -1686,6 +1686,66 @@ fn _x64_fast_list_get_sum_emit_single(ctx, locals, labels, local_fixups, lists, 
     return true
 }
 
+fn _x64_fast_list_get_sum_labels(ctx) {
+    return {
+        "slow": _new_label(ctx, "list_get_slow"),
+        "cond": _new_label(ctx, "list_get_cond"),
+        "end": _new_label(ctx, "list_get_end"),
+        "done": _new_label(ctx, "list_get_done")
+    }
+}
+
+fn _x64_fast_list_get_sum_emit_entry_gates(ctx, prep, get_labels, local_fixups) {
+    _x64_fast_list_get_sum_emit_sum_flag(ctx, prep["off_sum"], prep["a0"])
+
+    // i < 0 => slow
+    _emit_mov_r64_mrbp(ctx, 0, 0 - prep["off_idx"])
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", get_labels["slow"])
+
+    // n < 0 => slow
+    _emit_mov_r64_mrbp(ctx, 0, 0 - prep["off_n"])
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", get_labels["slow"])
+    return nil
+}
+
+fn _x64_fast_list_get_sum_validate_or_generic(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, get_labels) {
+    var ok = _x64_fast_list_get_sum_validate_lists(ctx, locals, labels, local_fixups,
+        prep["lists"], prep["list_count"], prep["base"], prep["off_n"], get_labels["slow"])
+    if ok == true { return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    return false
+}
+
+fn _x64_fast_list_get_sum_emit_loop(ctx, prep, locals, labels, local_fixups, get_labels) {
+    _emit_label(ctx, labels, get_labels["cond"])
+    _emit_mov_r64_mrbp(ctx, 10, 0 - prep["off_idx"])
+    _emit_mov_r64_mrbp(ctx, 9, 0 - prep["off_n"])
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", get_labels["end"])
+
+    if _x64_fast_list_get_sum_emit_single(ctx, locals, labels, local_fixups,
+        prep["lists"], prep["loads"], prep["list_count"], prep["base"],
+        prep["off_sum"], prep["off_idx"], prep["unique_lists"],
+        prep["sum_inty"], prep["a0"], prep["a1"]) != true { return nil }
+    _emit_jmp_to_label(ctx, local_fixups, get_labels["cond"])
+    return true
+}
+
+fn _x64_fast_list_get_sum_emit_finish_and_slow(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, get_labels) {
+    _emit_label(ctx, labels, get_labels["end"])
+    _emit_jmp_to_label(ctx, local_fixups, get_labels["done"])
+
+    _intr_tmp_pop(ctx, prep["base"])
+
+    _emit_label(ctx, labels, get_labels["slow"])
+    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    _emit_label(ctx, labels, get_labels["done"])
+    return nil
+}
+
 fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
     if ctx == nil || op == nil || info == nil { return nil }
     if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
@@ -1693,58 +1753,13 @@ fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups
 
     var prep = _x64_fast_list_get_sum_prepare(ctx, info, locals)
     if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    var a0 = prep["a0"]
-    var a1 = prep["a1"]
-    var lists = prep["lists"]
-    var loads = prep["loads"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var off_sum = prep["off_sum"]
-    var list_count = prep["list_count"]
-    var sum_inty = prep["sum_inty"]
-    var unique_lists = prep["unique_lists"]
-    var base = prep["base"]
-
-    var l_slow = _new_label(ctx, "list_get_slow")
-    var l_fast_cond = _new_label(ctx, "list_get_cond")
-    var l_fast_end = _new_label(ctx, "list_get_end")
-    var l_done = _new_label(ctx, "list_get_done")
-
-    _x64_fast_list_get_sum_emit_sum_flag(ctx, off_sum, a0)
-
-    // i < 0 => slow
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
-
-    // n < 0 => slow
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_n)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
-
-    if _x64_fast_list_get_sum_validate_lists(ctx, locals, labels, local_fixups, lists, list_count, base, off_n, l_slow) != true {
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    }
-
-    _emit_label(ctx, labels, l_fast_cond)
-    _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
-    _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 9))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
-
-    if _x64_fast_list_get_sum_emit_single(ctx, locals, labels, local_fixups, lists, loads, list_count, base, off_sum, off_idx, unique_lists, sum_inty, a0, a1) != true { return nil }
-    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
-
-    _emit_label(ctx, labels, l_fast_end)
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _intr_tmp_pop(ctx, base)
-
-    _emit_label(ctx, labels, l_slow)
-    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    _emit_label(ctx, labels, l_done)
-    return nil
+    var get_labels = _x64_fast_list_get_sum_labels(ctx)
+    _x64_fast_list_get_sum_emit_entry_gates(ctx, prep, get_labels, local_fixups)
+    var valid = _x64_fast_list_get_sum_validate_or_generic(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, get_labels)
+    if valid == nil { return nil }
+    if valid != true { return nil }
+    if _x64_fast_list_get_sum_emit_loop(ctx, prep, locals, labels, local_fixups, get_labels) != true { return nil }
+    return _x64_fast_list_get_sum_emit_finish_and_slow(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, get_labels)
 }
 
 // @include "057_emit_ops_while_dot.oren"

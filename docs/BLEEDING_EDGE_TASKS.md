@@ -989,11 +989,17 @@ This file is the concise task view. Detailed implementation status lives in
 																																												 X64 synthesized type-constructor extraction now delegates linked-statement
 																																												 access, type-name validation, field parameter/hash shaping, function synthesis,
 																																												 and context registration to focused helpers while preserving function arity and
-																																												 declaration-order side effects. The capped profile now shows
-																																												 `x64_native_program.oren` at about 42.1s total / 30.9s parse, with
-																																												 `_emit_fast_list_get_sum_while_x64` exposed at about 79ms as the next parser
-																																												 body.
-																																										     Serial/thread module
+																																													 declaration-order side effects. The capped profile now shows
+																																													 `x64_native_program.oren` at about 42.1s total / 30.9s parse, with
+																																													 `_emit_fast_list_get_sum_while_x64` exposed at about 79ms as the next parser
+																																													 body.
+																																													 X64 fast LIST get-sum loop lowering now delegates label setup, entry gates,
+																																													 validation fallback, loop condition/body emission, and finish/slow-path
+																																													 orchestration to focused helpers while preserving the generic slow fallback.
+																																													 The capped profile now shows `x64_native_program.oren` at about 42.4s total /
+																																													 31.3s parse, with `_x64_ulock_wait_emit_result_windows` exposed at about
+																																													 84ms as the next parser body.
+																																											     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual
