@@ -533,6 +533,13 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~43.5s total / ~31.7s parse,</p>
 <p>  with <code>_x64_emit_program_entry_sequence</code> (~59ms) as the next parser-body target.</p>
 <ul>
+<li>X64 program-entry sequence emission now delegates prologue/bootstrap/root state,</li>
+</ul>
+<p>  entry-option packing, register/top/main/return emission, and done logging to</p>
+<p>  focused helpers while preserving DLL/SO entry metadata. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~43.7s total / ~31.8s parse, with</p>
+<p>  <code>_emit_ops_in_fn</code> (~58ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

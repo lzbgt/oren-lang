@@ -366,6 +366,11 @@ design evidence lives under `project-doc/`.
   syscall setup, and capsule posthook emission to focused helpers. The capped
   profile now shows `x64_native_program.oren` at ~43.5s total / ~31.7s parse,
   with `_x64_emit_program_entry_sequence` (~59ms) as the next parser-body target.
+- X64 program-entry sequence emission now delegates prologue/bootstrap/root state,
+  entry-option packing, register/top/main/return emission, and done logging to
+  focused helpers while preserving DLL/SO entry metadata. The capped profile now
+  shows `x64_native_program.oren` at ~43.7s total / ~31.8s parse, with
+  `_emit_ops_in_fn` (~58ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

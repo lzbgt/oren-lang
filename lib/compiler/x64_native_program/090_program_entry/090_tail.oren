@@ -1654,47 +1654,66 @@ fn _x64_prepare_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj,
     return true
 }
 
-fn _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) {
+fn _x64_prepare_program_entry_sequence_state(ctx, platform, opts_compile) {
     var trace_prog = opts_compile["trace_prog"] == true
     var trace_entry = opts_compile["trace_entry"] == true
     var phase_log = opts_compile["phase_log"]
     var entry_setup = _x64_emit_entry_prologue_and_args(ctx, platform, trace_prog, trace_entry, phase_log)
-    if entry_setup == nil { return false }
-    var is_dll = entry_setup["is_dll"] == true
-    var is_so = entry_setup["is_so"] == true
+    if entry_setup == nil { return nil }
     var scratch_base = entry_setup["scratch_base"]
+    var is_so = entry_setup["is_so"] == true
 
     _x64_emit_entry_runtime_bootstrap(ctx, platform, scratch_base, is_so, trace_prog, trace_entry, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     _x64_emit_entry_global_roots(ctx, platform, scratch_base, trace_prog, phase_log)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return {"trace_prog": trace_prog, "trace_entry": trace_entry, "phase_log": phase_log, "entry_setup": entry_setup}
+}
 
-    var entry_opts = {
-        "trace_prog": trace_prog,
-        "trace_entry": trace_entry,
+fn _x64_program_entry_sequence_options(seq, opts_compile) {
+    var entry_setup = seq["entry_setup"]
+    return {
+        "trace_prog": seq["trace_prog"],
+        "trace_entry": seq["trace_entry"],
         "trace_entry_after_reg": opts_compile["trace_entry_after_reg"] == true,
         "skip_register_thread": opts_compile["skip_register_thread"] == true,
         "exit_after_register_thread": opts_compile["exit_after_register_thread"] == true,
         "skip_top_level": opts_compile["skip_top_level"] == true,
         "skip_main": opts_compile["skip_main"] == true,
-        "is_dll": is_dll,
-        "is_so": is_so,
+        "is_dll": entry_setup["is_dll"] == true,
+        "is_so": entry_setup["is_so"] == true,
         "entry_total": entry_setup["entry_total"],
         "dll_labels": entry_setup["dll_labels"],
         "dll_fixups": entry_setup["dll_fixups"]
     }
+}
+
+fn _x64_emit_program_entry_sequence_calls(ctx, platform, has_main, entry_opts, phase_log) {
     _x64_emit_entry_register_thread_call(ctx, platform, entry_opts, phase_log)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     _x64_emit_entry_top_and_main_calls(ctx, platform, has_main, entry_opts, phase_log)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     _x64_emit_entry_return_path(ctx, platform, entry_opts)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_log_program_entry_sequence_done(ctx, trace_prog, phase_log) {
     if trace_prog { print("[x64_compile] entry stub done") }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.entry.done",
             "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
     }
+    return nil
+}
+
+fn _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) {
+    var seq = _x64_prepare_program_entry_sequence_state(ctx, platform, opts_compile)
+    if seq == nil { return false }
+    var entry_opts = _x64_program_entry_sequence_options(seq, opts_compile)
+    if _x64_emit_program_entry_sequence_calls(ctx, platform, has_main, entry_opts, seq["phase_log"]) != true { return false }
+    _x64_log_program_entry_sequence_done(ctx, seq["trace_prog"], seq["phase_log"])
     return true
 }
 
