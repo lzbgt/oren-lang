@@ -256,7 +256,22 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_socket does not support spread"); return nil }
 
     var capsule = _x64_capsule_enabled(ctx)
+    var st = _x64_windows_socket_state(ctx, locals, args)
+    if st == nil { return nil }
+    var labels = {}
+    var fixups = []
 
+    _x64_windows_socket_prehook(ctx, st, capsule)
+    _x64_windows_socket_iat_call(ctx, st)
+    var l_done = _x64_windows_socket_result(ctx, labels, fixups)
+    _x64_windows_socket_posthook(ctx, st, capsule)
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, st["base"])
+    return nil
+}
+
+fn _x64_windows_socket_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // domain,type,proto
     if oren_type_tag(base) == 0 { return nil }
     var tmp_dom = _intr_tmp_off(ctx, locals, base + 0)
@@ -268,40 +283,45 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_proto)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_dom": tmp_dom, "tmp_type": tmp_type, "tmp_proto": tmp_proto}
+}
 
-    // pre: native_capsule_sys_socket_pre(domain, type, protocol)
-    _intr_load_x64(ctx, 1, tmp_dom)
-    _intr_load_x64(ctx, 2, tmp_type)
-    _intr_load_x64(ctx, 8, tmp_proto)
+fn _x64_windows_socket_load_args(ctx, st) {
+    _intr_load_x64(ctx, 1, st["tmp_dom"])
+    _intr_load_x64(ctx, 2, st["tmp_type"])
+    _intr_load_x64(ctx, 8, st["tmp_proto"])
+    return nil
+}
+
+fn _x64_windows_socket_prehook(ctx, st, capsule) {
+    _x64_windows_socket_load_args(ctx, st)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre") }
+    return nil
+}
 
-    // socket(domain, type, proto) -> SOCKET
-    _intr_load_x64(ctx, 1, tmp_dom)
-    _intr_load_x64(ctx, 2, tmp_type)
-    _intr_load_x64(ctx, 8, tmp_proto)
+fn _x64_windows_socket_iat_call(ctx, st) {
+    _x64_windows_socket_load_args(ctx, st)
     _emit_call_iat_x64(ctx, "IAT_socket")
+    return nil
+}
 
-    // if rax == INVALID_SOCKET(-1) => error
-    var labels = {}
-    var fixups = []
+fn _x64_windows_socket_result(ctx, labels, fixups) {
     var l_ok = _new_label(ctx, "sys_socket_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_done = _new_label(ctx, "sys_socket_done")
     _emit_jmp_to_label(ctx, fixups, l_done)
-
     _emit_label(ctx, labels, l_ok)
-    // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd
-    _intr_load_x64(ctx, 2, tmp_dom)
-    _intr_load_x64(ctx, 8, tmp_type)
-    _intr_load_x64(ctx, 9, tmp_proto)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post") }
+    return l_done
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+fn _x64_windows_socket_posthook(ctx, st, capsule) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd
+    _intr_load_x64(ctx, 2, st["tmp_dom"])
+    _intr_load_x64(ctx, 8, st["tmp_type"])
+    _intr_load_x64(ctx, 9, st["tmp_proto"])
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post") }
     return nil
 }
 
