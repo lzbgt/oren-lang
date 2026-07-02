@@ -1051,11 +1051,18 @@
 <p>																																													 body.</p>
 <p>																																													 X64 fast LIST get-sum loop lowering now delegates label setup, entry gates,</p>
 <p>																																													 validation fallback, loop condition/body emission, and finish/slow-path</p>
-<p>																																													 orchestration to focused helpers while preserving the generic slow fallback.</p>
-<p>																																													 The capped profile now shows <code>x64_native_program.oren</code> at about 42.4s total /</p>
-<p>																																													 31.3s parse, with <code>_x64_ulock_wait_emit_result_windows</code> exposed at about</p>
-<p>																																													 84ms as the next parser body.</p>
-<p>																																											     Serial/thread module</p>
+<p>																																														 orchestration to focused helpers while preserving the generic slow fallback.</p>
+<p>																																														 The capped profile now shows <code>x64_native_program.oren</code> at about 42.4s total /</p>
+<p>																																														 31.3s parse, with <code>_x64_ulock_wait_emit_result_windows</code> exposed at about</p>
+<p>																																														 84ms as the next parser body.</p>
+<p>																																														 Windows x64 <code>sys_ulock_wait</code> result mapping now delegates label/fixup state,</p>
+<p>																																														 BOOL dispatch, <code>GetLastError</code> timeout dispatch, and success/timeout/failure</p>
+<p>																																														 return emission to focused helpers while preserving the <code>0</code> / <code>-ETIMEDOUT</code> /</p>
+<p>																																														 <code>-EIO</code> contract. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>																																														 about 42.9s total / 31.6s parse, with</p>
+<p>																																														 <code>_x64_fast_list_get_sum_validate_lists</code> exposed at about 76ms as the next</p>
+<p>																																														 parser body.</p>
+<p>																																												     Serial/thread module</p>
 <p>															     ASTBIN writes are now explicit prewarm work via</p>
 <p>								     <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed</p>
 <p>									     module as a candidate and <code>false</code> disables serial-write candidates. Actual</p>

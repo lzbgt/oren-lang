@@ -1228,6 +1228,14 @@
 <p>  ~31.3s parse, with <code>_x64_ulock_wait_emit_result_windows</code> exposed at ~84ms as</p>
 <p>  the next parser body.</p>
 <ul>
+<li>Windows x64 <code>sys_ulock_wait</code> result mapping now delegates label/fixup state,</li>
+</ul>
+<p>  BOOL dispatch, <code>GetLastError</code> timeout dispatch, and success/timeout/failure</p>
+<p>  return emission to focused helpers while preserving the <code>0</code> / <code>-ETIMEDOUT</code> /</p>
+<p>  <code>-EIO</code> contract. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~42.9s total / ~31.6s parse, with <code>_x64_fast_list_get_sum_validate_lists</code></p>
+<p>  exposed at ~76ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

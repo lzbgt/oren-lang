@@ -150,35 +150,61 @@ fn _x64_ulock_wait_emit_call_windows(ctx, tmp_addr, tmp_val) {
     return nil
 }
 
-fn _x64_ulock_wait_emit_result_windows(ctx) {
-    var labels2 = {}
-    var fixups2 = []
-    var l_ok = _new_label(ctx, "ulock_ok")
-    var l_fail = _new_label(ctx, "ulock_fail")
-    var l_timeout = _new_label(ctx, "ulock_timeout")
-    var l_done = _new_label(ctx, "ulock_done")
+fn _x64_ulock_wait_result_labels(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "ok": _new_label(ctx, "ulock_ok"),
+        "fail": _new_label(ctx, "ulock_fail"),
+        "timeout": _new_label(ctx, "ulock_timeout"),
+        "done": _new_label(ctx, "ulock_done")
+    }
+}
 
+fn _x64_ulock_wait_emit_bool_dispatch_windows(ctx, st) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups2, "ne", l_ok)
+    _emit_jcc_to_label(ctx, st["fixups"], "ne", st["ok"])
+    return nil
+}
 
+fn _x64_ulock_wait_emit_failure_dispatch_windows(ctx, st) {
     // Failure: GetLastError() and map ERROR_TIMEOUT => -ETIMEDOUT, else -EIO.
     _emit_call_iat_x64(ctx, "IAT_GetLastError")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 1460)) // ERROR_TIMEOUT
-    _emit_jcc_to_label(ctx, fixups2, "e", l_timeout)
-    _emit_jmp_to_label(ctx, fixups2, l_fail)
+    _emit_jcc_to_label(ctx, st["fixups"], "e", st["timeout"])
+    _emit_jmp_to_label(ctx, st["fixups"], st["fail"])
+    return nil
+}
 
-    _emit_label(ctx, labels2, l_ok)
+fn _x64_ulock_wait_emit_success_result_windows(ctx, st) {
+    _emit_label(ctx, st["labels"], st["ok"])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-    _emit_jmp_to_label(ctx, fixups2, l_done)
+    _emit_jmp_to_label(ctx, st["fixups"], st["done"])
+    return nil
+}
 
-    _emit_label(ctx, labels2, l_timeout)
+fn _x64_ulock_wait_emit_timeout_result_windows(ctx, st) {
+    _emit_label(ctx, st["labels"], st["timeout"])
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
-    _emit_jmp_to_label(ctx, fixups2, l_done)
+    _emit_jmp_to_label(ctx, st["fixups"], st["done"])
+    return nil
+}
 
-    _emit_label(ctx, labels2, l_fail)
+fn _x64_ulock_wait_emit_fail_result_windows(ctx, st) {
+    _emit_label(ctx, st["labels"], st["fail"])
     _emit_set_rax_neg_errno_x64(ctx, 5) // -EIO
-    _emit_label(ctx, labels2, l_done)
-    _patch_local_fixups(ctx, labels2, fixups2)
+    _emit_label(ctx, st["labels"], st["done"])
+    return nil
+}
+
+fn _x64_ulock_wait_emit_result_windows(ctx) {
+    var st = _x64_ulock_wait_result_labels(ctx)
+    _x64_ulock_wait_emit_bool_dispatch_windows(ctx, st)
+    _x64_ulock_wait_emit_failure_dispatch_windows(ctx, st)
+    _x64_ulock_wait_emit_success_result_windows(ctx, st)
+    _x64_ulock_wait_emit_timeout_result_windows(ctx, st)
+    _x64_ulock_wait_emit_fail_result_windows(ctx, st)
+    _patch_local_fixups(ctx, st["labels"], st["fixups"])
     return nil
 }
 
