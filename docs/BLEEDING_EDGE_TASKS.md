@@ -1044,11 +1044,17 @@ This file is the concise task view. Detailed implementation status lives in
 																																																				 X64 internal fast-call routing now delegates generic-call emission,
 																																																				 fixed-width prefix checks, `insn_`/`push_`, `set_`/`bytes_`, and
 																																																				 `native_` handling to focused helpers while preserving the `native_call1`
-																																																				 intrinsic escape hatch. The capped profile now shows
-																																																				 `x64_native_program.oren` at about 42.5s total / 31.2s parse, with
-																																																				 `_x64_fast_lcg_emit_unsigned_loop` exposed at about 76ms as the next parser
-																																																				 body.
-																																																		     Serial/thread module
+																																																					 intrinsic escape hatch. The capped profile now shows
+																																																					 `x64_native_program.oren` at about 42.5s total / 31.2s parse, with
+																																																					 `_x64_fast_lcg_emit_unsigned_loop` exposed at about 76ms as the next parser
+																																																					 body.
+																																																					 X64 fast LCG unsigned loop emission now mirrors the fullmod helper shape by
+																																																					 delegating condition, throttled safepoint, unroll2 body,
+																																																					 single-iteration tail, and final writeback/exit emission to focused helpers.
+																																																					 The capped profile now shows `x64_native_program.oren` at about 43.1s total
+																																																					 / 31.6s parse, with `_x64_match_fast_list_int_get_sum_while` exposed at
+																																																					 about 74ms as the next parser body.
+																																																			     Serial/thread module
 															     ASTBIN writes are now explicit prewarm work via
 								     `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed
 									     module as a candidate and `false` disables serial-write candidates. Actual

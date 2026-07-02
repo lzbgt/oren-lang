@@ -1273,23 +1273,22 @@ fn _x64_fast_lcg_emit_unsigned_setup(ctx, prep, labels, local_fixups) {
     return nil
 }
 
-fn _x64_fast_lcg_emit_unsigned_loop(ctx, prep, labels, local_fixups) {
-    var use_fastmod = prep["use_fastmod"]
-    var mod_recip = prep["mod_recip"]
-    var modx_recip = prep["modx_recip"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
-    var off_i_mod = prep["off_i_mod"]
+fn _x64_fast_lcg_unsigned_emit_cond(ctx, labels, local_fixups) {
     var l_fast_cond = labels["cond"]
-    var l_fast_single = labels["single"]
     var l_fast_end = labels["end"]
 
     _emit_label(ctx, labels, l_fast_cond)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 1))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_emit_safepoint(ctx, prep, labels, local_fixups) {
+    var off_idx = prep["off_idx"]
+    var off_n = prep["off_n"]
+    var off_x = prep["off_x"]
+    var off_sum = prep["off_sum"]
+    var off_i_mod = prep["off_i_mod"]
     // Inline throttled safepoint without per-iter tick loads/stores.
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(8, 1))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 8))
@@ -1309,7 +1308,15 @@ fn _x64_fast_lcg_emit_unsigned_loop(ctx, prep, labels, local_fixups) {
     _emit_mov_r64_mrbp(ctx, 7, 0 - off_i_mod)
     _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)
     _emit_label(ctx, labels, l_sp_skip)
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_emit_unroll2(ctx, prep, labels, local_fixups) {
+    var use_fastmod = prep["use_fastmod"]
+    var mod_recip = prep["mod_recip"]
+    var modx_recip = prep["modx_recip"]
+    var l_fast_single = labels["single"]
+    var l_fast_cond = labels["cond"]
     // If i + 1 >= n, run single-iter path.
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 9))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
@@ -1325,17 +1332,41 @@ fn _x64_fast_lcg_emit_unsigned_loop(ctx, prep, labels, local_fixups) {
     // i += 2
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 2))
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_emit_single(ctx, prep, labels, local_fixups) {
+    var use_fastmod = prep["use_fastmod"]
+    var mod_recip = prep["mod_recip"]
+    var modx_recip = prep["modx_recip"]
+    var l_fast_single = labels["single"]
+    var l_fast_cond = labels["cond"]
     _emit_label(ctx, labels, l_fast_single)
     _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, labels, local_fixups)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_emit_finish(ctx, prep, labels, local_fixups) {
+    var off_idx = prep["off_idx"]
+    var off_x = prep["off_x"]
+    var off_sum = prep["off_sum"]
+    var l_fast_end = labels["end"]
     _emit_label(ctx, labels, l_fast_end)
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 9)
     _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
     _emit_jmp_to_label(ctx, local_fixups, labels["done"])
+    return nil
+}
+
+fn _x64_fast_lcg_emit_unsigned_loop(ctx, prep, labels, local_fixups) {
+    _x64_fast_lcg_unsigned_emit_cond(ctx, labels, local_fixups)
+    _x64_fast_lcg_unsigned_emit_safepoint(ctx, prep, labels, local_fixups)
+    _x64_fast_lcg_unsigned_emit_unroll2(ctx, prep, labels, local_fixups)
+    _x64_fast_lcg_unsigned_emit_single(ctx, prep, labels, local_fixups)
+    _x64_fast_lcg_unsigned_emit_finish(ctx, prep, labels, local_fixups)
     return nil
 }
 
