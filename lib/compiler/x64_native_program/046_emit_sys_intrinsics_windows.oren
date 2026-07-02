@@ -795,22 +795,22 @@ fn _x64_emit_getentropy_windows_slot_lea(ctx, state, dst_reg) {
     return nil
 }
 
-fn _x64_emit_getentropy_windows_resolve_fp(ctx, state) {
-    var labels = state["labels"]
+fn _x64_emit_getentropy_windows_cached_fp_probe(ctx, state) {
     var fixups = state["fixups"]
-    var off_dll = state["off_dll"]
-    var off_sym = state["off_sym"]
     _x64_emit_getentropy_windows_slot_lea(ctx, state, 10)
     // r11 = *(u64*)slot
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", state["l_ret0"]) // fp already cached in r11
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_load_bcrypt(ctx, state) {
     // Resolve: LoadLibraryA("bcrypt.dll")
     // rcx = &"bcrypt.dll"
     var lea_dll = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": off_dll})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": state["off_dll"]})
     // call LoadLibraryA
     var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
@@ -818,29 +818,44 @@ fn _x64_emit_getentropy_windows_resolve_fp(ctx, state) {
     bytes_extend(ctx["code"], core.insn_call_rax())
     // if rax == 0 => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", state["l_fail"])
+    _emit_jcc_to_label(ctx, state["fixups"], "e", state["l_fail"])
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_getproc(ctx, state) {
     // Resolve: GetProcAddress(h, "BCryptGenRandom")
     // rcx = h
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
     // rdx = &"BCryptGenRandom"
     var lea_sym = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": off_sym})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": state["off_sym"]})
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetProcAddress")
     bytes_extend(ctx["code"], core.insn_call_rax())
     // if rax == 0 => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", state["l_fail"])
+    _emit_jcc_to_label(ctx, state["fixups"], "e", state["l_fail"])
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_cache_fp(ctx, state) {
+    var labels = state["labels"]
     // Cache fp in slot and r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
     _x64_emit_getentropy_windows_slot_lea(ctx, state, 10)
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 11))
 
     _emit_label(ctx, labels, state["l_ret0"])
+    return nil
+}
+
+fn _x64_emit_getentropy_windows_resolve_fp(ctx, state) {
+    _x64_emit_getentropy_windows_cached_fp_probe(ctx, state)
+    _x64_emit_getentropy_windows_load_bcrypt(ctx, state)
+    _x64_emit_getentropy_windows_getproc(ctx, state)
+    _x64_emit_getentropy_windows_cache_fp(ctx, state)
     return nil
 }
 
