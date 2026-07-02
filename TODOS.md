@@ -185,6 +185,11 @@ design evidence lives under `project-doc/`.
   while preserving the fixed `.data` table layout. The capped profile now exposes
   `_emit_intrinsic_oren_call_obj_list_x64` (~66ms) as the next parser-body
   target.
+- X64 callable-object list invocation now shares ABI register setup,
+  nil-callee guarding, environment loading, and code-pointer call emission
+  between the explicit `oren_call_obj_list` intrinsic and indirect function-value
+  calls. The capped profile now exposes `_emit_intrinsic_sys_linux_open_x64`
+  (~65ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

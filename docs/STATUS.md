@@ -1275,6 +1275,12 @@ Facts from the 2026-05-28 implementation pass:
 																																																																			  now shows `x64_native_program.oren` at about 43.5s total / 31.9s parse, with
 																																																																			  `_emit_intrinsic_oren_call_obj_list_x64` exposed at about 66ms as the next
 																																																																			  parser body.
+																																																																			  X64 callable-object list invocation now shares ABI register setup,
+																																																																			  nil-callee guarding, environment loading, and code-pointer call emission
+																																																																			  between the explicit `oren_call_obj_list` intrinsic and indirect function-value
+																																																																			  calls. The capped profile now shows `x64_native_program.oren` at about 43.1s
+																																																																			  total / 31.6s parse, with `_emit_intrinsic_sys_linux_open_x64` exposed at about
+																																																																			  65ms as the next parser body.
 																																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 											  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 			  as a candidate and `false` disables serial-write candidates. Actual serial

@@ -280,6 +280,13 @@
 <p>  <code>_emit_intrinsic_oren_call_obj_list_x64</code> (~66ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 callable-object list invocation now shares ABI register setup,</li>
+</ul>
+<p>  nil-callee guarding, environment loading, and code-pointer call emission</p>
+<p>  between the explicit <code>oren_call_obj_list</code> intrinsic and indirect function-value</p>
+<p>  calls. The capped profile now exposes <code>_emit_intrinsic_sys_linux_open_x64</code></p>
+<p>  (~65ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
