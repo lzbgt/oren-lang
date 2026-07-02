@@ -892,35 +892,55 @@ fn _x64_list_int_get_prepare_labels(ctx) {
     }
 }
 
-fn _x64_emit_list_int_get_validate_list(ctx, state) {
+fn _x64_emit_list_int_get_reload_list(ctx, state) {
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
+    return nil
+}
+
+fn _x64_emit_list_int_get_reload_operands(ctx, state) {
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"]) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_idx"])  // r8  = idx
+    return nil
+}
+
+fn _x64_emit_list_int_get_nil_guard(ctx, state) {
     var labels = state["labels"]
     var local_fixups = state["local_fixups"]
-    var off_list = state["off_list"]
-    var off_idx = state["off_idx"]
     var l_non_nil = state["l_non_nil"]
-    var l_node_ok = state["l_node_ok"]
-    var l_kind_ok = state["l_kind_ok"]
-    var l_magic_ok = state["l_magic_ok"]
-    // list -> rdx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
 
     // nil => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "list_int_get on nil")
     _emit_label(ctx, labels, l_non_nil)
+    return nil
+}
 
+fn _x64_emit_list_int_get_tracked_lookup(ctx, state) {
     // Tier‑1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list) // rdx = list
-    _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)  // r8  = idx
+    _x64_emit_list_int_get_reload_operands(ctx, state)
+    return nil
+}
+
+fn _x64_emit_list_int_get_node_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var l_node_ok = state["l_node_ok"]
 
     // tracked?
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_node_ok)
+    return nil
+}
+
+fn _x64_emit_list_int_get_kind_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var l_kind_ok = state["l_kind_ok"]
 
     // kind = *(node + 16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
@@ -930,6 +950,13 @@ fn _x64_emit_list_int_get_validate_list(ctx, state) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_kind_ok)
+    return nil
+}
+
+fn _x64_emit_list_int_get_magic_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var l_magic_ok = state["l_magic_ok"]
 
     // magic = *(list + 24)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
@@ -940,6 +967,17 @@ fn _x64_emit_list_int_get_validate_list(ctx, state) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
     _emit_abort_panic_str(ctx, "list_int_get on non-list")
     _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
+
+fn _x64_emit_list_int_get_validate_list(ctx, state) {
+    _x64_emit_list_int_get_reload_list(ctx, state)
+    _x64_emit_list_int_get_nil_guard(ctx, state)
+    _x64_emit_list_int_get_tracked_lookup(ctx, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_list_int_get_node_guard(ctx, state)
+    _x64_emit_list_int_get_kind_guard(ctx, state)
+    _x64_emit_list_int_get_magic_guard(ctx, state)
     return nil
 }
 

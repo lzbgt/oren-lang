@@ -627,6 +627,13 @@
 <p>  <code>x64_native_program.oren</code> at ~43.4s total / ~31.7s parse, with</p>
 <p>  <code>_x64_emit_list_int_get_validate_list</code> (~54ms) as the next parser-body target.</p>
 <ul>
+<li>X64 LIST_INT get validation now separates list reload, operand reload, nil,</li>
+</ul>
+<p>  tracked-lookup, node, kind, and magic guards while preserving the bounds/load</p>
+<p>  phases. The capped profile now shows <code>x64_native_program.oren</code> at ~45.2s</p>
+<p>  total / ~33.1s parse, with <code>_x64_emit_function_frame_header</code> (~101ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
