@@ -1027,11 +1027,18 @@ Facts from the 2026-05-28 implementation pass:
 																																																			  X64 fast LIST get-sum validation now delegates per-list temp state, list
 																																																			  capture, tracked LIST kind validation, magic/count checks, and buffer capture
 																																																			  to focused helpers while preserving slow-path jumps and temp cleanup on setup
-																																																			  failure. The capped profile now shows `x64_native_program.oren` at about 42.1s
-																																																			  total / 31.1s parse, with
-																																																			  `_emit_intrinsic_sys_post_queued_completion_status_windows_x64` exposed at
-																																																			  about 74ms as the next parser body.
-																																										  Serial/thread module ASTBIN writes are explicit prewarm work via
+																																																				  failure. The capped profile now shows `x64_native_program.oren` at about 42.1s
+																																																				  total / 31.1s parse, with
+																																																				  `_emit_intrinsic_sys_post_queued_completion_status_windows_x64` exposed at
+																																																				  about 74ms as the next parser body.
+																																																				  Windows x64 `sys_post_queued_completion_status` lowering now delegates
+																																																				  argument spill state, `PostQueuedCompletionStatus` call setup, BOOL dispatch,
+																																																				  Win32 error mapping, success emission, and temp cleanup to focused helpers
+																																																				  while preserving the `0` / `-EINVAL` / `-EBADF` / `-EIO` contract. The capped
+																																																				  profile now shows `x64_native_program.oren` at about 43.4s total / 32.1s
+																																																				  parse, with `_x64_fast_list_int_dot_validate_lists` exposed at about 78ms as
+																																																				  the next parser body.
+																																											  Serial/thread module ASTBIN writes are explicit prewarm work via
 									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 		  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`

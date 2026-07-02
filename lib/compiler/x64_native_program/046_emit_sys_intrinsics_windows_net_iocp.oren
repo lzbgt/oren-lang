@@ -693,12 +693,7 @@ fn _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, 
     return nil
 }
 
-fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_post_queued_completion_status expects 4 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_post_queued_completion_status does not support spread"); return nil }
-
-    // PostQueuedCompletionStatus(port, bytes, completion_key, overlapped_ptr) -> 0 or -errno
+fn _x64_iocp_post_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 4)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_port = _intr_tmp_off(ctx, locals, base + 0)
@@ -713,45 +708,82 @@ fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, loca
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_ov)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    _intr_load_x64(ctx, 1, tmp_port)  // rcx = port
-    _intr_load_x64(ctx, 2, tmp_bytes) // rdx = bytes
-    _intr_load_x64(ctx, 8, tmp_key)   // r8  = key
-    _intr_load_x64(ctx, 9, tmp_ov)    // r9  = overlapped
+    return {"base": base, "tmp_port": tmp_port, "tmp_bytes": tmp_bytes, "tmp_key": tmp_key, "tmp_ov": tmp_ov}
+}
+
+fn _x64_iocp_post_emit_call(ctx, st) {
+    _intr_load_x64(ctx, 1, st["tmp_port"])  // rcx = port
+    _intr_load_x64(ctx, 2, st["tmp_bytes"]) // rdx = bytes
+    _intr_load_x64(ctx, 8, st["tmp_key"])   // r8  = key
+    _intr_load_x64(ctx, 9, st["tmp_ov"])    // r9  = overlapped
     _emit_call_iat_x64(ctx, "IAT_PostQueuedCompletionStatus")
     // BOOL in eax (0 => failure)
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
-    var l_ok = _new_label(ctx, "iocp_post_ok")
-    var l_done = _new_label(ctx, "iocp_post_done")
+fn _x64_iocp_post_result_labels(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "ok": _new_label(ctx, "iocp_post_ok"),
+        "done": _new_label(ctx, "iocp_post_done")
+    }
+}
 
+fn _x64_iocp_post_emit_bool_dispatch(ctx, res) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_jcc_to_label(ctx, res["fixups"], "ne", res["ok"])
+    return nil
+}
 
+fn _x64_iocp_post_emit_error_mapping(ctx, res) {
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 87)) // ERROR_INVALID_PARAMETER
     var l_next0 = _new_label(ctx, "iocp_post_err_next0")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
+    _emit_jcc_to_label(ctx, res["fixups"], "ne", l_next0)
     _emit_set_rax_neg_errno_x64(ctx, 22)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next0)
+    _emit_jmp_to_label(ctx, res["fixups"], res["done"])
+    _emit_label(ctx, res["labels"], l_next0)
 
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6)) // ERROR_INVALID_HANDLE
     var l_next1 = _new_label(ctx, "iocp_post_err_next1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
+    _emit_jcc_to_label(ctx, res["fixups"], "ne", l_next1)
     _emit_set_rax_neg_errno_x64(ctx, 9)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next1)
+    _emit_jmp_to_label(ctx, res["fixups"], res["done"])
+    _emit_label(ctx, res["labels"], l_next1)
 
     _emit_set_rax_neg_errno_x64(ctx, 5) // -EIO
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, res["fixups"], res["done"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_ok)
+fn _x64_iocp_post_emit_success(ctx, res) {
+    _emit_label(ctx, res["labels"], res["ok"])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+fn _x64_iocp_post_emit_result(ctx) {
+    var res = _x64_iocp_post_result_labels(ctx)
+    _x64_iocp_post_emit_bool_dispatch(ctx, res)
+    _x64_iocp_post_emit_error_mapping(ctx, res)
+    _x64_iocp_post_emit_success(ctx, res)
+    _emit_label(ctx, res["labels"], res["done"])
+    _patch_local_fixups(ctx, res["labels"], res["fixups"])
+    return nil
+}
+
+fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_post_queued_completion_status expects 4 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_post_queued_completion_status does not support spread"); return nil }
+
+    // PostQueuedCompletionStatus(port, bytes, completion_key, overlapped_ptr) -> 0 or -errno
+    var st = _x64_iocp_post_state(ctx, locals, args)
+    if st == nil { return nil }
+    _x64_iocp_post_emit_call(ctx, st)
+    _x64_iocp_post_emit_result(ctx)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 
