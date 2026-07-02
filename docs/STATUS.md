@@ -1308,6 +1308,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																				  and BOOL-to-errno result mapping to focused helpers. The capped profile now
 																																																																				  shows `x64_native_program.oren` at about 44.1s total / 32.3s parse, with
 																																																																				  `_x64_gqcsx_spill_state` exposed at about 94ms as the next parser body.
+																																																																				  Windows x64 `GetQueuedCompletionStatusEx` lowering now separates temp-state
+																																																																				  allocation/validation from six-argument spill emission while preserving the
+																																																																				  Win64 stack-argument layout for timeout and alertable. The capped profile now
+																																																																				  shows `x64_native_program.oren` at about 42.9s total / 31.4s parse, with
+																																																																				  `_x64_win_cp_emit_wait` exposed at about 63ms as the next parser body.
 																																																												  Serial/thread module ASTBIN writes are explicit prewarm work via
 												  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 				  as a candidate and `false` disables serial-write candidates. Actual serial

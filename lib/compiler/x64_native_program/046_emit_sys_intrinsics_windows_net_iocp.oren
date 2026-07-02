@@ -692,34 +692,38 @@ fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, loca
     return nil
 }
 
-fn _x64_gqcsx_spill_state(ctx, locals, args) {
+fn _x64_gqcsx_alloc_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 6)
     if oren_type_tag(base) == 0 { return nil }
-    var tmp_port = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_entries = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_cap = _intr_tmp_off(ctx, locals, base + 2)
-    var tmp_removed = _intr_tmp_off(ctx, locals, base + 3)
-    var tmp_timeout = _intr_tmp_off(ctx, locals, base + 4)
-    var tmp_alert = _intr_tmp_off(ctx, locals, base + 5)
-    if oren_type_tag(tmp_port) == 0 || oren_type_tag(tmp_entries) == 0 || oren_type_tag(tmp_cap) == 0 || oren_type_tag(tmp_removed) == 0 || oren_type_tag(tmp_timeout) == 0 || oren_type_tag(tmp_alert) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_port)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_entries)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_cap)
-    _intr_eval_spill_x64(ctx, locals, args[3], tmp_removed)
-    _intr_eval_spill_x64(ctx, locals, args[4], tmp_timeout)
-    _intr_eval_spill_x64(ctx, locals, args[5], tmp_alert)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    return {
+    var state = {
         "base": base,
-        "tmp_port": tmp_port,
-        "tmp_entries": tmp_entries,
-        "tmp_cap": tmp_cap,
-        "tmp_removed": tmp_removed,
-        "tmp_timeout": tmp_timeout,
-        "tmp_alert": tmp_alert
+        "tmp_port": _intr_tmp_off(ctx, locals, base + 0),
+        "tmp_entries": _intr_tmp_off(ctx, locals, base + 1),
+        "tmp_cap": _intr_tmp_off(ctx, locals, base + 2),
+        "tmp_removed": _intr_tmp_off(ctx, locals, base + 3),
+        "tmp_timeout": _intr_tmp_off(ctx, locals, base + 4),
+        "tmp_alert": _intr_tmp_off(ctx, locals, base + 5)
     }
+    if oren_type_tag(state["tmp_port"]) == 0 || oren_type_tag(state["tmp_entries"]) == 0 || oren_type_tag(state["tmp_cap"]) == 0 || oren_type_tag(state["tmp_removed"]) == 0 || oren_type_tag(state["tmp_timeout"]) == 0 || oren_type_tag(state["tmp_alert"]) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return state
+}
+
+fn _x64_gqcsx_spill_args(ctx, locals, args, state) {
+    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_port"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_entries"])
+    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_cap"])
+    _intr_eval_spill_x64(ctx, locals, args[3], state["tmp_removed"])
+    _intr_eval_spill_x64(ctx, locals, args[4], state["tmp_timeout"])
+    _intr_eval_spill_x64(ctx, locals, args[5], state["tmp_alert"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return false }
+    return true
+}
+
+fn _x64_gqcsx_spill_state(ctx, locals, args) {
+    var state = _x64_gqcsx_alloc_state(ctx, locals)
+    if state == nil { return nil }
+    if _x64_gqcsx_spill_args(ctx, locals, args, state) != true { return nil }
+    return state
 }
 
 fn _x64_gqcsx_emit_call(ctx, state) {

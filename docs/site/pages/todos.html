@@ -319,6 +319,12 @@
 <p>  and BOOL-to-errno result mapping to focused helpers. The capped profile now</p>
 <p>  exposes <code>_x64_gqcsx_spill_state</code> (~94ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 <code>GetQueuedCompletionStatusEx</code> lowering now separates temp-state</li>
+</ul>
+<p>  allocation/validation from six-argument spill emission while preserving the</p>
+<p>  Win64 stack-argument layout for timeout and alertable. The capped profile now</p>
+<p>  exposes <code>_x64_win_cp_emit_wait</code> (~63ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -212,6 +212,10 @@ design evidence lives under `project-doc/`.
   spill state, null-pointer guard, `QueryPerformanceFrequency` IAT dispatch,
   and BOOL-to-errno result mapping to focused helpers. The capped profile now
   exposes `_x64_gqcsx_spill_state` (~94ms) as the next parser-body target.
+- Windows x64 `GetQueuedCompletionStatusEx` lowering now separates temp-state
+  allocation/validation from six-argument spill emission while preserving the
+  Win64 stack-argument layout for timeout and alertable. The capped profile now
+  exposes `_x64_win_cp_emit_wait` (~63ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
