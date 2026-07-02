@@ -680,7 +680,7 @@ fn _x64_match_fast_list_push_while(ctx, op, locals) {
     return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
 }
 
-fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
+fn _x64_match_fast_counted_int_loop(ctx, op, locals) {
     if op == nil || op["op"] != "while" { return nil }
     if locals == nil { return nil }
     var cond = op["cond"]
@@ -702,6 +702,13 @@ fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
     if n < 1 { return nil }
     var last = body[n - 1]
     if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
+    return {"idx": idx_name, "n": n_name, "body": body, "body_n": n}
+}
+
+fn _x64_match_fast_list_int_get_sum_body(ctx, locals, loop) {
+    var body = loop["body"]
+    var idx_name = loop["idx"]
+    var n = loop["body_n"]
     var sum_name = nil
     var lists = []
     var loads = []
@@ -726,31 +733,28 @@ fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
     if oren_list_len(loads) == 0 { return nil }
     var sum_inty = false
     if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
-    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
+    return {"sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
 }
 
-fn _x64_match_fast_list_get_sum_while(ctx, op, locals) {
-    if op == nil || op["op"] != "while" { return nil }
-    if locals == nil { return nil }
-    var cond = op["cond"]
-    if cond == nil || cond["type"] != "Infix" { return nil }
-    if cond["op"] != "<" { return nil }
-    var idx_name = _x64_is_ident(cond["left"])
-    var n_name = _x64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return nil }
-    if ctx["locals_inty"] != nil {
-        if ctx["locals_inty"][idx_name] != true { return nil }
-        if ctx["locals_inty"][n_name] != true { return nil }
-    }
-    var body = op["body"]
+fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
+    var loop = _x64_match_fast_counted_int_loop(ctx, op, locals)
+    if loop == nil { return nil }
+    var body = _x64_match_fast_list_int_get_sum_body(ctx, locals, loop)
     if body == nil { return nil }
-    var n = oren_list_len(body)
-    if n < 1 { return nil }
-    var last = body[n - 1]
-    if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
+    return {
+        "idx": loop["idx"],
+        "n": loop["n"],
+        "sum": body["sum"],
+        "lists": body["lists"],
+        "loads": body["loads"],
+        "sum_inty": body["sum_inty"]
+    }
+}
+
+fn _x64_match_fast_list_get_sum_body(ctx, locals, loop) {
+    var body = loop["body"]
+    var idx_name = loop["idx"]
+    var n = loop["body_n"]
     var sum_name = nil
     var lists = []
     var loads = []
@@ -770,32 +774,15 @@ fn _x64_match_fast_list_get_sum_while(ctx, op, locals) {
     }
     if sum_name == nil { return nil }
     if oren_list_len(loads) == 0 { return nil }
-    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads}
+    return {"sum": sum_name, "lists": lists, "loads": loads}
 }
 
-fn _x64_match_fast_dot_counted_loop(ctx, op, locals) {
-    if op == nil || op["op"] != "while" { return nil }
-    if locals == nil { return nil }
-    var cond = op["cond"]
-    if cond == nil || cond["type"] != "Infix" { return nil }
-    if cond["op"] != "<" { return nil }
-    var idx_name = _x64_is_ident(cond["left"])
-    var n_name = _x64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return nil }
-    if ctx["locals_inty"] != nil {
-        if ctx["locals_inty"][idx_name] != true { return nil }
-        if ctx["locals_inty"][n_name] != true { return nil }
-    }
-    var body = op["body"]
+fn _x64_match_fast_list_get_sum_while(ctx, op, locals) {
+    var loop = _x64_match_fast_counted_int_loop(ctx, op, locals)
+    if loop == nil { return nil }
+    var body = _x64_match_fast_list_get_sum_body(ctx, locals, loop)
     if body == nil { return nil }
-    var n = oren_list_len(body)
-    if n < 1 { return nil }
-    var last = body[n - 1]
-    if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
-    return {"idx": idx_name, "n": n_name, "body": body, "body_n": n}
+    return {"idx": loop["idx"], "n": loop["n"], "sum": body["sum"], "lists": body["lists"], "loads": body["loads"]}
 }
 
 fn _x64_match_fast_dot_step(ctx, body, i, idx_name, locals, use_list_int) {
@@ -837,7 +824,7 @@ fn _x64_match_fast_dot_accumulate_body(ctx, locals, loop, use_list_int) {
 }
 
 fn _x64_match_fast_dot_while(ctx, op, locals, use_list_int) {
-    var loop = _x64_match_fast_dot_counted_loop(ctx, op, locals)
+    var loop = _x64_match_fast_counted_int_loop(ctx, op, locals)
     if loop == nil { return nil }
     var body = _x64_match_fast_dot_accumulate_body(ctx, locals, loop, use_list_int)
     if body == nil { return nil }
