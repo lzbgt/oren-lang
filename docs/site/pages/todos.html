@@ -408,6 +408,13 @@
 <p>  / ~30.9s parse, with <code>_emit_eval_float_bits_call_intrinsic_x64</code> (~60ms) as the</p>
 <p>  next parser-body target.</p>
 <ul>
+<li>X64 float-bit scalar intrinsics now share unary validation and split f64-to-f32,</li>
+</ul>
+<p>  f32-to-f64, and identity bitcast emission while preserving handled-name routing.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at ~42.5s total /</p>
+<p>  ~31.1s parse, with <code>_x64_emit_ffi_resolver_win64</code> (~60ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

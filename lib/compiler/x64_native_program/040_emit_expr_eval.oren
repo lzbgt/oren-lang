@@ -109,41 +109,52 @@ fn _emit_eval_infix_to_rax(ctx, expr, locals) {
     return nil
 }
 
+fn _x64_float_bits_validate_unary(ctx, nm, expr, args) {
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return false }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return false }
+    return true
+}
+
+fn _x64_emit_f64_to_f32_bits_x64(ctx, locals, arg) {
+    // Convert float64 bits (RAX) to IEEE-754 float32 bits (u32 in EAX, zero-extended).
+    _emit_eval_int_to_rax(ctx, arg, locals) // f64 bits in rax
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))      // xmm0 = f64 bits
+    bytes_extend(ctx["code"], core.insn_cvtsd2ss_xmm_xmm(0, 0))  // xmm0 = f32(xmm0)
+    bytes_extend(ctx["code"], core.insn_movd_r32_xmm(0, 0))      // eax = f32 bits (zero-extends to rax)
+    return nil
+}
+
+fn _x64_emit_f32_bits_to_f64_x64(ctx, locals, arg) {
+    // Convert IEEE-754 float32 bits (low 32 of RAX) to float64 bits (RAX).
+    _emit_eval_int_to_rax(ctx, arg, locals) // bits in rax (use low 32)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], core.insn_movd_xmm_r32(0, 0))      // xmm0 = f32 bits from eax
+    bytes_extend(ctx["code"], core.insn_cvtss2sd_xmm_xmm(0, 0))  // xmm0 = (double)xmm0
+    bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))      // rax = f64 bits
+    return nil
+}
+
+fn _x64_emit_float_bits_identity_x64(ctx, locals, arg) {
+    // Reinterpret f64/u64 bits by preserving the existing integer carrier register.
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    return nil
+}
+
+fn _x64_emit_float_bits_unary_x64(ctx, nm, expr, locals, args) {
+    if _x64_float_bits_validate_unary(ctx, nm, expr, args) != true { return nil }
+    if nm == "oren_f32_to_u32_bits" { _x64_emit_f64_to_f32_bits_x64(ctx, locals, args[0]); return nil }
+    if nm == "oren_u32_bits_to_f32" { _x64_emit_f32_bits_to_f64_x64(ctx, locals, args[0]); return nil }
+    _x64_emit_float_bits_identity_x64(ctx, locals, args[0])
+    return nil
+}
+
 fn _emit_eval_float_bits_call_intrinsic_x64(ctx, nm, expr, locals, args) {
-    if nm == "oren_f32_to_u32_bits" {
-        // Intrinsic: convert float64 bits (RAX) to IEEE-754 float32 bits (u32 in EAX, zero-extended).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f32_to_u32_bits expects 1 argument"); return 1 }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f32_to_u32_bits does not support spread"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals) // f64 bits in rax
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-        bytes_extend(ctx["code"], core.insn_movq_xmm_r64(0, 0))      // xmm0 = f64 bits
-        bytes_extend(ctx["code"], core.insn_cvtsd2ss_xmm_xmm(0, 0))  // xmm0 = f32(xmm0)
-        bytes_extend(ctx["code"], core.insn_movd_r32_xmm(0, 0))      // eax = f32 bits (zero-extends to rax)
-        return 1
-    }
-    if nm == "oren_u32_bits_to_f32" {
-        // Intrinsic: convert IEEE-754 float32 bits (low 32 of RAX) to float64 bits (RAX).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_u32_bits_to_f32 expects 1 argument"); return 1 }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_u32_bits_to_f32 does not support spread"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals) // bits in rax (use low 32)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-        bytes_extend(ctx["code"], core.insn_movd_xmm_r32(0, 0))      // xmm0 = f32 bits from eax
-        bytes_extend(ctx["code"], core.insn_cvtss2sd_xmm_xmm(0, 0))  // xmm0 = (double)xmm0
-        bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))      // rax = f64 bits
-        return 1
-    }
-    if nm == "oren_f64_to_u64_bits" {
-        // Intrinsic: reinterpret float64 bits as u64 bits (identity in carrier register).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f64_to_u64_bits expects 1 argument"); return 1 }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f64_to_u64_bits does not support spread"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        return 1
-    }
-    if nm == "oren_u64_bits_to_f64" {
-        // Intrinsic: reinterpret u64 bits as float64 bits (identity in carrier register).
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_u64_bits_to_f64 expects 1 argument"); return 1 }
-        if expr["spread"] != nil { err(ctx, "x64 native v0: oren_u64_bits_to_f64 does not support spread"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
+    if nm == "oren_f32_to_u32_bits" ||
+       nm == "oren_u32_bits_to_f32" ||
+       nm == "oren_f64_to_u64_bits" ||
+       nm == "oren_u64_bits_to_f64" {
+        _x64_emit_float_bits_unary_x64(ctx, nm, expr, locals, args)
         return 1
     }
     return 0

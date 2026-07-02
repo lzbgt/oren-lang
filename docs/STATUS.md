@@ -1382,6 +1382,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																								  calls. The capped profile now shows `x64_native_program.oren` at about 42.4s
 																																																																								  total / 30.9s parse, with `_emit_eval_float_bits_call_intrinsic_x64` exposed at
 																																																																								  about 60ms as the next parser body.
+																																																																								  X64 float-bit scalar intrinsics now share unary validation and split f64-to-f32,
+																																																																								  f32-to-f64, and identity bitcast emission while preserving handled-name routing.
+																																																																								  The capped profile now shows `x64_native_program.oren` at about 42.5s total /
+																																																																								  31.1s parse, with `_x64_emit_ffi_resolver_win64` exposed at about 60ms as the
+																																																																								  next parser body.
 																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via
 																	  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 					  as a candidate and `false` disables serial-write candidates. Actual serial

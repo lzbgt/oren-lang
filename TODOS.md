@@ -275,6 +275,11 @@ design evidence lives under `project-doc/`.
   calls. The capped profile now shows `x64_native_program.oren` at ~42.4s total
   / ~30.9s parse, with `_emit_eval_float_bits_call_intrinsic_x64` (~60ms) as the
   next parser-body target.
+- X64 float-bit scalar intrinsics now share unary validation and split f64-to-f32,
+  f32-to-f64, and identity bitcast emission while preserving handled-name routing.
+  The capped profile now shows `x64_native_program.oren` at ~42.5s total /
+  ~31.1s parse, with `_x64_emit_ffi_resolver_win64` (~60ms) as the next
+  parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
