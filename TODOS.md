@@ -285,6 +285,11 @@ design evidence lives under `project-doc/`.
   and epilogue emission while preserving the `__oren_ffi_resolve0` ABI. The capped
   profile now shows `x64_native_program.oren` at ~43.4s total / ~31.8s parse, with
   `_data_add_cstr0_cached` (~90ms) as the next parser-body target.
+- X64 cached cstr0 data emission now splits MRU state setup, byte-equality lookup,
+  and ring-buffer store helpers while preserving valid offset `0` handling with
+  an explicit `-1` miss sentinel. The capped profile now shows
+  `x64_native_program.oren` at ~45.1s total / ~33.1s parse, with
+  `_emit_intrinsic_sys_ulock_wait_linux_x64` (~119ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

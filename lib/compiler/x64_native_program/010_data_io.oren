@@ -36,10 +36,7 @@ fn _x64_data_cstr_eq_bytes(a, b) {
     return true
 }
 
-fn _data_add_cstr0_cached(ctx, s) {
-    if ctx == nil { return 0 }
-    if s == nil || s == 0 { s = "" }
-    if oren_is_string(s) != true { return _data_add_cstr0(ctx, s) }
+fn _data_cstr0_mru_state(ctx) {
     var names = ctx["x64_cstr0_mru_names"]
     var offs = ctx["x64_cstr0_mru_offs"]
     if names == nil || offs == nil {
@@ -48,20 +45,30 @@ fn _data_add_cstr0_cached(ctx, s) {
         ctx["x64_cstr0_mru_names"] = names
         ctx["x64_cstr0_mru_offs"] = offs
     }
+    return {"names": names, "offs": offs}
+}
+
+fn _data_cstr0_mru_lookup(state, s) {
+    var names = state["names"]
+    var offs = state["offs"]
     var i = 0
     var n = oren_list_len(names)
     while i < n {
         if _x64_data_cstr_eq_bytes(names[i], s) == true { return offs[i] }
         i = i + 1
     }
+    return -1
+}
 
-    var off = _data_add_cstr0(ctx, s)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return off }
+fn _data_cstr0_mru_store(ctx, state, s, off) {
+    var names = state["names"]
+    var offs = state["offs"]
     var cap = 32
+    var n = oren_list_len(names)
     if n < cap {
         oren_list_push(names, s)
         oren_list_push(offs, off)
-        return off
+        return nil
     }
     var next = ctx["x64_cstr0_mru_next"]
     if oren_type_tag(next) == 0 { next = 0 }
@@ -70,6 +77,20 @@ fn _data_add_cstr0_cached(ctx, s) {
     next = next + 1
     if next >= cap { next = 0 }
     ctx["x64_cstr0_mru_next"] = next
+    return nil
+}
+
+fn _data_add_cstr0_cached(ctx, s) {
+    if ctx == nil { return 0 }
+    if s == nil || s == 0 { s = "" }
+    if oren_is_string(s) != true { return _data_add_cstr0(ctx, s) }
+    var state = _data_cstr0_mru_state(ctx)
+    var hit = _data_cstr0_mru_lookup(state, s)
+    if hit >= 0 { return hit }
+
+    var off = _data_add_cstr0(ctx, s)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return off }
+    _data_cstr0_mru_store(ctx, state, s, off)
     return off
 }
 

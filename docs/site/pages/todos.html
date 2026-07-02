@@ -422,6 +422,13 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~43.4s total / ~31.8s parse, with</p>
 <p>  <code>_data_add_cstr0_cached</code> (~90ms) as the next parser-body target.</p>
 <ul>
+<li>X64 cached cstr0 data emission now splits MRU state setup, byte-equality lookup,</li>
+</ul>
+<p>  and ring-buffer store helpers while preserving valid offset <code>0</code> handling with</p>
+<p>  an explicit <code>-1</code> miss sentinel. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~45.1s total / ~33.1s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_ulock_wait_linux_x64</code> (~119ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

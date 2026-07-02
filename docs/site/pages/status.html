@@ -1432,6 +1432,12 @@
 <p>																																																																								  and epilogue emission while preserving the <code>__oren_ffi_resolve0</code> ABI. The capped</p>
 <p>																																																																								  profile now shows <code>x64_native_program.oren</code> at about 43.4s total / 31.8s parse,</p>
 <p>																																																																								  with <code>_data_add_cstr0_cached</code> exposed at about 90ms as the next parser body.</p>
+<p>																																																																								  X64 cached cstr0 data emission now splits MRU state setup, byte-equality lookup,</p>
+<p>																																																																								  and ring-buffer store helpers while preserving valid offset <code>0</code> handling with</p>
+<p>																																																																								  an explicit <code>-1</code> miss sentinel. The capped profile now shows</p>
+<p>																																																																								  <code>x64_native_program.oren</code> at about 45.1s total / 33.1s parse, with</p>
+<p>																																																																								  <code>_emit_intrinsic_sys_ulock_wait_linux_x64</code> exposed at about 119ms as the next</p>
+<p>																																																																								  parser body.</p>
 <p>																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
