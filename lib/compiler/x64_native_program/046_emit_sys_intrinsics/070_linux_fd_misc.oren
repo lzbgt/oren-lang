@@ -183,49 +183,84 @@ fn _emit_intrinsic_sys_linux_dup_x64(ctx, expr, locals, args, capsule) {
     return true
 }
 
-fn _emit_intrinsic_sys_linux_dup23_x64(ctx, nm, expr, locals, args, capsule) {
-    var wantc = 2
-    if nm == "sys_dup3" { wantc = 3 }
-    if oren_list_len(args) != wantc { err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(wantc) + " args"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+fn _x64_linux_dup23_arg_count(nm) {
+    if nm == "sys_dup3" { return 3 }
+    return 2
+}
 
+fn _x64_linux_dup23_state(ctx, nm, locals, args) {
+    var wantc = _x64_linux_dup23_arg_count(nm)
     var base20 = _intr_tmp_push(ctx, wantc)
-    if oren_type_tag(base20) == 0 { return true }
+    if oren_type_tag(base20) == 0 { return nil }
     var tmp_old = _intr_tmp_off(ctx, locals, base20 + 0)
     var tmp_new = _intr_tmp_off(ctx, locals, base20 + 1)
     var tmp_flags = nil
     if nm == "sys_dup3" { tmp_flags = _intr_tmp_off(ctx, locals, base20 + 2) }
-    if oren_type_tag(tmp_old) == 0 || oren_type_tag(tmp_new) == 0 { _intr_tmp_pop(ctx, base20); return true }
+    if oren_type_tag(tmp_old) == 0 || oren_type_tag(tmp_new) == 0 {
+        _intr_tmp_pop(ctx, base20)
+        return nil
+    }
+    if nm == "sys_dup3" && oren_type_tag(tmp_flags) == 0 {
+        _intr_tmp_pop(ctx, base20)
+        return nil
+    }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_old)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_new)
     if nm == "sys_dup3" { _intr_eval_spill_x64(ctx, locals, args[2], tmp_flags) }
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base20); return true }
-
-    if capsule {
-        _intr_load_x64(ctx, 7, tmp_old)
-        _intr_load_x64(ctx, 6, tmp_new)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_pre")
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base20)
+        return nil
     }
+    return {"base": base20, "old": tmp_old, "new": tmp_new, "flags": tmp_flags}
+}
 
-    _intr_load_x64(ctx, 7, tmp_old)
-    _intr_load_x64(ctx, 6, tmp_new)
+fn _x64_linux_dup23_load_pair(ctx, st) {
+    _intr_load_x64(ctx, 7, st["old"])
+    _intr_load_x64(ctx, 6, st["new"])
+    return nil
+}
+
+fn _x64_linux_dup23_emit_pre(ctx, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_dup23_load_pair(ctx, st)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_pre")
+    return nil
+}
+
+fn _x64_linux_dup23_emit_syscall(ctx, nm, st) {
+    _x64_linux_dup23_load_pair(ctx, st)
     if nm == "sys_dup3" {
-        _intr_load_x64(ctx, 2, tmp_flags)
+        _intr_load_x64(ctx, 2, st["flags"])
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_dup3()))
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_dup2()))
     }
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _intr_load_x64(ctx, 6, tmp_old)
-        _intr_load_x64(ctx, 2, tmp_new)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_post")
-    }
+fn _x64_linux_dup23_emit_post(ctx, st, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+    _intr_load_x64(ctx, 6, st["old"])
+    _intr_load_x64(ctx, 2, st["new"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_post")
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base20)
+fn _emit_intrinsic_sys_linux_dup23_x64(ctx, nm, expr, locals, args, capsule) {
+    var wantc = _x64_linux_dup23_arg_count(nm)
+    if oren_list_len(args) != wantc { err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(wantc) + " args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
+
+    var st = _x64_linux_dup23_state(ctx, nm, locals, args)
+    if st == nil { return true }
+    _x64_linux_dup23_emit_pre(ctx, st, capsule)
+    _x64_linux_dup23_emit_syscall(ctx, nm, st)
+    _x64_linux_dup23_emit_post(ctx, st, capsule)
+
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

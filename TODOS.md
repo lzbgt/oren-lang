@@ -340,6 +340,11 @@ design evidence lives under `project-doc/`.
   listen-specific tail. The capped profile now shows `x64_native_program.oren`
   at ~42.9s total / ~31.3s parse, with `_emit_intrinsic_sys_linux_dup23_x64`
   (~58ms) as the next parser-body target.
+- Linux x64 `sys_dup2` / `sys_dup3` lowering now delegates arity selection,
+  temp-slot state, fd-pair reloads, optional flags reload, syscall selection,
+  and capsule pre/post hooks to focused helpers. The capped profile now shows
+  `x64_native_program.oren` at ~43.1s total / ~31.5s parse, with
+  `_x64_fast_list_push_emit_loop` (~58ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

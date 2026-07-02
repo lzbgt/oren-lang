@@ -497,6 +497,13 @@
 <p>  at ~42.9s total / ~31.3s parse, with <code>_emit_intrinsic_sys_linux_dup23_x64</code></p>
 <p>  (~58ms) as the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_dup2</code> / <code>sys_dup3</code> lowering now delegates arity selection,</li>
+</ul>
+<p>  temp-slot state, fd-pair reloads, optional flags reload, syscall selection,</p>
+<p>  and capsule pre/post hooks to focused helpers. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~43.1s total / ~31.5s parse, with</p>
+<p>  <code>_x64_fast_list_push_emit_loop</code> (~58ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
