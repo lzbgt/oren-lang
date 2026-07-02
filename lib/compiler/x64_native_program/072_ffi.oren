@@ -85,58 +85,82 @@ fn _x64_collect_ffi_dll_attrs(ctx, st, nm) {
     return nil
 }
 
+fn _x64_ffi_ret_maps_init(ctx) {
+    if ctx["ffi_ret_i32"] == nil { ctx["ffi_ret_i32"] = {} }
+    if ctx["ffi_ret_u32"] == nil { ctx["ffi_ret_u32"] = {} }
+    if ctx["ffi_ret_void"] == nil { ctx["ffi_ret_void"] = {} }
+    // Pointer/usize return kinds are 64-bit on Tier-1 (arm64/x64), so they do not require
+    // register normalization today. Still, accept them as explicit ABI metadata so bindings
+    // can be self-documenting and duplicate/contradicting annotations stay detectable.
+    if ctx["ffi_ret_ptr"] == nil { ctx["ffi_ret_ptr"] = {} }
+    if ctx["ffi_ret_usize"] == nil { ctx["ffi_ret_usize"] = {} }
+    return nil
+}
+
+fn _x64_ffi_ret_kind_already_set(ctx, nm) {
+    if ctx["ffi_ret_i32"][nm] != nil { return true }
+    if ctx["ffi_ret_u32"][nm] != nil { return true }
+    if ctx["ffi_ret_void"][nm] != nil { return true }
+    if ctx["ffi_ret_ptr"][nm] != nil { return true }
+    if ctx["ffi_ret_usize"][nm] != nil { return true }
+    return false
+}
+
+fn _x64_ffi_ret_attr_value(ctx, a, nm) {
+    var args = a["args"]
+    if args == nil || oren_list_len(args) != 1 || args[0] == nil {
+        err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must have exactly 1 string arg")
+        return nil
+    }
+    var val = _x64_lit_string(args[0]["value"])
+    if val == nil || val == "" {
+        err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must be a string literal")
+        return nil
+    }
+    return val
+}
+
+fn _x64_ffi_ret_mark_kind(ctx, nm, val) {
+    if _x64_str_eq_bytes(val, "i32") {
+        ctx["ffi_ret_i32"][nm] = true
+    } else if _x64_str_eq_bytes(val, "u32") {
+        ctx["ffi_ret_u32"][nm] = true
+    } else if _x64_str_eq_bytes(val, "void") {
+        ctx["ffi_ret_void"][nm] = true
+    } else if _x64_str_eq_bytes(val, "ptr") {
+        ctx["ffi_ret_ptr"][nm] = true
+    } else if _x64_str_eq_bytes(val, "usize") {
+        ctx["ffi_ret_usize"][nm] = true
+    } else {
+        err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " supports \"i32\", \"u32\", \"void\", \"ptr\", or \"usize\" (got \"" + val + "\")")
+        return false
+    }
+    return true
+}
+
+fn _x64_collect_one_ffi_ret_attr(ctx, a, nm) {
+    var val = _x64_ffi_ret_attr_value(ctx, a, nm)
+    if val == nil { return false }
+    if _x64_ffi_ret_kind_already_set(ctx, nm) {
+        err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " is duplicated (only one kind allowed)")
+        return false
+    }
+    return _x64_ffi_ret_mark_kind(ctx, nm, val)
+}
+
 fn _x64_collect_ffi_ret_attrs(ctx, st, nm) {
     if ctx == nil || st == nil { return nil }
     var attrs = st["attrs"]
     if attrs == nil { return nil }
 
-    if ctx["ffi_ret_i32"] == nil { ctx["ffi_ret_i32"] = {} }
-    if ctx["ffi_ret_u32"] == nil { ctx["ffi_ret_u32"] = {} }
-    if ctx["ffi_ret_void"] == nil { ctx["ffi_ret_void"] = {} }
-    // Pointer/usize return kinds are 64-bit on Tier‑1 (arm64/x64), so they do not require
-    // register normalization today. Still, accept them as explicit ABI metadata so:
-    // - bindings can be self-documenting (`strlen` returns size_t),
-    // - future 32-bit targets can lower `usize`/`ptr` correctly (zero/sign extension decisions),
-    // - duplicate/contradicting `@ffi.ret(...)` annotations remain detectable.
-    if ctx["ffi_ret_ptr"] == nil { ctx["ffi_ret_ptr"] = {} }
-    if ctx["ffi_ret_usize"] == nil { ctx["ffi_ret_usize"] = {} }
+    _x64_ffi_ret_maps_init(ctx)
 
     var i = 0
     while i < oren_list_len(attrs) {
         var a = attrs[i]
         if a == nil || a["type"] != "Attr" { i = i + 1; continue }
         if !_x64_str_eq_bytes(a["name"], "ffi.ret") { i = i + 1; continue }
-
-        var args = a["args"]
-        if args == nil || oren_list_len(args) != 1 || args[0] == nil {
-            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must have exactly 1 string arg")
-            return nil
-        }
-        var val = _x64_lit_string(args[0]["value"])
-        if val == nil || val == "" {
-            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must be a string literal")
-            return nil
-        }
-        // Accept exactly one return-kind attribute per symbol.
-        if ctx["ffi_ret_i32"][nm] != nil || ctx["ffi_ret_u32"][nm] != nil || ctx["ffi_ret_void"][nm] != nil ||
-           ctx["ffi_ret_ptr"][nm] != nil || ctx["ffi_ret_usize"][nm] != nil {
-            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " is duplicated (only one kind allowed)")
-            return nil
-        }
-        if _x64_str_eq_bytes(val, "i32") {
-            ctx["ffi_ret_i32"][nm] = true
-        } else if _x64_str_eq_bytes(val, "u32") {
-            ctx["ffi_ret_u32"][nm] = true
-        } else if _x64_str_eq_bytes(val, "void") {
-            ctx["ffi_ret_void"][nm] = true
-        } else if _x64_str_eq_bytes(val, "ptr") {
-            ctx["ffi_ret_ptr"][nm] = true
-        } else if _x64_str_eq_bytes(val, "usize") {
-            ctx["ffi_ret_usize"][nm] = true
-        } else {
-            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " supports \"i32\", \"u32\", \"void\", \"ptr\", or \"usize\" (got \"" + val + "\")")
-            return nil
-        }
+        if _x64_collect_one_ffi_ret_attr(ctx, a, nm) != true { return nil }
         i = i + 1
     }
     return nil

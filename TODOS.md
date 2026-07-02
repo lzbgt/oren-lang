@@ -105,6 +105,11 @@ design evidence lives under `project-doc/`.
   recognition, optional constant-bound handling, push-body validation, duplicate
   list rejection, and pushed-value dependency guards. The capped profile now
   exposes `_x64_collect_ffi_ret_attrs` (~70ms) as the next parser-body target.
+- X64 FFI return-attribute collection now delegates return-map initialization,
+  attribute argument extraction, duplicate-kind detection, and return-kind
+  marking to focused helpers while preserving existing `ffi_ret_*` context maps.
+  The capped profile now exposes `_x64_wsasend_normalize_result` (~76ms) as the
+  next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

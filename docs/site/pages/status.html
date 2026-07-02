@@ -1215,6 +1215,13 @@
 <p>																																																																		  profile now shows <code>x64_native_program.oren</code> at about 42.6s total / 31.2s</p>
 <p>																																																																		  parse, with <code>_x64_collect_ffi_ret_attrs</code> exposed at about 70ms as the next</p>
 <p>																																																																		  parser body.</p>
+<p>																																																																		  X64 FFI return-attribute collection now delegates return-map initialization,</p>
+<p>																																																																		  attribute argument extraction, duplicate-kind detection, and return-kind</p>
+<p>																																																																		  marking to focused helpers while preserving the existing <code>ffi_ret_*</code> context</p>
+<p>																																																																		  maps consumed by direct-call lowering. The capped profile now shows</p>
+<p>																																																																		  <code>x64_native_program.oren</code> at about 43.4s total / 31.8s parse, with</p>
+<p>																																																																		  <code>_x64_wsasend_normalize_result</code> exposed at about 76ms as the next parser</p>
+<p>																																																																		  body.</p>
 <p>																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>										  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>			  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

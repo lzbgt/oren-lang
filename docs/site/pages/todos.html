@@ -168,6 +168,13 @@
 <p>  list rejection, and pushed-value dependency guards. The capped profile now</p>
 <p>  exposes <code>_x64_collect_ffi_ret_attrs</code> (~70ms) as the next parser-body target.</p>
 <ul>
+<li>X64 FFI return-attribute collection now delegates return-map initialization,</li>
+</ul>
+<p>  attribute argument extraction, duplicate-kind detection, and return-kind</p>
+<p>  marking to focused helpers while preserving existing <code>ffi_ret_*</code> context maps.</p>
+<p>  The capped profile now exposes <code>_x64_wsasend_normalize_result</code> (~76ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
