@@ -1159,12 +1159,19 @@ Facts from the 2026-05-28 implementation pass:
 																																																																	  X64 fast LCG unsigned setup now delegates invariant register materialization,
 																																																																	  loop-state loads, and `i % mod_i` setup to separate helpers while preserving
 																																																																	  the unsigned-loop register contract. The capped profile now shows
-																																																																	  `x64_native_program.oren` at about 42.2s total / 30.9s parse, with
-																																																																	  `_x64_index_set_emit_recv_kind_dispatch` exposed at about 68ms as the next
-																																																																	  parser body.
-																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
-									  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
-		  as a candidate and `false` disables serial-write candidates. Actual serial
+																																																																		  `x64_native_program.oren` at about 42.2s total / 30.9s parse, with
+																																																																		  `_x64_index_set_emit_recv_kind_dispatch` exposed at about 68ms as the next
+																																																																		  parser body.
+																																																																		  X64 `oren_index_set` receiver-kind dispatch now delegates tracked-node
+																																																																		  guards, tracked node-kind loads, known list/list-int routing, and dynamic
+																																																																		  fallback routing to focused helpers while preserving existing panic strings
+																																																																		  and branch targets. The capped profile now shows `x64_native_program.oren`
+																																																																		  at about 43.1s total / 31.3s parse, with
+																																																																		  `_x64_match_fast_list_int_push_while` exposed at about 70ms as the next
+																																																																		  parser body.
+																																																									  Serial/thread module ASTBIN writes are explicit prewarm work via
+										  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+			  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,
 		  one-pass cached-pointer body emission, and `OREN_TRACE_ASTBIN_MODULE` phase

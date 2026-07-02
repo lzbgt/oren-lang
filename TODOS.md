@@ -96,6 +96,11 @@ design evidence lives under `project-doc/`.
   loop-state loads, and `i % mod_i` setup to separate helpers while preserving
   the unsigned-loop register contract. The capped profile now exposes
   `_x64_index_set_emit_recv_kind_dispatch` (~68ms) as the next parser-body target.
+- X64 `oren_index_set` receiver-kind dispatch now delegates tracked-node guards,
+  tracked node-kind loads, known list/list-int routing, and dynamic fallback
+  routing to focused helpers while preserving existing panic strings and branch
+  targets. The capped profile now exposes `_x64_match_fast_list_int_push_while`
+  (~70ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

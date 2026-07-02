@@ -155,6 +155,13 @@
 <p>  the unsigned-loop register contract. The capped profile now exposes</p>
 <p>  <code>_x64_index_set_emit_recv_kind_dispatch</code> (~68ms) as the next parser-body target.</p>
 <ul>
+<li>X64 <code>oren_index_set</code> receiver-kind dispatch now delegates tracked-node guards,</li>
+</ul>
+<p>  tracked node-kind loads, known list/list-int routing, and dynamic fallback</p>
+<p>  routing to focused helpers while preserving existing panic strings and branch</p>
+<p>  targets. The capped profile now exposes <code>_x64_match_fast_list_int_push_while</code></p>
+<p>  (~70ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
