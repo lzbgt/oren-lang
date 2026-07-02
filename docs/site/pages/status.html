@@ -1557,12 +1557,17 @@
 <p>																																																																																		  capped profile now shows <code>x64_native_program.oren</code> at about 45.0s total / 33.0s</p>
 <p>																																																																																		  parse, with <code>_x64_fast_lcg_prepare</code> exposed at about 62ms as the next parser body.</p>
 <p>																																																																																		  X64 fast LCG prepare now delegates input extraction, fastmod reciprocal</p>
-<p>																																																																																		  setup, local-offset validation, temp-slot allocation, and prep-map packing</p>
-<p>																																																																																		  to focused helpers while preserving downstream prep keys. The capped profile</p>
-<p>																																																																																		  now shows <code>x64_native_program.oren</code> at about 44.2s total / 32.4s parse, with</p>
-<p>																																																																																		  <code>_x64_string_batch_append_table_and_emit</code> exposed at about 61ms as the next parser body.</p>
-<p>																																																																																	  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
-<p>																																	  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
+<p>																																																																																			  setup, local-offset validation, temp-slot allocation, and prep-map packing</p>
+<p>																																																																																			  to focused helpers while preserving downstream prep keys. The capped profile</p>
+<p>																																																																																			  now shows <code>x64_native_program.oren</code> at about 44.2s total / 32.4s parse, with</p>
+<p>																																																																																			  <code>_x64_string_batch_append_table_and_emit</code> exposed at about 61ms as the next parser body.</p>
+<p>																																																																																			  X64 top string-batch table/emit finalization now separates data-done tracing,</p>
+<p>																																																																																			  table serialization, table-done tracing, and top-loop code emission while</p>
+<p>																																																																																			  preserving batch timing/result keys. The capped profile now shows</p>
+<p>																																																																																			  <code>x64_native_program.oren</code> at about 43.5s total / 31.6s parse, with</p>
+<p>																																																																																			  <code>_x64_emit_named_call_intrinsic_or_spread_v0</code> exposed at about 56ms as the next parser body.</p>
+<p>																																																																																		  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
+<p>																																		  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>					  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>
 <p>		  ASTBIN writes stay opt-in behind <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1</code></p>
 <p>		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,</p>

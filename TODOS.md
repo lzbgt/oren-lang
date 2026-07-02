@@ -408,6 +408,12 @@ design evidence lives under `project-doc/`.
   now shows `x64_native_program.oren` at ~44.2s total / ~32.4s parse, with
   `_x64_string_batch_append_table_and_emit` (~61ms) as the next parser-body
   target.
+- X64 top string-batch table/emit finalization now separates data-done tracing,
+  table serialization, table-done tracing, and top-loop code emission while
+  preserving batch timing/result keys. The capped profile now shows
+  `x64_native_program.oren` at ~43.5s total / ~31.6s parse, with
+  `_x64_emit_named_call_intrinsic_or_spread_v0` (~56ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
