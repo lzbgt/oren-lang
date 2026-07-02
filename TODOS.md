@@ -226,6 +226,10 @@ design evidence lives under `project-doc/`.
   arithmetic-dispatch/result-pack wrapper. The capped profile now exposes
   `_x64_emit_top_empty_container_batch_loop` (~78ms) as the next parser-body
   target.
+- X64 top-level empty-container batch lowering now mirrors the string batch
+  pipeline with separate runtime-symbol, ABI-argument, table setup, loop header,
+  loop body, and patch helpers. The capped profile now exposes
+  `_emit_intrinsic_sys_socket_windows_x64` (~67ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

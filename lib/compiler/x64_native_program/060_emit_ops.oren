@@ -155,17 +155,19 @@ fn _x64_emit_top_string_global_batch_loop(ctx, table_off) {
     return nil
 }
 
-fn _x64_emit_top_empty_container_batch_loop(ctx, table_off, kind, platform) {
-    // Runtime loop over a `.data` table:
-    //   u64 count; repeated { u64 global_slot_off }
-    //
-    // Containers stay mutable runtime heap objects; this only batches compiler-time
-    // emission so large compiler-shaped top levels do not pay per-global emitter cost.
+fn _x64_top_empty_container_batch_runtime_sym(kind) {
     var sym = "oren_new_map"
     if kind == "list" { sym = "oren_new_list" }
+    return sym
+}
+
+fn _x64_top_empty_container_batch_arg0(platform) {
     var arg0 = 7 // SysV: rdi
     if platform != nil && platform["os"] == "windows" { arg0 = 1 } // Win64: rcx
+    return arg0
+}
 
+fn _x64_emit_top_empty_container_batch_base_setup(ctx, table_off) {
     var code = ctx["code"]
     var lea_base = bytes_len(code)
     bytes_extend(code, core.insn_lea_r64_rip_disp32(13, 0)) // r13 = table_ptr
@@ -175,12 +177,20 @@ fn _x64_emit_top_empty_container_batch_loop(ctx, table_off, kind, platform) {
     bytes_extend(code, core.insn_sub_r64_imm32(12, table_off)) // r12 = data_base
     bytes_extend(code, core.insn_mov_r64_mr64(3, 13))       // rbx = count
     bytes_extend(code, core.insn_add_r64_imm32(13, 8))      // r13 = first slot offset
+    return nil
+}
 
+fn _x64_emit_top_empty_container_batch_loop_header(ctx) {
+    var code = ctx["code"]
     var loop_pos = bytes_len(code)
     bytes_extend(code, core.insn_cmp_r64_imm32(3, 0))
     var jz_pos = bytes_len(code)
     bytes_push(code, 15); bytes_push(code, 132); push_u32_le(code, 0) // jz done
+    return {"loop": loop_pos, "jz": jz_pos}
+}
 
+fn _x64_emit_top_empty_container_batch_loop_body(ctx, sym, arg0) {
+    var code = ctx["code"]
     bytes_extend(code, core.insn_mov_r32_imm32(arg0, 0))
     _emit_call_rel32_named_x64(ctx, sym)
 
@@ -192,10 +202,31 @@ fn _x64_emit_top_empty_container_batch_loop(ctx, table_off, kind, platform) {
     bytes_extend(code, core.insn_add_r64_imm32(3, 4294967295))
     var jmp_pos = bytes_len(code)
     bytes_push(code, 233); push_u32_le(code, 0)
+    return jmp_pos
+}
 
+fn _x64_patch_top_empty_container_batch_loop(ctx, loop_state, jmp_pos) {
+    var code = ctx["code"]
     var done_pos = bytes_len(code)
+    var loop_pos = loop_state["loop"]
+    var jz_pos = loop_state["jz"]
     set_u32_le(code, jz_pos + 2, done_pos - (jz_pos + 6))
     set_u32_le(code, jmp_pos + 1, core.int_mod(loop_pos - (jmp_pos + 5), 4294967296))
+    return nil
+}
+
+fn _x64_emit_top_empty_container_batch_loop(ctx, table_off, kind, platform) {
+    // Runtime loop over a `.data` table:
+    //   u64 count; repeated { u64 global_slot_off }
+    //
+    // Containers stay mutable runtime heap objects; this only batches compiler-time
+    // emission so large compiler-shaped top levels do not pay per-global emitter cost.
+    var sym = _x64_top_empty_container_batch_runtime_sym(kind)
+    var arg0 = _x64_top_empty_container_batch_arg0(platform)
+    _x64_emit_top_empty_container_batch_base_setup(ctx, table_off)
+    var loop_state = _x64_emit_top_empty_container_batch_loop_header(ctx)
+    var jmp_pos = _x64_emit_top_empty_container_batch_loop_body(ctx, sym, arg0)
+    _x64_patch_top_empty_container_batch_loop(ctx, loop_state, jmp_pos)
     return nil
 }
 

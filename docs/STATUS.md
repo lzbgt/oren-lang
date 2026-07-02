@@ -1322,11 +1322,17 @@ Facts from the 2026-05-28 implementation pass:
 																																																																					  X64 float64 arithmetic lowering now shares operand spill and XMM
 																																																																					  materialization with float comparison lowering, leaving `_emit_float64_binop_x64`
 																																																																					  as a thin arithmetic-dispatch/result-pack wrapper. The capped profile now shows
-																																																																					  `x64_native_program.oren` at about 43.3s total / 31.9s parse, with
-																																																																					  `_x64_emit_top_empty_container_batch_loop` exposed at about 78ms as the next
-																																																																					  parser body.
-																																																													  Serial/thread module ASTBIN writes are explicit prewarm work via
-													  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
+																																																																						  `x64_native_program.oren` at about 43.3s total / 31.9s parse, with
+																																																																						  `_x64_emit_top_empty_container_batch_loop` exposed at about 78ms as the next
+																																																																						  parser body.
+																																																																						  X64 top-level empty-container batch lowering now mirrors the string batch
+																																																																						  pipeline with separate runtime-symbol, ABI-argument, table setup, loop header,
+																																																																						  loop body, and patch helpers. The capped profile now shows
+																																																																						  `x64_native_program.oren` at about 44.3s total / 32.4s parse, with
+																																																																						  `_emit_intrinsic_sys_socket_windows_x64` exposed at about 67ms as the next
+																																																																						  parser body.
+																																																														  Serial/thread module ASTBIN writes are explicit prewarm work via
+														  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 				  as a candidate and `false` disables serial-write candidates. Actual serial
 		  ASTBIN writes stay opt-in behind `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_ASTBIN=1`
 		  and now use a module-specialized v2 ASTBIN writer with known-key traversal,

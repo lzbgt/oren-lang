@@ -339,6 +339,12 @@
 <p>  <code>_x64_emit_top_empty_container_batch_loop</code> (~78ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 top-level empty-container batch lowering now mirrors the string batch</li>
+</ul>
+<p>  pipeline with separate runtime-symbol, ABI-argument, table setup, loop header,</p>
+<p>  loop body, and patch helpers. The capped profile now exposes</p>
+<p>  <code>_emit_intrinsic_sys_socket_windows_x64</code> (~67ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
