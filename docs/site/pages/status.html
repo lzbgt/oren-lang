@@ -3241,6 +3241,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 52.2s total / 38.4s</p>
 <p>  parse, with <code>_x64_list_int_push_spill_args</code> exposed at about 126ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 LIST_INT push argument spilling now separates temp-slot setup, single-arg</li>
+</ul>
+<p>  integer eval/spill, left-to-right two-arg spill orchestration, and final</p>
+<p>  operand reload while preserving temp cleanup and rdx/r8 operand contracts. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 49.2s total /</p>
+<p>  36.2s parse, with <code>_emit_strlen_cstr0_to_rdx</code> exposed at about 141ms as the</p>
+<p>  next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

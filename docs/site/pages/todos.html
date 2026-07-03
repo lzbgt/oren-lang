@@ -1090,6 +1090,14 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~52.2s total / ~38.4s parse,</p>
 <p>  with <code>_x64_list_int_push_spill_args</code> (~126ms) as the next parser-body target.</p>
 <ul>
+<li>X64 LIST_INT push argument spilling now separates temp-slot setup, single-arg</li>
+</ul>
+<p>  integer eval/spill, left-to-right two-arg spill orchestration, and final</p>
+<p>  operand reload while preserving temp cleanup and rdx/r8 operand contracts. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~49.2s total / ~36.2s</p>
+<p>  parse, with <code>_emit_strlen_cstr0_to_rdx</code> (~141ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

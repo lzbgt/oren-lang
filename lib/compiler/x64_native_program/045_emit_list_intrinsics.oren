@@ -703,26 +703,43 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
 }
 
 fn _x64_list_int_push_spill_args(ctx, locals, args) {
+    var state = _x64_list_int_push_alloc_spill_slots(ctx, locals)
+    if state == nil { return nil }
+    if _x64_list_int_push_spill_ltr_args(ctx, locals, args, state) != true {
+        _intr_tmp_pop(ctx, state["base"])
+        return nil
+    }
+    _x64_list_int_push_reload_spilled_args(ctx, state)
+    return state
+}
+
+fn _x64_list_int_push_alloc_spill_slots(ctx, locals) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
     var off_val = _intr_tmp_off(ctx, locals, base + 1)
     if oren_type_tag(off_list) == 0 || oren_type_tag(off_val) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // LTR eval: list -> spill
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
-
-    // value -> spill
-    _emit_eval_int_to_rax(ctx, args[1], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_val, 0)
-
-    // list -> rdx, value -> r8
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
-    _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)
     return {"base": base, "off_list": off_list, "off_val": off_val}
+}
+
+fn _x64_list_int_push_spill_one_arg(ctx, locals, arg, off) {
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+    return true
+}
+
+fn _x64_list_int_push_spill_ltr_args(ctx, locals, args, state) {
+    if _x64_list_int_push_spill_one_arg(ctx, locals, args[0], state["off_list"]) != true { return false }
+    if _x64_list_int_push_spill_one_arg(ctx, locals, args[1], state["off_val"]) != true { return false }
+    return true
+}
+
+fn _x64_list_int_push_reload_spilled_args(ctx, state) {
+    // list -> rdx, value -> r8
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])
+    return nil
 }
 
 fn _x64_emit_list_int_push_nil_guard(ctx, state) {
