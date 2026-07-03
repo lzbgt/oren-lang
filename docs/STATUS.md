@@ -2934,6 +2934,12 @@ make docs-site
   shows `x64_native_program.oren` at about 45.0s total / 32.6s parse, with
   `_x64_string_batch_append_one_data` exposed at about 49ms as the next parser
   body.
+- X64 string-batch per-item data append now separates sampled offset/value/size
+  tracing, value normalization, data-buffer alignment, capped string-byte
+  append, and data-done tracing while preserving the batched global string
+  table layout. The capped profile now shows `x64_native_program.oren` at about
+  53.3s total / 38.3s parse, with `_x64_call_name_is_float_trig` exposed at
+  about 171ms as the next parser body.
 
 ## Documentation Guardrail
 

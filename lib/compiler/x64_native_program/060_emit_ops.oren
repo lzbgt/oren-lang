@@ -554,18 +554,15 @@ fn _x64_string_batch_trace_item_step(trace, tag, batch_i, j, extra) {
     return nil
 }
 
-fn _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j, batch_data_buf) {
-    if batch_item == nil { batch_item = {} }
-    var trace_batch_sample = _x64_string_batch_trace_item_enter(trace, batch_i, batch_n, j)
-    var off_info = _x64_string_batch_item_offset(ctx, batch_item)
-    if off_info == nil { return nil }
-    var goff_b = off_info["off"]
-    var offset_path = off_info["path"]
+fn _x64_string_batch_trace_item_offset_done(trace, trace_batch_sample, batch_i, j, offset_path) {
     if trace_batch_sample == true {
         _x64_string_batch_trace_item_step(trace, "x64.codegen.function.string_batch.item.offset.done",
             batch_i, j, " path=" + offset_path)
     }
+    return nil
+}
 
+fn _x64_string_batch_item_value(ctx, batch_item) {
     var s_b = batch_item["value"]
     if s_b == nil { s_b = "" }
     if s_b == 0 { s_b = "" }
@@ -574,12 +571,18 @@ fn _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j
         err(ctx, "x64 native v0: _data_add_cstr0_nodedup expects string, got " + tn_b)
         return nil
     }
+    return s_b
+}
+
+fn _x64_string_batch_trace_item_value_done(trace, trace_batch_sample, batch_i, j) {
     if trace_batch_sample == true {
         _x64_string_batch_trace_item_step(trace, "x64.codegen.function.string_batch.item.value.done",
             batch_i, j, nil)
     }
+    return nil
+}
 
-    var n0_b = oren_string_len(s_b)
+fn _x64_string_batch_trace_item_size(trace, trace_batch_sample, batch_i, batch_n, j, n0_b, batch_data_buf) {
     if trace_batch_sample == true {
         _x64_string_batch_trace_item_step(trace, "x64.codegen.function.string_batch.item",
             batch_i, j,
@@ -587,18 +590,50 @@ fn _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j
                 " strlen=" + oren_int_to_string(n0_b) +
                 " data_bytes=" + oren_int_to_string(bytes_len(batch_data_buf)))
     }
+    return nil
+}
+
+fn _x64_string_batch_align_data_buf(batch_data_buf) {
     while core.int_mod(bytes_len(batch_data_buf), 8) != 0 { bytes_push(batch_data_buf, 0) }
-    var cstr_off_b = bytes_len(batch_data_buf)
+    return bytes_len(batch_data_buf)
+}
+
+fn _x64_string_batch_append_cstr_bytes(batch_data_buf, s_b) {
+    var cstr_off_b = _x64_string_batch_align_data_buf(batch_data_buf)
+    var n0_b = oren_string_len(s_b)
     if n0_b > 1048576 {
         s_b = oren_string_slice(s_b, 0, 1048576)
         n0_b = 1048576
     }
     bytes_extend_string(batch_data_buf, s_b)
     bytes_push(batch_data_buf, 0)
+    return cstr_off_b
+}
+
+fn _x64_string_batch_trace_item_data_done(trace, trace_batch_sample, batch_i, j, batch_data_buf) {
     if trace_batch_sample == true {
         _x64_string_batch_trace_item_step(trace, "x64.codegen.function.string_batch.item.data.done",
             batch_i, j, " data_bytes=" + oren_int_to_string(bytes_len(batch_data_buf)))
     }
+    return nil
+}
+
+fn _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j, batch_data_buf) {
+    if batch_item == nil { batch_item = {} }
+    var trace_batch_sample = _x64_string_batch_trace_item_enter(trace, batch_i, batch_n, j)
+    var off_info = _x64_string_batch_item_offset(ctx, batch_item)
+    if off_info == nil { return nil }
+    var goff_b = off_info["off"]
+    _x64_string_batch_trace_item_offset_done(trace, trace_batch_sample, batch_i, j, off_info["path"])
+
+    var s_b = _x64_string_batch_item_value(ctx, batch_item)
+    if s_b == nil { return nil }
+    _x64_string_batch_trace_item_value_done(trace, trace_batch_sample, batch_i, j)
+
+    var n0_b = oren_string_len(s_b)
+    _x64_string_batch_trace_item_size(trace, trace_batch_sample, batch_i, batch_n, j, n0_b, batch_data_buf)
+    var cstr_off_b = _x64_string_batch_append_cstr_bytes(batch_data_buf, s_b)
+    _x64_string_batch_trace_item_data_done(trace, trace_batch_sample, batch_i, j, batch_data_buf)
     return {"slot": goff_b, "cstr": cstr_off_b}
 }
 

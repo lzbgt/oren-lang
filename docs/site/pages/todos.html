@@ -1023,6 +1023,14 @@
 <p>  shows <code>x64_native_program.oren</code> at ~45.0s total / ~32.6s parse, with</p>
 <p>  <code>_x64_string_batch_append_one_data</code> (~49ms) as the next parser-body target.</p>
 <ul>
+<li>X64 string-batch per-item data append now separates sampled offset/value/size</li>
+</ul>
+<p>  tracing, value normalization, data-buffer alignment, capped string-byte</p>
+<p>  append, and data-done tracing while preserving the batched global string</p>
+<p>  table layout. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~53.3s total / ~38.3s parse, with <code>_x64_call_name_is_float_trig</code> (~171ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

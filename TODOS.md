@@ -722,6 +722,12 @@ design evidence lives under `project-doc/`.
   drops below the source ceiling with more room, and the capped profile now
   shows `x64_native_program.oren` at ~45.0s total / ~32.6s parse, with
   `_x64_string_batch_append_one_data` (~49ms) as the next parser-body target.
+- X64 string-batch per-item data append now separates sampled offset/value/size
+  tracing, value normalization, data-buffer alignment, capped string-byte
+  append, and data-done tracing while preserving the batched global string
+  table layout. The capped profile now shows `x64_native_program.oren` at
+  ~53.3s total / ~38.3s parse, with `_x64_call_name_is_float_trig` (~171ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
