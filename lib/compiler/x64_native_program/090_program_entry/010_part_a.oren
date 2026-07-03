@@ -720,6 +720,26 @@ fn _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabl
 fn _x64_rtobj_synthesize_wrappers(ctx) {
     callable.collect_named_fn_value_uses_in_stmt_list(ctx, ctx["rtobj_runtime_stmts"])
     var wrappers = []
+    if _x64_rtobj_append_needed_fn_wrappers(ctx, wrappers) != 1 { return nil }
+    if _x64_rtobj_append_lambda_wrappers(ctx, wrappers) != 1 { return nil }
+    return wrappers
+}
+
+fn _x64_rtobj_fn_wrapper_arity(ctx, nm) {
+    if ctx["func_arity"] == nil { return nil }
+    var ar_enc = ctx["func_arity"][nm]
+    if oren_type_tag(ar_enc) == 0 { return nil }
+    return ar_enc - 1
+}
+
+fn _x64_rtobj_fn_wrapper_varargs_fixed(ctx, nm) {
+    if ctx["func_varargs_fixed"] == nil { return nil }
+    var vf_enc = ctx["func_varargs_fixed"][nm]
+    if oren_type_tag(vf_enc) == 0 { return nil }
+    return vf_enc - 1
+}
+
+fn _x64_rtobj_append_needed_fn_wrappers(ctx, wrappers) {
     var need = ctx["fnwrap_needed"]
     var wi = 0
     while wi < oren_list_len(ctx["func_decl_order"]) {
@@ -727,27 +747,23 @@ fn _x64_rtobj_synthesize_wrappers(ctx) {
         if nm0 == nil || nm0 == "" { wi = wi + 1; continue }
         if need == nil || need[nm0] == nil { wi = wi + 1; continue }
 
-        var ar0 = nil
-        if ctx["func_arity"] != nil {
-            var ar0_enc = ctx["func_arity"][nm0]
-            if oren_type_tag(ar0_enc) != 0 { ar0 = ar0_enc - 1 }
-        }
-        var vf0 = nil
-        if ctx["func_varargs_fixed"] != nil {
-            var vf0_enc = ctx["func_varargs_fixed"][nm0]
-            if oren_type_tag(vf0_enc) != 0 { vf0 = vf0_enc - 1 }
-        }
+        var ar0 = _x64_rtobj_fn_wrapper_arity(ctx, nm0)
+        var vf0 = _x64_rtobj_fn_wrapper_varargs_fixed(ctx, nm0)
         if ar0 != nil {
             var stw = callable.synth_fnwrap(nm0, ar0, vf0)
             if stw != nil && stw["type"] == "ExprStmt" && stw["expr"] != nil && stw["expr"]["type"] == "Function" {
                 oren_list_push(wrappers, stw["expr"])
             } else {
                 err(ctx, "x64 native rtobj: failed to synthesize fnwrap for " + nm0)
-                return nil
+                return 0
             }
         }
         wi = wi + 1
     }
+    return 1
+}
+
+fn _x64_rtobj_append_lambda_wrappers(ctx, wrappers) {
     var lj = 0
     while lj < oren_list_len(ctx["lambda_defs"]) {
         var def = ctx["lambda_defs"][lj]
@@ -756,11 +772,11 @@ fn _x64_rtobj_synthesize_wrappers(ctx) {
             oren_list_push(wrappers, stl["expr"])
         } else {
             err(ctx, "x64 native rtobj: failed to synthesize lambda wrapper")
-            return nil
+            return 0
         }
         lj = lj + 1
     }
-    return wrappers
+    return 1
 }
 
 fn _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {

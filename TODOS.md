@@ -649,6 +649,12 @@ design evidence lives under `project-doc/`.
   table serialization while preserving linetab layout. The capped profile now
   shows `x64_native_program.oren` at ~45.1s total / ~32.9s parse, with
   `_x64_rtobj_synthesize_wrappers` (~52ms) as the next parser-body target.
+- X64 runtime-object wrapper synthesis now separates named function-use
+  wrapper collection, arity decoding, and lambda wrapper collection while
+  preserving wrapper order and diagnostics. The capped profile now shows
+  `x64_native_program.oren` at ~45.0s total / ~32.7s parse, with
+  `_emit_intrinsic_sys_linux_fcntl_raw_x64` (~50ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

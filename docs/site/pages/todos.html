@@ -924,6 +924,14 @@
 <p>  shows <code>x64_native_program.oren</code> at ~45.1s total / ~32.9s parse, with</p>
 <p>  <code>_x64_rtobj_synthesize_wrappers</code> (~52ms) as the next parser-body target.</p>
 <ul>
+<li>X64 runtime-object wrapper synthesis now separates named function-use</li>
+</ul>
+<p>  wrapper collection, arity decoding, and lambda wrapper collection while</p>
+<p>  preserving wrapper order and diagnostics. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~45.0s total / ~32.7s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_fcntl_raw_x64</code> (~50ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

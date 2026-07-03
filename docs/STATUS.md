@@ -2857,6 +2857,12 @@ make docs-site
   table serialization while preserving linetab layout. The capped profile now
   shows `x64_native_program.oren` at about 45.1s total / 32.9s parse, with
   `_x64_rtobj_synthesize_wrappers` exposed at about 52ms as the next parser body.
+- X64 runtime-object wrapper synthesis now separates named function-use
+  wrapper collection, arity decoding, and lambda wrapper collection while
+  preserving wrapper order and diagnostics. The capped profile now shows
+  `x64_native_program.oren` at about 45.0s total / 32.7s parse, with
+  `_emit_intrinsic_sys_linux_fcntl_raw_x64` exposed at about 50ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
