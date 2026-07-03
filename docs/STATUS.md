@@ -1582,6 +1582,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  preserving `nil`/`0`/`1` handled-status semantics. The capped profile now shows
 																																																																																									  `x64_native_program.oren` at about 43.8s total / 31.9s parse, with
 																																																																																									  `_x64_collect_ffi_decls_from_stmt_list` exposed at about 54ms as the next parser body.
+																																																																																									  X64 FFI declaration collection now separates import-map setup, declaration
+																																																																																									  name validation, registration/link-name persistence, and per-statement routing
+																																																																																									  while preserving duplicate checks and FFI attr collection order. The capped
+																																																																																									  profile now shows `x64_native_program.oren` at about 44.4s total / 32.3s parse,
+																																																																																									  with `_x64_prepare_simd_dot_i32_ptr` exposed at about 101ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial

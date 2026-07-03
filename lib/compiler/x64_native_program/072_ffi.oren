@@ -166,58 +166,78 @@ fn _x64_collect_ffi_ret_attrs(ctx, st, nm) {
     return nil
 }
 
+fn _x64_ffi_decl_maps(ctx) {
+    if ctx == nil { return nil }
+    if ctx["imports"] == nil { ctx["imports"] = {} }
+    if ctx["import_list"] == nil { ctx["import_list"] = [] }
+    if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
+    var declared = ctx["declared_functions"]
+    if declared == nil { declared = {}; ctx["declared_functions"] = declared }
+    return {
+        "imports": ctx["imports"],
+        "import_list": ctx["import_list"],
+        "ffi_link_names": ctx["ffi_link_names"],
+        "declared": declared
+    }
+}
+
+fn _x64_validate_ffi_decl_name(ctx, maps, st, role) {
+    var name_node = st["name"]
+    if name_node == nil || name_node["type"] != "Identifier" {
+        err(ctx, "x64 native v0: " + role + " ffi name must be identifier")
+        return nil
+    }
+    var nm = name_node["value"]
+    if nm == nil || nm == "" {
+        err(ctx, "x64 native v0: " + role + " ffi name is empty")
+        return nil
+    }
+    if nm == "__top_level__" {
+        err(ctx, "x64 native v0: reserved ffi name __top_level__")
+        return nil
+    }
+    if maps["imports"][nm] != nil {
+        err(ctx, "x64 native v0: duplicate ffi declaration " + nm)
+        return nil
+    }
+    if maps["declared"][nm] != nil {
+        err(ctx, "x64 native v0: duplicate top-level name " + nm)
+        return nil
+    }
+    return nm
+}
+
+fn _x64_register_ffi_decl(ctx, maps, st, nm) {
+    // External symbol lookup name (stable across module renaming).
+    var sym = st["link_name"]
+    if sym == nil || sym == "" { sym = nm }
+    maps["ffi_link_names"][nm] = sym
+
+    maps["imports"][nm] = true
+    maps["declared"][nm] = true // reserve the name so globals can't shadow it
+    oren_list_push(maps["import_list"], nm)
+    _x64_collect_ffi_dll_attrs(ctx, st, nm)
+    _x64_collect_ffi_ret_attrs(ctx, st, nm)
+    return nil
+}
+
+fn _x64_collect_one_ffi_decl(ctx, maps, st, role) {
+    if st == nil || st["type"] != "FFI" { return true }
+    var nm = _x64_validate_ffi_decl_name(ctx, maps, st, role)
+    if nm == nil { return nil }
+    _x64_register_ffi_decl(ctx, maps, st, nm)
+    return true
+}
+
 fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
     if ctx == nil { return nil }
     if stmts == nil { return nil }
-
-    if ctx["imports"] == nil { ctx["imports"] = {} }
-    if ctx["import_list"] == nil { ctx["import_list"] = [] }
-    var imports = ctx["imports"]
-    var import_list = ctx["import_list"]
-    if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
-    var ffi_link_names = ctx["ffi_link_names"]
-
-    var declared = ctx["declared_functions"]
-    if declared == nil { declared = {}; ctx["declared_functions"] = declared }
+    var maps = _x64_ffi_decl_maps(ctx)
+    if maps == nil { return nil }
 
     var i = 0
     while i < oren_list_len(stmts) {
-        var st = stmts[i]
-        if st == nil || st["type"] != "FFI" { i = i + 1; continue }
-
-        var name_node = st["name"]
-        if name_node == nil || name_node["type"] != "Identifier" {
-            err(ctx, "x64 native v0: " + role + " ffi name must be identifier")
-            return nil
-        }
-        var nm = name_node["value"]
-        if nm == nil || nm == "" {
-            err(ctx, "x64 native v0: " + role + " ffi name is empty")
-            return nil
-        }
-        if nm == "__top_level__" {
-            err(ctx, "x64 native v0: reserved ffi name __top_level__")
-            return nil
-        }
-        if imports[nm] != nil {
-            err(ctx, "x64 native v0: duplicate ffi declaration " + nm)
-            return nil
-        }
-        if declared[nm] != nil {
-            err(ctx, "x64 native v0: duplicate top-level name " + nm)
-            return nil
-        }
-
-        // External symbol lookup name (stable across module renaming).
-        var sym = st["link_name"]
-        if sym == nil || sym == "" { sym = nm }
-        ffi_link_names[nm] = sym
-
-        imports[nm] = true
-        declared[nm] = true // reserve the name so globals can't shadow it
-        oren_list_push(import_list, nm)
-        _x64_collect_ffi_dll_attrs(ctx, st, nm)
-        _x64_collect_ffi_ret_attrs(ctx, st, nm)
+        if _x64_collect_one_ffi_decl(ctx, maps, stmts[i], role) != true { return nil }
         i = i + 1
     }
     return true
