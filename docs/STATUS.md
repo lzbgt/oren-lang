@@ -2808,6 +2808,11 @@ make docs-site
   fallback. The capped profile now shows `x64_native_program.oren` at about
   65.0s total / 47.7s parse, with `_emit_intrinsic_sys_linux_ioctl_x64` exposed
   at about 157ms as the next parser body.
+- Linux x64 `sys_ioctl` lowering now separates temp-state capture, shared
+  fd/request/argp argument loading, capsule prehook emission, and syscall
+  dispatch while preserving the ioctl register ABI. The capped profile now
+  shows `x64_native_program.oren` at about 63.7s total / 46.2s parse, with
+  `_x64_is_list_int_get_call` exposed at about 73ms as the next parser body.
 
 ## Documentation Guardrail
 

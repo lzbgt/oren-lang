@@ -860,6 +860,13 @@
 <p>  total / ~47.7s parse, with <code>_emit_intrinsic_sys_linux_ioctl_x64</code> (~157ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>Linux x64 <code>sys_ioctl</code> lowering now separates temp-state capture, shared</li>
+</ul>
+<p>  fd/request/argp argument loading, capsule prehook emission, and syscall</p>
+<p>  dispatch while preserving the ioctl register ABI. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~63.7s total / ~46.2s parse, with</p>
+<p>  <code>_x64_is_list_int_get_call</code> (~73ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

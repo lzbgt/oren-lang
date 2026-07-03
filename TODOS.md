@@ -603,6 +603,11 @@ design evidence lives under `project-doc/`.
   fallback. The capped profile now shows `x64_native_program.oren` at ~65.0s
   total / ~47.7s parse, with `_emit_intrinsic_sys_linux_ioctl_x64` (~157ms) as
   the next parser-body target.
+- Linux x64 `sys_ioctl` lowering now separates temp-state capture, shared
+  fd/request/argp argument loading, capsule prehook emission, and syscall
+  dispatch while preserving the ioctl register ABI. The capped profile now
+  shows `x64_native_program.oren` at ~63.7s total / ~46.2s parse, with
+  `_x64_is_list_int_get_call` (~73ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

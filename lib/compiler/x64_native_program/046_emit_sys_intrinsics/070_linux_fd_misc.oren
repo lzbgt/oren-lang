@@ -284,36 +284,52 @@ fn _emit_intrinsic_sys_linux_dup23_x64(ctx, nm, expr, locals, args, capsule) {
     return true
 }
 
-fn _emit_intrinsic_sys_linux_ioctl_x64(ctx, expr, locals, args, capsule) {
-    if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_ioctl expects 3 args"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ioctl does not support spread"); return true }
-
+fn _x64_linux_ioctl_state(ctx, locals, args) {
     var base21 = _intr_tmp_push(ctx, 3)
-    if oren_type_tag(base21) == 0 { return true }
+    if oren_type_tag(base21) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base21 + 0)
     var tmp_req = _intr_tmp_off(ctx, locals, base21 + 1)
     var tmp_argp = _intr_tmp_off(ctx, locals, base21 + 2)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_req) == 0 || oren_type_tag(tmp_argp) == 0 { _intr_tmp_pop(ctx, base21); return true }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_req) == 0 || oren_type_tag(tmp_argp) == 0 { _intr_tmp_pop(ctx, base21); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_req)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_argp)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base21); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base21); return nil }
+    return {"base": base21, "fd": tmp_fd, "req": tmp_req, "argp": tmp_argp}
+}
 
-    if capsule {
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_req)
-        _intr_load_x64(ctx, 2, tmp_argp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_ioctl_pre")
-    }
+fn _x64_linux_ioctl_load_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
+    _intr_load_x64(ctx, 6, st["req"])
+    _intr_load_x64(ctx, 2, st["argp"])
+    return nil
+}
 
-    _intr_load_x64(ctx, 7, tmp_fd)
-    _intr_load_x64(ctx, 6, tmp_req)
-    _intr_load_x64(ctx, 2, tmp_argp)
+fn _x64_linux_ioctl_emit_pre(ctx, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_ioctl_load_args(ctx, st)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_ioctl_pre")
+    return nil
+}
+
+fn _x64_linux_ioctl_emit_syscall(ctx, st) {
+    _x64_linux_ioctl_load_args(ctx, st)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_ioctl()))
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base21)
+fn _emit_intrinsic_sys_linux_ioctl_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_ioctl expects 3 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ioctl does not support spread"); return true }
+
+    var st = _x64_linux_ioctl_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_ioctl_emit_pre(ctx, st, capsule)
+    _x64_linux_ioctl_emit_syscall(ctx, st)
+
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 
