@@ -2681,6 +2681,15 @@ make verify-runtime-robustness
 make docs-site
 ```
 
+## Rolling Native Parser Notes
+
+- X64 cstr0 data emission now separates state initialization, invalid-argument
+  diagnostics, dedup lookup, safety capping, raw byte append, and unique-offset
+  recording while preserving offset-0 and truncated-string dedup semantics. The
+  capped profile now shows `x64_native_program.oren` at about 44.6s total /
+  32.5s parse, with `_emit_array_literal_expr` exposed at about 54ms as the next
+  parser body.
+
 ## Documentation Guardrail
 
 Canonical docs should describe current implementation and live blockers only. Do not

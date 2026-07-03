@@ -2834,6 +2834,15 @@ make verify-compiler-in-avm-ios-chain
 make verify-backend-parity
 make verify-runtime-robustness
 make docs-site</code></pre>
+<h2 id="rolling-native-parser-notes">Rolling Native Parser Notes</h2>
+<ul>
+<li>X64 cstr0 data emission now separates state initialization, invalid-argument</li>
+</ul>
+<p>  diagnostics, dedup lookup, safety capping, raw byte append, and unique-offset</p>
+<p>  recording while preserving offset-0 and truncated-string dedup semantics. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 44.6s total /</p>
+<p>  32.5s parse, with <code>_emit_array_literal_expr</code> exposed at about 54ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
@@ -2851,6 +2860,7 @@ make docs-site</code></pre>
 <a class="toc-l2" href="#current-p1-w4-work">Current P1 / W4 Work</a>
 <a class="toc-l2" href="#current-p2-w3-work">Current P2 / W3 Work</a>
 <a class="toc-l2" href="#key-verification-entrypoints">Key Verification Entrypoints</a>
+<a class="toc-l2" href="#rolling-native-parser-notes">Rolling Native Parser Notes</a>
 <a class="toc-l2" href="#documentation-guardrail">Documentation Guardrail</a>
     </aside>
   </div>

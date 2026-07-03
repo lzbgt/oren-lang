@@ -705,6 +705,13 @@
 <p>  <code>x64_native_program.oren</code> at ~44.4s total / ~32.4s parse, with</p>
 <p>  <code>_data_add_cstr0</code> (~84ms) as the next parser-body target.</p>
 <ul>
+<li>X64 cstr0 data emission now separates state initialization, invalid-argument</li>
+</ul>
+<p>  diagnostics, dedup lookup, safety capping, raw byte append, and unique-offset</p>
+<p>  recording while preserving offset-0 and truncated-string dedup semantics. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~44.6s total / ~32.5s</p>
+<p>  parse, with <code>_emit_array_literal_expr</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

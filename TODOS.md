@@ -490,6 +490,11 @@ design evidence lives under `project-doc/`.
   unsigned-loop register contract. The capped profile now shows
   `x64_native_program.oren` at ~44.4s total / ~32.4s parse, with
   `_data_add_cstr0` (~84ms) as the next parser-body target.
+- X64 cstr0 data emission now separates state initialization, invalid-argument
+  diagnostics, dedup lookup, safety capping, raw byte append, and unique-offset
+  recording while preserving offset-0 and truncated-string dedup semantics. The
+  capped profile now shows `x64_native_program.oren` at ~44.6s total / ~32.5s
+  parse, with `_emit_array_literal_expr` (~54ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
