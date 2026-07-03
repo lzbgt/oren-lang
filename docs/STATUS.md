@@ -2773,6 +2773,12 @@ make docs-site
   shows `x64_native_program.oren` at about 62.7s total / 45.4s parse, with
   `_emit_fast_list_int_push_while_x64` exposed at about 73ms as the next parser
   body.
+- X64 fast LIST_INT push-while lowering now separates cleanup/fallback handling
+  and checked fast-path emission from the top-level slow-path label orchestration
+  while preserving temp cleanup and generic fallback behavior. The capped profile
+  now shows `x64_native_program.oren` at about 63.4s total / 46.1s parse, with
+  `_emit_intrinsic_sys_win_terminate_thread_windows_x64` exposed at about 101ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
