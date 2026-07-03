@@ -1128,6 +1128,14 @@
 <p>  parse, with <code>_emit_intrinsic_sys_linux_epoll_ctl_x64</code> (~49ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>X64 Linux <code>sys_epoll_ctl</code> lowering now separates four-slot state setup,</li>
+</ul>
+<p>  left-to-right argument spilling, capsule prehook argument loading, and syscall</p>
+<p>  emission while preserving <code>epfd/op/fd/event</code> slot order and the Linux x64</p>
+<p>  <code>rdi/rsi/rdx/r10</code> syscall mapping. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~47.6s total / ~34.7s parse, with</p>
+<p>  <code>_x64_index_prepare</code> (~69ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

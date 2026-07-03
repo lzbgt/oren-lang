@@ -3013,6 +3013,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 45.9s total /
   33.2s parse, with `_emit_intrinsic_sys_linux_epoll_ctl_x64` exposed at about
   49ms as the next parser body.
+- X64 Linux `sys_epoll_ctl` lowering now separates four-slot state setup,
+  left-to-right argument spilling, capsule prehook argument loading, and syscall
+  emission while preserving `epfd/op/fd/event` slot order and the Linux x64
+  `rdi/rsi/rdx/r10` syscall mapping. The capped profile now shows
+  `x64_native_program.oren` at about 47.6s total / 34.7s parse, with
+  `_x64_index_prepare` exposed at about 69ms as the next parser body.
 
 ## Documentation Guardrail
 

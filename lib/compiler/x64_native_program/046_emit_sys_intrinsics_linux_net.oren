@@ -35,39 +35,59 @@ fn _emit_intrinsic_sys_linux_epoll_create1_x64(ctx, expr, locals, args, capsule)
     return true
 }
 
-fn _emit_intrinsic_sys_linux_epoll_ctl_x64(ctx, expr, locals, args, capsule) {
-    if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_epoll_ctl expects 4 args"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_epoll_ctl does not support spread"); return true }
-
+fn _x64_linux_epoll_ctl_state(ctx, locals, args) {
     var base33 = _intr_tmp_push(ctx, 4)
-    if oren_type_tag(base33) == 0 { return true }
+    if oren_type_tag(base33) == 0 { return nil }
     var a0 = _intr_tmp_off(ctx, locals, base33 + 0)
     var a1 = _intr_tmp_off(ctx, locals, base33 + 1)
     var a2 = _intr_tmp_off(ctx, locals, base33 + 2)
     var a3 = _intr_tmp_off(ctx, locals, base33 + 3)
-    if oren_type_tag(a0) == 0 || oren_type_tag(a1) == 0 || oren_type_tag(a2) == 0 || oren_type_tag(a3) == 0 { _intr_tmp_pop(ctx, base33); return true }
+    if oren_type_tag(a0) == 0 || oren_type_tag(a1) == 0 || oren_type_tag(a2) == 0 || oren_type_tag(a3) == 0 { _intr_tmp_pop(ctx, base33); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], a0)
     _intr_eval_spill_x64(ctx, locals, args[1], a1)
     _intr_eval_spill_x64(ctx, locals, args[2], a2)
     _intr_eval_spill_x64(ctx, locals, args[3], a3)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base33); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base33); return nil }
+    return {"base": base33, "epfd": a0, "op": a1, "fd": a2, "event": a3}
+}
 
+fn _x64_linux_epoll_ctl_load_capsule_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["epfd"])
+    _intr_load_x64(ctx, 6, st["op"])
+    _intr_load_x64(ctx, 2, st["fd"])
+    _intr_load_x64(ctx, 1, st["event"])
+    return nil
+}
+
+fn _x64_linux_epoll_ctl_emit_pre(ctx, st, capsule) {
+    if !capsule { return nil }
     // pre: native_capsule_sys_epoll_ctl_pre(epfd, op, fd, event_ptr)
-    _intr_load_x64(ctx, 7, a0)
-    _intr_load_x64(ctx, 6, a1)
-    _intr_load_x64(ctx, 2, a2)
-    _intr_load_x64(ctx, 1, a3)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_ctl_pre") }
+    _x64_linux_epoll_ctl_load_capsule_args(ctx, st)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_ctl_pre")
+    return nil
+}
 
-    _intr_load_x64(ctx, 7, a0)
-    _intr_load_x64(ctx, 6, a1)
-    _intr_load_x64(ctx, 2, a2)
-    _intr_load_x64(ctx, 10, a3) // arg4
+fn _x64_linux_epoll_ctl_emit_syscall(ctx, st) {
+    _intr_load_x64(ctx, 7, st["epfd"])
+    _intr_load_x64(ctx, 6, st["op"])
+    _intr_load_x64(ctx, 2, st["fd"])
+    _intr_load_x64(ctx, 10, st["event"]) // arg4
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_ctl()))
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base33)
+fn _emit_intrinsic_sys_linux_epoll_ctl_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_epoll_ctl expects 4 args"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_epoll_ctl does not support spread"); return true }
+
+    var st = _x64_linux_epoll_ctl_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_epoll_ctl_emit_pre(ctx, st, capsule)
+    _x64_linux_epoll_ctl_emit_syscall(ctx, st)
+
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

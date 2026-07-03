@@ -799,6 +799,12 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~45.9s total / ~33.2s
   parse, with `_emit_intrinsic_sys_linux_epoll_ctl_x64` (~49ms) as the next
   parser-body target.
+- X64 Linux `sys_epoll_ctl` lowering now separates four-slot state setup,
+  left-to-right argument spilling, capsule prehook argument loading, and syscall
+  emission while preserving `epfd/op/fd/event` slot order and the Linux x64
+  `rdi/rsi/rdx/r10` syscall mapping. The capped profile now shows
+  `x64_native_program.oren` at ~47.6s total / ~34.7s parse, with
+  `_x64_index_prepare` (~69ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
