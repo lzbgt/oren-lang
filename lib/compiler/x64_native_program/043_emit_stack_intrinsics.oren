@@ -53,12 +53,22 @@ fn _x64_emit_ctx_init_intrinsic(ctx, locals, args) {
 }
 
 fn _x64_emit_ctx_switch_save_gprs(ctx) {
+    _x64_emit_ctx_switch_save_low_gprs(ctx)
+    _x64_emit_ctx_switch_save_high_gprs(ctx)
+    return nil
+}
+
+fn _x64_emit_ctx_switch_save_low_gprs(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 8, 1))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 16, 2))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 24, 3))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 32, 5))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 40, 7))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 48, 6))
+    return nil
+}
+
+fn _x64_emit_ctx_switch_save_high_gprs(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 56, 8))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 64, 9))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(0, 72, 10))

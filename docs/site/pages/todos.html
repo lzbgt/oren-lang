@@ -963,6 +963,13 @@
 <p>  <code>x64_native_program.oren</code> at ~47.5s total / ~34.7s parse, with</p>
 <p>  <code>_x64_emit_ctx_switch_save_gprs</code> (~99ms) as the next parser-body target.</p>
 <ul>
+<li>X64 context-switch GPR save emission now separates low and high register save</li>
+</ul>
+<p>  groups while preserving the existing context slot layout and store order. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~49.5s total / ~36.0s</p>
+<p>  parse, with <code>_x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic</code></p>
+<p>  (~115ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

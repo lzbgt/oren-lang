@@ -3108,6 +3108,14 @@ make docs-site</code></pre>
 <p>  preserving raw clone register order. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 47.5s total / 34.7s parse, with</p>
 <p>  <code>_x64_emit_ctx_switch_save_gprs</code> exposed at about 99ms as the next parser body.</p>
+<ul>
+<li>X64 context-switch GPR save emission now separates low and high register save</li>
+</ul>
+<p>  groups while preserving the existing context slot layout and store order. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 49.5s total /</p>
+<p>  36.0s parse, with</p>
+<p>  <code>_x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic</code> exposed at about</p>
+<p>  115ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

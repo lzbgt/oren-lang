@@ -2886,6 +2886,12 @@ make docs-site
   preserving raw clone register order. The capped profile now shows
   `x64_native_program.oren` at about 47.5s total / 34.7s parse, with
   `_x64_emit_ctx_switch_save_gprs` exposed at about 99ms as the next parser body.
+- X64 context-switch GPR save emission now separates low and high register save
+  groups while preserving the existing context slot layout and store order. The
+  capped profile now shows `x64_native_program.oren` at about 49.5s total /
+  36.0s parse, with
+  `_x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic` exposed at about
+  115ms as the next parser body.
 
 ## Documentation Guardrail
 
