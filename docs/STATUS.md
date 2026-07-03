@@ -2940,6 +2940,12 @@ make docs-site
   table layout. The capped profile now shows `x64_native_program.oren` at about
   53.3s total / 38.3s parse, with `_x64_call_name_is_float_trig` exposed at
   about 171ms as the next parser body.
+- X64 float trig call-name classification now separates hyperbolic,
+  error/special constant, circular, and inverse/geometry alias families while
+  preserving the public floaty-call predicate. The capped profile now shows
+  `x64_native_program.oren` at about 46.8s total / 34.2s parse, with
+  `_x64_win_entry_args_emit_query_required` exposed at about 54ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

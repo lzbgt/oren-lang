@@ -129,13 +129,17 @@ fn _x64_call_name_is_float_exp_log(nm) {
     return false
 }
 
-fn _x64_call_name_is_float_trig(nm) {
+fn _x64_call_name_is_float_hyperbolic(nm) {
     if _x64_name_is_or_has_suffix(nm, "sinh", "_sinh") { return true }
     if _x64_name_is_or_has_suffix(nm, "cosh", "_cosh") { return true }
     if _x64_name_is_or_has_suffix(nm, "tanh", "_tanh") { return true }
     if _x64_name_is_or_has_suffix(nm, "asinh", "_asinh") { return true }
     if _x64_name_is_or_has_suffix(nm, "acosh", "_acosh") { return true }
     if _x64_name_is_or_has_suffix(nm, "atanh", "_atanh") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_error_special(nm) {
     if _x64_name_is_or_has_suffix(nm, "_erfc_positive_approx", "_erfc_positive_approx") { return true }
     if _x64_name_is_or_has_suffix(nm, "erfc", "_erfc") { return true }
     if _x64_name_is_or_has_suffix(nm, "erf", "_erf") { return true }
@@ -143,14 +147,30 @@ fn _x64_call_name_is_float_trig(nm) {
     if _x64_name_is_or_has_suffix(nm, "tau", "_tau") { return true }
     if _x64_name_is_or_has_suffix(nm, "nan", "_nan") { return true }
     if _x64_name_is_or_has_suffix(nm, "inf", "_inf") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_circular(nm) {
     if _x64_name_is_or_has_suffix(nm, "sin", "_sin") { return true }
     if _x64_name_is_or_has_suffix(nm, "cos", "_cos") { return true }
     if _x64_name_is_or_has_suffix(nm, "tan", "_tan") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_inverse_geometry(nm) {
     if _x64_name_is_or_has_suffix(nm, "atan", "_atan") { return true }
     if _x64_name_is_or_has_suffix(nm, "atan2", "_atan2") { return true }
     if _x64_name_is_or_has_suffix(nm, "asin", "_asin") { return true }
     if _x64_name_is_or_has_suffix(nm, "acos", "_acos") { return true }
     if _x64_name_is_or_has_suffix(nm, "hypot", "_hypot") { return true }
+    return false
+}
+
+fn _x64_call_name_is_float_trig(nm) {
+    if _x64_call_name_is_float_hyperbolic(nm) { return true }
+    if _x64_call_name_is_float_error_special(nm) { return true }
+    if _x64_call_name_is_float_circular(nm) { return true }
+    if _x64_call_name_is_float_inverse_geometry(nm) { return true }
     return false
 }
 

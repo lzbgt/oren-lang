@@ -1031,6 +1031,14 @@
 <p>  ~53.3s total / ~38.3s parse, with <code>_x64_call_name_is_float_trig</code> (~171ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>X64 float trig call-name classification now separates hyperbolic,</li>
+</ul>
+<p>  error/special constant, circular, and inverse/geometry alias families while</p>
+<p>  preserving the public floaty-call predicate. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~46.8s total / ~34.2s parse, with</p>
+<p>  <code>_x64_win_entry_args_emit_query_required</code> (~54ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

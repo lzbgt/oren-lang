@@ -728,6 +728,12 @@ design evidence lives under `project-doc/`.
   table layout. The capped profile now shows `x64_native_program.oren` at
   ~53.3s total / ~38.3s parse, with `_x64_call_name_is_float_trig` (~171ms) as
   the next parser-body target.
+- X64 float trig call-name classification now separates hyperbolic,
+  error/special constant, circular, and inverse/geometry alias families while
+  preserving the public floaty-call predicate. The capped profile now shows
+  `x64_native_program.oren` at ~46.8s total / ~34.2s parse, with
+  `_x64_win_entry_args_emit_query_required` (~54ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
