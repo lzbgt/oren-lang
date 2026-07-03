@@ -1592,6 +1592,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  packing while preserving the vector/scalar emitter state map. The capped
 																																																																																									  profile now shows `x64_native_program.oren` at about 44.9s total / 32.9s parse,
 																																																																																									  with `_x64_expr_uses_ident` exposed at about 56ms as the next parser body.
+																																																																																									  X64 expression identifier-use scanning now separates list, hash, pair, and
+																																																																																									  call recursion helpers while preserving conservative unknown-shape dependency
+																																																																																									  behavior for fast-loop matching. The capped profile now shows
+																																																																																									  `x64_native_program.oren` at about 44.5s total / 32.4s parse, with
+																																																																																									  `_x64_fast_lcg_emit_unsigned_step` exposed at about 54ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial

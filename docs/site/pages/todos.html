@@ -691,6 +691,13 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~44.9s total / ~32.9s parse,</p>
 <p>  with <code>_x64_expr_uses_ident</code> (~56ms) as the next parser-body target.</p>
 <ul>
+<li>X64 expression identifier-use scanning now separates list, hash, pair, and</li>
+</ul>
+<p>  call recursion helpers while preserving conservative unknown-shape dependency</p>
+<p>  behavior for fast-loop matching. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~44.5s total / ~32.4s parse, with</p>
+<p>  <code>_x64_fast_lcg_emit_unsigned_step</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

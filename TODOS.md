@@ -480,6 +480,11 @@ design evidence lives under `project-doc/`.
   packing while preserving the vector/scalar emitter state map. The capped
   profile now shows `x64_native_program.oren` at ~44.9s total / ~32.9s parse,
   with `_x64_expr_uses_ident` (~56ms) as the next parser-body target.
+- X64 expression identifier-use scanning now separates list, hash, pair, and
+  call recursion helpers while preserving conservative unknown-shape dependency
+  behavior for fast-loop matching. The capped profile now shows
+  `x64_native_program.oren` at ~44.5s total / ~32.4s parse, with
+  `_x64_fast_lcg_emit_unsigned_step` (~54ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -14,52 +14,47 @@ fn _x64_list_contains(xs, value) {
     return false
 }
 
+fn _x64_expr_list_uses_ident(xs, name) {
+    var i = 0
+    while i < oren_list_len(xs) {
+        if _x64_expr_uses_ident(xs[i], name) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_expr_hash_uses_ident(ps, name) {
+    var i = 0
+    while i < oren_list_len(ps) {
+        if _x64_expr_uses_ident(ps[i]["key"], name) { return true }
+        if _x64_expr_uses_ident(ps[i]["value"], name) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_expr_pair_uses_ident(exp, name, left_key, right_key) {
+    if _x64_expr_uses_ident(exp[left_key], name) { return true }
+    return _x64_expr_uses_ident(exp[right_key], name)
+}
+
+fn _x64_expr_call_uses_ident(exp, name) {
+    if _x64_expr_uses_ident(exp["fn"], name) { return true }
+    return _x64_expr_list_uses_ident(exp["args"], name)
+}
+
 fn _x64_expr_uses_ident(exp, name) {
     if exp == nil || name == nil { return false }
     var et = exp["type"]
     if et == "Identifier" { return _x64_str_eq_bytes(exp["value"], name) }
     if et == "Integer" || et == "Float" || et == "String" || et == "Boolean" || et == "Nil" { return false }
     if et == "Prefix" { return _x64_expr_uses_ident(exp["right"], name) }
-    if et == "Infix" {
-        if _x64_expr_uses_ident(exp["left"], name) { return true }
-        return _x64_expr_uses_ident(exp["right"], name)
-    }
-    if et == "Call" {
-        if _x64_expr_uses_ident(exp["fn"], name) { return true }
-        var args = exp["args"]
-        var i = 0
-        while i < oren_list_len(args) {
-            if _x64_expr_uses_ident(args[i], name) { return true }
-            i = i + 1
-        }
-        return false
-    }
-    if et == "Member" {
-        return _x64_expr_uses_ident(exp["left"], name)
-    }
-    if et == "Index" {
-        if _x64_expr_uses_ident(exp["left"], name) { return true }
-        return _x64_expr_uses_ident(exp["index"], name)
-    }
-    if et == "Array" {
-        var xs = exp["elements"]
-        var j = 0
-        while j < oren_list_len(xs) {
-            if _x64_expr_uses_ident(xs[j], name) { return true }
-            j = j + 1
-        }
-        return false
-    }
-    if et == "Hash" {
-        var ps = exp["pairs"]
-        var k = 0
-        while k < oren_list_len(ps) {
-            if _x64_expr_uses_ident(ps[k]["key"], name) { return true }
-            if _x64_expr_uses_ident(ps[k]["value"], name) { return true }
-            k = k + 1
-        }
-        return false
-    }
+    if et == "Infix" { return _x64_expr_pair_uses_ident(exp, name, "left", "right") }
+    if et == "Call" { return _x64_expr_call_uses_ident(exp, name) }
+    if et == "Member" { return _x64_expr_uses_ident(exp["left"], name) }
+    if et == "Index" { return _x64_expr_pair_uses_ident(exp, name, "left", "index") }
+    if et == "Array" { return _x64_expr_list_uses_ident(exp["elements"], name) }
+    if et == "Hash" { return _x64_expr_hash_uses_ident(exp["pairs"], name) }
     if et == "If" || et == "Function" { return true }
     return true
 }
