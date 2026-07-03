@@ -3155,6 +3155,14 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 59.8s total / 44.4s parse, with</p>
 <p>  <code>_x64_match_fast_dot_accumulate_body</code> exposed at about 206ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 fast dot-product matcher accumulation now separates sum-name validation,</li>
+</ul>
+<p>  inty guards, list-local checks, unique-list recording, and multiply-pair</p>
+<p>  recording while preserving LIST and LIST_INT matcher behavior. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 57.5s total / 40.5s</p>
+<p>  parse, with <code>_x64_prepare_injected_runtime_statement_sets</code> exposed at about</p>
+<p>  202ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

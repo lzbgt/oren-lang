@@ -729,35 +729,66 @@ fn _x64_match_fast_dot_step(ctx, body, i, idx_name, locals, use_list_int) {
     return _x64_match_sum_add_list_mul_get_step(ctx, body, i, idx_name, locals)
 }
 
+fn _x64_match_fast_dot_sum_name(sum_name, info) {
+    if sum_name == nil { return info["sum"] }
+    if _x64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
+    return sum_name
+}
+
+fn _x64_match_fast_dot_validate_sum(ctx, locals, sum_name, step, use_list_int) {
+    if oren_type_tag(locals[sum_name]) == 0 { return false }
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return false }
+    if use_list_int == true && step["sum_expr_inty_ok"] != true && _x64_expr_is_inty(ctx, step["sum_op"]["expr"]) != true { return false }
+    return true
+}
+
+fn _x64_match_fast_dot_validate_lists(locals, info) {
+    var left_list = info["left"]
+    var right_list = info["right"]
+    if oren_type_tag(locals[left_list]) == 0 || oren_type_tag(locals[right_list]) == 0 { return false }
+    return true
+}
+
+fn _x64_match_fast_dot_record_lists(lists, info) {
+    var left_list = info["left"]
+    var right_list = info["right"]
+    if _x64_list_contains(lists, left_list) == false { oren_list_push(lists, left_list) }
+    if _x64_list_contains(lists, right_list) == false { oren_list_push(lists, right_list) }
+    return nil
+}
+
+fn _x64_match_fast_dot_record_mul(muls, info) {
+    oren_list_push(muls, {"left": info["left"], "right": info["right"]})
+    return nil
+}
+
+fn _x64_match_fast_dot_accumulate_step(ctx, locals, state, step, use_list_int) {
+    var info = step["info"]
+    var sum_name = _x64_match_fast_dot_sum_name(state["sum"], info)
+    if sum_name == nil { return nil }
+    if _x64_match_fast_dot_validate_sum(ctx, locals, sum_name, step, use_list_int) != true { return nil }
+    if _x64_match_fast_dot_validate_lists(locals, info) != true { return nil }
+    _x64_match_fast_dot_record_lists(state["lists"], info)
+    _x64_match_fast_dot_record_mul(state["muls"], info)
+    state["sum"] = sum_name
+    return state
+}
+
 fn _x64_match_fast_dot_accumulate_body(ctx, locals, loop, use_list_int) {
     var body = loop["body"]
     var idx_name = loop["idx"]
     var n = loop["body_n"]
-    var sum_name = nil
-    var lists = []
-    var muls = []
+    var state = {"sum": nil, "lists": [], "muls": []}
     var i = 0
     while i < n - 1 {
         var step = _x64_match_fast_dot_step(ctx, body, i, idx_name, locals, use_list_int)
         if step == nil { return nil }
-        var info = step["info"]
-        var sum_op = step["sum_op"]
-        if sum_name == nil { sum_name = info["sum"] }
-        else if _x64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
-        if oren_type_tag(locals[sum_name]) == 0 { return nil }
-        if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
-        if use_list_int == true && step["sum_expr_inty_ok"] != true && _x64_expr_is_inty(ctx, sum_op["expr"]) != true { return nil }
-        var left_list = info["left"]
-        var right_list = info["right"]
-        if oren_type_tag(locals[left_list]) == 0 || oren_type_tag(locals[right_list]) == 0 { return nil }
-        if _x64_list_contains(lists, left_list) == false { oren_list_push(lists, left_list) }
-        if _x64_list_contains(lists, right_list) == false { oren_list_push(lists, right_list) }
-        oren_list_push(muls, {"left": left_list, "right": right_list})
+        if _x64_match_fast_dot_accumulate_step(ctx, locals, state, step, use_list_int) == nil { return nil }
         i = step["next_i"]
     }
-    if sum_name == nil { return nil }
-    if oren_list_len(muls) == 0 { return nil }
-    return {"sum": sum_name, "lists": lists, "muls": muls}
+    if state["sum"] == nil { return nil }
+    if oren_list_len(state["muls"]) == 0 { return nil }
+    return {"sum": state["sum"], "lists": state["lists"], "muls": state["muls"]}
 }
 
 fn _x64_match_fast_dot_while(ctx, op, locals, use_list_int) {

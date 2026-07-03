@@ -1007,6 +1007,14 @@
 <p>  <code>x64_native_program.oren</code> at ~59.8s total / ~44.4s parse, with</p>
 <p>  <code>_x64_match_fast_dot_accumulate_body</code> (~206ms) as the next parser-body target.</p>
 <ul>
+<li>X64 fast dot-product matcher accumulation now separates sum-name validation,</li>
+</ul>
+<p>  inty guards, list-local checks, unique-list recording, and multiply-pair</p>
+<p>  recording while preserving LIST and LIST_INT matcher behavior. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~57.5s total / ~40.5s parse,</p>
+<p>  with <code>_x64_prepare_injected_runtime_statement_sets</code> (~202ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

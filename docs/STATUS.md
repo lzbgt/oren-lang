@@ -2921,6 +2921,12 @@ make docs-site
   `x64_native_program.oren` at about 59.8s total / 44.4s parse, with
   `_x64_match_fast_dot_accumulate_body` exposed at about 206ms as the next
   parser body.
+- X64 fast dot-product matcher accumulation now separates sum-name validation,
+  inty guards, list-local checks, unique-list recording, and multiply-pair
+  recording while preserving LIST and LIST_INT matcher behavior. The capped
+  profile now shows `x64_native_program.oren` at about 57.5s total / 40.5s
+  parse, with `_x64_prepare_injected_runtime_statement_sets` exposed at about
+  202ms as the next parser body.
 
 ## Documentation Guardrail
 

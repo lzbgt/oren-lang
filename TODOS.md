@@ -710,6 +710,12 @@ design evidence lives under `project-doc/`.
   public floaty-call predicate. The capped profile now shows
   `x64_native_program.oren` at ~59.8s total / ~44.4s parse, with
   `_x64_match_fast_dot_accumulate_body` (~206ms) as the next parser-body target.
+- X64 fast dot-product matcher accumulation now separates sum-name validation,
+  inty guards, list-local checks, unique-list recording, and multiply-pair
+  recording while preserving LIST and LIST_INT matcher behavior. The capped
+  profile now shows `x64_native_program.oren` at ~57.5s total / ~40.5s parse,
+  with `_x64_prepare_injected_runtime_statement_sets` (~202ms) as the next
+  parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
