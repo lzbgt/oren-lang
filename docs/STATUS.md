@@ -2731,6 +2731,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 48.6s total /
   36.1s parse, with `_emit_index_expr_v0` exposed at about 123ms as the next
   parser body.
+- X64 index expression lowering now separates dynamic label state, nil-container
+  guard emission, optional assume-list fast-path emission, and dynamic list/map
+  path emission while preserving temp cleanup and patch order. The capped
+  profile now shows `x64_native_program.oren` at about 45.0s total / 32.8s
+  parse, with `_x64_finalize_program_data` exposed at about 54ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

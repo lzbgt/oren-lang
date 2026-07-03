@@ -763,6 +763,13 @@
 <p>  capped profile now shows <code>x64_native_program.oren</code> at ~48.6s total / ~36.1s</p>
 <p>  parse, with <code>_emit_index_expr_v0</code> (~123ms) as the next parser-body target.</p>
 <ul>
+<li>X64 index expression lowering now separates dynamic label state, nil-container</li>
+</ul>
+<p>  guard emission, optional assume-list fast-path emission, and dynamic list/map</p>
+<p>  path emission while preserving temp cleanup and patch order. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~45.0s total / ~32.8s parse, with</p>
+<p>  <code>_x64_finalize_program_data</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

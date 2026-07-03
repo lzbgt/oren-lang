@@ -328,6 +328,50 @@ fn _x64_index_emit_map_path(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, lab
     return nil
 }
 
+fn _x64_index_dynamic_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "l_is_list": _new_label(ctx, "idx_is_list"),
+        "l_is_map": _new_label(ctx, "idx_is_map"),
+        "l_idx_done": _new_label(ctx, "idx_done")
+    }
+}
+
+fn _x64_index_emit_nil_guard(ctx, tmp0, labels, local_fixups) {
+    // list -> rdx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
+
+    // If container is nil, panic deterministically.
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
+    var l_list_ok = _new_label(ctx, "idx_list_non_nil")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
+    _emit_abort_panic_str(ctx, "Indexing on nil")
+    _emit_label(ctx, labels, l_list_ok)
+    return nil
+}
+
+fn _x64_index_emit_assume_list_if_enabled(ctx, recv_kind, tmp_idx, labels, local_fixups, l_idx_done) {
+    if (recv_kind == "list" || recv_kind == "list_int") && _native_assume_list_index_enabled() == true {
+        _x64_index_emit_assume_list_fast(ctx, labels, local_fixups, tmp_idx, l_idx_done)
+    }
+    return nil
+}
+
+fn _x64_index_emit_dynamic_paths(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0, state) {
+    var labels = state["labels"]
+    var local_fixups = state["local_fixups"]
+    var l_is_list = state["l_is_list"]
+    var l_is_map = state["l_is_map"]
+    var l_idx_done = state["l_idx_done"]
+
+    _x64_index_emit_kind_dispatch(ctx, recv_kind, tmp0, base0, labels, local_fixups, l_is_list, l_is_map)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _x64_index_emit_list_path(ctx, tmp_idx, labels, local_fixups, l_is_list, l_idx_done)
+    _x64_index_emit_map_path(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, labels, local_fixups, l_is_map, l_idx_done)
+    return true
+}
+
 fn _emit_index_expr_v0(ctx, expr, locals) {
     // Index expression `xs[i]`.
     //
@@ -342,33 +386,13 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
 
     if _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) != false { return nil }
 
-    // list -> rdx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
+    var dyn = _x64_index_dynamic_labels(ctx)
+    _x64_index_emit_nil_guard(ctx, tmp0, dyn["labels"], dyn["local_fixups"])
+    _x64_index_emit_assume_list_if_enabled(ctx, recv_kind, tmp_idx, dyn["labels"], dyn["local_fixups"], dyn["l_idx_done"])
+    if _x64_index_emit_dynamic_paths(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0, dyn) != true { return nil }
 
-    // If container is nil, panic deterministically.
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
-    var labels = {}
-    var local_fixups = []
-    var l_list_ok = _new_label(ctx, "idx_list_non_nil")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
-    _emit_abort_panic_str(ctx, "Indexing on nil")
-    _emit_label(ctx, labels, l_list_ok)
-
-    var l_is_list = _new_label(ctx, "idx_is_list")
-    var l_is_map = _new_label(ctx, "idx_is_map")
-    var l_idx_done = _new_label(ctx, "idx_done")
-
-    if (recv_kind == "list" || recv_kind == "list_int") && _native_assume_list_index_enabled() == true {
-        _x64_index_emit_assume_list_fast(ctx, labels, local_fixups, tmp_idx, l_idx_done)
-    }
-
-    _x64_index_emit_kind_dispatch(ctx, recv_kind, tmp0, base0, labels, local_fixups, l_is_list, l_is_map)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    _x64_index_emit_list_path(ctx, tmp_idx, labels, local_fixups, l_is_list, l_idx_done)
-    _x64_index_emit_map_path(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, labels, local_fixups, l_is_map, l_idx_done)
-
-    _emit_label(ctx, labels, l_idx_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+    _emit_label(ctx, dyn["labels"], dyn["l_idx_done"])
+    _patch_local_fixups(ctx, dyn["labels"], dyn["local_fixups"])
     _intr_tmp_pop(ctx, base0)
     return nil
 }
