@@ -1015,6 +1015,14 @@
 <p>  with <code>_x64_prepare_injected_runtime_statement_sets</code> (~202ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>X64 injected runtime statement-set preparation now lives in a dedicated</li>
+</ul>
+<p>  program-entry fragment with separate runtime bundle options, bundle prepare,</p>
+<p>  statement-list normalization, and result packing helpers. <code>090_tail.oren</code></p>
+<p>  drops below the source ceiling with more room, and the capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~45.0s total / ~32.6s parse, with</p>
+<p>  <code>_x64_string_batch_append_one_data</code> (~49ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

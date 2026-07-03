@@ -716,6 +716,12 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~57.5s total / ~40.5s parse,
   with `_x64_prepare_injected_runtime_statement_sets` (~202ms) as the next
   parser-body target.
+- X64 injected runtime statement-set preparation now lives in a dedicated
+  program-entry fragment with separate runtime bundle options, bundle prepare,
+  statement-list normalization, and result packing helpers. `090_tail.oren`
+  drops below the source ceiling with more room, and the capped profile now
+  shows `x64_native_program.oren` at ~45.0s total / ~32.6s parse, with
+  `_x64_string_batch_append_one_data` (~49ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

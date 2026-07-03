@@ -3163,6 +3163,15 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 57.5s total / 40.5s</p>
 <p>  parse, with <code>_x64_prepare_injected_runtime_statement_sets</code> exposed at about</p>
 <p>  202ms as the next parser body.</p>
+<ul>
+<li>X64 injected runtime statement-set preparation now lives in a dedicated</li>
+</ul>
+<p>  program-entry fragment with separate runtime bundle options, bundle prepare,</p>
+<p>  statement-list normalization, and result packing helpers. <code>090_tail.oren</code></p>
+<p>  drops below the source ceiling with more room, and the capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 45.0s total / 32.6s parse, with</p>
+<p>  <code>_x64_string_batch_append_one_data</code> exposed at about 49ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
