@@ -116,42 +116,67 @@ fn _x64_call_depth_default_enabled(platform) {
     return true
 }
 
+fn _x64_function_param_count(params) {
+    if params == nil { return 0 }
+    return oren_list_len(params)
+}
+
+fn _x64_bind_function_param_slot(ctx, locals, pnm, local_next) {
+    if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return -1 }
+    locals[pnm] = local_next
+    return local_next + 8
+}
+
+fn _x64_mark_declared_param_kind(ctx, pnm, ann) {
+    if ann == nil { return nil }
+    if ctx["locals_floaty"] != nil {
+        if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
+    }
+    if ctx["locals_inty"] != nil {
+        if ann == "i32" || ann == "i64" { ctx["locals_inty"][pnm] = true }
+    }
+    return nil
+}
+
+fn _x64_get_inferred_param_kind(ctx, name, pk) {
+    var inferred_floaty = nil
+    var inferred_inty = nil
+    if ctx["func_param_floaty"] != nil && ctx["func_param_floaty"][name] != nil {
+        inferred_floaty = ctx["func_param_floaty"][name][pk]
+    }
+    if ctx["func_param_inty"] != nil && ctx["func_param_inty"][name] != nil {
+        inferred_inty = ctx["func_param_inty"][name][pk]
+    }
+    return {"floaty": inferred_floaty, "inty": inferred_inty}
+}
+
+fn _x64_mark_inferred_param_kind(ctx, pnm, inferred) {
+    if inferred["floaty"] == true {
+        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][pnm] = true }
+    } else if inferred["inty"] == true {
+        if ctx["locals_inty"] != nil { ctx["locals_inty"][pnm] = true }
+    }
+    return nil
+}
+
+fn _x64_prepare_one_function_param(ctx, name, locals, local_next, p, i) {
+    var pnm = p["value"]
+    local_next = _x64_bind_function_param_slot(ctx, locals, pnm, local_next)
+    if local_next < 0 { return -1 }
+    _x64_mark_declared_param_kind(ctx, pnm, p["ann_type"])
+    var pk = oren_int_to_string(i)
+    _x64_mark_inferred_param_kind(ctx, pnm, _x64_get_inferred_param_kind(ctx, name, pk))
+    return local_next
+}
+
 fn _x64_prepare_function_params(ctx, fn_node, name, locals) {
     var local_next = 8
     var params = fn_node["params"]
-    var pc = 0
-    if params != nil { pc = oren_list_len(params) }
+    var pc = _x64_function_param_count(params)
     var i = 0
     while i < pc {
-        var p = params[i]
-        var pnm = p["value"]
-        if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return nil }
-        locals[pnm] = local_next
-        local_next = local_next + 8
-
-        var ann = p["ann_type"]
-        if ann != nil {
-            if ctx["locals_floaty"] != nil {
-                if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
-            }
-            if ctx["locals_inty"] != nil {
-                if ann == "i32" || ann == "i64" { ctx["locals_inty"][pnm] = true }
-            }
-        }
-        var pk = oren_int_to_string(i)
-        var inferred_floaty = nil
-        var inferred_inty = nil
-        if ctx["func_param_floaty"] != nil && ctx["func_param_floaty"][name] != nil {
-            inferred_floaty = ctx["func_param_floaty"][name][pk]
-        }
-        if ctx["func_param_inty"] != nil && ctx["func_param_inty"][name] != nil {
-            inferred_inty = ctx["func_param_inty"][name][pk]
-        }
-        if inferred_floaty == true {
-            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][pnm] = true }
-        } else if inferred_inty == true {
-            if ctx["locals_inty"] != nil { ctx["locals_inty"][pnm] = true }
-        }
+        local_next = _x64_prepare_one_function_param(ctx, name, locals, local_next, params[i], i)
+        if local_next < 0 { return nil }
         i = i + 1
     }
     return {"params": params, "pc": pc, "local_next": local_next}

@@ -2979,6 +2979,12 @@ make docs-site
   or graph data. The capped profile now shows `x64_native_program.oren` at
   about 46.9s total / 33.5s parse, with `_x64_prepare_function_params` exposed
   at about 57ms as the next parser body.
+- X64 function parameter preparation now separates parameter counting, slot
+  binding, declared annotation marking, inferred-kind lookup, and per-parameter
+  orchestration while preserving duplicate detection and slot order. The capped
+  profile now shows `x64_native_program.oren` at about 52.2s total / 38.4s
+  parse, with `_x64_list_int_push_spill_args` exposed at about 126ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

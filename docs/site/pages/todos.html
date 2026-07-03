@@ -1083,6 +1083,13 @@
 <p>  ~46.9s total / ~33.5s parse, with <code>_x64_prepare_function_params</code> (~57ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>X64 function parameter preparation now separates parameter counting, slot</li>
+</ul>
+<p>  binding, declared annotation marking, inferred-kind lookup, and per-parameter</p>
+<p>  orchestration while preserving duplicate detection and slot order. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~52.2s total / ~38.4s parse,</p>
+<p>  with <code>_x64_list_int_push_spill_args</code> (~126ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
