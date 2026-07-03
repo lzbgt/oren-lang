@@ -2852,6 +2852,11 @@ make docs-site
   `__top_level__` compilation while preserving timing keys. The capped profile
   now shows `x64_native_program.oren` at about 62.8s total / 45.6s parse, with
   `_data_finalize_linetab` exposed at about 71ms as the next parser body.
+- X64 line-table finalization now separates finalization validation, reserved
+  header clearing, valid-entry collection, deterministic descending sort, and
+  table serialization while preserving linetab layout. The capped profile now
+  shows `x64_native_program.oren` at about 45.1s total / 32.9s parse, with
+  `_x64_rtobj_synthesize_wrappers` exposed at about 52ms as the next parser body.
 
 ## Documentation Guardrail
 

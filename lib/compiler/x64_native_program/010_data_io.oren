@@ -647,20 +647,38 @@ fn _data_reserve_linetab(ctx, cap_entries) {
 
 fn _data_finalize_linetab(ctx) {
     // Fill the reserved linetab region (see `_data_reserve_linetab`).
-    if ctx == nil { return nil }
+    if _data_linetab_can_finalize(ctx) != 1 { return nil }
+    var linetab_off = ctx["linetab_off"]
+    var cap_entries = ctx["linetab_cap"]
+    _data_linetab_clear_header(ctx, linetab_off)
+
+    var entries = _data_linetab_collect_entries(ctx["linetab_entries"])
+    _data_linetab_sort_desc(entries)
+    _data_linetab_write_entries(ctx, linetab_off, cap_entries, entries)
+    return nil
+}
+
+fn _data_linetab_can_finalize(ctx) {
+    if ctx == nil { return 0 }
     var linetab_off = ctx["linetab_off"]
     var cap_entries = ctx["linetab_cap"]
     var entries_in = ctx["linetab_entries"]
-    if oren_type_tag(linetab_off) != 1 { return nil }
-    if linetab_off <= 0 { return nil }
-    if oren_type_tag(cap_entries) != 1 { return nil }
-    if cap_entries <= 0 { return nil }
-    if entries_in == nil { return nil }
+    if oren_type_tag(linetab_off) != 1 { return 0 }
+    if linetab_off <= 0 { return 0 }
+    if oren_type_tag(cap_entries) != 1 { return 0 }
+    if cap_entries <= 0 { return 0 }
+    if entries_in == nil { return 0 }
+    return 1
+}
 
+fn _data_linetab_clear_header(ctx, linetab_off) {
     // Header patched after we know how many entries we wrote.
     set_u32_le(ctx["data"], linetab_off + 0, 0)
     set_u32_le(ctx["data"], linetab_off + 4, 0)
+    return nil
+}
 
+fn _data_linetab_collect_entries(entries_in) {
     // Copy entries then sort descending by off.
     // Descending order lets runtime resolution pick the closest preceding entry via:
     //   if off_target >= entry.off { return entry.loc }
@@ -673,7 +691,10 @@ fn _data_finalize_linetab(ctx) {
         }
         i = i + 1
     }
+    return entries
+}
 
+fn _data_linetab_sort_desc(entries) {
     // Insertion sort (descending by off). Small N expected; keep deterministic.
     var si = 1
     while si < oren_list_len(entries) {
@@ -688,7 +709,10 @@ fn _data_finalize_linetab(ctx) {
         entries[k + 1] = key
         si = si + 1
     }
+    return nil
+}
 
+fn _data_linetab_write_entries(ctx, linetab_off, cap_entries, entries) {
     var write_n = oren_list_len(entries)
     if write_n > cap_entries { write_n = cap_entries }
     set_u32_le(ctx["data"], linetab_off + 0, write_n)
