@@ -2996,6 +2996,12 @@ make docs-site
   ptr-reg-to-r10 safety contract and rdx length output. The capped profile now
   shows `x64_native_program.oren` at about 55.6s total / 39.7s parse, with
   `_x64_rtobj_compile_wrappers` exposed at about 188ms as the next parser body.
+- X64 runtime-object wrapper compilation now separates wrapper compile state,
+  phase-log start/progress/done emission, per-wrapper compile/error handling,
+  and trace-decl accounting while preserving wrapper order and top-decl
+  accumulation. The capped profile now shows `x64_native_program.oren` at about
+  48.9s total / 35.4s parse, with `_x64_emit_ffi_stubs` exposed at about 162ms
+  as the next parser body.
 
 ## Documentation Guardrail
 

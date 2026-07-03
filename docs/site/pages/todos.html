@@ -1105,6 +1105,14 @@
 <p>  shows <code>x64_native_program.oren</code> at ~55.6s total / ~39.7s parse, with</p>
 <p>  <code>_x64_rtobj_compile_wrappers</code> (~188ms) as the next parser-body target.</p>
 <ul>
+<li>X64 runtime-object wrapper compilation now separates wrapper compile state,</li>
+</ul>
+<p>  phase-log start/progress/done emission, per-wrapper compile/error handling,</p>
+<p>  and trace-decl accounting while preserving wrapper order and top-decl</p>
+<p>  accumulation. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~48.9s total / ~35.4s parse, with <code>_x64_emit_ffi_stubs</code> (~162ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

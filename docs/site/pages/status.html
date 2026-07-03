@@ -3256,6 +3256,14 @@ make docs-site</code></pre>
 <p>  ptr-reg-to-r10 safety contract and rdx length output. The capped profile now</p>
 <p>  shows <code>x64_native_program.oren</code> at about 55.6s total / 39.7s parse, with</p>
 <p>  <code>_x64_rtobj_compile_wrappers</code> exposed at about 188ms as the next parser body.</p>
+<ul>
+<li>X64 runtime-object wrapper compilation now separates wrapper compile state,</li>
+</ul>
+<p>  phase-log start/progress/done emission, per-wrapper compile/error handling,</p>
+<p>  and trace-decl accounting while preserving wrapper order and top-decl</p>
+<p>  accumulation. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  48.9s total / 35.4s parse, with <code>_x64_emit_ffi_stubs</code> exposed at about 162ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

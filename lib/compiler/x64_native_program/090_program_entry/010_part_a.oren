@@ -811,42 +811,90 @@ fn _x64_rtobj_append_lambda_wrappers(ctx, wrappers) {
 }
 
 fn _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {
-    var sum_decl_ns = 0
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.start",
-            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
-    }
+    var state = _x64_rtobj_compile_wrapper_state(ctx, wrappers, platform, call_depth_default_enabled,
+        trace_decls, top_decls, top_keep, phase_log, trace)
+    _x64_rtobj_log_wrappers_start(state)
     var j = 0
     while j < oren_list_len(wrappers) {
-        if phase_log != nil && j > 0 && core.int_mod(j, 250) == 0 {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.progress",
-                "i=" + oren_int_to_string(j) +
-                " total=" + oren_int_to_string(oren_list_len(wrappers)))
-        }
-        var t_decl1 = 0
-        if trace_decls { t_decl1 = oren_time_now_ns() }
-        _compile_function_v0(ctx, wrappers[j], platform, false, call_depth_default_enabled)
-        if trace_decls {
-            var dt_decl1 = oren_time_now_ns() - t_decl1
-            sum_decl_ns = sum_decl_ns + dt_decl1
-            if top_decls == nil { top_decls = [] }
-            top_decls = _x64_rtobj_keep_top_decl(top_decls, top_keep, {
-                "ns": dt_decl1,
-                "type": "Wrapper",
-                "name": _x64_rtobj_decl_display_name(wrappers[j])
-            })
-        }
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-            if trace { print("[rtobj] x64 build failed (compile wrapper): " + ctx["errors"][0]) }
+        _x64_rtobj_log_wrappers_progress(state, j)
+        if _x64_rtobj_compile_one_wrapper(state, j) != 1 {
             return nil
         }
         j = j + 1
     }
+    _x64_rtobj_log_wrappers_done(state)
+    return {"sum_decl_ns": state["sum_decl_ns"], "top_decls": state["top_decls"]}
+}
+
+fn _x64_rtobj_compile_wrapper_state(ctx, wrappers, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {
+    return {
+        "ctx": ctx,
+        "wrappers": wrappers,
+        "platform": platform,
+        "call_depth_default_enabled": call_depth_default_enabled,
+        "trace_decls": trace_decls,
+        "top_decls": top_decls,
+        "top_keep": top_keep,
+        "phase_log": phase_log,
+        "trace": trace,
+        "sum_decl_ns": 0
+    }
+}
+
+fn _x64_rtobj_log_wrappers_start(state) {
+    var phase_log = state["phase_log"]
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.start",
+            "wrappers=" + oren_int_to_string(oren_list_len(state["wrappers"])))
+    }
+    return nil
+}
+
+fn _x64_rtobj_log_wrappers_progress(state, j) {
+    var phase_log = state["phase_log"]
+    if phase_log != nil && j > 0 && core.int_mod(j, 250) == 0 {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.progress",
+            "i=" + oren_int_to_string(j) +
+            " total=" + oren_int_to_string(oren_list_len(state["wrappers"])))
+    }
+    return nil
+}
+
+fn _x64_rtobj_compile_one_wrapper(state, j) {
+    var ctx = state["ctx"]
+    var wrappers = state["wrappers"]
+    var trace_decls = state["trace_decls"] == true
+    var t_decl1 = 0
+    if trace_decls { t_decl1 = oren_time_now_ns() }
+    _compile_function_v0(ctx, wrappers[j], state["platform"], false, state["call_depth_default_enabled"])
+    if trace_decls { _x64_rtobj_record_wrapper_decl_trace(state, wrappers[j], t_decl1) }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        if state["trace"] { print("[rtobj] x64 build failed (compile wrapper): " + ctx["errors"][0]) }
+        return 0
+    }
+    return 1
+}
+
+fn _x64_rtobj_record_wrapper_decl_trace(state, wrapper, t_decl1) {
+    var dt_decl1 = oren_time_now_ns() - t_decl1
+    state["sum_decl_ns"] = state["sum_decl_ns"] + dt_decl1
+    var top_decls = state["top_decls"]
+    if top_decls == nil { top_decls = [] }
+    state["top_decls"] = _x64_rtobj_keep_top_decl(top_decls, state["top_keep"], {
+        "ns": dt_decl1,
+        "type": "Wrapper",
+        "name": _x64_rtobj_decl_display_name(wrapper)
+    })
+    return nil
+}
+
+fn _x64_rtobj_log_wrappers_done(state) {
+    var phase_log = state["phase_log"]
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.build.wrappers.done",
-            "wrappers=" + oren_int_to_string(oren_list_len(wrappers)))
+            "wrappers=" + oren_int_to_string(oren_list_len(state["wrappers"])))
     }
-    return {"sum_decl_ns": sum_decl_ns, "top_decls": top_decls}
+    return nil
 }
 
 fn _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) {
