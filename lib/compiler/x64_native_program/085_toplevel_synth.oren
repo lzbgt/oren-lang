@@ -2,14 +2,14 @@
 //
 // Extracted from `090_program_entry.oren` to keep that entry module bounded.
 
-fn _x64_trace_global_slots(ctx, label) {
+fn _x64_trace_global_slots_enabled() {
     var v = oren_env("OREN_TRACE_GLOBAL_SLOTS")
-    if v == nil || v == "" { return nil }
-    if x64_env_str_eq(v, "0") || x64_env_str_eq(v, "false") { return nil }
-    if ctx == nil { return nil }
-    var gmap = ctx["globals"]
-    if gmap == nil { return nil }
+    if v == nil || v == "" { return false }
+    if x64_env_str_eq(v, "0") || x64_env_str_eq(v, "false") { return false }
+    return true
+}
 
+fn _x64_trace_global_slot_filters() {
     var filter_name = oren_env("OREN_TRACE_GLOBAL_SLOT_NAME")
     var filter_off = oren_env("OREN_TRACE_GLOBAL_SLOT_OFF")
     var filter_idx = oren_env("OREN_TRACE_GLOBAL_SLOT_INDEX")
@@ -17,10 +17,38 @@ fn _x64_trace_global_slots(ctx, label) {
     var want_idx = -1
     if filter_off != nil && filter_off != "" { want_off = core.parse_int_decimal(filter_off, want_off) }
     if filter_idx != nil && filter_idx != "" { want_idx = core.parse_int_decimal(filter_idx, want_idx) }
+    return {"name": filter_name, "off": want_off, "idx": want_idx}
+}
 
+fn _x64_trace_global_slots_header(label) {
     var hdr = "[x64_globals]"
     if label != nil && label != "" { hdr = hdr + " " + label }
     print(hdr)
+    return nil
+}
+
+fn _x64_trace_global_slot_matches(name, off, idx, filters) {
+    if filters["name"] != nil && filters["name"] != "" && x64_env_str_eq(filters["name"], name) != true { return false }
+    if filters["off"] >= 0 && off != filters["off"] { return false }
+    if filters["idx"] >= 0 && idx != filters["idx"] { return false }
+    return true
+}
+
+fn _x64_trace_global_slot_entry(name, off, filters) {
+    var idx = off / 8
+    if _x64_trace_global_slot_matches(name, off, idx, filters) != true { return nil }
+    print("[x64_globals] name=" + name + " off=" + oren_int_to_string(off) + " idx=" + oren_int_to_string(idx))
+    return nil
+}
+
+fn _x64_trace_global_slots(ctx, label) {
+    if _x64_trace_global_slots_enabled() != true { return nil }
+    if ctx == nil { return nil }
+    var gmap = ctx["globals"]
+    if gmap == nil { return nil }
+
+    var filters = _x64_trace_global_slot_filters()
+    _x64_trace_global_slots_header(label)
     var gi = 0
     var pair = [nil, nil]
     while 1 {
@@ -30,14 +58,7 @@ fn _x64_trace_global_slots(ctx, label) {
         var off_enc = pair[1]
         if name == nil || oren_type_tag(off_enc) != 1 { gi = gi + 1; continue }
         var off = off_enc - 1
-        var idx = off / 8
-        var match = true
-        if filter_name != nil && filter_name != "" && x64_env_str_eq(filter_name, name) != true { match = false }
-        if want_off >= 0 && off != want_off { match = false }
-        if want_idx >= 0 && idx != want_idx { match = false }
-        if match {
-            print("[x64_globals] name=" + name + " off=" + oren_int_to_string(off) + " idx=" + oren_int_to_string(idx))
-        }
+        _x64_trace_global_slot_entry(name, off, filters)
         gi = gi + 1
     }
     return nil

@@ -793,6 +793,14 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~63.3s total / ~46.1s parse,</p>
 <p>  with <code>_x64_trace_global_slots</code> (~80ms) as the next parser-body target.</p>
 <ul>
+<li>X64 global-slot tracing now separates env enablement, filter parsing, header</li>
+</ul>
+<p>  emission, per-entry match checks, and row emission while preserving the</p>
+<p>  <code>OREN_TRACE_GLOBAL_SLOTS</code> output and name/off/index filters. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~62.3s total / ~45.1s parse,</p>
+<p>  with <code>_x64_emit_simd_dot_i32_ptr_vector_loop</code> (~73ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

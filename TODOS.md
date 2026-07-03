@@ -554,6 +554,12 @@ design evidence lives under `project-doc/`.
   capsule posthook while preserving Oren-to-Linux flag translation. The capped
   profile now shows `x64_native_program.oren` at ~63.3s total / ~46.1s parse,
   with `_x64_trace_global_slots` (~80ms) as the next parser-body target.
+- X64 global-slot tracing now separates env enablement, filter parsing, header
+  emission, per-entry match checks, and row emission while preserving the
+  `OREN_TRACE_GLOBAL_SLOTS` output and name/off/index filters. The capped
+  profile now shows `x64_native_program.oren` at ~62.3s total / ~45.1s parse,
+  with `_x64_emit_simd_dot_i32_ptr_vector_loop` (~73ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -2755,6 +2755,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 63.3s total / 46.1s
   parse, with `_x64_trace_global_slots` exposed at about 80ms as the next parser
   body.
+- X64 global-slot tracing now separates env enablement, filter parsing, header
+  emission, per-entry match checks, and row emission while preserving the
+  `OREN_TRACE_GLOBAL_SLOTS` output and name/off/index filters. The capped
+  profile now shows `x64_native_program.oren` at about 62.3s total / 45.1s
+  parse, with `_x64_emit_simd_dot_i32_ptr_vector_loop` exposed at about 73ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

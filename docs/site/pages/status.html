@@ -2931,6 +2931,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 63.3s total / 46.1s</p>
 <p>  parse, with <code>_x64_trace_global_slots</code> exposed at about 80ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 global-slot tracing now separates env enablement, filter parsing, header</li>
+</ul>
+<p>  emission, per-entry match checks, and row emission while preserving the</p>
+<p>  <code>OREN_TRACE_GLOBAL_SLOTS</code> output and name/off/index filters. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 62.3s total / 45.1s</p>
+<p>  parse, with <code>_x64_emit_simd_dot_i32_ptr_vector_loop</code> exposed at about 73ms as</p>
+<p>  the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
