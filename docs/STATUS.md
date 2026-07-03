@@ -2720,6 +2720,12 @@ make docs-site
   at about 43.9s total / 31.9s parse, with
   `_x64_windows_fstat_emit_handle_resolution` exposed at about 53ms as the next
   parser body.
+- Windows x64 `sys_fstat` handle resolution now shares std-fd `GetStdHandle`
+  case emission and isolates handle validation while preserving stdin/stdout/
+  stderr mapping and direct-handle fallback. The capped profile now shows
+  `x64_native_program.oren` at about 45.4s total / 33.1s parse, with
+  `_x64_emit_list_int_set_validate` exposed at about 54ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

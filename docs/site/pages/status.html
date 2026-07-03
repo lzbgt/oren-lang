@@ -2884,6 +2884,14 @@ make docs-site</code></pre>
 <p>  at about 43.9s total / 31.9s parse, with</p>
 <p>  <code>_x64_windows_fstat_emit_handle_resolution</code> exposed at about 53ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>Windows x64 <code>sys_fstat</code> handle resolution now shares std-fd <code>GetStdHandle</code></li>
+</ul>
+<p>  case emission and isolates handle validation while preserving stdin/stdout/</p>
+<p>  stderr mapping and direct-handle fallback. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 45.4s total / 33.1s parse, with</p>
+<p>  <code>_x64_emit_list_int_set_validate</code> exposed at about 54ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

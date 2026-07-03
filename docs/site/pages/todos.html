@@ -750,6 +750,13 @@
 <p>  <code>_x64_windows_fstat_emit_handle_resolution</code> (~53ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>Windows x64 <code>sys_fstat</code> handle resolution now shares std-fd <code>GetStdHandle</code></li>
+</ul>
+<p>  case emission and isolates handle validation while preserving stdin/stdout/</p>
+<p>  stderr mapping and direct-handle fallback. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~45.4s total / ~33.1s parse, with</p>
+<p>  <code>_x64_emit_list_int_set_validate</code> (~54ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

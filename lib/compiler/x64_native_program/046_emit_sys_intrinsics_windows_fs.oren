@@ -443,54 +443,44 @@ fn _x64_windows_fstat_spill_args(ctx, locals, args, capsule) {
     return {"base": base, "tmp_fd": tmp_fd, "tmp_st": tmp_st}
 }
 
-fn _x64_windows_fstat_emit_handle_resolution(ctx, labels, fixups, tmp_fd, l_have_handle, l_ok, l_fail) {
-    // Determine handle:
-    // - fd==0/1/2 => GetStdHandle(STD_*_HANDLE)
-    // - else      => fd itself is a Win32 HANDLE
+fn _x64_windows_fstat_emit_std_handle_case(ctx, labels, fixups, tmp_fd, fd_value, std_handle_u32, l_have_handle, next_label) {
     _intr_load_x64(ctx, 0, tmp_fd)
-    // if fd == 0
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    var l_chk1 = _new_label(ctx, "sys_fstat_chk1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_chk1)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967286)) // ecx=-10 STD_INPUT_HANDLE
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, fd_value))
+    _emit_jcc_to_label(ctx, fixups, "ne", next_label)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, std_handle_u32))
     _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
     _emit_jmp_to_label(ctx, fixups, l_have_handle)
-    _emit_label(ctx, labels, l_chk1)
+    _emit_label(ctx, labels, next_label)
+    return nil
+}
 
-    // if fd == 1
-    _intr_load_x64(ctx, 0, tmp_fd)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1))
-    var l_chk2 = _new_label(ctx, "sys_fstat_chk2")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_chk2)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285)) // ecx=-11 STD_OUTPUT_HANDLE
-    _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
-    _emit_jmp_to_label(ctx, fixups, l_have_handle)
-    _emit_label(ctx, labels, l_chk2)
-
-    // if fd == 2
-    _intr_load_x64(ctx, 0, tmp_fd)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 2))
-    var l_else = _new_label(ctx, "sys_fstat_else")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_else)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967284)) // ecx=-12 STD_ERROR_HANDLE
-    _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
-    _emit_jmp_to_label(ctx, fixups, l_have_handle)
-    _emit_label(ctx, labels, l_else)
-
-    // else: handle = fd
-    _intr_load_x64(ctx, 11, tmp_fd)
-
-    _emit_label(ctx, labels, l_have_handle)
-
+fn _x64_windows_fstat_emit_handle_validation(ctx, fixups, l_ok, l_fail) {
     // Validate handle != 0 and != INVALID_HANDLE_VALUE (-1)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
     _emit_jmp_to_label(ctx, fixups, l_ok)
+    return nil
+}
+
+fn _x64_windows_fstat_emit_handle_resolution(ctx, labels, fixups, tmp_fd, l_have_handle, l_ok, l_fail) {
+    // Determine handle:
+    // - fd==0/1/2 => GetStdHandle(STD_*_HANDLE)
+    // - else      => fd itself is a Win32 HANDLE
+    var l_chk1 = _new_label(ctx, "sys_fstat_chk1")
+    var l_chk2 = _new_label(ctx, "sys_fstat_chk2")
+    var l_else = _new_label(ctx, "sys_fstat_else")
+
+    _x64_windows_fstat_emit_std_handle_case(ctx, labels, fixups, tmp_fd, 0, 4294967286, l_have_handle, l_chk1)
+    _x64_windows_fstat_emit_std_handle_case(ctx, labels, fixups, tmp_fd, 1, 4294967285, l_have_handle, l_chk2)
+    _x64_windows_fstat_emit_std_handle_case(ctx, labels, fixups, tmp_fd, 2, 4294967284, l_have_handle, l_else)
+    // else: handle = fd
+    _intr_load_x64(ctx, 11, tmp_fd)
+
+    _emit_label(ctx, labels, l_have_handle)
+    _x64_windows_fstat_emit_handle_validation(ctx, fixups, l_ok, l_fail)
     return nil
 }
 
