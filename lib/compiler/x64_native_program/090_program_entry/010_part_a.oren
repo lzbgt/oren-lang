@@ -449,60 +449,91 @@ fn _x64_rtobj_apply_compact_fixups(ctx, meta, base_code, trace, phase_log) {
     return nil
 }
 
+fn _x64_rtobj_trace_legacy_fixups_start(trace, fx_n) {
+    if trace { print("[x64_rtobj_apply] fixups start count=" + oren_int_to_string(fx_n)) }
+    return nil
+}
+
+fn _x64_rtobj_trace_legacy_fixup_progress(trace, fi, fx_n) {
+    if trace && fi >= 0 && (fi / 1000) * 1000 == fi {
+        print("[x64_rtobj_apply] fixup " + oren_int_to_string(fi) + "/" + oren_int_to_string(fx_n))
+    }
+    return nil
+}
+
+fn _x64_rtobj_apply_legacy_rip_data32_fixup(ctx, f0, base_code, pos) {
+    // Legacy caches may still store rip_data32 fixups in `fixups_enc`.
+    // Prefer collecting them into the compact `ctx["rip_data32_fixups"]` map.
+    var lab = f0["data_label"]
+    if lab != nil { _x64_add_rip_data32_fixup(ctx, base_code + pos, lab) }
+    return nil
+}
+
+fn _x64_rtobj_note_legacy_panic_helper(ctx, f0) {
+    if f0["type"] == "call_rel32" && f0["name"] == _x64_panic_helper_name() {
+        // Runtime object code may contain compiler-generated abort sites that call the
+        // shared panic helper. Mark it needed so the final program emits the helper
+        // even when user code itself doesn't trigger a compiler panic path.
+        ctx["need_panic_helper"] = true
+    }
+    return nil
+}
+
+fn _x64_rtobj_apply_legacy_regular_fixup(ctx, f0, base_code, pos, data_off) {
+    _x64_rtobj_note_legacy_panic_helper(ctx, f0)
+    // Mutate in-place to avoid allocating a new map per fixup (can be 10k+ entries).
+    //
+    // Safety:
+    // - `base_code + pos` is never 0 (entry stub is emitted first), so `pos` remains
+    //   representable even if some metadata encodings treat 0 as a sentinel.
+    f0["pos"] = base_code + pos
+    if data_off != nil { f0["data_off"] = data_off }
+    oren_list_push(ctx["fixups"], f0)
+    return nil
+}
+
+fn _x64_rtobj_apply_one_legacy_fixup(ctx, f0, base_code) {
+    if f0 == nil { return nil }
+    var pos = _rtobj_decode_int_enc(f0["pos"])
+    if pos == nil { return nil }
+    var data_off = _rtobj_decode_int_enc(f0["data_off"])
+    if f0["type"] == "rip_data32" {
+        _x64_rtobj_apply_legacy_rip_data32_fixup(ctx, f0, base_code, pos)
+        return nil
+    }
+    _x64_rtobj_apply_legacy_regular_fixup(ctx, f0, base_code, pos, data_off)
+    return nil
+}
+
+fn _x64_rtobj_log_legacy_fixups_done(phase_log, count) {
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.legacy_fixups.done",
+            "count=" + oren_int_to_string(count))
+    }
+    return nil
+}
+
 fn _x64_rtobj_apply_legacy_fixups(ctx, meta, base_code, trace, phase_log) {
     // Merge runtime fixups (pos encoded as +1; adjust by base_code).
     //
     // New x64 rtobj entries store the hot runtime fixups in `x64_fixups_compact`.
     // This fallback remains for unknown/new fixup types and for legacy cache entries.
     var fx = meta["fixups_enc"]
-    if fx != nil {
-        if trace { print("[x64_rtobj_apply] fixups start count=" + oren_int_to_string(oren_list_len(fx))) }
-        var fi = 0
-        var fx_n = oren_list_len(fx)
-        while fi < fx_n {
-            if trace && fi >= 0 && (fi / 1000) * 1000 == fi {
-                print("[x64_rtobj_apply] fixup " + oren_int_to_string(fi) + "/" + oren_int_to_string(fx_n))
-            }
-            var f0 = fx[fi]
-            if f0 != nil {
-                var pos = _rtobj_decode_int_enc(f0["pos"])
-                var data_off = _rtobj_decode_int_enc(f0["data_off"])
-                if pos != nil {
-                    if f0["type"] == "rip_data32" {
-                        // Legacy caches may still store rip_data32 fixups in `fixups_enc`.
-                        // Prefer collecting them into the compact `ctx["rip_data32_fixups"]` map.
-                        var lab = f0["data_label"]
-                        if lab != nil {
-                            _x64_add_rip_data32_fixup(ctx, base_code + pos, lab)
-                        }
-                    } else {
-                        if f0["type"] == "call_rel32" && f0["name"] == _x64_panic_helper_name() {
-                            // Runtime object code may contain compiler-generated abort sites that call the
-                            // shared panic helper. Mark it needed so the final program emits the helper
-                            // even when user code itself doesn't trigger a compiler panic path.
-                            ctx["need_panic_helper"] = true
-                        }
-                        // Mutate in-place to avoid allocating a new map per fixup (can be 10k+ entries).
-                        //
-                        // Safety:
-                        // - `base_code + pos` is never 0 (entry stub is emitted first), so `pos` remains
-                        //   representable even if some metadata encodings treat 0 as a sentinel.
-                        f0["pos"] = base_code + pos
-                        if data_off != nil { f0["data_off"] = data_off }
-                        oren_list_push(ctx["fixups"], f0)
-                    }
-                }
-            }
-            fi = fi + 1
-        }
-        if trace { print("[x64_rtobj_apply] fixups done count=" + oren_int_to_string(fi)) }
-        if phase_log != nil {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.legacy_fixups.done",
-                "count=" + oren_int_to_string(fi))
-        }
-    } else if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.legacy_fixups.done", "count=0")
+    if fx == nil {
+        _x64_rtobj_log_legacy_fixups_done(phase_log, 0)
+        return nil
     }
+
+    var fi = 0
+    var fx_n = oren_list_len(fx)
+    _x64_rtobj_trace_legacy_fixups_start(trace, fx_n)
+    while fi < fx_n {
+        _x64_rtobj_trace_legacy_fixup_progress(trace, fi, fx_n)
+        _x64_rtobj_apply_one_legacy_fixup(ctx, fx[fi], base_code)
+        fi = fi + 1
+    }
+    if trace { print("[x64_rtobj_apply] fixups done count=" + oren_int_to_string(fi)) }
+    _x64_rtobj_log_legacy_fixups_done(phase_log, fi)
     return nil
 }
 

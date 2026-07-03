@@ -1060,6 +1060,14 @@
 <p>  total / ~34.5s parse, with <code>_x64_rtobj_apply_legacy_fixups</code> (~52ms) as the</p>
 <p>  next parser-body target.</p>
 <ul>
+<li>X64 runtime-object legacy fixup application now separates trace progress,</li>
+</ul>
+<p>  legacy <code>rip_data32</code> handling, panic-helper marking, in-place regular fixup</p>
+<p>  mutation, and phase logging while preserving old-cache fallback semantics.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at ~46.0s total /</p>
+<p>  ~33.6s parse, with <code>_emit_map_wsa_eax_to_posix_errno_eax_x64</code> (~49ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

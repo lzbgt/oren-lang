@@ -2962,6 +2962,12 @@ make docs-site
   table ABI. The capped profile now shows `x64_native_program.oren` at about
   47.2s total / 34.5s parse, with `_x64_rtobj_apply_legacy_fixups` exposed at
   about 52ms as the next parser body.
+- X64 runtime-object legacy fixup application now separates trace progress,
+  legacy `rip_data32` handling, panic-helper marking, in-place regular fixup
+  mutation, and phase logging while preserving old-cache fallback semantics.
+  The capped profile now shows `x64_native_program.oren` at about 46.0s total /
+  33.6s parse, with `_emit_map_wsa_eax_to_posix_errno_eax_x64` exposed at about
+  49ms as the next parser body.
 
 ## Documentation Guardrail
 
