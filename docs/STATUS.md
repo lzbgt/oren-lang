@@ -2743,6 +2743,12 @@ make docs-site
   `x64_native_program.oren` at about 46.8s total / 34.6s parse, with
   `_emit_intrinsic_sys_linux_net_accept_x64` exposed at about 55ms as the next
   parser body.
+- Linux x64 `sys_accept` lowering now separates temp-state setup, shared
+  fd/sockaddr/len argument loading, capsule prehook, syscall dispatch, and
+  capsule posthook while preserving the accept syscall ABI. The capped profile
+  now shows `x64_native_program.oren` at about 43.7s total / 31.8s parse, with
+  `_emit_intrinsic_sys_linux_fcntl_setfl_x64` exposed at about 52ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

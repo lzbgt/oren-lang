@@ -778,6 +778,14 @@
 <p>  <code>_emit_intrinsic_sys_linux_net_accept_x64</code> (~55ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>Linux x64 <code>sys_accept</code> lowering now separates temp-state setup, shared</li>
+</ul>
+<p>  fd/sockaddr/len argument loading, capsule prehook, syscall dispatch, and</p>
+<p>  capsule posthook while preserving the accept syscall ABI. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~43.7s total / ~31.8s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_fcntl_setfl_x64</code> (~52ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -216,45 +216,64 @@ fn _emit_intrinsic_sys_linux_net_fd2_x64(ctx, nm, expr, locals, args, capsule) {
     return true
 }
 
+fn _x64_linux_net_accept_state(ctx, locals, args) {
+    var base29 = _intr_tmp_push(ctx, 3) // fd, addr, addrlen_ptr
+    if oren_type_tag(base29) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base29 + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base29 + 1)
+    var tmp_lenp = _intr_tmp_off(ctx, locals, base29 + 2)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base29); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base29); return nil }
+    return {"base": base29, "fd": tmp_fd, "addr": tmp_addr, "lenp": tmp_lenp}
+}
+
+fn _x64_linux_net_accept_load_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
+    _intr_load_x64(ctx, 6, st["addr"])
+    _intr_load_x64(ctx, 2, st["lenp"])
+    return nil
+}
+
+fn _x64_linux_net_accept_emit_pre(ctx, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_net_accept_load_args(ctx, st)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre")
+    return nil
+}
+
+fn _x64_linux_net_accept_emit_syscall(ctx, st) {
+    _x64_linux_net_accept_load_args(ctx, st)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_accept()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_linux_net_accept_emit_post(ctx, st, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = newfd
+    _intr_load_x64(ctx, 6, st["fd"])
+    _intr_load_x64(ctx, 2, st["addr"])
+    _intr_load_x64(ctx, 1, st["lenp"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_linux_net_accept_x64(ctx, nm, expr, locals, args, capsule) {
     if nm != "sys_accept" { return false }
     if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_accept expects 3 args"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_accept does not support spread"); return true }
 
-    var base29 = _intr_tmp_push(ctx, 3) // fd, addr, addrlen_ptr
-    if oren_type_tag(base29) == 0 { return true }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base29 + 0)
-    var tmp_addr = _intr_tmp_off(ctx, locals, base29 + 1)
-    var tmp_lenp = _intr_tmp_off(ctx, locals, base29 + 2)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base29); return true }
+    var st = _x64_linux_net_accept_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_net_accept_emit_pre(ctx, st, capsule)
+    _x64_linux_net_accept_emit_syscall(ctx, st)
+    _x64_linux_net_accept_emit_post(ctx, st, capsule)
 
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base29); return true }
-
-    if capsule {
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_addr)
-        _intr_load_x64(ctx, 2, tmp_lenp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre")
-    }
-
-    _intr_load_x64(ctx, 7, tmp_fd)
-    _intr_load_x64(ctx, 6, tmp_addr)
-    _intr_load_x64(ctx, 2, tmp_lenp)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_accept()))
-    bytes_extend(ctx["code"], core.insn_syscall())
-
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = newfd
-        _intr_load_x64(ctx, 6, tmp_fd)
-        _intr_load_x64(ctx, 2, tmp_addr)
-        _intr_load_x64(ctx, 1, tmp_lenp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
-    }
-
-    _intr_tmp_pop(ctx, base29)
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 
