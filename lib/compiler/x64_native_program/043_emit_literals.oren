@@ -106,20 +106,68 @@ fn _lit_hash_emit_set_pair(ctx, locals, hn, pair, key_kind, depth_enc0) {
     return true
 }
 
+fn _lit_array_elements(expr) {
+    var els = nil
+    if expr != nil { els = expr["elements"] }
+    if els == nil { els = [] }
+    return els
+}
+
+fn _lit_array_trace_enabled(ctx) {
+    if ctx != nil && ctx["trace_x64_array_lit"] != nil { return true }
+    return false
+}
+
+fn _lit_array_trace(ctx, d0, hn, tmp_hdr, els) {
+    if _lit_array_trace_enabled(ctx) != true { return nil }
+    var cnt = 0
+    if ctx["__trace_x64_array_lit_cnt"] != nil { cnt = ctx["__trace_x64_array_lit_cnt"] }
+    if cnt >= 16 { return nil }
+    ctx["__trace_x64_array_lit_cnt"] = cnt + 1
+    var fnn = ctx["cur_fn_name"]
+    if fnn == nil { fnn = "<nil>" }
+    print("[x64_array_lit] fn=" + fnn +
+          " depth=" + oren_int_to_string(d0) +
+          " hn=" + hn +
+          " off=" + oren_int_to_string(tmp_hdr) +
+          " n=" + oren_int_to_string(oren_list_len(els)))
+    return nil
+}
+
+fn _lit_array_emit_push(ctx, locals, hn, elem, depth_enc0) {
+    var push_call = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push_unchecked"},
+        "args": [{"type": "Identifier", "token": nil, "value": hn}, elem],
+    }
+    _emit_eval_int_to_rax(ctx, push_call, locals)
+    if _lit_has_errors(ctx) {
+        _lit_exit(ctx, depth_enc0)
+        return nil
+    }
+    return true
+}
+
+fn _lit_array_emit_elements(ctx, locals, hn, els, depth_enc0) {
+    var i = 0
+    var n = oren_list_len(els)
+    while i < n {
+        if _lit_array_emit_push(ctx, locals, hn, els[i], depth_enc0) == nil { return nil }
+        i = i + 1
+    }
+    return true
+}
+
 fn _emit_array_literal_expr(ctx, expr, locals) {
     // Bounded trace for bring-up/debugging:
     //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
-    var trace_lit = false
-    if ctx != nil && ctx["trace_x64_array_lit"] != nil { trace_lit = true }
     // List literal `[a, b, c]` lowered as a sequence of native runtime calls:
     // - list = oren_new_list(0)
     // - for each element: oren_list_push(list, elem)
     //
     // This matches the arm64 backend behavior and avoids baking list-layout offsets
     // into the x64 emitter (Tier‑1 arch unification).
-    var els = nil
-    if expr != nil { els = expr["elements"] }
-    if els == nil { els = [] }
+    var els = _lit_array_elements(expr)
 
     var depth_enc0 = _lit_enter(ctx)
     if oren_type_tag(depth_enc0) == 0 { return nil }
@@ -133,40 +181,14 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
     if tmp_hdr <= 0 {
         return _lit_fail(ctx, depth_enc0, "x64 native v0: missing literal spill slots for array literal")
     }
-    if trace_lit && ctx != nil {
-        var cnt = 0
-        if ctx["__trace_x64_array_lit_cnt"] != nil { cnt = ctx["__trace_x64_array_lit_cnt"] }
-        if cnt < 16 {
-            ctx["__trace_x64_array_lit_cnt"] = cnt + 1
-            var fnn = ctx["cur_fn_name"]
-            if fnn == nil { fnn = "<nil>" }
-            print("[x64_array_lit] fn=" + fnn +
-                  " depth=" + oren_int_to_string(d0) +
-                  " hn=" + hn +
-                  " off=" + oren_int_to_string(tmp_hdr) +
-                  " n=" + oren_int_to_string(oren_list_len(els)))
-        }
-    }
+    _lit_array_trace(ctx, d0, hn, tmp_hdr, els)
 
     var n = oren_list_len(els)
 
     if _lit_alloc_container_to_tmp(ctx, locals, "oren_new_list", n, tmp_hdr, depth_enc0) == nil { return nil }
 
     // Push elements in order (LTR).
-    var i = 0
-    while i < n {
-        var push_call = {
-            "type": "Call",
-            "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push_unchecked"},
-            "args": [{"type": "Identifier", "token": nil, "value": hn}, els[i]],
-        }
-        _emit_eval_int_to_rax(ctx, push_call, locals)
-        if _lit_has_errors(ctx) {
-            _lit_exit(ctx, depth_enc0)
-            return nil
-        }
-        i = i + 1
-    }
+    if _lit_array_emit_elements(ctx, locals, hn, els, depth_enc0) == nil { return nil }
 
     // return list
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)

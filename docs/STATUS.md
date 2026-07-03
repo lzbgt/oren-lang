@@ -2689,6 +2689,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 44.6s total /
   32.5s parse, with `_emit_array_literal_expr` exposed at about 54ms as the next
   parser body.
+- X64 array literal lowering now separates element extraction, bounded tracing,
+  unchecked push-call emission, and LTR element-loop emission while preserving
+  the list allocation and return reload sequence. The capped profile now shows
+  `x64_native_program.oren` at about 44.3s total / 32.3s parse, with
+  `_x64_emit_getentropy_windows_guards` exposed at about 63ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
