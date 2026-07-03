@@ -3085,6 +3085,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 48.9s total / 36.4s</p>
 <p>  parse, with <code>_x64_fast_lcg_unsigned_emit_safepoint</code> exposed at about 196ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 fast-LCG unsigned safepoint emission now separates throttle-guard</li>
+</ul>
+<p>  emission, live-register spilling, safepoint call/reset, and live-register</p>
+<p>  reload while preserving the 4096-iteration tick contract. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 44.5s total / 32.1s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_mmap_private_anon_x64</code> exposed at about 49ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

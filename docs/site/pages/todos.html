@@ -940,6 +940,14 @@
 <p>  with <code>_x64_fast_lcg_unsigned_emit_safepoint</code> (~196ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 fast-LCG unsigned safepoint emission now separates throttle-guard</li>
+</ul>
+<p>  emission, live-register spilling, safepoint call/reset, and live-register</p>
+<p>  reload while preserving the 4096-iteration tick contract. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~44.5s total / ~32.1s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_mmap_private_anon_x64</code> (~49ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

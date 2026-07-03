@@ -2869,6 +2869,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 48.9s total / 36.4s
   parse, with `_x64_fast_lcg_unsigned_emit_safepoint` exposed at about 196ms as
   the next parser body.
+- X64 fast-LCG unsigned safepoint emission now separates throttle-guard
+  emission, live-register spilling, safepoint call/reset, and live-register
+  reload while preserving the 4096-iteration tick contract. The capped profile
+  now shows `x64_native_program.oren` at about 44.5s total / 32.1s parse, with
+  `_emit_intrinsic_sys_mmap_private_anon_x64` exposed at about 49ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

@@ -661,6 +661,12 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~48.9s total / ~36.4s parse,
   with `_x64_fast_lcg_unsigned_emit_safepoint` (~196ms) as the next parser-body
   target.
+- X64 fast-LCG unsigned safepoint emission now separates throttle-guard
+  emission, live-register spilling, safepoint call/reset, and live-register
+  reload while preserving the 4096-iteration tick contract. The capped profile
+  now shows `x64_native_program.oren` at ~44.5s total / ~32.1s parse, with
+  `_emit_intrinsic_sys_mmap_private_anon_x64` (~49ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
