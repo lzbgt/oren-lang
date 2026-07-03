@@ -528,6 +528,10 @@ design evidence lives under `project-doc/`.
   stderr mapping and direct-handle fallback. The capped profile now shows
   `x64_native_program.oren` at ~45.4s total / ~33.1s parse, with
   `_x64_emit_list_int_set_validate` (~54ms) as the next parser-body target.
+- X64 LIST_INT set validation now separates nil, tracked-node lookup, node,
+  kind, and magic guards while preserving the LTR spill/reload contract. The
+  capped profile now shows `x64_native_program.oren` at ~48.6s total / ~36.1s
+  parse, with `_emit_index_expr_v0` (~123ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

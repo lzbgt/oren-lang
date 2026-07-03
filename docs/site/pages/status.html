@@ -2892,6 +2892,13 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 45.4s total / 33.1s parse, with</p>
 <p>  <code>_x64_emit_list_int_set_validate</code> exposed at about 54ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 LIST_INT set validation now separates nil, tracked-node lookup, node,</li>
+</ul>
+<p>  kind, and magic guards while preserving the LTR spill/reload contract. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 48.6s total /</p>
+<p>  36.1s parse, with <code>_emit_index_expr_v0</code> exposed at about 123ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -2726,6 +2726,11 @@ make docs-site
   `x64_native_program.oren` at about 45.4s total / 33.1s parse, with
   `_x64_emit_list_int_set_validate` exposed at about 54ms as the next parser
   body.
+- X64 LIST_INT set validation now separates nil, tracked-node lookup, node,
+  kind, and magic guards while preserving the LTR spill/reload contract. The
+  capped profile now shows `x64_native_program.oren` at about 48.6s total /
+  36.1s parse, with `_emit_index_expr_v0` exposed at about 123ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
