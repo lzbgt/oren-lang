@@ -1032,37 +1032,49 @@ fn _x64_fast_list_int_get_sum_finish(ctx, ctx_labels, local_fixups, label_names)
     return nil
 }
 
-fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
-    if ctx == nil || op == nil || info == nil { return nil }
-    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+fn _x64_fast_list_int_get_sum_generic_fallback(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+}
 
-    var prep = _x64_fast_list_int_get_sum_prepare(ctx, info, locals)
-    if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    var lists = prep["lists"]
-    var off_n = prep["off_n"]
-    var list_count = prep["list_count"]
-    var base = prep["base"]
+fn _x64_fast_list_int_get_sum_prepare_or_fallback(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if locals == nil { return nil }
+    if ctx["runtime_injected"] != true { return nil }
+    return _x64_fast_list_int_get_sum_prepare(ctx, info, locals)
+}
 
-    var list_labels = _x64_fast_list_int_get_sum_labels(ctx)
-    var l_slow = list_labels["slow"]
-    _x64_fast_list_int_get_sum_validate_bounds(ctx, prep, list_labels, local_fixups)
-
-    if _x64_fast_list_int_get_sum_validate_lists(ctx, locals, labels, local_fixups, lists, list_count, base, off_n, l_slow) != true {
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+fn _x64_fast_list_int_get_sum_emit_checked_fast_path(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, list_labels) {
+    if _x64_fast_list_int_get_sum_validate_lists(ctx, locals, labels, local_fixups,
+        prep["lists"], prep["list_count"], prep["base"], prep["off_n"], list_labels["slow"]) != true {
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+        _x64_fast_list_int_get_sum_generic_fallback(ctx, op, locals, labels, local_fixups, epilogue_label, platform)
+        return false
     }
 
-    if _x64_fast_list_int_get_sum_emit_optional_whole_helper(ctx, prep, locals, labels, local_fixups, list_labels) != true { return nil }
+    if _x64_fast_list_int_get_sum_emit_optional_whole_helper(ctx, prep, locals, labels, local_fixups, list_labels) != true { return false }
     var l_fast_single = _x64_fast_list_int_get_sum_emit_loop_header(ctx, prep, locals, labels, local_fixups, list_labels)
-    if _x64_fast_list_int_get_sum_emit_loop_body(ctx, prep, locals, labels, local_fixups, list_labels, l_fast_single) != true { return nil }
+    if _x64_fast_list_int_get_sum_emit_loop_body(ctx, prep, locals, labels, local_fixups, list_labels, l_fast_single) != true { return false }
     _x64_fast_list_int_get_sum_finish(ctx, labels, local_fixups, list_labels)
+    return true
+}
 
-    _intr_tmp_pop(ctx, base)
-
-    _emit_label(ctx, labels, l_slow)
-    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+fn _x64_fast_list_int_get_sum_emit_slow_and_done(ctx, op, locals, labels, local_fixups, epilogue_label, platform, list_labels) {
+    _emit_label(ctx, labels, list_labels["slow"])
+    _x64_fast_list_int_get_sum_generic_fallback(ctx, op, locals, labels, local_fixups, epilogue_label, platform)
     _emit_label(ctx, labels, list_labels["done"])
+    return nil
+}
+
+fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    var prep = _x64_fast_list_int_get_sum_prepare_or_fallback(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform)
+    if prep == nil { return _x64_fast_list_int_get_sum_generic_fallback(ctx, op, locals, labels, local_fixups, epilogue_label, platform) }
+
+    var list_labels = _x64_fast_list_int_get_sum_labels(ctx)
+    _x64_fast_list_int_get_sum_validate_bounds(ctx, prep, list_labels, local_fixups)
+
+    if _x64_fast_list_int_get_sum_emit_checked_fast_path(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform, list_labels) != true { return nil }
+    _intr_tmp_pop(ctx, prep["base"])
+    _x64_fast_list_int_get_sum_emit_slow_and_done(ctx, op, locals, labels, local_fixups, epilogue_label, platform, list_labels)
     return nil
 }
 

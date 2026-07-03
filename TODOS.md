@@ -689,6 +689,12 @@ design evidence lives under `project-doc/`.
   `x64_native_program.oren` at ~45.3s total / ~32.8s parse, with
   `_emit_fast_list_int_get_sum_while_x64` (~50ms) as the next parser-body
   target.
+- X64 fast LIST_INT get-sum while lowering now separates generic fallback,
+  preparation fallback, checked-fast-path emission, and slow/done label
+  finalization while preserving temp cleanup and runtime slow-path behavior. The
+  capped profile now shows `x64_native_program.oren` at ~45.1s total / ~32.5s
+  parse, with `_x64_fast_push_emit_value_store` (~62ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

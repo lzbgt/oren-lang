@@ -978,6 +978,14 @@
 <p>  <code>_emit_fast_list_int_get_sum_while_x64</code> (~50ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 fast LIST_INT get-sum while lowering now separates generic fallback,</li>
+</ul>
+<p>  preparation fallback, checked-fast-path emission, and slow/done label</p>
+<p>  finalization while preserving temp cleanup and runtime slow-path behavior. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~45.1s total / ~32.5s</p>
+<p>  parse, with <code>_x64_fast_push_emit_value_store</code> (~62ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -2898,6 +2898,12 @@ make docs-site
   `x64_native_program.oren` at about 45.3s total / 32.8s parse, with
   `_emit_fast_list_int_get_sum_while_x64` exposed at about 50ms as the next
   parser body.
+- X64 fast LIST_INT get-sum while lowering now separates generic fallback,
+  preparation fallback, checked-fast-path emission, and slow/done label
+  finalization while preserving temp cleanup and runtime slow-path behavior. The
+  capped profile now shows `x64_native_program.oren` at about 45.1s total /
+  32.5s parse, with `_x64_fast_push_emit_value_store` exposed at about 62ms as
+  the next parser body.
 
 ## Documentation Guardrail
 
