@@ -705,6 +705,11 @@ design evidence lives under `project-doc/`.
   preserving tracked-node, magic, bounds, and value-load behavior. The capped
   profile now shows `x64_native_program.oren` at ~45.5s total / ~33.0s parse,
   with `_x64_call_name_is_float_exp_log` (~50ms) as the next parser-body target.
+- X64 float exp/log call-name classification now separates root/power,
+  scale/logb, exponential, and logarithmic alias families while preserving the
+  public floaty-call predicate. The capped profile now shows
+  `x64_native_program.oren` at ~59.8s total / ~44.4s parse, with
+  `_x64_match_fast_dot_accumulate_body` (~206ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

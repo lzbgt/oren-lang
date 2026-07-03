@@ -2915,6 +2915,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 45.5s total / 33.0s
   parse, with `_x64_call_name_is_float_exp_log` exposed at about 50ms as the
   next parser body.
+- X64 float exp/log call-name classification now separates root/power,
+  scale/logb, exponential, and logarithmic alias families while preserving the
+  public floaty-call predicate. The capped profile now shows
+  `x64_native_program.oren` at about 59.8s total / 44.4s parse, with
+  `_x64_match_fast_dot_accumulate_body` exposed at about 206ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

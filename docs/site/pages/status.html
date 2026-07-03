@@ -3147,6 +3147,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 45.5s total / 33.0s</p>
 <p>  parse, with <code>_x64_call_name_is_float_exp_log</code> exposed at about 50ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>X64 float exp/log call-name classification now separates root/power,</li>
+</ul>
+<p>  scale/logb, exponential, and logarithmic alias families while preserving the</p>
+<p>  public floaty-call predicate. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 59.8s total / 44.4s parse, with</p>
+<p>  <code>_x64_match_fast_dot_accumulate_body</code> exposed at about 206ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
