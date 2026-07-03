@@ -2909,6 +2909,12 @@ make docs-site
   store API. The capped profile now shows `x64_native_program.oren` at about
   44.7s total / 32.4s parse, with `_emit_list_int_get_intrinsic_v0_x64`
   exposed at about 49ms as the next parser body.
+- X64 checked LIST_INT get lowering now separates argument validation,
+  label-state attachment, checked body emission, and finish cleanup while
+  preserving tracked-node, magic, bounds, and value-load behavior. The capped
+  profile now shows `x64_native_program.oren` at about 45.5s total / 33.0s
+  parse, with `_x64_call_name_is_float_exp_log` exposed at about 50ms as the
+  next parser body.
 
 ## Documentation Guardrail
 

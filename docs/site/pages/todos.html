@@ -993,6 +993,13 @@
 <p>  total / ~32.4s parse, with <code>_emit_list_int_get_intrinsic_v0_x64</code> (~49ms) as</p>
 <p>  the next parser-body target.</p>
 <ul>
+<li>X64 checked LIST_INT get lowering now separates argument validation,</li>
+</ul>
+<p>  label-state attachment, checked body emission, and finish cleanup while</p>
+<p>  preserving tracked-node, magic, bounds, and value-load behavior. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~45.5s total / ~33.0s parse,</p>
+<p>  with <code>_x64_call_name_is_float_exp_log</code> (~50ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

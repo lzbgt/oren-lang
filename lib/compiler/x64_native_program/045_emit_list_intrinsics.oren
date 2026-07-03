@@ -1058,10 +1058,7 @@ fn _x64_emit_list_int_get_load_value(ctx) {
     return nil
 }
 
-fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
-    // Intrinsic: list<int> get fast-path (bounds-checked).
-    //
-    // Signature: oren_list_int_get(list, idx) -> int
+fn _x64_validate_list_int_get_intrinsic_args(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_int_get requires locals"); return nil }
     if ctx["runtime_injected"] != true {
@@ -1077,9 +1074,10 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
         return nil
     }
 
-    var state = _x64_list_int_get_spill_args(ctx, locals, args)
-    if state == nil { return nil }
-    var base = state["base"]
+    return args
+}
+
+fn _x64_list_int_get_attach_labels(ctx, state) {
     var labels_state = _x64_list_int_get_prepare_labels(ctx)
     state["labels"] = labels_state["labels"]
     state["local_fixups"] = labels_state["local_fixups"]
@@ -1090,15 +1088,36 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     state["l_idx_nonneg"] = labels_state["l_idx_nonneg"]
     state["l_idx_ok"] = labels_state["l_idx_ok"]
     state["l_done"] = labels_state["l_done"]
+    return state
+}
 
+fn _x64_emit_list_int_get_checked_body(ctx, state) {
     _x64_emit_list_int_get_validate_list(ctx, state)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
     _x64_emit_list_int_get_bounds(ctx, state)
     _x64_emit_list_int_get_load_value(ctx)
+    return nil
+}
 
+fn _x64_finish_list_int_get_intrinsic(ctx, state) {
     _emit_label(ctx, state["labels"], state["l_done"])
     _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> get fast-path (bounds-checked).
+    //
+    // Signature: oren_list_int_get(list, idx) -> int
+    var args = _x64_validate_list_int_get_intrinsic_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var state = _x64_list_int_get_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_list_int_get_attach_labels(ctx, state)
+    _x64_emit_list_int_get_checked_body(ctx, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_finish_list_int_get_intrinsic(ctx, state)
     return nil
 }
 
