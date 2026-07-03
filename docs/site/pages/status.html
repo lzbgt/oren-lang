@@ -1637,6 +1637,11 @@
 <p>																																																																																									  behavior for fast-loop matching. The capped profile now shows</p>
 <p>																																																																																									  <code>x64_native_program.oren</code> at about 44.5s total / 32.4s parse, with</p>
 <p>																																																																																									  <code>_x64_fast_lcg_emit_unsigned_step</code> exposed at about 54ms as the next parser body.</p>
+<p>																																																																																									  X64 fast LCG unsigned-step emission now separates x update, <code>x % mod</code>,</p>
+<p>																																																																																									  <code>x % mod_x</code>, sum folding, and <code>i_mod</code> wrap helpers while preserving the</p>
+<p>																																																																																									  unsigned-loop register contract. The capped profile now shows</p>
+<p>																																																																																									  <code>x64_native_program.oren</code> at about 44.4s total / 32.4s parse, with</p>
+<p>																																																																																									  <code>_data_add_cstr0</code> exposed at about 84ms as the next parser body.</p>
 <p>																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																																								  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>										  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

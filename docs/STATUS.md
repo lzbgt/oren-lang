@@ -1597,6 +1597,11 @@ Facts from the 2026-05-28 implementation pass:
 																																																																																									  behavior for fast-loop matching. The capped profile now shows
 																																																																																									  `x64_native_program.oren` at about 44.5s total / 32.4s parse, with
 																																																																																									  `_x64_fast_lcg_emit_unsigned_step` exposed at about 54ms as the next parser body.
+																																																																																									  X64 fast LCG unsigned-step emission now separates x update, `x % mod`,
+																																																																																									  `x % mod_x`, sum folding, and `i_mod` wrap helpers while preserving the
+																																																																																									  unsigned-loop register contract. The capped profile now shows
+																																																																																									  `x64_native_program.oren` at about 44.4s total / 32.4s parse, with
+																																																																																									  `_data_add_cstr0` exposed at about 84ms as the next parser body.
 																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via
 																																								  `OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS`; `0` selects every parsed module
 										  as a candidate and `false` disables serial-write candidates. Actual serial

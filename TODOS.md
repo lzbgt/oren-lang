@@ -485,6 +485,11 @@ design evidence lives under `project-doc/`.
   behavior for fast-loop matching. The capped profile now shows
   `x64_native_program.oren` at ~44.5s total / ~32.4s parse, with
   `_x64_fast_lcg_emit_unsigned_step` (~54ms) as the next parser-body target.
+- X64 fast LCG unsigned-step emission now separates x update, `x % mod`,
+  `x % mod_x`, sum folding, and `i_mod` wrap helpers while preserving the
+  unsigned-loop register contract. The capped profile now shows
+  `x64_native_program.oren` at ~44.4s total / ~32.4s parse, with
+  `_data_add_cstr0` (~84ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

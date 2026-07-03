@@ -1153,11 +1153,13 @@ fn _x64_fast_lcg_prepare(ctx, info, locals) {
     return _x64_fast_lcg_prepare_pack(inputs, recips, offsets, temp)
 }
 
-fn _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, labels, local_fixups) {
-    // Register contract: r10=x, r13=mul, r14=add, r12=mod, r15=mod_x, r3=mod_i, r7=i_mod, r11=sum.
+fn _x64_fast_lcg_unsigned_step_update_x(ctx) {
     bytes_extend(ctx["code"], core.insn_imul_r64_r64(10, 13))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 14))
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_step_mod_x(ctx, use_fastmod, mod_recip, labels, local_fixups) {
     if use_fastmod == true {
         _emit_fastmod_u64_const_x64(ctx, 10, 12, mod_recip, 10, 6, labels, local_fixups, "lcg_mod")
     } else {
@@ -1166,7 +1168,10 @@ fn _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, lab
         bytes_extend(ctx["code"], core.insn_div_r64(12))
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
     }
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_step_mod_modx(ctx, use_fastmod, modx_recip, labels, local_fixups) {
     if use_fastmod == true {
         _emit_fastmod_u64_const_x64(ctx, 10, 15, modx_recip, 6, 6, labels, local_fixups, "lcg_mod_x")
     } else {
@@ -1175,7 +1180,10 @@ fn _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, lab
         bytes_extend(ctx["code"], core.insn_div_r64(15))
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 2))
     }
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_step_accumulate(ctx, labels, local_fixups) {
     bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 6))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 7))
     var l_sum_skip = _new_label(ctx, "lcg_sum_skip")
@@ -1183,13 +1191,26 @@ fn _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, lab
     _emit_jcc_to_label(ctx, local_fixups, "lt", l_sum_skip)
     bytes_extend(ctx["code"], core.insn_sub_r64_r64(11, 12))
     _emit_label(ctx, labels, l_sum_skip)
+    return nil
+}
 
+fn _x64_fast_lcg_unsigned_step_inc_i_mod(ctx, labels, local_fixups) {
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(7, 1))
     var l_i_mod_ok = _new_label(ctx, "lcg_sum_i_mod_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(7, 3))
     _emit_jcc_to_label(ctx, local_fixups, "lt", l_i_mod_ok)
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(7, 7))
     _emit_label(ctx, labels, l_i_mod_ok)
+    return nil
+}
+
+fn _x64_fast_lcg_emit_unsigned_step(ctx, use_fastmod, mod_recip, modx_recip, labels, local_fixups) {
+    // Register contract: r10=x, r13=mul, r14=add, r12=mod, r15=mod_x, r3=mod_i, r7=i_mod, r11=sum.
+    _x64_fast_lcg_unsigned_step_update_x(ctx)
+    _x64_fast_lcg_unsigned_step_mod_x(ctx, use_fastmod, mod_recip, labels, local_fixups)
+    _x64_fast_lcg_unsigned_step_mod_modx(ctx, use_fastmod, modx_recip, labels, local_fixups)
+    _x64_fast_lcg_unsigned_step_accumulate(ctx, labels, local_fixups)
+    _x64_fast_lcg_unsigned_step_inc_i_mod(ctx, labels, local_fixups)
     return nil
 }
 
