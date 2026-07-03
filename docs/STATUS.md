@@ -2813,6 +2813,12 @@ make docs-site
   dispatch while preserving the ioctl register ABI. The capped profile now
   shows `x64_native_program.oren` at about 63.7s total / 46.2s parse, with
   `_x64_is_list_int_get_call` exposed at about 73ms as the next parser body.
+- X64 fast LIST/LIST_INT get matcher recognition now shares indexed-form,
+  callee-name, argument, and accepted-name helpers while preserving LIST_INT's
+  `recv_kind` guard and both call-name allowlists. The capped profile now
+  shows `x64_native_program.oren` at about 66.6s total / 49.0s parse, with
+  `_x64_emit_resolve_symbol_scan_loop` exposed at about 115ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
