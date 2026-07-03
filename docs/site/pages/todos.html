@@ -770,6 +770,14 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~45.0s total / ~32.8s parse, with</p>
 <p>  <code>_x64_finalize_program_data</code> (~54ms) as the next parser-body target.</p>
 <ul>
+<li>X64 program-data finalization now separates debug lambda diagnostics, per-table</li>
+</ul>
+<p>  finalizer/phase logging, and final codegen summary logging while preserving</p>
+<p>  finalizer order and error stop points. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~46.8s total / ~34.6s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_net_accept_x64</code> (~55ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -2737,6 +2737,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 45.0s total / 32.8s
   parse, with `_x64_finalize_program_data` exposed at about 54ms as the next
   parser body.
+- X64 program-data finalization now separates debug lambda diagnostics,
+  per-table finalizer/phase logging, and final codegen summary logging while
+  preserving finalizer order and error stop points. The capped profile now shows
+  `x64_native_program.oren` at about 46.8s total / 34.6s parse, with
+  `_emit_intrinsic_sys_linux_net_accept_x64` exposed at about 55ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

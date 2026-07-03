@@ -2907,6 +2907,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 45.0s total / 32.8s</p>
 <p>  parse, with <code>_x64_finalize_program_data</code> exposed at about 54ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 program-data finalization now separates debug lambda diagnostics,</li>
+</ul>
+<p>  per-table finalizer/phase logging, and final codegen summary logging while</p>
+<p>  preserving finalizer order and error stop points. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 46.8s total / 34.6s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_net_accept_x64</code> exposed at about 55ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -916,42 +916,51 @@ fn _x64_compile_missing_fnwraps(ctx, platform, call_depth_default_enabled, phase
     return nil
 }
 
-fn _x64_finalize_program_data(ctx, platform, phase_log) {
+fn _x64_finalize_program_debug_missing_lambdas(ctx) {
     var dbg_lam2 = oren_env("OREN_DEBUG_X64_LAMBDAS")
-    if dbg_lam2 != nil {
-        var mi = 0
-        while mi < oren_list_len(ctx["lambda_defs"]) {
-            var d1 = ctx["lambda_defs"][mi]
-            var nm = nil
-            if d1 != nil { nm = d1["name"] }
-            if nm != nil && ctx["functions"][nm] == nil {
-                print("DEBUG_X64_LAMBDAS missing_wrapper " + nm)
-            }
-            mi = mi + 1
+    if dbg_lam2 == nil { return nil }
+    var mi = 0
+    while mi < oren_list_len(ctx["lambda_defs"]) {
+        var d1 = ctx["lambda_defs"][mi]
+        var nm = nil
+        if d1 != nil { nm = d1["name"] }
+        if nm != nil && ctx["functions"][nm] == nil {
+            print("DEBUG_X64_LAMBDAS missing_wrapper " + nm)
         }
+        mi = mi + 1
     }
+    return nil
+}
+
+fn _x64_finalize_program_step_done(ctx, phase_log, label) {
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    if phase_log != nil { _x64_program_phase_log_append(phase_log, label, "") }
+    return true
+}
+
+fn _x64_finalize_program_tables(ctx, platform, phase_log) {
     // Fill the symtab now that `ctx["functions"]` contains final offsets.
     _data_finalize_symtab(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.symtab.done", "") }
+    if _x64_finalize_program_step_done(ctx, phase_log, "x64.codegen.finalize.symtab.done") != true { return false }
 
     // Fill the linetab now that code offsets are stable.
     _data_finalize_linetab(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.linetab.done", "") }
+    if _x64_finalize_program_step_done(ctx, phase_log, "x64.codegen.finalize.linetab.done") != true { return false }
 
     // Fill the debug-info table now that code offsets are stable (debug builds only).
     _data_finalize_dbginfo_table(ctx, platform)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.dbginfo.done", "") }
+    if _x64_finalize_program_step_done(ctx, phase_log, "x64.codegen.finalize.dbginfo.done") != true { return false }
 
     // Finalize the embedded-string table after all codegen so it includes:
     // - user literals
     // - injected runtime literals
     // - backend-emitted literal cstrs (panic helpers, etc)
     _data_finalize_cstr0_table(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.finalize.cstr0.done", "") }
+    if _x64_finalize_program_step_done(ctx, phase_log, "x64.codegen.finalize.cstr0.done") != true { return false }
+    return true
+}
+
+fn _x64_finalize_program_log_done(ctx, phase_log) {
     if phase_log != nil {
         var fx_n0 = 0
         if ctx["fixups"] != nil { fx_n0 = oren_list_len(ctx["fixups"]) }
@@ -960,6 +969,13 @@ fn _x64_finalize_program_data(ctx, platform, phase_log) {
             " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])) +
             " fixups=" + oren_int_to_string(fx_n0))
     }
+    return nil
+}
+
+fn _x64_finalize_program_data(ctx, platform, phase_log) {
+    _x64_finalize_program_debug_missing_lambdas(ctx)
+    if _x64_finalize_program_tables(ctx, platform, phase_log) != true { return nil }
+    _x64_finalize_program_log_done(ctx, phase_log)
     return nil
 }
 

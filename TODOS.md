@@ -537,6 +537,12 @@ design evidence lives under `project-doc/`.
   path emission while preserving temp cleanup and patch order. The capped profile
   now shows `x64_native_program.oren` at ~45.0s total / ~32.8s parse, with
   `_x64_finalize_program_data` (~54ms) as the next parser-body target.
+- X64 program-data finalization now separates debug lambda diagnostics, per-table
+  finalizer/phase logging, and final codegen summary logging while preserving
+  finalizer order and error stop points. The capped profile now shows
+  `x64_native_program.oren` at ~46.8s total / ~34.6s parse, with
+  `_emit_intrinsic_sys_linux_net_accept_x64` (~55ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
