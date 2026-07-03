@@ -1098,6 +1098,13 @@
 <p>  parse, with <code>_emit_strlen_cstr0_to_rdx</code> (~141ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 panic C-string length emission now separates label/fixup state setup,</li>
+</ul>
+<p>  byte-scan loop emission, and loop-finalization patching while preserving the</p>
+<p>  ptr-reg-to-r10 safety contract and rdx length output. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~55.6s total / ~39.7s parse, with</p>
+<p>  <code>_x64_rtobj_compile_wrappers</code> (~188ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

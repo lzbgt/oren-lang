@@ -2991,6 +2991,11 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 49.2s total /
   36.2s parse, with `_emit_strlen_cstr0_to_rdx` exposed at about 141ms as the
   next parser body.
+- X64 panic C-string length emission now separates label/fixup state setup,
+  byte-scan loop emission, and loop-finalization patching while preserving the
+  ptr-reg-to-r10 safety contract and rdx length output. The capped profile now
+  shows `x64_native_program.oren` at about 55.6s total / 39.7s parse, with
+  `_x64_rtobj_compile_wrappers` exposed at about 188ms as the next parser body.
 
 ## Documentation Guardrail
 

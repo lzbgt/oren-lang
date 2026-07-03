@@ -777,6 +777,11 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~49.2s total / ~36.2s
   parse, with `_emit_strlen_cstr0_to_rdx` (~141ms) as the next parser-body
   target.
+- X64 panic C-string length emission now separates label/fixup state setup,
+  byte-scan loop emission, and loop-finalization patching while preserving the
+  ptr-reg-to-r10 safety contract and rdx length output. The capped profile now
+  shows `x64_native_program.oren` at ~55.6s total / ~39.7s parse, with
+  `_x64_rtobj_compile_wrappers` (~188ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

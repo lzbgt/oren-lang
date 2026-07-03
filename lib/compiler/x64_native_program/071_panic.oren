@@ -21,11 +21,28 @@ fn _emit_strlen_cstr0_to_rdx(ctx, ptr_reg) {
     // the input pointer and caused writes to use the wrong base address.
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, ptr_reg)) // r10 = ptr
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))      // edx = 0
+    var state = _x64_strlen_cstr0_labels(ctx)
+    _x64_strlen_cstr0_emit_loop(ctx, state)
+    _x64_strlen_cstr0_finish(ctx, state)
+    return nil
+}
 
+fn _x64_strlen_cstr0_labels(ctx) {
     var labels = {}
     var fixups = []
-    var l_loop = _new_label(ctx, "strlen_loop")
-    var l_done = _new_label(ctx, "strlen_done")
+    return {
+        "labels": labels,
+        "fixups": fixups,
+        "loop": _new_label(ctx, "strlen_loop"),
+        "done": _new_label(ctx, "strlen_done")
+    }
+}
+
+fn _x64_strlen_cstr0_emit_loop(ctx, state) {
+    var labels = state["labels"]
+    var fixups = state["fixups"]
+    var l_loop = state["loop"]
+    var l_done = state["done"]
 
     _emit_label(ctx, labels, l_loop)
     // rcx = ptr + len
@@ -37,9 +54,12 @@ fn _emit_strlen_cstr0_to_rdx(ctx, ptr_reg) {
     _emit_jcc_to_label(ctx, fixups, "e", l_done)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(2, 1)) // rdx++
     _emit_jmp_to_label(ctx, fixups, l_loop)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+fn _x64_strlen_cstr0_finish(ctx, state) {
+    _emit_label(ctx, state["labels"], state["done"])
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
     return nil
 }
 
