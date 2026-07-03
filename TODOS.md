@@ -629,6 +629,11 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~63.8s total / ~46.1s
   parse, with `_trace_x64_list_fast_loop` (~155ms) as the next parser-body
   target.
+- X64 fast-list loop tracing now separates base-message construction from
+  optional info-field appending while preserving the `[x64_list_fast]` key order.
+  The capped profile now shows `x64_native_program.oren` at ~63.4s total /
+  ~45.8s parse, with `_emit_track_alloc_x64` (~72ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

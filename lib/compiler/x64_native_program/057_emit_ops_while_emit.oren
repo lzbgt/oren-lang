@@ -76,12 +76,13 @@ fn _emit_trace_list_header_ring_x64(ctx, list_reg, op, kind) {
     return nil
 }
 
-fn _trace_x64_list_fast_loop(ctx, kind, info) {
-    if ctx == nil { return nil }
-    if ctx["trace_x64_list_fast"] == nil { return nil }
+fn _x64_list_fast_trace_base_msg(ctx, kind) {
     var fnn = "?"
     if ctx["cur_fn_name"] != nil { fnn = ctx["cur_fn_name"] }
-    var msg = "[x64_list_fast] fn=" + fnn + " kind=" + kind
+    return "[x64_list_fast] fn=" + fnn + " kind=" + kind
+}
+
+fn _x64_list_fast_trace_append_info(msg, info) {
     if info != nil {
         if info["idx"] != nil { msg = msg + " idx=" + info["idx"] }
         if info["n"] != nil { msg = msg + " n=" + info["n"] }
@@ -90,6 +91,14 @@ fn _trace_x64_list_fast_loop(ctx, kind, info) {
         if info["loads"] != nil { msg = msg + " loads=" + oren_int_to_string(oren_list_len(info["loads"])) }
         if info["muls"] != nil { msg = msg + " muls=" + oren_int_to_string(oren_list_len(info["muls"])) }
     }
+    return msg
+}
+
+fn _trace_x64_list_fast_loop(ctx, kind, info) {
+    if ctx == nil { return nil }
+    if ctx["trace_x64_list_fast"] == nil { return nil }
+    var msg = _x64_list_fast_trace_base_msg(ctx, kind)
+    msg = _x64_list_fast_trace_append_info(msg, info)
     print(msg)
     return nil
 }

@@ -2836,6 +2836,11 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 63.8s total /
   46.1s parse, with `_trace_x64_list_fast_loop` exposed at about 155ms as the
   next parser body.
+- X64 fast-list loop tracing now separates base-message construction from
+  optional info-field appending while preserving the `[x64_list_fast]` key order.
+  The capped profile now shows `x64_native_program.oren` at about 63.4s total /
+  45.8s parse, with `_emit_track_alloc_x64` exposed at about 72ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

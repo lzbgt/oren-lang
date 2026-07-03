@@ -3040,6 +3040,13 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 63.8s total /</p>
 <p>  46.1s parse, with <code>_trace_x64_list_fast_loop</code> exposed at about 155ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>X64 fast-list loop tracing now separates base-message construction from</li>
+</ul>
+<p>  optional info-field appending while preserving the <code>[x64_list_fast]</code> key order.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at about 63.4s total /</p>
+<p>  45.8s parse, with <code>_emit_track_alloc_x64</code> exposed at about 72ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
