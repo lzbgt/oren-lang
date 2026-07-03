@@ -566,6 +566,11 @@ design evidence lives under `project-doc/`.
   now shows `x64_native_program.oren` at ~62.3s total / ~45.1s parse, with
   `_emit_intrinsic_sys_linux_net_socket_x64` (~73ms) as the next parser-body
   target.
+- Linux x64 `sys_socket` lowering now separates temp-state setup, shared
+  argument reloads, capsule prehook, syscall dispatch, and capsule posthook
+  while preserving the socket syscall and capsule ABIs. The capped profile now
+  shows `x64_native_program.oren` at ~62.7s total / ~45.4s parse, with
+  `_emit_fast_list_int_push_while_x64` (~73ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

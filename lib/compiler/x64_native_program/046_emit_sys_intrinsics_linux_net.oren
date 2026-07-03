@@ -448,47 +448,63 @@ fn _emit_intrinsic_sys_linux_net_msg_x64(ctx, nm, expr, locals, args, capsule) {
     return true
 }
 
+fn _x64_linux_net_socket_state(ctx, locals, args) {
+    var base26 = _intr_tmp_push(ctx, 3) // domain, type, proto
+    if oren_type_tag(base26) == 0 { return nil }
+    var tmp_dom = _intr_tmp_off(ctx, locals, base26 + 0)
+    var tmp_type = _intr_tmp_off(ctx, locals, base26 + 1)
+    var tmp_proto = _intr_tmp_off(ctx, locals, base26 + 2)
+    if oren_type_tag(tmp_dom) == 0 || oren_type_tag(tmp_type) == 0 || oren_type_tag(tmp_proto) == 0 { _intr_tmp_pop(ctx, base26); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_dom)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_proto)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base26); return nil }
+    return {"base": base26, "domain": tmp_dom, "type": tmp_type, "proto": tmp_proto}
+}
+
+fn _x64_linux_net_socket_load_args(ctx, state) {
+    _intr_load_x64(ctx, 7, state["domain"])
+    _intr_load_x64(ctx, 6, state["type"])
+    _intr_load_x64(ctx, 2, state["proto"])
+    return nil
+}
+
+fn _x64_linux_net_socket_emit_pre(ctx, state, capsule) {
+    if !capsule { return nil }
+    _x64_linux_net_socket_load_args(ctx, state)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre")
+    return nil
+}
+
+fn _x64_linux_net_socket_emit_syscall(ctx, state) {
+    _x64_linux_net_socket_load_args(ctx, state)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_socket()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_linux_net_socket_emit_post(ctx, state, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
+    _intr_load_x64(ctx, 6, state["domain"])
+    _intr_load_x64(ctx, 2, state["type"])
+    _intr_load_x64(ctx, 1, state["proto"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_linux_net_socket_x64(ctx, nm, expr, locals, args, capsule) {
     if nm != "sys_socket" { return false }
     if oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_socket expects 3 args"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_socket does not support spread"); return true }
 
-    var base26 = _intr_tmp_push(ctx, 3) // domain, type, proto
-    if oren_type_tag(base26) == 0 { return true }
-    var tmp_dom = _intr_tmp_off(ctx, locals, base26 + 0)
-    var tmp_type = _intr_tmp_off(ctx, locals, base26 + 1)
-    var tmp_proto = _intr_tmp_off(ctx, locals, base26 + 2)
-    if oren_type_tag(tmp_dom) == 0 || oren_type_tag(tmp_type) == 0 || oren_type_tag(tmp_proto) == 0 { _intr_tmp_pop(ctx, base26); return true }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_dom)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_proto)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base26); return true }
-
-    // pre: native_capsule_sys_socket_pre(domain, type, protocol)
-    if capsule {
-        _intr_load_x64(ctx, 7, tmp_dom)
-        _intr_load_x64(ctx, 6, tmp_type)
-        _intr_load_x64(ctx, 2, tmp_proto)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre")
-    }
-
-    _intr_load_x64(ctx, 7, tmp_dom)
-    _intr_load_x64(ctx, 6, tmp_type)
-    _intr_load_x64(ctx, 2, tmp_proto)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_socket()))
-    bytes_extend(ctx["code"], core.insn_syscall())
-
-    // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
-        _intr_load_x64(ctx, 6, tmp_dom)
-        _intr_load_x64(ctx, 2, tmp_type)
-        _intr_load_x64(ctx, 1, tmp_proto)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
-    }
-
-    _intr_tmp_pop(ctx, base26)
+    var state = _x64_linux_net_socket_state(ctx, locals, args)
+    if state == nil { return true }
+    _x64_linux_net_socket_emit_pre(ctx, state, capsule)
+    _x64_linux_net_socket_emit_syscall(ctx, state)
+    _x64_linux_net_socket_emit_post(ctx, state, capsule)
+    _intr_tmp_pop(ctx, state["base"])
     return true
 }
 

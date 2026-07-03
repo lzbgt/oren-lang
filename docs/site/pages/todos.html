@@ -809,6 +809,13 @@
 <p>  <code>_emit_intrinsic_sys_linux_net_socket_x64</code> (~73ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>Linux x64 <code>sys_socket</code> lowering now separates temp-state setup, shared</li>
+</ul>
+<p>  argument reloads, capsule prehook, syscall dispatch, and capsule posthook</p>
+<p>  while preserving the socket syscall and capsule ABIs. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~62.7s total / ~45.4s parse, with</p>
+<p>  <code>_emit_fast_list_int_push_while_x64</code> (~73ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
