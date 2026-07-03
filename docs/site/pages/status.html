@@ -3093,6 +3093,14 @@ make docs-site</code></pre>
 <p>  now shows <code>x64_native_program.oren</code> at about 44.5s total / 32.1s parse, with</p>
 <p>  <code>_emit_intrinsic_sys_mmap_private_anon_x64</code> exposed at about 49ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 private anonymous mmap lowering now separates length temp-state setup,</li>
+</ul>
+<p>  ABI-specific capsule prehook argument loading, platform dispatch, and Linux</p>
+<p>  mmap syscall argument emission while preserving the prehook length rewrite</p>
+<p>  contract. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  44.8s total / 32.5s parse, with <code>_emit_intrinsic_sys_linux_raw_clone_x64</code></p>
+<p>  exposed at about 50ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

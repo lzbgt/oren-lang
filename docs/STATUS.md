@@ -2875,6 +2875,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 44.5s total / 32.1s parse, with
   `_emit_intrinsic_sys_mmap_private_anon_x64` exposed at about 49ms as the next
   parser body.
+- X64 private anonymous mmap lowering now separates length temp-state setup,
+  ABI-specific capsule prehook argument loading, platform dispatch, and Linux
+  mmap syscall argument emission while preserving the prehook length rewrite
+  contract. The capped profile now shows `x64_native_program.oren` at about
+  44.8s total / 32.5s parse, with `_emit_intrinsic_sys_linux_raw_clone_x64`
+  exposed at about 50ms as the next parser body.
 
 ## Documentation Guardrail
 

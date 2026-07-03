@@ -667,6 +667,12 @@ design evidence lives under `project-doc/`.
   now shows `x64_native_program.oren` at ~44.5s total / ~32.1s parse, with
   `_emit_intrinsic_sys_mmap_private_anon_x64` (~49ms) as the next parser-body
   target.
+- X64 private anonymous mmap lowering now separates length temp-state setup,
+  ABI-specific capsule prehook argument loading, platform dispatch, and Linux
+  mmap syscall argument emission while preserving the prehook length rewrite
+  contract. The capped profile now shows `x64_native_program.oren` at ~44.8s
+  total / ~32.5s parse, with `_emit_intrinsic_sys_linux_raw_clone_x64` (~50ms)
+  as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

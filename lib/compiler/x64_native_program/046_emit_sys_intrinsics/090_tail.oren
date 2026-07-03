@@ -652,42 +652,66 @@ fn _emit_intrinsic_sys_mmap_private_anon_x64(ctx, expr, locals, args, capsule) {
     if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_mmap_private_anon expects 1 arg"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_mmap_private_anon does not support spread"); return true }
 
+    var st = _x64_mmap_private_anon_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_mmap_private_anon_emit_pre(ctx, st, capsule)
+    _x64_mmap_private_anon_emit_syscall(ctx, locals, st)
+
+    _intr_tmp_pop(ctx, st["base"])
+    return true
+}
+
+fn _x64_mmap_private_anon_state(ctx, locals, args) {
     var base13 = _intr_tmp_push(ctx, 1) // len
-    if oren_type_tag(base13) == 0 { return true }
+    if oren_type_tag(base13) == 0 { return nil }
     var tmp_len = _intr_tmp_off(ctx, locals, base13 + 0)
-    if oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base13); return true }
+    if oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base13); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_len)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base13); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base13); return nil }
+    return {"base": base13, "len": tmp_len, "is_win": _x64_sys_memory_uses_windows_abi(ctx)}
+}
 
-    // pre: native_capsule_sys_mmap_private_anon_pre(len) -> len
-    var is_win = _x64_sys_memory_uses_windows_abi(ctx)
-    if is_win {
+fn _x64_mmap_private_anon_load_prehook_arg(ctx, st) {
+    var tmp_len = st["len"]
+    if st["is_win"] {
         _intr_load_x64(ctx, 1, tmp_len) // rcx = len
     } else {
         _intr_load_x64(ctx, 7, tmp_len) // rdi = len
     }
+    return nil
+}
+
+fn _x64_mmap_private_anon_emit_pre(ctx, st, capsule) {
+    // pre: native_capsule_sys_mmap_private_anon_pre(len) -> len
+    _x64_mmap_private_anon_load_prehook_arg(ctx, st)
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mmap_private_anon_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
+        _emit_mov_mrbp_r64(ctx, 0 - st["len"], 0)
     }
+    return nil
+}
 
-    if is_win {
-        _emit_sys_mmap_private_anon_windows_x64(ctx, locals, tmp_len)
+fn _x64_mmap_private_anon_emit_syscall(ctx, locals, st) {
+    if st["is_win"] {
+        _emit_sys_mmap_private_anon_windows_x64(ctx, locals, st["len"])
     } else {
-        // Linux x86_64: mmap(0, len, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
-        _intr_load_x64(ctx, 6, tmp_len) // rsi = len
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.linux_mmap_prot_read_write()))
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, labi.linux_mmap_flags_private_anon()))
-        bytes_extend(ctx["code"], core.insn_mov_r64_imm64(8, -1))
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_mmap()))
-        bytes_extend(ctx["code"], core.insn_syscall())
+        _x64_mmap_private_anon_emit_linux_syscall(ctx, st["len"])
     }
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base13)
-    return true
+fn _x64_mmap_private_anon_emit_linux_syscall(ctx, tmp_len) {
+    // Linux x86_64: mmap(0, len, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
+    _intr_load_x64(ctx, 6, tmp_len) // rsi = len
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.linux_mmap_prot_read_write()))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, labi.linux_mmap_flags_private_anon()))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(8, -1))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_mmap()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
 }
 
 fn _emit_intrinsic_sys_munmap_x64(ctx, expr, locals, args, capsule) {
