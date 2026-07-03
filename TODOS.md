@@ -739,6 +739,11 @@ design evidence lives under `project-doc/`.
   helpers while preserving the argc/argv UTF-8 pool layout. The capped profile
   now shows `x64_native_program.oren` at ~44.9s total / ~32.6s parse, with
   `_x64_emit_regular_control_op` (~49ms) as the next parser-body target.
+- X64 regular control-op lowering now delegates `if`, loop, and loop-jump
+  lowering to focused helpers while preserving the regular-op `nil`/`0`
+  dispatch contract. The capped profile now shows `x64_native_program.oren`
+  at ~62.0s total / ~45.2s parse, with `_x64_string_batch_emit_top_loop`
+  (~214ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

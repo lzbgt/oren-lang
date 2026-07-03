@@ -2951,6 +2951,12 @@ make docs-site
   helpers while preserving the argc/argv UTF-8 pool layout. The capped profile
   now shows `x64_native_program.oren` at about 44.9s total / 32.6s parse, with
   `_x64_emit_regular_control_op` exposed at about 49ms as the next parser body.
+- X64 regular control-op lowering now delegates `if`, loop, and loop-jump
+  lowering to focused helpers while preserving the regular-op `nil`/`0`
+  dispatch contract. The capped profile now shows `x64_native_program.oren`
+  at about 62.0s total / 45.2s parse, with
+  `_x64_string_batch_emit_top_loop` exposed at about 214ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

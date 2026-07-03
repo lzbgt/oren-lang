@@ -1046,6 +1046,13 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~44.9s total / ~32.6s parse, with</p>
 <p>  <code>_x64_emit_regular_control_op</code> (~49ms) as the next parser-body target.</p>
 <ul>
+<li>X64 regular control-op lowering now delegates <code>if</code>, loop, and loop-jump</li>
+</ul>
+<p>  lowering to focused helpers while preserving the regular-op <code>nil</code>/<code>0</code></p>
+<p>  dispatch contract. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at ~62.0s total / ~45.2s parse, with <code>_x64_string_batch_emit_top_loop</code></p>
+<p>  (~214ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

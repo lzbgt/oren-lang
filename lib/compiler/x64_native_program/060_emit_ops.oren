@@ -1386,22 +1386,24 @@ fn _x64_emit_regular_straightline_op(ctx, op_kind, op, locals, local_fixups, epi
     return _x64_emit_regular_return_op(ctx, op_kind, op, locals, local_fixups, epilogue_label)
 }
 
-fn _x64_emit_regular_control_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic) {
-    if op_kind == "if" {
-        var cond = op["cond"]
-        var else_label = _new_label(ctx, "if_else")
-        var end_label = _new_label(ctx, "if_end")
-        _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, else_label)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
-        _emit_ops_in_fn(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
-        _emit_jmp_to_label(ctx, local_fixups, end_label)
-        _emit_label(ctx, labels, else_label)
-        _emit_ops_in_fn(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
-        _emit_label(ctx, labels, end_label)
-        return 0
-    }
+fn _x64_emit_regular_if_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
+    if op_kind != "if" { return nil }
+    var cond = op["cond"]
+    var else_label = _new_label(ctx, "if_else")
+    var end_label = _new_label(ctx, "if_end")
+    _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, else_label)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+    _emit_ops_in_fn(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+    _emit_jmp_to_label(ctx, local_fixups, end_label)
+    _emit_label(ctx, labels, else_label)
+    _emit_ops_in_fn(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+    _emit_label(ctx, labels, end_label)
+    return 0
+}
+
+fn _x64_emit_regular_loop_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic) {
     if op_kind == "while" {
         _emit_while_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform)
         return 0
@@ -1410,6 +1412,10 @@ fn _x64_emit_regular_control_op(ctx, op_kind, op, locals, labels, local_fixups, 
         _emit_for_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic)
         return 0
     }
+    return nil
+}
+
+fn _x64_emit_regular_loop_jump_op(ctx, op_kind, local_fixups, loop_cond_label, loop_end_label) {
     if op_kind == "break" {
         if loop_end_label == nil { err(ctx, "x64 native v0: break outside loop"); return 0 }
         _emit_jmp_to_label(ctx, local_fixups, loop_end_label)
@@ -1419,6 +1425,20 @@ fn _x64_emit_regular_control_op(ctx, op_kind, op, locals, labels, local_fixups, 
         if loop_cond_label == nil { err(ctx, "x64 native v0: continue outside loop"); return 0 }
         _emit_jmp_to_label(ctx, local_fixups, loop_cond_label)
         return 0
+    }
+    return nil
+}
+
+fn _x64_emit_regular_control_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic) {
+    var if_status = _x64_emit_regular_if_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+    if if_status != nil { return if_status }
+
+    var loop_status = _x64_emit_regular_loop_op(ctx, op_kind, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic)
+    if loop_status != nil { return loop_status }
+
+    var jump_status = _x64_emit_regular_loop_jump_op(ctx, op_kind, local_fixups, loop_cond_label, loop_end_label)
+    if jump_status != nil {
+        return jump_status
     }
     return nil
 }
