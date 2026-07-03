@@ -2974,6 +2974,11 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 48.6s total / 34.3s
   parse, with `_x64_should_use_full_native_runtime_profile` exposed at about
   83ms as the next parser body.
+- X64 native runtime-profile selection now separates full-runtime path matching
+  from module-graph scanning while preserving safe defaults for missing linked
+  or graph data. The capped profile now shows `x64_native_program.oren` at
+  about 46.9s total / 33.5s parse, with `_x64_prepare_function_params` exposed
+  at about 57ms as the next parser body.
 
 ## Documentation Guardrail
 

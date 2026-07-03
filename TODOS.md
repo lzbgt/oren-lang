@@ -761,6 +761,11 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~48.6s total / ~34.3s parse,
   with `_x64_should_use_full_native_runtime_profile` (~83ms) as the next
   parser-body target.
+- X64 native runtime-profile selection now separates full-runtime path matching
+  from module-graph scanning while preserving safe defaults for missing linked
+  or graph data. The capped profile now shows `x64_native_program.oren` at
+  ~46.9s total / ~33.5s parse, with `_x64_prepare_function_params` (~57ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

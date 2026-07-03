@@ -44,6 +44,39 @@ fn _x64_str_contains_bytes(hay, needle) {
     return false
 }
 
+fn _x64_module_path_needs_full_runtime_profile(path) {
+    // std:linalg reaches the full typed-buffer runtime surface (`oren_buf_dot_f64`,
+    // GEMM helpers, etc.). The core runtime profile intentionally keeps only the
+    // small typed-buffer subset, so linalg imports must escalate deterministically.
+    if _x64_str_contains_bytes(path, "/lib/std/linalg") ||
+       _x64_str_contains_bytes(path, "lib/std/linalg") ||
+       _x64_str_contains_bytes(path, "\\lib\\std\\linalg") ||
+       _x64_str_contains_bytes(path, "lib\\std\\linalg") { return true }
+
+    // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
+    // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
+    if _x64_str_contains_bytes(path, "/lib/std/net/") ||
+       _x64_str_contains_bytes(path, "lib/std/net/") ||
+       _x64_str_contains_bytes(path, "\\lib\\std\\net\\") ||
+       _x64_str_contains_bytes(path, "lib\\std\\net\\") { return true }
+    return false
+}
+
+fn _x64_module_graph_needs_full_runtime_profile(g) {
+    if _x64_module_path_needs_full_runtime_profile(g["entry"]) { return true }
+    var mods = g["modules"]
+    if mods == nil { return false }
+    var i = 0
+    while i < oren_list_len(mods) {
+        var m = mods[i]
+        if m != nil {
+            if _x64_module_path_needs_full_runtime_profile(m["path"]) { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
 fn _x64_should_use_full_native_runtime_profile(linked) {
     // Default runtime injection profile heuristic (rolling, perf-oriented):
     // - Prefer the smaller core profile for typical programs to keep cold rtobj misses bounded.
@@ -54,42 +87,7 @@ fn _x64_should_use_full_native_runtime_profile(linked) {
     if linked == nil { return true } // safe default
     var g = linked["module_graph"]
     if g == nil { return true } // safe default
-
-    // std:linalg reaches the full typed-buffer runtime surface (`oren_buf_dot_f64`,
-    // GEMM helpers, etc.). The core runtime profile intentionally keeps only the
-    // small typed-buffer subset, so linalg imports must escalate deterministically.
-    var entry = g["entry"]
-    if _x64_str_contains_bytes(entry, "/lib/std/linalg") ||
-       _x64_str_contains_bytes(entry, "lib/std/linalg") ||
-       _x64_str_contains_bytes(entry, "\\lib\\std\\linalg") ||
-       _x64_str_contains_bytes(entry, "lib\\std\\linalg") { return true }
-
-    // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
-    // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
-    if _x64_str_contains_bytes(entry, "/lib/std/net/") ||
-       _x64_str_contains_bytes(entry, "lib/std/net/") ||
-       _x64_str_contains_bytes(entry, "\\lib\\std\\net\\") ||
-       _x64_str_contains_bytes(entry, "lib\\std\\net\\") { return true }
-
-    var mods = g["modules"]
-    if mods == nil { return false }
-    var i = 0
-    while i < oren_list_len(mods) {
-        var m = mods[i]
-        if m != nil {
-            var p = m["path"]
-            if _x64_str_contains_bytes(p, "/lib/std/linalg") ||
-               _x64_str_contains_bytes(p, "lib/std/linalg") ||
-               _x64_str_contains_bytes(p, "\\lib\\std\\linalg") ||
-               _x64_str_contains_bytes(p, "lib\\std\\linalg") { return true }
-            if _x64_str_contains_bytes(p, "/lib/std/net/") ||
-               _x64_str_contains_bytes(p, "lib/std/net/") ||
-               _x64_str_contains_bytes(p, "\\lib\\std\\net\\") ||
-               _x64_str_contains_bytes(p, "lib\\std\\net\\") { return true }
-        }
-        i = i + 1
-    }
-    return false
+    return _x64_module_graph_needs_full_runtime_profile(g)
 }
 
 fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {

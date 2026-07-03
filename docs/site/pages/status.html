@@ -3226,6 +3226,13 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 48.6s total / 34.3s</p>
 <p>  parse, with <code>_x64_should_use_full_native_runtime_profile</code> exposed at about</p>
 <p>  83ms as the next parser body.</p>
+<ul>
+<li>X64 native runtime-profile selection now separates full-runtime path matching</li>
+</ul>
+<p>  from module-graph scanning while preserving safe defaults for missing linked</p>
+<p>  or graph data. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  about 46.9s total / 33.5s parse, with <code>_x64_prepare_function_params</code> exposed</p>
+<p>  at about 57ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

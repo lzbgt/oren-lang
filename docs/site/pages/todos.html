@@ -1076,6 +1076,13 @@
 <p>  with <code>_x64_should_use_full_native_runtime_profile</code> (~83ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>X64 native runtime-profile selection now separates full-runtime path matching</li>
+</ul>
+<p>  from module-graph scanning while preserving safe defaults for missing linked</p>
+<p>  or graph data. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~46.9s total / ~33.5s parse, with <code>_x64_prepare_function_params</code> (~57ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
