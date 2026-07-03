@@ -505,6 +505,12 @@ design evidence lives under `project-doc/`.
   buffer EFAULT checks while preserving local label/fixup routing. The capped
   profile now shows `x64_native_program.oren` at ~43.7s total / ~31.6s parse,
   with `_emit_panic_with_msg_ptr` (~52ms) as the next parser-body target.
+- X64 panic message emission now separates callee-saved message preservation,
+  Windows literal/dynamic diagnostic writes, Linux diagnostic writes, debug-stack
+  gating, and platform abort finalization while preserving the emitted
+  `OREN_DIAG` line sequence. The capped profile now shows
+  `x64_native_program.oren` at ~44.0s total / ~31.9s parse, with
+  `_emit_index_set_intrinsic_v0_x64` (~52ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

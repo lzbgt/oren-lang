@@ -2858,6 +2858,15 @@ make docs-site</code></pre>
 <p>  buffer EFAULT checks while preserving local label/fixup routing. The capped</p>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 43.7s total / 31.6s parse,</p>
 <p>  with <code>_emit_panic_with_msg_ptr</code> exposed at about 52ms as the next parser body.</p>
+<ul>
+<li>X64 panic message emission now separates callee-saved message preservation,</li>
+</ul>
+<p>  Windows literal/dynamic diagnostic writes, Linux diagnostic writes, debug-stack</p>
+<p>  gating, and platform abort finalization while preserving the emitted</p>
+<p>  <code>OREN_DIAG</code> line sequence. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 44.0s total / 31.9s parse, with</p>
+<p>  <code>_emit_index_set_intrinsic_v0_x64</code> exposed at about 52ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

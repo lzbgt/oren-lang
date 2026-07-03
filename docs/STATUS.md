@@ -2700,6 +2700,13 @@ make docs-site
   buffer EFAULT checks while preserving local label/fixup routing. The capped
   profile now shows `x64_native_program.oren` at about 43.7s total / 31.6s parse,
   with `_emit_panic_with_msg_ptr` exposed at about 52ms as the next parser body.
+- X64 panic message emission now separates callee-saved message preservation,
+  Windows literal/dynamic diagnostic writes, Linux diagnostic writes, debug-stack
+  gating, and platform abort finalization while preserving the emitted
+  `OREN_DIAG` line sequence. The capped profile now shows
+  `x64_native_program.oren` at about 44.0s total / 31.9s parse, with
+  `_emit_index_set_intrinsic_v0_x64` exposed at about 52ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

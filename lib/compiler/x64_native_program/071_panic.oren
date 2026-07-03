@@ -114,6 +114,75 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     return nil
 }
 
+fn _emit_panic_preserve_msg_reg(ctx, msg_ptr_reg) {
+    var msg_reg = msg_ptr_reg
+    if msg_reg == nil { msg_reg = 12 }
+    if msg_reg != 12 {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, msg_reg))
+        msg_reg = 12
+    }
+    return msg_reg
+}
+
+fn _emit_windows_write_cstr_ptr(ctx, data_off, nbytes) {
+    var lea_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": data_off})
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(11, nbytes))
+    _emit_windows_write_ptr_len(ctx, 2, 11)
+    return nil
+}
+
+fn _emit_windows_panic_diag(ctx, msg_reg) {
+    // NOTE: on Win64 we do not have a cheap way to write mixed literal+dynamic without
+    // allocating; emit as 3 writes: prefix, msg, newline.
+    var pref = "OREN_DIAG kind=panic code=1 msg="
+    var pref_off = _data_add_cstr0(ctx, pref)
+    // `pref_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
+    _emit_windows_write_cstr_ptr(ctx, pref_off, oren_string_len(pref))
+
+    _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2)) // r11 = len
+    _emit_windows_write_ptr_len(ctx, msg_reg, 11)
+
+    var nl_off = _data_add_cstr0(ctx, "\n")
+    // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
+    _emit_windows_write_cstr_ptr(ctx, nl_off, 1)
+    return nil
+}
+
+fn _emit_linux_panic_diag(ctx, msg_reg) {
+    _emit_linux_write_str(ctx, "OREN_DIAG kind=panic code=1 msg=")
+    _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
+    _emit_linux_write_ptr_len(ctx, msg_reg, 2)
+    _emit_linux_write_str(ctx, "\n")
+    return nil
+}
+
+fn _emit_panic_debug_stack_if_enabled(ctx, platform) {
+    if platform != nil && platform["debug"] == true {
+        _emit_stack_trace_best_effort(ctx)
+    }
+    return nil
+}
+
+fn _emit_windows_panic_with_msg_reg(ctx, msg_reg, platform) {
+    _emit_windows_panic_diag(ctx, msg_reg)
+    // Keep best-effort stack traces enabled in debug builds (Tier‑1 parity with Linux).
+    // This is intentionally bounded (<=16 frames) and allocation-free.
+    _emit_panic_debug_stack_if_enabled(ctx, platform)
+    _emit_abort_exitcode(ctx, 1)
+    return nil
+}
+
+fn _emit_linux_panic_with_msg_reg(ctx, msg_reg, platform) {
+    _emit_linux_panic_diag(ctx, msg_reg)
+    // Keep stack traces in debug builds by default (size/perf tradeoff for release builds).
+    _emit_panic_debug_stack_if_enabled(ctx, platform)
+    _emit_abort_exitcode(ctx, 1)
+    return nil
+}
+
 fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
     // Best-effort panic printing compatible with Tier‑1 bring-up.
     //
@@ -126,66 +195,14 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
     // - On both Linux and Win64, our write syscalls / WinAPI calls clobber caller-saved regs.
     // - `oren_panic(msg)` evaluation typically leaves `msg` in RAX (reg 0).
     // Preserve the message pointer in a callee-saved register before emitting any I/O.
-    var msg_reg = msg_ptr_reg
-    if msg_reg == nil { msg_reg = 12 }
-    if msg_reg != 12 {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, msg_reg))
-        msg_reg = 12
-    }
+    var msg_reg = _emit_panic_preserve_msg_reg(ctx, msg_ptr_reg)
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
-        // NOTE: on Win64 we do not have a cheap way to write mixed literal+dynamic without
-        // allocating; emit as 3 writes: prefix, msg, newline.
-        //
-        // prefix literal
-        var pref = "OREN_DIAG kind=panic code=1 msg="
-        var pref_off = _data_add_cstr0(ctx, pref)
-        // `pref_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
-        // lea rdx, [rip+pref] ; r8d=len
-        // GetStdHandle/WriteFile for (ptr,len)
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
-        // Windows PE: dynamic strings live in the user data blob (mapped as `.data` in v0).
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": pref_off})
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(11, oren_string_len(pref))) // r11d=len
-        _emit_windows_write_ptr_len(ctx, 2, 11)
-
-        // msg dynamic: compute len in rdx
-        _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
-        // Move len to a stable temp reg (rdx will be overwritten when setting up args).
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2)) // r11 = len
-        // write msg
-        _emit_windows_write_ptr_len(ctx, msg_reg, 11)
-        // newline literal
-        var nl_off = _data_add_cstr0(ctx, "\n")
-        // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
-        var lea_pos2 = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": nl_off})
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(11, 1)) // r11d=1
-        _emit_windows_write_ptr_len(ctx, 2, 11)
-
-        // Keep best-effort stack traces enabled in debug builds (Tier‑1 parity with Linux).
-        // This is intentionally bounded (<=16 frames) and allocation-free.
-        if platform != nil && platform["debug"] == true {
-            _emit_stack_trace_best_effort(ctx)
-        }
-
-        _emit_abort_exitcode(ctx, 1)
-        return nil
+        return _emit_windows_panic_with_msg_reg(ctx, msg_reg, platform)
     }
 
     // Linux: emit prefix + msg + newline (three writes).
-    _emit_linux_write_str(ctx, "OREN_DIAG kind=panic code=1 msg=")
-    _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
-    _emit_linux_write_ptr_len(ctx, msg_reg, 2)
-    _emit_linux_write_str(ctx, "\n")
-    // Keep stack traces in debug builds by default (size/perf tradeoff for release builds).
-    if platform != nil && platform["debug"] == true {
-        _emit_stack_trace_best_effort(ctx)
-    }
-    _emit_abort_exitcode(ctx, 1)
-    return nil
+    return _emit_linux_panic_with_msg_reg(ctx, msg_reg, platform)
 }
 
 fn _x64_panic_helper_name() { return "__oren_panic_helper" }
