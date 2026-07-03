@@ -516,6 +516,13 @@ design evidence lives under `project-doc/`.
   while preserving the existing spill and temp cleanup order. The capped profile
   now shows `x64_native_program.oren` at ~44.2s total / ~32.2s parse, with
   `_x64_rtobj_apply_imports_and_ffi` (~54ms) as the next parser-body target.
+- X64 runtime-object import/FFI metadata application now separates import-list
+  merging, single FFI link-name conflict handling, FFI link-name map iteration,
+  and the top-level imports/FFI orchestration while preserving phase logging and
+  conflict diagnostics. The capped profile now shows `x64_native_program.oren`
+  at ~43.9s total / ~31.9s parse, with
+  `_x64_windows_fstat_emit_handle_resolution` (~53ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

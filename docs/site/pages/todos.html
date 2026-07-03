@@ -741,6 +741,15 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~44.2s total / ~32.2s parse, with</p>
 <p>  <code>_x64_rtobj_apply_imports_and_ffi</code> (~54ms) as the next parser-body target.</p>
 <ul>
+<li>X64 runtime-object import/FFI metadata application now separates import-list</li>
+</ul>
+<p>  merging, single FFI link-name conflict handling, FFI link-name map iteration,</p>
+<p>  and the top-level imports/FFI orchestration while preserving phase logging and</p>
+<p>  conflict diagnostics. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at ~43.9s total / ~31.9s parse, with</p>
+<p>  <code>_x64_windows_fstat_emit_handle_resolution</code> (~53ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
