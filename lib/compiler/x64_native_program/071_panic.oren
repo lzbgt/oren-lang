@@ -359,7 +359,7 @@ fn _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off) {
     return {"labels": labels, "fixups": fixups, "l_done": l_done, "l_loop": l_loop, "l_match": l_match}
 }
 
-fn _x64_emit_resolve_symbol_scan_loop(ctx, st, out_ptr_reg, out_off_reg) {
+fn _x64_emit_resolve_table_scan_entry(ctx, st) {
     var labels = st["labels"]
     var fixups = st["fixups"]
     var l_done = st["l_done"]
@@ -383,12 +383,45 @@ fn _x64_emit_resolve_symbol_scan_loop(ctx, st, out_ptr_reg, out_off_reg) {
     // if off_target >= entry_off => match
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 6))
     _emit_jcc_to_label(ctx, fixups, "ae", l_match)
+    return nil
+}
 
+fn _x64_emit_resolve_table_scan_miss(ctx, st) {
+    var fixups = st["fixups"]
+    var l_loop = st["l_loop"]
     // idx++
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(3, 1))
     _emit_jmp_to_label(ctx, fixups, l_loop)
+    return nil
+}
 
+fn _x64_emit_resolve_table_match_label(ctx, st) {
+    var labels = st["labels"]
+    var l_match = st["l_match"]
     _emit_label(ctx, labels, l_match)
+    return nil
+}
+
+fn _x64_emit_resolve_table_match_ptr_from_high32(ctx, out_ptr_reg) {
+    // high32(entry) stores the data-relative C string offset.
+    bytes_extend(ctx["code"], core.insn_shr_r64_imm8(0, 32))
+    // out_ptr_reg = data_base + string_off
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(out_ptr_reg, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(out_ptr_reg, 0))
+    return nil
+}
+
+fn _x64_emit_resolve_table_match_done(ctx, st) {
+    var fixups = st["fixups"]
+    var l_done = st["l_done"]
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
+
+fn _x64_emit_resolve_symbol_scan_loop(ctx, st, out_ptr_reg, out_off_reg) {
+    _x64_emit_resolve_table_scan_entry(ctx, st)
+    _x64_emit_resolve_table_scan_miss(ctx, st)
+    _x64_emit_resolve_table_match_label(ctx, st)
     // Compute:
     // - name_off = high32(entry)
     // - fn_off   = low32(entry)
@@ -399,12 +432,8 @@ fn _x64_emit_resolve_symbol_scan_loop(ctx, st, out_ptr_reg, out_off_reg) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(out_off_reg, 9))
     bytes_extend(ctx["code"], core.insn_sub_r64_r64(out_off_reg, 6))
 
-    // name_off = high32(entry)
-    bytes_extend(ctx["code"], core.insn_shr_r64_imm8(0, 32))
-    // out_ptr_reg = data_base + name_off
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(out_ptr_reg, 8))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(out_ptr_reg, 0))
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _x64_emit_resolve_table_match_ptr_from_high32(ctx, out_ptr_reg)
+    _x64_emit_resolve_table_match_done(ctx, st)
     return nil
 }
 
@@ -479,41 +508,11 @@ fn _x64_emit_resolve_loc_table_setup(ctx, addr_reg, linetab_off) {
 }
 
 fn _x64_emit_resolve_loc_scan_loop(ctx, st, out_ptr_reg) {
-    var labels = st["labels"]
-    var fixups = st["fixups"]
-    var l_done = st["l_done"]
-    var l_loop = st["l_loop"]
-    var l_match = st["l_match"]
-
-    _emit_label(ctx, labels, l_loop)
-    // if idx >= count => done
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(3, 10))
-    _emit_jcc_to_label(ctx, fixups, "ge", l_done)
-
-    // entry_ptr (rax) = entries_base + idx*8
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 3))
-    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(0, 8))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 11))
-    // entry (rax) = *(u64*)entry_ptr
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 0))
-
-    // entry_off (rsi) = low32(entry)
-    bytes_extend(ctx["code"], core.insn_mov_r32_r32(6, 0))
-    // if off_target >= entry_off => match
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 6))
-    _emit_jcc_to_label(ctx, fixups, "ae", l_match)
-
-    // idx++
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(3, 1))
-    _emit_jmp_to_label(ctx, fixups, l_loop)
-
-    _emit_label(ctx, labels, l_match)
-    // loc_off = high32(entry)
-    bytes_extend(ctx["code"], core.insn_shr_r64_imm8(0, 32))
-    // out_ptr_reg = data_base + loc_off
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(out_ptr_reg, 8))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(out_ptr_reg, 0))
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _x64_emit_resolve_table_scan_entry(ctx, st)
+    _x64_emit_resolve_table_scan_miss(ctx, st)
+    _x64_emit_resolve_table_match_label(ctx, st)
+    _x64_emit_resolve_table_match_ptr_from_high32(ctx, out_ptr_reg)
+    _x64_emit_resolve_table_match_done(ctx, st)
     return nil
 }
 

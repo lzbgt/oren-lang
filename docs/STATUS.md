@@ -2819,6 +2819,11 @@ make docs-site
   shows `x64_native_program.oren` at about 66.6s total / 49.0s parse, with
   `_x64_emit_resolve_symbol_scan_loop` exposed at about 115ms as the next
   parser body.
+- X64 panic symbol/location table scans now share loop entry, miss-advance,
+  match-label, high32 string-pointer, and done-jump helpers while preserving the
+  symbol offset and location pointer register contracts. The capped profile now
+  shows `x64_native_program.oren` at about 63.1s total / 45.8s parse, with
+  `_x64_windows_select_state` exposed at about 93ms as the next parser body.
 
 ## Documentation Guardrail
 
