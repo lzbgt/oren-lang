@@ -2695,6 +2695,11 @@ make docs-site
   `x64_native_program.oren` at about 44.3s total / 32.3s parse, with
   `_x64_emit_getentropy_windows_guards` exposed at about 63ms as the next parser
   body.
+- Windows x64 `sys_getentropy` guard emission now separates shared i32
+  return-and-jump materialization, non-positive length fast return, and null
+  buffer EFAULT checks while preserving local label/fixup routing. The capped
+  profile now shows `x64_native_program.oren` at about 43.7s total / 31.6s parse,
+  with `_emit_panic_with_msg_ptr` exposed at about 52ms as the next parser body.
 
 ## Documentation Guardrail
 

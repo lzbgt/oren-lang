@@ -2851,6 +2851,13 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 44.3s total / 32.3s parse, with</p>
 <p>  <code>_x64_emit_getentropy_windows_guards</code> exposed at about 63ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>Windows x64 <code>sys_getentropy</code> guard emission now separates shared i32</li>
+</ul>
+<p>  return-and-jump materialization, non-positive length fast return, and null</p>
+<p>  buffer EFAULT checks while preserving local label/fixup routing. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 43.7s total / 31.6s parse,</p>
+<p>  with <code>_emit_panic_with_msg_ptr</code> exposed at about 52ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -500,6 +500,11 @@ design evidence lives under `project-doc/`.
   the list allocation and return reload sequence. The capped profile now shows
   `x64_native_program.oren` at ~44.3s total / ~32.3s parse, with
   `_x64_emit_getentropy_windows_guards` (~63ms) as the next parser-body target.
+- Windows x64 `sys_getentropy` guard emission now separates shared i32
+  return-and-jump materialization, non-positive length fast return, and null
+  buffer EFAULT checks while preserving local label/fixup routing. The capped
+  profile now shows `x64_native_program.oren` at ~43.7s total / ~31.6s parse,
+  with `_emit_panic_with_msg_ptr` (~52ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
