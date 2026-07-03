@@ -2863,6 +2863,12 @@ make docs-site
   `x64_native_program.oren` at about 45.0s total / 32.7s parse, with
   `_emit_intrinsic_sys_linux_fcntl_raw_x64` exposed at about 50ms as the next
   parser body.
+- X64 Linux raw `sys_fcntl` lowering now follows the getfl/setfl helper shape,
+  with separate temp-state setup, argument reload, capsule prehook, syscall, and
+  capsule posthook helpers while preserving the three-argument ABI. The capped
+  profile now shows `x64_native_program.oren` at about 48.9s total / 36.4s
+  parse, with `_x64_fast_lcg_unsigned_emit_safepoint` exposed at about 196ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

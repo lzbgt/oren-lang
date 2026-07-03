@@ -655,6 +655,12 @@ design evidence lives under `project-doc/`.
   `x64_native_program.oren` at ~45.0s total / ~32.7s parse, with
   `_emit_intrinsic_sys_linux_fcntl_raw_x64` (~50ms) as the next parser-body
   target.
+- X64 Linux raw `sys_fcntl` lowering now follows the getfl/setfl helper shape,
+  with separate temp-state setup, argument reload, capsule prehook, syscall, and
+  capsule posthook helpers while preserving the three-argument ABI. The capped
+  profile now shows `x64_native_program.oren` at ~48.9s total / ~36.4s parse,
+  with `_x64_fast_lcg_unsigned_emit_safepoint` (~196ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
