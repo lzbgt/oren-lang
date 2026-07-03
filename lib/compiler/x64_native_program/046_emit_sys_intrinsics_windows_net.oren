@@ -119,6 +119,42 @@ fn _emit_wsa_last_error_to_neg_errno_connect_x64(ctx) {
     return nil
 }
 
+fn _emit_wsa_posix_errno_case_x64(ctx, labels, fixups, l_done, next_label, wsa_errno, posix_errno) {
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, wsa_errno))
+    var l_next = _new_label(ctx, next_label)
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, posix_errno))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next)
+    return nil
+}
+
+fn _emit_map_wsa_eax_zero_to_posix_errno_x64(ctx, fixups, l_done) {
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_done)
+    return nil
+}
+
+fn _emit_map_wsa_eax_known_to_posix_errno_x64(ctx, labels, fixups, l_done) {
+    // WSAETIMEDOUT(10060) -> ETIMEDOUT(60)
+    _emit_wsa_posix_errno_case_x64(ctx, labels, fixups, l_done, "wsa_to_posix_next0", 10060, 60)
+
+    // WSAECONNREFUSED(10061) -> ECONNREFUSED(111)
+    _emit_wsa_posix_errno_case_x64(ctx, labels, fixups, l_done, "wsa_to_posix_next1", 10061, 111)
+
+    // WSAEADDRINUSE(10048) -> EADDRINUSE(98)
+    _emit_wsa_posix_errno_case_x64(ctx, labels, fixups, l_done, "wsa_to_posix_next2", 10048, 98)
+
+    // WSAEINVAL(10022) -> EINVAL(22)
+    _emit_wsa_posix_errno_case_x64(ctx, labels, fixups, l_done, "wsa_to_posix_next3", 10022, 22)
+    return nil
+}
+
+fn _emit_map_wsa_eax_default_to_posix_errno_x64(ctx) {
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 5))
+    return nil
+}
+
 fn _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx) {
     // Input:  eax = WSA error code (0 => ok)
     // Output: eax = POSIX errno number (0 => ok)
@@ -128,40 +164,9 @@ fn _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx) {
     var fixups = []
     var l_done = _new_label(ctx, "wsa_to_posix_done")
 
-    // if eax == 0 => keep 0
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", l_done)
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10060)) // WSAETIMEDOUT
-    var l_next0 = _new_label(ctx, "wsa_to_posix_next0")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 60))
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next0)
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10061)) // WSAECONNREFUSED
-    var l_next1 = _new_label(ctx, "wsa_to_posix_next1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 111))
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next1)
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10048)) // WSAEADDRINUSE
-    var l_next2 = _new_label(ctx, "wsa_to_posix_next2")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 98))
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next2)
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 10022)) // WSAEINVAL
-    var l_next3 = _new_label(ctx, "wsa_to_posix_next3")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 22))
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next3)
-
-    // Default: EIO(5)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 5))
+    _emit_map_wsa_eax_zero_to_posix_errno_x64(ctx, fixups, l_done)
+    _emit_map_wsa_eax_known_to_posix_errno_x64(ctx, labels, fixups, l_done)
+    _emit_map_wsa_eax_default_to_posix_errno_x64(ctx)
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)

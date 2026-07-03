@@ -1068,6 +1068,14 @@
 <p>  ~33.6s parse, with <code>_emit_map_wsa_eax_to_posix_errno_eax_x64</code> (~49ms) as the</p>
 <p>  next parser-body target.</p>
 <ul>
+<li>X64 Windows SO_ERROR WSA-to-POSIX normalization now separates zero-preserve,</li>
+</ul>
+<p>  known-code case emission, and EIO default handling while preserving the</p>
+<p>  emitted WSAETIMEDOUT/ECONNREFUSED/EADDRINUSE/EINVAL mappings. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~48.6s total / ~34.3s parse,</p>
+<p>  with <code>_x64_should_use_full_native_runtime_profile</code> (~83ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

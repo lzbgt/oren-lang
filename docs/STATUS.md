@@ -2968,6 +2968,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 46.0s total /
   33.6s parse, with `_emit_map_wsa_eax_to_posix_errno_eax_x64` exposed at about
   49ms as the next parser body.
+- X64 Windows SO_ERROR WSA-to-POSIX normalization now separates zero-preserve,
+  known-code case emission, and EIO default handling while preserving the
+  emitted WSAETIMEDOUT/ECONNREFUSED/EADDRINUSE/EINVAL mappings. The capped
+  profile now shows `x64_native_program.oren` at about 48.6s total / 34.3s
+  parse, with `_x64_should_use_full_native_runtime_profile` exposed at about
+  83ms as the next parser body.
 
 ## Documentation Guardrail
 

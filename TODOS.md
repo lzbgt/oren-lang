@@ -755,6 +755,12 @@ design evidence lives under `project-doc/`.
   The capped profile now shows `x64_native_program.oren` at ~46.0s total /
   ~33.6s parse, with `_emit_map_wsa_eax_to_posix_errno_eax_x64` (~49ms) as the
   next parser-body target.
+- X64 Windows SO_ERROR WSA-to-POSIX normalization now separates zero-preserve,
+  known-code case emission, and EIO default handling while preserving the
+  emitted WSAETIMEDOUT/ECONNREFUSED/EADDRINUSE/EINVAL mappings. The capped
+  profile now shows `x64_native_program.oren` at ~48.6s total / ~34.3s parse,
+  with `_x64_should_use_full_native_runtime_profile` (~83ms) as the next
+  parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
