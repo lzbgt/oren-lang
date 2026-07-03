@@ -1627,6 +1627,11 @@
 <p>																																																																																									  while preserving duplicate checks and FFI attr collection order. The capped</p>
 <p>																																																																																									  profile now shows <code>x64_native_program.oren</code> at about 44.4s total / 32.3s parse,</p>
 <p>																																																																																									  with <code>_x64_prepare_simd_dot_i32_ptr</code> exposed at about 101ms as the next parser body.</p>
+<p>																																																																																									  X64 SIMD dot-i32 pointer preparation now separates arg validation,</p>
+<p>																																																																																									  three-slot allocation, per-argument LTR evaluation/spilling, and final state</p>
+<p>																																																																																									  packing while preserving the vector/scalar emitter state map. The capped</p>
+<p>																																																																																									  profile now shows <code>x64_native_program.oren</code> at about 44.9s total / 32.9s parse,</p>
+<p>																																																																																									  with <code>_x64_expr_uses_ident</code> exposed at about 56ms as the next parser body.</p>
 <p>																																																																																								  Serial/thread module ASTBIN writes are explicit prewarm work via</p>
 <p>																																								  <code>OREN_MODULE_ASTBIN_CACHE_SERIAL_WRITE_MIN_MS</code>; <code>0</code> selects every parsed module</p>
 <p>										  as a candidate and <code>false</code> disables serial-write candidates. Actual serial</p>

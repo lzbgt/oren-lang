@@ -475,6 +475,11 @@ design evidence lives under `project-doc/`.
   while preserving duplicate checks and FFI attr collection order. The capped
   profile now shows `x64_native_program.oren` at ~44.4s total / ~32.3s parse,
   with `_x64_prepare_simd_dot_i32_ptr` (~101ms) as the next parser-body target.
+- X64 SIMD dot-i32 pointer preparation now separates arg validation,
+  three-slot allocation, per-argument LTR evaluation/spilling, and final state
+  packing while preserving the vector/scalar emitter state map. The capped
+  profile now shows `x64_native_program.oren` at ~44.9s total / ~32.9s parse,
+  with `_x64_expr_uses_ident` (~56ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

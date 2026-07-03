@@ -1,7 +1,7 @@
 // x64-native: SIMD intrinsics (SSE2 baseline for typed-buffer kernels)
 // These provide parity with arm64 NEON dot product acceleration.
 
-fn _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals) {
+fn _x64_simd_dot_i32_ptr_args(ctx, expr) {
     var args = expr["args"]
     if args == nil || oren_list_len(args) != 3 { 
         err(ctx, "x64 native v0: simd_dot_i32_ptr expects 3 args")
@@ -11,7 +11,10 @@ fn _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals) {
         err(ctx, "x64 native v0: simd_dot_i32_ptr does not support spread")
         return nil 
     }
+    return args
+}
 
+fn _x64_simd_dot_i32_ptr_alloc_slots(ctx, locals) {
     // Need 3 spill slots: a_ptr, b_ptr, n
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
@@ -22,21 +25,34 @@ fn _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals) {
         _intr_tmp_pop(ctx, base)
         return nil 
     }
-
-    // Evaluate args and spill
-    _emit_eval_int_to_rax(ctx, args[0], locals) // a_ptr -> rax
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
-
-    _emit_eval_int_to_rax(ctx, args[1], locals) // b_ptr -> rax
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
-
-    _emit_eval_int_to_rax(ctx, args[2], locals) // n -> rax
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_n, 0)
-
     return {"base": base, "tmp_a": tmp_a, "tmp_b": tmp_b, "tmp_n": tmp_n}
+}
+
+fn _x64_simd_dot_i32_ptr_eval_arg_to_slot(ctx, arg, locals, state, slot_name) {
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, state["base"])
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - state[slot_name], 0)
+    return true
+}
+
+fn _x64_simd_dot_i32_ptr_spill_args(ctx, args, locals, state) {
+    // Evaluate args and spill
+    if _x64_simd_dot_i32_ptr_eval_arg_to_slot(ctx, args[0], locals, state, "tmp_a") != true { return nil }
+    if _x64_simd_dot_i32_ptr_eval_arg_to_slot(ctx, args[1], locals, state, "tmp_b") != true { return nil }
+    if _x64_simd_dot_i32_ptr_eval_arg_to_slot(ctx, args[2], locals, state, "tmp_n") != true { return nil }
+    return true
+}
+
+fn _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals) {
+    var args = _x64_simd_dot_i32_ptr_args(ctx, expr)
+    if args == nil { return nil }
+    var state = _x64_simd_dot_i32_ptr_alloc_slots(ctx, locals)
+    if state == nil { return nil }
+    if _x64_simd_dot_i32_ptr_spill_args(ctx, args, locals, state) != true { return nil }
+    return state
 }
 
 fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
