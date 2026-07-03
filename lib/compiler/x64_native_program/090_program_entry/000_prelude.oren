@@ -250,11 +250,7 @@ fn _x64_win_entry_args_emit_loop_header(ctx, st) {
     return nil
 }
 
-fn _x64_win_entry_args_emit_query_required(ctx, st) {
-    var scratch_base = st["scratch_base"]
-    var labels = st["labels"]
-    var local_fixups = st["local_fixups"]
-    // Query required UTF-8 bytes: WideCharToMultiByte(CP_UTF8,0,wptr,-1,NULL,0,NULL,NULL)
+fn _x64_win_entry_args_load_wctmb_prefix(ctx, scratch_base) {
     // rcx = 65001 (CP_UTF8)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 65001))
     // rdx = 0 (flags)
@@ -263,7 +259,10 @@ fn _x64_win_entry_args_emit_query_required(ctx, st) {
     _emit_mov_r64_mrsp(ctx, 8, scratch_base + 24)
     // r9d = -1 (cchWideChar)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 4294967295))
+    return nil
+}
 
+fn _x64_win_entry_args_clear_wctmb_stack_args(ctx) {
     // stack args (5..8) at [rsp+0x20..]: zero them for the query call.
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
@@ -271,22 +270,36 @@ fn _x64_win_entry_args_emit_query_required(ctx, st) {
     _emit_mov_mrsp_r64(ctx, 40, 0) // cbMultiByte = 0
     _emit_mov_mrsp_r64(ctx, 48, 0) // lpDefaultChar = NULL
     _emit_mov_mrsp_r64(ctx, 56, 0) // lpUsedDefaultChar = NULL
+    return nil
+}
 
+fn _x64_win_entry_args_call_wctmb(ctx) {
     var mov_iat_wctmb0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat_wctmb0 + 3, "IAT_WideCharToMultiByte")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
 
+fn _x64_win_entry_args_require_nonzero_result(ctx, labels, local_fixups, ok_label) {
     // if eax == 0 => abort (conversion failed)
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", st["l_have_req"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", ok_label)
     _emit_abort_exitcode(ctx, 203)
-    _emit_label(ctx, labels, st["l_have_req"])
+    _emit_label(ctx, labels, ok_label)
+    return nil
+}
 
+fn _x64_win_entry_args_required_len_to_r10(ctx) {
     // r10 = required bytes (u64)
     bytes_extend(ctx["code"], core.insn_cdqe())
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
+    return nil
+}
 
+fn _x64_win_entry_args_check_pool_capacity(ctx, st) {
+    var labels = st["labels"]
+    var local_fixups = st["local_fixups"]
     // r14 = next_pool = pool_cur + required
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(14, 12))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(14, 10))
@@ -295,6 +308,30 @@ fn _x64_win_entry_args_emit_query_required(ctx, st) {
     _emit_jcc_to_label(ctx, local_fixups, "le", st["l_pool_ok"])
     _emit_jmp_to_label(ctx, local_fixups, st["l_overflow"])
     _emit_label(ctx, labels, st["l_pool_ok"])
+    return nil
+}
+
+fn _x64_win_entry_args_emit_convert_stack_args(ctx) {
+    // arg5 = pool_cur
+    _emit_mov_mrsp_r64(ctx, 32, 12)
+    // arg6 = required
+    _emit_mov_mrsp_r64(ctx, 40, 10)
+    // arg7/8 = NULL
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_mov_mrsp_r64(ctx, 48, 0)
+    _emit_mov_mrsp_r64(ctx, 56, 0)
+    return nil
+}
+
+fn _x64_win_entry_args_emit_query_required(ctx, st) {
+    // Query required UTF-8 bytes: WideCharToMultiByte(CP_UTF8,0,wptr,-1,NULL,0,NULL,NULL)
+    _x64_win_entry_args_load_wctmb_prefix(ctx, st["scratch_base"])
+    _x64_win_entry_args_clear_wctmb_stack_args(ctx)
+    _x64_win_entry_args_call_wctmb(ctx)
+    _x64_win_entry_args_require_nonzero_result(ctx, st["labels"], st["local_fixups"], st["l_have_req"])
+    _x64_win_entry_args_required_len_to_r10(ctx)
+    _x64_win_entry_args_check_pool_capacity(ctx, st)
     return nil
 }
 
@@ -307,35 +344,10 @@ fn _x64_win_entry_args_emit_convert_one(ctx, st) {
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(13, 8))
 
     // Convert into pool_cur: WideCharToMultiByte(CP_UTF8,0,wptr,-1,pool_cur,required,NULL,NULL)
-    // rcx = 65001
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 65001))
-    // rdx = 0
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))
-    // r8 = wptr
-    _emit_mov_r64_mrsp(ctx, 8, scratch_base + 24)
-    // r9d = -1
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 4294967295))
-
-    // arg5 = pool_cur
-    _emit_mov_mrsp_r64(ctx, 32, 12)
-    // arg6 = required
-    _emit_mov_mrsp_r64(ctx, 40, 10)
-    // arg7/8 = NULL
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrsp_r64(ctx, 48, 0)
-    _emit_mov_mrsp_r64(ctx, 56, 0)
-
-    var mov_iat_wctmb1 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-    _x64_add_rip_data32_fixup(ctx, mov_iat_wctmb1 + 3, "IAT_WideCharToMultiByte")
-    bytes_extend(ctx["code"], core.insn_call_rax())
-
-    // if eax == 0 => abort
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", st["l_conv_ok"])
-    _emit_abort_exitcode(ctx, 203)
-    _emit_label(ctx, labels, st["l_conv_ok"])
+    _x64_win_entry_args_load_wctmb_prefix(ctx, scratch_base)
+    _x64_win_entry_args_emit_convert_stack_args(ctx)
+    _x64_win_entry_args_call_wctmb(ctx)
+    _x64_win_entry_args_require_nonzero_result(ctx, labels, local_fixups, st["l_conv_ok"])
 
     // pool_cur = next_pool
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 14))

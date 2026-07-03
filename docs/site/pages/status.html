@@ -3188,6 +3188,13 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 46.8s total / 34.2s parse, with</p>
 <p>  <code>_x64_win_entry_args_emit_query_required</code> exposed at about 54ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 Windows entry argument conversion now shares WideCharToMultiByte prefix,</li>
+</ul>
+<p>  IAT dispatch, nonzero-result guard, and distinct query/convert stack-argument</p>
+<p>  helpers while preserving the argc/argv UTF-8 pool layout. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 44.9s total / 32.6s parse, with</p>
+<p>  <code>_x64_emit_regular_control_op</code> exposed at about 49ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -1039,6 +1039,13 @@
 <p>  <code>_x64_win_entry_args_emit_query_required</code> (~54ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 Windows entry argument conversion now shares WideCharToMultiByte prefix,</li>
+</ul>
+<p>  IAT dispatch, nonzero-result guard, and distinct query/convert stack-argument</p>
+<p>  helpers while preserving the argc/argv UTF-8 pool layout. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~44.9s total / ~32.6s parse, with</p>
+<p>  <code>_x64_emit_regular_control_op</code> (~49ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

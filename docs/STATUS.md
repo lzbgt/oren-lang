@@ -2946,6 +2946,11 @@ make docs-site
   `x64_native_program.oren` at about 46.8s total / 34.2s parse, with
   `_x64_win_entry_args_emit_query_required` exposed at about 54ms as the next
   parser body.
+- X64 Windows entry argument conversion now shares WideCharToMultiByte prefix,
+  IAT dispatch, nonzero-result guard, and distinct query/convert stack-argument
+  helpers while preserving the argc/argv UTF-8 pool layout. The capped profile
+  now shows `x64_native_program.oren` at about 44.9s total / 32.6s parse, with
+  `_x64_emit_regular_control_op` exposed at about 49ms as the next parser body.
 
 ## Documentation Guardrail
 
