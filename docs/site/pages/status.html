@@ -2994,6 +2994,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 63.3s total / 46.1s</p>
 <p>  parse, with <code>_emit_fast_list_dot_while_x64</code> exposed at about 80ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 fast LIST dot-product entry lowering now separates fast-path preparation</li>
+</ul>
+<p>  from checked emission/fallback routing while preserving generic fallback</p>
+<p>  behavior for nil locals, missing runtime injection, failed prep, and checked</p>
+<p>  fallback. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  65.0s total / 47.7s parse, with <code>_emit_intrinsic_sys_linux_ioctl_x64</code> exposed</p>
+<p>  at about 157ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

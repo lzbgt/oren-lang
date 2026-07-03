@@ -597,6 +597,12 @@ design evidence lives under `project-doc/`.
   while preserving continue-to-post and break-to-end semantics. The capped
   profile now shows `x64_native_program.oren` at ~63.3s total / ~46.1s parse,
   with `_emit_fast_list_dot_while_x64` (~80ms) as the next parser-body target.
+- X64 fast LIST dot-product entry lowering now separates fast-path preparation
+  from checked emission/fallback routing while preserving generic fallback
+  behavior for nil locals, missing runtime injection, failed prep, and checked
+  fallback. The capped profile now shows `x64_native_program.oren` at ~65.0s
+  total / ~47.7s parse, with `_emit_intrinsic_sys_linux_ioctl_x64` (~157ms) as
+  the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
