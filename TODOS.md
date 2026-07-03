@@ -683,6 +683,12 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~49.5s total / ~36.0s
   parse, with `_x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic`
   (~115ms) as the next parser-body target.
+- X64 LIST_INT unchecked reduce-sum slot preparation now separates intrinsic
+  validation, temp-slot allocation, and list-argument spilling while preserving
+  the single-list argument contract. The capped profile now shows
+  `x64_native_program.oren` at ~45.3s total / ~32.8s parse, with
+  `_emit_fast_list_int_get_sum_while_x64` (~50ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

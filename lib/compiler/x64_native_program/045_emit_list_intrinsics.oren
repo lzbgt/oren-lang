@@ -1425,6 +1425,15 @@ fn _x64_emit_list_int_set_slow_or_fast(ctx, locals, state) {
 }
 
 fn _x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic(ctx, expr, locals) {
+    var args = _x64_validate_list_int_reduce_sum_slots_unchecked_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var prep = _x64_alloc_list_int_reduce_sum_slots_unchecked_slots(ctx, locals)
+    if prep == nil { return nil }
+    if _x64_spill_list_int_reduce_sum_slots_unchecked_arg(ctx, locals, args, prep) != 1 { return nil }
+    return prep
+}
+
+fn _x64_validate_list_int_reduce_sum_slots_unchecked_args(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_int_reduce_sum_slots_unchecked requires locals"); return nil }
     if ctx["runtime_injected"] != true {
@@ -1439,16 +1448,24 @@ fn _x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic(ctx, expr, locals)
         err(ctx, "x64 native v0: oren_list_int_reduce_sum_slots_unchecked expects 1 arg")
         return nil
     }
+    return args
+}
 
+fn _x64_alloc_list_int_reduce_sum_slots_unchecked_slots(ctx, locals) {
     var base = _intr_tmp_push(ctx, 1)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
     return {"base": base, "off_list": off_list}
+}
+
+fn _x64_spill_list_int_reduce_sum_slots_unchecked_arg(ctx, locals, args, prep) {
+    var base = prep["base"]
+    var off_list = prep["off_list"]
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 0 }
+    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
+    return 1
 }
 
 fn _x64_list_int_reduce_sum_slots_unchecked_state(ctx, prep) {

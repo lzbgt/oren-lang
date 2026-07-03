@@ -2892,6 +2892,12 @@ make docs-site
   36.0s parse, with
   `_x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic` exposed at about
   115ms as the next parser body.
+- X64 LIST_INT unchecked reduce-sum slot preparation now separates intrinsic
+  validation, temp-slot allocation, and list-argument spilling while preserving
+  the single-list argument contract. The capped profile now shows
+  `x64_native_program.oren` at about 45.3s total / 32.8s parse, with
+  `_emit_fast_list_int_get_sum_while_x64` exposed at about 50ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

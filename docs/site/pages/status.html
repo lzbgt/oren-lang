@@ -3116,6 +3116,14 @@ make docs-site</code></pre>
 <p>  36.0s parse, with</p>
 <p>  <code>_x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic</code> exposed at about</p>
 <p>  115ms as the next parser body.</p>
+<ul>
+<li>X64 LIST_INT unchecked reduce-sum slot preparation now separates intrinsic</li>
+</ul>
+<p>  validation, temp-slot allocation, and list-argument spilling while preserving</p>
+<p>  the single-list argument contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 45.3s total / 32.8s parse, with</p>
+<p>  <code>_emit_fast_list_int_get_sum_while_x64</code> exposed at about 50ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
