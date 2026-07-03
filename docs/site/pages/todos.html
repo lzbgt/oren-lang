@@ -910,6 +910,13 @@
 <p>  shows <code>x64_native_program.oren</code> at ~67.7s total / ~49.5s parse, with</p>
 <p>  <code>_x64_compile_program_prepare_top</code> (~118ms) as the next parser-body target.</p>
 <ul>
+<li>X64 top-level program preparation now separates top-function validation,</li>
+</ul>
+<p>  optional runtime-object code splicing, rtobj-code phase logging, and</p>
+<p>  <code>__top_level__</code> compilation while preserving timing keys. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~62.8s total / ~45.6s parse, with</p>
+<p>  <code>_data_finalize_linetab</code> (~71ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

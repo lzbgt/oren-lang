@@ -2847,6 +2847,11 @@ make docs-site
   shows `x64_native_program.oren` at about 67.7s total / 49.5s parse, with
   `_x64_compile_program_prepare_top` exposed at about 118ms as the next parser
   body.
+- X64 top-level program preparation now separates top-function validation,
+  optional runtime-object code splicing, rtobj-code phase logging, and
+  `__top_level__` compilation while preserving timing keys. The capped profile
+  now shows `x64_native_program.oren` at about 62.8s total / 45.6s parse, with
+  `_data_finalize_linetab` exposed at about 71ms as the next parser body.
 
 ## Documentation Guardrail
 

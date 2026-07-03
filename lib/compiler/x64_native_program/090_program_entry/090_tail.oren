@@ -1749,29 +1749,50 @@ fn _x64_emit_program_entry_sequence(ctx, platform, has_main, opts_compile) {
     return true
 }
 
-fn _x64_compile_program_prepare_top(ctx, platform, top_info, fns, used_rtobj, trace_prog, trace_sum, phase_log) {
-    var t_apply_rtobj_done = 0
-    var t_top_done = 0
+fn _x64_prepare_top_function(ctx, top_info, fns) {
     var top_fn = top_info["top_level_fn"]
     if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return nil }
     coreir.infer_native_param_numeric_traits(ctx, fns, top_fn, "x64 native v0")
+    return top_fn
+}
 
+fn _x64_apply_rtobj_code_if_used(ctx, used_rtobj, trace_prog) {
     if used_rtobj == true {
         if trace_prog { print("[x64_compile] rtobj code splice start") }
         _x64_rtobj_apply_code_to_ctx(ctx)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if trace_prog { print("[x64_compile] rtobj code splice done") }
     }
-    if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
+    return true
+}
+
+fn _x64_log_rtobj_code_done(ctx, phase_log) {
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj_code.done",
             "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
     }
+    return nil
+}
 
-    var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
+fn _x64_compile_top_level_function(ctx, top_fn, platform, call_depth_default_enabled, trace_prog) {
     if trace_prog { print("[x64_compile] compile __top_level__") }
     _compile_function_v0(ctx, top_fn, platform, false, call_depth_default_enabled)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_compile_program_prepare_top(ctx, platform, top_info, fns, used_rtobj, trace_prog, trace_sum, phase_log) {
+    var t_apply_rtobj_done = 0
+    var t_top_done = 0
+    var top_fn = _x64_prepare_top_function(ctx, top_info, fns)
+    if top_fn == nil { return nil }
+
+    if _x64_apply_rtobj_code_if_used(ctx, used_rtobj, trace_prog) != true { return nil }
+    if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
+    _x64_log_rtobj_code_done(ctx, phase_log)
+
+    var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
+    if _x64_compile_top_level_function(ctx, top_fn, platform, call_depth_default_enabled, trace_prog) != true { return nil }
     if trace_sum { t_top_done = oren_time_now_ns() }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.codegen.top.done", "") }
     return {
