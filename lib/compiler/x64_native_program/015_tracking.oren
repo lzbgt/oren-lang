@@ -78,6 +78,54 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     return nil
 }
 
+fn _x64_tracking_runtime_abi3(ctx, err_name) {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for " + err_name)
+        return nil
+    }
+    return {"a0": a0_enc - 1, "a1": a1_enc - 1, "a2": a2_enc - 1}
+}
+
+fn _x64_tracking_spill3(ctx, locals, ptr_reg, size_reg, kind_reg) {
+    var base = _intr_tmp_push(ctx, 3)
+    if oren_type_tag(base) == 0 { return nil }
+    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    var off_size = _intr_tmp_off(ctx, locals, base + 1)
+    var off_kind = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(off_ptr) == 0 || oren_type_tag(off_size) == 0 || oren_type_tag(off_kind) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+
+    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - off_size, size_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - off_kind, kind_reg)
+    return {"base": base, "off_ptr": off_ptr, "off_size": off_size, "off_kind": off_kind}
+}
+
+fn _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg, kind_reg, call_name, err_name) {
+    var abi3 = _x64_tracking_runtime_abi3(ctx, err_name)
+    if abi3 == nil { return nil }
+
+    var slots = _x64_tracking_spill3(ctx, locals, ptr_reg, size_reg, kind_reg)
+    if slots == nil { return nil }
+
+    _emit_mov_r64_mrbp(ctx, abi3["a0"], 0 - slots["off_ptr"])
+    _emit_mov_r64_mrbp(ctx, abi3["a1"], 0 - slots["off_size"])
+    _emit_mov_r64_mrbp(ctx, abi3["a2"], 0 - slots["off_kind"])
+
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": call_name})
+
+    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - slots["off_ptr"])
+    _intr_tmp_pop(ctx, slots["base"])
+    return nil
+}
+
 fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     // x64 native: call the runtime `oren_track_alloc_new(ptr,size,kind)`.
     //
@@ -94,42 +142,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
         err(ctx, "x64 native v0: internal error: track_alloc requires injected runtime")
         return nil
     }
-
-    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
-    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
-        err(ctx, "x64 native v0: missing ABI arg regs for oren_track_alloc_new")
-        return nil
-    }
-    var a0 = a0_enc - 1
-    var a1 = a1_enc - 1
-    var a2 = a2_enc - 1
-
-    // Spill the args we need to keep stable across the call.
-    var base = _intr_tmp_push(ctx, 3)
-    if oren_type_tag(base) == 0 { return nil }
-    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
-    var off_size = _intr_tmp_off(ctx, locals, base + 1)
-    var off_kind = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(off_ptr) == 0 || oren_type_tag(off_size) == 0 || oren_type_tag(off_kind) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
-    _emit_mov_mrbp_r64(ctx, 0 - off_size, size_reg)
-    _emit_mov_mrbp_r64(ctx, 0 - off_kind, kind_reg)
-
-    _emit_mov_r64_mrbp(ctx, a0, 0 - off_ptr)
-    _emit_mov_r64_mrbp(ctx, a1, 0 - off_size)
-    _emit_mov_r64_mrbp(ctx, a2, 0 - off_kind)
-
-    var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_track_alloc_new"})
-
-    // Restore pointer to satisfy legacy helper contract.
-    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)
-
-    _intr_tmp_pop(ctx, base)
+    _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg, kind_reg, "oren_track_alloc_new", "oren_track_alloc_new")
     return nil
 }
 
@@ -142,42 +155,7 @@ fn _emit_trace_alloc_request_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
         err(ctx, "x64 native v0: internal error: trace_alloc_request requires injected runtime")
         return nil
     }
-
-    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
-    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
-        err(ctx, "x64 native v0: missing ABI arg regs for oren_trace_alloc_request")
-        return nil
-    }
-    var a0 = a0_enc - 1
-    var a1 = a1_enc - 1
-    var a2 = a2_enc - 1
-
-    var base = _intr_tmp_push(ctx, 3)
-    if oren_type_tag(base) == 0 { return nil }
-    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
-    var off_size = _intr_tmp_off(ctx, locals, base + 1)
-    var off_kind = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(off_ptr) == 0 || oren_type_tag(off_size) == 0 || oren_type_tag(off_kind) == 0 {
-        _intr_tmp_pop(ctx, base)
-        return nil
-    }
-
-    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
-    _emit_mov_mrbp_r64(ctx, 0 - off_size, size_reg)
-    _emit_mov_mrbp_r64(ctx, 0 - off_kind, kind_reg)
-
-    _emit_mov_r64_mrbp(ctx, a0, 0 - off_ptr)
-    _emit_mov_r64_mrbp(ctx, a1, 0 - off_size)
-    _emit_mov_r64_mrbp(ctx, a2, 0 - off_kind)
-
-    var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_alloc_request"})
-
-    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)
-    _intr_tmp_pop(ctx, base)
+    _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg, kind_reg, "oren_trace_alloc_request", "oren_trace_alloc_request")
     return nil
 }
 

@@ -2841,6 +2841,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 63.4s total /
   45.8s parse, with `_emit_track_alloc_x64` exposed at about 72ms as the next
   parser body.
+- X64 allocation tracking and allocation-trace request emission now share the
+  three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup
+  path while preserving each helper's validation contract. The capped profile now
+  shows `x64_native_program.oren` at about 67.7s total / 49.5s parse, with
+  `_x64_compile_program_prepare_top` exposed at about 118ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

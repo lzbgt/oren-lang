@@ -903,6 +903,13 @@
 <p>  ~45.8s parse, with <code>_emit_track_alloc_x64</code> (~72ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 allocation tracking and allocation-trace request emission now share the</li>
+</ul>
+<p>  three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup</p>
+<p>  path while preserving each helper&#x27;s validation contract. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~67.7s total / ~49.5s parse, with</p>
+<p>  <code>_x64_compile_program_prepare_top</code> (~118ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -3047,6 +3047,14 @@ make docs-site</code></pre>
 <p>  The capped profile now shows <code>x64_native_program.oren</code> at about 63.4s total /</p>
 <p>  45.8s parse, with <code>_emit_track_alloc_x64</code> exposed at about 72ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 allocation tracking and allocation-trace request emission now share the</li>
+</ul>
+<p>  three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup</p>
+<p>  path while preserving each helper&#x27;s validation contract. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 67.7s total / 49.5s parse, with</p>
+<p>  <code>_x64_compile_program_prepare_top</code> exposed at about 118ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

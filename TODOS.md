@@ -634,6 +634,11 @@ design evidence lives under `project-doc/`.
   The capped profile now shows `x64_native_program.oren` at ~63.4s total /
   ~45.8s parse, with `_emit_track_alloc_x64` (~72ms) as the next parser-body
   target.
+- X64 allocation tracking and allocation-trace request emission now share the
+  three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup
+  path while preserving each helper's validation contract. The capped profile now
+  shows `x64_native_program.oren` at ~67.7s total / ~49.5s parse, with
+  `_x64_compile_program_prepare_top` (~118ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
