@@ -3002,6 +3002,11 @@ make docs-site
   accumulation. The capped profile now shows `x64_native_program.oren` at about
   48.9s total / 35.4s parse, with `_x64_emit_ffi_stubs` exposed at about 162ms
   as the next parser body.
+- X64 FFI stub emission now separates platform OS detection, shared error
+  checks, explicit per-import mode dispatch, and Windows/Linux-dynamic/unresolved
+  routing while preserving resolver setup and import order. The capped profile
+  now shows `x64_native_program.oren` at about 51.9s total / 38.4s parse, with
+  `_x64_linux_net_msg_state` exposed at about 98ms as the next parser body.
 
 ## Documentation Guardrail
 

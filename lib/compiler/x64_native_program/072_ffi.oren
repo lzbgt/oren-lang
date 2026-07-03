@@ -764,46 +764,65 @@ fn _x64_emit_ffi_stubs(ctx, platform) {
     var imports = ctx["import_list"]
     if imports == nil || oren_list_len(imports) == 0 { return nil }
 
-    var os = nil
-    if platform != nil { os = platform["os"] }
-
-    if os == "windows" {
-        var dlls = _x64_ffi_windows_dlls(ctx, platform)
-        var resolver_name = _x64_emit_ffi_resolver_win64(ctx, platform, dlls)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        var i = 0
-        while i < oren_list_len(imports) {
-            _x64_emit_ffi_stub_win64(ctx, imports[i], resolver_name)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            i = i + 1
-        }
-        return nil
+    var os = _x64_ffi_platform_os(platform)
+    if os == "windows" { return _x64_emit_ffi_stubs_windows(ctx, platform, imports) }
+    if _x64_ffi_platform_uses_linux_dynamic_stubs(platform, os) {
+        return _x64_emit_ffi_stubs_linux_dynamic(ctx, platform, imports)
     }
+    return _x64_emit_ffi_stubs_unresolved(ctx, imports)
+}
 
-    // Linux x64:
-    // - without `--link`: stub unresolved imports (stable panic-on-call behavior)
-    // - with `--link`: emit a dynamic-link-aware resolver + lazy stubs
-    if os == "linux" {
-        var dyn = platform != nil && platform["link_libs"] != nil && oren_list_len(platform["link_libs"]) != 0
-        if dyn {
-            var resolver_name = _x64_emit_ffi_resolver_linux64(ctx, platform)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var i = 0
-            while i < oren_list_len(imports) {
-                _x64_emit_ffi_stub_linux_dyn(ctx, imports[i], resolver_name)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                i = i + 1
-            }
-            return nil
-        }
-    }
+fn _x64_ffi_platform_os(platform) {
+    if platform != nil { return platform["os"] }
+    return nil
+}
 
-    // Other platforms (and linux without `--link`): stub unresolved imports for now.
-    var j = 0
-    while j < oren_list_len(imports) {
-        _x64_emit_ffi_stub_linux(ctx, imports[j])
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        j = j + 1
+fn _x64_ffi_has_errors(ctx) {
+    return ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0
+}
+
+fn _x64_emit_ffi_one_import_stub(ctx, mode, nm, resolver_name) {
+    if mode == "win64" {
+        _x64_emit_ffi_stub_win64(ctx, nm, resolver_name)
+    } else if mode == "linux_dyn" {
+        _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name)
+    } else {
+        _x64_emit_ffi_stub_linux(ctx, nm)
     }
+    return nil
+}
+
+fn _x64_emit_ffi_import_stub_loop(ctx, imports, mode, resolver_name) {
+    var i = 0
+    while i < oren_list_len(imports) {
+        _x64_emit_ffi_one_import_stub(ctx, mode, imports[i], resolver_name)
+        if _x64_ffi_has_errors(ctx) { return nil }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_emit_ffi_stubs_windows(ctx, platform, imports) {
+    var dlls = _x64_ffi_windows_dlls(ctx, platform)
+    var resolver_name = _x64_emit_ffi_resolver_win64(ctx, platform, dlls)
+    if _x64_ffi_has_errors(ctx) { return nil }
+    _x64_emit_ffi_import_stub_loop(ctx, imports, "win64", resolver_name)
+    return nil
+}
+
+fn _x64_ffi_platform_uses_linux_dynamic_stubs(platform, os) {
+    if os != "linux" { return false }
+    return platform != nil && platform["link_libs"] != nil && oren_list_len(platform["link_libs"]) != 0
+}
+
+fn _x64_emit_ffi_stubs_linux_dynamic(ctx, platform, imports) {
+    var resolver_name = _x64_emit_ffi_resolver_linux64(ctx, platform)
+    if _x64_ffi_has_errors(ctx) { return nil }
+    _x64_emit_ffi_import_stub_loop(ctx, imports, "linux_dyn", resolver_name)
+    return nil
+}
+
+fn _x64_emit_ffi_stubs_unresolved(ctx, imports) {
+    _x64_emit_ffi_import_stub_loop(ctx, imports, "unresolved", nil)
     return nil
 }
