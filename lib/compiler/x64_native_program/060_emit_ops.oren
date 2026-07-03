@@ -710,16 +710,20 @@ fn _x64_string_batch_trace_table_done(ctx, trace, j, batch_table_off, batch_data
     return nil
 }
 
-fn _x64_string_batch_emit_top_loop(ctx, trace, j, batch_table_off) {
+fn _x64_string_batch_code_timer_start(trace) {
+    if trace["trace_op_slow"] != true { return 0 }
+    return oren_time_now_ns()
+}
+
+fn _x64_string_batch_code_timer_finish(trace, batch_code_step_ns) {
+    if trace["trace_op_slow"] != true { return 0 }
+    return (oren_time_now_ns() - batch_code_step_ns) / 1000000
+}
+
+fn _x64_string_batch_trace_emit_done(ctx, trace, j) {
     var phase_log = trace["phase_log"]
     var phase_name = trace["phase_name"]
-    var trace_op_slow = trace["trace_op_slow"]
     var trace_batch_progress = trace["trace_batch_progress"]
-    var batch_code_step_ns = 0
-    if trace_op_slow == true { batch_code_step_ns = oren_time_now_ns() }
-    _x64_emit_top_string_global_batch_loop(ctx, batch_table_off)
-    var batch_code_ms = 0
-    if trace_op_slow == true { batch_code_ms = batch_code_ms + ((oren_time_now_ns() - batch_code_step_ns) / 1000000) }
     if trace_batch_progress == true {
         _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.emit.done",
             "name=" + phase_name +
@@ -727,6 +731,14 @@ fn _x64_string_batch_emit_top_loop(ctx, trace, j, batch_table_off) {
             " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) +
             " fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
+    return nil
+}
+
+fn _x64_string_batch_emit_top_loop(ctx, trace, j, batch_table_off) {
+    var batch_code_step_ns = _x64_string_batch_code_timer_start(trace)
+    _x64_emit_top_string_global_batch_loop(ctx, batch_table_off)
+    var batch_code_ms = _x64_string_batch_code_timer_finish(trace, batch_code_step_ns)
+    _x64_string_batch_trace_emit_done(ctx, trace, j)
     return batch_code_ms
 }
 

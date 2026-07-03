@@ -744,6 +744,11 @@ design evidence lives under `project-doc/`.
   dispatch contract. The capped profile now shows `x64_native_program.oren`
   at ~62.0s total / ~45.2s parse, with `_x64_string_batch_emit_top_loop`
   (~214ms) as the next parser-body target.
+- X64 string-batch top-loop emission now separates slow-op timing, loop
+  emission, and progress trace formatting while preserving the fixed `.data`
+  table ABI. The capped profile now shows `x64_native_program.oren` at ~47.2s
+  total / ~34.5s parse, with `_x64_rtobj_apply_legacy_fixups` (~52ms) as the
+  next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

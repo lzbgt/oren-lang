@@ -1053,6 +1053,13 @@
 <p>  at ~62.0s total / ~45.2s parse, with <code>_x64_string_batch_emit_top_loop</code></p>
 <p>  (~214ms) as the next parser-body target.</p>
 <ul>
+<li>X64 string-batch top-loop emission now separates slow-op timing, loop</li>
+</ul>
+<p>  emission, and progress trace formatting while preserving the fixed <code>.data</code></p>
+<p>  table ABI. The capped profile now shows <code>x64_native_program.oren</code> at ~47.2s</p>
+<p>  total / ~34.5s parse, with <code>_x64_rtobj_apply_legacy_fixups</code> (~52ms) as the</p>
+<p>  next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

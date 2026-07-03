@@ -2957,6 +2957,11 @@ make docs-site
   at about 62.0s total / 45.2s parse, with
   `_x64_string_batch_emit_top_loop` exposed at about 214ms as the next parser
   body.
+- X64 string-batch top-loop emission now separates slow-op timing, loop
+  emission, and progress trace formatting while preserving the fixed `.data`
+  table ABI. The capped profile now shows `x64_native_program.oren` at about
+  47.2s total / 34.5s parse, with `_x64_rtobj_apply_legacy_fixups` exposed at
+  about 52ms as the next parser body.
 
 ## Documentation Guardrail
 
