@@ -801,6 +801,14 @@
 <p>  with <code>_x64_emit_simd_dot_i32_ptr_vector_loop</code> (~73ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 SIMD dot-i32 pointer vector-loop emission now separates vector setup,</li>
+</ul>
+<p>  loop-body emission, jump patching, and horizontal sum extraction while</p>
+<p>  preserving the SSE2 register contract and patch offsets. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~62.3s total / ~45.1s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_net_socket_x64</code> (~73ms) as the next parser-body</p>
+<p>  target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

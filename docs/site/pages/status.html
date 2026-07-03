@@ -2939,6 +2939,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 62.3s total / 45.1s</p>
 <p>  parse, with <code>_x64_emit_simd_dot_i32_ptr_vector_loop</code> exposed at about 73ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 SIMD dot-i32 pointer vector-loop emission now separates vector setup,</li>
+</ul>
+<p>  loop-body emission, jump patching, and horizontal sum extraction while</p>
+<p>  preserving the SSE2 register contract and patch offsets. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 62.3s total / 45.1s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_net_socket_x64</code> exposed at about 73ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

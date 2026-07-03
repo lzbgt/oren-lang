@@ -55,16 +55,7 @@ fn _x64_prepare_simd_dot_i32_ptr(ctx, expr, locals) {
     return state
 }
 
-fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
-    // Register allocation:
-    //   RAX = accumulator (return value)
-    //   RCX = a_ptr
-    //   RDX = b_ptr  
-    //   R8 = n (loop counter)
-    //   XMM0 = vector accumulator (2 x 64-bit lanes)
-    //   XMM1 = load a
-    //   XMM2 = load b
-
+fn _x64_simd_dot_i32_ptr_vector_setup(ctx, tmp_a, tmp_b, tmp_n) {
     // Zero vector accumulator: XOR XMM0, XMM0
     bytes_extend(ctx["code"], core.insn_pxor_xmm_xmm(0, 0))
 
@@ -81,10 +72,10 @@ fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
     var jmp_vec_end = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_jcc_rel32("e", 0)) // placeholder
+    return jmp_vec_end
+}
 
-    // Vector loop label
-    var vec_loop_label = bytes_len(ctx["code"])
-
+fn _x64_simd_dot_i32_ptr_vector_body(ctx) {
     // Load 128 bits from a and b (unaligned)
     bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(1, 1, 0)) // xmm1 = [rcx]
     bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(2, 2, 0)) // xmm2 = [rdx]
@@ -106,12 +97,19 @@ fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
     bytes_extend(ctx["code"], core.insn_jcc_rel32("ne", 0))
     // Patch backward jump
     var vec_loop_jmp_loc = bytes_len(ctx["code"]) - 4
+    return vec_loop_jmp_loc
+}
+
+fn _x64_patch_simd_dot_i32_ptr_vector_loop(ctx, vec_loop_label, vec_loop_jmp_loc, jmp_vec_end) {
     set_u32_le(ctx["code"], vec_loop_jmp_loc, vec_loop_label - (vec_loop_jmp_loc + 4))
 
     // Patch skip-vector-loop jump
     var vec_end_label = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], jmp_vec_end + 1, vec_end_label - (jmp_vec_end + 5))
+    return nil
+}
 
+fn _x64_emit_simd_dot_i32_ptr_horizontal_sum(ctx) {
     // Horizontal sum of XMM0 (2 x 64-bit lanes) -> RAX
     // Move high 64-bit to low: PSHUFD xmm1, xmm0, 0x4E (swap lanes)
     bytes_extend(ctx["code"], core.insn_pshufd_xmm_xmm_imm(1, 0, 78)) // 0x4E = 78
@@ -120,6 +118,23 @@ fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
 
     // Extract to RAX: MOVQ rax, xmm0
     bytes_extend(ctx["code"], core.insn_movq_r64_xmm(0, 0))
+    return nil
+}
+
+fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
+    // Register allocation:
+    //   RAX = accumulator (return value)
+    //   RCX = a_ptr
+    //   RDX = b_ptr
+    //   R8 = n (loop counter)
+    //   XMM0 = vector accumulator (2 x 64-bit lanes)
+    //   XMM1 = load a
+    //   XMM2 = load b
+    var jmp_vec_end = _x64_simd_dot_i32_ptr_vector_setup(ctx, tmp_a, tmp_b, tmp_n)
+    var vec_loop_label = bytes_len(ctx["code"])
+    var vec_loop_jmp_loc = _x64_simd_dot_i32_ptr_vector_body(ctx)
+    _x64_patch_simd_dot_i32_ptr_vector_loop(ctx, vec_loop_label, vec_loop_jmp_loc, jmp_vec_end)
+    _x64_emit_simd_dot_i32_ptr_horizontal_sum(ctx)
     return nil
 }
 

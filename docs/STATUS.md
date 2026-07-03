@@ -2761,6 +2761,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 62.3s total / 45.1s
   parse, with `_x64_emit_simd_dot_i32_ptr_vector_loop` exposed at about 73ms as
   the next parser body.
+- X64 SIMD dot-i32 pointer vector-loop emission now separates vector setup,
+  loop-body emission, jump patching, and horizontal sum extraction while
+  preserving the SSE2 register contract and patch offsets. The capped profile
+  now shows `x64_native_program.oren` at about 62.3s total / 45.1s parse, with
+  `_emit_intrinsic_sys_linux_net_socket_x64` exposed at about 73ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
