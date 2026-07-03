@@ -2779,6 +2779,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 63.4s total / 46.1s parse, with
   `_emit_intrinsic_sys_win_terminate_thread_windows_x64` exposed at about 101ms
   as the next parser body.
+- Windows x64 `sys_win_terminate_thread` lowering now separates temp-state
+  setup, Win64 argument loading/IAT dispatch, and BOOL-to-`-1/0` result mapping
+  while preserving the reserved call-area contract. The capped profile now shows
+  `x64_native_program.oren` at about 64.7s total / 47.2s parse, with
+  `_x64_prepare_sys_write_windows_args` exposed at about 106ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

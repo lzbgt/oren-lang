@@ -824,6 +824,13 @@
 <p>  <code>_emit_intrinsic_sys_win_terminate_thread_windows_x64</code> (~101ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>Windows x64 <code>sys_win_terminate_thread</code> lowering now separates temp-state</li>
+</ul>
+<p>  setup, Win64 argument loading/IAT dispatch, and BOOL-to-<code>-1/0</code> result mapping</p>
+<p>  while preserving the reserved call-area contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~64.7s total / ~47.2s parse, with</p>
+<p>  <code>_x64_prepare_sys_write_windows_args</code> (~106ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
