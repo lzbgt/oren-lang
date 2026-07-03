@@ -1120,6 +1120,14 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~51.9s total / ~38.4s parse, with</p>
 <p>  <code>_x64_linux_net_msg_state</code> (~98ms) as the next parser-body target.</p>
 <ul>
+<li>X64 Linux sendto/recvfrom message state setup now separates six-slot temp</li>
+</ul>
+<p>  allocation, left-to-right argument spilling, and state packing while preserving</p>
+<p>  fd/buf/len/flags/addr/addrlen slot order and cleanup-on-error behavior. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~45.9s total / ~33.2s</p>
+<p>  parse, with <code>_emit_intrinsic_sys_linux_epoll_ctl_x64</code> (~49ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

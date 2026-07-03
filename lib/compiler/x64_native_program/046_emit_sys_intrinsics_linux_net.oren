@@ -363,6 +363,16 @@ fn _x64_linux_net_msg_name(nm) {
 }
 
 fn _x64_linux_net_msg_state(ctx, locals, args) {
+    var slots = _x64_linux_net_msg_alloc_slots(ctx, locals)
+    if slots == nil { return nil }
+    if _x64_linux_net_msg_spill_args(ctx, locals, args, slots) != true {
+        _intr_tmp_pop(ctx, slots["base"])
+        return nil
+    }
+    return _x64_linux_net_msg_pack_state(slots)
+}
+
+fn _x64_linux_net_msg_alloc_slots(ctx, locals) {
     var base31 = _intr_tmp_push(ctx, 6)
     if oren_type_tag(base31) == 0 { return nil }
     var o0 = _intr_tmp_off(ctx, locals, base31 + 0)
@@ -372,23 +382,29 @@ fn _x64_linux_net_msg_state(ctx, locals, args) {
     var o4 = _intr_tmp_off(ctx, locals, base31 + 4)
     var o5 = _intr_tmp_off(ctx, locals, base31 + 5)
     if oren_type_tag(o0) == 0 || oren_type_tag(o1) == 0 || oren_type_tag(o2) == 0 || oren_type_tag(o3) == 0 || oren_type_tag(o4) == 0 || oren_type_tag(o5) == 0 { _intr_tmp_pop(ctx, base31); return nil }
+    return {"base": base31, "fd": o0, "buf": o1, "len": o2, "flags": o3, "addr": o4, "addrlen": o5}
+}
 
-    _intr_eval_spill_x64(ctx, locals, args[0], o0)
-    _intr_eval_spill_x64(ctx, locals, args[1], o1)
-    _intr_eval_spill_x64(ctx, locals, args[2], o2)
-    _intr_eval_spill_x64(ctx, locals, args[3], o3)
-    _intr_eval_spill_x64(ctx, locals, args[4], o4)
-    _intr_eval_spill_x64(ctx, locals, args[5], o5)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base31); return nil }
+fn _x64_linux_net_msg_spill_args(ctx, locals, args, slots) {
+    _intr_eval_spill_x64(ctx, locals, args[0], slots["fd"])
+    _intr_eval_spill_x64(ctx, locals, args[1], slots["buf"])
+    _intr_eval_spill_x64(ctx, locals, args[2], slots["len"])
+    _intr_eval_spill_x64(ctx, locals, args[3], slots["flags"])
+    _intr_eval_spill_x64(ctx, locals, args[4], slots["addr"])
+    _intr_eval_spill_x64(ctx, locals, args[5], slots["addrlen"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
 
+fn _x64_linux_net_msg_pack_state(slots) {
     return {
-        "base": base31,
-        "fd": o0,
-        "buf": o1,
-        "len": o2,
-        "flags": o3,
-        "addr": o4,
-        "addrlen": o5
+        "base": slots["base"],
+        "fd": slots["fd"],
+        "buf": slots["buf"],
+        "len": slots["len"],
+        "flags": slots["flags"],
+        "addr": slots["addr"],
+        "addrlen": slots["addrlen"]
     }
 }
 

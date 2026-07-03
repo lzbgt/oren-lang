@@ -3007,6 +3007,12 @@ make docs-site
   routing while preserving resolver setup and import order. The capped profile
   now shows `x64_native_program.oren` at about 51.9s total / 38.4s parse, with
   `_x64_linux_net_msg_state` exposed at about 98ms as the next parser body.
+- X64 Linux sendto/recvfrom message state setup now separates six-slot temp
+  allocation, left-to-right argument spilling, and state packing while preserving
+  fd/buf/len/flags/addr/addrlen slot order and cleanup-on-error behavior. The
+  capped profile now shows `x64_native_program.oren` at about 45.9s total /
+  33.2s parse, with `_emit_intrinsic_sys_linux_epoll_ctl_x64` exposed at about
+  49ms as the next parser body.
 
 ## Documentation Guardrail
 
