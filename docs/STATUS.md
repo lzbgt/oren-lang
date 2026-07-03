@@ -2830,6 +2830,12 @@ make docs-site
   `x64_native_program.oren` at about 63.8s total / 46.4s parse, with
   `_x64_prepare_runtime_statement_sets` exposed at about 161ms as the next
   parser body.
+- X64 runtime statement-set preparation now separates injected-runtime setup,
+  rtobj statement selection, runtime pruning, and phase-log count emission while
+  preserving the returned statement map and `runtime_injected` contract. The
+  capped profile now shows `x64_native_program.oren` at about 63.8s total /
+  46.1s parse, with `_trace_x64_list_fast_loop` exposed at about 155ms as the
+  next parser body.
 
 ## Documentation Guardrail
 

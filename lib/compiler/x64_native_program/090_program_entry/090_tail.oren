@@ -1505,33 +1505,35 @@ fn _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log
     return {"runtime_path": runtime_path, "used_rtobj": used_rtobj}
 }
 
-fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used_rtobj, trace_prog, phase_log) {
-    var linked2 = linked
+fn _x64_prepare_injected_runtime_statement_sets(ctx, linked, platform, runtime_path, trace_prog) {
     var runtime_stmts = []
     var user_stmts = []
-    if used_rtobj != true {
-        if trace_prog { print("[x64_compile] runtime bundle prepare") }
-        var bun = bundle.prepare_native_runtime_bundle(ctx, "x64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
-        if bun == nil { return nil }
-        if trace_prog { print("[x64_compile] runtime bundle prepared") }
-        linked2 = bun["linked"]
-        ctx["runtime_injected"] = true
-        runtime_stmts = bun["runtime_stmts"]
-        user_stmts = bun["user_stmts"]
-        if runtime_stmts == nil { runtime_stmts = [] }
-        if user_stmts == nil { user_stmts = [] }
-    } else {
-        if trace_prog { print("[x64_compile] runtime bundle skipped (rtobj)") }
-        // Runtime already compiled into ctx; user statements come from the original program.
-        // Mark as injected so lowering selects Tier-1 shared runtime paths (parity with arm64 and
-        // with the non-rtobj injection path).
-        ctx["runtime_injected"] = true
-        user_stmts = nil
-        if linked != nil { user_stmts = linked["statements"] }
-        if user_stmts == nil { user_stmts = [] }
-        runtime_stmts = []
-    }
 
+    if trace_prog { print("[x64_compile] runtime bundle prepare") }
+    var bun = bundle.prepare_native_runtime_bundle(ctx, "x64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
+    if bun == nil { return nil }
+    if trace_prog { print("[x64_compile] runtime bundle prepared") }
+    ctx["runtime_injected"] = true
+    runtime_stmts = bun["runtime_stmts"]
+    user_stmts = bun["user_stmts"]
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
+    return {"linked": bun["linked"], "runtime_stmts": runtime_stmts, "user_stmts": user_stmts}
+}
+
+fn _x64_prepare_rtobj_runtime_statement_sets(ctx, linked, trace_prog) {
+    if trace_prog { print("[x64_compile] runtime bundle skipped (rtobj)") }
+    // Runtime already compiled into ctx; user statements come from the original program.
+    // Mark as injected so lowering selects Tier-1 shared runtime paths (parity with arm64 and
+    // with the non-rtobj injection path).
+    ctx["runtime_injected"] = true
+    var user_stmts = nil
+    if linked != nil { user_stmts = linked["statements"] }
+    if user_stmts == nil { user_stmts = [] }
+    return {"linked": linked, "runtime_stmts": [], "user_stmts": user_stmts}
+}
+
+fn _x64_prune_runtime_statement_sets(ctx, linked2, platform, used_rtobj, trace_prog) {
     // Runtime pruning (size + compile time):
     // The injected native runtime branches on `g_target_os`, but for a target-specific
     // build those branches are compile-time constants. Prune unreachable runtime branches
@@ -1541,6 +1543,10 @@ fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used
         pprune.prune_runtime_os_branches_in_linked_program_in_place(linked2, platform)
         if trace_prog { print("[x64_compile] runtime prune done") }
     }
+    return nil
+}
+
+fn _x64_log_runtime_statement_sets(phase_log, runtime_stmts, user_stmts) {
     if phase_log != nil {
         var rt_stmts_n0 = 0
         var user_stmts_n0 = 0
@@ -1550,11 +1556,21 @@ fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used
             "runtime_stmts=" + oren_int_to_string(rt_stmts_n0) +
             " user_stmts=" + oren_int_to_string(user_stmts_n0))
     }
-    return {
-        "linked": linked2,
-        "runtime_stmts": runtime_stmts,
-        "user_stmts": user_stmts
+    return nil
+}
+
+fn _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used_rtobj, trace_prog, phase_log) {
+    var info = nil
+    if used_rtobj == true {
+        info = _x64_prepare_rtobj_runtime_statement_sets(ctx, linked, trace_prog)
+    } else {
+        info = _x64_prepare_injected_runtime_statement_sets(ctx, linked, platform, runtime_path, trace_prog)
     }
+    if info == nil { return nil }
+
+    _x64_prune_runtime_statement_sets(ctx, info["linked"], platform, used_rtobj, trace_prog)
+    _x64_log_runtime_statement_sets(phase_log, info["runtime_stmts"], info["user_stmts"])
+    return info
 }
 
 fn _x64_rewrite_program_local_function_sets(ctx, runtime_stmts, user_stmts, used_rtobj, trace_prog) {
