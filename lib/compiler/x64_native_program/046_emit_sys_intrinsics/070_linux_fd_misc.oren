@@ -97,42 +97,62 @@ fn _emit_intrinsic_sys_linux_fcntl_getfl_x64(ctx, expr, locals, args, capsule) {
     return true
 }
 
+fn _x64_linux_fcntl_setfl_state(ctx, locals, args) {
+    var base18 = _intr_tmp_push(ctx, 2)
+    if oren_type_tag(base18) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base18 + 0)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base18 + 1)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base18); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base18); return nil }
+    return {"base": base18, "fd": tmp_fd, "flags": tmp_flags}
+}
+
+fn _x64_linux_fcntl_setfl_load_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, labi.posix_fcntl_f_setfl()))
+    _intr_load_x64(ctx, 2, st["flags"])
+    _emit_translate_fcntl_setfl_flags_linux_x64(ctx)
+    return nil
+}
+
+fn _x64_linux_fcntl_setfl_emit_pre(ctx, st, capsule) {
+    if !capsule { return nil }
+    _x64_linux_fcntl_setfl_load_args(ctx, st)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+    return nil
+}
+
+fn _x64_linux_fcntl_setfl_emit_syscall(ctx, st) {
+    _x64_linux_fcntl_setfl_load_args(ctx, st)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fcntl()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_linux_fcntl_setfl_emit_post(ctx, st, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+    _intr_load_x64(ctx, 6, st["fd"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
+    _intr_load_x64(ctx, 1, st["flags"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_linux_fcntl_setfl_x64(ctx, expr, locals, args, capsule) {
     if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fcntl_setfl expects 2 args"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_setfl does not support spread"); return true }
 
-    var base18 = _intr_tmp_push(ctx, 2)
-    if oren_type_tag(base18) == 0 { return true }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base18 + 0)
-    var tmp_flags = _intr_tmp_off(ctx, locals, base18 + 1)
-    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base18); return true }
+    var st = _x64_linux_fcntl_setfl_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_fcntl_setfl_emit_pre(ctx, st, capsule)
+    _x64_linux_fcntl_setfl_emit_syscall(ctx, st)
+    _x64_linux_fcntl_setfl_emit_post(ctx, st, capsule)
 
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base18); return true }
-
-    _intr_load_x64(ctx, 7, tmp_fd)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, labi.posix_fcntl_f_setfl()))
-    _intr_load_x64(ctx, 2, tmp_flags)
-    _emit_translate_fcntl_setfl_flags_linux_x64(ctx)
-    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
-
-    _intr_load_x64(ctx, 7, tmp_fd)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, labi.posix_fcntl_f_setfl()))
-    _intr_load_x64(ctx, 2, tmp_flags)
-    _emit_translate_fcntl_setfl_flags_linux_x64(ctx)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_fcntl()))
-    bytes_extend(ctx["code"], core.insn_syscall())
-
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _intr_load_x64(ctx, 6, tmp_fd)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
-        _intr_load_x64(ctx, 1, tmp_flags)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
-    }
-
-    _intr_tmp_pop(ctx, base18)
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

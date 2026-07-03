@@ -2749,6 +2749,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 43.7s total / 31.8s parse, with
   `_emit_intrinsic_sys_linux_fcntl_setfl_x64` exposed at about 52ms as the next
   parser body.
+- Linux x64 `sys_fcntl_setfl` lowering now separates temp-state setup, shared
+  translated `F_SETFL` argument loading, capsule prehook, syscall dispatch, and
+  capsule posthook while preserving Oren-to-Linux flag translation. The capped
+  profile now shows `x64_native_program.oren` at about 63.3s total / 46.1s
+  parse, with `_x64_trace_global_slots` exposed at about 80ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

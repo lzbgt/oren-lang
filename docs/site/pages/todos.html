@@ -786,6 +786,13 @@
 <p>  <code>_emit_intrinsic_sys_linux_fcntl_setfl_x64</code> (~52ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>Linux x64 <code>sys_fcntl_setfl</code> lowering now separates temp-state setup, shared</li>
+</ul>
+<p>  translated <code>F_SETFL</code> argument loading, capsule prehook, syscall dispatch, and</p>
+<p>  capsule posthook while preserving Oren-to-Linux flag translation. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~63.3s total / ~46.1s parse,</p>
+<p>  with <code>_x64_trace_global_slots</code> (~80ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
