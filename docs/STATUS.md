@@ -2824,6 +2824,12 @@ make docs-site
   symbol offset and location pointer register contracts. The capped profile now
   shows `x64_native_program.oren` at about 63.1s total / 45.8s parse, with
   `_x64_windows_select_state` exposed at about 93ms as the next parser body.
+- Windows x64 `sys_select` state setup now separates temporary slot allocation
+  from five-argument LTR spill emission while preserving cleanup-on-error and the
+  WinSock `select` ABI state map. The capped profile now shows
+  `x64_native_program.oren` at about 63.8s total / 46.4s parse, with
+  `_x64_prepare_runtime_statement_sets` exposed at about 161ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

@@ -203,7 +203,7 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
-fn _x64_windows_select_state(ctx, locals, args) {
+fn _x64_windows_select_tmp_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 5) // nfds, readfds, writefds, exceptfds, tv
     if oren_type_tag(base) == 0 { return nil }
     var tmp_nfds = _intr_tmp_off(ctx, locals, base + 0)
@@ -212,14 +212,24 @@ fn _x64_windows_select_state(ctx, locals, args) {
     var tmp_e = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_tv = _intr_tmp_off(ctx, locals, base + 4)
     if oren_type_tag(tmp_nfds) == 0 || oren_type_tag(tmp_r) == 0 || oren_type_tag(tmp_w) == 0 || oren_type_tag(tmp_e) == 0 || oren_type_tag(tmp_tv) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_nfds)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_r)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_w)
-    _intr_eval_spill_x64(ctx, locals, args[3], tmp_e)
-    _intr_eval_spill_x64(ctx, locals, args[4], tmp_tv)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     return {"base": base, "tmp_nfds": tmp_nfds, "tmp_r": tmp_r, "tmp_w": tmp_w, "tmp_e": tmp_e, "tmp_tv": tmp_tv}
+}
+
+fn _x64_windows_select_spill_args(ctx, locals, args, st) {
+    _intr_eval_spill_x64(ctx, locals, args[0], st["tmp_nfds"])
+    _intr_eval_spill_x64(ctx, locals, args[1], st["tmp_r"])
+    _intr_eval_spill_x64(ctx, locals, args[2], st["tmp_w"])
+    _intr_eval_spill_x64(ctx, locals, args[3], st["tmp_e"])
+    _intr_eval_spill_x64(ctx, locals, args[4], st["tmp_tv"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return false }
+    return true
+}
+
+fn _x64_windows_select_state(ctx, locals, args) {
+    var st = _x64_windows_select_tmp_state(ctx, locals)
+    if st == nil { return nil }
+    if !_x64_windows_select_spill_args(ctx, locals, args, st) { return nil }
+    return st
 }
 
 fn _x64_windows_select_load_args(ctx, st) {

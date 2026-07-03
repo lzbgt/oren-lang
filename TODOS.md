@@ -618,6 +618,11 @@ design evidence lives under `project-doc/`.
   symbol offset and location pointer register contracts. The capped profile now
   shows `x64_native_program.oren` at ~63.1s total / ~45.8s parse, with
   `_x64_windows_select_state` (~93ms) as the next parser-body target.
+- Windows x64 `sys_select` state setup now separates temporary slot allocation
+  from five-argument LTR spill emission while preserving cleanup-on-error and the
+  WinSock `select` ABI state map. The capped profile now shows
+  `x64_native_program.oren` at ~63.8s total / ~46.4s parse, with
+  `_x64_prepare_runtime_statement_sets` (~161ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

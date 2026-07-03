@@ -881,6 +881,13 @@
 <p>  shows <code>x64_native_program.oren</code> at ~63.1s total / ~45.8s parse, with</p>
 <p>  <code>_x64_windows_select_state</code> (~93ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 <code>sys_select</code> state setup now separates temporary slot allocation</li>
+</ul>
+<p>  from five-argument LTR spill emission while preserving cleanup-on-error and the</p>
+<p>  WinSock <code>select</code> ABI state map. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~63.8s total / ~46.4s parse, with</p>
+<p>  <code>_x64_prepare_runtime_statement_sets</code> (~161ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
