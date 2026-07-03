@@ -2785,6 +2785,12 @@ make docs-site
   `x64_native_program.oren` at about 64.7s total / 47.2s parse, with
   `_x64_prepare_sys_write_windows_args` exposed at about 106ms as the next
   parser body.
+- Windows x64 `sys_write` argument preparation now separates temp-slot
+  allocation, fd capsule prehook capture, and buffer/length spilling while
+  preserving the `WriteFile` state map. The capped profile now shows
+  `x64_native_program.oren` at about 63.9s total / 46.4s parse, with
+  `_emit_fast_list_push_while_x64` exposed at about 74ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

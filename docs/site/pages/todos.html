@@ -831,6 +831,13 @@
 <p>  <code>x64_native_program.oren</code> at ~64.7s total / ~47.2s parse, with</p>
 <p>  <code>_x64_prepare_sys_write_windows_args</code> (~106ms) as the next parser-body target.</p>
 <ul>
+<li>Windows x64 <code>sys_write</code> argument preparation now separates temp-slot</li>
+</ul>
+<p>  allocation, fd capsule prehook capture, and buffer/length spilling while</p>
+<p>  preserving the <code>WriteFile</code> state map. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~63.9s total / ~46.4s parse, with</p>
+<p>  <code>_emit_fast_list_push_while_x64</code> (~74ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
