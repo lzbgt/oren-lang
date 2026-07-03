@@ -3132,6 +3132,13 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 45.1s total /</p>
 <p>  32.5s parse, with <code>_x64_fast_push_emit_value_store</code> exposed at about 62ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 fast LIST/LIST_INT push value stores now separate list-slot lookup, RHS</li>
+</ul>
+<p>  lowering, and indexed buffer writes while preserving the shared push-loop</p>
+<p>  store API. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  44.7s total / 32.4s parse, with <code>_emit_list_int_get_intrinsic_v0_x64</code></p>
+<p>  exposed at about 49ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

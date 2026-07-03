@@ -2904,6 +2904,11 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 45.1s total /
   32.5s parse, with `_x64_fast_push_emit_value_store` exposed at about 62ms as
   the next parser body.
+- X64 fast LIST/LIST_INT push value stores now separate list-slot lookup, RHS
+  lowering, and indexed buffer writes while preserving the shared push-loop
+  store API. The capped profile now shows `x64_native_program.oren` at about
+  44.7s total / 32.4s parse, with `_emit_list_int_get_intrinsic_v0_x64`
+  exposed at about 49ms as the next parser body.
 
 ## Documentation Guardrail
 

@@ -986,6 +986,13 @@
 <p>  parse, with <code>_x64_fast_push_emit_value_store</code> (~62ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 fast LIST/LIST_INT push value stores now separate list-slot lookup, RHS</li>
+</ul>
+<p>  lowering, and indexed buffer writes while preserving the shared push-loop</p>
+<p>  store API. The capped profile now shows <code>x64_native_program.oren</code> at ~44.7s</p>
+<p>  total / ~32.4s parse, with <code>_emit_list_int_get_intrinsic_v0_x64</code> (~49ms) as</p>
+<p>  the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

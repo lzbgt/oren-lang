@@ -395,20 +395,32 @@ fn _x64_fast_push_slots(ctx, prep, locals, list_index) {
     return {"list": slot_list, "buf": slot_buf}
 }
 
-fn _x64_fast_push_emit_value_store(ctx, prep, locals, push) {
+fn _x64_fast_push_value_store_slots(ctx, prep, locals, push) {
     var list_index = _x64_fast_push_list_index(prep["lists"], prep["list_count"], push["list"])
-    var slots = _x64_fast_push_slots(ctx, prep, locals, list_index)
-    if slots == nil { return false }
+    return _x64_fast_push_slots(ctx, prep, locals, list_index)
+}
 
+fn _x64_fast_push_emit_value_to_rax(ctx, locals, push) {
     _emit_eval_int_to_rax(ctx, push["value"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
 
+fn _x64_fast_push_emit_indexed_buffer_store(ctx, prep, slots) {
     _emit_mov_r64_mrbp(ctx, 10, 0 - prep["off_idx"])
     _emit_mov_r64_mrbp(ctx, 11, 0 - slots["buf"])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
     bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(12, 0))
+    return nil
+}
+
+fn _x64_fast_push_emit_value_store(ctx, prep, locals, push) {
+    var slots = _x64_fast_push_value_store_slots(ctx, prep, locals, push)
+    if slots == nil { return false }
+    if _x64_fast_push_emit_value_to_rax(ctx, locals, push) != true { return false }
+    _x64_fast_push_emit_indexed_buffer_store(ctx, prep, slots)
     return true
 }
 
