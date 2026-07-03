@@ -3287,6 +3287,14 @@ make docs-site</code></pre>
 <p>  <code>rdi/rsi/rdx/r10</code> syscall mapping. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 47.6s total / 34.7s parse, with</p>
 <p>  <code>_x64_index_prepare</code> exposed at about 69ms as the next parser body.</p>
+<ul>
+<li>X64 index expression preparation now separates operand validation, runtime</li>
+</ul>
+<p>  bundle validation, re-entrant temp-slot allocation, left/index operand</p>
+<p>  spilling, and result packing while preserving nested index/call temp cleanup.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at about 46.1s total /</p>
+<p>  33.2s parse, with <code>_x64_emit_runtime_oren_add_x64</code> exposed at about 48ms as</p>
+<p>  the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -3019,6 +3019,12 @@ make docs-site
   `rdi/rsi/rdx/r10` syscall mapping. The capped profile now shows
   `x64_native_program.oren` at about 47.6s total / 34.7s parse, with
   `_x64_index_prepare` exposed at about 69ms as the next parser body.
+- X64 index expression preparation now separates operand validation, runtime
+  bundle validation, re-entrant temp-slot allocation, left/index operand
+  spilling, and result packing while preserving nested index/call temp cleanup.
+  The capped profile now shows `x64_native_program.oren` at about 46.1s total /
+  33.2s parse, with `_x64_emit_runtime_oren_add_x64` exposed at about 48ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

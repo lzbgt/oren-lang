@@ -39,26 +39,25 @@ fn _x64_index_known_key_kind(expr, idx) {
     return known_kk
 }
 
-fn _x64_index_prepare(ctx, expr, locals) {
+fn _x64_index_prepare_operands(ctx, expr) {
     if expr == nil { err(ctx, "x64 native v0: missing index expr"); return nil }
     var left = expr["left"]
     var idx = expr["index"]
     if left == nil || idx == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
+    return {"left": left, "idx": idx}
+}
 
-    // Best-effort kind hint from the shared lowering pass.
-    // When present, we still validate the runtime magic and abort(1) on mismatch
-    // to avoid silent miscompilations if inference is wrong.
-    var recv_kind = expr["recv_kind"]
-
-    // Tier‑1 convergence: map indexing is implemented via the injected native runtime.
+fn _x64_index_require_runtime(ctx) {
+    // Tier-1 convergence: map indexing is implemented via the injected native runtime.
     //
     // This aligns x86_64 with arm64 (single semantics set) and avoids duplicating container
     // logic inside x64-only intrinsics.
-    if ctx == nil || ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: internal error: native runtime bundle missing (required for Index semantics)")
-        return nil
-    }
+    if ctx != nil && ctx["runtime_injected"] == true { return true }
+    err(ctx, "x64 native v0: internal error: native runtime bundle missing (required for Index semantics)")
+    return false
+}
 
+fn _x64_index_temp_state(ctx, locals) {
     // Use the intrinsic temp pool for re-entrancy:
     // - container and idx subexpressions may themselves contain Index/Call nodes that need spills
     // - using a fixed `$tmp0` slot here breaks expressions like `xs[ys[0]]`
@@ -67,19 +66,49 @@ fn _x64_index_prepare(ctx, expr, locals) {
     var tmp0 = _intr_tmp_off(ctx, locals, base0 + 0)      // container
     var tmp_idx = _intr_tmp_off(ctx, locals, base0 + 1)   // index/key
     if oren_type_tag(tmp0) == 0 || oren_type_tag(tmp_idx) == 0 { _intr_tmp_pop(ctx, base0); return nil }
+    return {"base": base0, "tmp0": tmp0, "tmp_idx": tmp_idx}
+}
 
+fn _x64_index_spill_operands(ctx, locals, operands, st) {
     // Eval container -> rax; spill
-    _emit_eval_int_to_rax(ctx, left, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
+    _emit_eval_int_to_rax(ctx, operands["left"], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _emit_mov_mrbp_r64(ctx, 0 - st["tmp0"], 0)
 
     // Eval index -> rax; spill
-    _emit_eval_int_to_rax(ctx, idx, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_idx, 0)
+    _emit_eval_int_to_rax(ctx, operands["idx"], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _emit_mov_mrbp_r64(ctx, 0 - st["tmp_idx"], 0)
+    return true
+}
 
-    var known_kk = _x64_index_known_key_kind(expr, idx)
-    return {"recv_kind": recv_kind, "known_kk": known_kk, "tmp0": tmp0, "tmp_idx": tmp_idx, "base": base0}
+fn _x64_index_pack_prepare(expr, operands, st) {
+    var known_kk = _x64_index_known_key_kind(expr, operands["idx"])
+    return {
+        "recv_kind": expr["recv_kind"],
+        "known_kk": known_kk,
+        "tmp0": st["tmp0"],
+        "tmp_idx": st["tmp_idx"],
+        "base": st["base"]
+    }
+}
+
+fn _x64_index_prepare(ctx, expr, locals) {
+    // Best-effort kind hint from the shared lowering pass.
+    // When present, we still validate the runtime magic and abort(1) on mismatch
+    // to avoid silent miscompilations if inference is wrong.
+    var operands = _x64_index_prepare_operands(ctx, expr)
+    if operands == nil { return nil }
+    if _x64_index_require_runtime(ctx) != true { return nil }
+
+    var st = _x64_index_temp_state(ctx, locals)
+    if st == nil { return nil }
+    if _x64_index_spill_operands(ctx, locals, operands, st) != true {
+        _intr_tmp_pop(ctx, st["base"])
+        return nil
+    }
+
+    return _x64_index_pack_prepare(expr, operands, st)
 }
 
 fn _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) {

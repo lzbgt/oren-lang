@@ -1136,6 +1136,14 @@
 <p>  <code>x64_native_program.oren</code> at ~47.6s total / ~34.7s parse, with</p>
 <p>  <code>_x64_index_prepare</code> (~69ms) as the next parser-body target.</p>
 <ul>
+<li>X64 index expression preparation now separates operand validation, runtime</li>
+</ul>
+<p>  bundle validation, re-entrant temp-slot allocation, left/index operand</p>
+<p>  spilling, and result packing while preserving nested index/call temp cleanup.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at ~46.1s total /</p>
+<p>  ~33.2s parse, with <code>_x64_emit_runtime_oren_add_x64</code> (~48ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
