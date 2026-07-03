@@ -845,6 +845,13 @@
 <p>  <code>x64_native_program.oren</code> at ~64.5s total / ~47.0s parse, with</p>
 <p>  <code>_emit_for_op_x64</code> (~75ms) as the next parser-body target.</p>
 <ul>
+<li>X64 for-loop lowering now separates label allocation, init emission,</li>
+</ul>
+<p>  condition/gas/safepoint emission, body emission, and post/jump finalization</p>
+<p>  while preserving continue-to-post and break-to-end semantics. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~63.3s total / ~46.1s parse,</p>
+<p>  with <code>_emit_fast_list_dot_while_x64</code> (~80ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

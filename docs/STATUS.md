@@ -2796,6 +2796,12 @@ make docs-site
   label wiring and temp cleanup. The capped profile now shows
   `x64_native_program.oren` at about 64.5s total / 47.0s parse, with
   `_emit_for_op_x64` exposed at about 75ms as the next parser body.
+- X64 for-loop lowering now separates label allocation, init emission,
+  condition/gas/safepoint emission, body emission, and post/jump finalization
+  while preserving continue-to-post and break-to-end semantics. The capped
+  profile now shows `x64_native_program.oren` at about 63.3s total / 46.1s
+  parse, with `_emit_fast_list_dot_while_x64` exposed at about 80ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

@@ -362,23 +362,23 @@ fn _emit_while_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, pla
     return nil
 }
 
-fn _emit_for_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic) {
-    // for init; cond; post { body }
-    //
-    // Semantics:
-    // - init runs once
-    // - cond checked before each iteration
-    // - continue jumps to post (then cond)
-    // - break exits the loop
-    var cond_label2 = _new_label(ctx, "for_cond")
-    var body_label2 = _new_label(ctx, "for_body")
-    var post_label2 = _new_label(ctx, "for_post")
-    var end_label3 = _new_label(ctx, "for_end")
+fn _x64_for_labels(ctx) {
+    return {
+        "cond": _new_label(ctx, "for_cond"),
+        "body": _new_label(ctx, "for_body"),
+        "post": _new_label(ctx, "for_post"),
+        "end": _new_label(ctx, "for_end")
+    }
+}
 
+fn _x64_emit_for_init_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     _emit_ops_in_fn(ctx, op["init"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return true
+}
 
-    _emit_label(ctx, labels, cond_label2)
+fn _x64_emit_for_condition_x64(ctx, op, locals, labels, local_fixups, for_labels, gas_weighted, gas_dynamic) {
+    _emit_label(ctx, labels, for_labels["cond"])
     if gas_weighted == true {
         _emit_native_gas_note_x64(ctx, 2)
     }
@@ -389,23 +389,45 @@ fn _emit_for_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platf
         dynamic_cond_note = _emit_native_gas_note_x64_patchable_u32(ctx)
         dynamic_cond_start = bytes_len(ctx["code"])
     }
-    _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label3)
+    _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, for_labels["end"])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     if dynamic_cond_note != nil && dynamic_cond_start != nil {
         _patch_native_gas_note_x64_u32(ctx, dynamic_cond_note, bytes_len(ctx["code"]) - dynamic_cond_start)
     }
+    return true
+}
 
-    _emit_label(ctx, labels, body_label2)
-    _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, post_label2, end_label3)
+fn _x64_emit_for_body_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, for_labels) {
+    _emit_label(ctx, labels, for_labels["body"])
+    _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, for_labels["post"], for_labels["end"])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return true
+}
 
-    _emit_label(ctx, labels, post_label2)
+fn _x64_emit_for_post_and_finish_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, for_labels) {
+    _emit_label(ctx, labels, for_labels["post"])
     // Post must not use break/continue (enforced by analyzer); pass nil to be strict.
     _emit_ops_in_fn(ctx, op["post"], locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
-    _emit_jmp_to_label(ctx, local_fixups, cond_label2)
-    _emit_label(ctx, labels, end_label3)
+    _emit_jmp_to_label(ctx, local_fixups, for_labels["cond"])
+    _emit_label(ctx, labels, for_labels["end"])
+    return true
+}
+
+fn _emit_for_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label, gas_weighted, gas_dynamic) {
+    // for init; cond; post { body }
+    //
+    // Semantics:
+    // - init runs once
+    // - cond checked before each iteration
+    // - continue jumps to post (then cond)
+    // - break exits the loop
+    var for_labels = _x64_for_labels(ctx)
+    if _x64_emit_for_init_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) != true { return nil }
+    if _x64_emit_for_condition_x64(ctx, op, locals, labels, local_fixups, for_labels, gas_weighted, gas_dynamic) != true { return nil }
+    if _x64_emit_for_body_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, for_labels) != true { return nil }
+    if _x64_emit_for_post_and_finish_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, for_labels) != true { return nil }
     return nil
 }
 
