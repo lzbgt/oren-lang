@@ -956,6 +956,13 @@
 <p>  total / ~32.5s parse, with <code>_emit_intrinsic_sys_linux_raw_clone_x64</code> (~50ms)</p>
 <p>  as the next parser-body target.</p>
 <ul>
+<li>X64 Linux raw <code>clone</code> lowering now separates five-argument temp-state setup,</li>
+</ul>
+<p>  optional capsule prehook emission, argument reload, and syscall dispatch while</p>
+<p>  preserving raw clone register order. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~47.5s total / ~34.7s parse, with</p>
+<p>  <code>_x64_emit_ctx_switch_save_gprs</code> (~99ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

@@ -2881,6 +2881,11 @@ make docs-site
   contract. The capped profile now shows `x64_native_program.oren` at about
   44.8s total / 32.5s parse, with `_emit_intrinsic_sys_linux_raw_clone_x64`
   exposed at about 50ms as the next parser body.
+- X64 Linux raw `clone` lowering now separates five-argument temp-state setup,
+  optional capsule prehook emission, argument reload, and syscall dispatch while
+  preserving raw clone register order. The capped profile now shows
+  `x64_native_program.oren` at about 47.5s total / 34.7s parse, with
+  `_x64_emit_ctx_switch_save_gprs` exposed at about 99ms as the next parser body.
 
 ## Documentation Guardrail
 

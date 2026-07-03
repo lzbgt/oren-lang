@@ -764,8 +764,18 @@ fn _emit_intrinsic_sys_linux_raw_clone_x64(ctx, expr, locals, args, capsule) {
     if oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_clone expects 5 args"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_clone does not support spread"); return true }
 
+    var st = _x64_linux_raw_clone_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_raw_clone_emit_pre(ctx, capsule)
+    _x64_linux_raw_clone_emit_syscall(ctx, st)
+
+    _intr_tmp_pop(ctx, st["base"])
+    return true
+}
+
+fn _x64_linux_raw_clone_state(ctx, locals, args) {
     var base15 = _intr_tmp_push(ctx, 5) // flags, stack, ptid, ctid, tls
-    if oren_type_tag(base15) == 0 { return true }
+    if oren_type_tag(base15) == 0 { return nil }
     var tmp_flags = _intr_tmp_off(ctx, locals, base15 + 0)
     var tmp_stack = _intr_tmp_off(ctx, locals, base15 + 1)
     var tmp_ptid = _intr_tmp_off(ctx, locals, base15 + 2)
@@ -773,7 +783,7 @@ fn _emit_intrinsic_sys_linux_raw_clone_x64(ctx, expr, locals, args, capsule) {
     var tmp_tls = _intr_tmp_off(ctx, locals, base15 + 4)
     if oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_stack) == 0 || oren_type_tag(tmp_ptid) == 0 || oren_type_tag(tmp_ctid) == 0 || oren_type_tag(tmp_tls) == 0 {
         _intr_tmp_pop(ctx, base15)
-        return true
+        return nil
     }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
@@ -781,22 +791,31 @@ fn _emit_intrinsic_sys_linux_raw_clone_x64(ctx, expr, locals, args, capsule) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_ptid)
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_tls)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return nil }
+    return {"base": base15, "flags": tmp_flags, "stack": tmp_stack, "ptid": tmp_ptid, "ctid": tmp_ctid, "tls": tmp_tls}
+}
 
+fn _x64_linux_raw_clone_emit_pre(ctx, capsule) {
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
     }
+    return nil
+}
 
-    _intr_load_x64(ctx, 7, tmp_flags) // rdi = flags
-    _intr_load_x64(ctx, 6, tmp_stack) // rsi = stack
-    _intr_load_x64(ctx, 2, tmp_ptid)  // rdx = ptid
-    _intr_load_x64(ctx, 10, tmp_ctid) // r10 = ctid
-    _intr_load_x64(ctx, 8, tmp_tls)   // r8 = tls
+fn _x64_linux_raw_clone_load_args(ctx, st) {
+    _intr_load_x64(ctx, 7, st["flags"]) // rdi = flags
+    _intr_load_x64(ctx, 6, st["stack"]) // rsi = stack
+    _intr_load_x64(ctx, 2, st["ptid"])  // rdx = ptid
+    _intr_load_x64(ctx, 10, st["ctid"]) // r10 = ctid
+    _intr_load_x64(ctx, 8, st["tls"])   // r8 = tls
+    return nil
+}
+
+fn _x64_linux_raw_clone_emit_syscall(ctx, st) {
+    _x64_linux_raw_clone_load_args(ctx, st)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
     bytes_extend(ctx["code"], core.insn_syscall())
-
-    _intr_tmp_pop(ctx, base15)
-    return true
+    return nil
 }
 
 fn _x64_linux_thread_create_state(ctx, locals, args) {
