@@ -587,6 +587,11 @@ design evidence lives under `project-doc/`.
   preserving the `WriteFile` state map. The capped profile now shows
   `x64_native_program.oren` at ~63.9s total / ~46.4s parse, with
   `_emit_fast_list_push_while_x64` (~74ms) as the next parser-body target.
+- X64 fast LIST push-while lowering now uses the same cleanup/fallback and
+  checked-fast-path helper split as LIST_INT push while preserving slow-path
+  label wiring and temp cleanup. The capped profile now shows
+  `x64_native_program.oren` at ~64.5s total / ~47.0s parse, with
+  `_emit_for_op_x64` (~75ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

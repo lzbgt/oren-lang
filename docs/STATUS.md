@@ -2791,6 +2791,11 @@ make docs-site
   `x64_native_program.oren` at about 63.9s total / 46.4s parse, with
   `_emit_fast_list_push_while_x64` exposed at about 74ms as the next parser
   body.
+- X64 fast LIST push-while lowering now uses the same cleanup/fallback and
+  checked-fast-path helper split as LIST_INT push while preserving slow-path
+  label wiring and temp cleanup. The capped profile now shows
+  `x64_native_program.oren` at about 64.5s total / 47.0s parse, with
+  `_emit_for_op_x64` exposed at about 75ms as the next parser body.
 
 ## Documentation Guardrail
 

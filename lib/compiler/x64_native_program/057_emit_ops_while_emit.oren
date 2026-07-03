@@ -680,6 +680,30 @@ fn _x64_fast_list_push_update_counts(ctx, prep, locals) {
     return true
 }
 
+fn _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, check_errors) {
+    _intr_tmp_pop(ctx, prep["base"])
+    if check_errors && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+}
+
+fn _x64_fast_list_push_emit_checked_fast_path(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) {
+    if _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, list_labels, local_fixups) != true {
+        _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, true)
+        return false
+    }
+    if _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, list_labels, local_fixups) != true {
+        _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, true)
+        return false
+    }
+    if _x64_fast_list_push_update_counts(ctx, prep, locals) != true {
+        _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, false)
+        return false
+    }
+    _emit_jmp_to_label(ctx, local_fixups, list_labels["done"])
+    _intr_tmp_pop(ctx, prep["base"])
+    return true
+}
+
 fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
     if ctx == nil || op == nil || info == nil { return nil }
     if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
@@ -687,28 +711,11 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
 
     var prep = _x64_fast_list_push_prepare(ctx, info, locals)
     if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    var base = prep["base"]
     var list_labels = _x64_fast_list_push_labels(ctx)
     var l_slow = list_labels["slow"]
     var l_done = list_labels["done"]
 
-    if _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, list_labels, local_fixups) != true {
-        _intr_tmp_pop(ctx, base)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    }
-    if _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, list_labels, local_fixups) != true {
-        _intr_tmp_pop(ctx, base)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    }
-    if _x64_fast_list_push_update_counts(ctx, prep, locals) != true {
-        _intr_tmp_pop(ctx, base)
-        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    }
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _intr_tmp_pop(ctx, base)
+    if _x64_fast_list_push_emit_checked_fast_path(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) != true { return nil }
 
     _emit_label(ctx, labels, l_slow)
     _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)

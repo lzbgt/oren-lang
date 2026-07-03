@@ -838,6 +838,13 @@
 <p>  <code>x64_native_program.oren</code> at ~63.9s total / ~46.4s parse, with</p>
 <p>  <code>_emit_fast_list_push_while_x64</code> (~74ms) as the next parser-body target.</p>
 <ul>
+<li>X64 fast LIST push-while lowering now uses the same cleanup/fallback and</li>
+</ul>
+<p>  checked-fast-path helper split as LIST_INT push while preserving slow-path</p>
+<p>  label wiring and temp cleanup. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~64.5s total / ~47.0s parse, with</p>
+<p>  <code>_emit_for_op_x64</code> (~75ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>
