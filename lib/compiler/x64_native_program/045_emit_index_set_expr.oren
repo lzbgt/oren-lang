@@ -189,7 +189,7 @@ fn _x64_index_set_emit_list_or_map_dispatch(ctx, locals, state) {
     return nil
 }
 
-fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
+fn _x64_index_set_validated_args(ctx, expr, locals) {
     if ctx == nil { return nil }
     if expr == nil { err(ctx, "x64 native v0: missing oren_index_set expr"); return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_index_set requires locals"); return nil }
@@ -208,6 +208,45 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         err(ctx, "x64 native v0: oren_index_set does not support spread")
         return nil
     }
+    return args
+}
+
+fn _x64_index_set_emit_map_only_if_needed(ctx, locals, recv_kind, known_kk, spills) {
+    // String-key sets and lowered map sets cannot reach list semantics. The native
+    // map set helpers already perform checked map validation, so do not inline that
+    // same tracking/kind/magic/panic sequence into every user function body.
+    if recv_kind != "map" && known_kk != 1 { return false }
+    _x64_index_set_emit_map_call(ctx, locals, known_kk, spills["off_cont"], spills["off_idx"], spills["off_val"])
+    return true
+}
+
+fn _x64_index_set_emit_generic_if_needed(ctx, locals, recv_kind, spills) {
+    // Unknown receiver kinds are lowered to the checked generic runtime helper.
+    // Known list/list_int receivers keep the inline list path below; proven maps
+    // already use the map-only helpers above.
+    if recv_kind == "list" || recv_kind == "list_int" { return false }
+    _emit_call_rel32_3args_x64(ctx, locals, "oren_index_set", spills["off_cont"], spills["off_idx"], spills["off_val"])
+    return true
+}
+
+fn _x64_index_set_inline_state(ctx, recv_kind, known_kk, spills) {
+    return {
+        "recv_kind": recv_kind,
+        "known_kk": known_kk,
+        "off_cont": spills["off_cont"],
+        "off_idx": spills["off_idx"],
+        "off_val": spills["off_val"],
+        "labels": {},
+        "fixups": [],
+        "l_is_list": _new_label(ctx, "idx_set_is_list"),
+        "l_is_map": _new_label(ctx, "idx_set_is_map"),
+        "l_done": _new_label(ctx, "idx_set_done")
+    }
+}
+
+fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
+    var args = _x64_index_set_validated_args(ctx, expr, locals)
+    if args == nil { return nil }
 
     var recv_kind = expr["recv_kind"]
     var known_kk = _x64_index_known_key_kind(expr, args[1])
@@ -215,45 +254,18 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     var spills = _x64_index_set_spill_args(ctx, expr, locals, args)
     if spills == nil { return nil }
     var base0 = spills["base"]
-    var off_cont = spills["off_cont"]
-    var off_idx = spills["off_idx"]
-    var off_val = spills["off_val"]
 
-    // String-key sets and lowered map sets cannot reach list semantics. The native
-    // map set helpers already perform checked map validation, so do not inline that
-    // same tracking/kind/magic/panic sequence into every user function body.
-    if recv_kind == "map" || known_kk == 1 {
-        _x64_index_set_emit_map_call(ctx, locals, known_kk, off_cont, off_idx, off_val)
+    if _x64_index_set_emit_map_only_if_needed(ctx, locals, recv_kind, known_kk, spills) == true {
         _intr_tmp_pop(ctx, base0)
         return nil
     }
 
-    // Unknown receiver kinds are lowered to the checked generic runtime helper.
-    // Known list/list_int receivers keep the inline list path below; proven maps
-    // already use the map-only helpers above.
-    if recv_kind != "list" && recv_kind != "list_int" {
-        _emit_call_rel32_3args_x64(ctx, locals, "oren_index_set", off_cont, off_idx, off_val)
+    if _x64_index_set_emit_generic_if_needed(ctx, locals, recv_kind, spills) == true {
         _intr_tmp_pop(ctx, base0)
         return nil
     }
 
-    var labels = {}
-    var local_fixups = []
-    var l_is_list = _new_label(ctx, "idx_set_is_list")
-    var l_is_map = _new_label(ctx, "idx_set_is_map")
-    var l_done = _new_label(ctx, "idx_set_done")
-    _x64_index_set_emit_list_or_map_dispatch(ctx, locals, {
-        "recv_kind": recv_kind,
-        "known_kk": known_kk,
-        "off_cont": off_cont,
-        "off_idx": off_idx,
-        "off_val": off_val,
-        "labels": labels,
-        "fixups": local_fixups,
-        "l_is_list": l_is_list,
-        "l_is_map": l_is_map,
-        "l_done": l_done
-    })
+    _x64_index_set_emit_list_or_map_dispatch(ctx, locals, _x64_index_set_inline_state(ctx, recv_kind, known_kk, spills))
     _intr_tmp_pop(ctx, base0)
     return nil
 }

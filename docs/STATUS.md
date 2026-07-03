@@ -2707,6 +2707,12 @@ make docs-site
   `x64_native_program.oren` at about 44.0s total / 31.9s parse, with
   `_emit_index_set_intrinsic_v0_x64` exposed at about 52ms as the next parser
   body.
+- X64 `oren_index_set` intrinsic lowering now separates validation, map-only
+  dispatch, generic runtime fallback, and inline list/list-int state creation
+  while preserving the existing spill and temp cleanup order. The capped profile
+  now shows `x64_native_program.oren` at about 44.2s total / 32.2s parse, with
+  `_x64_rtobj_apply_imports_and_ffi` exposed at about 54ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
