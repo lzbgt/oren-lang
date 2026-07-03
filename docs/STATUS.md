@@ -3025,6 +3025,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 46.1s total /
   33.2s parse, with `_x64_emit_runtime_oren_add_x64` exposed at about 48ms as
   the next parser body.
+- X64 runtime `oren_add` emission now separates runtime availability checking,
+  two-slot temp allocation, left-to-right operand spilling, ABI argument register
+  lookup, and call-fixup emission while preserving the shared `oren_add(a,b)`
+  dispatch sequence. The capped profile now shows `x64_native_program.oren` at
+  about 59.5s total / 43.5s parse, with `_emit_win64_stat_open_file_x64`
+  exposed at about 186ms as the next parser body.
 
 ## Documentation Guardrail
 
