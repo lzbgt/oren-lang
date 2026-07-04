@@ -3528,6 +3528,14 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 46.8s total / 33.8s parse, with</p>
 <p>  <code>_x64_flush_global_string_init_batch</code> exposed at about 52ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 global string init batch flushing now separates first-token selection,</li>
+</ul>
+<p>  compact table serialization, table-backed statement emission, and fallback</p>
+<p>  statement construction while preserving both fast and fallback statement</p>
+<p>  shapes. The capped profile now shows <code>x64_native_program.oren</code> at about 49.3s</p>
+<p>  total / 35.7s parse, with <code>_x64_emit_list_push_slow_or_fast</code> exposed at about</p>
+<p>  89ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

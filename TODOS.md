@@ -1914,6 +1914,12 @@ design evidence lives under `project-doc/`.
   `x64_native_program.oren` at ~46.8s total / ~33.8s parse, with
   `_x64_flush_global_string_init_batch` exposed at ~52ms as the next parser
   body.
+- X64 global string init batch flushing now separates first-token selection,
+  compact table serialization, table-backed statement emission, and fallback
+  statement construction while preserving both fast and fallback statement
+  shapes. The capped profile now shows `x64_native_program.oren` at ~49.3s
+  total / ~35.7s parse, with `_x64_emit_list_push_slow_or_fast` exposed at
+  ~89ms as the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

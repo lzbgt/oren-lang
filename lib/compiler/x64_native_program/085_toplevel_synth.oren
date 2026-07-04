@@ -115,20 +115,25 @@ fn _x64_append_global_string_batch_cstr0(ctx, s) {
     return off
 }
 
-fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_offs, toks, items, ctx, table_count, table_buf) {
-    if out_stmts == nil || names == nil || values == nil || off_encs == nil { return nil }
-    var n = oren_list_len(names)
-    if n <= 0 { return nil }
+fn _x64_first_pending_string_token(toks) {
     var tok0 = nil
     if toks != nil && oren_list_len(toks) > 0 { tok0 = toks[0] }
-    var table_off = nil
+    return tok0
+}
+
+fn _x64_append_global_string_batch_table(ctx, table_count, table_buf) {
     if ctx != nil && table_count > 0 && table_buf != nil {
         if ctx["data"] == nil { ctx["data"] = bytes_new() }
         while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-        table_off = bytes_len(ctx["data"])
+        var table_off = bytes_len(ctx["data"])
         push_u64_le(ctx["data"], table_count)
         bytes_extend(ctx["data"], table_buf)
+        return table_off
     }
+    return nil
+}
+
+fn _x64_push_global_string_table_batch_stmt(out_stmts, tok0, table_off, table_count) {
     if oren_type_tag(table_off) == 1 {
         oren_list_push(out_stmts, {
             "type": "X64GlobalStringInitBatch",
@@ -136,8 +141,12 @@ fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_
             "table_off": table_off,
             "count": table_count,
         })
-        return nil
+        return true
     }
+    return false
+}
+
+fn _x64_push_global_string_fallback_batch_stmt(out_stmts, names, values, off_encs, slot_offs, toks, items, tok0, table_off, table_count) {
     oren_list_push(out_stmts, {
         "type": "X64GlobalStringInitBatch",
         "token": tok0,
@@ -150,6 +159,17 @@ fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_
         "table_off": table_off,
         "count": table_count,
     })
+    return nil
+}
+
+fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_offs, toks, items, ctx, table_count, table_buf) {
+    if out_stmts == nil || names == nil || values == nil || off_encs == nil { return nil }
+    var n = oren_list_len(names)
+    if n <= 0 { return nil }
+    var tok0 = _x64_first_pending_string_token(toks)
+    var table_off = _x64_append_global_string_batch_table(ctx, table_count, table_buf)
+    if _x64_push_global_string_table_batch_stmt(out_stmts, tok0, table_off, table_count) == true { return nil }
+    _x64_push_global_string_fallback_batch_stmt(out_stmts, names, values, off_encs, slot_offs, toks, items, tok0, table_off, table_count)
     return nil
 }
 

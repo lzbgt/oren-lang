@@ -3198,6 +3198,12 @@ make docs-site
   `x64_native_program.oren` at about 46.8s total / 33.8s parse, with
   `_x64_flush_global_string_init_batch` exposed at about 52ms as the next
   parser body.
+- X64 global string init batch flushing now separates first-token selection,
+  compact table serialization, table-backed statement emission, and fallback
+  statement construction while preserving both fast and fallback statement
+  shapes. The capped profile now shows `x64_native_program.oren` at about 49.3s
+  total / 35.7s parse, with `_x64_emit_list_push_slow_or_fast` exposed at about
+  89ms as the next parser body.
 
 ## Documentation Guardrail
 
