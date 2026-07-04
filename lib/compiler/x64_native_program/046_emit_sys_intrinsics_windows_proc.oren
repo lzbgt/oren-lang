@@ -136,11 +136,7 @@ fn _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup) {
     return nil
 }
 
-fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
-    var tmp_cmd = st["tmp_cmd"]
-    var tmp_env = st["tmp_env"]
-    var STARTUP_OFF = st["startup_off"]
-    var PROC_OFF = st["proc_off"]
+fn _x64_win_cp_emit_create_register_args(ctx, st) {
     // CreateProcessA args (Win64):
     // rcx=lpApplicationName, rdx=lpCommandLine, r8=lpProcessAttributes(NULL), r9=lpThreadAttributes(NULL)
     //
@@ -149,10 +145,13 @@ fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
     // passing lpApplicationName=NULL to avoid any subtle expectations about the mutability
     // of the application-name pointer (only lpCommandLine is documented as mutable).
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(1, 1)) // rcx = NULL
-    _intr_load_x64(ctx, 2, tmp_cmd)                  // rdx = cmdline
+    _intr_load_x64(ctx, 2, st["tmp_cmd"])                  // rdx = cmdline
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8=0
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9=0
+    return nil
+}
 
+fn _x64_win_cp_emit_create_stack_args(ctx, st) {
     // Stack args begin at [rsp+0x20] (after shadow space).
     // IMPORTANT (Win64 ABI): stack args occupy 8-byte slots. When passing 32-bit values
     // (BOOL/DWORD), ensure the high 32 bits are zeroed too; CreateProcessA may load 64-bit
@@ -168,7 +167,7 @@ fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
     _emit_mov_mrsp_r64(ctx, 40, 0) // dwCreationFlags
 
     // lpEnvironment = envblock (may be 0)
-    _intr_load_x64(ctx, 0, tmp_env)
+    _intr_load_x64(ctx, 0, st["tmp_env"])
     _emit_mov_mrsp_r64(ctx, 48, 0)
 
     // lpCurrentDirectory = NULL (LPSTR)
@@ -177,13 +176,16 @@ fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
 
     // lpStartupInfo = rsp + STARTUP_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 4)) // r10 = rsp
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, STARTUP_OFF))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, st["startup_off"]))
     _emit_mov_mrsp_r64(ctx, 64, 10)
     // lpProcessInformation = rsp + PROC_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 4)) // r11 = rsp
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, PROC_OFF))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, st["proc_off"]))
     _emit_mov_mrsp_r64(ctx, 72, 11)
+    return nil
+}
 
+fn _x64_win_cp_emit_create_result(ctx, labels, fixups, l_cleanup) {
     _emit_call_iat_x64(ctx, "IAT_CreateProcessA")
 
     // if eax == 0 => failure => return -1
@@ -196,6 +198,13 @@ fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_created)
+    return nil
+}
+
+fn _x64_win_cp_emit_create_call(ctx, st, labels, fixups, l_cleanup) {
+    _x64_win_cp_emit_create_register_args(ctx, st)
+    _x64_win_cp_emit_create_stack_args(ctx, st)
+    _x64_win_cp_emit_create_result(ctx, labels, fixups, l_cleanup)
     return nil
 }
 

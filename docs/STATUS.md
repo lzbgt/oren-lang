@@ -3176,6 +3176,12 @@ make docs-site
   preserving the `Sleep(DWORD)` best-effort contract. The capped profile now
   shows `x64_native_program.oren` at about 46.3s total / 33.4s parse, with
   `_x64_win_cp_emit_create_call` exposed at about 47ms as the next parser body.
+- X64 Windows `CreateProcessA` call emission now separates register argument
+  materialization, Win64 stack argument layout, and result/failure routing while
+  preserving cleanup-label behavior. The capped profile now shows
+  `x64_native_program.oren` at about 55.9s total / 41.2s parse, with
+  `_emit_sys_open_windows_access_args_x64` exposed at about 105ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
