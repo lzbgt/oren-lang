@@ -3272,6 +3272,12 @@ make docs-site
   contract. The capped profile now shows `x64_native_program.oren` at about
   47.2s total / 34.4s parse, with `_x64_fast_lcg_emit_entry_gates` exposed at
   about 47ms as the next parser body.
+- X64 fast LCG entry gating now separates modulus materialization, nonnegative
+  `i/n/x/sum` state guards, and sum-cap guard emission while preserving the
+  `r12`/`r9` and `idx/n/x/sum` register contracts. The capped profile now shows
+  `x64_native_program.oren` at about 47.3s total / 34.5s parse, with
+  `_x64_collect_top_level_globals_and_stmts` exposed at about 47ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

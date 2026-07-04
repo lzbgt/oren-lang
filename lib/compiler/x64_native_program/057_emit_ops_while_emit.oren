@@ -1282,45 +1282,52 @@ fn _x64_fast_lcg_labels(ctx) {
     }
 }
 
-fn _x64_fast_lcg_emit_entry_gates(ctx, prep, labels, local_fixups) {
+fn _x64_fast_lcg_entry_load_mod(ctx, prep) {
     var mod_name = prep["mod"]
     var mod_const = prep["mod_const"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
     var off_mod = prep["off_mod"]
-    var sum_cap = prep["sum_cap"]
-    var l_slow = labels["slow"]
-    var l_fast_cond_mod = labels["cond_mod"]
-
-    // mod <= 0 => slow
     if mod_name != nil {
         _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod)
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_imm64(12, mod_const))
     }
+    return nil
+}
+
+fn _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, reg, off, target) {
+    _emit_mov_r64_mrbp(ctx, reg, 0 - off)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(reg, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "lt", target)
+    return nil
+}
+
+fn _x64_fast_lcg_entry_emit_state_gates(ctx, prep, target, local_fixups) {
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 0, prep["off_idx"], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 1, prep["off_n"], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 2, prep["off_x"], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 4, prep["off_sum"], target)
+    return nil
+}
+
+fn _x64_fast_lcg_entry_emit_sum_cap_gate(ctx, prep, target, local_fixups) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, prep["sum_cap"]))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "lt", target)
+    return nil
+}
+
+fn _x64_fast_lcg_emit_entry_gates(ctx, prep, labels, local_fixups) {
+    var l_fast_cond_mod = labels["cond_mod"]
+
+    _x64_fast_lcg_entry_load_mod(ctx, prep)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(12, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_slow)
+    _emit_jcc_to_label(ctx, local_fixups, "le", labels["slow"])
 
     // i/n/x/sum < 0 => full-mod fast loop
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "lt", l_fast_cond_mod)
-    _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "lt", l_fast_cond_mod)
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_x)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "lt", l_fast_cond_mod)
-    _emit_mov_r64_mrbp(ctx, 4, 0 - off_sum)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(4, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "lt", l_fast_cond_mod)
+    _x64_fast_lcg_entry_emit_state_gates(ctx, prep, l_fast_cond_mod, local_fixups)
 
     // mod < (mod_x + mod_i) => full-mod fast loop
-    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, sum_cap))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 9))
-    _emit_jcc_to_label(ctx, local_fixups, "lt", l_fast_cond_mod)
+    _x64_fast_lcg_entry_emit_sum_cap_gate(ctx, prep, l_fast_cond_mod, local_fixups)
     return nil
 }
 
