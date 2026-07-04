@@ -75,34 +75,52 @@ fn _x64_expr_needs_literal_slots(expr) {
     return true
 }
 
+fn _x64_expr_op_needs_literal_slots(op) {
+    return _x64_expr_needs_literal_slots(op["expr"])
+}
+
+fn _x64_if_op_needs_literal_slots(op) {
+    if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
+    if _x64_ops_need_literal_slots(op["then"]) == true { return true }
+    return _x64_ops_need_literal_slots(op["else"])
+}
+
+fn _x64_while_op_needs_literal_slots(op) {
+    if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
+    return _x64_ops_need_literal_slots(op["body"])
+}
+
+fn _x64_for_op_needs_literal_slots(op) {
+    if _x64_ops_need_literal_slots(op["init"]) == true { return true }
+    if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
+    if _x64_ops_need_literal_slots(op["post"]) == true { return true }
+    return _x64_ops_need_literal_slots(op["body"])
+}
+
+fn _x64_simple_op_needs_no_literal_slots(k) {
+    return k == "global_string_init" || k == "global_string_init_batch" ||
+           k == "global_empty_container_init_batch" || k == "print_cstr" ||
+           k == "break" || k == "continue"
+}
+
+fn _x64_op_needs_literal_slots(op) {
+    if op == nil { return false }
+    var k = op["op"]
+    if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" || k == "print_str_expr" {
+        return _x64_expr_op_needs_literal_slots(op)
+    }
+    if k == "if" { return _x64_if_op_needs_literal_slots(op) }
+    if k == "while" { return _x64_while_op_needs_literal_slots(op) }
+    if k == "for" { return _x64_for_op_needs_literal_slots(op) }
+    if _x64_simple_op_needs_no_literal_slots(k) == true { return false }
+    return true
+}
+
 fn _x64_ops_need_literal_slots(ops) {
     if ops == nil { return false }
     var i = 0
     while i < oren_list_len(ops) {
-        var op = ops[i]
-        if op == nil { i = i + 1; continue }
-        var k = op["op"]
-        if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" || k == "print_str_expr" {
-            if _x64_expr_needs_literal_slots(op["expr"]) == true { return true }
-        } else if k == "if" {
-            if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
-            if _x64_ops_need_literal_slots(op["then"]) == true { return true }
-            if _x64_ops_need_literal_slots(op["else"]) == true { return true }
-        } else if k == "while" {
-            if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
-            if _x64_ops_need_literal_slots(op["body"]) == true { return true }
-        } else if k == "for" {
-            if _x64_ops_need_literal_slots(op["init"]) == true { return true }
-            if _x64_expr_needs_literal_slots(op["cond"]) == true { return true }
-            if _x64_ops_need_literal_slots(op["post"]) == true { return true }
-            if _x64_ops_need_literal_slots(op["body"]) == true { return true }
-        } else if k == "global_string_init" || k == "global_string_init_batch" ||
-                  k == "global_empty_container_init_batch" || k == "print_cstr" ||
-                  k == "break" || k == "continue" {
-            // These synthetic/simple ops do not evaluate list/hash literal expressions.
-        } else {
-            return true
-        }
+        if _x64_op_needs_literal_slots(ops[i]) == true { return true }
         i = i + 1
     }
     return false

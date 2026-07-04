@@ -3154,6 +3154,11 @@ make docs-site
   preserving truthiness checks and BOOL singleton results. The capped profile now
   shows `x64_native_program.oren` at about 62.3s total / 45.0s parse, with
   `_x64_ops_need_literal_slots` exposed at about 198ms as the next parser body.
+- X64 literal-slot need scanning now separates expression-op, `if`, `while`,
+  `for`, and synthetic/simple op classification while preserving conservative
+  unknown-op slot reservation. The capped profile now shows
+  `x64_native_program.oren` at about 48.9s total / 35.8s parse, with
+  `_x64_emit_prebuilt_batch_op` exposed at about 50ms as the next parser body.
 
 ## Documentation Guardrail
 
