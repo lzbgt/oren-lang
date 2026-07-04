@@ -1245,39 +1245,64 @@ fn _x64_rtobj_store_and_apply_build(ctx, dir, key, built, phase_log) {
     return ok
 }
 
-fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
-    if ctx == nil { return false }
-    if rtobj.rtobj_cache_enabled(platform) != true { return false }
-
+fn _x64_rtobj_load_or_build_state(ctx, platform, runtime_path) {
+    if ctx == nil { return nil }
+    if rtobj.rtobj_cache_enabled(platform) != true { return nil }
     var trace = rtobj.rtobj_trace_enabled()
     var phase_log = ctx["phase_log"]
     var t0 = 0
     if trace { t0 = oren_time_now_ns() }
+    return {"trace": trace, "phase_log": phase_log, "t0": t0, "platform": platform, "runtime_path": runtime_path}
+}
 
-    var ident = _x64_rtobj_cache_identity(ctx, platform, runtime_path, phase_log)
-    if ident == nil { return false }
-    var rh = ident["runtime_hash"]
-    var key = ident["key"]
-    var bsig = ident["backend_sig"]
-    var dir = ident["dir"]
+fn _x64_rtobj_attach_identity(state, ident) {
+    if state == nil || ident == nil { return nil }
+    state["runtime_hash"] = ident["runtime_hash"]
+    state["key"] = ident["key"]
+    state["backend_sig"] = ident["backend_sig"]
+    state["dir"] = ident["dir"]
+    return state
+}
 
-    var cache_res = _x64_rtobj_try_apply_cache_hit(ctx, dir, key, phase_log, trace)
-    if cache_res != nil && cache_res["handled"] == true { return cache_res["ok"] }
+fn _x64_rtobj_try_cached_or_seeded(ctx, state) {
+    var cache_res = _x64_rtobj_try_apply_cache_hit(ctx, state["dir"], state["key"], state["phase_log"], state["trace"])
+    if cache_res != nil && cache_res["handled"] == true { return cache_res }
+    var seed_res = _x64_rtobj_try_apply_seed_hit(ctx, state["dir"], state["key"], state["phase_log"], state["trace"])
+    if seed_res != nil && seed_res["handled"] == true { return seed_res }
+    return {"handled": false}
+}
 
-    var seed_res = _x64_rtobj_try_apply_seed_hit(ctx, dir, key, phase_log, trace)
-    if seed_res != nil && seed_res["handled"] == true { return seed_res["ok"] }
-
+fn _x64_rtobj_build_miss(ctx, state) {
+    var trace = state["trace"]
+    var phase_log = state["phase_log"]
+    var key = state["key"]
     if trace { print("[rtobj] miss backend=x64 key=" + key + " (building)") }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.start", "") }
-    var built = _x64_build_runtime_obj(platform, runtime_path, rh, bsig, phase_log)
-    if built == nil { return false }
+    var built = _x64_build_runtime_obj(state["platform"], state["runtime_path"], state["runtime_hash"], state["backend_sig"], phase_log)
+    if built == nil { return nil }
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.done", "") }
+    return built
+}
 
-    var ok = _x64_rtobj_store_and_apply_build(ctx, dir, key, built, phase_log)
-    if trace {
-        var dt = oren_time_now_ns() - t0
+fn _x64_rtobj_trace_build_apply_done(state) {
+    if state["trace"] {
+        var dt = oren_time_now_ns() - state["t0"]
         print("[rtobj] build+apply(data) done +" + oren_int_to_string(dt / 1000000) + "ms")
     }
+    return nil
+}
+
+fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
+    var state = _x64_rtobj_load_or_build_state(ctx, platform, runtime_path)
+    if state == nil { return false }
+    var ident = _x64_rtobj_cache_identity(ctx, platform, runtime_path, state["phase_log"])
+    if _x64_rtobj_attach_identity(state, ident) == nil { return false }
+    var cached = _x64_rtobj_try_cached_or_seeded(ctx, state)
+    if cached != nil && cached["handled"] == true { return cached["ok"] }
+    var built = _x64_rtobj_build_miss(ctx, state)
+    if built == nil { return false }
+    var ok = _x64_rtobj_store_and_apply_build(ctx, state["dir"], state["key"], built, state["phase_log"])
+    _x64_rtobj_trace_build_apply_done(state)
     return ok
 }
 

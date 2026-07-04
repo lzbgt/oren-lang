@@ -3316,6 +3316,12 @@ make docs-site
   expression errors. The capped profile now shows `x64_native_program.oren` at
   about 51.7s total / 38.0s parse, with `_x64_try_load_or_build_runtime_obj`
   exposed at about 54ms as the next parser body.
+- X64 runtime-object load/build routing now separates cache-enable state,
+  identity attachment, cache/seed hit routing, miss build, and build-apply
+  timing while preserving cache key selection, seed fallback, store/apply, and
+  phase markers. The capped profile now shows `x64_native_program.oren` at
+  about 46.5s total / 33.6s parse, with `_x64_match_sum_mod_update` exposed at
+  about 45ms as the next parser body.
 
 ## Documentation Guardrail
 
