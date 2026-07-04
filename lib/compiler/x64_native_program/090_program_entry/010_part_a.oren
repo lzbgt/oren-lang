@@ -414,38 +414,47 @@ fn _x64_rtobj_apply_function_offsets(ctx, meta, base_code, trace, phase_log) {
     return nil
 }
 
+fn _x64_rtobj_attach_compact_fixups(ctx, meta, x64_fx_compact, base_code) {
+    ctx["runtime_x64_fixups_compact"] = x64_fx_compact
+    if meta["fixups_compact_u8"] != nil { ctx["runtime_x64_fixups_compact_u8"] = meta["fixups_compact_u8"] }
+    ctx["runtime_x64_fixups_base_code"] = base_code
+    return nil
+}
+
+fn _x64_rtobj_compact_fixup_count(xs) {
+    if xs == nil { return 0 }
+    return oren_list_len(xs)
+}
+
+fn _x64_rtobj_compact_rip_fixup_count(x64_fx_compact) {
+    var rip_n0 = 0
+    rip_n0 = rip_n0 + _x64_rtobj_compact_fixup_count(x64_fx_compact["rip_data_lea_pos_enc"])
+    rip_n0 = rip_n0 + _x64_rtobj_compact_fixup_count(x64_fx_compact["rip_data_lea_rsi_pos_enc"])
+    rip_n0 = rip_n0 + _x64_rtobj_compact_fixup_count(x64_fx_compact["rip_data_mov_rax_pos_enc"])
+    rip_n0 = rip_n0 + _x64_rtobj_compact_fixup_count(x64_fx_compact["rip_code_lea_pos_enc"])
+    rip_n0 = rip_n0 + _x64_rtobj_compact_fixup_count(x64_fx_compact["rip_rdata_lea_pos_enc"])
+    return rip_n0
+}
+
+fn _x64_rtobj_log_compact_fixups_done(phase_log, x64_fx_compact) {
+    if phase_log == nil { return nil }
+    var call_n0 = _x64_rtobj_compact_fixup_count(x64_fx_compact["call_pos_enc"])
+    var rip_n0 = _x64_rtobj_compact_rip_fixup_count(x64_fx_compact)
+    var fnobj_n0 = _x64_rtobj_compact_fixup_count(x64_fx_compact["data_fnobj_code_ptr_data_off_enc"])
+    _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.compact_fixups.done",
+        "call=" + oren_int_to_string(call_n0) +
+        " rip=" + oren_int_to_string(rip_n0) +
+        " fnobj=" + oren_int_to_string(fnobj_n0))
+    return nil
+}
+
 fn _x64_rtobj_apply_compact_fixups(ctx, meta, base_code, trace, phase_log) {
     var x64_fx_compact = meta["x64_fixups_compact"]
-    if x64_fx_compact != nil {
-        ctx["runtime_x64_fixups_compact"] = x64_fx_compact
-        if meta["fixups_compact_u8"] != nil { ctx["runtime_x64_fixups_compact_u8"] = meta["fixups_compact_u8"] }
-        ctx["runtime_x64_fixups_base_code"] = base_code
-        _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
-        if trace { print("[x64_rtobj_apply] compact fixups attached") }
-        if phase_log != nil {
-            var call_n0 = 0
-            var call_xs0 = x64_fx_compact["call_pos_enc"]
-            if call_xs0 != nil { call_n0 = oren_list_len(call_xs0) }
-            var rip_n0 = 0
-            var rip_xs0 = x64_fx_compact["rip_data_lea_pos_enc"]
-            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
-            rip_xs0 = x64_fx_compact["rip_data_lea_rsi_pos_enc"]
-            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
-            rip_xs0 = x64_fx_compact["rip_data_mov_rax_pos_enc"]
-            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
-            rip_xs0 = x64_fx_compact["rip_code_lea_pos_enc"]
-            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
-            rip_xs0 = x64_fx_compact["rip_rdata_lea_pos_enc"]
-            if rip_xs0 != nil { rip_n0 = rip_n0 + oren_list_len(rip_xs0) }
-            var fnobj_n0 = 0
-            var fnobj_xs0 = x64_fx_compact["data_fnobj_code_ptr_data_off_enc"]
-            if fnobj_xs0 != nil { fnobj_n0 = oren_list_len(fnobj_xs0) }
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.compact_fixups.done",
-                "call=" + oren_int_to_string(call_n0) +
-                " rip=" + oren_int_to_string(rip_n0) +
-                " fnobj=" + oren_int_to_string(fnobj_n0))
-        }
-    }
+    if x64_fx_compact == nil { return nil }
+    _x64_rtobj_attach_compact_fixups(ctx, meta, x64_fx_compact, base_code)
+    _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
+    if trace { print("[x64_rtobj_apply] compact fixups attached") }
+    _x64_rtobj_log_compact_fixups_done(phase_log, x64_fx_compact)
     return nil
 }
 

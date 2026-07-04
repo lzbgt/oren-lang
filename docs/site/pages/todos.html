@@ -2758,6 +2758,15 @@
 <p>  total / ~34.5s parse, with <code>_x64_rtobj_apply_compact_fixups</code> exposed at</p>
 <p>  ~50ms as the next parser body.</p>
 <ul>
+<li>X64 runtime-object compact fixup application now separates compact sidecar</li>
+</ul>
+<p>  attachment, nil-safe fixup counting, RIP fixup aggregation, and phase-log</p>
+<p>  emission while preserving compact fixup context keys and panic-helper</p>
+<p>  detection. The capped profile now shows <code>x64_native_program.oren</code> at ~46.6s</p>
+<p>  total / ~33.6s parse, with</p>
+<p>  <code>_x64_prepare_list_int_dot_slots_unchecked_intrinsic</code> exposed at ~44ms as the</p>
+<p>  next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

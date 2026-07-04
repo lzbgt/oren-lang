@@ -3303,6 +3303,13 @@ make docs-site
   behavior. The capped profile now shows `x64_native_program.oren` at about
   47.6s total / 34.5s parse, with `_x64_rtobj_apply_compact_fixups` exposed at
   about 50ms as the next parser body.
+- X64 runtime-object compact fixup application now separates compact sidecar
+  attachment, nil-safe fixup counting, RIP fixup aggregation, and phase-log
+  emission while preserving compact fixup context keys and panic-helper
+  detection. The capped profile now shows `x64_native_program.oren` at about
+  46.6s total / 33.6s parse, with
+  `_x64_prepare_list_int_dot_slots_unchecked_intrinsic` exposed at about 44ms as
+  the next parser body.
 
 ## Documentation Guardrail
 
