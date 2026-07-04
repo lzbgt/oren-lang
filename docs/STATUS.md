@@ -3228,6 +3228,11 @@ make docs-site
   early error return behavior. The capped profile now shows
   `x64_native_program.oren` at about 47.4s total / 34.4s parse, with
   `_x64_emit_ops_one_in_fn` exposed at about 48ms as the next parser body.
+- X64 function-body op emission now separates per-op preparation, prebuilt
+  batch dispatch, and regular op dispatch/finish handling while preserving the
+  `nil`-on-error and `0`-on-handled loop contract. The capped profile now shows
+  `x64_native_program.oren` at about 47.3s total / 34.4s parse, with
+  `_emit_eval_div_infix_to_rax` exposed at about 47ms as the next parser body.
 
 ## Documentation Guardrail
 

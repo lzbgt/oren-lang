@@ -3568,6 +3568,13 @@ make docs-site</code></pre>
 <p>  early error return behavior. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 47.4s total / 34.4s parse, with</p>
 <p>  <code>_x64_emit_ops_one_in_fn</code> exposed at about 48ms as the next parser body.</p>
+<ul>
+<li>X64 function-body op emission now separates per-op preparation, prebuilt</li>
+</ul>
+<p>  batch dispatch, and regular op dispatch/finish handling while preserving the</p>
+<p>  <code>nil</code>-on-error and <code>0</code>-on-handled loop contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 47.3s total / 34.4s parse, with</p>
+<p>  <code>_emit_eval_div_infix_to_rax</code> exposed at about 47ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
