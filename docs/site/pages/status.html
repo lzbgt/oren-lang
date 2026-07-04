@@ -3694,6 +3694,14 @@ make docs-site</code></pre>
 <p>  phase markers. The capped profile now shows <code>x64_native_program.oren</code> at</p>
 <p>  about 46.5s total / 33.6s parse, with <code>_x64_match_sum_mod_update</code> exposed at</p>
 <p>  about 45ms as the next parser body.</p>
+<ul>
+<li>X64 fast-LCG sum modulo matching now separates modulo RHS validation, add-term</li>
+</ul>
+<p>  classification, duplicate tracking, and final matcher packing while preserving</p>
+<p>  the <code>{mod_x, mod_i}</code> result. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 53.5s total / 39.1s parse, with</p>
+<p>  <code>_x64_fast_list_int_dot_prepare</code> exposed at about 170ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

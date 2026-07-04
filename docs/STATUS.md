@@ -3322,6 +3322,12 @@ make docs-site
   phase markers. The capped profile now shows `x64_native_program.oren` at
   about 46.5s total / 33.6s parse, with `_x64_match_sum_mod_update` exposed at
   about 45ms as the next parser body.
+- X64 fast-LCG sum modulo matching now separates modulo RHS validation, add-term
+  classification, duplicate tracking, and final matcher packing while preserving
+  the `{mod_x, mod_i}` result. The capped profile now shows
+  `x64_native_program.oren` at about 53.5s total / 39.1s parse, with
+  `_x64_fast_list_int_dot_prepare` exposed at about 170ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

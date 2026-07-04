@@ -413,49 +413,67 @@ fn _x64_match_lcg_update(expr, x_name) {
     return {"mul": mul, "add": add, "mod": mod_name, "mod_const": mod_const}
 }
 
-fn _x64_match_sum_mod_update(expr, sum_name, x_name, idx_name, mod_name, mod_const) {
-    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+fn _x64_match_sum_mod_rhs_ok(rhs, mod_name, mod_const) {
     var mod_ok = false
-    var mod_rhs = _x64_is_ident(expr["right"])
+    var mod_rhs = _x64_is_ident(rhs)
     if mod_rhs != nil && mod_name != nil && _x64_str_eq_bytes(mod_rhs, mod_name) == true { mod_ok = true }
     if mod_ok != true && mod_const != nil {
-        var mod_lit = _x64_parse_int_lit_expr(expr["right"])
+        var mod_lit = _x64_parse_int_lit_expr(rhs)
         if mod_lit != nil && mod_lit == mod_const { mod_ok = true }
     }
-    if mod_ok != true { return nil }
-    var terms = []
-    _x64_collect_add_terms(expr["left"], terms)
+    return mod_ok
+}
+
+fn _x64_match_sum_mod_term_info(t, sum_name, x_name, idx_name) {
+    var tname = _x64_is_ident(t)
+    if tname != nil && _x64_str_eq_bytes(tname, sum_name) { return {"kind": "sum"} }
+    var mx = _x64_match_mod_term(t, x_name)
+    if mx != nil { return {"kind": "mod_x", "value": mx} }
+    var mi = _x64_match_mod_term(t, idx_name)
+    if mi != nil { return {"kind": "mod_i", "value": mi} }
+    return nil
+}
+
+fn _x64_match_sum_mod_record_term(state, info) {
+    if info == nil { return nil }
+    var kind = info["kind"]
+    if kind == "sum" {
+        state["saw_sum"] = true
+        return state
+    }
+    if kind == "mod_x" {
+        if state["mod_x"] != nil { return nil }
+        state["mod_x"] = info["value"]
+        return state
+    }
+    if kind == "mod_i" {
+        if state["mod_i"] != nil { return nil }
+        state["mod_i"] = info["value"]
+        return state
+    }
+    return nil
+}
+
+fn _x64_match_sum_mod_terms(terms, sum_name, x_name, idx_name) {
     if oren_list_len(terms) != 3 { return nil }
-    var saw_sum = false
-    var mod_x = nil
-    var mod_i = nil
+    var state = {"saw_sum": false, "mod_x": nil, "mod_i": nil}
     var ti = 0
     while ti < oren_list_len(terms) {
-        var t = terms[ti]
-        var tname = _x64_is_ident(t)
-        if tname != nil && _x64_str_eq_bytes(tname, sum_name) {
-            saw_sum = true
-            ti = ti + 1
-            continue
-        }
-        var mx = _x64_match_mod_term(t, x_name)
-        if mx != nil {
-            if mod_x != nil { return nil }
-            mod_x = mx
-            ti = ti + 1
-            continue
-        }
-        var mi = _x64_match_mod_term(t, idx_name)
-        if mi != nil {
-            if mod_i != nil { return nil }
-            mod_i = mi
-            ti = ti + 1
-            continue
-        }
-        return nil
+        var info = _x64_match_sum_mod_term_info(terms[ti], sum_name, x_name, idx_name)
+        state = _x64_match_sum_mod_record_term(state, info)
+        if state == nil { return nil }
+        ti = ti + 1
     }
-    if saw_sum != true || mod_x == nil || mod_i == nil { return nil }
-    return {"mod_x": mod_x, "mod_i": mod_i}
+    if state["saw_sum"] != true || state["mod_x"] == nil || state["mod_i"] == nil { return nil }
+    return {"mod_x": state["mod_x"], "mod_i": state["mod_i"]}
+}
+
+fn _x64_match_sum_mod_update(expr, sum_name, x_name, idx_name, mod_name, mod_const) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    if _x64_match_sum_mod_rhs_ok(expr["right"], mod_name, mod_const) != true { return nil }
+    var terms = []
+    _x64_collect_add_terms(expr["left"], terms)
+    return _x64_match_sum_mod_terms(terms, sum_name, x_name, idx_name)
 }
 
 fn _x64_match_local_inty(ctx, locals, name) {
