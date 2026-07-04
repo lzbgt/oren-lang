@@ -3297,6 +3297,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 53.5s total /
   39.1s parse, with `_emit_list_int_set_intrinsic_v0_x64` exposed at about
   121ms as the next parser body.
+- X64 LIST_INT set lowering now separates argument validation, label-state
+  attachment, checked-body orchestration, and finish cleanup while preserving
+  tracked-node, value-check, slow-runtime fallback, and in-bounds store
+  behavior. The capped profile now shows `x64_native_program.oren` at about
+  47.6s total / 34.5s parse, with `_x64_rtobj_apply_compact_fixups` exposed at
+  about 50ms as the next parser body.
 
 ## Documentation Guardrail
 

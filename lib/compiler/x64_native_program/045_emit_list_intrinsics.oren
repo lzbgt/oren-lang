@@ -1220,10 +1220,7 @@ fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     return nil
 }
 
-fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
-    // Intrinsic: list<int> set fast-path (in-bounds), fallback to runtime for growth.
-    //
-    // Signature: oren_list_int_set(list, idx, value) -> int
+fn _x64_validate_list_int_set_intrinsic_args(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_int_set requires locals"); return nil }
     if ctx["runtime_injected"] != true {
@@ -1238,23 +1235,47 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
         err(ctx, "x64 native v0: oren_list_int_set expects 3 args")
         return nil
     }
+    return args
+}
 
-    var state = _x64_list_int_set_spill_args(ctx, locals, args)
-    if state == nil { return nil }
+fn _x64_list_int_set_attach_labels(ctx, state) {
     state["labels"] = {}
     state["local_fixups"] = []
     state["l_idx_nonneg"] = _new_label(ctx, "list_int_set_idx_nonneg")
     state["l_fast"] = _new_label(ctx, "list_int_set_fast")
     state["l_done"] = _new_label(ctx, "list_int_set_done")
+    return state
+}
 
+fn _x64_emit_list_int_set_checked_body(ctx, locals, state) {
     _x64_emit_list_int_set_validate(ctx, locals, state)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     _x64_emit_list_int_set_value_and_count(ctx, locals, state)
     _x64_emit_list_int_set_slow_or_fast(ctx, locals, state)
+    return true
+}
 
+fn _x64_finish_list_int_set_intrinsic(ctx, state) {
     _emit_label(ctx, state["labels"], state["l_done"])
     _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
     _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> set fast-path (in-bounds), fallback to runtime for growth.
+    //
+    // Signature: oren_list_int_set(list, idx, value) -> int
+    var args = _x64_validate_list_int_set_intrinsic_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var state = _x64_list_int_set_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_list_int_set_attach_labels(ctx, state)
+    if _x64_emit_list_int_set_checked_body(ctx, locals, state) != true {
+        _intr_tmp_pop(ctx, state["base"])
+        return nil
+    }
+    _x64_finish_list_int_set_intrinsic(ctx, state)
     return nil
 }
 
