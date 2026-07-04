@@ -3031,6 +3031,12 @@ make docs-site
   dispatch sequence. The capped profile now shows `x64_native_program.oren` at
   about 59.5s total / 43.5s parse, with `_emit_win64_stat_open_file_x64`
   exposed at about 186ms as the next parser body.
+- X64 Windows `stat` file-open lowering now separates normalized-path argument
+  restoration, `CreateFileA` register arguments, stack arguments, and
+  invalid-handle failure routing while preserving path-normalization cleanup and
+  local fixup labels. The capped profile now shows `x64_native_program.oren` at
+  about 46.3s total / 33.7s parse, with `_emit_intrinsic_sys_open_windows_x64`
+  exposed at about 49ms as the next parser body.
 
 ## Documentation Guardrail
 

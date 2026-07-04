@@ -223,15 +223,21 @@ fn _emit_win64_stat_dir_success_x64(ctx, fixups, tmp_st, l_done) {
     return nil
 }
 
-fn _emit_win64_stat_open_file_x64(ctx, fixups, l_done, l_handle_ok) {
+fn _emit_win64_stat_restore_norm_path_arg_x64(ctx) {
     // Restore rcx to the normalized path buffer (Win64 ABI treats rcx as volatile; the
     // prior GetFileAttributesA call may have clobbered it).
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(1, 64))
+    return nil
+}
 
+fn _emit_win64_stat_open_file_reg_args_x64(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 7))          // r8d = share
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
+    return nil
+}
 
+fn _emit_win64_stat_open_file_stack_args_x64(ctx) {
     // arg5 creation disposition = OPEN_EXISTING (3)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 3))
     _emit_mov_mrsp_r64(ctx, 32, 10)
@@ -241,15 +247,26 @@ fn _emit_win64_stat_open_file_x64(ctx, fixups, l_done, l_handle_ok) {
     // arg7 template = NULL
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
     _emit_mov_mrsp_r64(ctx, 48, 10)
+    return nil
+}
 
-    _emit_call_iat_x64(ctx, "IAT_CreateFileA")
-    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
-
+fn _emit_win64_stat_open_file_failure_x64(ctx, fixups, l_done, l_handle_ok) {
     // if handle == INVALID_HANDLE_VALUE (-1) => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967295))
     _emit_jcc_to_label(ctx, fixups, "ne", l_handle_ok)
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
+
+fn _emit_win64_stat_open_file_x64(ctx, fixups, l_done, l_handle_ok) {
+    _emit_win64_stat_restore_norm_path_arg_x64(ctx)
+    _emit_win64_stat_open_file_reg_args_x64(ctx)
+    _emit_win64_stat_open_file_stack_args_x64(ctx)
+    _emit_call_iat_x64(ctx, "IAT_CreateFileA")
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+
+    _emit_win64_stat_open_file_failure_x64(ctx, fixups, l_done, l_handle_ok)
     return nil
 }
 

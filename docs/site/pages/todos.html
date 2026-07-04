@@ -1152,6 +1152,14 @@
 <p>  ~59.5s total / ~43.5s parse, with <code>_emit_win64_stat_open_file_x64</code> (~186ms)</p>
 <p>  as the next parser-body target.</p>
 <ul>
+<li>X64 Windows <code>stat</code> file-open lowering now separates normalized-path argument</li>
+</ul>
+<p>  restoration, <code>CreateFileA</code> register arguments, stack arguments, and</p>
+<p>  invalid-handle failure routing while preserving path-normalization cleanup and</p>
+<p>  local fixup labels. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~46.3s total / ~33.7s parse, with <code>_emit_intrinsic_sys_open_windows_x64</code></p>
+<p>  (~49ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

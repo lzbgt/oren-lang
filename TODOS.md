@@ -817,6 +817,12 @@ design evidence lives under `project-doc/`.
   dispatch sequence. The capped profile now shows `x64_native_program.oren` at
   ~59.5s total / ~43.5s parse, with `_emit_win64_stat_open_file_x64` (~186ms)
   as the next parser-body target.
+- X64 Windows `stat` file-open lowering now separates normalized-path argument
+  restoration, `CreateFileA` register arguments, stack arguments, and
+  invalid-handle failure routing while preserving path-normalization cleanup and
+  local fixup labels. The capped profile now shows `x64_native_program.oren` at
+  ~46.3s total / ~33.7s parse, with `_emit_intrinsic_sys_open_windows_x64`
+  (~49ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
