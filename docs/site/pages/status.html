@@ -3397,6 +3397,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 47.8s total / 34.4s parse,</p>
 <p>  with <code>_x64_program_compile_options</code> exposed at about 78ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 program compile-option assembly now separates base, progress, entry, slow</li>
+</ul>
+<p>  function, and phase-detail option packing helpers while preserving the</p>
+<p>  flattened option-map contract consumed by program entry and function loops. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 46.2s total / 33.4s</p>
+<p>  parse, with <code>_emit_intrinsic_sys_fcntl_getfl_windows_x64</code> exposed at about 48ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

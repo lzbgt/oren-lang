@@ -659,6 +659,48 @@ fn _x64_program_phase_detail_options(phase_log) {
     }
 }
 
+fn _x64_program_compile_base_options(trace_sum, phase_log, trace_prog) {
+    return {
+        "trace_sum": trace_sum,
+        "phase_log": phase_log,
+        "trace_prog": trace_prog
+    }
+}
+
+fn _x64_program_compile_add_progress_options(opts, progress_opts) {
+    opts["prog_stride"] = progress_opts["prog_stride"]
+    opts["prog_focus_from"] = progress_opts["prog_focus_from"]
+    opts["prog_focus_to"] = progress_opts["prog_focus_to"]
+    opts["prog_slow_fn_ms"] = progress_opts["prog_slow_fn_ms"]
+    opts["focus_enabled"] = progress_opts["focus_enabled"]
+    return opts
+}
+
+fn _x64_program_compile_add_entry_options(opts, entry_opts) {
+    opts["trace_entry"] = entry_opts["trace_entry"]
+    opts["skip_register_thread"] = entry_opts["skip_register_thread"]
+    opts["exit_after_register_thread"] = entry_opts["exit_after_register_thread"]
+    opts["skip_top_level"] = entry_opts["skip_top_level"]
+    opts["skip_main"] = entry_opts["skip_main"]
+    opts["trace_entry_after_reg"] = entry_opts["trace_entry_after_reg"]
+    return opts
+}
+
+fn _x64_program_compile_add_slow_options(opts, slow_opts) {
+    opts["trace_top_slow"] = slow_opts["trace_top_slow"]
+    opts["top_slow_n"] = slow_opts["top_slow_n"]
+    opts["top_slow_min_ms"] = slow_opts["top_slow_min_ms"]
+    opts["top_slow_live"] = slow_opts["top_slow_live"]
+    opts["top_slow_live_n"] = slow_opts["top_slow_live_n"]
+    return opts
+}
+
+fn _x64_program_compile_add_phase_options(opts, phase_opts) {
+    opts["fns_progress_interval"] = phase_opts["fns_progress_interval"]
+    opts["fns_detail_limit"] = phase_opts["fns_detail_limit"]
+    return opts
+}
+
 fn _x64_program_compile_options() {
     var trace_sum = oren_env("OREN_TRACE_X64_COMPILE_SUMMARY") != nil
     var phase_log = _x64_program_phase_log_path()
@@ -668,29 +710,12 @@ fn _x64_program_compile_options() {
     var slow_opts = _x64_program_slow_fn_options(phase_log)
     var phase_opts = _x64_program_phase_detail_options(phase_log)
 
-    return {
-        "trace_sum": trace_sum,
-        "phase_log": phase_log,
-        "trace_prog": trace_prog,
-        "prog_stride": progress_opts["prog_stride"],
-        "prog_focus_from": progress_opts["prog_focus_from"],
-        "prog_focus_to": progress_opts["prog_focus_to"],
-        "prog_slow_fn_ms": progress_opts["prog_slow_fn_ms"],
-        "focus_enabled": progress_opts["focus_enabled"],
-        "trace_entry": entry_opts["trace_entry"],
-        "skip_register_thread": entry_opts["skip_register_thread"],
-        "exit_after_register_thread": entry_opts["exit_after_register_thread"],
-        "skip_top_level": entry_opts["skip_top_level"],
-        "skip_main": entry_opts["skip_main"],
-        "trace_entry_after_reg": entry_opts["trace_entry_after_reg"],
-        "trace_top_slow": slow_opts["trace_top_slow"],
-        "top_slow_n": slow_opts["top_slow_n"],
-        "top_slow_min_ms": slow_opts["top_slow_min_ms"],
-        "top_slow_live": slow_opts["top_slow_live"],
-        "top_slow_live_n": slow_opts["top_slow_live_n"],
-        "fns_progress_interval": phase_opts["fns_progress_interval"],
-        "fns_detail_limit": phase_opts["fns_detail_limit"]
-    }
+    var opts = _x64_program_compile_base_options(trace_sum, phase_log, trace_prog)
+    _x64_program_compile_add_progress_options(opts, progress_opts)
+    _x64_program_compile_add_entry_options(opts, entry_opts)
+    _x64_program_compile_add_slow_options(opts, slow_opts)
+    _x64_program_compile_add_phase_options(opts, phase_opts)
+    return opts
 }
 
 fn _x64_collect_lambda_uses(ctx, stmts_all, top_info, type_ctors, trace_prog, phase_log) {

@@ -3101,6 +3101,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 47.8s total / 34.4s parse,
   with `_x64_program_compile_options` exposed at about 78ms as the next parser
   body.
+- X64 program compile-option assembly now separates base, progress, entry, slow
+  function, and phase-detail option packing helpers while preserving the
+  flattened option-map contract consumed by program entry and function loops. The
+  capped profile now shows `x64_native_program.oren` at about 46.2s total / 33.4s
+  parse, with `_emit_intrinsic_sys_fcntl_getfl_windows_x64` exposed at about 48ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
