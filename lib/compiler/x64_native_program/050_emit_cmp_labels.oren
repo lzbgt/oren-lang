@@ -136,40 +136,55 @@ fn _x64_emit_cmp_int_path(ctx, labels, off_l, off_r, l_int) {
     return nil
 }
 
-fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
-    // Set CPU flags for `lhs <op> rhs`-style comparisons in conditions.
-    //
-    // Tier‑1 convergence rule:
-    // - If both operands are string pointers (tracked heap STRING or embedded cstr0 literal),
-    //   lower compare via an inline `strcmp`-equivalent and then `cmp rax, 0`.
-    // - Otherwise, fall back to raw integer compare (`cmp lhs, rhs`).
-    //
-    // This keeps condition Jcc mapping identical for ints and strings because both paths
-    // end with a `cmp <result>, 0` semantics: ints use flags from `cmp lhs,rhs`, strings
-    // use flags from `cmp strcmp(lhs,rhs), 0`.
+fn _x64_cmp_maybe_string_prepare_state(ctx, locals) {
     var offs = _x64_cmp_spill_offsets(ctx, locals)
     if offs == nil { return nil }
-    var off_l = offs["left"]
-    var off_r = offs["right"]
+    return {
+        "off_l": offs["left"],
+        "off_r": offs["right"],
+        "labels": {},
+        "fixups": [],
+        "l_int": _new_label(ctx, "cmp_int"),
+        "l_str": _new_label(ctx, "cmp_str"),
+        "l_done": _new_label(ctx, "cmp_done")
+    }
+}
 
-    // Spill operands to preserve across runtime calls.
-    _emit_mov_mrbp_r64(ctx, 0 - off_l, lhs_reg)
-    _emit_mov_mrbp_r64(ctx, 0 - off_r, rhs_reg)
+fn _x64_cmp_maybe_string_spill_operands(ctx, state, lhs_reg, rhs_reg) {
+    _emit_mov_mrbp_r64(ctx, 0 - state["off_l"], lhs_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - state["off_r"], rhs_reg)
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
-    var l_int = _new_label(ctx, "cmp_int")
-    var l_str = _new_label(ctx, "cmp_str")
-    var l_done = _new_label(ctx, "cmp_done")
+fn _x64_emit_cmp_maybe_string_paths(ctx, state) {
+    var off_l = state["off_l"]
+    var off_r = state["off_r"]
+    var labels = state["labels"]
+    var fixups = state["fixups"]
+    var l_int = state["l_int"]
+    var l_str = state["l_str"]
+    var l_done = state["l_done"]
 
     _x64_emit_cmp_small_int_fast_path(ctx, fixups, off_l, off_r, l_int)
     _x64_emit_cmp_string_ptr_checks(ctx, fixups, off_l, off_r, l_int, l_str)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _x64_emit_cmp_string_path(ctx, labels, fixups, off_l, off_r, l_str, l_done)
     _x64_emit_cmp_int_path(ctx, labels, off_l, off_r, l_int)
+    return true
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+fn _x64_finish_cmp_maybe_string(ctx, state) {
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    return nil
+}
+
+fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
+    var state = _x64_cmp_maybe_string_prepare_state(ctx, locals)
+    if state == nil { return nil }
+    _x64_cmp_maybe_string_spill_operands(ctx, state, lhs_reg, rhs_reg)
+    if _x64_emit_cmp_maybe_string_paths(ctx, state) != true { return nil }
+    _x64_finish_cmp_maybe_string(ctx, state)
     return nil
 }
 

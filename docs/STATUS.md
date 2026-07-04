@@ -3066,6 +3066,11 @@ make docs-site
   now shows `x64_native_program.oren` at about 58.5s total / 43.2s parse, with
   `_emit_cmp_r64_r64_maybe_string_x64` exposed at about 254ms as the next parser
   body.
+- X64 string-aware compare lowering now separates compare state preparation,
+  operand spilling, string/int path emission, and final local-fixup patching
+  while preserving the `cmp` flags contract for Jcc mapping. The capped profile
+  now shows `x64_native_program.oren` at about 46.3s total / 33.6s parse, with
+  `_lit_array_trace` exposed at about 103ms as the next parser body.
 
 ## Documentation Guardrail
 

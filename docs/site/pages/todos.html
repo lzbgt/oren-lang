@@ -1198,6 +1198,13 @@
 <p>  with <code>_emit_cmp_r64_r64_maybe_string_x64</code> (~254ms) as the next parser-body</p>
 <p>  target.</p>
 <ul>
+<li>X64 string-aware compare lowering now separates compare state preparation,</li>
+</ul>
+<p>  operand spilling, string/int path emission, and final local-fixup patching</p>
+<p>  while preserving the <code>cmp</code> flags contract for Jcc mapping. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~46.3s total / ~33.6s parse, with</p>
+<p>  <code>_lit_array_trace</code> (~103ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

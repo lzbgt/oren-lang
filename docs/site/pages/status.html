@@ -3350,6 +3350,13 @@ make docs-site</code></pre>
 <p>  now shows <code>x64_native_program.oren</code> at about 58.5s total / 43.2s parse, with</p>
 <p>  <code>_emit_cmp_r64_r64_maybe_string_x64</code> exposed at about 254ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 string-aware compare lowering now separates compare state preparation,</li>
+</ul>
+<p>  operand spilling, string/int path emission, and final local-fixup patching</p>
+<p>  while preserving the <code>cmp</code> flags contract for Jcc mapping. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 46.3s total / 33.6s parse, with</p>
+<p>  <code>_lit_array_trace</code> exposed at about 103ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

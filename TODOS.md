@@ -851,6 +851,11 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~58.5s total / ~43.2s parse,
   with `_emit_cmp_r64_r64_maybe_string_x64` (~254ms) as the next parser-body
   target.
+- X64 string-aware compare lowering now separates compare state preparation,
+  operand spilling, string/int path emission, and final local-fixup patching
+  while preserving the `cmp` flags contract for Jcc mapping. The capped profile
+  now shows `x64_native_program.oren` at ~46.3s total / ~33.6s parse, with
+  `_lit_array_trace` (~103ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
