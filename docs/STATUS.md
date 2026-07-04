@@ -3278,6 +3278,13 @@ make docs-site
   `x64_native_program.oren` at about 47.3s total / 34.5s parse, with
   `_x64_collect_top_level_globals_and_stmts` exposed at about 47ms as the next
   parser body.
+- X64 top-level global collection now splits runtime/user statement
+  classification, split phase logging, global-slot/init-statement preparation,
+  and final trace/slice packing while preserving the synthesized
+  `top_level_fn`/`top_stmt_count` contract. The capped profile now shows
+  `x64_native_program.oren` at about 55.3s total / 39.8s parse, with
+  `_x64_emit_direct_named_call_v0` exposed at about 180ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

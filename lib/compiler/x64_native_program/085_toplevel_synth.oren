@@ -912,6 +912,48 @@ fn _x64_apply_top_level_slice(top_stmts, top_len) {
     return sliced
 }
 
+fn _x64_top_level_split_runtime_user(ctx, runtime_stmts, user_stmts) {
+    var declared = ctx["declared_functions"]
+    var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
+    if split == nil { return nil }
+
+    var runtime_vars = split["runtime_vars"]
+    var user_vars = split["user_vars"]
+    var user_ordered = split["user_ordered"]
+    if runtime_vars == nil { runtime_vars = [] }
+    if user_vars == nil { user_vars = [] }
+    if user_ordered == nil { user_ordered = [] }
+    return {"runtime_vars": runtime_vars, "user_vars": user_vars, "user_ordered": user_ordered}
+}
+
+fn _x64_top_level_log_split(phase_log, split) {
+    if phase_log == nil { return nil }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.split.done",
+        "runtime_vars=" + oren_int_to_string(oren_list_len(split["runtime_vars"])) +
+        " user_vars=" + oren_int_to_string(oren_list_len(split["user_vars"])) +
+        " user_ordered=" + oren_int_to_string(oren_list_len(split["user_ordered"])))
+    return nil
+}
+
+fn _x64_top_level_build_init_stmts(ctx, split) {
+    var runtime_vars = split["runtime_vars"]
+    var user_vars = split["user_vars"]
+    var runtime_globals = _x64_prepare_runtime_global_slots(ctx, runtime_vars)
+    if runtime_globals == nil { return nil }
+    var user_slot_info = _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals)
+    if user_slot_info == nil { return nil }
+    return _x64_build_top_level_init_stmts(ctx, split["user_ordered"],
+        user_slot_info["user_global_init_in_data_flags"],
+        user_slot_info["user_global_off_encs"])
+}
+
+fn _x64_top_level_finalize_info(top_stmts) {
+    var top_len = oren_list_len(top_stmts)
+    _x64_trace_top_level_stmt_list(top_stmts, top_len)
+    top_stmts = _x64_apply_top_level_slice(top_stmts, top_len)
+    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts), "top_stmt_count": oren_list_len(top_stmts)}
+}
+
 fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Collect top-level `var` declarations as globals and build the statement list to run
     // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
@@ -925,39 +967,13 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     if ctx == nil { return nil }
     var phase_log = ctx["phase_log"]
 
-    var declared = ctx["declared_functions"]
-    var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
+    var split = _x64_top_level_split_runtime_user(ctx, runtime_stmts, user_stmts)
     if split == nil { return nil }
+    _x64_top_level_log_split(phase_log, split)
 
-    var runtime_vars = split["runtime_vars"]
-    var user_vars = split["user_vars"]
-    var user_exec = split["user_exec"]
-    var user_ordered = split["user_ordered"]
-    if runtime_vars == nil { runtime_vars = [] }
-    if user_vars == nil { user_vars = [] }
-    if user_exec == nil { user_exec = [] }
-    if user_ordered == nil { user_ordered = [] }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.top_globals.split.done",
-            "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)) +
-            " user_vars=" + oren_int_to_string(oren_list_len(user_vars)) +
-            " user_ordered=" + oren_int_to_string(oren_list_len(user_ordered)))
-    }
-
-    var runtime_globals = _x64_prepare_runtime_global_slots(ctx, runtime_vars)
-    if runtime_globals == nil { return nil }
-    var user_slot_info = _x64_prepare_user_global_slots(ctx, runtime_vars, user_vars, runtime_globals)
-    if user_slot_info == nil { return nil }
-    var top_stmts = _x64_build_top_level_init_stmts(ctx, user_ordered,
-        user_slot_info["user_global_init_in_data_flags"],
-        user_slot_info["user_global_off_encs"])
+    var top_stmts = _x64_top_level_build_init_stmts(ctx, split)
     if top_stmts == nil { return nil }
-
-    var top_len = oren_list_len(top_stmts)
-    // Debug-only tracing: list synthesized top-level statements with indices.
-    _x64_trace_top_level_stmt_list(top_stmts, top_len)
-    top_stmts = _x64_apply_top_level_slice(top_stmts, top_len)
-    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts), "top_stmt_count": oren_list_len(top_stmts)}
+    return _x64_top_level_finalize_info(top_stmts)
 }
 
 fn _x64_type_constructor_stmts(linked) {
