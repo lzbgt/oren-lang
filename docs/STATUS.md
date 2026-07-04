@@ -3245,6 +3245,11 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 53.3s total / 38.9s
   parse, with `_emit_intrinsic_sys_linux_nanosleep_x64` exposed at about 79ms as
   the next parser body.
+- Linux x64 `sys_nanosleep` lowering now separates temp-state setup, capsule
+  prehook adjustment, and skip-or-syscall routing while preserving the `ns <= 0`
+  fast return and stack-local timespec syscall path. The capped profile now shows
+  `x64_native_program.oren` at about 46.7s total / 33.9s parse, with
+  `_emit_intrinsic_atomic_cas_x64` exposed at about 45ms as the next parser body.
 
 ## Documentation Guardrail
 

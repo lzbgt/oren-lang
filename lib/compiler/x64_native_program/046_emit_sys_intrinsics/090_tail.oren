@@ -1201,25 +1201,28 @@ fn _emit_nanosleep_timespec_syscall_x64(ctx, tmp_ns) {
     return nil
 }
 
-fn _emit_intrinsic_sys_linux_nanosleep_x64(ctx, expr, locals, args, capsule) {
-    if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return true }
-
+fn _x64_linux_nanosleep_state(ctx, locals, args) {
     var base25 = _intr_tmp_push(ctx, 1) // ns
-    if oren_type_tag(base25) == 0 { return true }
+    if oren_type_tag(base25) == 0 { return nil }
     var tmp_ns = _intr_tmp_off(ctx, locals, base25 + 0)
-    if oren_type_tag(tmp_ns) == 0 { _intr_tmp_pop(ctx, base25); return true }
+    if oren_type_tag(tmp_ns) == 0 { _intr_tmp_pop(ctx, base25); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return nil }
+    return {"base": base25, "tmp_ns": tmp_ns}
+}
 
+fn _x64_linux_nanosleep_capsule_pre(ctx, tmp_ns, capsule) {
     // pre: native_capsule_sys_nanosleep_pre(ns) -> ns (may return <=0 to skip sleep)
     if capsule {
         _intr_load_x64(ctx, 7, tmp_ns) // rdi = ns
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
         _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
     }
+    return nil
+}
 
+fn _x64_linux_nanosleep_emit_skip_or_syscall(ctx, tmp_ns) {
     // Fast path: ns <= 0 => return 0 (skip syscall).
     var labels25 = {}
     var fixups25 = []
@@ -1237,7 +1240,20 @@ fn _emit_intrinsic_sys_linux_nanosleep_x64(ctx, expr, locals, args, capsule) {
 
     _emit_label(ctx, labels25, l_done)
     _patch_local_fixups(ctx, labels25, fixups25)
+    return nil
+}
 
+fn _emit_intrinsic_sys_linux_nanosleep_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return true }
+
+    var state25 = _x64_linux_nanosleep_state(ctx, locals, args)
+    if state25 == nil { return true }
+    var base25 = state25["base"]
+    var tmp_ns = state25["tmp_ns"]
+
+    _x64_linux_nanosleep_capsule_pre(ctx, tmp_ns, capsule)
+    _x64_linux_nanosleep_emit_skip_or_syscall(ctx, tmp_ns)
     _intr_tmp_pop(ctx, base25)
     return true
 }
