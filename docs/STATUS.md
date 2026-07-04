@@ -3159,6 +3159,12 @@ make docs-site
   unknown-op slot reservation. The capped profile now shows
   `x64_native_program.oren` at about 48.9s total / 35.8s parse, with
   `_x64_emit_prebuilt_batch_op` exposed at about 50ms as the next parser body.
+- X64 prebuilt top-level batch dispatch now shares slow-timing setup and splits
+  string-table and empty-container table emission helpers while preserving
+  table-backed fast-return behavior. The capped profile now shows
+  `x64_native_program.oren` at about 45.6s total / 32.9s parse, with
+  `_x64_wsa_overlapped_msg_spill_base` exposed at about 46ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

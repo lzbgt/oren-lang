@@ -1251,48 +1251,68 @@ fn _x64_emit_ops_charge_gas(ctx, ops, state, op_kind, j) {
     return {"note_pos": dynamic_note_pos, "span_start": dynamic_span_start}
 }
 
+fn _x64_prebuilt_batch_start_ns(state) {
+    if state["trace_op_slow"] == true { return oren_time_now_ns() }
+    return 0
+}
+
+fn _x64_prebuilt_batch_elapsed_ms(state, start_ns) {
+    if state["trace_op_slow"] != true { return nil }
+    var elapsed_ms = (oren_time_now_ns() - start_ns) / 1000000
+    if elapsed_ms < state["op_slow_ms"] { return nil }
+    return elapsed_ms
+}
+
+fn _x64_prebuilt_batch_record_string_slow(op, state, j, start_ns) {
+    var elapsed_ms = _x64_prebuilt_batch_elapsed_ms(state, start_ns)
+    if elapsed_ms == nil { return nil }
+    _x64_program_phase_log_append(state["phase_log"], "x64.codegen.function.op.slow",
+        "name=" + state["phase_name"] +
+        " i=" + oren_int_to_string(j) +
+        " op=global_string_init_batch" +
+        " path=prebuilt_table" +
+        " ms=" + oren_int_to_string(elapsed_ms) +
+        " count=" + oren_int_to_string(op["count"]))
+    return nil
+}
+
+fn _x64_prebuilt_batch_record_empty_slow(op, state, j, start_ns) {
+    var elapsed_ms = _x64_prebuilt_batch_elapsed_ms(state, start_ns)
+    if elapsed_ms == nil { return nil }
+    _x64_program_phase_log_append(state["phase_log"], "x64.codegen.function.op.slow",
+        "name=" + state["phase_name"] +
+        " i=" + oren_int_to_string(j) +
+        " op=global_empty_container_init_batch" +
+        " path=prebuilt_table" +
+        " kind=" + op["kind"] +
+        " ms=" + oren_int_to_string(elapsed_ms) +
+        " count=" + oren_int_to_string(op["count"]))
+    return nil
+}
+
+fn _x64_emit_prebuilt_string_batch_op(ctx, op, state, j) {
+    if oren_type_tag(op["table_off"]) != 1 { return false }
+    var start_ns = _x64_prebuilt_batch_start_ns(state)
+    _x64_emit_top_string_global_batch_loop(ctx, op["table_off"])
+    _x64_prebuilt_batch_record_string_slow(op, state, j, start_ns)
+    return true
+}
+
+fn _x64_emit_prebuilt_empty_batch_op(ctx, op, platform, state, j) {
+    if oren_type_tag(op["table_off"]) != 1 { return false }
+    var start_ns = _x64_prebuilt_batch_start_ns(state)
+    _x64_emit_top_empty_container_batch_loop(ctx, op["table_off"], op["kind"], platform)
+    _x64_prebuilt_batch_record_empty_slow(op, state, j, start_ns)
+    return true
+}
+
 fn _x64_emit_prebuilt_batch_op(ctx, op, platform, state, j) {
     var op_kind = op["op"]
-    var trace_op_slow = state["trace_op_slow"]
-    var op_slow_ms = state["op_slow_ms"]
-    var phase_log = state["phase_log"]
-    var phase_name = state["phase_name"]
-    if op_kind == "global_string_init_batch" && oren_type_tag(op["table_off"]) == 1 {
-        var prebuilt_batch_start_ns = 0
-        if trace_op_slow == true { prebuilt_batch_start_ns = oren_time_now_ns() }
-        _x64_emit_top_string_global_batch_loop(ctx, op["table_off"])
-        if trace_op_slow == true {
-            var prebuilt_batch_ms = (oren_time_now_ns() - prebuilt_batch_start_ns) / 1000000
-            if prebuilt_batch_ms >= op_slow_ms {
-                _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                    "name=" + phase_name +
-                    " i=" + oren_int_to_string(j) +
-                    " op=global_string_init_batch" +
-                    " path=prebuilt_table" +
-                    " ms=" + oren_int_to_string(prebuilt_batch_ms) +
-                    " count=" + oren_int_to_string(op["count"]))
-            }
-        }
-        return true
+    if op_kind == "global_string_init_batch" {
+        return _x64_emit_prebuilt_string_batch_op(ctx, op, state, j)
     }
-    if op_kind == "global_empty_container_init_batch" && oren_type_tag(op["table_off"]) == 1 {
-        var empty_batch_start_ns = 0
-        if trace_op_slow == true { empty_batch_start_ns = oren_time_now_ns() }
-        _x64_emit_top_empty_container_batch_loop(ctx, op["table_off"], op["kind"], platform)
-        if trace_op_slow == true {
-            var empty_batch_ms = (oren_time_now_ns() - empty_batch_start_ns) / 1000000
-            if empty_batch_ms >= op_slow_ms {
-                _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                    "name=" + phase_name +
-                    " i=" + oren_int_to_string(j) +
-                    " op=global_empty_container_init_batch" +
-                    " path=prebuilt_table" +
-                    " kind=" + op["kind"] +
-                    " ms=" + oren_int_to_string(empty_batch_ms) +
-                    " count=" + oren_int_to_string(op["count"]))
-            }
-        }
-        return true
+    if op_kind == "global_empty_container_init_batch" {
+        return _x64_emit_prebuilt_empty_batch_op(ctx, op, platform, state, j)
     }
     return false
 }
