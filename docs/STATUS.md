@@ -3210,6 +3210,12 @@ make docs-site
   shows `x64_native_program.oren` at about 45.9s total / 33.1s parse, with
   `_x64_setup_runtime_object_choice` exposed at about 46ms as the next parser
   body.
+- X64 runtime-object choice setup now separates runtime-object cache enablement,
+  trace formatting, load/build attempt, and phase-log completion while preserving
+  `OREN_NATIVE_RUNTIME_OBJ_CACHE` / `OREN_X64_SKIP_RTOBJ` semantics and trace
+  strings. The capped profile now shows `x64_native_program.oren` at about 46.1s
+  total / 33.2s parse, with `_x64_getsockopt_translate_args` exposed at about
+  67ms as the next parser body.
 
 ## Documentation Guardrail
 

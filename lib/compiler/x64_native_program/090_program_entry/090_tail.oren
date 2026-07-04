@@ -1486,33 +1486,35 @@ fn _x64_select_runtime_path(linked, platform) {
     return runtime_path
 }
 
-fn _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log) {
-    var runtime_path = _x64_select_runtime_path(linked, platform)
+fn _x64_runtime_obj_cache_enabled(v_rtobj, v_skip_rtobj) {
     var rtobj_enabled = true
-    var v_rtobj = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
     if v_rtobj != nil && v_rtobj != "" {
         if x64_env_str_eq(v_rtobj, "0") == true || x64_env_str_eq(v_rtobj, "false") == true {
             rtobj_enabled = false
         }
     }
-    var v_skip_rtobj = oren_env("OREN_X64_SKIP_RTOBJ")
     if v_skip_rtobj != nil && v_skip_rtobj != "" {
         if x64_env_str_eq(v_skip_rtobj, "0") != true && x64_env_str_eq(v_skip_rtobj, "false") != true {
             rtobj_enabled = false
         }
     }
-    if trace_prog {
-        var re = "1"
-        if rtobj_enabled != true { re = "0" }
-        var vlen = -1
-        var vb0 = -1
-        if v_rtobj != nil {
-            vlen = oren_string_len(v_rtobj)
-            if vlen > 0 { vb0 = oren_string_byte_at_unchecked(v_rtobj, 0) & 255 }
-        }
-        print("[x64_compile] rtobj enabled=" + re + " path=" + runtime_path + " env_len=" + oren_int_to_string(vlen) + " env_b0=" + oren_int_to_string(vb0))
-    }
+    return rtobj_enabled
+}
 
+fn _x64_trace_runtime_obj_choice(runtime_path, rtobj_enabled, v_rtobj) {
+    var re = "1"
+    if rtobj_enabled != true { re = "0" }
+    var vlen = -1
+    var vb0 = -1
+    if v_rtobj != nil {
+        vlen = oren_string_len(v_rtobj)
+        if vlen > 0 { vb0 = oren_string_byte_at_unchecked(v_rtobj, 0) & 255 }
+    }
+    print("[x64_compile] rtobj enabled=" + re + " path=" + runtime_path + " env_len=" + oren_int_to_string(vlen) + " env_b0=" + oren_int_to_string(vb0))
+    return nil
+}
+
+fn _x64_try_runtime_obj_choice(ctx, platform, runtime_path, rtobj_enabled, trace_prog) {
     var used_rtobj = false
     if rtobj_enabled == true {
         used_rtobj = _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path)
@@ -1522,11 +1524,25 @@ fn _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log
         if used_rtobj == true { u0 = "1" }
         print("[x64_compile] rtobj done used=" + u0)
     }
-    if phase_log != nil {
-        var used_rtobj_s0 = "0"
-        if used_rtobj == true { used_rtobj_s0 = "1" }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj.done", "used=" + used_rtobj_s0 + " path=" + runtime_path)
-    }
+    return used_rtobj
+}
+
+fn _x64_log_runtime_obj_choice_done(phase_log, runtime_path, used_rtobj) {
+    if phase_log == nil { return nil }
+    var used_rtobj_s0 = "0"
+    if used_rtobj == true { used_rtobj_s0 = "1" }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.rtobj.done", "used=" + used_rtobj_s0 + " path=" + runtime_path)
+    return nil
+}
+
+fn _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log) {
+    var runtime_path = _x64_select_runtime_path(linked, platform)
+    var v_rtobj = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
+    var v_skip_rtobj = oren_env("OREN_X64_SKIP_RTOBJ")
+    var rtobj_enabled = _x64_runtime_obj_cache_enabled(v_rtobj, v_skip_rtobj)
+    if trace_prog { _x64_trace_runtime_obj_choice(runtime_path, rtobj_enabled, v_rtobj) }
+    var used_rtobj = _x64_try_runtime_obj_choice(ctx, platform, runtime_path, rtobj_enabled, trace_prog)
+    _x64_log_runtime_obj_choice_done(phase_log, runtime_path, used_rtobj)
     return {"runtime_path": runtime_path, "used_rtobj": used_rtobj}
 }
 

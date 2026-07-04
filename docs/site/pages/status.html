@@ -3544,6 +3544,14 @@ make docs-site</code></pre>
 <p>  shows <code>x64_native_program.oren</code> at about 45.9s total / 33.1s parse, with</p>
 <p>  <code>_x64_setup_runtime_object_choice</code> exposed at about 46ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 runtime-object choice setup now separates runtime-object cache enablement,</li>
+</ul>
+<p>  trace formatting, load/build attempt, and phase-log completion while preserving</p>
+<p>  <code>OREN_NATIVE_RUNTIME_OBJ_CACHE</code> / <code>OREN_X64_SKIP_RTOBJ</code> semantics and trace</p>
+<p>  strings. The capped profile now shows <code>x64_native_program.oren</code> at about 46.1s</p>
+<p>  total / 33.2s parse, with <code>_x64_getsockopt_translate_args</code> exposed at about</p>
+<p>  67ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
