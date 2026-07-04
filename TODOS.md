@@ -845,6 +845,12 @@ design evidence lives under `project-doc/`.
   finish cleanup. The capped profile now shows `x64_native_program.oren` at
   ~51.3s total / ~37.6s parse, with `_emit_list_int_push_intrinsic_v0_x64`
   (~108ms) as the next parser-body target.
+- X64 LIST_INT push lowering now separates argument validation, label
+  attachment, checked-body emission, and final nil/label/temp cleanup while
+  preserving fast-capacity and slow runtime fallback behavior. The capped
+  profile now shows `x64_native_program.oren` at ~58.5s total / ~43.2s parse,
+  with `_emit_cmp_r64_r64_maybe_string_x64` (~254ms) as the next parser-body
+  target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

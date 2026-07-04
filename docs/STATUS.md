@@ -3060,6 +3060,12 @@ make docs-site
   finish cleanup. The capped profile now shows `x64_native_program.oren` at about
   51.3s total / 37.6s parse, with `_emit_list_int_push_intrinsic_v0_x64` exposed
   at about 108ms as the next parser body.
+- X64 LIST_INT push lowering now separates argument validation, label
+  attachment, checked-body emission, and final nil/label/temp cleanup while
+  preserving fast-capacity and slow runtime fallback behavior. The capped profile
+  now shows `x64_native_program.oren` at about 58.5s total / 43.2s parse, with
+  `_emit_cmp_r64_r64_maybe_string_x64` exposed at about 254ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

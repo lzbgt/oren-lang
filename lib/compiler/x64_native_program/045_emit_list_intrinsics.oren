@@ -656,10 +656,7 @@ fn _x64_emit_list_push_trace(ctx) {
     return nil
 }
 
-fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
-    // Intrinsic: list<int> push fast-path (in-bounds capacity case), fallback to runtime for growth.
-    //
-    // Signature: oren_list_int_push(list, value) -> nil
+fn _x64_validate_list_int_push_intrinsic_args(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_int_push requires locals"); return nil }
     if ctx["runtime_injected"] != true {
@@ -675,30 +672,49 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
         return nil
     }
 
-    var state = _x64_list_int_push_spill_args(ctx, locals, args)
-    if state == nil { return nil }
-    var base = state["base"]
-    var off_list = state["off_list"]
-    var off_val = state["off_val"]
+    return args
+}
 
-    var labels = {}
-    var local_fixups = []
-    state["labels"] = labels
-    state["fixups"] = local_fixups
+fn _x64_list_int_push_attach_labels(ctx, state) {
+    state["labels"] = {}
+    state["fixups"] = []
     state["l_fast"] = _new_label(ctx, "list_int_push_fast")
     state["l_done"] = _new_label(ctx, "list_int_push_done")
+    return state
+}
 
+fn _x64_emit_list_int_push_checked_body(ctx, locals, state) {
     _x64_emit_list_int_push_validate(ctx, locals, state)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, state["base"])
+        return false
+    }
     _x64_emit_list_int_push_value_and_header(ctx, locals, state)
     _x64_emit_list_int_push_slow_or_fast(ctx, locals, state)
+    return true
+}
 
+fn _x64_finish_list_int_push_intrinsic(ctx, state) {
     // return nil
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 
-    _emit_label(ctx, labels, state["l_done"])
-    _patch_local_fixups(ctx, labels, local_fixups)
-    _intr_tmp_pop(ctx, base)
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> push fast-path (in-bounds capacity case), fallback to runtime for growth.
+    //
+    // Signature: oren_list_int_push(list, value) -> nil
+    var args = _x64_validate_list_int_push_intrinsic_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var state = _x64_list_int_push_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_list_int_push_attach_labels(ctx, state)
+    if _x64_emit_list_int_push_checked_body(ctx, locals, state) != true { return nil }
+    _x64_finish_list_int_push_intrinsic(ctx, state)
     return nil
 }
 
