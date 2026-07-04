@@ -3266,6 +3266,12 @@ make docs-site
   expression errors. The capped profile now shows `x64_native_program.oren` at
   about 49.1s total / 36.1s parse, with `_linetab_record_tok` exposed at about
   50ms as the next parser body.
+- X64 debug line-table token recording now separates activation/capacity checks,
+  token-to-location formatting, location C-string interning, duplicate-line
+  suppression, and entry append while preserving the `off+1` encoded-offset
+  contract. The capped profile now shows `x64_native_program.oren` at about
+  47.2s total / 34.4s parse, with `_x64_fast_lcg_emit_entry_gates` exposed at
+  about 47ms as the next parser body.
 
 ## Documentation Guardrail
 
