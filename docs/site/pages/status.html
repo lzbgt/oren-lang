@@ -3767,6 +3767,14 @@ make docs-site</code></pre>
 <p>  scratch-buffer normalizer. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 51.3s total / 37.7s parse, with</p>
 <p>  <code>_collect_locals_from_ops</code> exposed at about 89ms as the next parser body.</p>
+<ul>
+<li>X64 local-slot collection now separates per-op dispatch, <code>var_i32</code> slot</li>
+</ul>
+<p>  binding, generic sequence recursion, and <code>if</code>/<code>for</code> traversal helpers while</p>
+<p>  preserving name-based slot reuse and the original then/else/body visit order.</p>
+<p>  The capped profile now shows <code>x64_native_program.oren</code> at about 47.9s total /</p>
+<p>  34.7s parse, with <code>_x64_emit_entry_boot_globals</code> exposed at about 46ms as the</p>
+<p>  next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

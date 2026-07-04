@@ -3377,6 +3377,12 @@ make docs-site
   scratch-buffer normalizer. The capped profile now shows
   `x64_native_program.oren` at about 51.3s total / 37.7s parse, with
   `_collect_locals_from_ops` exposed at about 89ms as the next parser body.
+- X64 local-slot collection now separates per-op dispatch, `var_i32` slot
+  binding, generic sequence recursion, and `if`/`for` traversal helpers while
+  preserving name-based slot reuse and the original then/else/body visit order.
+  The capped profile now shows `x64_native_program.oren` at about 47.9s total /
+  34.7s parse, with `_x64_emit_entry_boot_globals` exposed at about 46ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
