@@ -1160,6 +1160,14 @@
 <p>  ~46.3s total / ~33.7s parse, with <code>_emit_intrinsic_sys_open_windows_x64</code></p>
 <p>  (~49ms) as the next parser-body target.</p>
 <ul>
+<li>X64 Windows <code>sys_open</code> lowering now separates validation, path/flags/mode</li>
+</ul>
+<p>  spill-state setup, label/fixup state creation, core <code>CreateFileA</code> orchestration,</p>
+<p>  and finish cleanup while preserving capsule pre/post hooks and Win32 errno</p>
+<p>  mapping. The capped profile now shows <code>x64_native_program.oren</code> at ~47.9s total</p>
+<p>  / ~34.9s parse, with <code>_x64_fast_list_dot_find_mul_slots</code> (~96ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

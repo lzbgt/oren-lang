@@ -648,11 +648,14 @@ fn _emit_sys_open_windows_capsule_post_x64(ctx, tmp_pair, capsule) {
     return nil
 }
 
-fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_open expects 3 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_open does not support spread"); return nil }
+fn _x64_windows_open_validate(ctx, expr, args) {
+    if ctx == nil { return false }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_open expects 3 args"); return false }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_open does not support spread"); return false }
+    return true
+}
 
+fn _x64_windows_open_state(ctx, locals, args) {
     // Windows: implement `sys_open(path, flags, mode)` via KERNEL32!CreateFileA.
     //
     // Contract (syscall-first, capsule-safe):
@@ -679,11 +682,19 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_mode)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "path": tmp_path, "flags": tmp_flags, "mode": tmp_mode, "pair": tmp_pair}
+}
 
-    var capsule = _x64_capsule_enabled(ctx)
-    var labels = {}
-    var fixups = []
+fn _x64_windows_open_labels() {
+    return {"labels": {}, "fixups": []}
+}
 
+fn _x64_windows_open_emit_core(ctx, state, lab, capsule) {
+    var labels = lab["labels"]
+    var fixups = lab["fixups"]
+    var tmp_path = state["path"]
+    var tmp_flags = state["flags"]
+    var tmp_pair = state["pair"]
     _emit_sys_open_windows_capsule_pre_x64(ctx, tmp_path, tmp_flags, tmp_pair, capsule)
     _emit_sys_open_windows_path_arg_x64(ctx, tmp_path, tmp_pair, capsule)
     _emit_sys_open_windows_access_args_x64(ctx, tmp_flags, labels, fixups)
@@ -691,9 +702,24 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     _emit_sys_open_windows_create_file_x64(ctx, labels, fixups)
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
     _emit_sys_open_windows_capsule_post_x64(ctx, tmp_pair, capsule)
+    return nil
+}
 
-    _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+fn _x64_windows_open_finish(ctx, state, lab) {
+    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
+    if _x64_windows_open_validate(ctx, expr, args) != true { return nil }
+    var state = _x64_windows_open_state(ctx, locals, args)
+    if state == nil { return nil }
+    var capsule = _x64_capsule_enabled(ctx)
+    var lab = _x64_windows_open_labels()
+
+    _x64_windows_open_emit_core(ctx, state, lab, capsule)
+    _x64_windows_open_finish(ctx, state, lab)
     return nil
 }
 

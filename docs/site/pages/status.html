@@ -3311,6 +3311,14 @@ make docs-site</code></pre>
 <p>  local fixup labels. The capped profile now shows <code>x64_native_program.oren</code> at</p>
 <p>  about 46.3s total / 33.7s parse, with <code>_emit_intrinsic_sys_open_windows_x64</code></p>
 <p>  exposed at about 49ms as the next parser body.</p>
+<ul>
+<li>X64 Windows <code>sys_open</code> lowering now separates validation, path/flags/mode</li>
+</ul>
+<p>  spill-state setup, label/fixup state creation, core <code>CreateFileA</code> orchestration,</p>
+<p>  and finish cleanup while preserving capsule pre/post hooks and Win32 errno</p>
+<p>  mapping. The capped profile now shows <code>x64_native_program.oren</code> at about 47.9s</p>
+<p>  total / 34.9s parse, with <code>_x64_fast_list_dot_find_mul_slots</code> exposed at about</p>
+<p>  96ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

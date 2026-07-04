@@ -3037,6 +3037,12 @@ make docs-site
   local fixup labels. The capped profile now shows `x64_native_program.oren` at
   about 46.3s total / 33.7s parse, with `_emit_intrinsic_sys_open_windows_x64`
   exposed at about 49ms as the next parser body.
+- X64 Windows `sys_open` lowering now separates validation, path/flags/mode
+  spill-state setup, label/fixup state creation, core `CreateFileA` orchestration,
+  and finish cleanup while preserving capsule pre/post hooks and Win32 errno
+  mapping. The capped profile now shows `x64_native_program.oren` at about 47.9s
+  total / 34.9s parse, with `_x64_fast_list_dot_find_mul_slots` exposed at about
+  96ms as the next parser body.
 
 ## Documentation Guardrail
 
