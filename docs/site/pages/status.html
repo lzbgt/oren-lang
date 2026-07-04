@@ -3645,6 +3645,14 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 55.3s total / 39.8s parse, with</p>
 <p>  <code>_x64_emit_direct_named_call_v0</code> exposed at about 180ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 direct named-call emission now separates varargs callable-ABI routing from</li>
+</ul>
+<p>  fixed direct-call spill/load/fixup cleanup while preserving direct call</p>
+<p>  arity, import return normalization, and temp-slot cleanup behavior. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 50.1s total / 36.3s</p>
+<p>  parse, with <code>_x64_match_fast_push_loop_body</code> exposed at about 107ms as the</p>
+<p>  next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

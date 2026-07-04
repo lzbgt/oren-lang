@@ -932,13 +932,19 @@ fn _x64_emit_direct_named_call_v0(ctx, locals, nm, args, info) {
     var is_varargs_named = info["is_varargs_named"] == true
     var is_import = info["is_import"] == true
 
+    if _x64_emit_direct_named_varargs_call_v0(ctx, locals, nm, args, is_varargs_named) == true { return nil }
+    return _x64_emit_fixed_direct_named_call_v0(ctx, locals, nm, args, argc, fixed_direct_arity, is_import)
+}
+
+fn _x64_emit_direct_named_varargs_call_v0(ctx, locals, nm, args, is_varargs_named) {
     // Tier-1 parity: when runtime injection is enabled, lower varargs named calls through the
     // uniform callable ABI (args_list + fnobj wrapper), matching arm64.
-    if is_varargs_named {
-        _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args)
-        return nil
-    }
+    if is_varargs_named != true { return false }
+    _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args)
+    return true
+}
 
+fn _x64_emit_fixed_direct_named_call_v0(ctx, locals, nm, args, argc, fixed_direct_arity, is_import) {
     var state = _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity)
     if state == nil { return nil }
     var base2 = state["base"]

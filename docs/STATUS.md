@@ -3285,6 +3285,12 @@ make docs-site
   `x64_native_program.oren` at about 55.3s total / 39.8s parse, with
   `_x64_emit_direct_named_call_v0` exposed at about 180ms as the next parser
   body.
+- X64 direct named-call emission now separates varargs callable-ABI routing from
+  fixed direct-call spill/load/fixup cleanup while preserving direct call
+  arity, import return normalization, and temp-slot cleanup behavior. The capped
+  profile now shows `x64_native_program.oren` at about 50.1s total / 36.3s
+  parse, with `_x64_match_fast_push_loop_body` exposed at about 107ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
