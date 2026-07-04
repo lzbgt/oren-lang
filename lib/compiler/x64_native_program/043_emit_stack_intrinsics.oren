@@ -176,30 +176,58 @@ fn _x64_resolve_symbol_symtab_off(ctx) {
     return symtab_off_enc - 1
 }
 
-fn _x64_resolve_symbol_emit_range_setup(ctx, symtab_off) {
+fn _x64_resolve_symbol_range_labels(ctx) {
     var st = {}
     st["labels"] = {}
     st["fixups"] = []
     st["l_done"] = _new_label(ctx, "resolve_sym_done")
     st["l_loop"] = _new_label(ctx, "resolve_sym_loop")
     st["l_match"] = _new_label(ctx, "resolve_sym_match")
+    return st
+}
 
+fn _x64_resolve_symbol_emit_text_range_guard(ctx, st) {
     var platform = ctx["platform"]
     var text_base = abi.x64_v0_text_base_addr(platform)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(11, text_base))
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(10, 11))
     _emit_jcc_to_label(ctx, st["fixups"], "b", st["l_done"])
+    return nil
+}
 
+fn _x64_resolve_symbol_emit_target_offset(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 10))
     bytes_extend(ctx["code"], core.insn_sub_r64_r64(9, 11))
+    return nil
+}
+
+fn _x64_resolve_symbol_emit_symtab_pointer(ctx, st, symtab_off) {
     var lea_sym = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": symtab_off})
+    return nil
+}
+
+fn _x64_resolve_symbol_emit_data_base(ctx, symtab_off) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 11))
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(8, core.int_mod(symtab_off, 4294967296)))
+    return nil
+}
+
+fn _x64_resolve_symbol_emit_scan_cursor(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
+    return nil
+}
+
+fn _x64_resolve_symbol_emit_range_setup(ctx, symtab_off) {
+    var st = _x64_resolve_symbol_range_labels(ctx)
+    _x64_resolve_symbol_emit_text_range_guard(ctx, st)
+    _x64_resolve_symbol_emit_target_offset(ctx)
+    _x64_resolve_symbol_emit_symtab_pointer(ctx, st, symtab_off)
+    _x64_resolve_symbol_emit_data_base(ctx, symtab_off)
+    _x64_resolve_symbol_emit_scan_cursor(ctx)
     return st
 }
 

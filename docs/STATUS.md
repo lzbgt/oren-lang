@@ -3137,6 +3137,12 @@ make docs-site
   phase logging. The capped profile now shows `x64_native_program.oren` at about
   46.4s total / 33.7s parse, with `_x64_resolve_symbol_emit_range_setup` exposed
   at about 55ms as the next parser body.
+- X64 `resolve_symbol` range setup now separates label-state creation,
+  text-range guard emission, target-offset materialization, symtab pointer/data
+  base setup, and scan-cursor initialization while preserving the `r8`/`r9`/
+  `r10`/`r11`/`ecx` register contract. The capped profile now shows
+  `x64_native_program.oren` at about 56.7s total / 41.4s parse, with
+  `_x64_list_len_spill_arg` exposed at about 108ms as the next parser body.
 
 ## Documentation Guardrail
 

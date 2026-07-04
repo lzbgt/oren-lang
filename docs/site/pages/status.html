@@ -3445,6 +3445,14 @@ make docs-site</code></pre>
 <p>  phase logging. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
 <p>  46.4s total / 33.7s parse, with <code>_x64_resolve_symbol_emit_range_setup</code> exposed</p>
 <p>  at about 55ms as the next parser body.</p>
+<ul>
+<li>X64 <code>resolve_symbol</code> range setup now separates label-state creation,</li>
+</ul>
+<p>  text-range guard emission, target-offset materialization, symtab pointer/data</p>
+<p>  base setup, and scan-cursor initialization while preserving the <code>r8</code>/<code>r9</code>/</p>
+<p>  <code>r10</code>/<code>r11</code>/<code>ecx</code> register contract. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 56.7s total / 41.4s parse, with</p>
+<p>  <code>_x64_list_len_spill_arg</code> exposed at about 108ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
