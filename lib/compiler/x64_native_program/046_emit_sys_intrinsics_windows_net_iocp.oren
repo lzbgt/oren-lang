@@ -1,36 +1,59 @@
-fn _x64_wsa_overlapped_msg_spill_base(ctx, locals, args, extra_slots) {
-    var base = _intr_tmp_push(ctx, 8 + extra_slots) // common 6 args, optional extras, wsabuf_len, wsabuf_buf
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_s = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_buf = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
-    var tmp_flags = _intr_tmp_off(ctx, locals, base + 3)
-    var tmp_bytes = _intr_tmp_off(ctx, locals, base + 4)
-    var tmp_ov = _intr_tmp_off(ctx, locals, base + 5)
+fn _x64_wsa_overlapped_msg_state(ctx, locals, base, extra_slots) {
     var wsabuf_slot = base + 6 + extra_slots
-    var tmp_wsabuf_len = _intr_tmp_off(ctx, locals, wsabuf_slot)
-    var tmp_wsabuf_buf = _intr_tmp_off(ctx, locals, wsabuf_slot + 1)
-    if oren_type_tag(tmp_s) == 0 || oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_bytes) == 0 || oren_type_tag(tmp_ov) == 0 || oren_type_tag(tmp_wsabuf_len) == 0 || oren_type_tag(tmp_wsabuf_buf) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_s)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
-    _intr_eval_spill_x64(ctx, locals, args[3], tmp_flags)
-    _intr_eval_spill_x64(ctx, locals, args[4], tmp_bytes)
-    _intr_eval_spill_x64(ctx, locals, args[5], tmp_ov)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
     return {
         "base": base,
-        "tmp_s": tmp_s,
-        "tmp_buf": tmp_buf,
-        "tmp_len": tmp_len,
-        "tmp_flags": tmp_flags,
-        "tmp_bytes": tmp_bytes,
-        "tmp_ov": tmp_ov,
-        "tmp_wsabuf_len": tmp_wsabuf_len,
-        "tmp_wsabuf_buf": tmp_wsabuf_buf
+        "tmp_s": _intr_tmp_off(ctx, locals, base + 0),
+        "tmp_buf": _intr_tmp_off(ctx, locals, base + 1),
+        "tmp_len": _intr_tmp_off(ctx, locals, base + 2),
+        "tmp_flags": _intr_tmp_off(ctx, locals, base + 3),
+        "tmp_bytes": _intr_tmp_off(ctx, locals, base + 4),
+        "tmp_ov": _intr_tmp_off(ctx, locals, base + 5),
+        "tmp_wsabuf_len": _intr_tmp_off(ctx, locals, wsabuf_slot),
+        "tmp_wsabuf_buf": _intr_tmp_off(ctx, locals, wsabuf_slot + 1)
     }
+}
+
+fn _x64_wsa_overlapped_msg_state_valid(state) {
+    return oren_type_tag(state["tmp_s"]) != 0 &&
+           oren_type_tag(state["tmp_buf"]) != 0 &&
+           oren_type_tag(state["tmp_len"]) != 0 &&
+           oren_type_tag(state["tmp_flags"]) != 0 &&
+           oren_type_tag(state["tmp_bytes"]) != 0 &&
+           oren_type_tag(state["tmp_ov"]) != 0 &&
+           oren_type_tag(state["tmp_wsabuf_len"]) != 0 &&
+           oren_type_tag(state["tmp_wsabuf_buf"]) != 0
+}
+
+fn _x64_wsa_overlapped_msg_alloc_state(ctx, locals, extra_slots) {
+    var base = _intr_tmp_push(ctx, 8 + extra_slots) // common 6 args, optional extras, wsabuf_len, wsabuf_buf
+    if oren_type_tag(base) == 0 { return nil }
+    var state = _x64_wsa_overlapped_msg_state(ctx, locals, base, extra_slots)
+    if _x64_wsa_overlapped_msg_state_valid(state) != true {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return state
+}
+
+fn _x64_wsa_overlapped_msg_spill_args(ctx, locals, args, state) {
+    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_s"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_buf"])
+    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_len"])
+    _intr_eval_spill_x64(ctx, locals, args[3], state["tmp_flags"])
+    _intr_eval_spill_x64(ctx, locals, args[4], state["tmp_bytes"])
+    _intr_eval_spill_x64(ctx, locals, args[5], state["tmp_ov"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, state["base"])
+        return nil
+    }
+    return true
+}
+
+fn _x64_wsa_overlapped_msg_spill_base(ctx, locals, args, extra_slots) {
+    var state = _x64_wsa_overlapped_msg_alloc_state(ctx, locals, extra_slots)
+    if state == nil { return nil }
+    if _x64_wsa_overlapped_msg_spill_args(ctx, locals, args, state) == nil { return nil }
+    return state
 }
 
 fn _x64_wsarecv_spill_state(ctx, locals, args) {

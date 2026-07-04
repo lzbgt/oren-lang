@@ -3165,6 +3165,12 @@ make docs-site
   `x64_native_program.oren` at about 45.6s total / 32.9s parse, with
   `_x64_wsa_overlapped_msg_spill_base` exposed at about 46ms as the next parser
   body.
+- X64 Windows WSA overlapped message spill setup now separates common temp-state
+  allocation, slot validation, six-argument left-to-right spilling, and state
+  packing while preserving `WSARecv`/`WSARecvFrom`/`WSASend` slot layout. The
+  capped profile now shows `x64_native_program.oren` at about 48.3s total /
+  34.4s parse, with `_emit_intrinsic_sys_nanosleep_windows_x64` exposed at
+  about 51ms as the next parser body.
 
 ## Documentation Guardrail
 
