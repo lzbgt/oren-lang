@@ -3612,6 +3612,14 @@ make docs-site</code></pre>
 <p>  reuses the common blob/list setup. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 46.0s total / 33.2s parse, with</p>
 <p>  <code>_x64_spawn_expand_spread_loop</code> exposed at about 45ms as the next parser body.</p>
+<ul>
+<li>X64 spawn spread-argument expansion now separates loop label/fixup state,</li>
+</ul>
+<p>  bounds guard emission, spread-element spilling, list push emission, and index</p>
+<p>  increment/back-edge emission while preserving the existing temp cleanup on</p>
+<p>  expression errors. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  about 49.1s total / 36.1s parse, with <code>_linetab_record_tok</code> exposed at about</p>
+<p>  50ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -504,43 +504,55 @@ fn _x64_spawn_spill_spread_and_len(ctx, st, locals) {
     return nil
 }
 
-fn _x64_spawn_expand_spread_loop(ctx, st, locals) {
-    var base = st["base"]
-    var args_tmp = st["args_tmp"]
-    var spread_tmp = st["spread_tmp"]
-    var idx_tmp = st["idx_tmp"]
-    var elem_tmp = st["elem_tmp"]
-    var idx_off = st["idx_off"]
-    var len_off = st["len_off"]
-    var elem_off = st["elem_off"]
-    var labels = {}
-    var fixups = []
-    var l_loop = _new_label(ctx, "spawn_spread_loop")
-    var l_done = _new_label(ctx, "spawn_spread_done")
-    _emit_label(ctx, labels, l_loop)
+fn _x64_spawn_spread_loop_labels(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "loop": _new_label(ctx, "spawn_spread_loop"),
+        "done": _new_label(ctx, "spawn_spread_done")
+    }
+}
 
-    _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off) // rax = idx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - len_off) // rdx = len
+fn _x64_spawn_spread_loop_guard(ctx, st, ls) {
+    _emit_label(ctx, ls["labels"], ls["loop"])
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["idx_off"]) // rax = idx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - st["len_off"]) // rdx = len
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 2))
-    _emit_jcc_to_label(ctx, fixups, "ge", l_done)
+    _emit_jcc_to_label(ctx, ls["fixups"], "ge", ls["done"])
+    return nil
+}
 
-    // elem = spread[idx]
-    _emit_eval_int_to_rax(ctx, {"type": "Index", "left": spread_tmp, "index": idx_tmp}, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - elem_off, 0)
+fn _x64_spawn_spread_spill_elem(ctx, st, locals) {
+    _emit_eval_int_to_rax(ctx, {"type": "Index", "left": st["spread_tmp"], "index": st["idx_tmp"]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - st["elem_off"], 0)
+    return true
+}
 
-    // args_list.push(elem)
-    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [args_tmp, elem_tmp]}, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+fn _x64_spawn_spread_push_elem(ctx, st, locals) {
+    var push_fn = {"type": "Identifier", "value": "oren_list_push"}
+    var push_expr = {"type": "Call", "fn": push_fn, "args": [st["args_tmp"], st["elem_tmp"]]}
+    _emit_eval_int_to_rax(ctx, push_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return nil }
+    return true
+}
 
-    // idx++
-    _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off)
+fn _x64_spawn_spread_inc_idx(ctx, st, ls) {
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["idx_off"])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
-    _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
-    _emit_jmp_to_label(ctx, fixups, l_loop)
+    _emit_mov_mrbp_r64(ctx, 0 - st["idx_off"], 0)
+    _emit_jmp_to_label(ctx, ls["fixups"], ls["loop"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+fn _x64_spawn_expand_spread_loop(ctx, st, locals) {
+    var ls = _x64_spawn_spread_loop_labels(ctx)
+    _x64_spawn_spread_loop_guard(ctx, st, ls)
+    if _x64_spawn_spread_spill_elem(ctx, st, locals) == nil { return nil }
+    if _x64_spawn_spread_push_elem(ctx, st, locals) == nil { return nil }
+    _x64_spawn_spread_inc_idx(ctx, st, ls)
+    _emit_label(ctx, ls["labels"], ls["done"])
+    _patch_local_fixups(ctx, ls["labels"], ls["fixups"])
     return nil
 }
 

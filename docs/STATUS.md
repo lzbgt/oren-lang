@@ -3260,6 +3260,12 @@ make docs-site
   reuses the common blob/list setup. The capped profile now shows
   `x64_native_program.oren` at about 46.0s total / 33.2s parse, with
   `_x64_spawn_expand_spread_loop` exposed at about 45ms as the next parser body.
+- X64 spawn spread-argument expansion now separates loop label/fixup state,
+  bounds guard emission, spread-element spilling, list push emission, and index
+  increment/back-edge emission while preserving the existing temp cleanup on
+  expression errors. The capped profile now shows `x64_native_program.oren` at
+  about 49.1s total / 36.1s parse, with `_linetab_record_tok` exposed at about
+  50ms as the next parser body.
 
 ## Documentation Guardrail
 
