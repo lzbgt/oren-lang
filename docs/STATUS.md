@@ -3187,6 +3187,11 @@ make docs-site
   while preserving `CreateFileA` register semantics. The capped profile now
   shows `x64_native_program.oren` at about 46.2s total / 33.4s parse, with
   `_emit_eval_int_to_rax` exposed at about 47ms as the next parser body.
+- X64 expression evaluation dispatch now separates scalar/name cases from
+  compound/control cases with an explicit handled-state contract while
+  preserving all existing emitter callees. The capped profile now shows
+  `x64_native_program.oren` at about 54.1s total / 38.0s parse, with
+  `_x64_emit_list_int_push_trace` exposed at about 141ms as the next parser body.
 
 ## Documentation Guardrail
 

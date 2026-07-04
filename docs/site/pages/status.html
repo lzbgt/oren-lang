@@ -3513,6 +3513,13 @@ make docs-site</code></pre>
 <p>  while preserving <code>CreateFileA</code> register semantics. The capped profile now</p>
 <p>  shows <code>x64_native_program.oren</code> at about 46.2s total / 33.4s parse, with</p>
 <p>  <code>_emit_eval_int_to_rax</code> exposed at about 47ms as the next parser body.</p>
+<ul>
+<li>X64 expression evaluation dispatch now separates scalar/name cases from</li>
+</ul>
+<p>  compound/control cases with an explicit handled-state contract while</p>
+<p>  preserving all existing emitter callees. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 54.1s total / 38.0s parse, with</p>
+<p>  <code>_x64_emit_list_int_push_trace</code> exposed at about 141ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

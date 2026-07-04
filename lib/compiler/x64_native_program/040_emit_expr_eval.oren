@@ -606,6 +606,35 @@ fn _emit_identifier_expr_to_rax(ctx, expr, locals) {
     return nil
 }
 
+fn _emit_eval_scalar_expr_to_rax(ctx, expr, locals, t) {
+    if t == "Integer" { _emit_integer_literal_expr_to_rax(ctx, expr); return true }
+    if t == "Float" { _emit_float_literal_expr_to_rax(ctx, expr); return true }
+    if t == "Boolean" {
+        var off = 376
+        if expr["value"] { off = 384 }
+        _emit_runtime_singleton_literal_to_rax(ctx, off, "x64 native v0: missing runtime global g_storage (needed for bool singletons)")
+        return true
+    }
+    if t == "Nil" { _emit_runtime_singleton_literal_to_rax(ctx, 368, "x64 native v0: missing runtime global g_storage (needed for nil singleton)"); return true }
+    if t == "String" { _emit_string_literal_expr_to_rax(ctx, expr); return true }
+    if t == "Function" { _emit_lambda_literal_expr_to_rax(ctx, expr, locals); return true }
+    if t == "IntrTmp" { _emit_intr_tmp_expr_to_rax(ctx, expr, locals); return true }
+    if t == "Identifier" { _emit_identifier_expr_to_rax(ctx, expr, locals); return true }
+    return false
+}
+
+fn _emit_eval_compound_expr_to_rax(ctx, expr, locals, t) {
+    if t == "Member" { _emit_member_expr_v0(ctx, expr, locals); return true }
+    if t == "Index" { _emit_index_expr_v0(ctx, expr, locals); return true }
+    if t == "Array" { _emit_array_literal_expr(ctx, expr, locals); return true }
+    if t == "Hash" { _emit_hash_literal_expr(ctx, expr, locals); return true }
+    if t == "SpawnExpr" { _emit_spawn_expr_v0(ctx, expr, locals); return true }
+    if t == "Call" { _emit_eval_call_expr_to_rax(ctx, expr, locals); return true }
+    if t == "Prefix" { _emit_eval_prefix_to_rax(ctx, expr, locals); return true }
+    if t == "Infix" { _emit_eval_infix_to_rax(ctx, expr, locals); return true }
+    return false
+}
+
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
     // Values are stored/propagated through 64-bit registers and stack slots.
@@ -615,26 +644,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // - Infix (+/-) with subexpressions from the above set
     if expr == nil { return nil }
     var t = expr["type"]
-    if t == "Integer" { return _emit_integer_literal_expr_to_rax(ctx, expr) }
-    if t == "Float" { return _emit_float_literal_expr_to_rax(ctx, expr) }
-    if t == "Boolean" {
-        var off = 376
-        if expr["value"] { off = 384 }
-        return _emit_runtime_singleton_literal_to_rax(ctx, off, "x64 native v0: missing runtime global g_storage (needed for bool singletons)")
-    }
-    if t == "Nil" { return _emit_runtime_singleton_literal_to_rax(ctx, 368, "x64 native v0: missing runtime global g_storage (needed for nil singleton)") }
-    if t == "String" { return _emit_string_literal_expr_to_rax(ctx, expr) }
-    if t == "Function" { return _emit_lambda_literal_expr_to_rax(ctx, expr, locals) }
-    if t == "IntrTmp" { return _emit_intr_tmp_expr_to_rax(ctx, expr, locals) }
-    if t == "Identifier" { return _emit_identifier_expr_to_rax(ctx, expr, locals) }
-    if t == "Member" { return _emit_member_expr_v0(ctx, expr, locals) }
-    if t == "Index" { return _emit_index_expr_v0(ctx, expr, locals) }
-    if t == "Array" { return _emit_array_literal_expr(ctx, expr, locals) }
-    if t == "Hash" { return _emit_hash_literal_expr(ctx, expr, locals) }
-    if t == "SpawnExpr" { _emit_spawn_expr_v0(ctx, expr, locals); return nil }
-    if t == "Call" { return _emit_eval_call_expr_to_rax(ctx, expr, locals) }
-    if t == "Prefix" { return _emit_eval_prefix_to_rax(ctx, expr, locals) }
-    if t == "Infix" { return _emit_eval_infix_to_rax(ctx, expr, locals) }
+    if _emit_eval_scalar_expr_to_rax(ctx, expr, locals, t) == true { return nil }
+    if _emit_eval_compound_expr_to_rax(ctx, expr, locals, t) == true { return nil }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
 }
