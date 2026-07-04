@@ -3250,6 +3250,11 @@ make docs-site
   fast return and stack-local timespec syscall path. The capped profile now shows
   `x64_native_program.oren` at about 46.7s total / 33.9s parse, with
   `_emit_intrinsic_atomic_cas_x64` exposed at about 45ms as the next parser body.
+- X64 `atomic_add` and `atomic_cas` lowering now share atomic argument
+  validation, pointer/expected temp-state setup, and eval-to-temp spill helpers
+  while preserving `lock xadd` and `lock cmpxchg` register contracts. The capped
+  profile now shows `x64_native_program.oren` at about 64.8s total / 46.3s parse,
+  with `_data_cstr0_ensure_state` exposed at about 251ms as the next parser body.
 
 ## Documentation Guardrail
 

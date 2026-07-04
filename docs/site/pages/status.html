@@ -3598,6 +3598,13 @@ make docs-site</code></pre>
 <p>  fast return and stack-local timespec syscall path. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 46.7s total / 33.9s parse, with</p>
 <p>  <code>_emit_intrinsic_atomic_cas_x64</code> exposed at about 45ms as the next parser body.</p>
+<ul>
+<li>X64 <code>atomic_add</code> and <code>atomic_cas</code> lowering now share atomic argument</li>
+</ul>
+<p>  validation, pointer/expected temp-state setup, and eval-to-temp spill helpers</p>
+<p>  while preserving <code>lock xadd</code> and <code>lock cmpxchg</code> register contracts. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 64.8s total / 46.3s parse,</p>
+<p>  with <code>_data_cstr0_ensure_state</code> exposed at about 251ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

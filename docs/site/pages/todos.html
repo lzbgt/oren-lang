@@ -2688,6 +2688,13 @@
 <p>  <code>x64_native_program.oren</code> at ~46.7s total / ~33.9s parse, with</p>
 <p>  <code>_emit_intrinsic_atomic_cas_x64</code> exposed at ~45ms as the next parser body.</p>
 <ul>
+<li>X64 <code>atomic_add</code> and <code>atomic_cas</code> lowering now share atomic argument</li>
+</ul>
+<p>  validation, pointer/expected temp-state setup, and eval-to-temp spill helpers</p>
+<p>  while preserving <code>lock xadd</code> and <code>lock cmpxchg</code> register contracts. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~64.8s total / ~46.3s parse,</p>
+<p>  with <code>_data_cstr0_ensure_state</code> exposed at ~251ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

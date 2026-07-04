@@ -1,18 +1,58 @@
-fn _emit_intrinsic_atomic_add_x64(ctx, expr, locals) {
-    // atomic_add(ptr, val) -> old value (fetch_add)
+fn _x64_atomic_args(ctx, expr, arity, arity_msg, spread_msg) {
     var args = expr["args"]
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: atomic_add expects 2 args"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: atomic_add does not support spread"); return nil }
+    if args == nil || oren_list_len(args) != arity { err(ctx, arity_msg); return nil }
+    if expr["spread"] != nil { err(ctx, spread_msg); return nil }
+    return args
+}
 
-    // Must not keep `ptr` only in a register across nested expression evaluation.
+fn _x64_atomic_add_args(ctx, expr) {
+    var arity_msg = "x64 native v0: atomic_add expects 2 args"
+    var spread_msg = "x64 native v0: atomic_add does not support spread"
+    return _x64_atomic_args(ctx, expr, 2, arity_msg, spread_msg)
+}
+
+fn _x64_atomic_cas_args(ctx, expr) {
+    var arity_msg = "x64 native v0: atomic_cas expects 3 args"
+    var spread_msg = "x64 native v0: atomic_cas does not support spread"
+    return _x64_atomic_args(ctx, expr, 3, arity_msg, spread_msg)
+}
+
+fn _x64_atomic_eval_spill_arg(ctx, locals, arg, tmp) {
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp, 0)
+    return true
+}
+
+fn _x64_atomic_ptr_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 1)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_ptr": tmp_ptr}
+}
 
-    _emit_eval_int_to_rax(ctx, args[0], locals) // ptr -> rax
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+fn _x64_atomic_cas_state(ctx, locals) {
+    var base = _intr_tmp_push(ctx, 2)
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_exp = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_exp) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_ptr": tmp_ptr, "tmp_exp": tmp_exp}
+}
+
+fn _emit_intrinsic_atomic_add_x64(ctx, expr, locals) {
+    // atomic_add(ptr, val) -> old value (fetch_add)
+    var args = _x64_atomic_add_args(ctx, expr)
+    if args == nil { return nil }
+
+    // Must not keep `ptr` only in a register across nested expression evaluation.
+    var state = _x64_atomic_ptr_state(ctx, locals)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_ptr = state["tmp_ptr"]
+
+    if _x64_atomic_eval_spill_arg(ctx, locals, args[0], tmp_ptr) == nil { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[1], locals) // addend -> rax
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -27,24 +67,18 @@ fn _emit_intrinsic_atomic_add_x64(ctx, expr, locals) {
 
 fn _emit_intrinsic_atomic_cas_x64(ctx, expr, locals) {
     // atomic_cas(ptr, expected, new) -> old value
-    var args = expr["args"]
-    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: atomic_cas expects 3 args"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: atomic_cas does not support spread"); return nil }
+    var args = _x64_atomic_cas_args(ctx, expr)
+    if args == nil { return nil }
 
     // We need to preserve ptr and expected across evaluation of `new`.
-    var base = _intr_tmp_push(ctx, 2)
-    if oren_type_tag(base) == 0 { return nil }
-    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_exp = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_exp) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var state = _x64_atomic_cas_state(ctx, locals)
+    if state == nil { return nil }
+    var base = state["base"]
+    var tmp_ptr = state["tmp_ptr"]
+    var tmp_exp = state["tmp_exp"]
 
-    _emit_eval_int_to_rax(ctx, args[0], locals) // ptr -> rax
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
-
-    _emit_eval_int_to_rax(ctx, args[1], locals) // expected -> rax
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_exp, 0)
+    if _x64_atomic_eval_spill_arg(ctx, locals, args[0], tmp_ptr) == nil { _intr_tmp_pop(ctx, base); return nil }
+    if _x64_atomic_eval_spill_arg(ctx, locals, args[1], tmp_exp) == nil { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[2], locals) // new -> rax
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
