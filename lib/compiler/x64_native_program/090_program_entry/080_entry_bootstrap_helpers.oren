@@ -84,36 +84,61 @@ fn _x64_emit_entry_native_runtime_init(ctx, platform, target_os_id, trace_prog, 
     }
 }
 
-fn _x64_emit_entry_static_cstr_table(ctx, platform, trace_prog, trace_entry, phase_log) {
+fn _x64_entry_cstr0_slot_off(ctx) {
     var slot_off_enc = ctx["cstr0_table_slot_enc"]
-    if oren_type_tag(slot_off_enc) == 1 {
-      if slot_off_enc > 0 {
-        var slot_off = slot_off_enc - 1
-        var lea_slot_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_pos + 3, "data_off": slot_off})
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(slot_off, 4294967296)))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-        if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12))
-        } else {
-            bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12))
-        }
-        var call_cstr_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
-        if trace_entry && platform != nil && platform["os"] == "windows" {
-            _emit_windows_write_cstr(ctx, "ENTRY: cstr0_table ok")
-        }
-      }
+    if oren_type_tag(slot_off_enc) != 1 { return nil }
+    if slot_off_enc <= 0 { return nil }
+    return slot_off_enc - 1
+}
+
+fn _x64_emit_entry_cstr0_table_ptr(ctx, slot_off) {
+    var lea_slot_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_pos + 3, "data_off": slot_off})
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(12, core.int_mod(slot_off, 4294967296)))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
+    return nil
+}
+
+fn _x64_emit_entry_cstr0_arg(ctx, platform) {
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 12))
+    } else {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 12))
     }
+    return nil
+}
+
+fn _x64_emit_entry_cstr0_call(ctx, platform, trace_entry) {
+    _x64_emit_entry_cstr0_arg(ctx, platform)
+    var call_cstr_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: cstr0_table ok")
+    }
+    return nil
+}
+
+fn _x64_log_entry_static_cstr_table(ctx, trace_prog, phase_log) {
     if trace_prog { print("[x64_compile] cstr0 table call emitted") }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.entry.cstr0_call.done",
             "fixups=" + oren_int_to_string(oren_list_len(ctx["fixups"])))
     }
+    return nil
+}
+
+fn _x64_emit_entry_static_cstr_table(ctx, platform, trace_prog, trace_entry, phase_log) {
+    var slot_off = _x64_entry_cstr0_slot_off(ctx)
+    if slot_off != nil {
+        _x64_emit_entry_cstr0_table_ptr(ctx, slot_off)
+        _x64_emit_entry_cstr0_call(ctx, platform, trace_entry)
+    }
+    _x64_log_entry_static_cstr_table(ctx, trace_prog, phase_log)
+    return nil
 }
 
 fn _x64_entry_debug_info_slot_off(ctx) {

@@ -3131,6 +3131,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 47.9s total / 34.8s parse, with
   `_x64_emit_entry_static_cstr_table` exposed at about 52ms as the next parser
   body.
+- X64 entry static C-string table initialization now separates reserved-slot
+  lookup, PIE-safe table-pointer materialization, platform argument loading,
+  runtime call emission, and phase/trace logging while preserving unconditional
+  phase logging. The capped profile now shows `x64_native_program.oren` at about
+  46.4s total / 33.7s parse, with `_x64_resolve_symbol_emit_range_setup` exposed
+  at about 55ms as the next parser body.
 
 ## Documentation Guardrail
 

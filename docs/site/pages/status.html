@@ -3437,6 +3437,14 @@ make docs-site</code></pre>
 <p>  now shows <code>x64_native_program.oren</code> at about 47.9s total / 34.8s parse, with</p>
 <p>  <code>_x64_emit_entry_static_cstr_table</code> exposed at about 52ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 entry static C-string table initialization now separates reserved-slot</li>
+</ul>
+<p>  lookup, PIE-safe table-pointer materialization, platform argument loading,</p>
+<p>  runtime call emission, and phase/trace logging while preserving unconditional</p>
+<p>  phase logging. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  46.4s total / 33.7s parse, with <code>_x64_resolve_symbol_emit_range_setup</code> exposed</p>
+<p>  at about 55ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
