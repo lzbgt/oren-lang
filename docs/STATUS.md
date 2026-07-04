@@ -3291,6 +3291,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 50.1s total / 36.3s
   parse, with `_x64_match_fast_push_loop_body` exposed at about 107ms as the
   next parser body.
+- X64 fast LIST/LIST_INT push-loop matching now separates push-call
+  classification, per-step validation, matched-list recording, and pushed-value
+  independence checks while preserving the `{lists,pushes}` matcher result. The
+  capped profile now shows `x64_native_program.oren` at about 53.5s total /
+  39.1s parse, with `_emit_list_int_set_intrinsic_v0_x64` exposed at about
+  121ms as the next parser body.
 
 ## Documentation Guardrail
 
