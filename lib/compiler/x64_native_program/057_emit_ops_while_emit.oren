@@ -707,19 +707,28 @@ fn _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fix
     return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
 }
 
+fn _x64_fast_list_push_checked_validate(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) {
+    if _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, list_labels, local_fixups) == true { return true }
+    _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, true)
+    return false
+}
+
+fn _x64_fast_list_push_checked_loop(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) {
+    if _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, list_labels, local_fixups) == true { return true }
+    _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, true)
+    return false
+}
+
+fn _x64_fast_list_push_checked_counts(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform) {
+    if _x64_fast_list_push_update_counts(ctx, prep, locals) == true { return true }
+    _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, false)
+    return false
+}
+
 fn _x64_fast_list_push_emit_checked_fast_path(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) {
-    if _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, list_labels, local_fixups) != true {
-        _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, true)
-        return false
-    }
-    if _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, list_labels, local_fixups) != true {
-        _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, true)
-        return false
-    }
-    if _x64_fast_list_push_update_counts(ctx, prep, locals) != true {
-        _x64_fast_list_push_cleanup_fallback(ctx, prep, op, locals, labels, local_fixups, epilogue_label, platform, false)
-        return false
-    }
+    if _x64_fast_list_push_checked_validate(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) != true { return false }
+    if _x64_fast_list_push_checked_loop(ctx, op, prep, locals, labels, list_labels, local_fixups, epilogue_label, platform) != true { return false }
+    if _x64_fast_list_push_checked_counts(ctx, op, prep, locals, labels, local_fixups, epilogue_label, platform) != true { return false }
     _emit_jmp_to_label(ctx, local_fixups, list_labels["done"])
     _intr_tmp_pop(ctx, prep["base"])
     return true

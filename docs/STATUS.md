@@ -3095,6 +3095,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 51.5s total / 36.8s
   parse, with `_x64_fast_list_push_emit_checked_fast_path` exposed at about 150ms
   as the next parser body.
+- X64 fast LIST push checked-path lowering now routes validation, loop emission,
+  and post-loop count updates through focused fallback-aware helpers while
+  preserving temp cleanup, error checks, and slow-path fallback order. The capped
+  profile now shows `x64_native_program.oren` at about 47.8s total / 34.4s parse,
+  with `_x64_program_compile_options` exposed at about 78ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
