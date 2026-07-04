@@ -3125,6 +3125,12 @@ make docs-site
   shows `x64_native_program.oren` at about 46.5s total / 33.6s parse, with
   `_x64_emit_assign_top_empty_container` exposed at about 48ms as the next parser
   body.
+- X64 top-level empty-container assignment now separates empty-list/map runtime
+  symbol selection, alloc/store emission, and slow-op trace formatting while
+  reusing the shared global-offset and source-location helpers. The capped profile
+  now shows `x64_native_program.oren` at about 47.9s total / 34.8s parse, with
+  `_x64_emit_entry_static_cstr_table` exposed at about 52ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

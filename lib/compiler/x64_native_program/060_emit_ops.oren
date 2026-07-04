@@ -958,46 +958,43 @@ fn _x64_emit_assign_top_string_fast(ctx, op, j, op_start_ns, op_slow_ms, top_str
     return 1
 }
 
+fn _x64_top_empty_container_runtime_sym(kind) {
+    if kind == "list" { return "oren_new_list" }
+    return "oren_new_map"
+}
+
+fn _x64_emit_top_empty_container_alloc_store(ctx, kind, platform, goff_enc) {
+    _x64_emit_runtime_alloc0_to_rax(ctx, _x64_top_empty_container_runtime_sym(kind), platform)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_global_store_rax(ctx, goff_enc - 1)
+    return true
+}
+
+fn _x64_top_empty_container_record_slow(ctx, trace, op, kind, j, op_start_ns, op_slow_ms) {
+    if trace["enabled"] != true { return nil }
+    var empty_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
+    if empty_elapsed_ms < op_slow_ms { return nil }
+    _x64_program_phase_log_append(trace["log"], "x64.codegen.function.op.slow",
+        "name=" + trace["name"] +
+        " i=" + oren_int_to_string(j) +
+        " op=assign_i32" +
+        " path=top_empty_container" +
+        " kind=" + kind +
+        " ms=" + oren_int_to_string(empty_elapsed_ms) +
+        " global=" + op["name"] +
+        _x64_top_string_slow_loc(op))
+    return nil
+}
+
 fn _x64_emit_assign_top_empty_container(ctx, op, platform, j, op_start_ns, op_slow_ms) {
     var empty_kind = _x64_empty_container_literal_kind(op["expr"])
     if empty_kind == nil { return 0 }
     var name_empty = op["name"]
-    var goff_enc_empty = op["__oren_global_off_enc"]
-    if oren_type_tag(goff_enc_empty) != 1 && ctx["globals"] != nil { goff_enc_empty = ctx["globals"][name_empty] }
-    if oren_type_tag(goff_enc_empty) != 1 { err(ctx, "x64 native v0: assign unknown var " + name_empty); return nil }
-    if empty_kind == "list" {
-        _x64_emit_runtime_alloc0_to_rax(ctx, "oren_new_list", platform)
-    } else {
-        _x64_emit_runtime_alloc0_to_rax(ctx, "oren_new_map", platform)
-    }
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    _x64_emit_global_store_rax(ctx, goff_enc_empty - 1)
-
-    var phase_log = nil
-    var phase_name = nil
-    if ctx != nil {
-        phase_log = ctx["emit_ops_phase_log"]
-        phase_name = ctx["emit_ops_phase_name"]
-    }
-    if phase_log != nil && phase_name != nil && op_slow_ms > 0 {
-        var empty_elapsed_ms = (oren_time_now_ns() - op_start_ns) / 1000000
-        if empty_elapsed_ms >= op_slow_ms {
-            var loc_empty = ""
-            var tok_empty = op["tok"]
-            if tok_empty != nil && tok_empty["file"] != nil && tok_empty["line"] != nil {
-                loc_empty = " file=" + tok_empty["file"] + " line=" + oren_int_to_string(tok_empty["line"])
-            }
-            _x64_program_phase_log_append(phase_log, "x64.codegen.function.op.slow",
-                "name=" + phase_name +
-                " i=" + oren_int_to_string(j) +
-                " op=assign_i32" +
-                " path=top_empty_container" +
-                " kind=" + empty_kind +
-                " ms=" + oren_int_to_string(empty_elapsed_ms) +
-                " global=" + name_empty +
-                loc_empty)
-        }
-    }
+    var goff_enc_empty = _x64_top_string_global_offset_enc(ctx, name_empty, op["__oren_global_off_enc"])
+    if goff_enc_empty == nil { return nil }
+    var trace = _x64_top_string_trace_state(ctx, op_slow_ms)
+    if _x64_emit_top_empty_container_alloc_store(ctx, empty_kind, platform, goff_enc_empty) == nil { return nil }
+    _x64_top_empty_container_record_slow(ctx, trace, op, empty_kind, j, op_start_ns, op_slow_ms)
     return 1
 }
 
