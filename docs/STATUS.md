@@ -3359,6 +3359,12 @@ make docs-site
   shows `x64_native_program.oren` at about 50.8s total / 37.3s parse, with
   `_x64_spawn_prepare_spread_slots` exposed at about 118ms as the next parser
   body.
+- X64 spawn spread-slot preparation now separates spread/idx/len/elem slot
+  layout, frame-offset lookup, and state packing while preserving the
+  `args_slot+1..4` spill contract and missing-slot cleanup behavior. The
+  capped profile now shows `x64_native_program.oren` at about 47.0s total /
+  33.8s parse, with `_emit_intrinsic_sys_munmap_x64` exposed at about 44ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

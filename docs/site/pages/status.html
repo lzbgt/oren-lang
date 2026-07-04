@@ -3743,6 +3743,14 @@ make docs-site</code></pre>
 <p>  shows <code>x64_native_program.oren</code> at about 50.8s total / 37.3s parse, with</p>
 <p>  <code>_x64_spawn_prepare_spread_slots</code> exposed at about 118ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 spawn spread-slot preparation now separates spread/idx/len/elem slot</li>
+</ul>
+<p>  layout, frame-offset lookup, and state packing while preserving the</p>
+<p>  <code>args_slot+1..4</code> spill contract and missing-slot cleanup behavior. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.0s total /</p>
+<p>  33.8s parse, with <code>_emit_intrinsic_sys_munmap_x64</code> exposed at about 44ms as</p>
+<p>  the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -2829,6 +2829,14 @@
 <p>  shows <code>x64_native_program.oren</code> at ~50.8s total / ~37.3s parse, with</p>
 <p>  <code>_x64_spawn_prepare_spread_slots</code> exposed at ~118ms as the next parser body.</p>
 <ul>
+<li>X64 spawn spread-slot preparation now separates spread/idx/len/elem slot</li>
+</ul>
+<p>  layout, frame-offset lookup, and state packing while preserving the</p>
+<p>  <code>args_slot+1..4</code> spill contract and missing-slot cleanup behavior. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~47.0s total / ~33.8s</p>
+<p>  parse, with <code>_emit_intrinsic_sys_munmap_x64</code> exposed at ~44ms as the next</p>
+<p>  parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

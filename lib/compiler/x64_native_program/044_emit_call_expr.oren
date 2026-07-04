@@ -454,33 +454,48 @@ fn _x64_spawn_push_explicit_args(ctx, st, locals) {
     return nil
 }
 
-fn _x64_spawn_prepare_spread_slots(ctx, st, locals) {
-    var base = st["base"]
+fn _x64_spawn_spread_slot_layout(st) {
     var args_slot = st["args_slot"]
-    var spread_slot = iadd(args_slot, 1)
-    var idx_slot = iadd(args_slot, 2)
-    var len_slot = iadd(args_slot, 3)
-    var elem_slot = iadd(args_slot, 4)
-    var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
-    var idx_off = _intr_tmp_off(ctx, locals, idx_slot)
-    var len_off = _intr_tmp_off(ctx, locals, len_slot)
-    var elem_off = _intr_tmp_off(ctx, locals, elem_slot)
+    return {
+        "spread_slot": iadd(args_slot, 1),
+        "idx_slot": iadd(args_slot, 2),
+        "len_slot": iadd(args_slot, 3),
+        "elem_slot": iadd(args_slot, 4)
+    }
+}
+
+fn _x64_spawn_spread_slot_offsets(ctx, locals, slots) {
+    var spread_off = _intr_tmp_off(ctx, locals, slots["spread_slot"])
+    var idx_off = _intr_tmp_off(ctx, locals, slots["idx_slot"])
+    var len_off = _intr_tmp_off(ctx, locals, slots["len_slot"])
+    var elem_off = _intr_tmp_off(ctx, locals, slots["elem_slot"])
     if oren_type_tag(spread_off) == 0 || oren_type_tag(idx_off) == 0 || oren_type_tag(len_off) == 0 || oren_type_tag(elem_off) == 0 {
-        _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing spill slots for SpawnExpr spread")
         return nil
     }
-    st["spread_slot"] = spread_slot
-    st["idx_slot"] = idx_slot
-    st["len_slot"] = len_slot
-    st["elem_slot"] = elem_slot
-    st["spread_off"] = spread_off
-    st["idx_off"] = idx_off
-    st["len_off"] = len_off
-    st["elem_off"] = elem_off
-    st["spread_tmp"] = {"type": "IntrTmp", "idx": spread_slot}
-    st["idx_tmp"] = {"type": "IntrTmp", "idx": idx_slot}
-    st["elem_tmp"] = {"type": "IntrTmp", "idx": elem_slot}
+    return {"spread_off": spread_off, "idx_off": idx_off, "len_off": len_off, "elem_off": elem_off}
+}
+
+fn _x64_spawn_attach_spread_slot_state(st, slots, offs) {
+    st["spread_slot"] = slots["spread_slot"]
+    st["idx_slot"] = slots["idx_slot"]
+    st["len_slot"] = slots["len_slot"]
+    st["elem_slot"] = slots["elem_slot"]
+    st["spread_off"] = offs["spread_off"]
+    st["idx_off"] = offs["idx_off"]
+    st["len_off"] = offs["len_off"]
+    st["elem_off"] = offs["elem_off"]
+    st["spread_tmp"] = {"type": "IntrTmp", "idx": slots["spread_slot"]}
+    st["idx_tmp"] = {"type": "IntrTmp", "idx": slots["idx_slot"]}
+    st["elem_tmp"] = {"type": "IntrTmp", "idx": slots["elem_slot"]}
+    return nil
+}
+
+fn _x64_spawn_prepare_spread_slots(ctx, st, locals) {
+    var slots = _x64_spawn_spread_slot_layout(st)
+    var offs = _x64_spawn_spread_slot_offsets(ctx, locals, slots)
+    if offs == nil { _intr_tmp_pop(ctx, st["base"]); return nil }
+    _x64_spawn_attach_spread_slot_state(st, slots, offs)
     return nil
 }
 
