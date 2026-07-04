@@ -3083,6 +3083,12 @@ make docs-site
   map. The capped profile now shows `x64_native_program.oren` at about 47.6s total
   / 34.5s parse, with `_emit_intrinsic_sys_linux_wait4_x64` exposed at about 52ms
   as the next parser body.
+- Linux x64 `sys_wait4` lowering now separates four-slot temp state setup,
+  left-to-right argument spilling, optional capsule prehook emission, and syscall
+  argument loading while preserving Linux x64 `rdi`/`rsi`/`rdx`/`r10` register
+  order. The capped profile now shows `x64_native_program.oren` at about 48.7s
+  total / 35.5s parse, with `_emit_intrinsic_sys_linux_random_x64` exposed at
+  about 89ms as the next parser body.
 
 ## Documentation Guardrail
 
