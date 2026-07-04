@@ -3055,6 +3055,11 @@ make docs-site
   `x64_native_program.oren` at about 55.2s total / 41.1s parse, with
   `_emit_list_int_get_unchecked_intrinsic_v0_x64` exposed at about 106ms as the
   next parser body.
+- X64 unchecked LIST_INT get lowering now separates argument validation, label
+  attachment, and checked-body orchestration, reusing the shared get-intrinsic
+  finish cleanup. The capped profile now shows `x64_native_program.oren` at about
+  51.3s total / 37.6s parse, with `_emit_list_int_push_intrinsic_v0_x64` exposed
+  at about 108ms as the next parser body.
 
 ## Documentation Guardrail
 

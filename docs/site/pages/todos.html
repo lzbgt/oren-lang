@@ -1183,6 +1183,13 @@
 <p>  <code>_emit_list_int_get_unchecked_intrinsic_v0_x64</code> (~106ms) as the next</p>
 <p>  parser-body target.</p>
 <ul>
+<li>X64 unchecked LIST_INT get lowering now separates argument validation, label</li>
+</ul>
+<p>  attachment, and checked-body orchestration, reusing the shared get-intrinsic</p>
+<p>  finish cleanup. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  ~51.3s total / ~37.6s parse, with <code>_emit_list_int_push_intrinsic_v0_x64</code></p>
+<p>  (~108ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

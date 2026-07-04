@@ -3335,6 +3335,13 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 55.2s total / 41.1s parse, with</p>
 <p>  <code>_emit_list_int_get_unchecked_intrinsic_v0_x64</code> exposed at about 106ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>X64 unchecked LIST_INT get lowering now separates argument validation, label</li>
+</ul>
+<p>  attachment, and checked-body orchestration, reusing the shared get-intrinsic</p>
+<p>  finish cleanup. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  51.3s total / 37.6s parse, with <code>_emit_list_int_push_intrinsic_v0_x64</code> exposed</p>
+<p>  at about 108ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
