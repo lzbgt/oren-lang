@@ -3089,6 +3089,12 @@ make docs-site
   order. The capped profile now shows `x64_native_program.oren` at about 48.7s
   total / 35.5s parse, with `_emit_intrinsic_sys_linux_random_x64` exposed at
   about 89ms as the next parser body.
+- Linux x64 random syscall lowering now separates getrandom temp-state setup,
+  left-to-right argument spilling, and `rdi`/`rsi`/`rdx` syscall argument loading
+  while preserving `sys_getentropy`'s Linux `-ENOSYS` fallback behavior. The
+  capped profile now shows `x64_native_program.oren` at about 51.5s total / 36.8s
+  parse, with `_x64_fast_list_push_emit_checked_fast_path` exposed at about 150ms
+  as the next parser body.
 
 ## Documentation Guardrail
 

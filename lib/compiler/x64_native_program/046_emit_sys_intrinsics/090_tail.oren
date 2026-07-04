@@ -70,41 +70,60 @@ fn _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) {
     return false
 }
 
+fn _x64_linux_getrandom_state(ctx, locals) {
+    var base = _intr_tmp_push(ctx, 3) // buf, len, flags
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 || oren_type_tag(tmp_flags) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return {"base": base, "buf": tmp_buf, "len": tmp_len, "flags": tmp_flags}
+}
+
+fn _x64_linux_getrandom_spill_args(ctx, locals, args, st) {
+    _intr_eval_spill_x64(ctx, locals, args[0], st["buf"])
+    _intr_eval_spill_x64(ctx, locals, args[1], st["len"])
+    _intr_eval_spill_x64(ctx, locals, args[2], st["flags"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, st["base"])
+        return false
+    }
+    return true
+}
+
+fn _x64_linux_getrandom_emit_syscall(ctx, st) {
+    // rdi=buf, rsi=len, rdx=flags
+    _intr_load_x64(ctx, 7, st["buf"])
+    _intr_load_x64(ctx, 6, st["len"])
+    _intr_load_x64(ctx, 2, st["flags"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getrandom()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_getrandom_x64(ctx, expr, locals, args) {
+    // sys_getrandom(buf, len, flags) -> nbytes or -errno (Linux x86_64 getrandom syscall)
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getrandom expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getrandom does not support spread"); return nil }
+
+    var st = _x64_linux_getrandom_state(ctx, locals)
+    if st == nil { return nil }
+    if _x64_linux_getrandom_spill_args(ctx, locals, args, st) != true { return nil }
+    _x64_linux_getrandom_emit_syscall(ctx, st)
+    _intr_tmp_pop(ctx, st["base"])
+    return true
+}
+
 fn _emit_intrinsic_sys_linux_random_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_getentropy" {
         // Linux x86_64: no getentropy syscall; return -ENOSYS and let runtime fall back to getrandom.
         _emit_return_enosys_x64(ctx)
         return true
     }
-
-    if nm == "sys_getrandom" {
-        // sys_getrandom(buf, len, flags) -> nbytes or -errno (Linux x86_64 getrandom syscall)
-        if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getrandom expects 3 args"); return nil }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getrandom does not support spread"); return nil }
-
-        var base = _intr_tmp_push(ctx, 3) // buf, len, flags
-        if oren_type_tag(base) == 0 { return nil }
-        var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
-        var tmp_len = _intr_tmp_off(ctx, locals, base + 1)
-        var tmp_flags = _intr_tmp_off(ctx, locals, base + 2)
-        if oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 || oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_buf)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_len)
-        _intr_eval_spill_x64(ctx, locals, args[2], tmp_flags)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-        // rdi=buf, rsi=len, rdx=flags
-        _intr_load_x64(ctx, 7, tmp_buf)
-        _intr_load_x64(ctx, 6, tmp_len)
-        _intr_load_x64(ctx, 2, tmp_flags)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getrandom()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        _intr_tmp_pop(ctx, base)
-        return true
-    }
-
+    if nm == "sys_getrandom" { return _emit_intrinsic_sys_linux_getrandom_x64(ctx, expr, locals, args) }
     return false
 }
 

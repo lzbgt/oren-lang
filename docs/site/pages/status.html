@@ -3381,6 +3381,14 @@ make docs-site</code></pre>
 <p>  order. The capped profile now shows <code>x64_native_program.oren</code> at about 48.7s</p>
 <p>  total / 35.5s parse, with <code>_emit_intrinsic_sys_linux_random_x64</code> exposed at</p>
 <p>  about 89ms as the next parser body.</p>
+<ul>
+<li>Linux x64 random syscall lowering now separates getrandom temp-state setup,</li>
+</ul>
+<p>  left-to-right argument spilling, and <code>rdi</code>/<code>rsi</code>/<code>rdx</code> syscall argument loading</p>
+<p>  while preserving <code>sys_getentropy</code>&#x27;s Linux <code>-ENOSYS</code> fallback behavior. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 51.5s total / 36.8s</p>
+<p>  parse, with <code>_x64_fast_list_push_emit_checked_fast_path</code> exposed at about 150ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
