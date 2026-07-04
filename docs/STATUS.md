@@ -3255,6 +3255,11 @@ make docs-site
   while preserving `lock xadd` and `lock cmpxchg` register contracts. The capped
   profile now shows `x64_native_program.oren` at about 64.8s total / 46.3s parse,
   with `_data_cstr0_ensure_state` exposed at about 251ms as the next parser body.
+- X64 C-string data setup now separates shared data-blob, dedup-offset map, and
+  literal-offset list initialization helpers, and the no-dedup string append path
+  reuses the common blob/list setup. The capped profile now shows
+  `x64_native_program.oren` at about 46.0s total / 33.2s parse, with
+  `_x64_spawn_expand_spread_loop` exposed at about 45ms as the next parser body.
 
 ## Documentation Guardrail
 

@@ -94,11 +94,29 @@ fn _data_add_cstr0_cached(ctx, s) {
     return off
 }
 
-fn _data_cstr0_ensure_state(ctx) {
+fn _data_ensure_blob(ctx) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    return ctx["data"]
+}
+
+fn _data_cstr0_ensure_offs(ctx) {
+    if ctx == nil { return nil }
     if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
+    return ctx["cstr0_offs"]
+}
+
+fn _data_cstr0_ensure_list(ctx) {
+    if ctx == nil { return nil }
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+    return ctx["cstr0_list"]
+}
+
+fn _data_cstr0_ensure_state(ctx) {
+    if ctx == nil { return nil }
+    _data_ensure_blob(ctx)
+    _data_cstr0_ensure_offs(ctx)
+    _data_cstr0_ensure_list(ctx)
     return nil
 }
 
@@ -192,8 +210,8 @@ fn _data_add_cstr0_nodedup(ctx, s) {
     // source-order constants, so appending directly is safe; the startup cstr0 table still tracks
     // each pointer once.
     if ctx == nil { return 0 }
-    if ctx["data"] == nil { ctx["data"] = bytes_new() }
-    if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+    _data_ensure_blob(ctx)
+    _data_cstr0_ensure_list(ctx)
     if s == nil || s == 0 { s = "" }
     if oren_is_string(s) != true {
         var tn = oren_type_name(s)

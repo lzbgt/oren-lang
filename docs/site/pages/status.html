@@ -3605,6 +3605,13 @@ make docs-site</code></pre>
 <p>  while preserving <code>lock xadd</code> and <code>lock cmpxchg</code> register contracts. The capped</p>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 64.8s total / 46.3s parse,</p>
 <p>  with <code>_data_cstr0_ensure_state</code> exposed at about 251ms as the next parser body.</p>
+<ul>
+<li>X64 C-string data setup now separates shared data-blob, dedup-offset map, and</li>
+</ul>
+<p>  literal-offset list initialization helpers, and the no-dedup string append path</p>
+<p>  reuses the common blob/list setup. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 46.0s total / 33.2s parse, with</p>
+<p>  <code>_x64_spawn_expand_spread_loop</code> exposed at about 45ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
