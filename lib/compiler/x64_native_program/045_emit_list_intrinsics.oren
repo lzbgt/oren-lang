@@ -569,24 +569,18 @@ fn _x64_emit_list_push_header(ctx) {
     return nil
 }
 
-fn _x64_emit_list_push_slow_or_fast(ctx, locals, state) {
-    var labels = state["labels"]
+fn _x64_emit_push_slow_path(ctx, locals, state, runtime_fn) {
     var local_fixups = state["fixups"]
-    var l_fast = state["l_fast"]
     var l_done = state["l_done"]
     var off_list = state["off_list"]
     var off_val = state["off_val"]
-
-    // if count < cap => fast; else slow runtime call
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
-
-    // Slow path: call runtime oren_list_push_unchecked(list, value), then return nil.
-    _emit_call_rel32_2args_x64(ctx, locals, "oren_list_push_unchecked", off_list, off_val)
+    _emit_call_rel32_2args_x64(ctx, locals, runtime_fn, off_list, off_val)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_fast)
+fn _x64_emit_push_fast_store(ctx) {
     // addr = buf + count*8 (r10)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 9))
     bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
@@ -596,7 +590,28 @@ fn _x64_emit_list_push_slow_or_fast(ctx, locals, state) {
     // count++ ; *(list) = count
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 9))
-    _x64_emit_list_push_trace(ctx)
+    return nil
+}
+
+fn _x64_emit_push_slow_or_fast(ctx, locals, state, runtime_fn, trace_op, trace_kind) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var l_fast = state["l_fast"]
+
+    // if count < cap => fast; else slow runtime call
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
+
+    _x64_emit_push_slow_path(ctx, locals, state, runtime_fn)
+
+    _emit_label(ctx, labels, l_fast)
+    _x64_emit_push_fast_store(ctx)
+    _x64_emit_push_trace_header(ctx, trace_op, trace_kind)
+    return nil
+}
+
+fn _x64_emit_list_push_slow_or_fast(ctx, locals, state) {
+    _x64_emit_push_slow_or_fast(ctx, locals, state, "oren_list_push_unchecked", 4, 2)
     return nil
 }
 
@@ -629,11 +644,6 @@ fn _x64_emit_push_trace_header(ctx, op, kind) {
     var regs = _x64_emit_push_trace_arg_regs(ctx)
     if regs == nil { return nil }
     _x64_emit_push_trace_header_call(ctx, regs, op, kind)
-    return nil
-}
-
-fn _x64_emit_list_push_trace(ctx) {
-    _x64_emit_push_trace_header(ctx, 4, 2) // list_push / LIST
     return nil
 }
 
@@ -856,38 +866,7 @@ fn _x64_emit_list_int_push_value_and_header(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_push_slow_or_fast(ctx, locals, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var l_fast = state["l_fast"]
-    var l_done = state["l_done"]
-    var off_list = state["off_list"]
-    var off_val = state["off_val"]
-
-    // if count < cap => fast; else slow runtime call
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
-
-    // Slow path: call runtime oren_list_int_push_unchecked(list, value), then return nil.
-    _emit_call_rel32_2args_x64(ctx, locals, "oren_list_int_push_unchecked", off_list, off_val)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_fast)
-    // addr = buf + count*8 (r10)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 9))
-    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11))
-    // *(addr) = value
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))
-    // count++ ; *(list) = count
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
-    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 9))
-    _x64_emit_list_int_push_trace(ctx)
-    return nil
-}
-
-fn _x64_emit_list_int_push_trace(ctx) {
-    _x64_emit_push_trace_header(ctx, 7, 8) // list_int_push / LIST_INT
+    _x64_emit_push_slow_or_fast(ctx, locals, state, "oren_list_int_push_unchecked", 7, 8)
     return nil
 }
 

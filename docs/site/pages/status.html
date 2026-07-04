@@ -3536,6 +3536,14 @@ make docs-site</code></pre>
 <p>  shapes. The capped profile now shows <code>x64_native_program.oren</code> at about 49.3s</p>
 <p>  total / 35.7s parse, with <code>_x64_emit_list_push_slow_or_fast</code> exposed at about</p>
 <p>  89ms as the next parser body.</p>
+<ul>
+<li>X64 LIST and LIST_INT push slow/fast lowering now share the capacity branch,</li>
+</ul>
+<p>  runtime fallback call, indexed buffer store, and trace-header emission while</p>
+<p>  preserving each runtime fallback symbol and event kind. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 45.9s total / 33.1s parse, with</p>
+<p>  <code>_x64_setup_runtime_object_choice</code> exposed at about 46ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

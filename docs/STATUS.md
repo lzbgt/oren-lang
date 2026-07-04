@@ -3204,6 +3204,12 @@ make docs-site
   shapes. The capped profile now shows `x64_native_program.oren` at about 49.3s
   total / 35.7s parse, with `_x64_emit_list_push_slow_or_fast` exposed at about
   89ms as the next parser body.
+- X64 LIST and LIST_INT push slow/fast lowering now share the capacity branch,
+  runtime fallback call, indexed buffer store, and trace-header emission while
+  preserving each runtime fallback symbol and event kind. The capped profile now
+  shows `x64_native_program.oren` at about 45.9s total / 33.1s parse, with
+  `_x64_setup_runtime_object_choice` exposed at about 46ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
