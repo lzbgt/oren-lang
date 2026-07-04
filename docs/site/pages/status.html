@@ -3575,6 +3575,14 @@ make docs-site</code></pre>
 <p>  <code>nil</code>-on-error and <code>0</code>-on-handled loop contract. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 47.3s total / 34.4s parse, with</p>
 <p>  <code>_emit_eval_div_infix_to_rax</code> exposed at about 47ms as the next parser body.</p>
+<ul>
+<li>X64 integer division infix lowering now separates operand preparation,</li>
+</ul>
+<p>  divide-by-zero guard emission, overflow guard emission, and final <code>cqo/idiv</code></p>
+<p>  emission while preserving the <code>rax</code> dividend / <code>rcx</code> divisor contract. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 46.5s total /</p>
+<p>  33.7s parse, with <code>_x64_match_fast_counted_int_loop_bound</code> exposed at about</p>
+<p>  46ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

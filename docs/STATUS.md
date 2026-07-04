@@ -3233,6 +3233,12 @@ make docs-site
   `nil`-on-error and `0`-on-handled loop contract. The capped profile now shows
   `x64_native_program.oren` at about 47.3s total / 34.4s parse, with
   `_emit_eval_div_infix_to_rax` exposed at about 47ms as the next parser body.
+- X64 integer division infix lowering now separates operand preparation,
+  divide-by-zero guard emission, overflow guard emission, and final `cqo/idiv`
+  emission while preserving the `rax` dividend / `rcx` divisor contract. The
+  capped profile now shows `x64_native_program.oren` at about 46.5s total /
+  33.7s parse, with `_x64_match_fast_counted_int_loop_bound` exposed at about
+  46ms as the next parser body.
 
 ## Documentation Guardrail
 

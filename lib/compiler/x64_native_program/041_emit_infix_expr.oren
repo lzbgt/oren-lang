@@ -174,8 +174,7 @@ fn _emit_eval_mod_infix_to_rax(ctx, l, r, locals) {
     return nil
 }
 
-fn _emit_eval_div_infix_to_rax(ctx, l, r, locals) {
-    // Integer division (trunc toward zero, like x86 idiv).
+fn _x64_prepare_div_operands(ctx, l, r, locals) {
     _emit_eval_int_to_rax(ctx, l, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     var tmp_offd = locals["$tmp_div"]
@@ -186,15 +185,19 @@ fn _emit_eval_div_infix_to_rax(ctx, l, r, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = divisor
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offd) // rax = dividend
+    return true
+}
 
-    var labels = {}
-    var local_fixups = []
+fn _x64_emit_div_zero_guard(ctx, labels, local_fixups) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
     var l_div_nonzero = _new_label(ctx, "div_nonzero")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_nonzero)
     _emit_abort_panic_str(ctx, "division by zero")
     _emit_label(ctx, labels, l_div_nonzero)
+    return nil
+}
 
+fn _x64_emit_div_overflow_guard(ctx, labels, local_fixups) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 4294967295)) // -1 (imm32 sign-extended)
     var l_div_ok = _new_label(ctx, "div_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
@@ -204,10 +207,29 @@ fn _emit_eval_div_infix_to_rax(ctx, l, r, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
     _emit_abort_panic_str(ctx, "division overflow (i64_min / -1)")
     _emit_label(ctx, labels, l_div_ok)
-    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
 
+fn _x64_emit_div_guards(ctx) {
+    var labels = {}
+    var local_fixups = []
+    _x64_emit_div_zero_guard(ctx, labels, local_fixups)
+    _x64_emit_div_overflow_guard(ctx, labels, local_fixups)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _x64_emit_div_instruction(ctx) {
     bytes_extend(ctx["code"], core.insn_cqo())
     bytes_extend(ctx["code"], core.insn_idiv_r64(1))
+    return nil
+}
+
+fn _emit_eval_div_infix_to_rax(ctx, l, r, locals) {
+    // Integer division (trunc toward zero, like x86 idiv).
+    if _x64_prepare_div_operands(ctx, l, r, locals) != true { return nil }
+    _x64_emit_div_guards(ctx)
+    _x64_emit_div_instruction(ctx)
     return nil
 }
 
