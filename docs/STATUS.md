@@ -3071,6 +3071,12 @@ make docs-site
   while preserving the `cmp` flags contract for Jcc mapping. The capped profile
   now shows `x64_native_program.oren` at about 46.3s total / 33.6s parse, with
   `_lit_array_trace` exposed at about 103ms as the next parser body.
+- X64 array-literal trace emission now separates trace reservation, function-name
+  fallback, and message formatting while preserving the 16-event cap and
+  `[x64_array_lit]` output keys. The capped profile now shows
+  `x64_native_program.oren` at about 46.4s total / 33.7s parse, with
+  `_x64_prepare_sys_read_windows_args` exposed at about 81ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

@@ -1205,6 +1205,13 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~46.3s total / ~33.6s parse, with</p>
 <p>  <code>_lit_array_trace</code> (~103ms) as the next parser-body target.</p>
 <ul>
+<li>X64 array-literal trace emission now separates trace reservation, function-name</li>
+</ul>
+<p>  fallback, and message formatting while preserving the 16-event cap and</p>
+<p>  <code>[x64_array_lit]</code> output keys. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~46.4s total / ~33.7s parse, with</p>
+<p>  <code>_x64_prepare_sys_read_windows_args</code> (~81ms) as the next parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

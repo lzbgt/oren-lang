@@ -856,6 +856,11 @@ design evidence lives under `project-doc/`.
   while preserving the `cmp` flags contract for Jcc mapping. The capped profile
   now shows `x64_native_program.oren` at ~46.3s total / ~33.6s parse, with
   `_lit_array_trace` (~103ms) as the next parser-body target.
+- X64 array-literal trace emission now separates trace reservation, function-name
+  fallback, and message formatting while preserving the 16-event cap and
+  `[x64_array_lit]` output keys. The capped profile now shows
+  `x64_native_program.oren` at ~46.4s total / ~33.7s parse, with
+  `_x64_prepare_sys_read_windows_args` (~81ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile

@@ -118,19 +118,32 @@ fn _lit_array_trace_enabled(ctx) {
     return false
 }
 
-fn _lit_array_trace(ctx, d0, hn, tmp_hdr, els) {
-    if _lit_array_trace_enabled(ctx) != true { return nil }
+fn _lit_array_trace_reserve(ctx) {
     var cnt = 0
     if ctx["__trace_x64_array_lit_cnt"] != nil { cnt = ctx["__trace_x64_array_lit_cnt"] }
-    if cnt >= 16 { return nil }
+    if cnt >= 16 { return false }
     ctx["__trace_x64_array_lit_cnt"] = cnt + 1
+    return true
+}
+
+fn _lit_array_trace_fn_name(ctx) {
     var fnn = ctx["cur_fn_name"]
     if fnn == nil { fnn = "<nil>" }
-    print("[x64_array_lit] fn=" + fnn +
-          " depth=" + oren_int_to_string(d0) +
-          " hn=" + hn +
-          " off=" + oren_int_to_string(tmp_hdr) +
-          " n=" + oren_int_to_string(oren_list_len(els)))
+    return fnn
+}
+
+fn _lit_array_trace_message(ctx, d0, hn, tmp_hdr, els) {
+    return "[x64_array_lit] fn=" + _lit_array_trace_fn_name(ctx) +
+        " depth=" + oren_int_to_string(d0) +
+        " hn=" + hn +
+        " off=" + oren_int_to_string(tmp_hdr) +
+        " n=" + oren_int_to_string(oren_list_len(els))
+}
+
+fn _lit_array_trace(ctx, d0, hn, tmp_hdr, els) {
+    if _lit_array_trace_enabled(ctx) != true { return nil }
+    if _lit_array_trace_reserve(ctx) != true { return nil }
+    print(_lit_array_trace_message(ctx, d0, hn, tmp_hdr, els))
     return nil
 }
 

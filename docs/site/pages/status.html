@@ -3357,6 +3357,14 @@ make docs-site</code></pre>
 <p>  while preserving the <code>cmp</code> flags contract for Jcc mapping. The capped profile</p>
 <p>  now shows <code>x64_native_program.oren</code> at about 46.3s total / 33.6s parse, with</p>
 <p>  <code>_lit_array_trace</code> exposed at about 103ms as the next parser body.</p>
+<ul>
+<li>X64 array-literal trace emission now separates trace reservation, function-name</li>
+</ul>
+<p>  fallback, and message formatting while preserving the 16-event cap and</p>
+<p>  <code>[x64_array_lit]</code> output keys. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 46.4s total / 33.7s parse, with</p>
+<p>  <code>_x64_prepare_sys_read_windows_args</code> exposed at about 81ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
