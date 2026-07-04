@@ -829,6 +829,11 @@ design evidence lives under `project-doc/`.
   mapping. The capped profile now shows `x64_native_program.oren` at ~47.9s total
   / ~34.9s parse, with `_x64_fast_list_dot_find_mul_slots` (~96ms) as the next
   parser-body target.
+- X64 fast LIST dot-product slot lookup now shares the common fast-dot list-index
+  and temp-slot helpers with LIST_INT, removing duplicated left/right list scans
+  while preserving the `{left,right}` cursor-slot contract. The capped profile now
+  shows `x64_native_program.oren` at ~49.0s total / ~35.3s parse, with
+  `_emit_fast_list_int_dot_while_x64` (~121ms) as the next parser-body target.
 - X64 call expression lowering now lives in a dedicated `_emit_eval_call_expr_to_rax`
   helper, while native program callable-use collection and lambda wrapper
   synthesis are split out of `native_compile_program_x64`. The capped profile
