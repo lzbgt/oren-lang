@@ -89,6 +89,41 @@ fn _x64_tracking_runtime_abi3(ctx, err_name) {
     return {"a0": a0_enc - 1, "a1": a1_enc - 1, "a2": a2_enc - 1}
 }
 
+fn _x64_tracking_runtime_abi2(ctx, err_name) {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for " + err_name)
+        return nil
+    }
+    return {"a0": a0_enc - 1, "a1": a1_enc - 1}
+}
+
+fn _x64_tracking_require_runtime(ctx, locals, op_name) {
+    if ctx == nil { return nil }
+    if locals == nil {
+        err(ctx, "x64 native v0: " + op_name + " requires locals")
+        return nil
+    }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: internal error: " + op_name + " requires injected runtime")
+        return nil
+    }
+    return 1
+}
+
+fn _x64_tracking_spill1_ptr(ctx, locals, ptr_reg) {
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return nil }
+    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(off_ptr) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
+    return {"base": base, "off_ptr": off_ptr}
+}
+
 fn _x64_tracking_spill3(ctx, locals, ptr_reg, size_reg, kind_reg) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
@@ -136,12 +171,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     // Therefore, preserve the original pointer in a stack spill slot.
     //
     // Return contract (legacy helper): `ptr_reg` stays the original pointer.
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: track_alloc requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: internal error: track_alloc requires injected runtime")
-        return nil
-    }
+    if _x64_tracking_require_runtime(ctx, locals, "track_alloc") == nil { return nil }
     _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg, kind_reg, "oren_track_alloc_new", "oren_track_alloc_new")
     return nil
 }
@@ -149,13 +179,27 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
 fn _emit_trace_alloc_request_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     // x64 native: call runtime `oren_trace_alloc_request(ptr,size,kind)`.
     // Preserve registers across the call and keep ptr_reg intact.
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: trace_alloc_request requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: internal error: trace_alloc_request requires injected runtime")
-        return nil
-    }
+    if _x64_tracking_require_runtime(ctx, locals, "trace_alloc_request") == nil { return nil }
     _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg, kind_reg, "oren_trace_alloc_request", "oren_trace_alloc_request")
+    return nil
+}
+
+fn _x64_tracking_emit_ensure_call(ctx, abi2, slots, kind_imm) {
+    _emit_mov_r64_mrbp(ctx, abi2["a0"], 0 - slots["off_ptr"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(abi2["a1"], kind_imm))
+
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_ensure_tracked"})
+    return nil
+}
+
+fn _x64_tracking_finish_ensure_ptr(ctx, slots, ptr_reg) {
+    // `oren_ensure_tracked` returns the pointer in RAX; keep that authoritative.
+    if ptr_reg != 0 {
+        bytes_extend(ctx["code"], core.insn_mov_r64_r64(ptr_reg, 0))
+    }
+    _intr_tmp_pop(ctx, slots["base"])
     return nil
 }
 
@@ -167,35 +211,12 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     //
     // Return contract (matches runtime): returns the pointer. Legacy helper also
     // preserved the original pointer in `ptr_reg`.
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: ensure_tracked requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: internal error: ensure_tracked requires injected runtime")
-        return nil
-    }
-
-    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 {
-        err(ctx, "x64 native v0: missing ABI arg regs for oren_ensure_tracked")
-        return nil
-    }
-    var a0 = a0_enc - 1
-    var a1 = a1_enc - 1
-
-    var base = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base) == 0 { return nil }
-    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
-    if oren_type_tag(off_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
-
-    _emit_mov_r64_mrbp(ctx, a0, 0 - off_ptr)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, kind_imm))
-
-    var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_ensure_tracked"})
+    if _x64_tracking_require_runtime(ctx, locals, "ensure_tracked") == nil { return nil }
+    var abi2 = _x64_tracking_runtime_abi2(ctx, "oren_ensure_tracked")
+    if abi2 == nil { return nil }
+    var slots = _x64_tracking_spill1_ptr(ctx, locals, ptr_reg)
+    if slots == nil { return nil }
+    _x64_tracking_emit_ensure_call(ctx, abi2, slots, kind_imm)
 
     // Return value:
     // - `oren_ensure_tracked(ptr, kind)` returns the pointer to use.
@@ -203,10 +224,6 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     //   instead rely on the startup-built literal membership set.
     // - Still, keep using the return value as the authoritative pointer.
     // - Return register is RAX; copy it into `ptr_reg` when needed.
-    if ptr_reg != 0 {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(ptr_reg, 0))
-    }
-
-    _intr_tmp_pop(ctx, base)
+    _x64_tracking_finish_ensure_ptr(ctx, slots, ptr_reg)
     return nil
 }

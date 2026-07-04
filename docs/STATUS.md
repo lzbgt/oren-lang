@@ -3113,6 +3113,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 52.7s total /
   38.6s parse, with `_emit_ensure_tracked_ptr_kind_x64` exposed at about 102ms as
   the next parser body.
+- X64 tracking runtime-call helpers now share locals/runtime validation and
+  two-argument ABI lookup, while `oren_ensure_tracked` emission separates pointer
+  spilling, runtime call fixup, and authoritative RAX result materialization. The
+  capped profile now shows `x64_native_program.oren` at about 63.6s total / 46.2s
+  parse, with `_emit_panic_helper_fn_if_needed_x64` exposed at about 168ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
