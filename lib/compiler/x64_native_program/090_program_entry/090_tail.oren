@@ -539,31 +539,44 @@ fn _x64_emit_user_function_slow_summary(state, phase_log) {
     return nil
 }
 
+fn _x64_log_user_function_set_start(phase_log, fns_n) {
+    if phase_log == nil { return nil }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.start",
+        "fns=" + oren_int_to_string(fns_n))
+    return nil
+}
+
+fn _x64_compile_user_function_loop_body(ctx, fns, platform, call_depth_default_enabled, phase_log, state, i1) {
+    var fn1 = fns[i1]
+    var nm1 = _x64_user_function_name(fn1)
+    _x64_log_user_function_before(ctx, state, phase_log, i1, nm1)
+    var t_fn = _x64_user_function_timer_start(state["opts"])
+    _x64_compile_one_user_function(ctx, fn1, platform, call_depth_default_enabled, phase_log, state, i1)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _x64_record_user_function_slow(ctx, state, phase_log, i1, nm1, t_fn)
+    _x64_log_user_function_progress(ctx, state, phase_log, i1, nm1)
+    return true
+}
+
+fn _x64_log_user_function_set_done(ctx, state, phase_log) {
+    if phase_log == nil { return nil }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.done",
+        "fns=" + oren_int_to_string(state["fns_n"]) +
+        " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    return nil
+}
+
 fn _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, opts) {
     var opts2 = _x64_user_function_loop_options(opts)
     var state = _x64_user_function_loop_state(fns, opts2)
     var fns_n = state["fns_n"]
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.start",
-            "fns=" + oren_int_to_string(fns_n))
-    }
+    _x64_log_user_function_set_start(phase_log, fns_n)
     var i1 = 0
     while i1 < fns_n {
-        var fn1 = fns[i1]
-        var nm1 = _x64_user_function_name(fn1)
-        _x64_log_user_function_before(ctx, state, phase_log, i1, nm1)
-        var t_fn = _x64_user_function_timer_start(opts2)
-        _x64_compile_one_user_function(ctx, fn1, platform, call_depth_default_enabled, phase_log, state, i1)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-        _x64_record_user_function_slow(ctx, state, phase_log, i1, nm1, t_fn)
-        _x64_log_user_function_progress(ctx, state, phase_log, i1, nm1)
+        if _x64_compile_user_function_loop_body(ctx, fns, platform, call_depth_default_enabled, phase_log, state, i1) != true { return ctx }
         i1 = i1 + 1
     }
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.done",
-            "fns=" + oren_int_to_string(fns_n) +
-            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
-    }
+    _x64_log_user_function_set_done(ctx, state, phase_log)
     _x64_emit_user_function_slow_summary(state, phase_log)
 
     return nil

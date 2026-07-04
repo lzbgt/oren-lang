@@ -3222,6 +3222,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 50.9s total / 37.6s
   parse, with `_x64_compile_user_function_set` exposed at about 129ms as the
   next parser body.
+- X64 user-function set compilation now separates function-set start logging,
+  per-function loop orchestration, and function-set done logging while
+  preserving phase detail flags, slow-function tracking, progress logging, and
+  early error return behavior. The capped profile now shows
+  `x64_native_program.oren` at about 47.4s total / 34.4s parse, with
+  `_x64_emit_ops_one_in_fn` exposed at about 48ms as the next parser body.
 
 ## Documentation Guardrail
 

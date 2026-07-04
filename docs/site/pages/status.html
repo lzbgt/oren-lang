@@ -3560,6 +3560,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 50.9s total / 37.6s</p>
 <p>  parse, with <code>_x64_compile_user_function_set</code> exposed at about 129ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>X64 user-function set compilation now separates function-set start logging,</li>
+</ul>
+<p>  per-function loop orchestration, and function-set done logging while</p>
+<p>  preserving phase detail flags, slow-function tracking, progress logging, and</p>
+<p>  early error return behavior. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 47.4s total / 34.4s parse, with</p>
+<p>  <code>_x64_emit_ops_one_in_fn</code> exposed at about 48ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
