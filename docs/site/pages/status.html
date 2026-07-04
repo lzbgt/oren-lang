@@ -3678,6 +3678,14 @@ make docs-site</code></pre>
 <p>  46.6s total / 33.6s parse, with</p>
 <p>  <code>_x64_prepare_list_int_dot_slots_unchecked_intrinsic</code> exposed at about 44ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 LIST_INT unchecked dot-slot preparation now separates argument validation,</li>
+</ul>
+<p>  temp-slot allocation, single-argument spilling, and two-argument spill</p>
+<p>  orchestration while preserving left-to-right evaluation and temp cleanup on</p>
+<p>  expression errors. The capped profile now shows <code>x64_native_program.oren</code> at</p>
+<p>  about 51.7s total / 38.0s parse, with <code>_x64_try_load_or_build_runtime_obj</code></p>
+<p>  exposed at about 54ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

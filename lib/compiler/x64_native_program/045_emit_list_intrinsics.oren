@@ -1569,6 +1569,18 @@ fn _emit_list_int_reduce_sum_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
 }
 
 fn _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals) {
+    var args = _x64_validate_list_int_dot_slots_unchecked_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var state = _x64_list_int_dot_slots_unchecked_alloc_spill_slots(ctx, locals)
+    if state == nil { return nil }
+    if _x64_list_int_dot_slots_unchecked_spill_args(ctx, locals, args, state) != true {
+        _intr_tmp_pop(ctx, state["base"])
+        return nil
+    }
+    return state
+}
+
+fn _x64_validate_list_int_dot_slots_unchecked_args(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_int_dot_slots_unchecked requires locals"); return nil }
     if ctx["runtime_injected"] != true {
@@ -1583,22 +1595,29 @@ fn _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals) {
         err(ctx, "x64 native v0: oren_list_int_dot_slots_unchecked expects 2 args")
         return nil
     }
+    return args
+}
 
+fn _x64_list_int_dot_slots_unchecked_alloc_spill_slots(ctx, locals) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
     var off_a = _intr_tmp_off(ctx, locals, base + 0)
     var off_b = _intr_tmp_off(ctx, locals, base + 1)
     if oren_type_tag(off_a) == 0 || oren_type_tag(off_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_a, 0)
-
-    _emit_eval_int_to_rax(ctx, args[1], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_b, 0)
-
     return {"base": base, "off_a": off_a, "off_b": off_b}
+}
+
+fn _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, arg, off) {
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+    return true
+}
+
+fn _x64_list_int_dot_slots_unchecked_spill_args(ctx, locals, args, state) {
+    if _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, args[0], state["off_a"]) != true { return false }
+    if _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, args[1], state["off_b"]) != true { return false }
+    return true
 }
 
 fn _x64_list_int_dot_slots_unchecked_state(ctx, locals, off_a, off_b) {

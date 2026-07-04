@@ -3310,6 +3310,12 @@ make docs-site
   46.6s total / 33.6s parse, with
   `_x64_prepare_list_int_dot_slots_unchecked_intrinsic` exposed at about 44ms as
   the next parser body.
+- X64 LIST_INT unchecked dot-slot preparation now separates argument validation,
+  temp-slot allocation, single-argument spilling, and two-argument spill
+  orchestration while preserving left-to-right evaluation and temp cleanup on
+  expression errors. The capped profile now shows `x64_native_program.oren` at
+  about 51.7s total / 38.0s parse, with `_x64_try_load_or_build_runtime_obj`
+  exposed at about 54ms as the next parser body.
 
 ## Documentation Guardrail
 
