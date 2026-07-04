@@ -3107,6 +3107,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 46.2s total / 33.4s
   parse, with `_emit_intrinsic_sys_fcntl_getfl_windows_x64` exposed at about 48ms
   as the next parser body.
+- Windows x64 `sys_fcntl_getfl` lowering now separates fd spill-state setup,
+  shared `F_GETFL` argument loading, capsule pre/post hooks, and blocking-mode
+  zero-result materialization while preserving the WinSock no-`F_GETFL` fallback.
+  The capped profile now shows `x64_native_program.oren` at about 52.7s total /
+  38.6s parse, with `_emit_ensure_tracked_ptr_kind_x64` exposed at about 102ms as
+  the next parser body.
 
 ## Documentation Guardrail
 
