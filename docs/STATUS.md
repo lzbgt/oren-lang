@@ -3353,6 +3353,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 50.6s total /
   36.3s parse, with `_x64_win_entry_args_emit_parse` exposed at about 87ms as
   the next parser body.
+- Windows x64 entry argument parsing now separates `GetCommandLineW`,
+  `CommandLineToArgvW`, and parsed-argc routing helpers while preserving
+  `rbx`/`r10` handoff and `LocalFree` cleanup labels. The capped profile now
+  shows `x64_native_program.oren` at about 50.8s total / 37.3s parse, with
+  `_x64_spawn_prepare_spread_slots` exposed at about 118ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

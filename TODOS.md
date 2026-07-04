@@ -2065,6 +2065,11 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~50.6s total / ~36.3s
   parse, with `_x64_win_entry_args_emit_parse` exposed at ~87ms as the next
   parser body.
+- Windows x64 entry argument parsing now separates `GetCommandLineW`,
+  `CommandLineToArgvW`, and parsed-argc routing helpers while preserving
+  `rbx`/`r10` handoff and `LocalFree` cleanup labels. The capped profile now
+  shows `x64_native_program.oren` at ~50.8s total / ~37.3s parse, with
+  `_x64_spawn_prepare_spread_slots` exposed at ~118ms as the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

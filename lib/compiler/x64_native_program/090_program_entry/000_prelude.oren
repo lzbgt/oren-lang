@@ -180,15 +180,16 @@ fn _x64_win_entry_args_emit_buffers(ctx, st) {
     return nil
 }
 
-fn _x64_win_entry_args_emit_parse(ctx, st) {
-    var scratch_base = st["scratch_base"]
-    var local_fixups = st["local_fixups"]
+fn _x64_win_entry_args_call_get_command_line(ctx) {
     // GetCommandLineW() -> rax
     var mov_iat_cmd = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat_cmd + 3, "IAT_GetCommandLineW")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
 
+fn _x64_win_entry_args_call_command_line_to_argv(ctx, scratch_base) {
     // CommandLineToArgvW(cmd, &argc) -> rax (argvw), argc written to scratch.
     // rcx = cmdline (rax)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
@@ -199,7 +200,12 @@ fn _x64_win_entry_args_emit_parse(ctx, st) {
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat_argvw + 3, "IAT_CommandLineToArgvW")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
 
+fn _x64_win_entry_args_route_parse_result(ctx, st) {
+    var scratch_base = st["scratch_base"]
+    var local_fixups = st["local_fixups"]
     // if rax == 0 => done (leave argc=0, argv=&argv_out)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", st["l_done"])
@@ -216,6 +222,13 @@ fn _x64_win_entry_args_emit_parse(ctx, st) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, st["max_args"]))
     _emit_jcc_to_label(ctx, local_fixups, "le", st["l_loop"])
     _emit_jmp_to_label(ctx, local_fixups, st["l_overflow"])
+    return nil
+}
+
+fn _x64_win_entry_args_emit_parse(ctx, st) {
+    _x64_win_entry_args_call_get_command_line(ctx)
+    _x64_win_entry_args_call_command_line_to_argv(ctx, st["scratch_base"])
+    _x64_win_entry_args_route_parse_result(ctx, st)
     return nil
 }
 
