@@ -3049,6 +3049,12 @@ make docs-site
   shows `x64_native_program.oren` at about 49.0s total / 35.3s parse, with
   `_emit_fast_list_int_dot_while_x64` exposed at about 121ms as the next parser
   body.
+- X64 fast LIST_INT dot-product entry lowering now separates prepare-state setup,
+  checked fast-path emission, and generic fallback routing while preserving temp
+  cleanup and slow-path label behavior. The capped profile now shows
+  `x64_native_program.oren` at about 55.2s total / 41.1s parse, with
+  `_emit_list_int_get_unchecked_intrinsic_v0_x64` exposed at about 106ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
