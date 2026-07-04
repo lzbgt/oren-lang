@@ -68,14 +68,30 @@ fn _emit_win64_path_norm_labels_x64(ctx) {
 }
 
 fn _emit_win64_path_norm_loop_x64(ctx, st) {
-    var labels = st["labels"]
-    var fixups = st["fixups"]
-    var l_loop = st["loop"]
-    var l_store = st["store"]
-    var l_done = st["done"]
-    var l_trunc = st["trunc"]
+    var loop = _emit_win64_path_norm_loop_state(st)
+    _emit_label(ctx, loop["labels"], loop["loop"])
+    _emit_win64_path_norm_load_and_guard_x64(ctx, loop)
+    _emit_win64_path_norm_slash_to_backslash_x64(ctx, loop)
+    _emit_win64_path_norm_store_and_advance_x64(ctx, loop)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_loop)
+fn _emit_win64_path_norm_loop_state(st) {
+    return {
+        "labels": st["labels"],
+        "fixups": st["fixups"],
+        "loop": st["loop"],
+        "store": st["store"],
+        "done": st["done"],
+        "trunc": st["trunc"]
+    }
+}
+
+fn _emit_win64_path_norm_load_and_guard_x64(ctx, loop) {
+    var fixups = loop["fixups"]
+    var l_done = loop["done"]
+    var l_trunc = loop["trunc"]
+
     // eax = *src_cursor
     bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 11))
     // if eax == 0 => done
@@ -84,11 +100,25 @@ fn _emit_win64_path_norm_loop_x64(ctx, st) {
     // if remaining == 0 => trunc (write NUL and finish)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_trunc)
+    return nil
+}
+
+fn _emit_win64_path_norm_slash_to_backslash_x64(ctx, loop) {
+    var fixups = loop["fixups"]
+    var l_store = loop["store"]
 
     // if eax == '/' => eax = '\\'
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 47))
     _emit_jcc_to_label(ctx, fixups, "ne", l_store)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 92))
+    return nil
+}
+
+fn _emit_win64_path_norm_store_and_advance_x64(ctx, loop) {
+    var labels = loop["labels"]
+    var fixups = loop["fixups"]
+    var l_loop = loop["loop"]
+    var l_store = loop["store"]
 
     _emit_label(ctx, labels, l_store)
     // *dst_cursor = al

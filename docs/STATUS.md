@@ -3371,6 +3371,12 @@ make docs-site
   routing. The capped profile now shows `x64_native_program.oren` at about
   52.6s total / 37.9s parse, with `_emit_win64_path_norm_loop_x64` exposed at
   about 81ms as the next parser body.
+- Windows x64 path-normalization loop emission now separates loop-state packing,
+  byte load/termination guards, slash-to-backslash conversion, and store/cursor
+  advancement while preserving the exact label and branch sequence used by the
+  scratch-buffer normalizer. The capped profile now shows
+  `x64_native_program.oren` at about 51.3s total / 37.7s parse, with
+  `_collect_locals_from_ops` exposed at about 89ms as the next parser body.
 
 ## Documentation Guardrail
 
