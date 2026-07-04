@@ -3239,6 +3239,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 46.5s total /
   33.7s parse, with `_x64_match_fast_counted_int_loop_bound` exposed at about
   46ms as the next parser body.
+- X64 fast counted-int loop matching now separates condition extraction, bound
+  parsing, local/int-kind validation, and body increment validation while
+  preserving the returned `{idx,n,n_const,body,body_n}` matcher shape. The capped
+  profile now shows `x64_native_program.oren` at about 53.3s total / 38.9s
+  parse, with `_emit_intrinsic_sys_linux_nanosleep_x64` exposed at about 79ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

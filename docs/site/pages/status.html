@@ -3583,6 +3583,14 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 46.5s total /</p>
 <p>  33.7s parse, with <code>_x64_match_fast_counted_int_loop_bound</code> exposed at about</p>
 <p>  46ms as the next parser body.</p>
+<ul>
+<li>X64 fast counted-int loop matching now separates condition extraction, bound</li>
+</ul>
+<p>  parsing, local/int-kind validation, and body increment validation while</p>
+<p>  preserving the returned <code>{idx,n,n_const,body,body_n}</code> matcher shape. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 53.3s total / 38.9s</p>
+<p>  parse, with <code>_emit_intrinsic_sys_linux_nanosleep_x64</code> exposed at about 79ms as</p>
+<p>  the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

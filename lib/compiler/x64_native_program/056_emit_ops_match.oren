@@ -551,14 +551,17 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     }
 }
 
-fn _x64_match_fast_counted_int_loop_bound(ctx, op, locals, allow_const_bound) {
+fn _x64_match_counted_loop_condition(op) {
     if op == nil || op["op"] != "while" { return nil }
-    if locals == nil { return nil }
     var cond = op["cond"]
     if cond == nil || cond["type"] != "Infix" { return nil }
     if cond["op"] != "<" { return nil }
     var idx_name = _x64_is_ident(cond["left"])
-    var right = cond["right"]
+    if idx_name == nil { return nil }
+    return {"idx": idx_name, "right": cond["right"]}
+}
+
+fn _x64_match_counted_loop_bound(right, allow_const_bound) {
     var n_name = _x64_is_ident(right)
     var n_const = nil
     if n_name == nil {
@@ -566,25 +569,49 @@ fn _x64_match_fast_counted_int_loop_bound(ctx, op, locals, allow_const_bound) {
         n_const = _x64_parse_int_lit_expr(right)
         if n_const == nil { return nil }
     }
-    if idx_name == nil { return nil }
+    return {"n": n_name, "n_const": n_const}
+}
+
+fn _x64_match_counted_loop_locals(ctx, locals, idx_name, n_name, n_const) {
+    if locals == nil { return false }
     var off_idx = locals[idx_name]
-    if oren_type_tag(off_idx) == 0 { return nil }
+    if oren_type_tag(off_idx) == 0 { return false }
     if ctx["locals_inty"] != nil {
-        if ctx["locals_inty"][idx_name] != true { return nil }
-        if n_name != nil && ctx["locals_inty"][n_name] != true { return nil }
+        if ctx["locals_inty"][idx_name] != true { return false }
+        if n_name != nil && ctx["locals_inty"][n_name] != true { return false }
     }
     if n_name != nil {
         var off_n = locals[n_name]
-        if oren_type_tag(off_n) == 0 { return nil }
+        if oren_type_tag(off_n) == 0 { return false }
     } else if n_const < 0 {
-        return nil
+        return false
     }
+    return true
+}
+
+fn _x64_match_counted_loop_body(op, idx_name) {
     var body = op["body"]
     if body == nil { return nil }
     var n = oren_list_len(body)
     if n < 1 { return nil }
     var last = body[n - 1]
     if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
+    return {"body": body, "body_n": n}
+}
+
+fn _x64_match_fast_counted_int_loop_bound(ctx, op, locals, allow_const_bound) {
+    var cond = _x64_match_counted_loop_condition(op)
+    if cond == nil { return nil }
+    var bound = _x64_match_counted_loop_bound(cond["right"], allow_const_bound)
+    if bound == nil { return nil }
+    var idx_name = cond["idx"]
+    var n_name = bound["n"]
+    var n_const = bound["n_const"]
+    if _x64_match_counted_loop_locals(ctx, locals, idx_name, n_name, n_const) != true { return nil }
+    var body_info = _x64_match_counted_loop_body(op, idx_name)
+    if body_info == nil { return nil }
+    var body = body_info["body"]
+    var n = body_info["body_n"]
     return {"idx": idx_name, "n": n_name, "n_const": n_const, "body": body, "body_n": n}
 }
 
