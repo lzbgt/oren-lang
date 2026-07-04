@@ -15,53 +15,70 @@ fn _x64_emit_bool_singleton_from_rax_nonzero(ctx, prefix) {
     return nil
 }
 
+fn _x64_logical_infix_state(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "l_rhs": _new_label(ctx, "sc_rhs"),
+        "l_false": _new_label(ctx, "sc_false"),
+        "end": _new_label(ctx, "sc_end")
+    }
+}
+
+fn _x64_logical_emit_false_end(ctx, st) {
+    _emit_label(ctx, st["labels"], st["l_false"])
+    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+    _emit_label(ctx, st["labels"], st["end"])
+    _patch_local_fixups(ctx, st["labels"], st["fixups"])
+    return nil
+}
+
+fn _x64_logical_emit_and_rhs(ctx, st, r, locals) {
+    // If lhs is falsey => false, else evaluate rhs and return truthiness(rhs).
+    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_false"])
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_false"])
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_jmp_to_label(ctx, st["fixups"], st["end"])
+    _x64_logical_emit_false_end(ctx, st)
+    return nil
+}
+
+fn _x64_logical_emit_or_rhs(ctx, st, r, locals) {
+    // If lhs is falsey => eval rhs, else true.
+    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_rhs"])
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_jmp_to_label(ctx, st["fixups"], st["end"])
+
+    _emit_label(ctx, st["labels"], st["l_rhs"])
+    _emit_eval_int_to_rax(ctx, r, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_false"])
+    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+    _emit_jmp_to_label(ctx, st["fixups"], st["end"])
+
+    _x64_logical_emit_false_end(ctx, st)
+    return nil
+}
+
 fn _emit_eval_logical_infix_to_rax(ctx, op, l, r, locals) {
     // Short-circuit boolean operators (expression context).
     //
     // Semantics:
     // - evaluate operands using language truthiness rules
     // - return BOOL runtime singleton (true/false)
-    var labels = {}
-    var local_fixups = []
-    var l_rhs = _new_label(ctx, "sc_rhs")
-    var l_false = _new_label(ctx, "sc_false")
-    var end = _new_label(ctx, "sc_end")
+    var st = _x64_logical_infix_state(ctx)
 
     _emit_eval_int_to_rax(ctx, l, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     if op == "&&" {
-        // If lhs is falsey => false, else evaluate rhs and return truthiness(rhs).
-        _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
-        _emit_eval_int_to_rax(ctx, r, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
-        _x64_emit_load_value_singleton(ctx, 0, 384) // true
-        _emit_jmp_to_label(ctx, local_fixups, end)
-
-        _emit_label(ctx, labels, l_false)
-        _x64_emit_load_value_singleton(ctx, 0, 376) // false
-        _emit_label(ctx, labels, end)
-        _patch_local_fixups(ctx, labels, local_fixups)
+        _x64_logical_emit_and_rhs(ctx, st, r, locals)
         return nil
     }
 
-    // op == "||": if lhs is falsey => eval rhs, else true.
-    _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_rhs)
-    _x64_emit_load_value_singleton(ctx, 0, 384) // true
-    _emit_jmp_to_label(ctx, local_fixups, end)
-
-    _emit_label(ctx, labels, l_rhs)
-    _emit_eval_int_to_rax(ctx, r, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
-    _x64_emit_load_value_singleton(ctx, 0, 384) // true
-    _emit_jmp_to_label(ctx, local_fixups, end)
-
-    _emit_label(ctx, labels, l_false)
-    _x64_emit_load_value_singleton(ctx, 0, 376) // false
-    _emit_label(ctx, labels, end)
-    _patch_local_fixups(ctx, labels, local_fixups)
+    _x64_logical_emit_or_rhs(ctx, st, r, locals)
     return nil
 }
 

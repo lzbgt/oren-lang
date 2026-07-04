@@ -3149,6 +3149,11 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 54.1s total /
   39.9s parse, with `_emit_eval_logical_infix_to_rax` exposed at about 217ms as
   the next parser body.
+- X64 logical infix expression lowering now separates short-circuit label state,
+  false/end materialization, `&&` RHS emission, and `||` RHS emission while
+  preserving truthiness checks and BOOL singleton results. The capped profile now
+  shows `x64_native_program.oren` at about 62.3s total / 45.0s parse, with
+  `_x64_ops_need_literal_slots` exposed at about 198ms as the next parser body.
 
 ## Documentation Guardrail
 
