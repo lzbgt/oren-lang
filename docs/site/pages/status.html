@@ -3365,6 +3365,14 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 46.4s total / 33.7s parse, with</p>
 <p>  <code>_x64_prepare_sys_read_windows_args</code> exposed at about 81ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 Windows <code>sys_read</code> argument preparation now shares fd/buffer/length temp</li>
+</ul>
+<p>  slot allocation with Windows <code>sys_write</code>, and splits fd capsule prehook handling</p>
+<p>  from ptr/len spilling while preserving the <code>{base,tmp_fd,tmp_ptr,tmp_len}</code> state</p>
+<p>  map. The capped profile now shows <code>x64_native_program.oren</code> at about 47.6s total</p>
+<p>  / 34.5s parse, with <code>_emit_intrinsic_sys_linux_wait4_x64</code> exposed at about 52ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

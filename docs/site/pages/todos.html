@@ -1212,6 +1212,14 @@
 <p>  <code>x64_native_program.oren</code> at ~46.4s total / ~33.7s parse, with</p>
 <p>  <code>_x64_prepare_sys_read_windows_args</code> (~81ms) as the next parser-body target.</p>
 <ul>
+<li>X64 Windows <code>sys_read</code> argument preparation now shares fd/buffer/length temp</li>
+</ul>
+<p>  slot allocation with Windows <code>sys_write</code>, and splits fd capsule prehook handling</p>
+<p>  from ptr/len spilling while preserving the <code>{base,tmp_fd,tmp_ptr,tmp_len}</code> state</p>
+<p>  map. The capped profile now shows <code>x64_native_program.oren</code> at ~47.6s total /</p>
+<p>  ~34.5s parse, with <code>_emit_intrinsic_sys_linux_wait4_x64</code> (~52ms) as the next</p>
+<p>  parser-body target.</p>
+<ul>
 <li>X64 call expression lowering now lives in a dedicated <code>_emit_eval_call_expr_to_rax</code></li>
 </ul>
 <p>  helper, while native program callable-use collection and lambda wrapper</p>

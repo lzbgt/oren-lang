@@ -3077,6 +3077,12 @@ make docs-site
   `x64_native_program.oren` at about 46.4s total / 33.7s parse, with
   `_x64_prepare_sys_read_windows_args` exposed at about 81ms as the next parser
   body.
+- X64 Windows `sys_read` argument preparation now shares fd/buffer/length temp
+  slot allocation with Windows `sys_write`, and splits fd capsule prehook handling
+  from ptr/len spilling while preserving the `{base,tmp_fd,tmp_ptr,tmp_len}` state
+  map. The capped profile now shows `x64_native_program.oren` at about 47.6s total
+  / 34.5s parse, with `_emit_intrinsic_sys_linux_wait4_x64` exposed at about 52ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
