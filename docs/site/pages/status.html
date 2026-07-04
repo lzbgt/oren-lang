@@ -3552,6 +3552,14 @@ make docs-site</code></pre>
 <p>  strings. The capped profile now shows <code>x64_native_program.oren</code> at about 46.1s</p>
 <p>  total / 33.2s parse, with <code>_x64_getsockopt_translate_args</code> exposed at about</p>
 <p>  67ms as the next parser body.</p>
+<ul>
+<li>Windows x64 <code>setsockopt</code> and <code>getsockopt</code> lowering now share portable</li>
+</ul>
+<p>  socket-level and option-name translation helpers while preserving call-site</p>
+<p>  label prefixes, <code>rdx</code> level output, and <code>r8</code> optname output. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 50.9s total / 37.6s</p>
+<p>  parse, with <code>_x64_compile_user_function_set</code> exposed at about 129ms as the</p>
+<p>  next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

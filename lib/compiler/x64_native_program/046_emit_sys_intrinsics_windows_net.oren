@@ -670,42 +670,56 @@ fn _x64_setsockopt_capsule_pre(ctx, state, capsule) {
     return nil
 }
 
-fn _x64_setsockopt_translate_args(ctx, labels, fixups, state) {
+fn _x64_win_sockopt_translate_level(ctx, labels, fixups, tmp_lvl, prefix) {
     // Translate Oren-level (portable) constants to WinSock constants.
     //
     // level:
     // - OREN_SOL_SOCKET(1) => SOL_SOCKET(65535)
-    _intr_load_x64(ctx, 2, state["tmp_lvl"]) // rdx = level
+    _intr_load_x64(ctx, 2, tmp_lvl) // rdx = level
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 1))
-    var l_skip_lvl = _new_label(ctx, "setsockopt_skip_lvl")
+    var l_skip_lvl = _new_label(ctx, prefix + "_skip_lvl")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 65535))
     _emit_label(ctx, labels, l_skip_lvl)
+    return nil
+}
 
+fn _x64_win_sockopt_translate_optname(ctx, labels, fixups, tmp_opt, prefix) {
     // optname:
     // - OREN_SO_REUSEADDR(2) => SO_REUSEADDR(4)
     // - OREN_SO_ERROR(4)     => SO_ERROR(4103)
     // - OREN_SO_KEEPALIVE(9) => SO_KEEPALIVE(8)
-    _intr_load_x64(ctx, 8, state["tmp_opt"]) // r8 = optname (original)
-    var l_opt_done = _new_label(ctx, "setsockopt_opt_done")
+    _intr_load_x64(ctx, 8, tmp_opt) // r8 = optname (original)
+    var l_opt_done = _new_label(ctx, prefix + "_opt_done")
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 2))
-    var l_opt_not_reuse = _new_label(ctx, "setsockopt_opt_not_reuse")
+    var l_opt_not_reuse = _new_label(ctx, prefix + "_opt_not_reuse")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_reuse)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4))
     _emit_jmp_to_label(ctx, fixups, l_opt_done)
     _emit_label(ctx, labels, l_opt_not_reuse)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 9))
-    var l_opt_not_keepalive = _new_label(ctx, "setsockopt_opt_not_keepalive")
+    var l_opt_not_keepalive = _new_label(ctx, prefix + "_opt_not_keepalive")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_keepalive)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 8))
     _emit_jmp_to_label(ctx, fixups, l_opt_done)
     _emit_label(ctx, labels, l_opt_not_keepalive)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 4))
-    var l_opt_not_err = _new_label(ctx, "setsockopt_opt_not_err")
+    var l_opt_not_err = _new_label(ctx, prefix + "_opt_not_err")
     _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_err)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4103))
     _emit_label(ctx, labels, l_opt_not_err)
     _emit_label(ctx, labels, l_opt_done)
+    return nil
+}
+
+fn _x64_win_sockopt_translate_args(ctx, labels, fixups, state, prefix) {
+    _x64_win_sockopt_translate_level(ctx, labels, fixups, state["tmp_lvl"], prefix)
+    _x64_win_sockopt_translate_optname(ctx, labels, fixups, state["tmp_opt"], prefix)
+    return nil
+}
+
+fn _x64_setsockopt_translate_args(ctx, labels, fixups, state) {
+    _x64_win_sockopt_translate_args(ctx, labels, fixups, state, "setsockopt")
     return nil
 }
 
@@ -796,34 +810,7 @@ fn _x64_getsockopt_capsule_pre(ctx, state, capsule) {
 }
 
 fn _x64_getsockopt_translate_args(ctx, labels, fixups, state) {
-    // Translate level/optname.
-    _intr_load_x64(ctx, 2, state["tmp_lvl"])
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 1))
-    var l_skip_lvl = _new_label(ctx, "getsockopt_skip_lvl")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 65535))
-    _emit_label(ctx, labels, l_skip_lvl)
-
-    _intr_load_x64(ctx, 8, state["tmp_opt"]) // r8 = optname (original)
-    var l_opt_done = _new_label(ctx, "getsockopt_opt_done")
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 2))
-    var l_opt_not_reuse = _new_label(ctx, "getsockopt_opt_not_reuse")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_reuse)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4))
-    _emit_jmp_to_label(ctx, fixups, l_opt_done)
-    _emit_label(ctx, labels, l_opt_not_reuse)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 9))
-    var l_opt_not_keepalive = _new_label(ctx, "getsockopt_opt_not_keepalive")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_keepalive)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 8))
-    _emit_jmp_to_label(ctx, fixups, l_opt_done)
-    _emit_label(ctx, labels, l_opt_not_keepalive)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 4))
-    var l_opt_not_err = _new_label(ctx, "getsockopt_opt_not_err")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_err)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 4103))
-    _emit_label(ctx, labels, l_opt_not_err)
-    _emit_label(ctx, labels, l_opt_done)
+    _x64_win_sockopt_translate_args(ctx, labels, fixups, state, "getsockopt")
     return nil
 }
 

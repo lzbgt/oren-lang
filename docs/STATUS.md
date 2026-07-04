@@ -3216,6 +3216,12 @@ make docs-site
   strings. The capped profile now shows `x64_native_program.oren` at about 46.1s
   total / 33.2s parse, with `_x64_getsockopt_translate_args` exposed at about
   67ms as the next parser body.
+- Windows x64 `setsockopt` and `getsockopt` lowering now share portable
+  socket-level and option-name translation helpers while preserving call-site
+  label prefixes, `rdx` level output, and `r8` optname output. The capped
+  profile now shows `x64_native_program.oren` at about 50.9s total / 37.6s
+  parse, with `_x64_compile_user_function_set` exposed at about 129ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
