@@ -1,19 +1,63 @@
-fn _x64_fast_list_int_dot_prepare(ctx, info, locals) {
+fn _x64_fast_dot_prepare_inputs(info) {
     var idx_name = info["idx"]
     var n_name = info["n"]
     var sum_name = info["sum"]
     var lists = info["lists"]
     var muls = info["muls"]
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "muls": muls}
+}
 
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    var off_sum = locals[sum_name]
+fn _x64_fast_dot_prepare_offsets(locals, inputs) {
+    var off_idx = locals[inputs["idx"]]
+    var off_n = locals[inputs["n"]]
+    var off_sum = locals[inputs["sum"]]
     if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
+    return {"off_idx": off_idx, "off_n": off_n, "off_sum": off_sum}
+}
 
+fn _x64_fast_dot_prepare_counts(inputs) {
+    var lists = inputs["lists"]
+    var muls = inputs["muls"]
     var list_count = oren_list_len(lists)
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
+    return {"list_count": list_count, "mul_count": mul_count, "unique_lists": unique_lists}
+}
+
+fn _x64_fast_dot_prepare_base(ctx, list_count) {
+    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
+    if oren_type_tag(base) == 0 { return nil }
+    return base
+}
+
+fn _x64_fast_dot_prepare_common(ctx, info, locals) {
+    var inputs = _x64_fast_dot_prepare_inputs(info)
+    var offsets = _x64_fast_dot_prepare_offsets(locals, inputs)
+    if offsets == nil { return nil }
+    var counts = _x64_fast_dot_prepare_counts(inputs)
+    var base = _x64_fast_dot_prepare_base(ctx, counts["list_count"])
+    if oren_type_tag(base) == 0 { return nil }
+    return {
+        "idx": inputs["idx"],
+        "n": inputs["n"],
+        "sum": inputs["sum"],
+        "lists": inputs["lists"],
+        "muls": inputs["muls"],
+        "off_idx": offsets["off_idx"],
+        "off_n": offsets["off_n"],
+        "off_sum": offsets["off_sum"],
+        "list_count": counts["list_count"],
+        "mul_count": counts["mul_count"],
+        "unique_lists": counts["unique_lists"],
+        "base": base
+    }
+}
+
+fn _x64_fast_list_int_dot_whole_helper_enabled(ctx, prep) {
+    var idx_name = prep["idx"]
+    var sum_name = prep["sum"]
+    var mul_count = prep["mul_count"]
     var whole_list_helper = false
     // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
     if mul_count == 1 &&
@@ -22,29 +66,20 @@ fn _x64_fast_list_int_dot_prepare(ctx, info, locals) {
         _x64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER") == true {
         whole_list_helper = true
     }
-    var unroll2 = false
-    if unique_lists == true { unroll2 = true }
+    return whole_list_helper
+}
+
+fn _x64_fast_list_int_dot_prepare(ctx, info, locals) {
+    var prep = _x64_fast_dot_prepare_common(ctx, info, locals)
+    if prep == nil { return nil }
+    prep["whole_list_helper"] = _x64_fast_list_int_dot_whole_helper_enabled(ctx, prep)
+    prep["unroll2"] = prep["unique_lists"]
     _trace_x64_list_fast_loop(ctx, "fast_list_int_dot_while", info)
+    return prep
+}
 
-    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
-    if oren_type_tag(base) == 0 { return nil }
-
-    return {
-        "idx": idx_name,
-        "n": n_name,
-        "sum": sum_name,
-        "lists": lists,
-        "muls": muls,
-        "off_idx": off_idx,
-        "off_n": off_n,
-        "off_sum": off_sum,
-        "list_count": list_count,
-        "mul_count": mul_count,
-        "unique_lists": unique_lists,
-        "whole_list_helper": whole_list_helper,
-        "unroll2": unroll2,
-        "base": base
-    }
+fn _x64_fast_list_dot_prepare(ctx, info, locals) {
+    return _x64_fast_dot_prepare_common(ctx, info, locals)
 }
 
 fn _x64_fast_list_int_dot_validate_state(ctx, locals, lists, li, base, off_n) {
@@ -529,41 +564,6 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
     if ctx == nil || op == nil || info == nil { return nil }
     return _x64_fast_list_int_dot_emit_or_generic(ctx, op, locals, labels, local_fixups, epilogue_label, platform,
         _x64_fast_list_int_dot_prepare_state(ctx, info, locals))
-}
-
-fn _x64_fast_list_dot_prepare(ctx, info, locals) {
-    var idx_name = info["idx"]
-    var n_name = info["n"]
-    var sum_name = info["sum"]
-    var lists = info["lists"]
-    var muls = info["muls"]
-
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    var off_sum = locals[sum_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
-
-    var list_count = oren_list_len(lists)
-    var mul_count = oren_list_len(muls)
-    var unique_lists = false
-    if list_count == mul_count * 2 { unique_lists = true }
-    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
-    if oren_type_tag(base) == 0 { return nil }
-
-    return {
-        "idx": idx_name,
-        "n": n_name,
-        "sum": sum_name,
-        "lists": lists,
-        "muls": muls,
-        "off_idx": off_idx,
-        "off_n": off_n,
-        "off_sum": off_sum,
-        "list_count": list_count,
-        "mul_count": mul_count,
-        "unique_lists": unique_lists,
-        "base": base
-    }
 }
 
 fn _x64_fast_list_dot_labels(ctx) {

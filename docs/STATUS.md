@@ -3328,6 +3328,12 @@ make docs-site
   `x64_native_program.oren` at about 53.5s total / 39.1s parse, with
   `_x64_fast_list_int_dot_prepare` exposed at about 170ms as the next parser
   body.
+- X64 LIST/LIST_INT dot-loop preparation now shares input unpacking,
+  local-offset validation, list/mul counts, uniqueness detection, and temp-base
+  allocation while keeping LIST_INT whole-list-helper policy separate. The
+  capped profile now shows `x64_native_program.oren` at about 46.7s total /
+  33.7s parse, with `_x64_expr_int_const` exposed at about 45ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
