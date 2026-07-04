@@ -173,26 +173,26 @@ fn _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx) {
     return nil
 }
 
-fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_wsa_startup expects 1 arg"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsa_startup does not support spread"); return nil }
-
+fn _x64_windows_wsa_startup_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 1) // wsadata_ptr
     if oren_type_tag(base) == 0 { return nil }
     var tmp_ws = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(tmp_ws) == 0 { _intr_tmp_pop(ctx, base); return nil }
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ws)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "tmp_ws": tmp_ws}
+}
 
+fn _x64_windows_wsa_startup_emit_call(ctx, st) {
     // WSAStartup(MAKEWORD(2,2), wsadata_ptr)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 514)) // ecx = 0x0202
-    _intr_load_x64(ctx, 2, tmp_ws) // rdx = wsadata_ptr
+    _intr_load_x64(ctx, 2, st["tmp_ws"]) // rdx = wsadata_ptr
     _emit_call_iat_x64(ctx, "IAT_WSAStartup")
+    return nil
+}
 
+fn _x64_windows_wsa_startup_normalize_result(ctx, labels, fixups) {
     // If rc != 0 => return -EIO (best-effort; keeps runtime stable).
-    var labels = {}
-    var fixups = []
     var l_ok = _new_label(ctx, "wsa_startup_ok")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
@@ -203,8 +203,23 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
+    return nil
+}
+
+fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_wsa_startup expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsa_startup does not support spread"); return nil }
+
+    var st = _x64_windows_wsa_startup_state(ctx, locals, args)
+    if st == nil { return nil }
+    var labels = {}
+    var fixups = []
+
+    _x64_windows_wsa_startup_emit_call(ctx, st)
+    _x64_windows_wsa_startup_normalize_result(ctx, labels, fixups)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, base)
+    _intr_tmp_pop(ctx, st["base"])
     return nil
 }
 

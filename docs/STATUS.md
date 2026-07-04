@@ -3347,6 +3347,12 @@ make docs-site
   `x64_native_program.oren` at about 46.6s total / 33.6s parse, with
   `_emit_intrinsic_sys_wsa_startup_windows_x64` exposed at about 44ms as the
   next parser body.
+- Windows x64 `sys_wsa_startup` lowering now separates WSADATA pointer spill
+  state, `WSAStartup(MAKEWORD(2,2), wsadata)` call setup, and return-code
+  normalization while preserving the `-EIO` best-effort failure contract. The
+  capped profile now shows `x64_native_program.oren` at about 50.6s total /
+  36.3s parse, with `_x64_win_entry_args_emit_parse` exposed at about 87ms as
+  the next parser body.
 
 ## Documentation Guardrail
 
