@@ -61,8 +61,8 @@ fn _x64_fast_list_int_dot_whole_helper_enabled(ctx, prep) {
     var whole_list_helper = false
     // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
     if mul_count == 1 &&
-        _x64_expr_int_const(ctx, {"type": "Identifier", "value": idx_name}) == 0 &&
-        _x64_expr_int_const(ctx, {"type": "Identifier", "value": sum_name}) == 0 &&
+        _x64_int_const_for_name(ctx, idx_name) == 0 &&
+        _x64_int_const_for_name(ctx, sum_name) == 0 &&
         _x64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER") == true {
         whole_list_helper = true
     }

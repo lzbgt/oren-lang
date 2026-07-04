@@ -3334,6 +3334,13 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 46.7s total /
   33.7s parse, with `_x64_expr_int_const` exposed at about 45ms as the next
   parser body.
+- X64 integer-constant lookup now exposes direct name/global helpers and uses
+  them in the fast LIST_INT dot/get whole-list gates, avoiding synthetic
+  identifier expression maps while preserving literal, identifier, member, and
+  prefix constant handling. The capped profile now shows
+  `x64_native_program.oren` at about 47.5s total / 34.3s parse, with
+  `_emit_intrinsic_sys_linux_execve_x64` exposed at about 45ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

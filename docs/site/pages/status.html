@@ -3710,6 +3710,15 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 46.7s total /</p>
 <p>  33.7s parse, with <code>_x64_expr_int_const</code> exposed at about 45ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 integer-constant lookup now exposes direct name/global helpers and uses</li>
+</ul>
+<p>  them in the fast LIST_INT dot/get whole-list gates, avoiding synthetic</p>
+<p>  identifier expression maps while preserving literal, identifier, member, and</p>
+<p>  prefix constant handling. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 47.5s total / 34.3s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_execve_x64</code> exposed at about 45ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
