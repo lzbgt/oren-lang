@@ -3119,6 +3119,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 63.6s total / 46.2s
   parse, with `_emit_panic_helper_fn_if_needed_x64` exposed at about 168ms as the
   next parser body.
+- X64 shared panic-helper final emission now separates helper-needed/already-emitted
+  gating, function offset registration, and platform argument-register selection
+  while preserving the single `__oren_panic_helper` ABI. The capped profile now
+  shows `x64_native_program.oren` at about 46.5s total / 33.6s parse, with
+  `_x64_emit_assign_top_empty_container` exposed at about 48ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

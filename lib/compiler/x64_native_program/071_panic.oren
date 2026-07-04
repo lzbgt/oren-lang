@@ -233,24 +233,34 @@ fn _emit_panic_helper_mark_needed_x64(ctx) {
     return nil
 }
 
-fn _emit_panic_helper_fn_if_needed_x64(ctx) {
-    // Emit a single shared panic helper function and let all compiler-generated panics
-    // call it instead of inlining large panic+stacktrace sequences at every site.
-    if ctx == nil { return nil }
-    if ctx["need_panic_helper"] != true { return nil }
+fn _x64_panic_helper_should_emit(ctx, name) {
+    if ctx == nil { return false }
+    if ctx["need_panic_helper"] != true { return false }
+    if ctx["functions"] != nil && ctx["functions"][name] != nil { return false }
+    return true
+}
 
-    var name = _x64_panic_helper_name()
-    if ctx["functions"] != nil && ctx["functions"][name] != nil { return nil }
-
+fn _x64_panic_helper_register(ctx, name) {
     var off = bytes_len(ctx["code"])
     if ctx["functions"] == nil { ctx["functions"] = {} }
     ctx["functions"][name] = off
+    return off
+}
 
-    // Emit body: expect msg pointer in the platform arg register (SysV: RDI, Win64: RCX).
+fn _x64_panic_helper_msg_arg_reg(ctx) {
     var platform = ctx["platform"]
-    var msg_reg = 7
-    if platform != nil && platform["os"] == "windows" { msg_reg = 1 }
-    _emit_panic_with_msg_ptr(ctx, msg_reg)
+    if platform != nil && platform["os"] == "windows" { return 1 }
+    return 7
+}
+
+fn _emit_panic_helper_fn_if_needed_x64(ctx) {
+    // Emit a single shared panic helper function and let all compiler-generated panics
+    // call it instead of inlining large panic+stacktrace sequences at every site.
+    var name = _x64_panic_helper_name()
+    if _x64_panic_helper_should_emit(ctx, name) != true { return nil }
+    _x64_panic_helper_register(ctx, name)
+    // Emit body: expect msg pointer in the platform arg register (SysV: RDI, Win64: RCX).
+    _emit_panic_with_msg_ptr(ctx, _x64_panic_helper_msg_arg_reg(ctx))
     return nil
 }
 

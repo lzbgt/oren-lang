@@ -3421,6 +3421,14 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 63.6s total / 46.2s</p>
 <p>  parse, with <code>_emit_panic_helper_fn_if_needed_x64</code> exposed at about 168ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>X64 shared panic-helper final emission now separates helper-needed/already-emitted</li>
+</ul>
+<p>  gating, function offset registration, and platform argument-register selection</p>
+<p>  while preserving the single <code>__oren_panic_helper</code> ABI. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 46.5s total / 33.6s parse, with</p>
+<p>  <code>_x64_emit_assign_top_empty_container</code> exposed at about 48ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
