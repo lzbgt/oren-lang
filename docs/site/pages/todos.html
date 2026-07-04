@@ -2806,6 +2806,14 @@
 <p>  <code>_emit_intrinsic_sys_linux_execve_x64</code> exposed at ~45ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>X64 Linux <code>sys_execve</code> lowering now separates temp-state setup, left-to-right</li>
+</ul>
+<p>  argument spilling, capsule prehook/envp rewrite, and syscall register loading</p>
+<p>  while preserving <code>rdi/rsi/rdx</code> syscall semantics. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at ~46.6s total / ~33.6s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_wsa_startup_windows_x64</code> exposed at ~44ms as the next</p>
+<p>  parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

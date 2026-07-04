@@ -3341,6 +3341,12 @@ make docs-site
   `x64_native_program.oren` at about 47.5s total / 34.3s parse, with
   `_emit_intrinsic_sys_linux_execve_x64` exposed at about 45ms as the next
   parser body.
+- X64 Linux `sys_execve` lowering now separates temp-state setup, left-to-right
+  argument spilling, capsule prehook/envp rewrite, and syscall register loading
+  while preserving `rdi/rsi/rdx` syscall semantics. The capped profile now shows
+  `x64_native_program.oren` at about 46.6s total / 33.6s parse, with
+  `_emit_intrinsic_sys_wsa_startup_windows_x64` exposed at about 44ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
