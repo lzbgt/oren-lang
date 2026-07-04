@@ -3192,6 +3192,12 @@ make docs-site
   preserving all existing emitter callees. The capped profile now shows
   `x64_native_program.oren` at about 54.1s total / 38.0s parse, with
   `_x64_emit_list_int_push_trace` exposed at about 141ms as the next parser body.
+- X64 LIST and LIST_INT push trace emission now share local ABI argument
+  lookup, header-call emission, and trace-gate helpers while preserving
+  `list_push`/`list_int_push` event IDs. The capped profile now shows
+  `x64_native_program.oren` at about 46.8s total / 33.8s parse, with
+  `_x64_flush_global_string_init_batch` exposed at about 52ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

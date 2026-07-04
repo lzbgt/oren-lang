@@ -600,25 +600,40 @@ fn _x64_emit_list_push_slow_or_fast(ctx, locals, state) {
     return nil
 }
 
-fn _x64_emit_list_push_trace(ctx) {
-    if ctx["trace_native_list_hdr"] != nil {
-        var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-        var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-        var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
-        if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
-            err(ctx, "x64 native v0: missing ABI arg regs for list trace")
-        } else {
-            var a0 = a0_enc - 1
-            var a1 = a1_enc - 1
-            var a2 = a2_enc - 1
-            if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, 4)) // list_push
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, 2)) // LIST
-            var call_pos = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
-        }
+fn _x64_emit_push_trace_arg_regs(ctx) {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for list trace")
+        return nil
     }
+    return {"a0": a0_enc - 1, "a1": a1_enc - 1, "a2": a2_enc - 1}
+}
+
+fn _x64_emit_push_trace_header_call(ctx, regs, op, kind) {
+    var a0 = regs["a0"]
+    var a1 = regs["a1"]
+    var a2 = regs["a2"]
+    if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, op))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, kind))
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
+    return nil
+}
+
+fn _x64_emit_push_trace_header(ctx, op, kind) {
+    if ctx["trace_native_list_hdr"] == nil { return nil }
+    var regs = _x64_emit_push_trace_arg_regs(ctx)
+    if regs == nil { return nil }
+    _x64_emit_push_trace_header_call(ctx, regs, op, kind)
+    return nil
+}
+
+fn _x64_emit_list_push_trace(ctx) {
+    _x64_emit_push_trace_header(ctx, 4, 2) // list_push / LIST
     return nil
 }
 
@@ -872,24 +887,7 @@ fn _x64_emit_list_int_push_slow_or_fast(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_push_trace(ctx) {
-    if ctx["trace_native_list_hdr"] != nil {
-        var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-        var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-        var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
-        if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
-            err(ctx, "x64 native v0: missing ABI arg regs for list trace")
-        } else {
-            var a0 = a0_enc - 1
-            var a1 = a1_enc - 1
-            var a2 = a2_enc - 1
-            if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, 7)) // list_int_push
-            bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, 8)) // LIST_INT
-            var call_pos = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], core.insn_call_rel32(0))
-            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
-        }
-    }
+    _x64_emit_push_trace_header(ctx, 7, 8) // list_int_push / LIST_INT
     return nil
 }
 
