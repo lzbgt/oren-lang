@@ -3171,6 +3171,11 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 48.3s total /
   34.4s parse, with `_emit_intrinsic_sys_nanosleep_windows_x64` exposed at
   about 51ms as the next parser body.
+- X64 Windows `sys_nanosleep` lowering now separates validation, label/fixup
+  state creation, sleep-path emission, and final patch/temp cleanup while
+  preserving the `Sleep(DWORD)` best-effort contract. The capped profile now
+  shows `x64_native_program.oren` at about 46.3s total / 33.4s parse, with
+  `_x64_win_cp_emit_create_call` exposed at about 47ms as the next parser body.
 
 ## Documentation Guardrail
 

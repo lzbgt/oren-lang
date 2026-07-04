@@ -64,10 +64,45 @@ fn _x64_nanosleep_emit_sleep_call_windows(ctx) {
     bytes_extend(ctx["code"], core.insn_cdqe())
 }
 
-fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
+fn _x64_nanosleep_validate_windows(ctx, expr, args) {
     if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return nil }
+    if args == nil || oren_list_len(args) != 1 {
+        err(ctx, "x64 native v0: sys_nanosleep expects 1 arg")
+        return nil
+    }
+    if expr != nil && expr["spread"] != nil {
+        err(ctx, "x64 native v0: sys_nanosleep does not support spread")
+        return nil
+    }
+    return true
+}
+
+fn _x64_nanosleep_label_state_windows(ctx) {
+    var labels = {}
+    var fixups = []
+    var l_sleep = _new_label(ctx, "sys_nanosleep_win_sleep")
+    var l_done = _new_label(ctx, "sys_nanosleep_win_done")
+    return {"labels": labels, "fixups": fixups, "sleep": l_sleep, "done": l_done}
+}
+
+fn _x64_nanosleep_emit_body_windows(ctx, st, labels, fixups, l_sleep, l_done) {
+    _x64_nanosleep_emit_nonpositive_path_windows(ctx, st["tmp_ns"], fixups, l_sleep, l_done)
+
+    _emit_label(ctx, labels, l_sleep)
+    _x64_nanosleep_emit_ms_in_rax_windows(ctx, st["tmp_ns"], labels, fixups)
+    _x64_nanosleep_emit_sleep_call_windows(ctx)
+    return nil
+}
+
+fn _x64_nanosleep_finish_windows(ctx, st, label_state) {
+    _emit_label(ctx, label_state["labels"], label_state["done"])
+    _patch_local_fixups(ctx, label_state["labels"], label_state["fixups"])
+    _intr_tmp_pop(ctx, st["base"])
+    return nil
+}
+
+fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
+    if _x64_nanosleep_validate_windows(ctx, expr, args) == nil { return nil }
 
     // Windows: best-effort sleep implemented via KERNEL32!Sleep(DWORD ms).
     // Contract: sys_nanosleep(ns) returns 0 on success; EINTR is not modeled.
@@ -75,19 +110,10 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     if st == nil { return nil }
     _x64_nanosleep_emit_capsule_pre_windows(ctx, st["tmp_ns"])
 
-    var labels = {}
-    var fixups = []
-    var l_sleep = _new_label(ctx, "sys_nanosleep_win_sleep")
-    var l_done = _new_label(ctx, "sys_nanosleep_win_done")
-    _x64_nanosleep_emit_nonpositive_path_windows(ctx, st["tmp_ns"], fixups, l_sleep, l_done)
-
-    _emit_label(ctx, labels, l_sleep)
-    _x64_nanosleep_emit_ms_in_rax_windows(ctx, st["tmp_ns"], labels, fixups)
-    _x64_nanosleep_emit_sleep_call_windows(ctx)
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    var label_state = _x64_nanosleep_label_state_windows(ctx)
+    _x64_nanosleep_emit_body_windows(ctx, st, label_state["labels"], label_state["fixups"],
+        label_state["sleep"], label_state["done"])
+    _x64_nanosleep_finish_windows(ctx, st, label_state)
     return nil
 }
 
