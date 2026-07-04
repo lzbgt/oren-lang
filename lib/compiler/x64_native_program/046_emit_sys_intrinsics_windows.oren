@@ -547,27 +547,34 @@ fn _emit_sys_open_windows_path_arg_x64(ctx, tmp_path, tmp_pair, capsule) {
     return nil
 }
 
-fn _emit_sys_open_windows_access_args_x64(ctx, tmp_flags, labels, fixups) {
-    // rdx = desired_access (GENERIC_*). access bits: flags & 3 => 0=RDONLY,1=WRONLY,2=RDWR
-    _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(10, 3))
+fn _emit_sys_open_windows_access_labels(ctx) {
     var l_acc_wr = _new_label(ctx, "sys_open_acc_wr")
     var l_acc_rw = _new_label(ctx, "sys_open_acc_rw")
     var l_acc_done = _new_label(ctx, "sys_open_acc_done")
+    return {"wr": l_acc_wr, "rw": l_acc_rw, "done": l_acc_done}
+}
+
+fn _emit_sys_open_windows_access_mode_x64(ctx, tmp_flags, labels, fixups, acc_labels) {
+    // rdx = desired_access (GENERIC_*). access bits: flags & 3 => 0=RDONLY,1=WRONLY,2=RDWR
+    _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(10, 3))
     // default: READ (0x80000000)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147483648))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 1))
-    _emit_jcc_to_label(ctx, fixups, "e", l_acc_wr)
+    _emit_jcc_to_label(ctx, fixups, "e", acc_labels["wr"])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2))
-    _emit_jcc_to_label(ctx, fixups, "e", l_acc_rw)
-    _emit_jmp_to_label(ctx, fixups, l_acc_done)
-    _emit_label(ctx, labels, l_acc_wr)
+    _emit_jcc_to_label(ctx, fixups, "e", acc_labels["rw"])
+    _emit_jmp_to_label(ctx, fixups, acc_labels["done"])
+    _emit_label(ctx, labels, acc_labels["wr"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 1073741824)) // WRITE (0x40000000)
-    _emit_jmp_to_label(ctx, fixups, l_acc_done)
-    _emit_label(ctx, labels, l_acc_rw)
+    _emit_jmp_to_label(ctx, fixups, acc_labels["done"])
+    _emit_label(ctx, labels, acc_labels["rw"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 3221225472)) // READ|WRITE (0xC0000000)
-    _emit_label(ctx, labels, l_acc_done)
+    _emit_label(ctx, labels, acc_labels["done"])
+    return nil
+}
 
+fn _emit_sys_open_windows_append_access_x64(ctx, tmp_flags, labels, fixups) {
     // O_APPEND maps to append-only writes on Windows. Creation disposition still follows CREAT/TRUNC.
     _intr_load_x64(ctx, 10, tmp_flags)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 10))
@@ -577,10 +584,21 @@ fn _emit_sys_open_windows_access_args_x64(ctx, tmp_flags, labels, fixups) {
     _emit_jcc_to_label(ctx, fixups, "e", l_no_append_access)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 4)) // FILE_APPEND_DATA
     _emit_label(ctx, labels, l_no_append_access)
+    return nil
+}
 
+fn _emit_sys_open_windows_share_security_args_x64(ctx) {
     // r8 = share mode: READ|WRITE|DELETE; r9 = lpSecurityAttributes = NULL.
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 7))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0))
+    return nil
+}
+
+fn _emit_sys_open_windows_access_args_x64(ctx, tmp_flags, labels, fixups) {
+    var acc_labels = _emit_sys_open_windows_access_labels(ctx)
+    _emit_sys_open_windows_access_mode_x64(ctx, tmp_flags, labels, fixups, acc_labels)
+    _emit_sys_open_windows_append_access_x64(ctx, tmp_flags, labels, fixups)
+    _emit_sys_open_windows_share_security_args_x64(ctx)
     return nil
 }
 
