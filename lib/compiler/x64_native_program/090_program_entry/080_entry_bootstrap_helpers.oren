@@ -9,6 +9,14 @@ fn _x64_emit_entry_heap_and_frame_init(ctx) {
 }
 
 fn _x64_emit_entry_boot_globals(ctx) {
+    var st = _x64_entry_boot_global_offsets(ctx)
+    if st == nil { return nil }
+    _x64_entry_boot_emit_storage_ptrs(ctx, st)
+    _x64_entry_boot_link_storage(ctx)
+    return true
+}
+
+fn _x64_entry_boot_global_offsets(ctx) {
     if ctx["globals"] == nil || ctx["globals"]["g_storage"] == nil {
         err(ctx, "x64 native v0: missing reserved global slot g_storage (Tier-1 bootstrap)")
         return nil
@@ -19,15 +27,21 @@ fn _x64_emit_entry_boot_globals(ctx) {
     }
     var g_storage_off = ctx["globals"]["g_storage"] - 1
     var boot_off = ctx["boot_globals_storage_off_enc"] - 1
+    return {"g_storage_off": g_storage_off, "boot_off": boot_off}
+}
 
+fn _x64_entry_boot_emit_storage_ptrs(ctx, st) {
     var lea_gs_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(10, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_gs_pos + 3, "data_off": g_storage_off})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_gs_pos + 3, "data_off": st["g_storage_off"]})
 
     var lea_boot_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_boot_pos + 3, "data_off": boot_off})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_boot_pos + 3, "data_off": st["boot_off"]})
+    return nil
+}
 
+fn _x64_entry_boot_link_storage(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 11))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 392))
@@ -36,7 +50,7 @@ fn _x64_emit_entry_boot_globals(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 376, 12))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64_disp(11, 384, 12))
-    return true
+    return nil
 }
 
 fn _x64_emit_entry_capture_args(ctx, platform, scratch_base, is_so) {

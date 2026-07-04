@@ -3383,6 +3383,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 47.9s total /
   34.7s parse, with `_x64_emit_entry_boot_globals` exposed at about 46ms as the
   next parser body.
+- X64 entry boot-global initialization now separates reserved-offset validation,
+  RIP-relative storage pointer materialization, and boot storage link emission
+  while preserving the `g_storage`/boot globals fixup order and runtime layout
+  stores. The capped profile now shows `x64_native_program.oren` at about 49.7s
+  total / 35.9s parse, with `_emit_intrinsic_sys_win_createthread_windows_x64`
+  exposed at about 56ms as the next parser body.
 
 ## Documentation Guardrail
 

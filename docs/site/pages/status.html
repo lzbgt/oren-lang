@@ -3775,6 +3775,14 @@ make docs-site</code></pre>
 <p>  The capped profile now shows <code>x64_native_program.oren</code> at about 47.9s total /</p>
 <p>  34.7s parse, with <code>_x64_emit_entry_boot_globals</code> exposed at about 46ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>X64 entry boot-global initialization now separates reserved-offset validation,</li>
+</ul>
+<p>  RIP-relative storage pointer materialization, and boot storage link emission</p>
+<p>  while preserving the <code>g_storage</code>/boot globals fixup order and runtime layout</p>
+<p>  stores. The capped profile now shows <code>x64_native_program.oren</code> at about 49.7s</p>
+<p>  total / 35.9s parse, with <code>_emit_intrinsic_sys_win_createthread_windows_x64</code></p>
+<p>  exposed at about 56ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
