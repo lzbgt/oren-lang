@@ -785,40 +785,63 @@ fn _emit_intrinsic_sys_munmap_x64(ctx, expr, locals, args, capsule) {
     if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_munmap expects 2 args"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_munmap does not support spread"); return true }
 
+    var st = _x64_munmap_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_munmap_emit_pre(ctx, st, capsule)
+    _x64_munmap_emit_syscall(ctx, locals, st)
+
+    _intr_tmp_pop(ctx, st["base"])
+    return true
+}
+
+fn _x64_munmap_state(ctx, locals, args) {
     var base14 = _intr_tmp_push(ctx, 2) // addr, len
-    if oren_type_tag(base14) == 0 { return true }
+    if oren_type_tag(base14) == 0 { return nil }
     var tmp_addr = _intr_tmp_off(ctx, locals, base14 + 0)
     var tmp_len2 = _intr_tmp_off(ctx, locals, base14 + 1)
-    if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len2) == 0 { _intr_tmp_pop(ctx, base14); return true }
+    if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len2) == 0 { _intr_tmp_pop(ctx, base14); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_addr)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_len2)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base14); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base14); return nil }
+    return {"base": base14, "addr": tmp_addr, "len": tmp_len2, "is_win": _x64_sys_memory_uses_windows_abi(ctx)}
+}
 
-    // pre: native_capsule_sys_munmap_pre(addr, len)
-    var is_win = _x64_sys_memory_uses_windows_abi(ctx)
-    if is_win {
-        _intr_load_x64(ctx, 1, tmp_addr) // rcx = addr
-        _intr_load_x64(ctx, 2, tmp_len2) // rdx = len
+fn _x64_munmap_load_prehook_args(ctx, st) {
+    if st["is_win"] {
+        _intr_load_x64(ctx, 1, st["addr"]) // rcx = addr
+        _intr_load_x64(ctx, 2, st["len"]) // rdx = len
     } else {
-        _intr_load_x64(ctx, 7, tmp_addr) // rdi = addr
-        _intr_load_x64(ctx, 6, tmp_len2) // rsi = len
+        _intr_load_x64(ctx, 7, st["addr"]) // rdi = addr
+        _intr_load_x64(ctx, 6, st["len"]) // rsi = len
     }
+    return nil
+}
+
+fn _x64_munmap_emit_pre(ctx, st, capsule) {
+    // pre: native_capsule_sys_munmap_pre(addr, len)
+    _x64_munmap_load_prehook_args(ctx, st)
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_munmap_pre")
     }
+    return nil
+}
 
-    if is_win {
-        _emit_sys_munmap_windows_x64(ctx, locals, tmp_addr)
+fn _x64_munmap_emit_syscall(ctx, locals, st) {
+    if st["is_win"] {
+        _emit_sys_munmap_windows_x64(ctx, locals, st["addr"])
     } else {
-        _intr_load_x64(ctx, 7, tmp_addr)
-        _intr_load_x64(ctx, 6, tmp_len2)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_munmap()))
-        bytes_extend(ctx["code"], core.insn_syscall())
+        _x64_munmap_emit_linux_syscall(ctx, st)
     }
+    return nil
+}
 
-    _intr_tmp_pop(ctx, base14)
-    return true
+fn _x64_munmap_emit_linux_syscall(ctx, st) {
+    _intr_load_x64(ctx, 7, st["addr"])
+    _intr_load_x64(ctx, 6, st["len"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_munmap()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
 }
 
 fn _emit_intrinsic_sys_linux_proc_memory_x64(ctx, nm, expr, locals, args, capsule) {

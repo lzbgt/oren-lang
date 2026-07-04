@@ -3751,6 +3751,14 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.0s total /</p>
 <p>  33.8s parse, with <code>_emit_intrinsic_sys_munmap_x64</code> exposed at about 44ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 <code>sys_munmap</code> lowering now separates temp-state setup, ABI-specific</li>
+</ul>
+<p>  capsule prehook argument loading, and Linux/Windows syscall dispatch while</p>
+<p>  preserving left-to-right address/length spilling and <code>VirtualFree</code> fallback</p>
+<p>  routing. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  52.6s total / 37.9s parse, with <code>_emit_win64_path_norm_loop_x64</code> exposed at</p>
+<p>  about 81ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

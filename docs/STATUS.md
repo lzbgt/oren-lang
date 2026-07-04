@@ -3365,6 +3365,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 47.0s total /
   33.8s parse, with `_emit_intrinsic_sys_munmap_x64` exposed at about 44ms as
   the next parser body.
+- X64 `sys_munmap` lowering now separates temp-state setup, ABI-specific
+  capsule prehook argument loading, and Linux/Windows syscall dispatch while
+  preserving left-to-right address/length spilling and `VirtualFree` fallback
+  routing. The capped profile now shows `x64_native_program.oren` at about
+  52.6s total / 37.9s parse, with `_emit_win64_path_norm_loop_x64` exposed at
+  about 81ms as the next parser body.
 
 ## Documentation Guardrail
 
