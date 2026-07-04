@@ -3143,6 +3143,12 @@ make docs-site
   `r10`/`r11`/`ecx` register contract. The capped profile now shows
   `x64_native_program.oren` at about 56.7s total / 41.4s parse, with
   `_x64_list_len_spill_arg` exposed at about 108ms as the next parser body.
+- X64 LIST/LIST_INT length lowering now shares one-argument validation and temp
+  spill helpers across checked and unchecked length intrinsics, and `oren_list_len`
+  now releases its temp slot on argument-evaluation errors like the LIST_INT path.
+  The capped profile now shows `x64_native_program.oren` at about 54.1s total /
+  39.9s parse, with `_emit_eval_logical_infix_to_rax` exposed at about 217ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

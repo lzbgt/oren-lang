@@ -49,22 +49,25 @@ fn _emit_call_rel32_4args_x64(ctx, locals, sym, arg0_off, arg1_reg, arg2_imm, ar
     return nil
 }
 
-fn _x64_list_len_spill_arg(ctx, expr, locals) {
+fn _x64_list_len_validate_single_arg_expr(ctx, expr, locals, intrinsic_name) {
     if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: oren_list_len requires locals"); return nil }
+    if locals == nil { err(ctx, "x64 native v0: " + intrinsic_name + " requires locals"); return nil }
     if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: oren_list_len requires injected native runtime")
+        err(ctx, "x64 native v0: " + intrinsic_name + " requires injected native runtime")
         return nil
     }
-    if expr == nil { err(ctx, "x64 native v0: missing oren_list_len expr"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_len does not support spread"); return nil }
+    if expr == nil { err(ctx, "x64 native v0: missing " + intrinsic_name + " expr"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: " + intrinsic_name + " does not support spread"); return nil }
 
     var args = expr["args"]
     if args == nil || oren_list_len(args) != 1 {
-        err(ctx, "x64 native v0: oren_list_len expects 1 arg")
+        err(ctx, "x64 native v0: " + intrinsic_name + " expects 1 arg")
         return nil
     }
+    return args
+}
 
+fn _x64_list_len_spill_validated_arg(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 1)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
@@ -72,10 +75,20 @@ fn _x64_list_len_spill_arg(ctx, expr, locals) {
 
     // LTR eval: list -> spill
     _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
 
     return {"base": base, "off_list": off_list}
+}
+
+fn _x64_list_len_spill_arg_named(ctx, expr, locals, intrinsic_name) {
+    var args = _x64_list_len_validate_single_arg_expr(ctx, expr, locals, intrinsic_name)
+    if args == nil { return nil }
+    return _x64_list_len_spill_validated_arg(ctx, locals, args)
+}
+
+fn _x64_list_len_spill_arg(ctx, expr, locals) {
+    return _x64_list_len_spill_arg_named(ctx, expr, locals, "oren_list_len")
 }
 
 fn _x64_list_len_init_labels(ctx, state) {
@@ -196,32 +209,7 @@ fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
 }
 
 fn _x64_list_int_len_spill_arg(ctx, expr, locals) {
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: oren_list_int_len requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: oren_list_int_len requires injected native runtime")
-        return nil
-    }
-    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_len expr"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_len does not support spread"); return nil }
-
-    var args = expr["args"]
-    if args == nil || oren_list_len(args) != 1 {
-        err(ctx, "x64 native v0: oren_list_int_len expects 1 arg")
-        return nil
-    }
-
-    var base = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base) == 0 { return nil }
-    var off_list = _intr_tmp_off(ctx, locals, base + 0)
-    if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // LTR eval: list -> spill
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
-
-    return {"base": base, "off_list": off_list}
+    return _x64_list_len_spill_arg_named(ctx, expr, locals, "oren_list_int_len")
 }
 
 fn _x64_list_int_len_init_labels(ctx, state) {
@@ -345,37 +333,15 @@ fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
 }
 
 fn _x64_list_int_len_unchecked_args(ctx, expr, locals) {
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: oren_list_int_len_unchecked requires locals"); return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: oren_list_int_len_unchecked requires injected native runtime")
-        return nil
-    }
-    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_len_unchecked expr"); return nil }
-    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_len_unchecked does not support spread"); return nil }
-
-    var args = expr["args"]
-    if args == nil || oren_list_len(args) != 1 {
-        err(ctx, "x64 native v0: oren_list_int_len_unchecked expects 1 arg")
-        return nil
-    }
-    return args
+    return _x64_list_len_validate_single_arg_expr(ctx, expr, locals, "oren_list_int_len_unchecked")
 }
 
 fn _x64_list_int_len_unchecked_spill_arg(ctx, locals, args) {
-    var base = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base) == 0 { return nil }
-    var off_list = _intr_tmp_off(ctx, locals, base + 0)
-    if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    // LTR eval: list -> spill
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
-
+    var state = _x64_list_len_spill_validated_arg(ctx, locals, args)
+    if state == nil { return nil }
     // list -> rdx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
-    return {"base": base, "off_list": off_list}
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
+    return state
 }
 
 fn _x64_list_int_len_unchecked_labels(ctx) {
