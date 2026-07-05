@@ -273,12 +273,12 @@ build_and_check \
   '\[x64_list_fast\].*kind=fast_list_int_dot_while' \
   env OREN_TRACE_X64_LIST_FAST=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/dot_product_int/dot_product_int.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/dot_product_int_x64_linux"
 
-run_build \
-  "x64 canonical dot_product boxed dot default-safe lowering" \
+build_and_check \
+  "x64 canonical dot_product boxed dot lowering" \
   "benchmarks/dot_product/dot_product.oren" \
   "${tmp_dir}/dot_product_x64_linux" \
+  '\[x64_list_fast\].*kind=fast_list_dot_while' \
   env OREN_TRACE_X64_LIST_FAST=1 OREN_TRACE_LIST_RESERVE=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/dot_product/dot_product.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/dot_product_x64_linux"
-check_absent "x64 canonical dot_product boxed dot disabled by default" '\[x64_list_fast\].*kind=fast_list_dot_while'
 
 run_build \
   "arm64 commuted list<int> fast lowerings" \

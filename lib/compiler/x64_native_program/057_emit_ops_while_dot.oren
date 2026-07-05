@@ -695,14 +695,14 @@ fn _x64_fast_list_dot_init_unique_cursors(ctx, prep, locals) {
     var off_idx = prep["off_idx"]
 
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 10))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(8, 3))
     var li_init = 0
     while li_init < list_count {
         var slot_buf_init = _intr_tmp_off(ctx, locals, base + li_init * 2 + 1)
         if oren_type_tag(slot_buf_init) == 0 { return false }
         _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_init)
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 12))
+        bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 8))
         _emit_mov_mrbp_r64(ctx, 0 - slot_buf_init, 11)
         li_init = li_init + 1
     }
@@ -724,8 +724,9 @@ fn _x64_fast_list_dot_emit_loop_header(ctx, prep, locals, labels, label_names, l
 
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
 
-    // sum -> r13
-    _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+    // sum -> rdx. Keep boxed-list fast loops off allocator-sensitive r12-r15.
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_sum)
     return nil
 }
 
@@ -745,37 +746,37 @@ fn _x64_fast_list_dot_emit_unique_single_step(ctx, slots) {
     var slot_buf_left = slots["left"]
     var slot_buf_right = slots["right"]
 
-    // left value -> r14 (advance cursor)
-    _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf_left)
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
-    _emit_mov_mrbp_r64(ctx, 0 - slot_buf_left, 12)
+    // left value -> rax (advance cursor)
+    _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_left)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf_left, 11)
 
-    // right value -> r15 (advance cursor)
+    // right value -> r8 (advance cursor)
     _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_right)
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(15, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(8, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     _emit_mov_mrbp_r64(ctx, 0 - slot_buf_right, 11)
 
-    bytes_extend(ctx["code"], core.insn_imul_r64_r64(14, 15))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(0, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 0))
     return nil
 }
 
 fn _x64_fast_list_dot_emit_indexed_value(ctx, slot_buf, dst_reg) {
-    _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(dst_reg, 12))
+    _emit_mov_r64_mrbp(ctx, 8, 0 - slot_buf)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(11, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(dst_reg, 11))
     return nil
 }
 
 fn _x64_fast_list_dot_emit_indexed_single_step(ctx, slots) {
-    _x64_fast_list_dot_emit_indexed_value(ctx, slots["left"], 14)
-    _x64_fast_list_dot_emit_indexed_value(ctx, slots["right"], 15)
-    bytes_extend(ctx["code"], core.insn_imul_r64_r64(14, 15))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+    _x64_fast_list_dot_emit_indexed_value(ctx, slots["left"], 0)
+    _x64_fast_list_dot_emit_indexed_value(ctx, slots["right"], 8)
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(0, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 0))
     return nil
 }
 
@@ -793,7 +794,7 @@ fn _x64_fast_list_dot_emit_single_step(ctx, prep, locals, mul) {
 fn _x64_fast_list_dot_emit_single_tail(ctx, prep) {
     var off_idx = prep["off_idx"]
     var off_sum = prep["off_sum"]
-    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 13)
+    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 2)
 
     // i++
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 1))
