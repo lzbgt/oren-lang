@@ -305,10 +305,7 @@ fn _x64_compute_function_frame_layout(ctx, local_next, max_call_argc) {
     }
 }
 
-fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots) {
-    // Compute locals, reserved spill regions, intrinsic-temp pool, literal slots,
-    // outgoing call area, and callee-save region. This helper intentionally emits no
-    // machine code so `_compile_function_v0` keeps the original prologue/body order.
+fn _x64_prepare_function_local_slots(ctx, fn_node, name, ops, needs_literal_slots) {
     var locals = {}
     var param_state = _x64_prepare_function_params(ctx, fn_node, name, locals)
     if param_state == nil { return nil }
@@ -333,17 +330,27 @@ fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_
     var literal_slot_count = literal_state["literal_slot_count"]
     local_next = literal_state["local_next"]
 
-    var layout = _x64_compute_function_frame_layout(ctx, local_next, max_call_argc)
-
     return {
         "locals": locals,
         "params": params,
         "pc": pc,
-        "regc": layout["regc"],
-        "shadow": layout["shadow"],
         "max_intr": max_intr,
         "intr_lim": intr_lim,
         "literal_slot_count": literal_slot_count,
+        "local_next": local_next
+    }
+}
+
+fn _x64_pack_function_frame(ctx, slot_state, layout) {
+    return {
+        "locals": slot_state["locals"],
+        "params": slot_state["params"],
+        "pc": slot_state["pc"],
+        "regc": layout["regc"],
+        "shadow": layout["shadow"],
+        "max_intr": slot_state["max_intr"],
+        "intr_lim": slot_state["intr_lim"],
+        "literal_slot_count": slot_state["literal_slot_count"],
         "locals_pre_align_bytes": layout["locals_pre_align_bytes"],
         "locals_size": layout["locals_size"],
         "call_area": layout["call_area"],
@@ -351,6 +358,16 @@ fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_
         "save_n": layout["save_n"],
         "frame_size": layout["frame_size"]
     }
+}
+
+fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_literal_slots) {
+    // Compute locals, reserved spill regions, intrinsic-temp pool, literal slots,
+    // outgoing call area, and callee-save region. This helper intentionally emits no
+    // machine code so `_compile_function_v0` keeps the original prologue/body order.
+    var slot_state = _x64_prepare_function_local_slots(ctx, fn_node, name, ops, needs_literal_slots)
+    if slot_state == nil { return nil }
+    var layout = _x64_compute_function_frame_layout(ctx, slot_state["local_next"], max_call_argc)
+    return _x64_pack_function_frame(ctx, slot_state, layout)
 }
 
 fn _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, save_n, locals_size) {

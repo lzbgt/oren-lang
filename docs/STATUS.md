@@ -3427,6 +3427,12 @@ make docs-site
   behavior. The capped profile now shows `x64_native_program.oren` at about
   48.5s total / 35.0s parse, with `_x64_prepare_function_frame_v0` exposed at
   about 86ms as the next parser body.
+- X64 function-frame preparation now separates local/temp/literal slot
+  reservation, ABI frame-layout computation, and frame-map packing while
+  preserving the no-code-emission contract and outgoing call-area sizing. The
+  capped profile now shows `x64_native_program.oren` at about 52.2s total /
+  37.7s parse, with `_emit_list_push_intrinsic_v0_x64` exposed at about 150ms as
+  the next parser body.
 
 ## Documentation Guardrail
 
