@@ -349,13 +349,16 @@ fn _x64_emit_resolve_symbol_default(ctx, out_ptr_reg, out_off_reg) {
     return nil
 }
 
-fn _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off) {
+fn _x64_emit_resolve_symbol_state(ctx) {
     var labels = {}
     var fixups = []
     var l_done = _new_label(ctx, "sym_done")
     var l_loop = _new_label(ctx, "sym_loop")
     var l_match = _new_label(ctx, "sym_match")
+    return {"labels": labels, "fixups": fixups, "l_done": l_done, "l_loop": l_loop, "l_match": l_match}
+}
 
+fn _x64_emit_resolve_symbol_text_base_guard(ctx, addr_reg, st) {
     // Compute code base address used by the fixed-base emitters.
     // Source of truth: `lib/compiler/native_abi.oren` (x64_v0_* helpers).
     var platform = ctx["platform"]
@@ -365,12 +368,15 @@ fn _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off) {
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(10, text_base)) // r10 = text_base
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(addr_reg, 10))
     // Treat return addresses as unsigned 64-bit domain values.
-    _emit_jcc_to_label(ctx, fixups, "b", l_done)
+    _emit_jcc_to_label(ctx, st["fixups"], "b", st["l_done"])
 
     // off_target (r9) = addr - text_base
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, addr_reg))
     bytes_extend(ctx["code"], core.insn_sub_r64_r64(9, 10))
+    return nil
+}
 
+fn _x64_emit_resolve_symbol_symtab_base(ctx, symtab_off) {
     // r11 = &symtab (RIP-relative into appended data)
     var lea_sym = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(11, 0))
@@ -379,14 +385,25 @@ fn _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off) {
     // data_base (r8) = symtab_ptr - symtab_off
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 11))
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(8, core.int_mod(symtab_off, 4294967296)))
+    return nil
+}
 
+fn _x64_emit_resolve_symbol_symtab_cursor(ctx) {
     // count (r10) = *(u64*)symtab_ptr
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 11))
     // entries_base (r11) = symtab_ptr + 8
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     // idx (rbx) = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(3, 0))
-    return {"labels": labels, "fixups": fixups, "l_done": l_done, "l_loop": l_loop, "l_match": l_match}
+    return nil
+}
+
+fn _x64_emit_resolve_symbol_symtab_setup(ctx, addr_reg, symtab_off) {
+    var st = _x64_emit_resolve_symbol_state(ctx)
+    _x64_emit_resolve_symbol_text_base_guard(ctx, addr_reg, st)
+    _x64_emit_resolve_symbol_symtab_base(ctx, symtab_off)
+    _x64_emit_resolve_symbol_symtab_cursor(ctx)
+    return st
 }
 
 fn _x64_emit_resolve_table_scan_entry(ctx, st) {

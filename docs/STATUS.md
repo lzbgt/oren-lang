@@ -3469,6 +3469,13 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 49.0s total /
   35.2s parse, with `_x64_emit_resolve_symbol_symtab_setup` exposed at about
   84ms as the next parser body.
+- X64 panic symbol-table resolution setup now separates label/fixup state,
+  fixed-base address guarding, symtab/data-base materialization, and scan-cursor
+  initialization while preserving `r9` target-offset, `r8` data-base, `r10`
+  count, `r11` entries-base, and `rbx` index contracts. The capped profile now
+  shows `x64_native_program.oren` at about 47.4s total / 34.1s parse, with
+  `_x64_windows_fstat_emit_success` exposed at about 43ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
