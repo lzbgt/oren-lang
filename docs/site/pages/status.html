@@ -3808,6 +3808,15 @@ make docs-site</code></pre>
 <p>  shows <code>x64_native_program.oren</code> at about 47.4s total / 34.2s parse, with</p>
 <p>  <code>_x64_collect_global_roots_from_vectors</code> exposed at about 63ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 global-root vector collection now separates vector source validation,</li>
+</ul>
+<p>  vector runtime-root classification, runtime-root skip policy, and shared</p>
+<p>  trace+append emission across vector and map fallback paths while preserving</p>
+<p>  scanned-count and fallback semantics. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 52.5s total / 38.8s parse, with</p>
+<p>  <code>_x64_spill_direct_call_args_v0</code> exposed at about 103ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

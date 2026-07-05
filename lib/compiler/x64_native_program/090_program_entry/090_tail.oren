@@ -171,11 +171,39 @@ fn _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg,
     return nil
 }
 
-fn _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg) {
+fn _x64_global_root_vectors(ctx) {
     var root_names_src = ctx["global_root_names"]
     var root_offsets_src = ctx["global_root_offsets"]
     if root_names_src == nil || root_offsets_src == nil { return nil }
     if oren_list_len(root_names_src) != oren_list_len(root_offsets_src) { return nil }
+    return {"names": root_names_src, "offsets": root_offsets_src}
+}
+
+fn _x64_vector_global_root_is_runtime(gname, gi, root_runtime_src, runtime_globals) {
+    if root_runtime_src != nil && gi < oren_list_len(root_runtime_src) {
+        if root_runtime_src[gi] == true { return true }
+        return false
+    }
+    if gname != nil && runtime_globals != nil && runtime_globals[gname] != nil { return true }
+    return false
+}
+
+fn _x64_should_skip_runtime_global_root(skip_runtime_globals, is_runtime_root) {
+    if skip_runtime_globals != nil && skip_runtime_globals != 0 && is_runtime_root == true { return true }
+    return false
+}
+
+fn _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg) {
+    _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg, name_reg)
+    oren_list_push(root_offsets, off)
+    return nil
+}
+
+fn _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg) {
+    var vectors = _x64_global_root_vectors(ctx)
+    if vectors == nil { return nil }
+    var root_names_src = vectors["names"]
+    var root_offsets_src = vectors["offsets"]
 
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
@@ -190,19 +218,13 @@ fn _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg) 
                 gi = gi + 1
                 continue
             }
-            var is_runtime_root = false
-            if root_runtime_src != nil && gi < oren_list_len(root_runtime_src) {
-                if root_runtime_src[gi] == true { is_runtime_root = true }
-            } else if gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
-                is_runtime_root = true
-            }
-            if skip_runtime_globals != nil && skip_runtime_globals != 0 && is_runtime_root == true {
+            var is_runtime_root = _x64_vector_global_root_is_runtime(gname, gi, root_runtime_src, runtime_globals)
+            if _x64_should_skip_runtime_global_root(skip_runtime_globals, is_runtime_root) == true {
                 gi = gi + 1
                 continue
             }
             var off = root_offsets_src[gi]
-            _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg, name_reg)
-            oren_list_push(root_offsets, off)
+            _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg)
             gi = gi + 1
         }
     return roots_scanned
@@ -226,16 +248,15 @@ fn _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg) {
                 gi2 = gi2 + 1
                 continue
             }
-            if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
-               gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+            if _x64_should_skip_runtime_global_root(skip_runtime_globals,
+                gname != nil && runtime_globals != nil && runtime_globals[gname] != nil) == true {
                 gi2 = gi2 + 1
                 continue
             }
             var off_enc = pair[1]
             if oren_type_tag(off_enc) == 1 {
                 var off = off_enc - 1
-                _x64_emit_traced_global_root_name(ctx, trace_root_names, gname, off, arg_reg, name_reg)
-                oren_list_push(root_offsets, off)
+                _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg)
             }
             gi2 = gi2 + 1
         }

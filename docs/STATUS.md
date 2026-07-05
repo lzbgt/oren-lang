@@ -3408,6 +3408,13 @@ make docs-site
   shows `x64_native_program.oren` at about 47.4s total / 34.2s parse, with
   `_x64_collect_global_roots_from_vectors` exposed at about 63ms as the next
   parser body.
+- X64 global-root vector collection now separates vector source validation,
+  vector runtime-root classification, runtime-root skip policy, and shared
+  trace+append emission across vector and map fallback paths while preserving
+  scanned-count and fallback semantics. The capped profile now shows
+  `x64_native_program.oren` at about 52.5s total / 38.8s parse, with
+  `_x64_spill_direct_call_args_v0` exposed at about 103ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
