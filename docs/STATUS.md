@@ -3637,6 +3637,12 @@ make docs-site
   returned prepare map. The capped profile now shows `x64_native_program.oren`
   at about 47.8s total / 34.4s parse, with `_x64_match_fast_lcg_source` exposed
   at about 66ms as the next parser body.
+- X64 fast-LCG source matching now separates assigned-variable validation,
+  LCG update extraction, modulo source validation, and result packing while
+  preserving index/count/source/mod conflict rejection. The capped profile now
+  shows `x64_native_program.oren` at about 48.3s total / 34.9s parse, with
+  `_emit_global_string_init_batch_op_x64` exposed at about 41ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

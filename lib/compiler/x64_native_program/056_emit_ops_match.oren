@@ -508,25 +508,47 @@ fn _x64_match_fast_lcg_sum_body_ops(op, idx_name) {
     return {"lcg_op": lcg_op, "sum_op": sum_op}
 }
 
-fn _x64_match_fast_lcg_source(ctx, locals, ids, lcg_op) {
+fn _x64_match_fast_lcg_source_name(ctx, locals, ids, lcg_op) {
     var idx_name = ids["idx"]
     var n_name = ids["n"]
     if lcg_op == nil || lcg_op["op"] != "assign_i32" { return nil }
     var x_name = lcg_op["name"]
     if x_name == nil || _x64_str_eq_bytes(x_name, idx_name) || _x64_str_eq_bytes(x_name, n_name) { return nil }
     if _x64_match_local_inty(ctx, locals, x_name) != true { return nil }
+    return x_name
+}
 
+fn _x64_match_fast_lcg_update(lcg_op, x_name) {
     var lcg = _x64_match_lcg_update(lcg_op["expr"], x_name)
     if lcg == nil { return nil }
+    return lcg
+}
+
+fn _x64_match_fast_lcg_mod_ok(ctx, locals, ids, x_name, mod_name, mod_const) {
+    var idx_name = ids["idx"]
+    var n_name = ids["n"]
+    if mod_name != nil {
+        if _x64_str_eq_bytes(mod_name, idx_name) || _x64_str_eq_bytes(mod_name, n_name) || _x64_str_eq_bytes(mod_name, x_name) { return false }
+        if _x64_match_local_inty(ctx, locals, mod_name) != true { return false }
+        return true
+    }
+    if mod_const == nil || mod_const <= 0 { return false }
+    return true
+}
+
+fn _x64_pack_fast_lcg_source(x_name, lcg) {
     var mod_name = lcg["mod"]
     var mod_const = lcg["mod_const"]
-    if mod_name != nil {
-        if _x64_str_eq_bytes(mod_name, idx_name) || _x64_str_eq_bytes(mod_name, n_name) || _x64_str_eq_bytes(mod_name, x_name) { return nil }
-        if _x64_match_local_inty(ctx, locals, mod_name) != true { return nil }
-    } else {
-        if mod_const == nil || mod_const <= 0 { return nil }
-    }
     return {"x": x_name, "mod": mod_name, "mod_const": mod_const, "mul": lcg["mul"], "add": lcg["add"]}
+}
+
+fn _x64_match_fast_lcg_source(ctx, locals, ids, lcg_op) {
+    var x_name = _x64_match_fast_lcg_source_name(ctx, locals, ids, lcg_op)
+    if x_name == nil { return nil }
+    var lcg = _x64_match_fast_lcg_update(lcg_op, x_name)
+    if lcg == nil { return nil }
+    if _x64_match_fast_lcg_mod_ok(ctx, locals, ids, x_name, lcg["mod"], lcg["mod_const"]) != true { return nil }
+    return _x64_pack_fast_lcg_source(x_name, lcg)
 }
 
 fn _x64_match_fast_lcg_sum_accumulator(ctx, locals, ids, lcg, sum_op) {

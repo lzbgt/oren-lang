@@ -4113,6 +4113,14 @@ make docs-site</code></pre>
 <p>  returned prepare map. The capped profile now shows <code>x64_native_program.oren</code></p>
 <p>  at about 47.8s total / 34.4s parse, with <code>_x64_match_fast_lcg_source</code> exposed</p>
 <p>  at about 66ms as the next parser body.</p>
+<ul>
+<li>X64 fast-LCG source matching now separates assigned-variable validation,</li>
+</ul>
+<p>  LCG update extraction, modulo source validation, and result packing while</p>
+<p>  preserving index/count/source/mod conflict rejection. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 48.3s total / 34.9s parse, with</p>
+<p>  <code>_emit_global_string_init_batch_op_x64</code> exposed at about 41ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
