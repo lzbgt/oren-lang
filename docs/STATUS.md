@@ -3500,6 +3500,12 @@ make docs-site
   `x64_native_program.oren` at about 47.7s total / 34.6s parse, with
   `_x64_fast_lcg_fullmod_emit_step` exposed at about 44ms as the next parser
   body.
+- X64 fast-LCG full-mod step emission now separates `x` update, `x % mod`
+  reduction, `x`/`i` term extraction, and sum reduction helpers while preserving
+  the signed `cqo`/`idiv` arithmetic sequence and register contract. The capped
+  profile now shows `x64_native_program.oren` at about 47.8s total / 34.6s
+  parse, with `_emit_while_op_x64` exposed at about 43ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

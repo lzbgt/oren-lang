@@ -1443,33 +1443,55 @@ fn _x64_fast_lcg_fullmod_reload_state(ctx, prep) {
 }
 
 fn _x64_fast_lcg_fullmod_emit_step(ctx, prep) {
-    var mul = prep["mul"]
-    var add = prep["add"]
-    var off_idx = prep["off_idx"]
-
     // x = x*mul + add
-    bytes_extend(ctx["code"], core.insn_imul_r64_r64(10, 13))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 14))
+    _x64_fast_lcg_fullmod_update_x(ctx)
 
     // x = x % mod
+    _x64_fast_lcg_fullmod_reduce_x(ctx)
+
+    // term_x = x % mod_x
+    _x64_fast_lcg_fullmod_term_x(ctx)
+
+    // term_i = i % mod_i
+    _x64_fast_lcg_fullmod_term_i(ctx, prep)
+
+    // sum = (sum + term_x + term_i) % mod
+    _x64_fast_lcg_fullmod_reduce_sum(ctx)
+    return nil
+}
+
+fn _x64_fast_lcg_fullmod_update_x(ctx) {
+    bytes_extend(ctx["code"], core.insn_imul_r64_r64(10, 13))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 14))
+    return nil
+}
+
+fn _x64_fast_lcg_fullmod_reduce_x(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_cqo())
     bytes_extend(ctx["code"], core.insn_idiv_r64(12))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2)) // r10 = rdx
+    return nil
+}
 
-    // term_x = x % mod_x
+fn _x64_fast_lcg_fullmod_term_x(ctx) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_cqo())
     bytes_extend(ctx["code"], core.insn_idiv_r64(15))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 2)) // rsi = rdx
+    return nil
+}
 
-    // term_i = i % mod_i
+fn _x64_fast_lcg_fullmod_term_i(ctx, prep) {
+    var off_idx = prep["off_idx"]
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
     bytes_extend(ctx["code"], core.insn_cqo())
     bytes_extend(ctx["code"], core.insn_idiv_r64(3)) // rbx
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 2)) // rdi = rdx
+    return nil
+}
 
-    // sum = (sum + term_x + term_i) % mod
+fn _x64_fast_lcg_fullmod_reduce_sum(ctx) {
     bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 6))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 7))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
