@@ -2391,8 +2391,9 @@ design evidence lives under `project-doc/`.
 - `std:ui/commands` validation now caches u8 payload pointers for geometry,
   indexed-mesh, text-position, and image-rect byte fields while retaining
   list-compatible byte input fallback.
-- `std:ui/raster` now caches u8 pointers for image RGBA and mesh RGBA byte
-  reads, with explicit image-data length guards before pointer-backed sampling.
+- `std:ui/raster` now caches u8 pointers for polyline, triangle, 3D mesh,
+  text-position, image RGBA, mesh RGBA, and image-rect byte reads, with explicit
+  image-data length guards before pointer-backed sampling.
 - `std:ui/scene3d` binary `.os3d` package magic checks now read u8-buffer
   headers directly while keeping list-compatible byte input fallback.
 - `std:ui/ppm` now reuses one cached u8 input pointer while emitting P6 RGB

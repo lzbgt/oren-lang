@@ -3264,9 +3264,10 @@
 <p>  indexed-mesh, text-position, and image-rect byte fields while retaining</p>
 <p>  list-compatible byte input fallback.</p>
 <ul>
-<li><code>std:ui/raster</code> now caches u8 pointers for image RGBA and mesh RGBA byte</li>
+<li><code>std:ui/raster</code> now caches u8 pointers for polyline, triangle, 3D mesh,</li>
 </ul>
-<p>  reads, with explicit image-data length guards before pointer-backed sampling.</p>
+<p>  text-position, image RGBA, mesh RGBA, and image-rect byte reads, with explicit</p>
+<p>  image-data length guards before pointer-backed sampling.</p>
 <ul>
 <li><code>std:ui/scene3d</code> binary <code>.os3d</code> package magic checks now read u8-buffer</li>
 </ul>

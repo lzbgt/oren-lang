@@ -2353,8 +2353,8 @@ Facts from the 2026-05-28 implementation pass:
 	  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
 	  directly from u8 command buffers, OGE0 event headers and little-endian
 	  payload fields read from cached u8-buffer pointers, UI command validation
-	  reads geometry/text-position/image-rect payload fields from cached u8-buffer
-	  pointers, PPM header/body output, Scene3D binary package magic checks, PPM RGBA input reads, software raster
+	  and software rasterization read geometry/text-position/image-rect payload
+	  fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary package magic checks, PPM RGBA input reads, software raster
 	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw
 	  exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
