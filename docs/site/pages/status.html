@@ -4172,6 +4172,15 @@ make docs-site</code></pre>
 <p>  emitters are rewritten with safepoint-safe register state. Remote evidence:</p>
 <p>  <code>tests/native/test_quick_integration_native.oren</code> built for <code>x64-linux</code> exits</p>
 <p>  <code>0</code> on the Arch host.</p>
+<ul>
+<li><code>NATIVE-X64-LIST-INT-FAST-SAFE</code> is resolved. The x64 LIST_INT sum/dot fast</li>
+</ul>
+<p>  loop emitters now avoid allocator-sensitive <code>r12-r15</code> for loop-local state,</p>
+<p>  reload <code>idx</code> and <code>sum</code> after safepoints, and re-enable the matcher gate.</p>
+<p>  <code>OREN_TRACE_X64_LIST_FAST=1</code> shows <code>fast_list_int_get_sum_while</code> and</p>
+<p>  <code>fast_list_int_dot_while</code> selected for commuted, temp-normalized, and native</p>
+<p>  quick-integration paths; all focused x64-linux binaries and quick integration</p>
+<p>  exit <code>0</code> on <code>bruce@192.168.0.102</code>.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

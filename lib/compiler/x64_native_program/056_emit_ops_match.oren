@@ -792,9 +792,7 @@ fn _x64_match_fast_get_sum_body(ctx, locals, loop, use_list_int) {
 }
 
 fn _x64_list_int_fast_sum_dot_enabled() {
-    // Disabled until the x64 LIST_INT fast-loop emitters stop using r12-r15 around safepoints.
-    // Those registers carry native allocator state across internal Oren runtime calls.
-    return false
+    return true
 }
 
 fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {

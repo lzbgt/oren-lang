@@ -3682,6 +3682,13 @@ make docs-site
   emitters are rewritten with safepoint-safe register state. Remote evidence:
   `tests/native/test_quick_integration_native.oren` built for `x64-linux` exits
   `0` on the Arch host.
+- `NATIVE-X64-LIST-INT-FAST-SAFE` is resolved. The x64 LIST_INT sum/dot fast
+  loop emitters now avoid allocator-sensitive `r12-r15` for loop-local state,
+  reload `idx` and `sum` after safepoints, and re-enable the matcher gate.
+  `OREN_TRACE_X64_LIST_FAST=1` shows `fast_list_int_get_sum_while` and
+  `fast_list_int_dot_while` selected for commuted, temp-normalized, and native
+  quick-integration paths; all focused x64-linux binaries and quick integration
+  exit `0` on `bruce@192.168.0.102`.
 
 ## Documentation Guardrail
 

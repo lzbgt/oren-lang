@@ -943,13 +943,13 @@ fn _x64_fast_list_int_get_sum_slot_for_index(ctx, locals, base, list_index) {
 }
 
 fn _x64_fast_list_int_get_sum_emit_unroll2_load(ctx, slot_buf) {
-    _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf)
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 12, 8))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 16))
-    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 12)
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 8))
+    _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 11, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 11)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 0))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 8))
     return nil
 }
 
@@ -967,7 +967,7 @@ fn _x64_fast_list_int_get_sum_emit_unroll2_loads(ctx, locals, lists, loads, list
 }
 
 fn _x64_fast_list_int_get_sum_finish_unroll2_iter(ctx, local_fixups, off_sum, off_idx, l_fast_cond) {
-    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 13)
+    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 2)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 2))
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
@@ -980,31 +980,32 @@ fn _x64_fast_list_int_get_sum_emit_unroll2(ctx, locals, labels, local_fixups, li
 
     _emit_label(ctx, labels, l_fast_single)
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
-    _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_sum)
     return true
 }
 
 fn _x64_fast_list_int_get_sum_emit_single_unique_load(ctx, slot_buf) {
-    _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf)
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 8))
-    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 12)
+    _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 11)
     return nil
 }
 
 fn _x64_fast_list_int_get_sum_emit_single_indexed_load(ctx, slot_buf) {
-    _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 10))
-    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(12, 3))
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(12, 11))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
+    _emit_mov_r64_mrbp(ctx, 8, 0 - slot_buf)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(11, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(11, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(0, 11))
     return nil
 }
 
 fn _x64_fast_list_int_get_sum_emit_single_load(ctx, slot_buf, unique_lists) {
     if unique_lists { _x64_fast_list_int_get_sum_emit_single_unique_load(ctx, slot_buf) }
     else { _x64_fast_list_int_get_sum_emit_single_indexed_load(ctx, slot_buf) }
-    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 0))
     return nil
 }
 
@@ -1022,7 +1023,7 @@ fn _x64_fast_list_int_get_sum_emit_single_loads(ctx, locals, lists, loads, list_
 }
 
 fn _x64_fast_list_int_get_sum_finish_single_iter(ctx, off_sum, off_idx) {
-    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 13)
+    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 2)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 1))
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
     return nil
@@ -1082,7 +1083,8 @@ fn _x64_fast_list_int_get_sum_emit_loop_header(ctx, prep, locals, labels, local_
     }
 
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
-    _emit_mov_r64_mrbp(ctx, 13, 0 - prep["off_sum"])
+    _emit_mov_r64_mrbp(ctx, 10, 0 - prep["off_idx"])
+    _emit_mov_r64_mrbp(ctx, 2, 0 - prep["off_sum"])
     return l_fast_single
 }
 
