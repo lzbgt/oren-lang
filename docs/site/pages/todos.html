@@ -3034,6 +3034,13 @@
 <p>  <code>_emit_intrinsic_sys_win_close_handle_windows_x64</code> exposed at ~42ms as the</p>
 <p>  next parser body.</p>
 <ul>
+<li>Windows x64 <code>sys_win_close_handle</code> lowering now separates one-argument temp</li>
+</ul>
+<p>  state setup, <code>CloseHandle</code> IAT call emission, and BOOL-to-<code>-EIO</code> result</p>
+<p>  normalization while preserving the <code>rcx</code> handle ABI contract. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at ~47.5s total / ~34.3s parse,</p>
+<p>  with <code>_x64_setup_symtab_display</code> exposed at ~107ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

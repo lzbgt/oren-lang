@@ -3954,6 +3954,14 @@ make docs-site</code></pre>
 <p>  shows <code>x64_native_program.oren</code> at about 46.9s total / 33.9s parse, with</p>
 <p>  <code>_emit_intrinsic_sys_win_close_handle_windows_x64</code> exposed at about 42ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>Windows x64 <code>sys_win_close_handle</code> lowering now separates one-argument temp</li>
+</ul>
+<p>  state setup, <code>CloseHandle</code> IAT call emission, and BOOL-to-<code>-EIO</code> result</p>
+<p>  normalization while preserving the <code>rcx</code> handle ABI contract. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 47.5s total / 34.3s</p>
+<p>  parse, with <code>_x64_setup_symtab_display</code> exposed at about 107ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

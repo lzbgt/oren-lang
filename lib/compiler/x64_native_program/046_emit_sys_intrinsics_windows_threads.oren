@@ -254,18 +254,32 @@ fn _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_win_close_handle expects 1 arg"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_close_handle does not support spread"); return nil }
 
-    // CloseHandle(handle)
+    var state = _x64_win_close_handle_state(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_emit_win_close_handle_call(ctx, state)
+    _x64_emit_win_close_handle_result(ctx)
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _x64_win_close_handle_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 1)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(tmp_h) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "handle": tmp_h}
+}
 
+fn _x64_emit_win_close_handle_call(ctx, state) {
     // Win64 ABI shadow space is provided by the function's reserved call area; do not touch RSP.
-    _intr_load_x64(ctx, 1, tmp_h) // rcx = handle
+    _intr_load_x64(ctx, 1, state["handle"]) // rcx = handle
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
+    return nil
+}
+
+fn _x64_emit_win_close_handle_result(ctx) {
     // BOOL in eax; 0 => failure => -EIO
     var labels = {}
     var fixups = []
@@ -280,7 +294,5 @@ fn _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-
-    _intr_tmp_pop(ctx, base)
     return nil
 }

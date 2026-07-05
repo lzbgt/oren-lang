@@ -3518,6 +3518,12 @@ make docs-site
   shows `x64_native_program.oren` at about 46.9s total / 33.9s parse, with
   `_emit_intrinsic_sys_win_close_handle_windows_x64` exposed at about 42ms as
   the next parser body.
+- Windows x64 `sys_win_close_handle` lowering now separates one-argument temp
+  state setup, `CloseHandle` IAT call emission, and BOOL-to-`-EIO` result
+  normalization while preserving the `rcx` handle ABI contract. The capped
+  profile now shows `x64_native_program.oren` at about 47.5s total / 34.3s
+  parse, with `_x64_setup_symtab_display` exposed at about 107ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
