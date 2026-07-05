@@ -3291,6 +3291,11 @@
 <p>  direct/link bytecode emission gates use carrier-aware byte lengths for metadata</p>
 <p>  and OBX payloads.</p>
 <ul>
+<li>OBC/OBX parsing, global-count scanning, opcode-length dispatch, and linked-code</li>
+</ul>
+<p>  patching now reuse one cached byte view per carrier, avoiding repeated u8-buffer</p>
+<p>  type, pointer, and length lookups while preserving list-compatible byte input.</p>
+<ul>
 <li>Compiler-in-AVM VirtualFS fixture snapshots now build AVMVFS01 payloads with</li>
 </ul>
 <p>  exact-size <code>u8_buf</code> writes and return matched bodies through byte-buffer slices</p>

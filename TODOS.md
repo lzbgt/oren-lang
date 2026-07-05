@@ -2406,6 +2406,9 @@ design evidence lives under `project-doc/`.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.
+- OBC/OBX parsing, global-count scanning, opcode-length dispatch, and linked-code
+  patching now reuse one cached byte view per carrier, avoiding repeated u8-buffer
+  type, pointer, and length lookups while preserving list-compatible byte input.
 - Compiler-in-AVM VirtualFS fixture snapshots now build AVMVFS01 payloads with
   exact-size `u8_buf` writes and return matched bodies through byte-buffer slices
   instead of boxed byte lists.
