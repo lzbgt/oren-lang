@@ -58,6 +58,73 @@ def verify_scene3d_obj_lowering():
             raise SystemExit(f"scene OBJ {kind} lowering did not produce OS3D01")
 
 
+def verify_scene3d_flat_xy_lowering():
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{
+            "kind": "triangles",
+            "id": 1,
+            "triangles_xy": [{"points": [[1, 0], [3, 0], [1, 2]], "z": 6}],
+            "color": "#44cc88ff",
+        }],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    triangle = b"".join(struct.pack("<iii", *v) for v in ((1, 0, 6), (3, 0, 6), (1, 2, 6)))
+    if not data.startswith(b"OS3D01\x00\x00") or struct.pack("<I", 36) not in data or triangle not in data:
+        raise SystemExit("scene triangles_xy lowering did not produce expected packed XYZ payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "quads_xy": [{"points_xy": [[2, 3], [6, 3], [6, 7], [2, 7]], "z_milli": 9}],
+        "color": "#cc8844ff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    quad_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((2, 3, 9), (6, 3, 9), (6, 7, 9), (2, 3, 9), (6, 7, 9), (2, 7, 9))
+    )
+    if struct.pack("<I", 72) not in data or quad_payload not in data:
+        raise SystemExit("scene quads_xy lowering did not produce expected two-triangle payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles_rgba",
+        "id": 1,
+        "triangles_xy_rgba": [{"points": [[0, 0], [4, 0], [0, 4]], "z": 5, "color": "#11223344"}],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<I", 40) not in data or b"\x11\x22\x33\x44" not in data:
+        raise SystemExit("scene triangles_xy_rgba lowering did not produce expected RGBA payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles_rgba",
+        "id": 1,
+        "quads_xy_rgba": [{"points": [[0, 0], [4, 0], [4, 4], [0, 4]], "color": "#44556677"}],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    if struct.pack("<I", 80) not in data or data.count(b"\x44\x55\x66\x77") < 2:
+        raise SystemExit("scene quads_xy_rgba lowering did not produce expected repeated RGBA payload")
+
+    try:
+        scene3d_module.scene3d_bin_v0(json.dumps({
+            "schema": "oren.ui.scene3d.v0",
+            "meshes": [{
+                "kind": "triangles",
+                "id": 1,
+                "triangles_xy": [{"points": [[0, 0], [1, 0]], "z": 0}],
+                "color": "#ffffffff",
+            }],
+            "models": [{"id": 2, "mesh_id": 1}],
+            "draw": [2],
+        }))
+    except SystemExit:
+        pass
+    else:
+        raise SystemExit("scene malformed triangles_xy unexpectedly lowered")
+
+
 def verify_scene3d_gltf_lowering():
     payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
@@ -716,6 +783,7 @@ def verify_scene3d_3mf_lowering():
 
 
 verify_scene3d_obj_lowering()
+verify_scene3d_flat_xy_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()

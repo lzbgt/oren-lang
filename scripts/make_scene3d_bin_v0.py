@@ -703,6 +703,82 @@ def pack_quads_xyz(quads):
     return pack_triangles_xyz(triangles)
 
 
+def flat_xy_points(item, key, count):
+    if not isinstance(item, dict):
+        raise SystemExit(f"scene {key} entries must be objects")
+    points = item.get("points", item.get("points_xy"))
+    if not isinstance(points, list) or len(points) != count:
+        raise SystemExit(f"scene {key} points must contain {count} [x,y] entries")
+    for point in points:
+        if not isinstance(point, list) or len(point) != 2:
+            raise SystemExit(f"scene {key} points must be [x,y]")
+        int(point[0])
+        int(point[1])
+    return points
+
+
+def flat_xy_z(item, key):
+    z = item.get("z", item.get("z_milli", 0))
+    try:
+        return int(z)
+    except (TypeError, ValueError):
+        raise SystemExit(f"scene {key} z must be i32")
+
+
+def flat_xy_triangle_vertices(item, key):
+    points = flat_xy_points(item, key, 3)
+    z = flat_xy_z(item, key)
+    return [[points[0][0], points[0][1], z], [points[1][0], points[1][1], z], [points[2][0], points[2][1], z]]
+
+
+def pack_triangles_xy(triangles):
+    return pack_triangles_xyz([flat_xy_triangle_vertices(tri, "triangles_xy") for tri in triangles])
+
+
+def flat_xy_quad_triangles(quad, key):
+    points = flat_xy_points(quad, key, 4)
+    z = flat_xy_z(quad, key)
+    a = [points[0][0], points[0][1], z]
+    b = [points[1][0], points[1][1], z]
+    c = [points[2][0], points[2][1], z]
+    d = [points[3][0], points[3][1], z]
+    return [[a, b, c], [a, c, d]]
+
+
+def pack_quads_xy(quads):
+    triangles = []
+    for quad in quads:
+        triangles.extend(flat_xy_quad_triangles(quad, "quads_xy"))
+    return pack_triangles_xyz(triangles)
+
+
+def pack_triangles_xy_rgba(triangles):
+    out = bytearray()
+    for tri in triangles:
+        if not isinstance(tri, dict):
+            raise SystemExit("scene triangles_xy_rgba entries must be objects")
+        color = tri.get("color")
+        if color is None:
+            raise SystemExit("scene triangles_xy_rgba entries must include color")
+        out += pack_vertices_xyz(flat_xy_triangle_vertices(tri, "triangles_xy_rgba"))
+        out += color_rgba_bytes(color)
+    return bytes(out)
+
+
+def pack_quads_xy_rgba(quads):
+    out = bytearray()
+    for quad in quads:
+        if not isinstance(quad, dict):
+            raise SystemExit("scene quads_xy_rgba entries must be objects")
+        color = quad.get("color")
+        if color is None:
+            raise SystemExit("scene quads_xy_rgba entries must include color")
+        for tri in flat_xy_quad_triangles(quad, "quads_xy_rgba"):
+            out += pack_vertices_xyz(tri)
+            out += color_rgba_bytes(color)
+    return bytes(out)
+
+
 def box_min_max(box):
     if not isinstance(box, dict):
         raise SystemExit("scene boxes_xyz entries must be objects")
@@ -1446,6 +1522,10 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_triangles_xyz(mesh["triangles_xyz"])
             elif mesh.get("quads_xyz") is not None:
                 payload = pack_quads_xyz(mesh["quads_xyz"])
+            elif mesh.get("triangles_xy") is not None:
+                payload = pack_triangles_xy(mesh["triangles_xy"])
+            elif mesh.get("quads_xy") is not None:
+                payload = pack_quads_xy(mesh["quads_xy"])
             elif mesh.get("boxes_xyz") is not None:
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
             elif mesh.get("prisms_xy") is not None:
@@ -1475,6 +1555,10 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_ply_triangles_rgba(mesh, base_dir)
             elif mesh.get("triangles_xyz_rgba") is not None:
                 payload = pack_triangles_xyz_rgba(mesh["triangles_xyz_rgba"])
+            elif mesh.get("triangles_xy_rgba") is not None:
+                payload = pack_triangles_xy_rgba(mesh["triangles_xy_rgba"])
+            elif mesh.get("quads_xy_rgba") is not None:
+                payload = pack_quads_xy_rgba(mesh["quads_xy_rgba"])
             else:
                 payload = bytes(mesh["triangles"])
             indices = b""
