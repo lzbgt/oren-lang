@@ -1536,7 +1536,7 @@ This file is the concise task view. Detailed implementation status lives in
      Oren source in-browser with syntax highlighting and an AST outline.
 	     Scene3D package assets now include compact `boxes_xyz` cuboid authoring,
 	     `prisms_xy` extruded polygon authoring, bounded `heightfields_xy` terrain grids,
-		     bounded `surfaces_xyz` arbitrary surface grids, flat `triangles_xy`/`quads_xy`, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
+		     bounded `surfaces_xyz` arbitrary surface grids, flat `triangles_xy`/`quads_xy`, flat per-triangle-color `triangles_xy_rgba`/`quads_xy_rgba`, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
 		     regular `regular_polygons_xy`, `stars_xy`, circular `discs_xy`/`rings_xy`,
 	     elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, sampled `beziers_xy`, partial `sectors_xy`/`arc_bands_xy`, sloped `ramps_xy`, solid `solid_ramps_xy`, post `posts_xy`, curb `curbs_xy`, multi-rail fence `fences_xy`, stepped `stairs_xy`, gable `gable_roofs_xy`, polygon-footprint `pyramids_xy`, vertical `walls_xy`, closed `rooms_xy`, and
 	     glTF 2.0 JSON and GLB source lowering with URI/BIN buffers, sparse accessors, static `POSITION` and `COLOR_0` morph target weights, baked skinning through `JOINTS_n`/`WEIGHTS_n` and inverse bind matrices, sampled `gltf_animation` / `gltf_sample_time_milli` node translation/rotation/scale/morph-weight animations, material colors multiplied by `COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix hierarchy selection,

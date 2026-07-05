@@ -473,6 +473,32 @@ fn _transform_packed_triangles_xyz(tris, m, ctx) {
     return tris
 }
 
+fn _transform_packed_triangles_rgba_xyz(tris, m, ctx) {
+    if _has_mesh_transform(m) == false { return tris }
+    var xf = _mesh_transform(m, ctx)
+    if oren_is_err(xf) { return xf }
+    if xf[0] == 1000 && xf[1] == 1000 && xf[2] == 1000 && xf[3] == false &&
+       xf[14] == 0 && xf[15] == 0 && xf[16] == 0 { return tris }
+    var n = bytes.len(tris)
+    if oren_is_err(n) { return oren_err(4, ctx + ": expected rgba triangle bytes") }
+    if n % 40 != 0 { return oren_err(4, ctx + ": rgba triangle byte length must be multiple of 40") }
+    var tri = 0
+    while tri < n {
+        var j = 0
+        while j < 36 {
+            var off = tri + j
+            var x = _load_i32_le(tris, off + 0)
+            var y = _load_i32_le(tris, off + 4)
+            var z = _load_i32_le(tris, off + 8)
+            var rc = _store_transformed_xyz_values(tris, off, x, y, z, xf, ctx)
+            if oren_is_err(rc) { return rc }
+            j = j + 12
+        }
+        tri = tri + 40
+    }
+    return tris
+}
+
 fn _pack_triangles_xyz(triangles, xf, ctx) {
     if triangles == nil { return oren_err(4, ctx + ": missing triangles_xyz") }
     var nt = oren_list_len(triangles)
@@ -874,6 +900,7 @@ fn _asset_mesh(m) {
     }
     if kind == "triangles_rgba" {
         var tris_rgba = nil
+        var transform_rgba_generated = false
         if m["triangles_xyz_rgba"] != nil {
             var rxf = _mesh_transform(m, "ui.scene3d mesh")
             if oren_is_err(rxf) { return rxf }
@@ -882,10 +909,20 @@ fn _asset_mesh(m) {
                 rxf,
                 "ui.scene3d mesh.triangles_xyz_rgba"
             )
+        } else if m["triangles_xy_rgba"] != nil {
+            tris_rgba = shape_flats.pack_triangles_xy_rgba(m["triangles_xy_rgba"], "ui.scene3d mesh.triangles_xy_rgba")
+            transform_rgba_generated = true
+        } else if m["quads_xy_rgba"] != nil {
+            tris_rgba = shape_flats.pack_quads_xy_rgba(m["quads_xy_rgba"], "ui.scene3d mesh.quads_xy_rgba")
+            transform_rgba_generated = true
         } else {
             tris_rgba = _pack_bytes(m["triangles"], "ui.scene3d mesh.triangles_rgba")
         }
         if oren_is_err(tris_rgba) { return tris_rgba }
+        if transform_rgba_generated {
+            tris_rgba = _transform_packed_triangles_rgba_xyz(tris_rgba, m, "ui.scene3d mesh")
+            if oren_is_err(tris_rgba) { return tris_rgba }
+        }
         return mesh_rgba(id, tris_rgba)
     }
     if kind == "indexed" {

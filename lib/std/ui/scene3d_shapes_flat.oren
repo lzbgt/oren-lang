@@ -7,6 +7,7 @@
 import ints "std:ints"
 import math "std:math"
 import raw "std:buffer/raw"
+import ui_color "std:ui/color"
 
 fn _is_int(v) {
     if v == nil { return false }
@@ -93,6 +94,16 @@ fn _store_triangle(out, off, ax, ay, az, bx, by, bz, cx, cy, cz, ctx) {
     return _store_xyz_values(out, off + 24, cx, cy, cz, ctx + ".c")
 }
 
+fn _store_rgba(out, off, color, ctx) {
+    var c = ui_color.parse_hex(color)
+    if oren_is_err(c) { return oren_err(4, ctx + ": invalid color") }
+    raw._store_u8_buf_unchecked_direct(out, off + 0, c["r"])
+    raw._store_u8_buf_unchecked_direct(out, off + 1, c["g"])
+    raw._store_u8_buf_unchecked_direct(out, off + 2, c["b"])
+    raw._store_u8_buf_unchecked_direct(out, off + 3, c["a"])
+    return 0
+}
+
 fn _xy_pair(v, label, ctx) {
     if v == nil || oren_list_len(v) != 2 { return oren_err(4, ctx + ": " + label + " must be [x,y]") }
     if _is_int(v[0]) == false || _is_int(v[1]) == false {
@@ -171,6 +182,31 @@ fn pack_triangles_xy(triangles, ctx) {
     return out
 }
 
+fn pack_triangles_xy_rgba(triangles, ctx) {
+    var tri_count = _triangles_xy_triangle_count(triangles, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 40)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < tri_count {
+        var tri = triangles[i]
+        var color = tri["color"]
+        if color == nil { return oren_err(4, ctx + ": triangle color is required") }
+        var points = _triangle_xy_points(tri, ctx)
+        var z = _triangle_xy_z(tri, ctx)
+        var a = points[0]
+        var b = points[1]
+        var c = points[2]
+        var off = i * 40
+        var rc = _store_triangle(out, off, a[0], a[1], z, b[0], b[1], z, c[0], c[1], z, ctx + ".triangle")
+        if oren_is_err(rc) { return rc }
+        rc = _store_rgba(out, off + 36, color, ctx + ".color")
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
+}
+
 fn _quad_xy_points(quad, ctx) {
     var points = quad["points"]
     if points == nil { points = quad["points_xy"] }
@@ -235,6 +271,41 @@ fn pack_quads_xy(quads, ctx) {
         rc = _store_triangle(out, off, a[0], a[1], z, c[0], c[1], z, d[0], d[1], z, ctx + ".quad1")
         if oren_is_err(rc) { return rc }
         off = off + 36
+        i = i + 1
+    }
+    return out
+}
+
+fn pack_quads_xy_rgba(quads, ctx) {
+    var tri_count = _quads_xy_triangle_count(quads, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 40)
+    if oren_is_err(out) { return out }
+    var ti = 0
+    var i = 0
+    var nq = oren_list_len(quads)
+    while i < nq {
+        var quad = quads[i]
+        var color = quad["color"]
+        if color == nil { return oren_err(4, ctx + ": quad color is required") }
+        var points = _quad_xy_points(quad, ctx)
+        var z = _quad_xy_z(quad, ctx)
+        var a = points[0]
+        var b = points[1]
+        var c = points[2]
+        var d = points[3]
+        var off = ti * 40
+        var rc = _store_triangle(out, off, a[0], a[1], z, b[0], b[1], z, c[0], c[1], z, ctx + ".quad0")
+        if oren_is_err(rc) { return rc }
+        rc = _store_rgba(out, off + 36, color, ctx + ".color0")
+        if oren_is_err(rc) { return rc }
+        ti = ti + 1
+        off = ti * 40
+        rc = _store_triangle(out, off, a[0], a[1], z, c[0], c[1], z, d[0], d[1], z, ctx + ".quad1")
+        if oren_is_err(rc) { return rc }
+        rc = _store_rgba(out, off + 36, color, ctx + ".color1")
+        if oren_is_err(rc) { return rc }
+        ti = ti + 1
         i = i + 1
     }
     return out

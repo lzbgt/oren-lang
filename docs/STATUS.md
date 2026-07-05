@@ -2239,7 +2239,7 @@ Facts from the 2026-05-28 implementation pass:
   `rotation_xyz_milli_deg` Euler rotation and `rotation_z_milli_deg`
   shorthand, and `translation_xyz`, compact `boxes_xyz` cuboid primitives,
   `prisms_xy` extruded polygon solids, bounded `heightfields_xy` terrain grids,
-	  bounded `surfaces_xyz` arbitrary surface grids, flat `triangles_xy`/`quads_xy`, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
+	  bounded `surfaces_xyz` arbitrary surface grids, flat `triangles_xy`/`quads_xy`, flat per-triangle-color `triangles_xy_rgba`/`quads_xy_rgba`, rectangular `planes_xy`, filled `rounded_rects_xy`, flat `polygons_xy`,
 	  regular `regular_polygons_xy`, `stars_xy`, circular `discs_xy`/`rings_xy`,
 	  elliptical `ellipses_xy`/`ellipse_rings_xy`, thick `segments_xy`/`paths_xy`, sampled `beziers_xy`, partial `sectors_xy`/`arc_bands_xy`, sloped `ramps_xy`, solid `solid_ramps_xy`, post `posts_xy`, curb `curbs_xy`, multi-rail fence `fences_xy`, stepped `stairs_xy`, gable `gable_roofs_xy`, polygon-footprint `pyramids_xy`, vertical `walls_xy`, closed `rooms_xy`, bounded `cylinders_z`,
   `cones_z`, `spheres_xyz`, `ellipsoids_xyz`, `toruses_xyz`, and `capsules_z` primitives, and per-triangle

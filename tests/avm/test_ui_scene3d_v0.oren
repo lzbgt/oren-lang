@@ -1503,6 +1503,63 @@ fn main() {
     assert_eq(oren_bytes_get_u8(from_rotated_rgba_coords[0]["triangles"], 8), 3)
     assert_eq(oren_bytes_get_u8(from_rotated_rgba_coords[0]["triangles"], 36), 17)
 
+    var from_triangles_xy_rgba = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles_rgba",
+                "id": 348,
+                "triangles_xy_rgba": [
+                    {"points": [[0, 0], [2, 0], [0, 2]], "z": 1, "color": "#112233ff"}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]}
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 348}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_triangles_xy_rgba) == false)
+    assert_eq(from_triangles_xy_rgba[0]["op"], "mesh3d_rgba")
+    assert_eq(bytes.len(from_triangles_xy_rgba[0]["triangles"]), 40)
+    assert_eq(_i32_at(from_triangles_xy_rgba[0]["triangles"], 0), 1)
+    assert_eq(_i32_at(from_triangles_xy_rgba[0]["triangles"], 4), 0)
+    assert_eq(_i32_at(from_triangles_xy_rgba[0]["triangles"], 8), 6)
+    assert_eq(oren_bytes_get_u8(from_triangles_xy_rgba[0]["triangles"], 36), 17)
+    assert_true(ui_cmds.validate(from_triangles_xy_rgba, 4, 4, {"strict_bounds": true}) == 0)
+    var triangles_xy_rgba_buf = ui_raster.rasterize(from_triangles_xy_rgba, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(triangles_xy_rgba_buf) == false)
+    assert_eq(_px(triangles_xy_rgba_buf, 4, 2, 1, 0), 17)
+    assert_eq(_px(triangles_xy_rgba_buf, 4, 2, 1, 1), 34)
+    assert_eq(_px(triangles_xy_rgba_buf, 4, 2, 1, 2), 51)
+
+    var from_quads_xy_rgba = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles_rgba",
+                "id": 349,
+                "quads_xy_rgba": [
+                    {"points_xy": [[0, 0], [2, 0], [2, 2], [0, 2]], "z_milli": 1, "color": "#445566ff"}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]}
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 349}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_quads_xy_rgba) == false)
+    assert_eq(from_quads_xy_rgba[0]["op"], "mesh3d_rgba")
+    assert_eq(bytes.len(from_quads_xy_rgba[0]["triangles"]), 80)
+    assert_eq(_i32_at(from_quads_xy_rgba[0]["triangles"], 0), 1)
+    assert_eq(_i32_at(from_quads_xy_rgba[0]["triangles"], 4), 0)
+    assert_eq(_i32_at(from_quads_xy_rgba[0]["triangles"], 8), 6)
+    assert_eq(oren_bytes_get_u8(from_quads_xy_rgba[0]["triangles"], 36), 68)
+    assert_eq(oren_bytes_get_u8(from_quads_xy_rgba[0]["triangles"], 76), 68)
+    assert_true(ui_cmds.validate(from_quads_xy_rgba, 4, 4, {"strict_bounds": true}) == 0)
+    var quads_xy_rgba_buf = ui_raster.rasterize(from_quads_xy_rgba, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(quads_xy_rgba_buf) == false)
+    assert_eq(_px(quads_xy_rgba_buf, 4, 2, 1, 0), 68)
+    assert_eq(_px(quads_xy_rgba_buf, 4, 2, 1, 1), 85)
+    assert_eq(_px(quads_xy_rgba_buf, 4, 2, 1, 2), 102)
+
     var from_anim = scene3d.commands_from_asset_at({
         "meshes": [
             {
@@ -1698,6 +1755,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instance_groups\":[{\"transform\":{\"scale_milli\":0},\"instances\":[]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instance_groups\":[{\"transform\":{\"position_xyz\":[0,0,0]}}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles_rgba\",\"id\":1,\"triangles_xyz_rgba\":[{\"vertices\":[[0,0,0],[1,0,0],[0,1,0]],\"color\":\"nope\"}]}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles_rgba\",\"id\":1,\"triangles_xy_rgba\":[{\"points\":[[0,0],[1,0],[0,1]],\"color\":\"nope\"}]}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles_rgba\",\"id\":1,\"quads_xy_rgba\":[{\"points\":[[0,0],[1,0],[1,1]],\"color\":\"#ffffffff\"}]}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json_at("{\"schema\":\"oren.ui.scene3d.v0\",\"animations\":[{\"target\":\"missing\",\"keyframes\":[{\"time_milli\":0,\"position_xyz\":[0,0,0]}]}]}", 0)) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"materials\":[{\"id\":1,\"base_color\":\"#ffffff\",\"opacity_milli\":1200}]}")) == true)
     assert_true(oren_is_err(scene3d.commands(nil)) == true)
