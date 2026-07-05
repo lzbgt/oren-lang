@@ -1500,12 +1500,13 @@
 <p>     WebSocket header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
 <p>     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy</p>
 <p>     through <code>oren_memcpy</code> after validation;</p>
-<p>     Base64/Base64URL</p>
-<p>     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
-<p>     directly from u8 command buffers, OGE0 event headers and little-endian</p>
-<p>     payload fields read from cached u8-buffer pointers, PPM header/body output,</p>
-<p>     Scene3D binary package magic checks, and PPM/software-raster RGBA sampling</p>
-<p>     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
+<p>	     Base64/Base64URL</p>
+<p>	     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
+<p>	     directly from u8 command buffers, OGE0 event headers and little-endian</p>
+<p>	     payload fields read from cached u8-buffer pointers, UI command validation</p>
+<p>	     reads geometry/text-position/image-rect payload fields from cached u8-buffer</p>
+<p>	     pointers, PPM header/body output, Scene3D binary package magic checks, and PPM/software-raster RGBA sampling</p>
+<p>	     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
 <p>     through syscalls without a transient byte list, and SHA-1/SHA-256 string</p>

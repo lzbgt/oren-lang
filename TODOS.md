@@ -2388,6 +2388,9 @@ design evidence lives under `project-doc/`.
 - `std:cbor` byte-string encoding plus recursive and sequence decoding now cache
   u8 carrier pointers once per operation while retaining list-compatible byte
   input fallback.
+- `std:ui/commands` validation now caches u8 payload pointers for geometry,
+  indexed-mesh, text-position, and image-rect byte fields while retaining
+  list-compatible byte input fallback.
 - `std:ui/raster` now caches u8 pointers for image RGBA and mesh RGBA byte
   reads, with explicit image-data length guards before pointer-backed sampling.
 - `std:ui/scene3d` binary `.os3d` package magic checks now read u8-buffer

@@ -2349,13 +2349,14 @@ Facts from the 2026-05-28 implementation pass:
   and native WebSocket header slices plus unmasked frame payloads copy with
   `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
-  Base64/Base64URL encode reads `u8_buf` inputs directly after one length
-  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
-  directly from u8 command buffers, OGE0 event headers and little-endian
-  payload fields read from cached u8-buffer pointers, PPM header/body output,
-  Scene3D binary package magic checks, PPM RGBA input reads, software raster
-  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw
-  exact-size buffer stores or direct u8-buffer access, and
+	  Base64/Base64URL encode reads `u8_buf` inputs directly after one length
+	  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
+	  directly from u8 command buffers, OGE0 event headers and little-endian
+	  payload fields read from cached u8-buffer pointers, UI command validation
+	  reads geometry/text-position/image-rect payload fields from cached u8-buffer
+	  pointers, PPM header/body output, Scene3D binary package magic checks, PPM RGBA input reads, software raster
+	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw
+	  exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and
   read u8-buffer digest inputs directly during virtual padding expansion, SHA hex helpers and

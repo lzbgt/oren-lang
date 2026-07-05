@@ -3259,6 +3259,11 @@
 <p>  u8 carrier pointers once per operation while retaining list-compatible byte</p>
 <p>  input fallback.</p>
 <ul>
+<li><code>std:ui/commands</code> validation now caches u8 payload pointers for geometry,</li>
+</ul>
+<p>  indexed-mesh, text-position, and image-rect byte fields while retaining</p>
+<p>  list-compatible byte input fallback.</p>
+<ul>
 <li><code>std:ui/raster</code> now caches u8 pointers for image RGBA and mesh RGBA byte</li>
 </ul>
 <p>  reads, with explicit image-data length guards before pointer-backed sampling.</p>

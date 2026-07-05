@@ -1430,12 +1430,13 @@ This file is the concise task view. Detailed implementation status lives in
      WebSocket header slices plus unmasked frame payloads copy with `oren_memcpy`;
      DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy
      through `oren_memcpy` after validation;
-     Base64/Base64URL
-     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
-     directly from u8 command buffers, OGE0 event headers and little-endian
-     payload fields read from cached u8-buffer pointers, PPM header/body output,
-     Scene3D binary package magic checks, and PPM/software-raster RGBA sampling
-     plus clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
+	     Base64/Base64URL
+	     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
+	     directly from u8 command buffers, OGE0 event headers and little-endian
+	     payload fields read from cached u8-buffer pointers, UI command validation
+	     reads geometry/text-position/image-rect payload fields from cached u8-buffer
+	     pointers, PPM header/body output, Scene3D binary package magic checks, and PPM/software-raster RGBA sampling
+	     plus clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
      caches typed response body bytes for `.bytes()` on content-length and
      chunked responses. Native `oren_write_file` writes strings directly
      through syscalls without a transient byte list, and SHA-1/SHA-256 string
