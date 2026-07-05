@@ -464,28 +464,43 @@ fn _x64_prepare_lambda_literal_env_slot(ctx, locals) {
     return {"base": base, "slot_env": slot_env, "tmp_env": tmp_env}
 }
 
-fn _x64_emit_lambda_literal_env(ctx, locals, caps, env_state) {
-    var base = env_state["base"]
-    var slot_env = env_state["slot_env"]
-    var tmp_env = env_state["tmp_env"]
-    if oren_list_len(caps) == 0 {
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-        bytes_extend(ctx["code"], core.insn_cdqe())
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-    } else {
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-        var env_tmp = {"type": "IntrTmp", "idx": slot_env}
-        var i = 0
-        while i < oren_list_len(caps) {
-            var cname = caps[i]
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [env_tmp, {"type": "Identifier", "value": cname}]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-            i = iadd(i, 1)
-        }
+fn _x64_emit_empty_lambda_literal_env(ctx, tmp_env) {
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
+    return true
+}
+
+fn _x64_emit_lambda_literal_env_list(ctx, locals, env_state) {
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, env_state["base"]); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - env_state["tmp_env"], 0)
+    return {"type": "IntrTmp", "idx": env_state["slot_env"]}
+}
+
+fn _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, cname, base) {
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [env_tmp, {"type": "Identifier", "value": cname}]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return true
+}
+
+fn _x64_emit_lambda_literal_env_captures(ctx, locals, caps, env_state) {
+    var env_tmp = _x64_emit_lambda_literal_env_list(ctx, locals, env_state)
+    if env_tmp == nil { return nil }
+    var i = 0
+    while i < oren_list_len(caps) {
+        if _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, caps[i], env_state["base"]) != true { return nil }
+        i = iadd(i, 1)
     }
     return true
+}
+
+fn _x64_emit_lambda_literal_env(ctx, locals, caps, env_state) {
+    var tmp_env = env_state["tmp_env"]
+    if oren_list_len(caps) == 0 {
+        return _x64_emit_empty_lambda_literal_env(ctx, tmp_env)
+    }
+    return _x64_emit_lambda_literal_env_captures(ctx, locals, caps, env_state)
 }
 
 fn _x64_emit_lambda_literal_func_obj(ctx, lname, env_state) {

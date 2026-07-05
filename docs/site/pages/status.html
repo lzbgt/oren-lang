@@ -4128,6 +4128,14 @@ make docs-site</code></pre>
 <p>  collection, slow-op timing, and compact loop emission. The capped profile now</p>
 <p>  shows <code>x64_native_program.oren</code> at about 48.0s total / 34.7s parse, with</p>
 <p>  <code>_x64_emit_lambda_literal_env</code> exposed at about 40ms as the next parser body.</p>
+<ul>
+<li>X64 lambda literal environment emission now separates empty-env storage,</li>
+</ul>
+<p>  runtime list allocation, per-capture push lowering, and capture-loop routing</p>
+<p>  while preserving temp cleanup on allocation/push errors. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 47.8s total / 34.4s parse, with</p>
+<p>  <code>_emit_eval_ptr_load_intrinsic_x64</code> exposed at about 40ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
