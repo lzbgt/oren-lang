@@ -4050,6 +4050,14 @@ make docs-site</code></pre>
 <p>  The capped profile now shows <code>x64_native_program.oren</code> at about 47.7s total /</p>
 <p>  34.5s parse, with <code>_x64_emit_sys_read_windows_readfile</code> exposed at about 40ms</p>
 <p>  as the next parser body.</p>
+<ul>
+<li>Windows x64 <code>ReadFile</code>/<code>WriteFile</code> byte-count emission now shares buffer</li>
+</ul>
+<p>  argument materialization, IAT call routing, byte-count loadback, and <code>-EIO</code></p>
+<p>  normalization helpers while preserving the read/write handle paths. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.7s total /</p>
+<p>  34.5s parse, with <code>_x64_emit_resolve_loc_table_setup</code> exposed at about 41ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

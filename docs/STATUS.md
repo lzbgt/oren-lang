@@ -3590,6 +3590,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 47.7s total /
   34.5s parse, with `_x64_emit_sys_read_windows_readfile` exposed at about 40ms
   as the next parser body.
+- Windows x64 `ReadFile`/`WriteFile` byte-count emission now shares buffer
+  argument materialization, IAT call routing, byte-count loadback, and `-EIO`
+  normalization helpers while preserving the read/write handle paths. The
+  capped profile now shows `x64_native_program.oren` at about 47.7s total /
+  34.5s parse, with `_x64_emit_resolve_loc_table_setup` exposed at about 41ms
+  as the next parser body.
 
 ## Documentation Guardrail
 

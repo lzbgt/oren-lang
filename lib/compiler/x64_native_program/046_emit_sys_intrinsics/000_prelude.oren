@@ -220,30 +220,24 @@ fn _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_h
     return nil
 }
 
-fn _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done) {
-    // rdx = ptr
-    _intr_load_x64(ctx, 2, tmp_ptr)
-    // r8 = len (low 32 used)
-    _intr_load_x64(ctx, 8, tmp_len)
+fn _x64_emit_windows_file_io_buffer_args(ctx, tmp_ptr, tmp_len) {
+    _intr_load_x64(ctx, 2, tmp_ptr) // rdx = ptr
+    _intr_load_x64(ctx, 8, tmp_len) // r8 = len (low 32 used by WinAPI)
 
-    // lpOverlapped (arg5) = NULL at [rsp+0x20]; bytesRead at [rsp+0x28]
+    // lpOverlapped (arg5) = NULL at [rsp+0x20]; byte-count storage at [rsp+0x28].
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
-    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40)) // r9 = &read
+    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40)) // r9 = &byte_count
+    return nil
+}
 
-    var mov_iat1 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_ReadFile")
-    bytes_extend(ctx["code"], core.insn_call_rax())
-
-    // if eax == 0 => failure => return -EIO (rolling)
+fn _x64_emit_windows_file_io_result(ctx, labels, local_fixups, fail_label_name, l_done) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    var l_fail = _new_label(ctx, "sys_read_fail")
+    var l_fail = _new_label(ctx, fail_label_name)
     _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
-    // rax = *(u64*)(&read)
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(10, 40))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
@@ -254,6 +248,13 @@ fn _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_l
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
+
+fn _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done) {
+    _x64_emit_windows_file_io_buffer_args(ctx, tmp_ptr, tmp_len)
+    _emit_call_iat_x64(ctx, "IAT_ReadFile")
+    _x64_emit_windows_file_io_result(ctx, labels, local_fixups, "sys_read_fail", l_done)
     return nil
 }
 
@@ -423,34 +424,9 @@ fn _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_
 }
 
 fn _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done) {
-    _intr_load_x64(ctx, 2, tmp_ptr) // rdx = ptr
-    _intr_load_x64(ctx, 8, tmp_len) // r8  = len (low 32 used by WinAPI)
-
-    // lpOverlapped (arg5) = NULL at [rsp+0x20]; bytesWritten storage at [rsp+0x28].
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
-    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
-    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40)) // r9 = &written
-
-    var mov_iat2 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-    _x64_add_rip_data32_fixup(ctx, mov_iat2 + 3, "IAT_WriteFile")
-    bytes_extend(ctx["code"], core.insn_call_rax())
-
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    var l_fail = _new_label(ctx, "sys_write_fail")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
-
-    bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(10, 40))
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_fail)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291)) // -5 (EIO)
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _x64_emit_windows_file_io_buffer_args(ctx, tmp_ptr, tmp_len)
+    _emit_call_iat_x64(ctx, "IAT_WriteFile")
+    _x64_emit_windows_file_io_result(ctx, labels, local_fixups, "sys_write_fail", l_done)
     return nil
 }
 
