@@ -333,43 +333,70 @@ fn _x64_native_block_weighted_gas_amount(ops, start) {
 }
 
 fn _emit_while_op_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
-    var fast_lcg = _x64_match_fast_lcg_sum_while(ctx, op, locals)
-    if fast_lcg != nil {
-        _emit_fast_lcg_sum_while_x64(ctx, op, fast_lcg, locals, labels, local_fixups, epilogue_label, platform)
-        return nil
-    }
-    var fast_info = _x64_match_fast_list_int_push_while(ctx, op, locals)
-    if fast_info != nil {
-        _emit_fast_list_int_push_while_x64(ctx, op, fast_info, locals, labels, local_fixups, epilogue_label, platform)
-        return nil
-    }
-    var fast_box_push = _x64_match_fast_list_push_while(ctx, op, locals)
-    if fast_box_push != nil {
-        _emit_fast_list_push_while_x64(ctx, op, fast_box_push, locals, labels, local_fixups, epilogue_label, platform)
-        return nil
-    }
-    var fast_dot = _x64_match_fast_list_int_dot_while(ctx, op, locals)
-    if fast_dot != nil {
-        _emit_fast_list_int_dot_while_x64(ctx, op, fast_dot, locals, labels, local_fixups, epilogue_label, platform)
-        return nil
-    }
-    var fast_box_dot = _x64_match_fast_list_dot_while(ctx, op, locals)
-    if fast_box_dot != nil {
-        _emit_fast_list_dot_while_x64(ctx, op, fast_box_dot, locals, labels, local_fixups, epilogue_label, platform)
-        return nil
-    }
-    var fast_get = _x64_match_fast_list_int_get_sum_while(ctx, op, locals)
-    if fast_get != nil {
-        _emit_fast_list_int_get_sum_while_x64(ctx, op, fast_get, locals, labels, local_fixups, epilogue_label, platform)
-        return nil
-    }
-    var fast_box_get = _x64_match_fast_list_get_sum_while(ctx, op, locals)
-    if fast_box_get != nil {
-        _emit_fast_list_get_sum_while_x64(ctx, op, fast_box_get, locals, labels, local_fixups, epilogue_label, platform)
+    if _x64_emit_while_fast_path(ctx, op, locals, labels, local_fixups, epilogue_label, platform) == true {
         return nil
     }
     _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     return nil
+}
+
+fn _x64_emit_while_fast_path(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    if _x64_emit_while_fast_lcg(ctx, op, locals, labels, local_fixups, epilogue_label, platform) == true { return true }
+    if _x64_emit_while_fast_push(ctx, op, locals, labels, local_fixups, epilogue_label, platform) == true { return true }
+    if _x64_emit_while_fast_dot(ctx, op, locals, labels, local_fixups, epilogue_label, platform) == true { return true }
+    if _x64_emit_while_fast_get(ctx, op, locals, labels, local_fixups, epilogue_label, platform) == true { return true }
+    return false
+}
+
+fn _x64_emit_while_fast_lcg(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    var fast_lcg = _x64_match_fast_lcg_sum_while(ctx, op, locals)
+    if fast_lcg != nil {
+        _emit_fast_lcg_sum_while_x64(ctx, op, fast_lcg, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    return false
+}
+
+fn _x64_emit_while_fast_push(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    var fast_info = _x64_match_fast_list_int_push_while(ctx, op, locals)
+    if fast_info != nil {
+        _emit_fast_list_int_push_while_x64(ctx, op, fast_info, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    var fast_box_push = _x64_match_fast_list_push_while(ctx, op, locals)
+    if fast_box_push != nil {
+        _emit_fast_list_push_while_x64(ctx, op, fast_box_push, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    return false
+}
+
+fn _x64_emit_while_fast_dot(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    var fast_dot = _x64_match_fast_list_int_dot_while(ctx, op, locals)
+    if fast_dot != nil {
+        _emit_fast_list_int_dot_while_x64(ctx, op, fast_dot, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    var fast_box_dot = _x64_match_fast_list_dot_while(ctx, op, locals)
+    if fast_box_dot != nil {
+        _emit_fast_list_dot_while_x64(ctx, op, fast_box_dot, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    return false
+}
+
+fn _x64_emit_while_fast_get(ctx, op, locals, labels, local_fixups, epilogue_label, platform) {
+    var fast_get = _x64_match_fast_list_int_get_sum_while(ctx, op, locals)
+    if fast_get != nil {
+        _emit_fast_list_int_get_sum_while_x64(ctx, op, fast_get, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    var fast_box_get = _x64_match_fast_list_get_sum_while(ctx, op, locals)
+    if fast_box_get != nil {
+        _emit_fast_list_get_sum_while_x64(ctx, op, fast_box_get, locals, labels, local_fixups, epilogue_label, platform)
+        return true
+    }
+    return false
 }
 
 fn _x64_for_labels(ctx) {

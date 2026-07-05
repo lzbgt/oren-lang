@@ -3506,6 +3506,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 47.8s total / 34.6s
   parse, with `_emit_while_op_x64` exposed at about 43ms as the next parser
   body.
+- X64 `while` op emission now routes fast LCG, push, dot, and get specializations
+  through focused handled/unhandled helpers before the generic fallback while
+  preserving matcher priority. The capped profile now shows
+  `x64_native_program.oren` at about 46.8s total / 33.8s parse, with
+  `_x64_match_fast_list_int_get_sum_body` exposed at about 43ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
