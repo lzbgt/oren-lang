@@ -3601,6 +3601,12 @@ make docs-site
   while keeping `sym_*` and `loc_*` label prefixes intact. The capped profile
   now shows `x64_native_program.oren` at about 49.9s total / 36.3s parse, with
   `_x64_string_batch_append_data` exposed at about 44ms as the next parser body.
+- X64 top-level string-batch data append now separates data-state setup,
+  per-item progress/timing/list recording, and final result packing while
+  preserving item trace order and cstr0 list updates. The capped profile now
+  shows `x64_native_program.oren` at about 47.1s total / 33.7s parse, with
+  `_emit_intrinsic_sys_linux_dup_x64` exposed at about 40ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

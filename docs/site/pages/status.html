@@ -4065,6 +4065,14 @@ make docs-site</code></pre>
 <p>  while keeping <code>sym_*</code> and <code>loc_*</code> label prefixes intact. The capped profile</p>
 <p>  now shows <code>x64_native_program.oren</code> at about 49.9s total / 36.3s parse, with</p>
 <p>  <code>_x64_string_batch_append_data</code> exposed at about 44ms as the next parser body.</p>
+<ul>
+<li>X64 top-level string-batch data append now separates data-state setup,</li>
+</ul>
+<p>  per-item progress/timing/list recording, and final result packing while</p>
+<p>  preserving item trace order and cstr0 list updates. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 47.1s total / 33.7s parse, with</p>
+<p>  <code>_emit_intrinsic_sys_linux_dup_x64</code> exposed at about 40ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

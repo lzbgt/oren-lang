@@ -674,35 +674,53 @@ fn _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j
     return {"slot": goff_b, "cstr": cstr_off_b}
 }
 
-fn _x64_string_batch_append_data(ctx, trace, batch_items, batch_n, j, op_start_ns, op_slow_ms) {
+fn _x64_string_batch_data_state(ctx) {
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+    return {
+        "data_buf": ctx["data"],
+        "cstr0_list": ctx["cstr0_list"],
+        "slot_offs": [],
+        "cstr_offs": []
+    }
+}
+
+fn _x64_string_batch_append_data_item(ctx, trace, batch_item, batch_i, batch_n, j, op_start_ns, batch_data_ms, batch_code_ms, state, trace_op_slow) {
+    _x64_string_batch_trace_progress(trace, batch_i, batch_n, j, op_start_ns, batch_data_ms, batch_code_ms)
+    var batch_step_ns = 0
+    if trace_op_slow == true { batch_step_ns = oren_time_now_ns() }
+
+    var item_info = _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j, state["data_buf"])
+    if item_info == nil { return -1 }
+    oren_list_push(state["cstr0_list"], item_info["cstr"])
+    if trace_op_slow == true { batch_data_ms = batch_data_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return -1 }
+
+    oren_list_push(state["slot_offs"], item_info["slot"])
+    oren_list_push(state["cstr_offs"], item_info["cstr"])
+    return batch_data_ms
+}
+
+fn _x64_string_batch_append_data_result(state, batch_data_ms) {
+    return {
+        "slot_offs": state["slot_offs"],
+        "cstr_offs": state["cstr_offs"],
+        "data_ms": batch_data_ms
+    }
+}
+
+fn _x64_string_batch_append_data(ctx, trace, batch_items, batch_n, j, op_start_ns, op_slow_ms) {
+    var state = _x64_string_batch_data_state(ctx)
     var trace_op_slow = trace["trace_op_slow"]
-    var batch_data_buf = ctx["data"]
-    var batch_cstr0_list = ctx["cstr0_list"]
-    var batch_slot_offs = []
-    var batch_cstr_offs = []
     var batch_data_ms = 0
     var batch_code_ms = 0
     var batch_i = 0
     for batch_item in batch_items {
-        _x64_string_batch_trace_progress(trace, batch_i, batch_n, j, op_start_ns, batch_data_ms, batch_code_ms)
-        var batch_step_ns = 0
-        if trace_op_slow == true { batch_step_ns = oren_time_now_ns() }
-        var item_info = _x64_string_batch_append_one_data(ctx, trace, batch_item, batch_i, batch_n, j, batch_data_buf)
-        if item_info == nil { return nil }
-        oren_list_push(batch_cstr0_list, item_info["cstr"])
-        if trace_op_slow == true { batch_data_ms = batch_data_ms + ((oren_time_now_ns() - batch_step_ns) / 1000000) }
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        oren_list_push(batch_slot_offs, item_info["slot"])
-        oren_list_push(batch_cstr_offs, item_info["cstr"])
+        batch_data_ms = _x64_string_batch_append_data_item(ctx, trace, batch_item, batch_i, batch_n, j, op_start_ns, batch_data_ms, batch_code_ms, state, trace_op_slow)
+        if batch_data_ms < 0 { return nil }
         batch_i = batch_i + 1
     }
-    return {
-        "slot_offs": batch_slot_offs,
-        "cstr_offs": batch_cstr_offs,
-        "data_ms": batch_data_ms
-    }
+    return _x64_string_batch_append_data_result(state, batch_data_ms)
 }
 
 fn _x64_string_batch_trace_data_done(ctx, trace, j, batch_n, batch_data_buf) {
