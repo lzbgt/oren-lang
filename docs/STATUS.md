@@ -3596,6 +3596,11 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 47.7s total /
   34.5s parse, with `_x64_emit_resolve_loc_table_setup` exposed at about 41ms
   as the next parser body.
+- X64 panic symbol/location table setup now shares resolver table state,
+  fixed-text-base guards, data-base materialization, and cursor initialization
+  while keeping `sym_*` and `loc_*` label prefixes intact. The capped profile
+  now shows `x64_native_program.oren` at about 49.9s total / 36.3s parse, with
+  `_x64_string_batch_append_data` exposed at about 44ms as the next parser body.
 
 ## Documentation Guardrail
 

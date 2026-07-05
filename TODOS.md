@@ -2297,6 +2297,11 @@ design evidence lives under `project-doc/`.
   capped profile now shows `x64_native_program.oren` at ~47.7s total / ~34.5s
   parse, with `_x64_emit_resolve_loc_table_setup` exposed at ~41ms as the next
   parser body.
+- X64 panic symbol/location table setup now shares resolver table state,
+  fixed-text-base guards, data-base materialization, and cursor initialization
+  while keeping `sym_*` and `loc_*` label prefixes intact. The capped profile
+  now shows `x64_native_program.oren` at ~49.9s total / ~36.3s parse, with
+  `_x64_string_batch_append_data` exposed at ~44ms as the next parser body.
 - Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized `u8_buf` builders, and header-only responses with `END_STREAM` terminate without waiting for a DATA frame.
 - X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.
 - Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused `renamer_scope_cache_shadow_main` fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.

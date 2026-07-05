@@ -4058,6 +4058,13 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.7s total /</p>
 <p>  34.5s parse, with <code>_x64_emit_resolve_loc_table_setup</code> exposed at about 41ms</p>
 <p>  as the next parser body.</p>
+<ul>
+<li>X64 panic symbol/location table setup now shares resolver table state,</li>
+</ul>
+<p>  fixed-text-base guards, data-base materialization, and cursor initialization</p>
+<p>  while keeping <code>sym_*</code> and <code>loc_*</code> label prefixes intact. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 49.9s total / 36.3s parse, with</p>
+<p>  <code>_x64_string_batch_append_data</code> exposed at about 44ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

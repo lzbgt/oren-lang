@@ -3134,6 +3134,13 @@
 <p>  parse, with <code>_x64_emit_resolve_loc_table_setup</code> exposed at ~41ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 panic symbol/location table setup now shares resolver table state,</li>
+</ul>
+<p>  fixed-text-base guards, data-base materialization, and cursor initialization</p>
+<p>  while keeping <code>sym_*</code> and <code>loc_*</code> label prefixes intact. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~49.9s total / ~36.3s parse, with</p>
+<p>  <code>_x64_string_batch_append_data</code> exposed at ~44ms as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>
