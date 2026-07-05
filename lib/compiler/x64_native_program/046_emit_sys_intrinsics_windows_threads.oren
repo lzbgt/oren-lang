@@ -25,17 +25,35 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_win_createthread expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_createthread does not support spread"); return nil }
 
-    // Spill args (start, arg_ptr)
+    var state = _x64_win_createthread_state(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_emit_win_createthread_args(ctx, state)
+    _x64_emit_win_createthread_call(ctx)
+
+    // rax already contains HANDLE (or 0 on failure)
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _x64_win_createthread_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
-    var tmp_start = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_arg = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(tmp_start) == 0 || oren_type_tag(tmp_arg) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var state = {}
+    state["base"] = base
+    state["start"] = _intr_tmp_off(ctx, locals, base + 0)
+    state["arg"] = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(state["start"]) == 0 || oren_type_tag(state["arg"]) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_start)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
+    _intr_eval_spill_x64(ctx, locals, args[0], state["start"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["arg"])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    return state
+}
 
+fn _x64_emit_win_createthread_args(ctx, state) {
     // CreateThread(NULL, 0, start, arg, 0, NULL)
     // Win64:
     //   rcx, rdx, r8, r9  + stack args at [rsp+0x20]
@@ -50,9 +68,9 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
     // rdx = dwStackSize = 0
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(2, 2))
     // r8 = lpStartAddress = start
-    _intr_load_x64(ctx, 8, tmp_start)
+    _intr_load_x64(ctx, 8, state["start"])
     // r9 = lpParameter = arg
-    _intr_load_x64(ctx, 9, tmp_arg)
+    _intr_load_x64(ctx, 9, state["arg"])
 
     // dwCreationFlags = 0
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
@@ -60,11 +78,11 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
     // lpThreadId = NULL
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
+    return nil
+}
 
+fn _x64_emit_win_createthread_call(ctx) {
     _emit_call_iat_x64(ctx, "IAT_CreateThread")
-
-    // rax already contains HANDLE (or 0 on failure)
-    _intr_tmp_pop(ctx, base)
     return nil
 }
 

@@ -3389,6 +3389,12 @@ make docs-site
   stores. The capped profile now shows `x64_native_program.oren` at about 49.7s
   total / 35.9s parse, with `_emit_intrinsic_sys_win_createthread_windows_x64`
   exposed at about 56ms as the next parser body.
+- Windows x64 `sys_win_createthread` lowering now separates argument temp-state
+  setup, Win64 `CreateThread(NULL,0,start,arg,0,NULL)` argument materialization,
+  and the IAT call while preserving the function call-area stack slots and
+  handle-in-`rax` result contract. The capped profile now shows
+  `x64_native_program.oren` at about 47.0s total / 33.8s parse, with
+  `_emit_find_tracked_node_x64` exposed at about 43ms as the next parser body.
 
 ## Documentation Guardrail
 
