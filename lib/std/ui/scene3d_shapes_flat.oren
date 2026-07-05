@@ -109,6 +109,68 @@ fn _xyz_point(v, label, ctx) {
     return v
 }
 
+fn _triangle_xy_points(tri, ctx) {
+    var points = tri["points"]
+    if points == nil { points = tri["points_xy"] }
+    if points == nil || oren_list_len(points) != 3 {
+        return oren_err(4, ctx + ": triangle points must contain three [x,y] points")
+    }
+    var a = _xy_pair(points[0], "triangle point0", ctx)
+    if oren_is_err(a) { return a }
+    var b = _xy_pair(points[1], "triangle point1", ctx)
+    if oren_is_err(b) { return b }
+    var c = _xy_pair(points[2], "triangle point2", ctx)
+    if oren_is_err(c) { return c }
+    return [a, b, c]
+}
+
+fn _triangle_xy_z(tri, ctx) {
+    var z = tri["z"]
+    if z == nil { z = tri["z_milli"] }
+    if z == nil { z = 0 }
+    if _is_int(z) == false { return oren_err(4, ctx + ": triangle z must be i32") }
+    return z
+}
+
+fn _triangles_xy_triangle_count(triangles, ctx) {
+    if triangles == nil { return oren_err(4, ctx + ": missing triangles_xy") }
+    var nt = oren_list_len(triangles)
+    if oren_is_err(nt) { return oren_err(4, ctx + ": triangles_xy must be list") }
+    var i = 0
+    while i < nt {
+        var tri = triangles[i]
+        if tri == nil { return oren_err(4, ctx + ": triangle must be object") }
+        var points = _triangle_xy_points(tri, ctx)
+        if oren_is_err(points) { return points }
+        var z = _triangle_xy_z(tri, ctx)
+        if oren_is_err(z) { return z }
+        i = i + 1
+    }
+    return nt
+}
+
+fn pack_triangles_xy(triangles, ctx) {
+    var tri_count = _triangles_xy_triangle_count(triangles, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var i = 0
+    while i < tri_count {
+        var tri = triangles[i]
+        var points = _triangle_xy_points(tri, ctx)
+        var z = _triangle_xy_z(tri, ctx)
+        var a = points[0]
+        var b = points[1]
+        var c = points[2]
+        var rc = _store_triangle(out, off, a[0], a[1], z, b[0], b[1], z, c[0], c[1], z, ctx + ".triangle")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        i = i + 1
+    }
+    return out
+}
+
 fn _plane_xy_bounds(plane, ctx) {
     var lo = plane["min"]
     if lo == nil { lo = plane["min_xy"] }
@@ -1206,4 +1268,3 @@ fn pack_rounded_rects_xy(rects, ctx) {
     }
     return out
 }
-
