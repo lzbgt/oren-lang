@@ -3553,6 +3553,13 @@ make docs-site
   dispatcher without changing operator lowering order. The capped profile now
   shows `x64_native_program.oren` at about 47.9s total / 34.4s parse, with
   `_x64_gqcsx_normalize_result` exposed at about 41ms as the next parser body.
+- Windows x64 `GetQueuedCompletionStatusEx` result normalization now separates
+  result-label state, BOOL dispatch, timeout-aware `GetLastError` mapping,
+  success emission, and final fixup patching while reusing the shared IOCP
+  invalid-parameter/invalid-handle/default errno mapper. The capped profile now
+  shows `x64_native_program.oren` at about 47.4s total / 34.3s parse, with
+  `_emit_named_function_value_to_rax` exposed at about 42ms as the next parser
+  body.
 
 ## Documentation Guardrail
 

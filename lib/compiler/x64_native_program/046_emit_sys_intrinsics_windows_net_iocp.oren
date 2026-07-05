@@ -790,48 +790,55 @@ fn _x64_gqcsx_emit_call(ctx, state) {
 
 fn _x64_gqcsx_normalize_result(ctx) {
     // BOOL in eax (0 => failure; GetLastError() == WAIT_TIMEOUT on timeout)
-    var labels = {}
-    var fixups = []
-    var l_ok = _new_label(ctx, "iocp_gqcsx_ok")
-    var l_timeout = _new_label(ctx, "iocp_gqcsx_timeout")
-    var l_done = _new_label(ctx, "iocp_gqcsx_done")
+    var res = _x64_gqcsx_result_labels(ctx)
+    _x64_gqcsx_emit_bool_dispatch(ctx, res)
+    _x64_gqcsx_emit_error_mapping(ctx, res)
+    _x64_gqcsx_emit_timeout_result(ctx, res)
+    _x64_gqcsx_emit_success(ctx, res)
+    _x64_gqcsx_finish_result(ctx, res)
+    return nil
+}
 
+fn _x64_gqcsx_result_labels(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "ok": _new_label(ctx, "iocp_gqcsx_ok"),
+        "timeout": _new_label(ctx, "iocp_gqcsx_timeout"),
+        "done": _new_label(ctx, "iocp_gqcsx_done")
+    }
+}
+
+fn _x64_gqcsx_emit_bool_dispatch(ctx, res) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_jcc_to_label(ctx, res["fixups"], "ne", res["ok"])
+    return nil
+}
 
+fn _x64_gqcsx_emit_error_mapping(ctx, res) {
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 258)) // WAIT_TIMEOUT
-    _emit_jcc_to_label(ctx, fixups, "e", l_timeout)
+    _emit_jcc_to_label(ctx, res["fixups"], "e", res["timeout"])
+    _x64_iocp_emit_invalid_param_handle_eio(ctx, res["labels"], res["fixups"], res["done"], "iocp_gqcsx_err")
+    return nil
+}
 
-    // ERROR_INVALID_PARAMETER(87) -> -EINVAL(22)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 87))
-    var l_next0 = _new_label(ctx, "iocp_gqcsx_err_next0")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
-    _emit_set_rax_neg_errno_x64(ctx, 22)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next0)
-
-    // ERROR_INVALID_HANDLE(6) -> -EBADF(9)
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 6))
-    var l_next1 = _new_label(ctx, "iocp_gqcsx_err_next1")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
-    _emit_set_rax_neg_errno_x64(ctx, 9)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, l_next1)
-
-    // Default: -EIO(5)
-    _emit_set_rax_neg_errno_x64(ctx, 5)
-    _emit_jmp_to_label(ctx, fixups, l_done)
-
-    _emit_label(ctx, labels, l_timeout)
+fn _x64_gqcsx_emit_timeout_result(ctx, res) {
+    _emit_label(ctx, res["labels"], res["timeout"])
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, res["fixups"], res["done"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_ok)
+fn _x64_gqcsx_emit_success(ctx, res) {
+    _emit_label(ctx, res["labels"], res["ok"])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
+fn _x64_gqcsx_finish_result(ctx, res) {
+    _emit_label(ctx, res["labels"], res["done"])
+    _patch_local_fixups(ctx, res["labels"], res["fixups"])
     return nil
 }
 
