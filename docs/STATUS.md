@@ -3476,6 +3476,12 @@ make docs-site
   shows `x64_native_program.oren` at about 47.4s total / 34.1s parse, with
   `_x64_windows_fstat_emit_success` exposed at about 43ms as the next parser
   body.
+- Windows x64 `sys_fstat` success emission now separates EBADF routing,
+  `GetFileSizeEx` best-effort size probing, `OrenStatV0` zero/fill writes, and
+  zero return-code setup while preserving console/pipe success-with-size-zero
+  behavior. The capped profile now shows `x64_native_program.oren` at about
+  46.8s total / 33.9s parse, with `_x64_windows_msg6_state` exposed at about
+  42ms as the next parser body.
 
 ## Documentation Guardrail
 

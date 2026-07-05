@@ -531,16 +531,14 @@ fn _x64_windows_fstat_emit_handle_resolution(ctx, labels, fixups, tmp_fd, l_have
     return nil
 }
 
-fn _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_ok, l_fail, l_done) {
+fn _x64_windows_fstat_emit_fail_path(ctx, labels, fixups, l_fail, l_done) {
     _emit_label(ctx, labels, l_fail)
     _emit_set_rax_neg_errno_x64(ctx, 9) // EBADF
     _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_ok)
-    // Best-effort: populate OrenStatV0 at st_ptr.
-    //
-    // For non-file handles (console/pipes), GetFileSizeEx may fail; we still treat
-    // sys_fstat as success and report size=0 (POSIX-like "fstat exists" semantics).
+fn _x64_windows_fstat_emit_size_query(ctx, labels, fixups, locals, base) {
     var l_size_ok = _new_label(ctx, "sys_fstat_size_ok")
     var l_size_done = _new_label(ctx, "sys_fstat_size_done")
 
@@ -558,7 +556,10 @@ fn _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_
     _emit_label(ctx, labels, l_size_ok)
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_li0) // r10 = li.QuadPart
     _emit_label(ctx, labels, l_size_done)
+    return true
+}
 
+fn _x64_windows_fstat_emit_stat_result(ctx, locals, tmp_st) {
     // st_ptr
     _intr_load_x64(ctx, 8, tmp_st) // r8 = st_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9 = 0
@@ -568,10 +569,27 @@ fn _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_
         zoff2 = zoff2 + 4
     }
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(8, 10)) // size
+    return nil
+}
 
+fn _x64_windows_fstat_emit_success_rc(ctx) {
     // rc = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
+    return true
+}
+
+fn _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_ok, l_fail, l_done) {
+    _x64_windows_fstat_emit_fail_path(ctx, labels, fixups, l_fail, l_done)
+
+    _emit_label(ctx, labels, l_ok)
+    // Best-effort: populate OrenStatV0 at st_ptr.
+    //
+    // For non-file handles (console/pipes), GetFileSizeEx may fail; we still treat
+    // sys_fstat as success and report size=0 (POSIX-like "fstat exists" semantics).
+    if _x64_windows_fstat_emit_size_query(ctx, labels, fixups, locals, base) != true { return nil }
+    _x64_windows_fstat_emit_stat_result(ctx, locals, tmp_st)
+    _x64_windows_fstat_emit_success_rc(ctx)
     return true
 }
 
