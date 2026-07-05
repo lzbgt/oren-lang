@@ -138,14 +138,17 @@ fn _x64_emit_simd_dot_i32_ptr_vector_loop(ctx, tmp_a, tmp_b, tmp_n) {
     return nil
 }
 
-fn _x64_emit_simd_dot_i32_ptr_scalar_tail(ctx, tmp_a, tmp_b, tmp_n) {
+fn _x64_simd_dot_i32_ptr_scalar_tail_guard(ctx, tmp_n) {
     // Handle remaining scalar elements (n & 1)
     _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_n) // reload n
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(8, 1)) // n & 1
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     var jmp_scalar_end = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_jcc_rel32("e", 0))
+    return jmp_scalar_end
+}
 
+fn _x64_simd_dot_i32_ptr_scalar_tail_ptrs(ctx, tmp_a, tmp_b, tmp_n) {
     // Scalar tail: process last element if odd count
     _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_a) // reload a_ptr
     _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_b) // reload b_ptr
@@ -155,7 +158,10 @@ fn _x64_emit_simd_dot_i32_ptr_scalar_tail(ctx, tmp_a, tmp_b, tmp_n) {
     bytes_extend(ctx["code"], core.insn_shl_r64_imm8(8, 2))      // r8 *= 4 (byte offset)
     bytes_extend(ctx["code"], core.insn_add_r64_r64(1, 8))       // rcx += offset (point to last element)
     bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 8))       // rdx += offset
+    return nil
+}
 
+fn _x64_simd_dot_i32_ptr_scalar_tail_accumulate(ctx) {
     // Load and multiply scalar values (sign-extended)
     // mov r11d, [rcx] (32-bit load) then movsxd r11, r11d
     bytes_extend(ctx["code"], core.insn_mov_r32_m64_disp(11, 1, 0)) // r11d = [rcx] (32-bit)
@@ -164,10 +170,21 @@ fn _x64_emit_simd_dot_i32_ptr_scalar_tail(ctx, tmp_a, tmp_b, tmp_n) {
     bytes_extend(ctx["code"], core.insn_movsxd_r64_r32(8, 11))      // r8 = sign-extend(r11d)
     bytes_extend(ctx["code"], core.insn_imul_r64_r64(3, 8))         // r3 *= r8
     bytes_extend(ctx["code"], core.insn_add_r64_r64(0, 3))          // rax += r3
+    return nil
+}
 
+fn _x64_patch_simd_dot_i32_ptr_scalar_tail(ctx, jmp_scalar_end) {
     // Patch scalar skip jump
     var scalar_end_label = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], jmp_scalar_end + 1, scalar_end_label - (jmp_scalar_end + 5))
+    return nil
+}
+
+fn _x64_emit_simd_dot_i32_ptr_scalar_tail(ctx, tmp_a, tmp_b, tmp_n) {
+    var jmp_scalar_end = _x64_simd_dot_i32_ptr_scalar_tail_guard(ctx, tmp_n)
+    _x64_simd_dot_i32_ptr_scalar_tail_ptrs(ctx, tmp_a, tmp_b, tmp_n)
+    _x64_simd_dot_i32_ptr_scalar_tail_accumulate(ctx)
+    _x64_patch_simd_dot_i32_ptr_scalar_tail(ctx, jmp_scalar_end)
     return nil
 }
 

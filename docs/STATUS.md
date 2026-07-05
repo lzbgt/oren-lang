@@ -3613,6 +3613,12 @@ make docs-site
   shows `x64_native_program.oren` at about 48.3s total / 34.7s parse, with
   `_x64_emit_simd_dot_i32_ptr_scalar_tail` exposed at about 41ms as the next
   parser body.
+- X64 SIMD i32 pointer dot scalar-tail emission now separates odd-count guard,
+  last-element pointer advancement, scalar multiply-add accumulation, and jump
+  patching while preserving the SSE2 vector-loop result in `rax`. The capped
+  profile now shows `x64_native_program.oren` at about 48.2s total / 34.9s
+  parse, with `_emit_intrinsic_sys_linux_close_x64` exposed at about 41ms as the
+  next parser body.
 
 ## Documentation Guardrail
 
