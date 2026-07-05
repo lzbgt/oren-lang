@@ -1059,35 +1059,59 @@ fn _emit_intrinsic_sys_linux_fd_misc_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
+fn _x64_linux_kill_args_ok(ctx, expr, args) {
+    if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_kill expects 2 args"); return false }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_kill does not support spread"); return false }
+    return true
+}
+
+fn _x64_linux_kill_state(ctx, locals) {
+    var base22 = _intr_tmp_push(ctx, 2) // pid, signum
+    if oren_type_tag(base22) == 0 { return nil }
+    var tmp_pid = _intr_tmp_off(ctx, locals, base22 + 0)
+    var tmp_sig = _intr_tmp_off(ctx, locals, base22 + 1)
+    if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_sig) == 0 { _intr_tmp_pop(ctx, base22); return nil }
+    return {"base": base22, "pid": tmp_pid, "sig": tmp_sig}
+}
+
+fn _x64_linux_kill_spill_args(ctx, locals, args, state) {
+    _intr_eval_spill_x64(ctx, locals, args[0], state["pid"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["sig"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return false }
+    return true
+}
+
+fn _x64_linux_kill_emit_capsule_pre(ctx, state, capsule) {
+    if capsule {
+        _intr_load_x64(ctx, 7, state["pid"])
+        _intr_load_x64(ctx, 6, state["sig"])
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_kill_pre")
+    }
+    return nil
+}
+
+fn _x64_linux_kill_emit_syscall(ctx, state) {
+    _intr_load_x64(ctx, 7, state["pid"])
+    _intr_load_x64(ctx, 6, state["sig"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_kill()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_kill_x64(ctx, expr, locals, args, capsule) {
+    if _x64_linux_kill_args_ok(ctx, expr, args) != true { return true }
+    var state = _x64_linux_kill_state(ctx, locals)
+    if state == nil { return true }
+    if _x64_linux_kill_spill_args(ctx, locals, args, state) != true { return true }
+    _x64_linux_kill_emit_capsule_pre(ctx, state, capsule)
+    _x64_linux_kill_emit_syscall(ctx, state)
+    _intr_tmp_pop(ctx, state["base"])
+    return true
+}
+
 fn _emit_intrinsic_sys_linux_signal_x64(ctx, nm, expr, locals, args, capsule) {
     if nm == "sys_kill" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_kill expects 2 args"); return true }
-        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_kill does not support spread"); return true }
-
-        var base22 = _intr_tmp_push(ctx, 2) // pid, signum
-        if oren_type_tag(base22) == 0 { return true }
-        var tmp_pid = _intr_tmp_off(ctx, locals, base22 + 0)
-        var tmp_sig = _intr_tmp_off(ctx, locals, base22 + 1)
-        if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_sig) == 0 { _intr_tmp_pop(ctx, base22); return true }
-
-        _intr_eval_spill_x64(ctx, locals, args[0], tmp_pid)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_sig)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base22); return true }
-
-        // pre: native_capsule_sys_kill_pre(pid, signum)
-        if capsule {
-            _intr_load_x64(ctx, 7, tmp_pid)
-            _intr_load_x64(ctx, 6, tmp_sig)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_kill_pre")
-        }
-
-        _intr_load_x64(ctx, 7, tmp_pid)
-        _intr_load_x64(ctx, 6, tmp_sig)
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_kill()))
-        bytes_extend(ctx["code"], core.insn_syscall())
-
-        _intr_tmp_pop(ctx, base22)
-        return true
+        return _emit_intrinsic_sys_linux_kill_x64(ctx, expr, locals, args, capsule)
     }
 
     return false

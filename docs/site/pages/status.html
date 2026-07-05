@@ -4144,6 +4144,14 @@ make docs-site</code></pre>
 <p>  <code>x64_native_program.oren</code> at about 48.9s total / 35.5s parse, with</p>
 <p>  <code>_emit_intrinsic_sys_linux_signal_x64</code> exposed at about 40ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>Linux x64 <code>sys_kill</code> lowering now separates argument/spread validation,</li>
+</ul>
+<p>  pid/signum temp-state setup, argument spilling, capsule prehook emission, and</p>
+<p>  syscall emission while preserving handled/unhandled routing. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 51.1s total / 37.3s</p>
+<p>  parse, with <code>_x64_rtobj_apply_compact_function_offsets</code> exposed at about 46ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

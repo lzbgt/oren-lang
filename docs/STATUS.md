@@ -3660,6 +3660,12 @@ make docs-site
   `x64_native_program.oren` at about 48.9s total / 35.5s parse, with
   `_emit_intrinsic_sys_linux_signal_x64` exposed at about 40ms as the next
   parser body.
+- Linux x64 `sys_kill` lowering now separates argument/spread validation,
+  pid/signum temp-state setup, argument spilling, capsule prehook emission, and
+  syscall emission while preserving handled/unhandled routing. The capped
+  profile now shows `x64_native_program.oren` at about 51.1s total / 37.3s
+  parse, with `_x64_rtobj_apply_compact_function_offsets` exposed at about 46ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
