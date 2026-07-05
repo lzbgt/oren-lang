@@ -3841,6 +3841,14 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 52.2s total /</p>
 <p>  37.7s parse, with <code>_emit_list_push_intrinsic_v0_x64</code> exposed at about 150ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 LIST and LIST_INT push entry lowering now share two-argument validation,</li>
+</ul>
+<p>  left-to-right spill/reload setup, fast/done label attachment, and nil-return</p>
+<p>  cleanup while keeping type-specific checked bodies separate. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 46.9s total / 33.8s</p>
+<p>  parse, with <code>_emit_malloc_slow_windows_x64</code> exposed at about 55ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

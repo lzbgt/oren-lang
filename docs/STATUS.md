@@ -3433,6 +3433,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 52.2s total /
   37.7s parse, with `_emit_list_push_intrinsic_v0_x64` exposed at about 150ms as
   the next parser body.
+- X64 LIST and LIST_INT push entry lowering now share two-argument validation,
+  left-to-right spill/reload setup, fast/done label attachment, and nil-return
+  cleanup while keeping type-specific checked bodies separate. The capped
+  profile now shows `x64_native_program.oren` at about 46.9s total / 33.8s
+  parse, with `_emit_malloc_slow_windows_x64` exposed at about 55ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
