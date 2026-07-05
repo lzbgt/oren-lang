@@ -389,10 +389,14 @@ fn _x64_prepare_sys_write_windows_args(ctx, locals, args, capsule) {
     return state
 }
 
-fn _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
-    // fd 1/2 => STDOUT/STDERR via GetStdHandle; otherwise fd is already a HANDLE.
-    var l_use_stdout = _new_label(ctx, "sys_write_use_stdout")
-    var l_use_stderr = _new_label(ctx, "sys_write_use_stderr")
+fn _x64_emit_sys_write_get_std_handle(ctx, std_handle_const) {
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, std_handle_const))
+    _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
+    return nil
+}
+
+fn _x64_emit_sys_write_windows_fd_routes(ctx, local_fixups, tmp_fd, l_use_stdout, l_use_stderr, l_have_handle) {
     _intr_load_x64(ctx, 0, tmp_fd) // rax = fd
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stdout)
@@ -400,23 +404,21 @@ fn _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_
     _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stderr)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd (HANDLE)
     _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
+    return nil
+}
+
+fn _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
+    // fd 1/2 => STDOUT/STDERR via GetStdHandle; otherwise fd is already a HANDLE.
+    var l_use_stdout = _new_label(ctx, "sys_write_use_stdout")
+    var l_use_stderr = _new_label(ctx, "sys_write_use_stderr")
+    _x64_emit_sys_write_windows_fd_routes(ctx, local_fixups, tmp_fd, l_use_stdout, l_use_stderr, l_have_handle)
 
     _emit_label(ctx, labels, l_use_stdout)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
-    var mov_iat0 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-    _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], core.insn_call_rax())
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
+    _x64_emit_sys_write_get_std_handle(ctx, 4294967285) // STD_OUTPUT_HANDLE = -11
     _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
 
     _emit_label(ctx, labels, l_use_stderr)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
-    var mov_iat1 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
-    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], core.insn_call_rax())
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = handle
+    _x64_emit_sys_write_get_std_handle(ctx, 4294967284) // STD_ERROR_HANDLE = -12
     return nil
 }
 

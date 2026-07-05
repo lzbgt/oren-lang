@@ -3572,6 +3572,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 47.4s total / 34.0s
   parse, with `_x64_emit_sys_write_windows_handle` exposed at about 41ms as the
   next parser body.
+- Windows x64 `sys_write` handle routing now separates fd branch classification
+  from `GetStdHandle` materialization and reuses the shared IAT-call helper for
+  stdout/stderr handles while preserving direct HANDLE fd behavior. The capped
+  profile now shows `x64_native_program.oren` at about 50.8s total / 37.2s
+  parse, with `_x64_fast_list_int_get_sum_emit_unroll2` exposed at about 46ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

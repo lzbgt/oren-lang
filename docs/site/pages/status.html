@@ -4026,6 +4026,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 47.4s total / 34.0s</p>
 <p>  parse, with <code>_x64_emit_sys_write_windows_handle</code> exposed at about 41ms as the</p>
 <p>  next parser body.</p>
+<ul>
+<li>Windows x64 <code>sys_write</code> handle routing now separates fd branch classification</li>
+</ul>
+<p>  from <code>GetStdHandle</code> materialization and reuses the shared IAT-call helper for</p>
+<p>  stdout/stderr handles while preserving direct HANDLE fd behavior. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 50.8s total / 37.2s</p>
+<p>  parse, with <code>_x64_fast_list_int_get_sum_emit_unroll2</code> exposed at about 46ms as</p>
+<p>  the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
