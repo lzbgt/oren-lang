@@ -18,24 +18,22 @@ fn u32_le_at(bs, pos) {
     return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24)
 }
 
-fn push_u32_le(out, v) {
-    var b0 = v & 255
-    var b1 = (v >> 8) & 255
-    var b2 = (v >> 16) & 255
-    var b3 = (v >> 24) & 255
-    oren_list_push(out, b0)
-    oren_list_push(out, b1)
-    oren_list_push(out, b2)
-    oren_list_push(out, b3)
+fn store_u32_le(outp, off, v) {
+    ptr_set_byte(outp + off + 0, v & 255)
+    ptr_set_byte(outp + off + 1, (v >> 8) & 255)
+    ptr_set_byte(outp + off + 2, (v >> 16) & 255)
+    ptr_set_byte(outp + off + 3, (v >> 24) & 255)
+    return off + 4
 }
 
-fn append_bytes(out, xs) {
+fn copy_bytes_to_ptr(outp, off, xs) {
     var n = oren_bytes_len(xs)
     var i = 0
     while i < n {
-        oren_list_push(out, oren_bytes_get_u8(xs, i))
+        ptr_set_byte(outp + off + i, oren_bytes_get_u8(xs, i) & 255)
         i = i + 1
     }
+    return off + n
 }
 
 fn build_vfs_fixtures_one_file(path, body_bytes) {
@@ -45,28 +43,30 @@ fn build_vfs_fixtures_one_file(path, body_bytes) {
     //   repeated:
     //     u32 path_len, path bytes
     //     u32 body_len, body bytes
-    var out = []
+    var path_bytes = oren_bytes_from_string(path)
+    var path_len = oren_bytes_len(path_bytes)
+    var body_len = oren_bytes_len(body_bytes)
+    var out = oren_u8_buf_new_uninit(8 + 4 + 4 + path_len + 4 + body_len)
+    var outp = oren_buf_data_ptr_unchecked(out)
+    var off = 0
 
     // "AVMVFS01"
-    oren_list_push(out, 65) // A
-    oren_list_push(out, 86) // V
-    oren_list_push(out, 77) // M
-    oren_list_push(out, 86) // V
-    oren_list_push(out, 70) // F
-    oren_list_push(out, 83) // S
-    oren_list_push(out, 48) // 0
-    oren_list_push(out, 49) // 1
+    ptr_set_byte(outp + off + 0, 65) // A
+    ptr_set_byte(outp + off + 1, 86) // V
+    ptr_set_byte(outp + off + 2, 77) // M
+    ptr_set_byte(outp + off + 3, 86) // V
+    ptr_set_byte(outp + off + 4, 70) // F
+    ptr_set_byte(outp + off + 5, 83) // S
+    ptr_set_byte(outp + off + 6, 48) // 0
+    ptr_set_byte(outp + off + 7, 49) // 1
+    off = off + 8
 
-    push_u32_le(out, 1)
-
-    var path_bytes = oren_bytes_from_string(path)
-    push_u32_le(out, oren_bytes_len(path_bytes))
-    append_bytes(out, path_bytes)
-
-    push_u32_le(out, oren_bytes_len(body_bytes))
-    append_bytes(out, body_bytes)
-
-    return oren_bytes_pack(out)
+    off = store_u32_le(outp, off, 1)
+    off = store_u32_le(outp, off, path_len)
+    off = copy_bytes_to_ptr(outp, off, path_bytes)
+    off = store_u32_le(outp, off, body_len)
+    off = copy_bytes_to_ptr(outp, off, body_bytes)
+    return out
 }
 
 fn vfs_extract_body(snapshot_bytes, want_path_str) {
@@ -103,13 +103,7 @@ fn vfs_extract_body(snapshot_bytes, want_path_str) {
         pos = pos + 4
 
         if is_match != 0 {
-            var out_list = []
-            var k = 0
-            while k < bl {
-                oren_list_push(out_list, u8_at(snapshot_bytes, pos + k))
-                k = k + 1
-            }
-            return oren_bytes_pack(out_list)
+            return oren_u8_buf_from_bytes_slice(snapshot_bytes, pos, bl)
         }
 
         pos = pos + bl

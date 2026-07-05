@@ -18,15 +18,12 @@ fn u32_le_at(bs, pos) {
     return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24)
 }
 
-fn push_u32_le(out, v) {
-    var b0 = v & 255
-    var b1 = (v >> 8) & 255
-    var b2 = (v >> 16) & 255
-    var b3 = (v >> 24) & 255
-    oren_list_push(out, b0)
-    oren_list_push(out, b1)
-    oren_list_push(out, b2)
-    oren_list_push(out, b3)
+fn store_u32_le(outp, off, v) {
+    ptr_set_byte(outp + off + 0, v & 255)
+    ptr_set_byte(outp + off + 1, (v >> 8) & 255)
+    ptr_set_byte(outp + off + 2, (v >> 16) & 255)
+    ptr_set_byte(outp + off + 3, (v >> 24) & 255)
+    return off + 4
 }
 
 fn byte_seq_len(xs) {
@@ -34,13 +31,19 @@ fn byte_seq_len(xs) {
     return oren_bytes_len(xs)
 }
 
-fn append_bytes(out, xs) {
+fn byte_seq_get_u8(xs, i) {
+    if oren_is_u8_buf(xs) { return ptr_get_byte(oren_buf_data_ptr_unchecked(xs) + i) & 255 }
+    return oren_bytes_get_u8(xs, i)
+}
+
+fn copy_bytes_to_ptr(outp, off, xs) {
     var n = byte_seq_len(xs)
     var i = 0
     while i < n {
-        oren_list_push(out, oren_bytes_get_u8(xs, i))
+        ptr_set_byte(outp + off + i, byte_seq_get_u8(xs, i) & 255)
         i = i + 1
     }
+    return off + n
 }
 
 fn build_vfs_fixtures(files) {
@@ -50,40 +53,57 @@ fn build_vfs_fixtures(files) {
     //   repeated:
     //     u32 path_len, path bytes
     //     u32 body_len, body bytes
-    var out = []
-
-    // "AVMVFS01"
-    oren_list_push(out, 65) // A
-    oren_list_push(out, 86) // V
-    oren_list_push(out, 77) // M
-    oren_list_push(out, 86) // V
-    oren_list_push(out, 70) // F
-    oren_list_push(out, 83) // S
-    oren_list_push(out, 48) // 0
-    oren_list_push(out, 49) // 1
-
     if files == nil { files = [] }
-    push_u32_le(out, oren_list_len(files))
+    var file_count = oren_list_len(files)
+    var total = 8 + 4
 
     var i = 0
-    while i < oren_list_len(files) {
+    while i < file_count {
         var f = files[i]
         var path = f["path"]
         var body = f["body"]
         if path == nil { path = "" }
         if body == nil { body = [] }
-
         var path_bytes = oren_bytes_from_string(path)
-        push_u32_le(out, byte_seq_len(path_bytes))
-        append_bytes(out, path_bytes)
+        total = total + 4 + byte_seq_len(path_bytes) + 4 + byte_seq_len(body)
+        i = i + 1
+    }
 
-        push_u32_le(out, byte_seq_len(body))
-        append_bytes(out, body)
+    var out = oren_u8_buf_new_uninit(total)
+    var outp = oren_buf_data_ptr_unchecked(out)
+    var off = 0
+
+    // "AVMVFS01"
+    ptr_set_byte(outp + off + 0, 65) // A
+    ptr_set_byte(outp + off + 1, 86) // V
+    ptr_set_byte(outp + off + 2, 77) // M
+    ptr_set_byte(outp + off + 3, 86) // V
+    ptr_set_byte(outp + off + 4, 70) // F
+    ptr_set_byte(outp + off + 5, 83) // S
+    ptr_set_byte(outp + off + 6, 48) // 0
+    ptr_set_byte(outp + off + 7, 49) // 1
+    off = off + 8
+
+    off = store_u32_le(outp, off, file_count)
+
+    i = 0
+    while i < file_count {
+        var f2 = files[i]
+        var path2 = f2["path"]
+        var body2 = f2["body"]
+        if path2 == nil { path2 = "" }
+        if body2 == nil { body2 = [] }
+
+        var path_bytes2 = oren_bytes_from_string(path2)
+        off = store_u32_le(outp, off, byte_seq_len(path_bytes2))
+        off = copy_bytes_to_ptr(outp, off, path_bytes2)
+        off = store_u32_le(outp, off, byte_seq_len(body2))
+        off = copy_bytes_to_ptr(outp, off, body2)
 
         i = i + 1
     }
 
-    return oren_bytes_pack(out)
+    return out
 }
 
 fn vfs_extract_body(snapshot_bytes, want_path_str) {
@@ -120,13 +140,7 @@ fn vfs_extract_body(snapshot_bytes, want_path_str) {
         pos = pos + 4
 
         if is_match != 0 {
-            var out_list = []
-            var k = 0
-            while k < bl {
-                oren_list_push(out_list, u8_at(snapshot_bytes, pos + k))
-                k = k + 1
-            }
-            return oren_bytes_pack(out_list)
+            return oren_u8_buf_from_bytes_slice(snapshot_bytes, pos, bl)
         }
 
         pos = pos + bl

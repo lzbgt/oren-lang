@@ -1441,8 +1441,10 @@ This file is the concise task view. Detailed implementation status lives in
      copy with `oren_memcpy`.
      Compiler source-policy
      scans, scan-cache line/number parsing plus bounded load/save and delimiter writes, C-runtime include scanning,
-     compiler manifest JSON escaping, byte-native bytecode metadata payloads, OBX
-     string/prefix encoding through compact byte builders, AST binary v1 full-value raw writes, bytecode string
+	     compiler manifest JSON escaping, byte-native bytecode metadata payloads,
+	     compiler-in-AVM VirtualFS fixture snapshots through exact-size AVMVFS01
+	     `u8_buf` writes and byte-buffer body slices, OBX
+	     string/prefix encoding through compact byte builders, AST binary v1 full-value raw writes, bytecode string
      constants, native Mach-O/ELF object string payloads, runtime-object
      debug-name blobs, x64 native debug-table names, ARM64 native panic-message
      payloads, native runtime string concat/intern/slice copies, native capsule

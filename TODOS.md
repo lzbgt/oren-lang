@@ -2379,6 +2379,9 @@ design evidence lives under `project-doc/`.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.
+- Compiler-in-AVM VirtualFS fixture snapshots now build AVMVFS01 payloads with
+  exact-size `u8_buf` writes and return matched bodies through byte-buffer slices
+  instead of boxed byte lists.
 - iOS `OrenAVMKit` builds as an xcframework and verifies TIME, FS, VNET, VPROC,
   GFX/input, package store, trust bundle, permission grant persistence, and
   compiler-in-AVM smoke paths through `make verify-libavm-ios`.

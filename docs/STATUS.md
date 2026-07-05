@@ -2360,7 +2360,9 @@ Facts from the 2026-05-28 implementation pass:
   direct unchecked u8 stores after exact-size allocation, and native SHA-256
   contiguous input remainders copy with `oren_memcpy`. Compiler source-policy scans, scan-cache line/number parsing plus bounded load/save and delimiter writes, C-runtime
   include scanning, compiler manifest JSON escaping, byte-native bytecode metadata payloads,
-	  bytecode final artifact return as `u8_buf`, compiler SHA digest hex routing through direct runtime bytes hex, OBC linker byte reads from `u8_buf`, parsed OBC code and byte constants kept as `u8_buf`, builder-patched linked code, linked OBC final emission as `u8_buf`, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw
+	  bytecode final artifact return as `u8_buf`, compiler-in-AVM VirtualFS fixture
+	  snapshots through exact-size AVMVFS01 `u8_buf` writes and byte-buffer body
+	  slices, compiler SHA digest hex routing through direct runtime bytes hex, OBC linker byte reads from `u8_buf`, parsed OBC code and byte constants kept as `u8_buf`, builder-patched linked code, linked OBC final emission as `u8_buf`, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw
 	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
 	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,
 	  native capsule mount path resolution, realpath segment output, readdir names,
