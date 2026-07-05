@@ -3444,6 +3444,12 @@ make docs-site
   preserving heap-commit seeding and abort exit behavior. The capped profile now
   shows `x64_native_program.oren` at about 47.0s total / 33.8s parse, with
   `_x64_fast_lcg_prepare_offsets` exposed at about 60ms as the next parser body.
+- X64 fast-LCG preparation now lives in its own `057_emit_ops_while_lcg_prepare`
+  module and splits local-offset lookup, offset validation, and GC-tick
+  availability checks, reducing `057_emit_ops_while_emit.oren` to 1863 lines.
+  The capped profile now shows `x64_native_program.oren` at about 49.3s total /
+  34.2s parse, with `_x64_native_program_prepare_inputs` exposed at about 114ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
