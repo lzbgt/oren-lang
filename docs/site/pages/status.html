@@ -3881,6 +3881,14 @@ make docs-site</code></pre>
 <p>  now shows <code>x64_native_program.oren</code> at about 62.4s total / 45.0s parse, with</p>
 <p>  <code>_x64_emit_top_string_batch_loop_body</code> exposed at about 148ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 top-level string batch loop emission now separates slot-pointer</li>
+</ul>
+<p>  materialization, C-string pointer storage, and loop cursor advancement while</p>
+<p>  preserving the same table-walk instruction order and jump patch contract. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 49.0s total /</p>
+<p>  35.2s parse, with <code>_x64_emit_resolve_symbol_symtab_setup</code> exposed at about</p>
+<p>  84ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

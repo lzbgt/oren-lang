@@ -3463,6 +3463,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 62.4s total / 45.0s parse, with
   `_x64_emit_top_string_batch_loop_body` exposed at about 148ms as the next
   parser body.
+- X64 top-level string batch loop emission now separates slot-pointer
+  materialization, C-string pointer storage, and loop cursor advancement while
+  preserving the same table-walk instruction order and jump patch contract. The
+  capped profile now shows `x64_native_program.oren` at about 49.0s total /
+  35.2s parse, with `_x64_emit_resolve_symbol_symtab_setup` exposed at about
+  84ms as the next parser body.
 
 ## Documentation Guardrail
 

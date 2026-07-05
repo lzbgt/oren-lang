@@ -112,23 +112,33 @@ fn _x64_emit_top_string_batch_loop_header(ctx) {
     return {"loop": loop_pos, "jz": jz_pos}
 }
 
-fn _x64_emit_top_string_batch_loop_body(ctx) {
-    var code = ctx["code"]
-    // rdx = data_base + slot_off
+fn _x64_emit_top_string_batch_slot_ptr(ctx, code) {
     bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 3)     // mov rax, [r11]
     bytes_push(code, 76); bytes_push(code, 137); bytes_push(code, 210)   // mov rdx, r10
     bytes_push(code, 72); bytes_push(code, 1); bytes_push(code, 194)     // add rdx, rax
+    return nil
+}
 
-    // rax = data_base + cstr_off; [rdx] = rax
+fn _x64_emit_top_string_batch_store_cstr(ctx, code) {
     bytes_push(code, 73); bytes_push(code, 139); bytes_push(code, 67); bytes_push(code, 8)
     bytes_push(code, 76); bytes_push(code, 1); bytes_push(code, 208)     // add rax, r10
     bytes_push(code, 72); bytes_push(code, 137); bytes_push(code, 2)     // mov [rdx], rax
+    return nil
+}
 
+fn _x64_emit_top_string_batch_advance(ctx, code) {
     bytes_push(code, 73); bytes_push(code, 131); bytes_push(code, 195); bytes_push(code, 16)
     bytes_push(code, 72); bytes_push(code, 255); bytes_push(code, 201)   // dec rcx
     var jmp_pos = bytes_len(code)
     bytes_push(code, 233); push_u32_le(code, 0)                          // jmp loop
     return jmp_pos
+}
+
+fn _x64_emit_top_string_batch_loop_body(ctx) {
+    var code = ctx["code"]
+    _x64_emit_top_string_batch_slot_ptr(ctx, code)
+    _x64_emit_top_string_batch_store_cstr(ctx, code)
+    return _x64_emit_top_string_batch_advance(ctx, code)
 }
 
 fn _x64_patch_top_string_batch_loop(ctx, loop_state, jmp_pos) {
