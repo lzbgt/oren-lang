@@ -191,35 +191,55 @@ fn _emit_intrinsic_sys_linux_fcntl_x64(ctx, nm, expr, locals, args, capsule) {
     return false
 }
 
-fn _emit_intrinsic_sys_linux_dup_x64(ctx, expr, locals, args, capsule) {
-    if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_dup expects 1 arg"); return true }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_dup does not support spread"); return true }
-
+fn _x64_linux_dup_state(ctx, locals, args) {
     var base19 = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base19) == 0 { return true }
+    if oren_type_tag(base19) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base19 + 0)
-    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base19); return true }
+    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base19); return nil }
 
     _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base19); return true }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base19); return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+    return {"base": base19, "fd": tmp_fd}
+}
+
+fn _x64_linux_dup_emit_pre(ctx, st, capsule) {
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup_pre")
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
     }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st["fd"], 0)
+    return nil
+}
 
-    _intr_load_x64(ctx, 7, tmp_fd)
+fn _x64_linux_dup_emit_syscall(ctx, st) {
+    _intr_load_x64(ctx, 7, st["fd"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_dup()))
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
+fn _x64_linux_dup_emit_post(ctx, st, capsule) {
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _intr_load_x64(ctx, 6, tmp_fd)
+        _intr_load_x64(ctx, 6, st["fd"])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup_post")
     }
-    _intr_tmp_pop(ctx, base19)
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_dup_x64(ctx, expr, locals, args, capsule) {
+    if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_dup expects 1 arg"); return true }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_dup does not support spread"); return true }
+
+    var st = _x64_linux_dup_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_dup_emit_pre(ctx, st, capsule)
+    _x64_linux_dup_emit_syscall(ctx, st)
+    _x64_linux_dup_emit_post(ctx, st, capsule)
+
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

@@ -3607,6 +3607,12 @@ make docs-site
   shows `x64_native_program.oren` at about 47.1s total / 33.7s parse, with
   `_emit_intrinsic_sys_linux_dup_x64` exposed at about 40ms as the next parser
   body.
+- Linux x64 `sys_dup` lowering now mirrors the adjacent dup2/dup3 helper shape
+  with temp-state setup, capsule prehook/spill, syscall emission, and capsule
+  posthook helpers while preserving cleanup ownership. The capped profile now
+  shows `x64_native_program.oren` at about 48.3s total / 34.7s parse, with
+  `_x64_emit_simd_dot_i32_ptr_scalar_tail` exposed at about 41ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
