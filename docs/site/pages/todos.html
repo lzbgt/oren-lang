@@ -3266,6 +3266,10 @@
 </ul>
 <p>  bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.</p>
 <ul>
+<li><code>std:ui/avm</code> OGE0 event decoding now reads little-endian u32/u64 payload</li>
+</ul>
+<p>  fields from the cached u8 event-buffer pointer after payload length checks.</p>
+<ul>
 <li><code>std:buffer</code> slice/strided/matrix byte-copy fallbacks now cache u8 source</li>
 </ul>
 <p>  pointers for non-contiguous destinations while retaining list-compatible byte</p>

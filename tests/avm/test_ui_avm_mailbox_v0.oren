@@ -61,6 +61,30 @@ fn main() {
         3, 0, 0, 0, 2, 0, 0, 0, 0, 0, 255, 255
     ])
     assert_eq(ui_avm.pull_event_bytes(), nil)
+    var pointer_event = bytes.pack([
+        79, 71, 69, 48, 1, 0, 0, 0, 1, 0, 12, 0,
+        44, 1, 0, 0, 200, 0, 0, 0, 7, 0, 0, 0
+    ])
+    var decoded_pointer = ui_avm.decode_event_bytes(pointer_event)
+    assert_eq(decoded_pointer["kind"], "pointer")
+    assert_eq(decoded_pointer["phase"], "down")
+    assert_eq(decoded_pointer["x"], 300)
+    assert_eq(decoded_pointer["y"], 200)
+    assert_eq(decoded_pointer["pointer_id"], 7)
+    var tick_event = bytes.pack([
+        79, 71, 69, 48, 1, 0, 0, 0, 18, 0, 28, 0,
+        9, 0, 0, 0,
+        210, 4, 0, 0, 0, 0, 0, 0,
+        16, 0, 0, 0, 0, 0, 0, 0,
+        96, 234, 0, 0, 3, 0, 0, 0
+    ])
+    var decoded_tick = ui_avm.decode_event_bytes(tick_event)
+    assert_eq(decoded_tick["kind"], "frame_tick")
+    assert_eq(decoded_tick["sequence"], 9)
+    assert_eq(decoded_tick["now_ns"], 1234)
+    assert_eq(decoded_tick["delta_ns"], 16)
+    assert_eq(decoded_tick["target_hz_milli"], 60000)
+    assert_eq(decoded_tick["flags"], 3)
     assert_eq(ui_avm.present_frame(cmds, 4, 3, opts), 0)
 
     var clip_frame = ui_avm.frame_bytes([

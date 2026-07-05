@@ -2391,6 +2391,8 @@ design evidence lives under `project-doc/`.
   headers directly while keeping list-compatible byte input fallback.
 - `std:ui/ppm` now reuses one cached u8 input pointer while emitting P6 RGB
   bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.
+- `std:ui/avm` OGE0 event decoding now reads little-endian u32/u64 payload
+  fields from the cached u8 event-buffer pointer after payload length checks.
 - `std:buffer` slice/strided/matrix byte-copy fallbacks now cache u8 source
   pointers for non-contiguous destinations while retaining list-compatible byte
   fallback.
