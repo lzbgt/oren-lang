@@ -3625,6 +3625,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 48.5s total /
   35.4s parse, with `_x64_prepare_sys_rw_linux_args` exposed at about 41ms as
   the next parser body.
+- Linux x64 read/write argument preparation now separates shared temp-slot
+  allocation, fd evaluation with capsule prehook spilling, and pointer/length
+  left-to-right spilling while preserving cleanup on expression errors. The
+  capped profile now shows `x64_native_program.oren` at about 52.0s total /
+  38.4s parse, with `_x64_fast_list_int_get_sum_prepare` exposed at about 46ms
+  as the next parser body.
 
 ## Documentation Guardrail
 

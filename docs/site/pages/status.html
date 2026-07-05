@@ -4097,6 +4097,14 @@ make docs-site</code></pre>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 48.5s total /</p>
 <p>  35.4s parse, with <code>_x64_prepare_sys_rw_linux_args</code> exposed at about 41ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>Linux x64 read/write argument preparation now separates shared temp-slot</li>
+</ul>
+<p>  allocation, fd evaluation with capsule prehook spilling, and pointer/length</p>
+<p>  left-to-right spilling while preserving cleanup on expression errors. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 52.0s total /</p>
+<p>  38.4s parse, with <code>_x64_fast_list_int_get_sum_prepare</code> exposed at about 46ms</p>
+<p>  as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

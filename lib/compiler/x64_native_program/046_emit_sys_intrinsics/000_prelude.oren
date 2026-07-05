@@ -296,7 +296,7 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     return nil
 }
 
-fn _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, prehook_name) {
+fn _x64_sys_rw_linux_slots(ctx, locals) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -306,22 +306,36 @@ fn _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, prehook_name) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
+    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+}
 
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+fn _x64_sys_rw_linux_spill_fd(ctx, locals, fd_expr, state, capsule, prehook_name) {
+    _emit_eval_int_to_rax(ctx, fd_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi=fd
     if capsule {
         _emit_call_rel32_named_x64(ctx, prehook_name)
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
     }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    return true
+}
 
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+fn _x64_sys_rw_linux_spill_ptr_len(ctx, locals, ptr_expr, len_expr, state) {
+    _intr_eval_spill_x64(ctx, locals, ptr_expr, state["tmp_ptr"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _intr_eval_spill_x64(ctx, locals, len_expr, state["tmp_len"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, prehook_name) {
+    var state = _x64_sys_rw_linux_slots(ctx, locals)
+    if state == nil { return nil }
+    if _x64_sys_rw_linux_spill_fd(ctx, locals, args[0], state, capsule, prehook_name) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if _x64_sys_rw_linux_spill_ptr_len(ctx, locals, args[1], args[2], state) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+    return state
 }
 
 fn _x64_emit_linux_fd_buf_syscall_args(ctx, st) {
