@@ -181,6 +181,24 @@ fn _pack_vertices_xyz(points, xf, ctx) {
     return out
 }
 
+fn _pack_vertices_xy(points, xf, ctx) {
+    if points == nil { return oren_err(4, ctx + ": missing vertices_xy") }
+    var np = oren_list_len(points)
+    if oren_is_err(np) { return oren_err(4, ctx + ": vertices_xy must be list") }
+    var out = raw.u8_new_uninit(np * 12)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < np {
+        var p = points[i]
+        if p == nil || oren_list_len(p) != 2 { return oren_err(4, ctx + ": vertex must be [x,y]") }
+        var off = i * 12
+        var rc = _store_transformed_xyz_values(out, off, p[0], p[1], 0, xf, ctx)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
+}
+
 fn _pack_faces(faces, vertex_count, ctx) {
     if faces == nil { return oren_err(4, ctx + ": missing faces") }
     var nf = oren_list_len(faces)
@@ -933,6 +951,11 @@ fn _asset_mesh(m) {
             if oren_is_err(vxf) { return vxf }
             vertices = _pack_vertices_xyz(m["vertices_xyz"], vxf, "ui.scene3d mesh.vertices_xyz")
             vertex_count = oren_list_len(m["vertices_xyz"])
+        } else if m["vertices_xy"] != nil {
+            var vxy_xf = _mesh_transform(m, "ui.scene3d mesh")
+            if oren_is_err(vxy_xf) { return vxy_xf }
+            vertices = _pack_vertices_xy(m["vertices_xy"], vxy_xf, "ui.scene3d mesh.vertices_xy")
+            vertex_count = oren_list_len(m["vertices_xy"])
         } else {
             vertices = _pack_bytes(m["vertices"], "ui.scene3d mesh.vertices")
         }
