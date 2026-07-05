@@ -2885,6 +2885,14 @@
 <p>  now shows <code>x64_native_program.oren</code> at ~47.4s total / ~34.0s parse, with</p>
 <p>  <code>_x64_emit_list_int_push_magic_guard</code> exposed at ~56ms as the next parser body.</p>
 <ul>
+<li>X64 list magic validation now shares the <code>*(list+24) == list_magic()</code> compare</li>
+</ul>
+<p>  sequence across LIST/LIST_INT len, push, get, and set guards while preserving</p>
+<p>  each guard&#x27;s label, fallback, and panic-footer behavior. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at ~47.4s total / ~34.2s parse, with</p>
+<p>  <code>_x64_collect_global_roots_from_vectors</code> exposed at ~63ms as the next parser</p>
+<p>  body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

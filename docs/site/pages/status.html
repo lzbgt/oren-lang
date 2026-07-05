@@ -3800,6 +3800,14 @@ make docs-site</code></pre>
 <p>  now shows <code>x64_native_program.oren</code> at about 47.4s total / 34.0s parse, with</p>
 <p>  <code>_x64_emit_list_int_push_magic_guard</code> exposed at about 56ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 list magic validation now shares the <code>*(list+24) == list_magic()</code> compare</li>
+</ul>
+<p>  sequence across LIST/LIST_INT len, push, get, and set guards while preserving</p>
+<p>  each guard&#x27;s label, fallback, and panic-footer behavior. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 47.4s total / 34.2s parse, with</p>
+<p>  <code>_x64_collect_global_roots_from_vectors</code> exposed at about 63ms as the next</p>
+<p>  parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

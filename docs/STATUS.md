@@ -3402,6 +3402,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 47.4s total / 34.0s parse, with
   `_x64_emit_list_int_push_magic_guard` exposed at about 56ms as the next parser
   body.
+- X64 list magic validation now shares the `*(list+24) == list_magic()` compare
+  sequence across LIST/LIST_INT len, push, get, and set guards while preserving
+  each guard's label, fallback, and panic-footer behavior. The capped profile now
+  shows `x64_native_program.oren` at about 47.4s total / 34.2s parse, with
+  `_x64_collect_global_roots_from_vectors` exposed at about 63ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
