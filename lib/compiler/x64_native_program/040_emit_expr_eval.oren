@@ -564,30 +564,44 @@ fn _x64_resolve_fn_value_name(ctx, fn_name) {
 fn _emit_named_function_value_to_rax(ctx, fn_name) {
     if ctx["func_arity"] == nil || ctx["func_arity"][fn_name] == nil { return false }
     if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
-    var wname = "__oren_fnwrap_" + fn_name
-    if ctx != nil && ctx["runtime_injected"] == true {
-        var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
-        var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-        if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
-            err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
-            return true
-        }
-        var code_reg = code_reg_enc - 1
-        var env_reg = env_reg_enc - 1
-        bytes_extend(ctx["code"], core.insn_mov_r32_imm32(env_reg, 0))
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(code_reg, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": wname})
-        _emit_call_rel32_named_x64(ctx, "oren_func")
-        return true
-    }
+    var wname = _x64_named_function_value_wrapper_name(fn_name)
+    if ctx != nil && ctx["runtime_injected"] == true { _x64_emit_named_fn_value_runtime(ctx, wname); return true }
+    _x64_emit_named_fn_value_static_data(ctx, wname)
+    return true
+}
 
+fn _x64_named_function_value_wrapper_name(fn_name) {
+    return "__oren_fnwrap_" + fn_name
+}
+
+fn _x64_named_fn_value_abi_regs(ctx) {
+    var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+        return nil
+    }
+    return {"code": code_reg_enc - 1, "env": env_reg_enc - 1}
+}
+
+fn _x64_emit_named_fn_value_runtime(ctx, wname) {
+    var regs = _x64_named_fn_value_abi_regs(ctx)
+    if regs == nil { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(regs["env"], 0))
+    var lea_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(regs["code"], 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": wname})
+    _emit_call_rel32_named_x64(ctx, "oren_func")
+    return nil
+}
+
+fn _x64_emit_named_fn_value_static_data(ctx, wname) {
     var fnobj_off = _data_add_fnobj(ctx, wname)
-    if oren_type_tag(fnobj_off) == 0 { err(ctx, "x64 native v0: failed to allocate fnobj"); return true }
+    if oren_type_tag(fnobj_off) == 0 { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
     var lea_pos2 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": fnobj_off})
-    return true
+    return nil
 }
 
 fn _emit_identifier_expr_to_rax(ctx, expr, locals) {

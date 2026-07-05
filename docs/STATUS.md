@@ -3560,6 +3560,12 @@ make docs-site
   shows `x64_native_program.oren` at about 47.4s total / 34.3s parse, with
   `_emit_named_function_value_to_rax` exposed at about 42ms as the next parser
   body.
+- X64 named-function value lowering now separates wrapper-name construction,
+  injected-runtime `oren_func` ABI setup, and static fnobj data materialization
+  while preserving the handled/unknown return contract. The capped profile now
+  shows `x64_native_program.oren` at about 49.6s total / 36.1s parse, with
+  `_emit_eval_ptr_store_intrinsic_x64` exposed at about 43ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
