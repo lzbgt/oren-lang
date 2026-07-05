@@ -3566,6 +3566,12 @@ make docs-site
   shows `x64_native_program.oren` at about 49.6s total / 36.1s parse, with
   `_emit_eval_ptr_store_intrinsic_x64` exposed at about 43ms as the next parser
   body.
+- X64 pointer-store intrinsic lowering now separates two-argument validation,
+  pointer spill, value evaluation, and width-specific store emission while
+  preserving left-to-right evaluation and temp cleanup ownership. The capped
+  profile now shows `x64_native_program.oren` at about 47.4s total / 34.0s
+  parse, with `_x64_emit_sys_write_windows_handle` exposed at about 41ms as the
+  next parser body.
 
 ## Documentation Guardrail
 

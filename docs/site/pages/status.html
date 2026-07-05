@@ -4018,6 +4018,14 @@ make docs-site</code></pre>
 <p>  shows <code>x64_native_program.oren</code> at about 49.6s total / 36.1s parse, with</p>
 <p>  <code>_emit_eval_ptr_store_intrinsic_x64</code> exposed at about 43ms as the next parser</p>
 <p>  body.</p>
+<ul>
+<li>X64 pointer-store intrinsic lowering now separates two-argument validation,</li>
+</ul>
+<p>  pointer spill, value evaluation, and width-specific store emission while</p>
+<p>  preserving left-to-right evaluation and temp cleanup ownership. The capped</p>
+<p>  profile now shows <code>x64_native_program.oren</code> at about 47.4s total / 34.0s</p>
+<p>  parse, with <code>_x64_emit_sys_write_windows_handle</code> exposed at about 41ms as the</p>
+<p>  next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
