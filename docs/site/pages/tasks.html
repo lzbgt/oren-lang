@@ -1488,7 +1488,8 @@
 <p>     exact-size writes; Base64/Base64URL encode reads <code>u8_buf</code> inputs directly after one length check, and decode also rejects malformed padding and</p>
 <p>     nonzero trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>	     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text</p>
-<p>	     encoding through growable <code>u8_buf</code> output plus u8-backed decode byte carriers, and full regex</p>
+<p>	     encoding through growable <code>u8_buf</code> output plus cached u8 carrier pointers</p>
+<p>	     for byte-string encode and recursive/sequence decode, and full regex</p>
 <p>     pattern/text matching now use direct string</p>
 <p>     byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,</p>
 <p>     line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers</p>

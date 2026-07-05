@@ -3254,6 +3254,11 @@
 </ul>
 <p>  magic/opcode/payload-length reads while retaining list-compatible byte input.</p>
 <ul>
+<li><code>std:cbor</code> byte-string encoding plus recursive and sequence decoding now cache</li>
+</ul>
+<p>  u8 carrier pointers once per operation while retaining list-compatible byte</p>
+<p>  input fallback.</p>
+<ul>
 <li><code>std:ui/raster</code> now caches u8 pointers for image RGBA and mesh RGBA byte</li>
 </ul>
 <p>  reads, with explicit image-data length guards before pointer-backed sampling.</p>
