@@ -336,17 +336,34 @@ fn _x64_rtobj_apply_append_code(ctx, meta, trace, phase_log) {
     return base_code
 }
 
-fn _x64_rtobj_apply_compact_function_offsets(ctx, fn_compact, base_code, trace, phase_log) {
-    var fn_compact_names = nil
-    var fn_compact_n = 0
-    if fn_compact != nil {
-        fn_compact_names = fn_compact["names"]
-        if fn_compact_names != nil { fn_compact_n = oren_list_len(fn_compact_names) }
-    }
-    if fn_compact_n <= 0 { return false }
+fn _x64_rtobj_compact_fn_count(fn_compact) {
+    if fn_compact == nil { return 0 }
+    var names = fn_compact["names"]
+    if names == nil { return 0 }
+    return oren_list_len(names)
+}
 
+fn _x64_rtobj_attach_compact_function_offsets(ctx, fn_compact, base_code) {
     ctx["runtime_x64_fn_offsets_compact"] = fn_compact
     ctx["runtime_x64_fn_offsets_base_code"] = base_code
+    return nil
+}
+
+fn _x64_rtobj_record_call_depth_hook(ctx, hook_name, hook_off, base_code) {
+    if hook_off == nil { return false }
+    if hook_name == "oren_call_depth_enter" {
+        ctx["runtime_x64_call_depth_enter_off"] = base_code + hook_off
+        return true
+    }
+    if hook_name == "oren_call_depth_exit" {
+        ctx["runtime_x64_call_depth_exit_off"] = base_code + hook_off
+        return true
+    }
+    return false
+}
+
+fn _x64_rtobj_apply_compact_call_depth_hooks(ctx, fn_compact, base_code, fn_compact_n) {
+    var fn_compact_names = fn_compact["names"]
     var fn_compact_offs = fn_compact["offs_enc"]
     var hook_i = 0
     var hook_found = 0
@@ -355,20 +372,32 @@ fn _x64_rtobj_apply_compact_function_offsets(ctx, fn_compact, base_code, trace, 
         if hook_name == "oren_call_depth_enter" || hook_name == "oren_call_depth_exit" {
             var hook_off = nil
             if fn_compact_offs != nil { hook_off = _rtobj_decode_int_enc(fn_compact_offs[hook_i]) }
-            if hook_off != nil {
-                if hook_name == "oren_call_depth_enter" { ctx["runtime_x64_call_depth_enter_off"] = base_code + hook_off }
-                else { ctx["runtime_x64_call_depth_exit_off"] = base_code + hook_off }
+            if _x64_rtobj_record_call_depth_hook(ctx, hook_name, hook_off, base_code) == true {
                 hook_found = hook_found + 1
             }
         }
         hook_i = hook_i + 1
     }
+    return hook_found
+}
+
+fn _x64_rtobj_log_compact_function_offsets(fn_compact_n, hook_found, trace, phase_log) {
     if trace { print("[x64_rtobj_apply] function offsets compact attached count=" + oren_int_to_string(fn_compact_n)) }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.fn_offsets.done",
             "path=compact count=" + oren_int_to_string(fn_compact_n) +
             " hooks=" + oren_int_to_string(hook_found))
     }
+    return nil
+}
+
+fn _x64_rtobj_apply_compact_function_offsets(ctx, fn_compact, base_code, trace, phase_log) {
+    var fn_compact_n = _x64_rtobj_compact_fn_count(fn_compact)
+    if fn_compact_n <= 0 { return false }
+
+    _x64_rtobj_attach_compact_function_offsets(ctx, fn_compact, base_code)
+    var hook_found = _x64_rtobj_apply_compact_call_depth_hooks(ctx, fn_compact, base_code, fn_compact_n)
+    _x64_rtobj_log_compact_function_offsets(fn_compact_n, hook_found, trace, phase_log)
     return true
 }
 

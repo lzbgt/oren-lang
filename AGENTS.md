@@ -73,9 +73,16 @@ Boundary: this is architecture review and setup guidance, not guaranteed product
 
 ## Containers / Docker
 
+- For Linux/x86_64 execution validation, prefer the dedicated Arch Linux x64
+  host on the LAN:
+  - SSH target: `bruce@192.168.0.102`
+  - This host is SSH-cert trusted and should be used for x64 Linux runtime
+    smokes when reachable.
 - Prefer the existing Ubuntu toolchain container:
   - Container name: `c7e5f7bd9f5c` (current ID: `4d31759fc170`, 2026-02-26).
-  - Use `docker exec -it c7e5f7bd9f5c ...` (or the ID) for all Linux/x86_64 validation and tooling.
+  - Use `docker exec -it c7e5f7bd9f5c ...` (or the ID) as fallback Linux/x86_64
+    tooling when the Arch x64 host is not reachable or when container isolation
+    is specifically required.
 - If `c7e5f7bd9f5c` is not available, then spinup new containers for reuse.
 
 ## Security / secrets

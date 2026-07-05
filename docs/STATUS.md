@@ -3666,6 +3666,14 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 51.1s total / 37.3s
   parse, with `_x64_rtobj_apply_compact_function_offsets` exposed at about 46ms
   as the next parser body.
+- X64 runtime-object compact function-offset application now separates compact
+  count extraction, compact offset attachment, call-depth hook recording, and
+  phase logging while preserving the compact metadata contract. The capped
+  profile shows `x64_native_program.oren` at about 49.2s total / 35.5s parse,
+  with `_x64_emit_named_call_core_intrinsic_v0` exposed at about 40ms as the
+  next parser body. Linux/x64 execution validation now prefers the dedicated
+  Arch host `bruce@192.168.0.102`; print and result-smoke binaries pass there,
+  while the broader quick-integration crash is tracked as `NATIVE-X64-ARCH-QI`.
 
 ## Documentation Guardrail
 
