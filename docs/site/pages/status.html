@@ -3978,6 +3978,14 @@ make docs-site</code></pre>
 <p>  slots. The capped profile now shows <code>x64_native_program.oren</code> at about 46.9s</p>
 <p>  total / 33.9s parse, with <code>_x64_rtobj_allocate_runtime_globals</code> exposed at</p>
 <p>  about 42ms as the next parser body.</p>
+<ul>
+<li>X64 runtime-object runtime-global allocation now separates name validation,</li>
+</ul>
+<p>  reserved <code>g_storage</code> handling, duplicate detection, data-slot/root metadata</p>
+<p>  recording, and completion logging while preserving allocation order. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.5s total /</p>
+<p>  34.3s parse, with <code>_x64_rtobj_compile_runtime_decls</code> exposed at about 42ms as</p>
+<p>  the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

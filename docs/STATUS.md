@@ -3536,6 +3536,12 @@ make docs-site
   slots. The capped profile now shows `x64_native_program.oren` at about 46.9s
   total / 33.9s parse, with `_x64_rtobj_allocate_runtime_globals` exposed at
   about 42ms as the next parser body.
+- X64 runtime-object runtime-global allocation now separates name validation,
+  reserved `g_storage` handling, duplicate detection, data-slot/root metadata
+  recording, and completion logging while preserving allocation order. The
+  capped profile now shows `x64_native_program.oren` at about 47.5s total /
+  34.3s parse, with `_x64_rtobj_compile_runtime_decls` exposed at about 42ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

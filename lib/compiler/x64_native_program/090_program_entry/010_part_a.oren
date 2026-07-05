@@ -655,30 +655,63 @@ fn _x64_rtobj_allocate_runtime_globals(ctx, runtime_vars, phase_log) {
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.start", "") }
     var vi = 0
     while vi < oren_list_len(runtime_vars) {
-        var st = runtime_vars[vi]
-        if st != nil {
-            var nm = st["name"]["value"]
-            if nm == nil || nm == "" { err(ctx, "x64 native rtobj: runtime global var missing name"); return false }
-            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier-1 bootstrap).
-            if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { vi = vi + 1; continue }
-            if ctx["globals"] != nil && ctx["globals"][nm] != nil {
-                err(ctx, "x64 native rtobj: duplicate global var " + nm)
-                return false
-            }
-            var off0 = _data_add_u64(ctx, 0)
-            ctx["globals"][nm] = off0 + 1
-            if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
-            if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
-            if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
-        }
+        if _x64_rtobj_allocate_runtime_global(ctx, runtime_vars[vi]) != true { return false }
         vi = vi + 1
     }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _x64_rtobj_log_runtime_globals_done(runtime_vars, phase_log)
+    return true
+}
+
+fn _x64_rtobj_runtime_global_name(ctx, st) {
+    if st == nil { return nil }
+    var nm = st["name"]["value"]
+    if nm == nil || nm == "" {
+        err(ctx, "x64 native rtobj: runtime global var missing name")
+        return nil
+    }
+    return nm
+}
+
+fn _x64_rtobj_runtime_global_already_reserved(ctx, nm) {
+    // `g_storage` is reserved in the native entry stub `.data` prefix (Tier-1 bootstrap).
+    if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { return true }
+    return false
+}
+
+fn _x64_rtobj_validate_new_runtime_global(ctx, nm) {
+    if ctx["globals"] != nil && ctx["globals"][nm] != nil {
+        err(ctx, "x64 native rtobj: duplicate global var " + nm)
+        return false
+    }
+    return true
+}
+
+fn _x64_rtobj_record_runtime_global(ctx, nm, off0) {
+    ctx["globals"][nm] = off0 + 1
+    if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
+    if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off0) }
+    if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
+    return nil
+}
+
+fn _x64_rtobj_allocate_runtime_global(ctx, st) {
+    if st == nil { return true }
+    var nm = _x64_rtobj_runtime_global_name(ctx, st)
+    if nm == nil { return false }
+    if _x64_rtobj_runtime_global_already_reserved(ctx, nm) == true { return true }
+    if _x64_rtobj_validate_new_runtime_global(ctx, nm) != true { return false }
+    var off0 = _data_add_u64(ctx, 0)
+    _x64_rtobj_record_runtime_global(ctx, nm, off0)
+    return true
+}
+
+fn _x64_rtobj_log_runtime_globals_done(runtime_vars, phase_log) {
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.done",
             "runtime_vars=" + oren_int_to_string(oren_list_len(runtime_vars)))
     }
-    return true
+    return nil
 }
 
 fn _x64_rtobj_decl_display_name(fn0) {
