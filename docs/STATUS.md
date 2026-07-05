@@ -3631,6 +3631,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 52.0s total /
   38.4s parse, with `_x64_fast_list_int_get_sum_prepare` exposed at about 46ms
   as the next parser body.
+- X64 fast LIST_INT get-sum preparation now separates name extraction,
+  local-offset validation, loop-shape selection, whole-list helper gating,
+  trace/temp-base allocation, and final state packing while preserving the
+  returned prepare map. The capped profile now shows `x64_native_program.oren`
+  at about 47.8s total / 34.4s parse, with `_x64_match_fast_lcg_source` exposed
+  at about 66ms as the next parser body.
 
 ## Documentation Guardrail
 

@@ -745,52 +745,79 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
     return nil
 }
 
-fn _x64_fast_list_int_get_sum_prepare(ctx, info, locals) {
+fn _x64_fast_list_int_get_sum_names(info) {
     var idx_name = info["idx"]
     var n_name = info["n"]
     var sum_name = info["sum"]
     var lists = info["lists"]
     var loads = info["loads"]
-    var sum_inty = info["sum_inty"]
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads}
+}
 
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    var off_sum = locals[sum_name]
+fn _x64_fast_list_int_get_sum_offsets(locals, names) {
+    var off_idx = locals[names["idx"]]
+    var off_n = locals[names["n"]]
+    var off_sum = locals[names["sum"]]
     if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
+    return {"off_idx": off_idx, "off_n": off_n, "off_sum": off_sum}
+}
 
+fn _x64_fast_list_int_get_sum_shape(lists, loads) {
     var list_count = oren_list_len(lists)
     var load_count = oren_list_len(loads)
     var unique_lists = false
     if list_count == load_count { unique_lists = true }
+    var unroll2 = false
+    if unique_lists == true { unroll2 = true }
+    return {"list_count": list_count, "unique_lists": unique_lists, "unroll2": unroll2}
+}
+
+fn _x64_fast_list_int_get_sum_whole_helper(ctx, names) {
     var whole_list_helper = false
     // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
-    if oren_list_len(loads) == 1 &&
-        _x64_int_const_for_name(ctx, idx_name) == 0 &&
-        _x64_int_const_for_name(ctx, sum_name) == 0 &&
+    if oren_list_len(names["loads"]) == 1 &&
+        _x64_int_const_for_name(ctx, names["idx"]) == 0 &&
+        _x64_int_const_for_name(ctx, names["sum"]) == 0 &&
         _x64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER") == true {
         whole_list_helper = true
     }
-    var unroll2 = false
-    if unique_lists == true { unroll2 = true }
+    return whole_list_helper
+}
+
+fn _x64_fast_list_int_get_sum_alloc_base(ctx, info, list_count) {
     _trace_x64_list_fast_loop(ctx, "fast_list_int_get_sum_while", info)
     var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
     if oren_type_tag(base) == 0 { return nil }
+    return base
+}
 
+fn _x64_fast_list_int_get_sum_pack(info, names, offsets, shape, whole_list_helper, base) {
     return {
-        "idx": idx_name,
-        "n": n_name,
-        "sum": sum_name,
-        "lists": lists,
-        "loads": loads,
-        "off_idx": off_idx,
-        "off_n": off_n,
-        "off_sum": off_sum,
-        "list_count": list_count,
-        "unique_lists": unique_lists,
+        "idx": names["idx"],
+        "n": names["n"],
+        "sum": names["sum"],
+        "lists": names["lists"],
+        "loads": names["loads"],
+        "off_idx": offsets["off_idx"],
+        "off_n": offsets["off_n"],
+        "off_sum": offsets["off_sum"],
+        "list_count": shape["list_count"],
+        "unique_lists": shape["unique_lists"],
         "whole_list_helper": whole_list_helper,
-        "unroll2": unroll2,
+        "unroll2": shape["unroll2"],
         "base": base
     }
+}
+
+fn _x64_fast_list_int_get_sum_prepare(ctx, info, locals) {
+    var names = _x64_fast_list_int_get_sum_names(info)
+    var offsets = _x64_fast_list_int_get_sum_offsets(locals, names)
+    if offsets == nil { return nil }
+    var shape = _x64_fast_list_int_get_sum_shape(names["lists"], names["loads"])
+    var whole_list_helper = _x64_fast_list_int_get_sum_whole_helper(ctx, names)
+    var base = _x64_fast_list_int_get_sum_alloc_base(ctx, info, shape["list_count"])
+    if base == nil { return nil }
+    return _x64_fast_list_int_get_sum_pack(info, names, offsets, shape, whole_list_helper, base)
 }
 
 fn _x64_fast_list_int_get_sum_slot_state(ctx, locals, lists, base, li) {
