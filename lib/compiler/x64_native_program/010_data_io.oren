@@ -341,28 +341,41 @@ fn _data_add_fnobj(ctx, fn_name) {
     //     wrapper(env_ptr, args_list)
     // - `env_ptr` is reserved for closures (captures); for now it is always 0 in
     //   the x64 native backend.
-    if ctx == nil { return nil }
+    if _data_fnobj_ensure_state(ctx) != true { return nil }
+    var existing = _data_fnobj_existing_off(ctx, fn_name)
+    if existing != nil { return existing }
+    var off = _data_fnobj_append_zeroed(ctx)
+    _data_fnobj_record_fixup(ctx, fn_name, off)
+    return off
+}
+
+fn _data_fnobj_ensure_state(ctx) {
+    if ctx == nil { return false }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["fnobj_offs"] == nil { ctx["fnobj_offs"] = {} }
+    return true
+}
+
+fn _data_fnobj_existing_off(ctx, fn_name) {
     // Store offsets as `off+1` so a real offset of 0 is representable while still using `nil`
     // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var existing_enc = ctx["fnobj_offs"][fn_name]
-    if oren_type_tag(existing_enc) == 1 {
-        if existing_enc > 0 { return existing_enc - 1 }
-    }
+    if oren_type_tag(existing_enc) == 1 && existing_enc > 0 { return existing_enc - 1 }
+    return nil
+}
 
+fn _data_fnobj_append_zeroed(ctx) {
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
-    // code_ptr placeholder (8 bytes)
-    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
-    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
-    // env_ptr = 0 (8 bytes)
-    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
-    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    push_u64_le(ctx["data"], 0) // code_ptr placeholder, patched by fixup.
+    push_u64_le(ctx["data"], 0) // env_ptr placeholder, reserved for closures.
+    return off
+}
 
+fn _data_fnobj_record_fixup(ctx, fn_name, off) {
     ctx["fnobj_offs"][fn_name] = off + 1
     oren_list_push(ctx["fixups"], {"type": "data_fnobj_code_ptr", "data_off": off, "name": fn_name})
-    return off
+    return nil
 }
 
 fn _data_add_u64(ctx, val) {
