@@ -753,41 +753,88 @@ fn _x64_rtobj_keep_top_decl(top_decls, top_keep, ent) {
 }
 
 fn _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {
-    var sum_decl_ns = 0
-    if phase_log != nil {
-        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.start",
-            "fns=" + oren_int_to_string(oren_list_len(fns)))
-    }
+    var state = _x64_rtobj_compile_runtime_decl_state(ctx, fns, platform, call_depth_default_enabled,
+        trace_decls, top_decls, top_keep, phase_log, trace)
+    _x64_rtobj_log_runtime_decls_start(state)
     var i = 0
     while i < oren_list_len(fns) {
-        if phase_log != nil && i > 0 && core.int_mod(i, 250) == 0 {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.progress",
-                "i=" + oren_int_to_string(i) +
-                " total=" + oren_int_to_string(oren_list_len(fns)))
-        }
-        var t_decl0 = 0
-        if trace_decls { t_decl0 = oren_time_now_ns() }
-        _compile_function_v0(ctx, fns[i], platform, false, call_depth_default_enabled)
-        if trace_decls {
-            var dt_decl = oren_time_now_ns() - t_decl0
-            sum_decl_ns = sum_decl_ns + dt_decl
-            top_decls = _x64_rtobj_keep_top_decl(top_decls, top_keep, {
-                "ns": dt_decl,
-                "type": "Function",
-                "name": _x64_rtobj_decl_display_name(fns[i])
-            })
-        }
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-            if trace { print("[rtobj] x64 build failed (compile runtime fn): " + ctx["errors"][0]) }
-            return nil
-        }
+        _x64_rtobj_log_runtime_decls_progress(state, i)
+        if _x64_rtobj_compile_one_runtime_decl(state, i) != 1 { return nil }
         i = i + 1
     }
+    _x64_rtobj_log_runtime_decls_done(state)
+    return {"sum_decl_ns": state["sum_decl_ns"], "top_decls": state["top_decls"]}
+}
+
+fn _x64_rtobj_compile_runtime_decl_state(ctx, fns, platform, call_depth_default_enabled, trace_decls, top_decls, top_keep, phase_log, trace) {
+    return {
+        "ctx": ctx,
+        "fns": fns,
+        "platform": platform,
+        "call_depth_default_enabled": call_depth_default_enabled,
+        "trace_decls": trace_decls,
+        "top_decls": top_decls,
+        "top_keep": top_keep,
+        "phase_log": phase_log,
+        "trace": trace,
+        "sum_decl_ns": 0
+    }
+}
+
+fn _x64_rtobj_log_runtime_decls_start(state) {
+    var phase_log = state["phase_log"]
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.start",
+            "fns=" + oren_int_to_string(oren_list_len(state["fns"])))
+    }
+    return nil
+}
+
+fn _x64_rtobj_log_runtime_decls_progress(state, i) {
+    var phase_log = state["phase_log"]
+    if phase_log != nil && i > 0 && core.int_mod(i, 250) == 0 {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.progress",
+            "i=" + oren_int_to_string(i) +
+            " total=" + oren_int_to_string(oren_list_len(state["fns"])))
+    }
+    return nil
+}
+
+fn _x64_rtobj_compile_one_runtime_decl(state, i) {
+    var ctx = state["ctx"]
+    var fns = state["fns"]
+    var trace_decls = state["trace_decls"] == true
+    var t_decl0 = 0
+    if trace_decls { t_decl0 = oren_time_now_ns() }
+    _compile_function_v0(ctx, fns[i], state["platform"], false, state["call_depth_default_enabled"])
+    if trace_decls { _x64_rtobj_record_runtime_decl_trace(state, fns[i], t_decl0) }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        if state["trace"] { print("[rtobj] x64 build failed (compile runtime fn): " + ctx["errors"][0]) }
+        return 0
+    }
+    return 1
+}
+
+fn _x64_rtobj_record_runtime_decl_trace(state, fn0, t_decl0) {
+    var dt_decl = oren_time_now_ns() - t_decl0
+    state["sum_decl_ns"] = state["sum_decl_ns"] + dt_decl
+    var top_decls = state["top_decls"]
+    if top_decls == nil { top_decls = [] }
+    state["top_decls"] = _x64_rtobj_keep_top_decl(top_decls, state["top_keep"], {
+        "ns": dt_decl,
+        "type": "Function",
+        "name": _x64_rtobj_decl_display_name(fn0)
+    })
+    return nil
+}
+
+fn _x64_rtobj_log_runtime_decls_done(state) {
+    var phase_log = state["phase_log"]
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.build.decls.done",
-            "fns=" + oren_int_to_string(oren_list_len(fns)))
+            "fns=" + oren_int_to_string(oren_list_len(state["fns"])))
     }
-    return {"sum_decl_ns": sum_decl_ns, "top_decls": top_decls}
+    return nil
 }
 
 fn _x64_rtobj_synthesize_wrappers(ctx) {

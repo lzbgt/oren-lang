@@ -3542,6 +3542,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 47.5s total /
   34.3s parse, with `_x64_rtobj_compile_runtime_decls` exposed at about 42ms as
   the next parser body.
+- X64 runtime-object runtime-declaration compilation now mirrors the wrapper
+  compiler loop with explicit state packing, start/progress/done logging,
+  single-declaration compile routing, and top-declaration trace recording while
+  preserving `_compile_function_v0` call order. The capped profile now shows
+  `x64_native_program.oren` at about 47.8s total / 34.5s parse, with
+  `_emit_eval_infix_to_rax` exposed at about 42ms as the next parser body.
 
 ## Documentation Guardrail
 
