@@ -1373,14 +1373,32 @@ fn _asset_color(m, ctx) {
     return _color_hex(c["r"] * 16777216 + c["g"] * 65536 + c["b"] * 256 + c["a"])
 }
 
-fn _bin_u32(data, off) {
-    var v = bytes.get_u32_le(data, off)
+fn _bin_u32_from_ptr(p, off) {
+    return (ptr_get_byte(p + off) & 255) |
+        ((ptr_get_byte(p + off + 1) & 255) << 8) |
+        ((ptr_get_byte(p + off + 2) & 255) << 16) |
+        ((ptr_get_byte(p + off + 3) & 255) << 24)
+}
+
+fn _bin_u32(data, data_ptr, off) {
+    var v = nil
+    if data_ptr != nil {
+        v = _bin_u32_from_ptr(data_ptr, off)
+    } else {
+        v = bytes.get_u32_le(data, off)
+    }
     if oren_is_err(v) { return v }
     return [v, off + 4]
 }
 
-fn _bin_i32(data, off) {
-    var v = bytes.get_i32_le(data, off)
+fn _bin_i32(data, data_ptr, off) {
+    var v = nil
+    if data_ptr != nil {
+        v = _bin_u32_from_ptr(data_ptr, off)
+        if v >= 2147483648 { v = v - 4294967296 }
+    } else {
+        v = bytes.get_i32_le(data, off)
+    }
     if oren_is_err(v) { return v }
     return [v, off + 4]
 }
@@ -1413,27 +1431,29 @@ fn scene_from_binary(data) {
     if _bin_magic_ok(data) == false { return oren_err(4, "ui.scene3d.scene_from_binary: bad magic") }
     var n = bytes.len(data)
     if oren_is_err(n) { return n }
+    var data_ptr = nil
+    if oren_is_u8_buf(data) == true { data_ptr = oren_buf_data_ptr_unchecked(data) }
     var off = 8
-    var r = _bin_u32(data, off); if oren_is_err(r) { return r }; var mesh_count = r[0]; off = r[1]
-    r = _bin_u32(data, off); if oren_is_err(r) { return r }; var material_count = r[0]; off = r[1]
-    r = _bin_u32(data, off); if oren_is_err(r) { return r }; var model_count = r[0]; off = r[1]
-    r = _bin_u32(data, off); if oren_is_err(r) { return r }; var draw_count = r[0]; off = r[1]
-    r = _bin_u32(data, off); if oren_is_err(r) { return r }; var flags = r[0]; off = r[1]
+    var r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var mesh_count = r[0]; off = r[1]
+    r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var material_count = r[0]; off = r[1]
+    r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var model_count = r[0]; off = r[1]
+    r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var draw_count = r[0]; off = r[1]
+    r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var flags = r[0]; off = r[1]
     var camera = nil
     if (flags / 2) % 2 == 1 {
-        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var near_z = r[0]; off = r[1]
-        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var far_z = r[0]; off = r[1]
+        r = _bin_i32(data, data_ptr, off); if oren_is_err(r) { return r }; var near_z = r[0]; off = r[1]
+        r = _bin_i32(data, data_ptr, off); if oren_is_err(r) { return r }; var far_z = r[0]; off = r[1]
         camera = {"near_z": near_z, "far_z": far_z}
     }
 
     var meshes = []
     var mi = 0
     while mi < mesh_count {
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var mesh_id = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var kind = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var color = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var data_len = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var index_len = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var mesh_id = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var kind = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var color = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var data_len = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var index_len = r[0]; off = r[1]
         var payload = _bin_slice(data, off, data_len)
         if oren_is_err(payload) { return payload }
         off = off + data_len
@@ -1457,8 +1477,8 @@ fn scene_from_binary(data) {
     var materials = []
     var mati = 0
     while mati < material_count {
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var mat_id = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var mat_color = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var mat_id = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var mat_color = r[0]; off = r[1]
         list.push(materials, material(mat_id, _color_hex(mat_color)))
         mati = mati + 1
     }
@@ -1466,13 +1486,13 @@ fn scene_from_binary(data) {
     var models = []
     var modi = 0
     while modi < model_count {
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var model_id = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var model_mesh = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var model_mat = r[0]; off = r[1]
-        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var x = r[0]; off = r[1]
-        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var y = r[0]; off = r[1]
-        r = _bin_i32(data, off); if oren_is_err(r) { return r }; var z = r[0]; off = r[1]
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }; var scale = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var model_id = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var model_mesh = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var model_mat = r[0]; off = r[1]
+        r = _bin_i32(data, data_ptr, off); if oren_is_err(r) { return r }; var x = r[0]; off = r[1]
+        r = _bin_i32(data, data_ptr, off); if oren_is_err(r) { return r }; var y = r[0]; off = r[1]
+        r = _bin_i32(data, data_ptr, off); if oren_is_err(r) { return r }; var z = r[0]; off = r[1]
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }; var scale = r[0]; off = r[1]
         list.push(models, model(model_id, model_mesh, model_mat, x, y, z, scale))
         modi = modi + 1
     }
@@ -1480,7 +1500,7 @@ fn scene_from_binary(data) {
     var draws = []
     var di = 0
     while di < draw_count {
-        r = _bin_u32(data, off); if oren_is_err(r) { return r }
+        r = _bin_u32(data, data_ptr, off); if oren_is_err(r) { return r }
         list.push(draws, r[0])
         off = r[1]
         di = di + 1

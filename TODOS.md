@@ -2394,8 +2394,8 @@ design evidence lives under `project-doc/`.
 - `std:ui/raster` now caches u8 pointers for polyline, triangle, 3D mesh,
   text-position, image RGBA, mesh RGBA, and image-rect byte reads, with explicit
   image-data length guards before pointer-backed sampling.
-- `std:ui/scene3d` binary `.os3d` package magic checks now read u8-buffer
-  headers directly while keeping list-compatible byte input fallback.
+- `std:ui/scene3d` binary `.os3d` package magic, header, and table reads now
+  use cached u8-buffer pointers while keeping list-compatible byte input fallback.
 - `std:ui/ppm` now reuses one cached u8 input pointer while emitting P6 RGB
   bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.
 - `std:ui/avm` OGE0 event decoding now reads little-endian u32/u64 payload
