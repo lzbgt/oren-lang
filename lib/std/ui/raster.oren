@@ -79,6 +79,16 @@ var _ty = 0
 var _opacity_milli = 1000
 var _out_ptr = 0
 
+fn _byte_ptr_or_nil(bs) {
+    if oren_is_u8_buf(bs) == true { return oren_buf_data_ptr_unchecked(bs) }
+    return nil
+}
+
+fn _read_byte(bs, p, off) {
+    if p != nil { return ptr_get_byte(p + off) & 255 }
+    return bytes.get_u8(bs, off)
+}
+
 fn _max_i(a, b) {
     if a > b { return a }
     return b
@@ -593,6 +603,7 @@ fn _draw_triangle3d_stride_bytes_model(buf, w, h, tris, stride, c, err_prefix, m
 fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, scale_milli, depth_enabled, near_z, far_z) {
     var tris_len = bytes.len(tris)
     if oren_is_err(tris_len) { return result.with_context(tris_len, err_prefix) }
+    var trisp = _byte_ptr_or_nil(tris)
     var triangle_count = tris_len / 40
     var drawn = {}
     var drawn_count = 0
@@ -615,10 +626,10 @@ fn _draw_triangle3d_rgba_bytes_model(buf, w, h, tris, err_prefix, mx, my, mz, sc
         if best < 0 { return 0 }
         var off = best * 40
         var c = {
-            "r": bytes.get_u8(tris, off + 36),
-            "g": bytes.get_u8(tris, off + 37),
-            "b": bytes.get_u8(tris, off + 38),
-            "a": bytes.get_u8(tris, off + 39)
+            "r": _read_byte(tris, trisp, off + 36),
+            "g": _read_byte(tris, trisp, off + 37),
+            "b": _read_byte(tris, trisp, off + 38),
+            "a": _read_byte(tris, trisp, off + 39)
         }
         var dr = _draw_triangle3d_at_model(buf, w, h, tris, off, c, err_prefix, mx, my, mz, scale_milli)
         if oren_is_err(dr) { return dr }
@@ -972,6 +983,10 @@ fn rasterize(cmds, w, h, opts) {
             var data = image["data"]
             var sx_w = image["w"]
             var sx_h = image["h"]
+            var data_len = bytes.len(data)
+            if oren_is_err(data_len) { return result.with_context(data_len, "rasterize: draw_image data") }
+            if data_len < sx_w * sx_h * 4 { return oren_err(4, "rasterize: draw_image data truncated") }
+            var datap = _byte_ptr_or_nil(data)
             var dx = opm["x"]
             var dy = opm["y"]
             var dw = opm["w"]
@@ -983,11 +998,16 @@ fn rasterize(cmds, w, h, opts) {
                     var sx = (xx2 * sx_w) / dw
                     var sy = (yy2 * sx_h) / dh
                     var si = (sy * sx_w + sx) * 4
+                    var ir = _read_byte(data, datap, si)
+                    var ig = _read_byte(data, datap, si + 1)
+                    var ib = _read_byte(data, datap, si + 2)
+                    var ia = _read_byte(data, datap, si + 3)
+                    if oren_is_err(ir) || oren_is_err(ig) || oren_is_err(ib) || oren_is_err(ia) { return oren_err(4, "rasterize: draw_image data malformed") }
                     _set_px_rgba(buf, w, h, dx + xx2, dy + yy2,
-                        bytes.get_u8(data, si),
-                        bytes.get_u8(data, si + 1),
-                        bytes.get_u8(data, si + 2),
-                        bytes.get_u8(data, si + 3))
+                        ir,
+                        ig,
+                        ib,
+                        ia)
                     xx2 = xx2 + 1
                 }
                 yy2 = yy2 + 1
@@ -1000,6 +1020,10 @@ fn rasterize(cmds, w, h, opts) {
             var rdata = rimage["data"]
             var riw = rimage["w"]
             var rih = rimage["h"]
+            var rdata_len = bytes.len(rdata)
+            if oren_is_err(rdata_len) { return result.with_context(rdata_len, "rasterize: draw_image_rect data") }
+            if rdata_len < riw * rih * 4 { return oren_err(4, "rasterize: draw_image_rect data truncated") }
+            var rdatap = _byte_ptr_or_nil(rdata)
             var rsx = opm["sx"]
             var rsy = opm["sy"]
             var rsw = opm["sw"]
@@ -1016,11 +1040,16 @@ fn rasterize(cmds, w, h, opts) {
                     var srcx = rsx + (rxx * rsw) / rdw
                     var srcy = rsy + (ryy * rsh) / rdh
                     var rsi = (srcy * riw + srcx) * 4
+                    var rr = _read_byte(rdata, rdatap, rsi)
+                    var rg = _read_byte(rdata, rdatap, rsi + 1)
+                    var rb = _read_byte(rdata, rdatap, rsi + 2)
+                    var ra = _read_byte(rdata, rdatap, rsi + 3)
+                    if oren_is_err(rr) || oren_is_err(rg) || oren_is_err(rb) || oren_is_err(ra) { return oren_err(4, "rasterize: draw_image_rect data malformed") }
                     _set_px_rgba(buf, w, h, rdx + rxx, rdy + ryy,
-                        bytes.get_u8(rdata, rsi),
-                        bytes.get_u8(rdata, rsi + 1),
-                        bytes.get_u8(rdata, rsi + 2),
-                        bytes.get_u8(rdata, rsi + 3))
+                        rr,
+                        rg,
+                        rb,
+                        ra)
                     rxx = rxx + 1
                 }
                 ryy = ryy + 1
@@ -1031,6 +1060,10 @@ fn rasterize(cmds, w, h, opts) {
             var bdata = bimage["data"]
             var biw = bimage["w"]
             var bih = bimage["h"]
+            var bdata_len = bytes.len(bdata)
+            if oren_is_err(bdata_len) { return result.with_context(bdata_len, "rasterize: draw_image_rects data") }
+            if bdata_len < biw * bih * 4 { return oren_err(4, "rasterize: draw_image_rects data truncated") }
+            var bdatap = _byte_ptr_or_nil(bdata)
             var rects = opm["rects"]
             var rect_len = bytes.len(rects)
             if oren_is_err(rect_len) { return result.with_context(rect_len, "rasterize: draw_image_rects rects") }
@@ -1052,11 +1085,16 @@ fn rasterize(cmds, w, h, opts) {
                         var bsrcx = bsx + (bxx * bsw) / bdw
                         var bsrcy = bsy + (byy * bsh) / bdh
                         var bsi = (bsrcy * biw + bsrcx) * 4
+                        var br = _read_byte(bdata, bdatap, bsi)
+                        var bg = _read_byte(bdata, bdatap, bsi + 1)
+                        var bb = _read_byte(bdata, bdatap, bsi + 2)
+                        var ba = _read_byte(bdata, bdatap, bsi + 3)
+                        if oren_is_err(br) || oren_is_err(bg) || oren_is_err(bb) || oren_is_err(ba) { return oren_err(4, "rasterize: draw_image_rects data malformed") }
                         _set_px_rgba(buf, w, h, bdx + bxx, bdy + byy,
-                            bytes.get_u8(bdata, bsi),
-                            bytes.get_u8(bdata, bsi + 1),
-                            bytes.get_u8(bdata, bsi + 2),
-                            bytes.get_u8(bdata, bsi + 3))
+                            br,
+                            bg,
+                            bb,
+                            ba)
                         bxx = bxx + 1
                     }
                     byy = byy + 1

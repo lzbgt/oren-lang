@@ -2385,6 +2385,8 @@ design evidence lives under `project-doc/`.
   non-u8 byte carriers.
 - `std:ui/avm` event decoding now caches u8 event-buffer pointers for OGE0
   magic/opcode/payload-length reads while retaining list-compatible byte input.
+- `std:ui/raster` now caches u8 pointers for image RGBA and mesh RGBA byte
+  reads, with explicit image-data length guards before pointer-backed sampling.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

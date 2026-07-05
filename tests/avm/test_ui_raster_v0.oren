@@ -267,6 +267,13 @@ fn test_raster_image() {
     assert_eq(_px(buf, 3, 2, 0, 1), 0)
     assert_eq(_px(buf, 3, 2, 2, 0), 0)
     assert_eq(_px(buf, 3, 2, 2, 1), 255)
+
+    var truncated = bytes.pack([255, 0, 0])
+    var bad = ui_raster.rasterize([
+        {"op": "image_rgba", "id": 2, "w": 1, "h": 1, "data": truncated},
+        {"op": "draw_image", "id": 2, "x": 0, "y": 0, "w": 1, "h": 1}
+    ], 1, 1, {"strict_bounds": true})
+    assert_true(oren_is_err(bad) == true)
 }
 
 fn main() {
