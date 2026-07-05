@@ -28,6 +28,8 @@ import token "token.oren"
 // outputs cannot be reused across incompatible codegen modes.
 var BUILD_CACHE_SCHEMA = 3
 var SCAN_CACHE_SCHEMA = 3
+var SCAN_CACHE_MAX_BYTES = 524288
+var SCAN_CACHE_MAX_RECORDS = 4096
 
 fn _cache_force_sha256(build_cfg) {
     // Force sha256 hashing even in non-deterministic builds.
@@ -580,6 +582,10 @@ fn _scan_cache_load(cache_dir) {
     // - "imports": list<string> (merged imports including include-imports)
     var p = _scan_cache_file(cache_dir)
     if !file_exists(p) { return {} }
+    var meta = oren_file_stat_size_mtime_ns(p)
+    if !oren_is_err(meta) && meta != nil && oren_is_list(meta) == true && oren_list_len(meta) >= 1 {
+        if meta[0] > SCAN_CACHE_MAX_BYTES { return {} }
+    }
     var s = oren_read_file(p)
     if s == nil { return {} }
     var lines = _scan_cache_split_lines(s)
@@ -588,7 +594,8 @@ fn _scan_cache_load(cache_dir) {
 
     var out = {}
     var i = 1
-    while i < oren_list_len(lines) {
+    var records = 0
+    while i < oren_list_len(lines) && records < SCAN_CACHE_MAX_RECORDS {
         // Fixed-order record:
         //   path
         //   mtime_ns
@@ -651,6 +658,7 @@ fn _scan_cache_load(cache_dir) {
             "hash": hh,
             "imports": merged
         }
+        records = records + 1
     }
     return out
 }
@@ -748,7 +756,8 @@ fn _scan_cache_save(cache_dir, cache_map) {
     var b = _scan_cache_bytes_new()
     _scan_cache_bytes_push_str(b, "OREN_SCAN_CACHE_V3\n")
     var i = 0
-    while i < oren_list_len(paths) {
+    var saved = 0
+    while i < oren_list_len(paths) && saved < SCAN_CACHE_MAX_RECORDS {
         var path = paths[i]
         var rec = cache_map[path]
         if rec == nil { i = i + 1; continue }
@@ -806,6 +815,7 @@ fn _scan_cache_save(cache_dir, cache_map) {
             _scan_cache_bytes_push_byte(b, 10)
             j3 = j3 + 1
         }
+        saved = saved + 1
         i = i + 1
     }
     var ub = _scan_cache_bytes_finalize(b)

@@ -84,37 +84,17 @@ fn _u64_le_at(bs, pos) {
 }
 
 fn _push_u16_le(out, v) {
-    oren_list_push(out, v & 255)
-    oren_list_push(out, (v >> 8) & 255)
+    bytes_builder.bytes_push_u16_le(out, v)
     return nil
 }
 
 fn _push_u32_le(out, v) {
-    oren_list_push(out, v & 255)
-    oren_list_push(out, (v >> 8) & 255)
-    oren_list_push(out, (v >> 16) & 255)
-    oren_list_push(out, (v >> 24) & 255)
-    return nil
-}
-
-fn _push_u64_le(out, v) {
-    // Bit-exact for signed ints too (needed for float64 bit patterns).
-    var i = 0
-    while i < 8 {
-        oren_list_push(out, (v >> (i * 8)) & 255)
-        i = i + 1
-    }
+    bytes_builder.bytes_push_u32_le(out, v)
     return nil
 }
 
 fn _push_ascii(out, s) {
-    if s == nil { return nil }
-    var i = 0
-    var n = oren_string_len(s)
-    while i < n {
-        oren_list_push(out, _string_u8_at(s, i))
-        i = i + 1
-    }
+    bytes_builder.bytes_extend_string(out, s)
     return nil
 }
 
@@ -148,11 +128,7 @@ fn _encode_string_u16(out, s) {
     if s == nil { s = "" }
     var n = oren_string_len(s)
     _push_u16_le(out, n)
-    var i = 0
-    while i < n {
-        oren_list_push(out, _string_u8_at(s, i))
-        i = i + 1
-    }
+    bytes_builder.bytes_extend_string(out, s)
     return nil
 }
 
@@ -161,7 +137,7 @@ fn obx_encode(module_name, exports, relocs, surface) {
     if exports == nil { exports = {} }
     if relocs == nil { relocs = [] }
 
-    var out = []
+    var out = bytes_builder.bytes_new()
     _push_ascii(out, "OREN_OBX\n1\n")
 
     _encode_string_u16(out, module_name)
@@ -198,7 +174,7 @@ fn obx_encode(module_name, exports, relocs, surface) {
         if oren_type_tag(rkind) == 0 { rkind = 0 }
         _encode_string_u16(out, rname)
         _push_u32_le(out, rpos)
-        oren_list_push(out, rkind & 255)
+        bytes_builder.bytes_push(out, rkind & 255)
         ri = ri + 1
     }
 
@@ -234,7 +210,7 @@ fn obx_encode(module_name, exports, relocs, surface) {
         }
     }
 
-    return out
+    return bytes_builder.bytes_finalize(out)
 }
 
 fn obx_decode(obx_bytes) {

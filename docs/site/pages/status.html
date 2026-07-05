@@ -2464,9 +2464,9 @@
 <p>  Schannel passphrase cache keys use the direct string hash path instead of</p>
 <p>  materializing a byte list, SHA-1/SHA-256 digest buffers finalize through</p>
 <p>  direct unchecked u8 stores after exact-size allocation, and native SHA-256</p>
-<p>  contiguous input remainders copy with <code>oren_memcpy</code>. Compiler source-policy scans, scan-cache line/number parsing and delimiter writes, C-runtime</p>
+<p>  contiguous input remainders copy with <code>oren_memcpy</code>. Compiler source-policy scans, scan-cache line/number parsing plus bounded load/save and delimiter writes, C-runtime</p>
 <p>  include scanning, compiler manifest JSON escaping, byte-native bytecode metadata payloads,</p>
-<p>	  bytecode final artifact return as <code>u8_buf</code>, compiler SHA digest hex routing through direct runtime bytes hex, OBC linker byte reads from <code>u8_buf</code>, parsed OBC code and byte constants kept as <code>u8_buf</code>, builder-patched linked code, linked OBC final emission as <code>u8_buf</code>, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding, AST binary v1 full-value raw</p>
+<p>	  bytecode final artifact return as <code>u8_buf</code>, compiler SHA digest hex routing through direct runtime bytes hex, OBC linker byte reads from <code>u8_buf</code>, parsed OBC code and byte constants kept as <code>u8_buf</code>, builder-patched linked code, linked OBC final emission as <code>u8_buf</code>, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw</p>
 <p>	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name</p>
 <p>	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,</p>
 <p>	  native capsule mount path resolution, realpath segment output, readdir names,</p>

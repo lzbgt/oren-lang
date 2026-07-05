@@ -1510,9 +1510,9 @@
 <p>     after exact-size allocation, and native SHA-256 contiguous input remainders</p>
 <p>     copy with <code>oren_memcpy</code>.</p>
 <p>     Compiler source-policy</p>
-<p>     scans, scan-cache line/number parsing and delimiter writes, C-runtime include scanning,</p>
+<p>     scans, scan-cache line/number parsing plus bounded load/save and delimiter writes, C-runtime include scanning,</p>
 <p>     compiler manifest JSON escaping, byte-native bytecode metadata payloads, OBX</p>
-<p>     string/prefix encoding, AST binary v1 full-value raw writes, bytecode string</p>
+<p>     string/prefix encoding through compact byte builders, AST binary v1 full-value raw writes, bytecode string</p>
 <p>     constants, native Mach-O/ELF object string payloads, runtime-object</p>
 <p>     debug-name blobs, x64 native debug-table names, ARM64 native panic-message</p>
 <p>     payloads, native runtime string concat/intern/slice copies, native capsule</p>
