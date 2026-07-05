@@ -2377,6 +2377,9 @@ design evidence lives under `project-doc/`.
   output as exact-size `u8_buf`; Base64/Base64URL encode now reads `u8_buf`
   inputs directly after one length check, and Base64URL decode uses the same
   direct byte-buffer output path.
+- SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
+  `u8_buf` carriers and virtual padded message expansion reads their backing
+  bytes directly, while boxed byte-list fallback validation remains covered.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

@@ -3240,6 +3240,11 @@
 <p>  inputs directly after one length check, and Base64URL decode uses the same</p>
 <p>  direct byte-buffer output path.</p>
 <ul>
+<li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
+</ul>
+<p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>
+<p>  bytes directly, while boxed byte-list fallback validation remains covered.</p>
+<ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>
 <p>  direct/link bytecode emission gates use carrier-aware byte lengths for metadata</p>

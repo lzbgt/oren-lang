@@ -1475,7 +1475,8 @@
 <p>     <code>bytes.from_string(&quot;abc&quot;).sha256_hex()</code> while keeping the byte hot</p>
 <p>     path on exact-size <code>u8_buf</code> output; plain UI <code>text</code> frame commands now also</p>
 <p>     write string bytes directly into OGF0 payloads, and UI color parsing reads</p>
-<p>     hex digits directly from ASCII string bytes. SHA-1/SHA-256 digest outputs and native</p>
+<p>     hex digits directly from ASCII string bytes. SHA-1/SHA-256 digest inputs now read</p>
+<p>     u8 buffers directly during virtual padding expansion, while digest outputs and native</p>
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     plain literal decode now slices the header block directly, while Huffman</p>
 <p>     string encode/decode, decoded-string boundaries, and full header-block</p>
@@ -1506,7 +1507,7 @@
 <p>     through syscalls without a transient byte list, and SHA-1/SHA-256 string</p>
 <p>     hashing now reads UTF-8 string bytes directly for WebSocket accept values,</p>
 <p>     Windows Schannel passphrase cache keys, and callers that already hold text;</p>
-<p>     SHA-1/SHA-256 digest buffers finalize through direct unchecked u8 stores</p>
+<p>     SHA-1/SHA-256 digest inputs read u8 buffers directly and digest buffers finalize through direct unchecked u8 stores</p>
 <p>     after exact-size allocation, and native SHA-256 contiguous input remainders</p>
 <p>     copy with <code>oren_memcpy</code>.</p>
 <p>     Compiler source-policy</p>

@@ -23,6 +23,7 @@ fn _input_bytes_or_err(input_bytes, ctx) {
     if oren_is_err(n) {
         return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
     }
+    if oren_is_u8_buf(input_bytes) == true { return input_bytes }
     var i = 0
     while i < n {
         var b = bytesm.get_u8(input_bytes, i)
@@ -32,6 +33,11 @@ fn _input_bytes_or_err(input_bytes, ctx) {
         i = i + 1
     }
     return input_bytes
+}
+
+fn _input_ptr_or_nil(input_bytes) {
+    if oren_is_u8_buf(input_bytes) == true { return oren_buf_data_ptr_unchecked(input_bytes) }
+    return nil
 }
 
 fn _u32(x) { return x & 4294967295 } // 0xFFFFFFFF
@@ -64,8 +70,11 @@ fn _padded_len(orig_len) {
     return total
 }
 
-fn _padded_byte_at(input_bytes, orig_len, bit_len, pos) {
-    if pos < orig_len { return bytesm.get_u8(input_bytes, pos) }
+fn _padded_byte_at(input_bytes, input_ptr, orig_len, bit_len, pos) {
+    if pos < orig_len {
+        if input_ptr != nil { return ptr_get_byte(input_ptr + pos) & 255 }
+        return bytesm.get_u8(input_bytes, pos)
+    }
     if pos == orig_len { return 128 }
     var len_start = _padded_len(orig_len) - 8
     if pos < len_start { return 0 }
@@ -73,11 +82,11 @@ fn _padded_byte_at(input_bytes, orig_len, bit_len, pos) {
     return (bit_len >> shift) & 255
 }
 
-fn _u32_be_at(input_bytes, orig_len, bit_len, pos) {
-    var b0 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 0) & 255
-    var b1 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 1) & 255
-    var b2 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 2) & 255
-    var b3 = _padded_byte_at(input_bytes, orig_len, bit_len, pos + 3) & 255
+fn _u32_be_at(input_bytes, input_ptr, orig_len, bit_len, pos) {
+    var b0 = _padded_byte_at(input_bytes, input_ptr, orig_len, bit_len, pos + 0) & 255
+    var b1 = _padded_byte_at(input_bytes, input_ptr, orig_len, bit_len, pos + 1) & 255
+    var b2 = _padded_byte_at(input_bytes, input_ptr, orig_len, bit_len, pos + 2) & 255
+    var b3 = _padded_byte_at(input_bytes, input_ptr, orig_len, bit_len, pos + 3) & 255
     return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 }
 
@@ -115,6 +124,7 @@ fn sha256_bytes(input_bytes) {
 
     var orig_len = bytesm.len(input_bytes)
     if oren_is_err(orig_len) { return orig_len }
+    var input_ptr = _input_ptr_or_nil(input_bytes)
     var bit_len = orig_len * 8
     var total_len = _padded_len(orig_len)
 
@@ -154,7 +164,7 @@ fn sha256_bytes(input_bytes) {
         var w = []
         var t = 0
         while t < 16 {
-            list.push(w, _u32_be_at(input_bytes, orig_len, bit_len, off + t * 4))
+            list.push(w, _u32_be_at(input_bytes, input_ptr, orig_len, bit_len, off + t * 4))
             t = t + 1
         }
         while t < 64 {

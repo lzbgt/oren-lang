@@ -2353,7 +2353,8 @@ Facts from the 2026-05-28 implementation pass:
   check and decode/encode writes exact-size output buffers directly, PPM header/body
   output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
-  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, SHA hex helpers and
+  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and
+  read u8-buffer digest inputs directly during virtual padding expansion, SHA hex helpers and
   Windows Schannel certificate-hash formatting use direct std bytes hex
   emission, C/native runtime hex/string/slice/unpack/pack/endian-read/write helpers
   read or write list/u8-buffer backing storage directly after one validation pass, and Windows
@@ -2395,7 +2396,7 @@ Facts from the 2026-05-28 implementation pass:
 	  package opts into HTML/XML parsing.
 	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical
 	  `digest` / `hex` / receiver-method APIs, and process virtual padding via
-	  indexed byte access instead of unpacking the whole message to a list, and
+	  direct u8-buffer reads or list fallback indexing instead of unpacking the whole message to a list, and
 	  write fixed-size digest `u8_buf` outputs directly instead of packing
 	  result byte lists. Native crypto RNG now fills its result `u8_buf`
 	  directly. HPACK plain literal decode now slices the header block directly,

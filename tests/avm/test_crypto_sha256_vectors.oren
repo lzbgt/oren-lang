@@ -45,6 +45,7 @@ fn main() {
     var abc = oren_bytes_from_string("abc")
     var got1 = sha256.sha256_hex(abc)
     assert_eq(got1, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "abc")
+    assert_eq(sha256.sha256_hex([97, 98, 99]), got1, "sha256 list fallback")
     assert_eq(sha256.hex(bytes.from_string("abc")), got1, "sha256 canonical hex")
     assert_eq(bytes.from_string("abc").sha256_hex(), got1, "sha256 method hex")
     assert_eq(bytes.from_string("abc").sha256().hex(), got1, "sha256 chained digest hex")
@@ -67,6 +68,7 @@ fn main() {
 
     var sha1_abc = sha1.sha1_hex(abc)
     assert_eq(sha1_abc, "a9993e364706816aba3e25717850c26c9cd0d89d", "sha1 abc")
+    assert_eq(sha1.sha1_hex([97, 98, 99]), sha1_abc, "sha1 list fallback")
     assert_eq(sha1.hex(bytes.from_string("abc")), sha1_abc, "sha1 canonical hex")
     assert_eq(bytes.from_string("abc").sha1_hex(), sha1_abc, "sha1 method hex")
     assert_eq(bytes.from_string("abc").sha1().hex(), sha1_abc, "sha1 chained digest hex")
