@@ -3584,6 +3584,12 @@ make docs-site
   capped profile now shows `x64_native_program.oren` at about 47.3s total /
   34.1s parse, with `_x64_fast_list_int_get_sum_emit_single` exposed at about
   41ms as the next parser body.
+- X64 fast LIST_INT get-sum single-iteration emission now separates unique-list
+  sequential loads, indexed loads, per-load accumulation, and loop-iteration
+  finish helpers while reusing the shared list-index/temp-slot lookup helpers.
+  The capped profile now shows `x64_native_program.oren` at about 47.7s total /
+  34.5s parse, with `_x64_emit_sys_read_windows_readfile` exposed at about 40ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
