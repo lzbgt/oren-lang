@@ -705,10 +705,20 @@ fn screen_available(id) {
     return screen(id) != nil
 }
 
-fn _read_u16_le(bs, off, ctx) {
-    var b0 = bytes.get_u8(bs, off)
+fn _event_ptr_or_nil(bs) {
+    if oren_is_u8_buf(bs) == true { return oren_buf_data_ptr_unchecked(bs) }
+    return nil
+}
+
+fn _read_event_u8(bs, data_ptr, off) {
+    if data_ptr != nil { return ptr_get_byte(data_ptr + off) & 255 }
+    return bytes.get_u8(bs, off)
+}
+
+fn _read_u16_le(bs, data_ptr, off, ctx) {
+    var b0 = _read_event_u8(bs, data_ptr, off)
     if oren_is_err(b0) { return oren_err(4, ctx + ": truncated u16") }
-    var b1 = bytes.get_u8(bs, off + 1)
+    var b1 = _read_event_u8(bs, data_ptr, off + 1)
     if oren_is_err(b1) { return oren_err(4, ctx + ": truncated u16") }
     return b0 | (b1 << 8)
 }
@@ -762,12 +772,13 @@ fn decode_event_bytes(ev) {
     var n = bytes.len(ev)
     if oren_is_err(n) { return n }
     if n < 12 { return oren_err(4, "ui.avm.decode_event_bytes: short event") }
-    if bytes.get_u8(ev, 0) != 79 || bytes.get_u8(ev, 1) != 71 || bytes.get_u8(ev, 2) != 69 || bytes.get_u8(ev, 3) != 48 {
+    var evp = _event_ptr_or_nil(ev)
+    if _read_event_u8(ev, evp, 0) != 79 || _read_event_u8(ev, evp, 1) != 71 || _read_event_u8(ev, evp, 2) != 69 || _read_event_u8(ev, evp, 3) != 48 {
         return oren_err(4, "ui.avm.decode_event_bytes: bad OGE0 magic")
     }
-    var opcode = bytes.get_u8(ev, 8)
+    var opcode = _read_event_u8(ev, evp, 8)
     if oren_is_err(opcode) { return opcode }
-    var payload_len = _read_u16_le(ev, 10, "ui.avm.decode_event_bytes")
+    var payload_len = _read_u16_le(ev, evp, 10, "ui.avm.decode_event_bytes")
     if oren_is_err(payload_len) { return payload_len }
     if n < 12 + payload_len { return oren_err(4, "ui.avm.decode_event_bytes: truncated payload") }
 

@@ -2383,6 +2383,8 @@ design evidence lives under `project-doc/`.
 - `std:ui/avm` frame payload appends now copy `u8_buf` command payloads directly
   into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for
   non-u8 byte carriers.
+- `std:ui/avm` event decoding now caches u8 event-buffer pointers for OGE0
+  magic/opcode/payload-length reads while retaining list-compatible byte input.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

@@ -3250,6 +3250,10 @@
 <p>  into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for</p>
 <p>  non-u8 byte carriers.</p>
 <ul>
+<li><code>std:ui/avm</code> event decoding now caches u8 event-buffer pointers for OGE0</li>
+</ul>
+<p>  magic/opcode/payload-length reads while retaining list-compatible byte input.</p>
+<ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>
 <p>  direct/link bytecode emission gates use carrier-aware byte lengths for metadata</p>
