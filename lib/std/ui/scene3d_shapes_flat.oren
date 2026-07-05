@@ -171,6 +171,75 @@ fn pack_triangles_xy(triangles, ctx) {
     return out
 }
 
+fn _quad_xy_points(quad, ctx) {
+    var points = quad["points"]
+    if points == nil { points = quad["points_xy"] }
+    if points == nil || oren_list_len(points) != 4 {
+        return oren_err(4, ctx + ": quad points must contain four [x,y] points")
+    }
+    var a = _xy_pair(points[0], "quad point0", ctx)
+    if oren_is_err(a) { return a }
+    var b = _xy_pair(points[1], "quad point1", ctx)
+    if oren_is_err(b) { return b }
+    var c = _xy_pair(points[2], "quad point2", ctx)
+    if oren_is_err(c) { return c }
+    var d = _xy_pair(points[3], "quad point3", ctx)
+    if oren_is_err(d) { return d }
+    return [a, b, c, d]
+}
+
+fn _quad_xy_z(quad, ctx) {
+    var z = quad["z"]
+    if z == nil { z = quad["z_milli"] }
+    if z == nil { z = 0 }
+    if _is_int(z) == false { return oren_err(4, ctx + ": quad z must be i32") }
+    return z
+}
+
+fn _quads_xy_triangle_count(quads, ctx) {
+    if quads == nil { return oren_err(4, ctx + ": missing quads_xy") }
+    var nq = oren_list_len(quads)
+    if oren_is_err(nq) { return oren_err(4, ctx + ": quads_xy must be list") }
+    var i = 0
+    while i < nq {
+        var quad = quads[i]
+        if quad == nil { return oren_err(4, ctx + ": quad must be object") }
+        var points = _quad_xy_points(quad, ctx)
+        if oren_is_err(points) { return points }
+        var z = _quad_xy_z(quad, ctx)
+        if oren_is_err(z) { return z }
+        i = i + 1
+    }
+    return nq * 2
+}
+
+fn pack_quads_xy(quads, ctx) {
+    var tri_count = _quads_xy_triangle_count(quads, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var i = 0
+    var nq = oren_list_len(quads)
+    while i < nq {
+        var quad = quads[i]
+        var points = _quad_xy_points(quad, ctx)
+        var z = _quad_xy_z(quad, ctx)
+        var a = points[0]
+        var b = points[1]
+        var c = points[2]
+        var d = points[3]
+        var rc = _store_triangle(out, off, a[0], a[1], z, b[0], b[1], z, c[0], c[1], z, ctx + ".quad0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, a[0], a[1], z, c[0], c[1], z, d[0], d[1], z, ctx + ".quad1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        i = i + 1
+    }
+    return out
+}
+
 fn _plane_xy_bounds(plane, ctx) {
     var lo = plane["min"]
     if lo == nil { lo = plane["min_xy"] }

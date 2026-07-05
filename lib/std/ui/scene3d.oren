@@ -767,6 +767,9 @@ fn _asset_mesh(m) {
         } else if m["triangles_xy"] != nil {
             tris = shape_flats.pack_triangles_xy(m["triangles_xy"], "ui.scene3d mesh.triangles_xy")
             transform_generated = true
+        } else if m["quads_xy"] != nil {
+            tris = shape_flats.pack_quads_xy(m["quads_xy"], "ui.scene3d mesh.quads_xy")
+            transform_generated = true
         } else if m["planes_xy"] != nil {
             tris = shape_flats.pack_planes_xy(m["planes_xy"], "ui.scene3d mesh.planes_xy")
             transform_generated = true

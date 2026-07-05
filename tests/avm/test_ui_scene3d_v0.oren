@@ -574,6 +574,52 @@ fn main() {
     assert_eq(_i32_at(from_triangles_xy_points_xy[0]["triangles"], 4), 3)
     assert_eq(_i32_at(from_triangles_xy_points_xy[0]["triangles"], 8), 7)
 
+    var from_quads_xy = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 245,
+                "quads_xy": [
+                    {"points": [[0, 0], [2, 0], [2, 2], [0, 2]], "z": 1}
+                ],
+                "transform": {"translation_xyz": [1, 0, 5]},
+                "color": "#cc8844"
+            }
+        ],
+        "draw": [{"op": "draw_mesh3d", "id": 245}],
+        "destroy": true
+    })
+    assert_true(oren_is_err(from_quads_xy) == false)
+    assert_eq(from_quads_xy[0]["op"], "mesh3d")
+    assert_eq(bytes.len(from_quads_xy[0]["triangles"]), 72)
+    assert_eq(_i32_at(from_quads_xy[0]["triangles"], 0), 1)
+    assert_eq(_i32_at(from_quads_xy[0]["triangles"], 4), 0)
+    assert_eq(_i32_at(from_quads_xy[0]["triangles"], 8), 6)
+    assert_true(ui_cmds.validate(from_quads_xy, 4, 4, {"strict_bounds": true}) == 0)
+    var quads_xy_buf = ui_raster.rasterize(from_quads_xy, 4, 4, {"strict_bounds": true})
+    assert_true(oren_is_err(quads_xy_buf) == false)
+    assert_eq(_px(quads_xy_buf, 4, 2, 1, 0), 204)
+    assert_eq(_px(quads_xy_buf, 4, 2, 1, 1), 136)
+    assert_eq(_px(quads_xy_buf, 4, 2, 1, 2), 68)
+
+    var from_quads_xy_points_xy = scene3d.commands_from_asset({
+        "meshes": [
+            {
+                "kind": "triangles",
+                "id": 246,
+                "quads_xy": [
+                    {"points_xy": [[2, 3], [4, 3], [4, 5], [2, 5]], "z_milli": 7}
+                ],
+                "color": "#ffffff"
+            }
+        ]
+    })
+    assert_true(oren_is_err(from_quads_xy_points_xy) == false)
+    assert_eq(bytes.len(from_quads_xy_points_xy[0]["triangles"]), 72)
+    assert_eq(_i32_at(from_quads_xy_points_xy[0]["triangles"], 0), 2)
+    assert_eq(_i32_at(from_quads_xy_points_xy[0]["triangles"], 4), 3)
+    assert_eq(_i32_at(from_quads_xy_points_xy[0]["triangles"], 8), 7)
+
     var from_planes = scene3d.commands_from_asset({
         "meshes": [
             {
@@ -1613,6 +1659,8 @@ fn main() {
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"surfaces_xyz\":[{\"vertices\":[[[0,0,0],[1,0,0]],[[0,1,0]]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"triangles_xy\":[{\"points\":[[0,0],[1,0]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"triangles_xy\":[{\"points\":[[0,0],[1,0],[0,1]],\"z\":\"bad\"}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"quads_xy\":[{\"points\":[[0,0],[1,0],[1,1]]}],\"color\":\"#ffffff\"}]}")) == true)
+    assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"quads_xy\":[{\"points\":[[0,0],[1,0],[1,1],[0,1]],\"z\":\"bad\"}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"planes_xy\":[{\"origin\":[0,0,0],\"size\":[0,1]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"polygons_xy\":[{\"points\":[[0,0],[1,0]]}],\"color\":\"#ffffff\"}]}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"meshes\":[{\"kind\":\"triangles\",\"id\":1,\"discs_xy\":[{\"center\":[0,0],\"radius\":1,\"segments\":2}],\"color\":\"#ffffff\"}]}")) == true)
