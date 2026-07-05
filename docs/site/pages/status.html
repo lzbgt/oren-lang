@@ -3791,6 +3791,15 @@ make docs-site</code></pre>
 <p>  handle-in-<code>rax</code> result contract. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 47.0s total / 33.8s parse, with</p>
 <p>  <code>_emit_find_tracked_node_x64</code> exposed at about 43ms as the next parser body.</p>
+<ul>
+<li>X64 tracked-node lookup now separates runtime-injection validation,</li>
+</ul>
+<p>  branch-label state, null/small-carrier guards, ABI argument loading, runtime</p>
+<p>  index call emission, and local-fixup patching while preserving the</p>
+<p>  <code>native_alloc_index_get(ptr)</code> recursion-avoidance contract. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at about 47.4s total / 34.0s parse, with</p>
+<p>  <code>_x64_emit_list_int_push_magic_guard</code> exposed at about 56ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

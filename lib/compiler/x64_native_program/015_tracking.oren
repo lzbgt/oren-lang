@@ -17,6 +17,68 @@
 // NOTE: This file intentionally keeps the former helper names so call sites stay
 // simple while we delete the last x64 bring-up paths.
 
+fn _x64_find_tracked_require_runtime(ctx) {
+    if ctx == nil { return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: internal error: tracking requires injected runtime")
+        return nil
+    }
+    return 1
+}
+
+fn _x64_find_tracked_state(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "done": _new_label(ctx, "trk_find_done"),
+        "call": _new_label(ctx, "trk_find_call")
+    }
+}
+
+fn _x64_find_tracked_emit_guards(ctx, ptr_reg, dst_node_reg, state) {
+    // Default dst = 0.
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(dst_node_reg, 0))
+
+    // ptr == 0 => done
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 0))
+    _emit_jcc_to_label(ctx, state["fixups"], "e", state["done"])
+
+    // Match runtime safety/perf guard: small integers are not pointers.
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 4096))
+    _emit_jcc_to_label(ctx, state["fixups"], "ge", state["call"])
+    _emit_jmp_to_label(ctx, state["fixups"], state["done"])
+
+    _emit_label(ctx, state["labels"], state["call"])
+    return nil
+}
+
+fn _x64_find_tracked_abi1(ctx) {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if oren_type_tag(a0_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg reg for native_alloc_index_get")
+        return nil
+    }
+    return a0_enc - 1
+}
+
+fn _x64_find_tracked_emit_index_call(ctx, ptr_reg, dst_node_reg) {
+    var a0 = _x64_find_tracked_abi1(ctx)
+    if a0 == nil { return nil }
+    if a0 != ptr_reg { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, ptr_reg)) }
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "native_alloc_index_get"})
+    // Return value is node pointer in RAX.
+    if dst_node_reg != 0 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(dst_node_reg, 0)) }
+    return 1
+}
+
+fn _x64_find_tracked_finish(ctx, state) {
+    _emit_label(ctx, state["labels"], state["done"])
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    return nil
+}
+
 fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     // dst_node_reg = tracking node pointer if `ptr_reg` is tracked; otherwise 0.
     //
@@ -37,44 +99,12 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     // Safety:
     // - `native_alloc_index_get` is implemented using only primitive ops (`iadd`, `ptr_get`) and is
     //   written specifically to avoid recursion through `oren_add` / `oren_find_node`.
-    if ctx == nil { return nil }
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: internal error: tracking requires injected runtime")
-        return nil
-    }
+    if _x64_find_tracked_require_runtime(ctx) == nil { return nil }
 
-    // Default dst = 0.
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(dst_node_reg, 0))
-
-    // ptr == 0 => done
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 0))
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "trk_find_done")
-    var l_call = _new_label(ctx, "trk_find_call")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-
-    // Match runtime safety/perf guard: small integers are not pointers.
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 4096))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_call)
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_call)
-    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-    if oren_type_tag(a0_enc) == 0 {
-        err(ctx, "x64 native v0: missing ABI arg reg for native_alloc_index_get")
-        return nil
-    }
-    var a0 = a0_enc - 1
-    if a0 != ptr_reg { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, ptr_reg)) }
-    var call_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], core.insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "native_alloc_index_get"})
-    // Return value is node pointer in RAX.
-    if dst_node_reg != 0 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(dst_node_reg, 0)) }
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+    var state = _x64_find_tracked_state(ctx)
+    _x64_find_tracked_emit_guards(ctx, ptr_reg, dst_node_reg, state)
+    if _x64_find_tracked_emit_index_call(ctx, ptr_reg, dst_node_reg) == nil { return nil }
+    _x64_find_tracked_finish(ctx, state)
     return nil
 }
 

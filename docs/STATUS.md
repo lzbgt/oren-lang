@@ -3395,6 +3395,13 @@ make docs-site
   handle-in-`rax` result contract. The capped profile now shows
   `x64_native_program.oren` at about 47.0s total / 33.8s parse, with
   `_emit_find_tracked_node_x64` exposed at about 43ms as the next parser body.
+- X64 tracked-node lookup now separates runtime-injection validation,
+  branch-label state, null/small-carrier guards, ABI argument loading, runtime
+  index call emission, and local-fixup patching while preserving the
+  `native_alloc_index_get(ptr)` recursion-avoidance contract. The capped profile
+  now shows `x64_native_program.oren` at about 47.4s total / 34.0s parse, with
+  `_x64_emit_list_int_push_magic_guard` exposed at about 56ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
