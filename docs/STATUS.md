@@ -2352,7 +2352,7 @@ Facts from the 2026-05-28 implementation pass:
   Base64/Base64URL encode reads `u8_buf` inputs directly after one length
   check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
   directly from u8 command buffers, OGE0 event headers read from cached u8-buffer pointers, PPM header/body
-  output, Scene3D binary package magic checks, RGBA input reads, software raster image/mesh RGBA sampling, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
+  output, Scene3D binary package magic checks, PPM RGBA input reads, software raster image/mesh RGBA sampling, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and
   read u8-buffer digest inputs directly during virtual padding expansion, SHA hex helpers and

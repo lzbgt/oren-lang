@@ -3262,6 +3262,10 @@
 </ul>
 <p>  headers directly while keeping list-compatible byte input fallback.</p>
 <ul>
+<li><code>std:ui/ppm</code> now reuses one cached u8 input pointer while emitting P6 RGB</li>
+</ul>
+<p>  bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.</p>
+<ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>
 <p>  direct/link bytecode emission gates use carrier-aware byte lengths for metadata</p>

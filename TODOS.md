@@ -2389,6 +2389,8 @@ design evidence lives under `project-doc/`.
   reads, with explicit image-data length guards before pointer-backed sampling.
 - `std:ui/scene3d` binary `.os3d` package magic checks now read u8-buffer
   headers directly while keeping list-compatible byte input fallback.
+- `std:ui/ppm` now reuses one cached u8 input pointer while emitting P6 RGB
+  bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

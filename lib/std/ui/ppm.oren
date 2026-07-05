@@ -34,8 +34,8 @@ fn _digits(n) {
     return oren_int_to_string(n)
 }
 
-fn _bytes_get_u8(bs, i) {
-    if oren_is_u8_buf(bs) == true { return ptr_get_byte(oren_buf_data_ptr_unchecked(bs) + i) & 255 }
+fn _bytes_get_u8(bs, data_ptr, i) {
+    if data_ptr != nil { return ptr_get_byte(data_ptr + i) & 255 }
     return oren_bytes_get_u8(bs, i)
 }
 
@@ -45,6 +45,8 @@ fn encode_rgba(rgba, w, h) {
     var ln = oren_bytes_len(rgba)
     if oren_is_err(ln) { return ln }
     if ln != n { return oren_err(4, "ppm.encode_rgba: rgba length mismatch") }
+    var inp = nil
+    if oren_is_u8_buf(rgba) == true { inp = oren_buf_data_ptr_unchecked(rgba) }
 
     // Allocate exact output length: header + w*h*3 (RGB).
     var ws = _digits(w)
@@ -68,9 +70,9 @@ fn encode_rgba(rgba, w, h) {
     var pos = cur["pos"]
     var i = 0
     while i < w * h {
-        var r = _bytes_get_u8(rgba, i * 4 + 0)
-        var g = _bytes_get_u8(rgba, i * 4 + 1)
-        var b = _bytes_get_u8(rgba, i * 4 + 2)
+        var r = _bytes_get_u8(rgba, inp, i * 4 + 0)
+        var g = _bytes_get_u8(rgba, inp, i * 4 + 1)
+        var b = _bytes_get_u8(rgba, inp, i * 4 + 2)
         if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return oren_err(4, "ppm.encode_rgba: invalid rgba") }
         ptr_set_byte(iadd(outp, pos + 0), r & 255)
         ptr_set_byte(iadd(outp, pos + 1), g & 255)
