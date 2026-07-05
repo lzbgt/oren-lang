@@ -974,35 +974,56 @@ fn _x64_emit_fixed_direct_named_call_v0(ctx, locals, nm, args, argc, fixed_direc
     return nil
 }
 
-fn _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity) {
-    // Evaluate explicit args left-to-right, spill to stack temps, then load into ABI arg registers.
-    // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
+fn _x64_direct_call_spill_shape(argc, fixed_direct_arity) {
     var spill_n2 = argc
     if fixed_direct_arity != nil && fixed_direct_arity > spill_n2 { spill_n2 = fixed_direct_arity }
-    var base2 = _intr_tmp_push(ctx, spill_n2)
-    if oren_type_tag(base2) == 0 { return nil }
+    var call_argc = argc
+    if fixed_direct_arity != nil { call_argc = fixed_direct_arity }
+    return {"spill_n": spill_n2, "call_argc": call_argc}
+}
+
+fn _x64_spill_direct_call_explicit_args(ctx, locals, args, argc, base2) {
     var i2 = 0
     while i2 < argc {
         _emit_eval_int_to_rax(ctx, args[i2], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         var tmp_off = _intr_tmp_off(ctx, locals, iadd(base2, i2))
-        if oren_type_tag(tmp_off) == 0 { _intr_tmp_pop(ctx, base2); return nil }
+        if oren_type_tag(tmp_off) == 0 { return nil }
         // Spill the full 64-bit value (keeps function pointer args intact).
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
         i2 = iadd(i2, 1)
     }
+    return i2
+}
+
+fn _x64_spill_direct_call_nil_padding(ctx, locals, base2, i2, fixed_direct_arity) {
     while fixed_direct_arity != nil && i2 < fixed_direct_arity {
         var nil_off = _intr_tmp_off(ctx, locals, iadd(base2, i2))
-        if oren_type_tag(nil_off) == 0 { _intr_tmp_pop(ctx, base2); return nil }
+        if oren_type_tag(nil_off) == 0 { return nil }
         _emit_eval_int_to_rax(ctx, {"type": "Nil", "token": nil}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         _emit_mov_mrbp_r64(ctx, 0 - nil_off, 0)
         i2 = iadd(i2, 1)
     }
+    return i2
+}
 
-    var call_argc = argc
-    if fixed_direct_arity != nil { call_argc = fixed_direct_arity }
-    return {"base": base2, "call_argc": call_argc}
+fn _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity) {
+    // Evaluate explicit args left-to-right, spill to stack temps, then load into ABI arg registers.
+    // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
+    var shape = _x64_direct_call_spill_shape(argc, fixed_direct_arity)
+    var spill_n2 = shape["spill_n"]
+    var base2 = _intr_tmp_push(ctx, spill_n2)
+    if oren_type_tag(base2) == 0 { return nil }
+
+    var i2 = _x64_spill_direct_call_explicit_args(ctx, locals, args, argc, base2)
+    if i2 == nil { _intr_tmp_pop(ctx, base2); return nil }
+    if _x64_spill_direct_call_nil_padding(ctx, locals, base2, i2, fixed_direct_arity) == nil {
+        _intr_tmp_pop(ctx, base2)
+        return nil
+    }
+
+    return {"base": base2, "call_argc": shape["call_argc"]}
 }
 
 fn _x64_load_direct_call_args_v0(ctx, locals, base2, call_argc) {

@@ -3415,6 +3415,12 @@ make docs-site
   `x64_native_program.oren` at about 52.5s total / 38.8s parse, with
   `_x64_spill_direct_call_args_v0` exposed at about 103ms as the next parser
   body.
+- X64 fixed direct-call argument spilling now separates spill/call arity
+  shaping, explicit left-to-right argument evaluation, and nil-padding for fixed
+  direct arity while preserving temp-slot cleanup ownership and full-width value
+  spills. The capped profile now shows `x64_native_program.oren` at about 46.9s
+  total / 33.7s parse, with `_emit_jcc_false_for_cond_x64` exposed at about 54ms
+  as the next parser body.
 
 ## Documentation Guardrail
 
