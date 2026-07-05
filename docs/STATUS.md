@@ -3494,6 +3494,12 @@ make docs-site
   instruction/fixup order. The capped profile now shows `x64_native_program.oren`
   at about 46.6s total / 33.6s parse, with `_emit_var_i32_op_x64` exposed at
   about 43ms as the next parser body.
+- X64 `var_i32` op emission now separates local-slot diagnostics, local fact-map
+  updates, expression evaluation, and stack-slot storage while preserving the
+  existing check/eval/store order. The capped profile now shows
+  `x64_native_program.oren` at about 47.7s total / 34.6s parse, with
+  `_x64_fast_lcg_fullmod_emit_step` exposed at about 44ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
