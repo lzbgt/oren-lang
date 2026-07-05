@@ -311,33 +311,41 @@ fn pack_quads_xy_rgba(quads, ctx) {
     return out
 }
 
-fn _plane_xy_bounds(plane, ctx) {
-    var lo = plane["min"]
-    if lo == nil { lo = plane["min_xy"] }
-    var hi = plane["max"]
-    if hi == nil { hi = plane["max_xy"] }
+fn _flat_rect_xy_bounds(shape, label, ctx) {
+    var lo = shape["min"]
+    if lo == nil { lo = shape["min_xy"] }
+    var hi = shape["max"]
+    if hi == nil { hi = shape["max_xy"] }
     if lo != nil || hi != nil {
-        lo = _xy_pair(lo, "plane min", ctx)
+        lo = _xy_pair(lo, label + " min", ctx)
         if oren_is_err(lo) { return lo }
-        hi = _xy_pair(hi, "plane max", ctx)
+        hi = _xy_pair(hi, label + " max", ctx)
         if oren_is_err(hi) { return hi }
-        var z = plane["z"]
-        if z == nil { z = plane["z_milli"] }
+        var z = shape["z"]
+        if z == nil { z = shape["z_milli"] }
         if z == nil { z = 0 }
-        if _is_int(z) == false { return oren_err(4, ctx + ": plane z must be i32") }
-        if hi[0] <= lo[0] || hi[1] <= lo[1] { return oren_err(4, ctx + ": plane max must be greater than min") }
+        if _is_int(z) == false { return oren_err(4, ctx + ": " + label + " z must be i32") }
+        if hi[0] <= lo[0] || hi[1] <= lo[1] { return oren_err(4, ctx + ": " + label + " max must be greater than min") }
         return [lo[0], lo[1], hi[0], hi[1], z]
     }
-    var origin = plane["origin"]
-    if origin == nil { origin = plane["origin_xyz"] }
-    origin = _xyz_point(origin, "plane origin", ctx)
+    var origin = shape["origin"]
+    if origin == nil { origin = shape["origin_xyz"] }
+    origin = _xyz_point(origin, label + " origin", ctx)
     if oren_is_err(origin) { return origin }
-    var size = plane["size"]
-    if size == nil { size = plane["size_xy"] }
-    size = _xy_pair(size, "plane size", ctx)
+    var size = shape["size"]
+    if size == nil { size = shape["size_xy"] }
+    size = _xy_pair(size, label + " size", ctx)
     if oren_is_err(size) { return size }
-    if size[0] <= 0 || size[1] <= 0 { return oren_err(4, ctx + ": plane size must be positive") }
+    if size[0] <= 0 || size[1] <= 0 { return oren_err(4, ctx + ": " + label + " size must be positive") }
     return [origin[0], origin[1], origin[0] + size[0], origin[1] + size[1], origin[2]]
+}
+
+fn _plane_xy_bounds(plane, ctx) {
+    return _flat_rect_xy_bounds(plane, "plane", ctx)
+}
+
+fn _rect_xy_bounds(rect, ctx) {
+    return _flat_rect_xy_bounds(rect, "rect", ctx)
 }
 
 fn _planes_xy_triangle_count(planes, ctx) {
@@ -374,6 +382,47 @@ fn pack_planes_xy(planes, ctx) {
         if oren_is_err(rc) { return rc }
         off = off + 36
         rc = _store_triangle(out, off, x0, y0, z, x1, y1, z, x0, y1, z, ctx + ".plane1")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        i = i + 1
+    }
+    return out
+}
+
+fn _rects_xy_triangle_count(rects, ctx) {
+    if rects == nil { return oren_err(4, ctx + ": missing rects_xy") }
+    var nr = oren_list_len(rects)
+    if oren_is_err(nr) { return oren_err(4, ctx + ": rects_xy must be list") }
+    var i = 0
+    while i < nr {
+        var rect = rects[i]
+        if rect == nil { return oren_err(4, ctx + ": rect must be object") }
+        var bounds = _rect_xy_bounds(rect, ctx)
+        if oren_is_err(bounds) { return bounds }
+        i = i + 1
+    }
+    return nr * 2
+}
+
+fn pack_rects_xy(rects, ctx) {
+    var tri_count = _rects_xy_triangle_count(rects, ctx)
+    if oren_is_err(tri_count) { return tri_count }
+    var out = raw.u8_new_uninit(tri_count * 36)
+    if oren_is_err(out) { return out }
+    var off = 0
+    var i = 0
+    var nr = oren_list_len(rects)
+    while i < nr {
+        var bounds = _rect_xy_bounds(rects[i], ctx)
+        var x0 = bounds[0]
+        var y0 = bounds[1]
+        var x1 = bounds[2]
+        var y1 = bounds[3]
+        var z = bounds[4]
+        var rc = _store_triangle(out, off, x0, y0, z, x1, y0, z, x1, y1, z, ctx + ".rect0")
+        if oren_is_err(rc) { return rc }
+        off = off + 36
+        rc = _store_triangle(out, off, x0, y0, z, x1, y1, z, x0, y1, z, ctx + ".rect1")
         if oren_is_err(rc) { return rc }
         off = off + 36
         i = i + 1
