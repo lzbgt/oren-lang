@@ -1416,8 +1416,8 @@ This file is the concise task view. Detailed implementation status lives in
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes; Base64/Base64URL decode also rejects malformed padding and
      nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:strings` prefix/suffix/search/equality
-     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
-     encoding/decode byte carriers, and full regex
+	     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
+	     encoding through growable `u8_buf` output plus u8-backed decode byte carriers, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers

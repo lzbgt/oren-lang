@@ -1200,9 +1200,9 @@ fn main() {
     var yaml_encoded = yaml.encode(yaml.yobject({"n": yaml.yint(3)}))
     if r.is_err(yaml_encoded) || strings.streq(yaml_encoded, "n: 3\n") != true { return 1535 }
     var cbor_encoded = cbor.encode(cbor.cint(7))
-    if r.is_err(cbor_encoded) || list.len(cbor_encoded) != 1 || list.get(cbor_encoded, 0) != 7 { return 1536 }
+    if r.is_err(cbor_encoded) || oren_bytes_len(cbor_encoded) != 1 || oren_bytes_get_u8(cbor_encoded, 0) != 7 { return 1536 }
     var cbor_seq_encoded = cbor.encode_sequence([cbor.cint(1), cbor.cbool(1)])
-    if r.is_err(cbor_seq_encoded) || list.len(cbor_seq_encoded) != 2 || list.get(cbor_seq_encoded, 0) != 1 || list.get(cbor_seq_encoded, 1) != 245 { return 1537 }
+    if r.is_err(cbor_seq_encoded) || oren_bytes_len(cbor_seq_encoded) != 2 || oren_bytes_get_u8(cbor_seq_encoded, 0) != 1 || oren_bytes_get_u8(cbor_seq_encoded, 1) != 245 { return 1537 }
     var compiled_regex = regex.compile("a+")
     if r.is_err(compiled_regex) == true { return 1517 }
     if regex.is_match_compiled(compiled_regex, "xxaaa") != true { return 1518 }

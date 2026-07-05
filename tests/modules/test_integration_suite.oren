@@ -497,7 +497,7 @@ pos = c0["pos"]
 var c1 = cbor.decode_next_typed(bs, pos, User__cbor_decode)
 assert_true(c1["ok"] == 1, 96, "cbor decode_next #1")
 pos = c1["pos"]
-assert_eq(pos, oren_list_len(bs), 97, "cbor fully consumed")
+assert_eq(pos, oren_bytes_len(bs), 97, "cbor fully consumed")
 
 // --- multi-format serde derive (rolling) ---
 

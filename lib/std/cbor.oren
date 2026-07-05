@@ -81,7 +81,43 @@ fn _ok(v, pos) {
     return {"ok": 1, "v": v, "pos": pos}
 }
 
-fn _push_u8(out, b) { list.push(out, b & 255) }
+fn _writer_new(cap) {
+    if cap == nil || cap < 1 { cap = 32 }
+    var buf = oren_u8_buf_new_uninit(cap)
+    return {"buf": buf, "data": oren_buf_data_ptr_unchecked(buf), "len": 0, "cap": cap}
+}
+
+fn _writer_reserve(w, extra) {
+    var need = w["len"] + extra
+    if need <= w["cap"] { return nil }
+    var new_cap = w["cap"] * 2
+    while new_cap < need { new_cap = new_cap * 2 }
+    var nb = oren_u8_buf_new_uninit(new_cap)
+    var src = w["data"]
+    var dst = oren_buf_data_ptr_unchecked(nb)
+    var i = 0
+    while i < w["len"] {
+        ptr_set_byte(dst + i, ptr_get_byte(src + i) & 255)
+        i = i + 1
+    }
+    w["buf"] = nb
+    w["data"] = dst
+    w["cap"] = new_cap
+    return nil
+}
+
+fn _push_u8(out, b) {
+    _writer_reserve(out, 1)
+    var i = out["len"]
+    ptr_set_byte(out["data"] + i, b & 255)
+    out["len"] = i + 1
+}
+
+fn _writer_finish(w) {
+    var n = w["len"]
+    if n == w["cap"] { return w["buf"] }
+    return oren_u8_buf_from_bytes_slice(w["buf"], 0, n)
+}
 
 fn _bytes_len(bs) {
     var n = oren_bytes_len(bs)
@@ -258,9 +294,9 @@ fn _encode_value(out, v) {
 }
 
 fn encode(v): bytes {
-    var out = []
+    var out = _writer_new(64)
     _encode_value(out, v)
-    return out
+    return _writer_finish(out)
 }
 
 fn _need(bs, pos, n) {
@@ -465,9 +501,9 @@ fn sequence(bs) {
 }
 
 fn encode_sequence(items) {
-    var out = []
+    var out = _writer_new(64)
     if items != nil { for it in items { _encode_value(out, it) } }
-    return out
+    return _writer_finish(out)
 }
 
 // Typed helpers for serde-generated encode/decode functions.

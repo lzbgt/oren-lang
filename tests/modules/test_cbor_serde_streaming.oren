@@ -29,10 +29,10 @@ fn test_sequence_typed_roundtrip() {
     var bs = cbor.encode_sequence_typed(users, User__cbor_encode)
     var bs_try = cbor.encode_sequence_typed(users, User__cbor_encode)
     assert(oren_is_err(bs_try) != true, "encode_sequence_typed ok")
-    assert(oren_list_len(bs_try) == oren_list_len(bs), "encode_sequence_typed len")
+    assert(oren_bytes_len(bs_try) == oren_bytes_len(bs), "encode_sequence_typed len")
     var bi = 0
-    while bi < oren_list_len(bs) {
-        assert(bs_try[bi] == bs[bi], "encode_sequence_typed byte")
+    while bi < oren_bytes_len(bs) {
+        assert(oren_bytes_get_u8(bs_try, bi) == oren_bytes_get_u8(bs, bi), "encode_sequence_typed byte")
         bi = bi + 1
     }
 
@@ -74,7 +74,7 @@ fn test_sequence_typed_roundtrip() {
     pos = r2["pos"]
     assert(r2["v"].id == 3, "decode_next_typed id2")
 
-    assert(pos == oren_list_len(bs), "fully consumed")
+    assert(pos == oren_bytes_len(bs), "fully consumed")
 }
 
 test_sequence_typed_roundtrip()

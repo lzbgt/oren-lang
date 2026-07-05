@@ -2334,9 +2334,10 @@ Facts from the 2026-05-28 implementation pass:
   slice/dense-matrix u8 destinations through `bytes.copy_into`, while
   contiguous slice/dense-matrix byte and text exports use direct byte-slice
   conversion,
-  JSON full decode, scalar parse, tag equality, and escape paths
-  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
-  key ordering/text encoding plus direct u8-buffer decode byte reads, full regex
+	  JSON full decode, scalar parse, tag equality, and escape paths
+	  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
+	  key ordering/text encoding writes growable `u8_buf` output and decode uses
+	  direct u8-buffer byte reads, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
