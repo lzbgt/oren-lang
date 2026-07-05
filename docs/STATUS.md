@@ -3674,6 +3674,14 @@ make docs-site
   next parser body. Linux/x64 execution validation now prefers the dedicated
   Arch host `bruce@192.168.0.102`; print and result-smoke binaries pass there,
   while the broader quick-integration crash is tracked as `NATIVE-X64-ARCH-QI`.
+- `NATIVE-X64-ARCH-QI` is resolved on the dedicated Arch x64 host
+  `bruce@192.168.0.102`. The fix keeps x64 unchecked list-int reduction
+  intrinsics off allocator-sensitive `r14`/`r15`, routes x64 intrinsic
+  tracked-node lookup through arena-aware `native_gc_find_node_nolock`, and
+  disables the unsafe x64 LIST_INT sum/dot loop fast matchers until their
+  emitters are rewritten with safepoint-safe register state. Remote evidence:
+  `tests/native/test_quick_integration_native.oren` built for `x64-linux` exits
+  `0` on the Arch host.
 
 ## Documentation Guardrail
 

@@ -791,7 +791,14 @@ fn _x64_match_fast_get_sum_body(ctx, locals, loop, use_list_int) {
     return {"sum": sum_name, "lists": state["lists"], "loads": state["loads"], "sum_inty": sum_inty}
 }
 
+fn _x64_list_int_fast_sum_dot_enabled() {
+    // Disabled until the x64 LIST_INT fast-loop emitters stop using r12-r15 around safepoints.
+    // Those registers carry native allocator state across internal Oren runtime calls.
+    return false
+}
+
 fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
+    if _x64_list_int_fast_sum_dot_enabled() != true { return nil }
     var loop = _x64_match_fast_counted_int_loop(ctx, op, locals)
     if loop == nil { return nil }
     var body = _x64_match_fast_list_int_get_sum_body(ctx, locals, loop)
@@ -815,7 +822,18 @@ fn _x64_match_fast_list_get_sum_while(ctx, op, locals) {
     if loop == nil { return nil }
     var body = _x64_match_fast_list_get_sum_body(ctx, locals, loop)
     if body == nil { return nil }
-    return {"idx": loop["idx"], "n": loop["n"], "sum": body["sum"], "lists": body["lists"], "loads": body["loads"]}
+    // The x64 boxed-list fast path keeps the running sum/value in registers. Its dynamic-add
+    // branch calls runtime helpers, and internal Oren calls are treated as all-register volatile.
+    // Keep the fast path only when the sum is proven integer and no dynamic string/add calls emit.
+    if body["sum_inty"] != true { return nil }
+    return {
+        "idx": loop["idx"],
+        "n": loop["n"],
+        "sum": body["sum"],
+        "lists": body["lists"],
+        "loads": body["loads"],
+        "sum_inty": body["sum_inty"]
+    }
 }
 
 fn _x64_match_fast_dot_step(ctx, body, i, idx_name, locals, use_list_int) {
@@ -896,6 +914,7 @@ fn _x64_match_fast_dot_while(ctx, op, locals, use_list_int) {
 }
 
 fn _x64_match_fast_list_int_dot_while(ctx, op, locals) {
+    if _x64_list_int_fast_sum_dot_enabled() != true { return nil }
     return _x64_match_fast_dot_while(ctx, op, locals, true)
 }
 
