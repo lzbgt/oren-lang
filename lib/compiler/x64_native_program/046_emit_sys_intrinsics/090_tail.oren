@@ -457,35 +457,58 @@ fn _emit_intrinsic_sys_linux_open_x64(ctx, expr, locals, args, capsule) {
     return true
 }
 
-fn _emit_intrinsic_sys_linux_close_x64(ctx, expr, locals, args, capsule) {
+fn _x64_linux_close_validate(ctx, expr, args) {
     if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return true }
+    return false
+}
 
-    var base3 = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base3) == 0 { return true }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base3 + 0)
-    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base3); return true }
+fn _x64_linux_close_spill_state(ctx, locals) {
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "fd": tmp_fd}
+}
 
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base3); return true }
+fn _x64_linux_close_emit_fd_spill(ctx, locals, arg, state, capsule) {
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
     }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state["fd"], 0)
+    return true
+}
 
-    _intr_load_x64(ctx, 7, tmp_fd)
+fn _x64_linux_close_emit_syscall(ctx, state) {
+    _intr_load_x64(ctx, 7, state["fd"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_close()))
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
 
+fn _x64_linux_close_emit_posthook(ctx, state, capsule) {
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _intr_load_x64(ctx, 6, tmp_fd)
+        _intr_load_x64(ctx, 6, state["fd"])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
     }
-    _intr_tmp_pop(ctx, base3)
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_close_x64(ctx, expr, locals, args, capsule) {
+    if _x64_linux_close_validate(ctx, expr, args) { return true }
+
+    var state = _x64_linux_close_spill_state(ctx, locals)
+    if state == nil { return true }
+    if _x64_linux_close_emit_fd_spill(ctx, locals, args[0], state, capsule) == false { _intr_tmp_pop(ctx, state["base"]); return true }
+    _x64_linux_close_emit_syscall(ctx, state)
+    _x64_linux_close_emit_posthook(ctx, state, capsule)
+    _intr_tmp_pop(ctx, state["base"])
     return true
 }
 

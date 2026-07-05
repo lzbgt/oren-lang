@@ -3619,6 +3619,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 48.2s total / 34.9s
   parse, with `_emit_intrinsic_sys_linux_close_x64` exposed at about 41ms as the
   next parser body.
+- Linux x64 `sys_close` lowering now separates arity/spread validation, fd temp
+  state setup, fd evaluation plus capsule prehook spilling, syscall emission,
+  and capsule posthook routing while preserving temp cleanup ownership. The
+  capped profile now shows `x64_native_program.oren` at about 48.5s total /
+  35.4s parse, with `_x64_prepare_sys_rw_linux_args` exposed at about 41ms as
+  the next parser body.
 
 ## Documentation Guardrail
 
