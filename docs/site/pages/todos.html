@@ -3269,9 +3269,10 @@
 <p>  text-position, image RGBA, mesh RGBA, and image-rect byte reads, with explicit</p>
 <p>  image-data length guards before pointer-backed sampling.</p>
 <ul>
-<li><code>std:ui/scene3d</code> binary <code>.os3d</code> package magic, header, and table reads now</li>
+<li><code>std:ui/scene3d</code> binary <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>
-<p>  use cached u8-buffer pointers while keeping list-compatible byte input fallback.</p>
+<p>  payload slices now reuse one cached byte view with length and optional u8</p>
+<p>  pointer while keeping list-compatible byte input fallback.</p>
 <ul>
 <li><code>std:ui/ppm</code> now reuses one cached u8 input pointer while emitting P6 RGB</li>
 </ul>

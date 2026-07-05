@@ -2461,8 +2461,9 @@
 <p>	  directly from u8 command buffers, OGE0 event headers and little-endian</p>
 <p>	  payload fields read from cached u8-buffer pointers, UI command validation</p>
 <p>	  and software rasterization read geometry/text-position/image-rect payload</p>
-<p>	  fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
-<p>	  package magic/header/table reads, PPM RGBA input reads, software raster</p>
+<p>		  fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
+<p>		  package magic/header/table reads and payload slices through one cached</p>
+<p>		  byte view, PPM RGBA input reads, software raster</p>
 <p>	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw</p>
 <p>	  exact-size buffer stores or direct u8-buffer access, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
