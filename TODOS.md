@@ -2391,6 +2391,9 @@ design evidence lives under `project-doc/`.
   headers directly while keeping list-compatible byte input fallback.
 - `std:ui/ppm` now reuses one cached u8 input pointer while emitting P6 RGB
   bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.
+- `std:buffer` slice/strided/matrix byte-copy fallbacks now cache u8 source
+  pointers for non-contiguous destinations while retaining list-compatible byte
+  fallback.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

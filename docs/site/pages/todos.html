@@ -3266,6 +3266,11 @@
 </ul>
 <p>  bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.</p>
 <ul>
+<li><code>std:buffer</code> slice/strided/matrix byte-copy fallbacks now cache u8 source</li>
+</ul>
+<p>  pointers for non-contiguous destinations while retaining list-compatible byte</p>
+<p>  fallback.</p>
+<ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>
 <p>  direct/link bytecode emission gates use carrier-aware byte lengths for metadata</p>

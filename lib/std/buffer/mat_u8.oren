@@ -13,6 +13,16 @@ import view "std:buffer/view"
 fn _err_invalid(msg) { return core._err_invalid(msg) }
 fn _u8_validate_or_err(v, ctx) { return mshared._mat_validate_u8_or_err(v, ctx) }
 
+fn _bytes_ptr_or_nil(bytes) {
+    if oren_is_u8_buf(bytes) == true { return oren_buf_data_ptr_unchecked(bytes) }
+    return nil
+}
+
+fn _bytes_read_u8(bytes, data, idx) {
+    if data != nil { return ptr_get_byte(data + idx) & 255 }
+    return bytesm.get_u8(bytes, idx)
+}
+
 fn _mat_unpack_projected_rows(m, ctx, rowf) {
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
     var out = []
@@ -228,13 +238,14 @@ fn u8_mat_copy_from_bytes(m, bytes) {
         if oren_is_err(rc0) { return rc0 }
         return m[0]
     }
+    var data = _bytes_ptr_or_nil(bytes)
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = bytesm.get_u8(bytes, r * m[3] + c)
+            var v = _bytes_read_u8(bytes, data, r * m[3] + c)
             if oren_is_err(v) { return v }
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }
@@ -260,13 +271,14 @@ fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
         if oren_is_err(rc0) { return rc0 }
         return m[0]
     }
+    var data = _bytes_ptr_or_nil(bytes)
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = bytesm.get_u8(bytes, off + r * m[3] + c)
+            var v = _bytes_read_u8(bytes, data, off + r * m[3] + c)
             if oren_is_err(v) { return v }
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }

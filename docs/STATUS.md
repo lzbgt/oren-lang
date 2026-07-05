@@ -2330,10 +2330,10 @@ Facts from the 2026-05-28 implementation pass:
   loads/stores use raw pointer access after public validation, contiguous u8
   concat/copy spans use raw pointer byte copies, and overlapping in-place u8
   `copy_into` copies backward when needed, `std:buffer` view/matrix
-  `copy_from_bytes` helpers read byte carriers directly and route contiguous
-  slice/dense-matrix u8 destinations through `bytes.copy_into`, while
-  contiguous slice/dense-matrix byte and text exports use direct byte-slice
-  conversion,
+  `copy_from_bytes` helpers read byte carriers directly, route contiguous
+  slice/dense-matrix u8 destinations through `bytes.copy_into`, and cache u8
+  source pointers for non-contiguous view/matrix fallbacks, while contiguous
+  slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
 	  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
 	  key ordering/text encoding writes growable `u8_buf` output and decode uses
