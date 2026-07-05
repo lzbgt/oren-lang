@@ -3578,6 +3578,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 50.8s total / 37.2s
   parse, with `_x64_fast_list_int_get_sum_emit_unroll2` exposed at about 46ms as
   the next parser body.
+- X64 fast LIST_INT get-sum unroll-2 emission now separates list-index lookup,
+  temp-slot resolution, two-value buffer load/advance, and loop-iteration finish
+  helpers while preserving the existing r10/r13 cursor and sum contracts. The
+  capped profile now shows `x64_native_program.oren` at about 47.3s total /
+  34.1s parse, with `_x64_fast_list_int_get_sum_emit_single` exposed at about
+  41ms as the next parser body.
 
 ## Documentation Guardrail
 

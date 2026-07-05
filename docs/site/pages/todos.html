@@ -3110,6 +3110,14 @@
 <p>  with <code>_x64_fast_list_int_get_sum_emit_unroll2</code> exposed at ~46ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 fast LIST_INT get-sum unroll-2 emission now separates list-index lookup,</li>
+</ul>
+<p>  temp-slot resolution, two-value buffer load/advance, and loop-iteration finish</p>
+<p>  helpers while preserving the existing r10/r13 cursor and sum contracts. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at ~47.3s total / ~34.1s</p>
+<p>  parse, with <code>_x64_fast_list_int_get_sum_emit_single</code> exposed at ~41ms as the</p>
+<p>  next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

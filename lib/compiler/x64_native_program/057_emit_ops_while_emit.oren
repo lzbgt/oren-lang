@@ -902,34 +902,54 @@ fn _x64_fast_list_int_get_sum_emit_whole_helper(ctx, locals, labels, local_fixup
     return true
 }
 
-fn _x64_fast_list_int_get_sum_emit_unroll2(ctx, locals, labels, local_fixups, lists, loads, list_count, base, off_sum, off_idx, l_fast_cond, l_fast_single) {
+fn _x64_fast_list_int_get_sum_find_list_index(lists, list_count, list_name) {
+    var list_index = 0
+    while list_index < list_count {
+        if _x64_str_eq_bytes(lists[list_index], list_name) { break }
+        list_index = list_index + 1
+    }
+    return list_index
+}
+
+fn _x64_fast_list_int_get_sum_slot_for_index(ctx, locals, base, list_index) {
+    return _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
+}
+
+fn _x64_fast_list_int_get_sum_emit_unroll2_load(ctx, slot_buf) {
+    _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf)
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 12, 8))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 16))
+    _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 12)
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 8))
+    return nil
+}
+
+fn _x64_fast_list_int_get_sum_emit_unroll2_loads(ctx, locals, lists, loads, list_count, base) {
     var pi2 = 0
     while pi2 < oren_list_len(loads) {
-        var list_name2 = loads[pi2]
-        var list_index2 = 0
-        while list_index2 < list_count {
-            if _x64_str_eq_bytes(lists[list_index2], list_name2) { break }
-            list_index2 = list_index2 + 1
-        }
-        var slot_buf2u = _intr_tmp_off(ctx, locals, base + list_index2 * 2 + 1)
+        var list_index2 = _x64_fast_list_int_get_sum_find_list_index(lists, list_count, loads[pi2])
+        var slot_buf2u = _x64_fast_list_int_get_sum_slot_for_index(ctx, locals, base, list_index2)
         if oren_type_tag(slot_buf2u) == 0 { _intr_tmp_pop(ctx, base); return false }
-
-        _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf2u)
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64(14, 12))
-        bytes_extend(ctx["code"], core.insn_mov_r64_mr64_disp(8, 12, 8))
-        bytes_extend(ctx["code"], core.insn_add_r64_imm32(12, 16))
-        _emit_mov_mrbp_r64(ctx, 0 - slot_buf2u, 12)
-
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 14))
-        bytes_extend(ctx["code"], core.insn_add_r64_r64(13, 8))
+        _x64_fast_list_int_get_sum_emit_unroll2_load(ctx, slot_buf2u)
 
         pi2 = pi2 + 1
     }
+    return true
+}
 
+fn _x64_fast_list_int_get_sum_finish_unroll2_iter(ctx, local_fixups, off_sum, off_idx, l_fast_cond) {
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 13)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 2))
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+    return nil
+}
+
+fn _x64_fast_list_int_get_sum_emit_unroll2(ctx, locals, labels, local_fixups, lists, loads, list_count, base, off_sum, off_idx, l_fast_cond, l_fast_single) {
+    if _x64_fast_list_int_get_sum_emit_unroll2_loads(ctx, locals, lists, loads, list_count, base) != true { return false }
+    _x64_fast_list_int_get_sum_finish_unroll2_iter(ctx, local_fixups, off_sum, off_idx, l_fast_cond)
 
     _emit_label(ctx, labels, l_fast_single)
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)

@@ -4034,6 +4034,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 50.8s total / 37.2s</p>
 <p>  parse, with <code>_x64_fast_list_int_get_sum_emit_unroll2</code> exposed at about 46ms as</p>
 <p>  the next parser body.</p>
+<ul>
+<li>X64 fast LIST_INT get-sum unroll-2 emission now separates list-index lookup,</li>
+</ul>
+<p>  temp-slot resolution, two-value buffer load/advance, and loop-iteration finish</p>
+<p>  helpers while preserving the existing r10/r13 cursor and sum contracts. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.3s total /</p>
+<p>  34.1s parse, with <code>_x64_fast_list_int_get_sum_emit_single</code> exposed at about</p>
+<p>  41ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
