@@ -3457,6 +3457,12 @@ make docs-site
   `x64_native_program.oren` at about 59.5s total / 42.8s parse, with
   `_x64_fast_list_int_push_validate_tracked_list` exposed at about 225ms as the
   next parser body.
+- X64 fast LIST/LIST_INT push validation now shares tracked-node lookup,
+  expected-kind probing, and list-magic comparison helpers while preserving each
+  fast path's slow-label routing and error return contract. The capped profile
+  now shows `x64_native_program.oren` at about 62.4s total / 45.0s parse, with
+  `_x64_emit_top_string_batch_loop_body` exposed at about 148ms as the next
+  parser body.
 
 ## Documentation Guardrail
 

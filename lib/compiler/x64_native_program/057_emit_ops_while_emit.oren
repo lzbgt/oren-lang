@@ -309,28 +309,38 @@ fn _x64_fast_list_int_push_capture_list(ctx, st, l_slow, local_fixups) {
     return nil
 }
 
-fn _x64_fast_list_int_push_validate_tracked_list(ctx, st, l_slow, local_fixups) {
-    // tracked node
+fn _x64_fast_push_validate_tracked_node(ctx, l_slow, local_fixups) {
     _emit_find_tracked_node_x64(ctx, 0, 11)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+    return true
+}
 
-    // kind == LIST_INT (8)
+fn _x64_fast_push_validate_tracked_kind(ctx, expected_kind, l_slow, local_fixups) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, expected_kind))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+    return nil
+}
 
-    // magic check
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["slot_list"])
+fn _x64_fast_push_validate_list_magic(ctx, slot_list, l_slow, local_fixups) {
+    _emit_mov_r64_mrbp(ctx, 0, 0 - slot_list)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+    return nil
+}
+
+fn _x64_fast_list_int_push_validate_tracked_list(ctx, st, l_slow, local_fixups) {
+    if _x64_fast_push_validate_tracked_node(ctx, l_slow, local_fixups) != true { return false }
+    _x64_fast_push_validate_tracked_kind(ctx, 8, l_slow, local_fixups)
+    _x64_fast_push_validate_list_magic(ctx, st["slot_list"], l_slow, local_fixups)
     return true
 }
 
@@ -565,27 +575,9 @@ fn _x64_fast_list_push_capture_list(ctx, st, l_slow, local_fixups) {
 }
 
 fn _x64_fast_list_push_validate_tracked_list(ctx, st, l_slow, local_fixups) {
-    // tracked node
-    _emit_find_tracked_node_x64(ctx, 0, 11)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
-
-    // kind == LIST (2)
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
-
-    // magic check
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["slot_list"])
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 1279870019))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+    if _x64_fast_push_validate_tracked_node(ctx, l_slow, local_fixups) != true { return false }
+    _x64_fast_push_validate_tracked_kind(ctx, 2, l_slow, local_fixups)
+    _x64_fast_push_validate_list_magic(ctx, st["slot_list"], l_slow, local_fixups)
     return true
 }
 

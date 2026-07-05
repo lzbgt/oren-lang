@@ -2956,6 +2956,14 @@
 <p>  <code>_x64_fast_list_int_push_validate_tracked_list</code> exposed at ~225ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 fast LIST/LIST_INT push validation now shares tracked-node lookup,</li>
+</ul>
+<p>  expected-kind probing, and list-magic comparison helpers while preserving each</p>
+<p>  fast path&#x27;s slow-label routing and error return contract. The capped profile</p>
+<p>  now shows <code>x64_native_program.oren</code> at ~62.4s total / ~45.0s parse, with</p>
+<p>  <code>_x64_emit_top_string_batch_loop_body</code> exposed at ~148ms as the next parser</p>
+<p>  body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>
