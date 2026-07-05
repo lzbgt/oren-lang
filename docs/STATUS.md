@@ -3643,6 +3643,11 @@ make docs-site
   shows `x64_native_program.oren` at about 48.3s total / 34.9s parse, with
   `_emit_global_string_init_batch_op_x64` exposed at about 41ms as the next
   parser body.
+- X64 top-level global string batch emission now separates input/trace state
+  preparation from data/table/code emission while preserving batch item
+  collection, slow-op timing, and compact loop emission. The capped profile now
+  shows `x64_native_program.oren` at about 48.0s total / 34.7s parse, with
+  `_x64_emit_lambda_literal_env` exposed at about 40ms as the next parser body.
 
 ## Documentation Guardrail
 
