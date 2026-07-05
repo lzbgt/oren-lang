@@ -3488,6 +3488,12 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 46.5s total /
   33.6s parse, with `_emit_windows_write_cstr` exposed at about 43ms as the next
   parser body.
+- Windows x64 literal C-string writing now separates C-string data registration,
+  local Win64 shadow-space framing, stdout handle acquisition, WriteFile
+  argument materialization, and IAT call emission while preserving the emitted
+  instruction/fixup order. The capped profile now shows `x64_native_program.oren`
+  at about 46.6s total / 33.6s parse, with `_emit_var_i32_op_x64` exposed at
+  about 43ms as the next parser body.
 
 ## Documentation Guardrail
 

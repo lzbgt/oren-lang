@@ -5,15 +5,29 @@ fn _emit_windows_write_cstr(ctx, s) {
     //
     // Uses Win64 ABI (RCX, RDX, R8, R9, shadow space).
 
-    var meta = _data_add_cstr_newline(ctx, s)
+    var meta = _emit_windows_write_cstr_meta(ctx, s)
     if meta == nil { return nil }
-    var data_off = meta["off"]
-    var nbytes = meta["len"]
 
+    _emit_windows_write_cstr_frame_enter(ctx)
+    _emit_windows_write_cstr_stdout_handle(ctx)
+    _emit_windows_write_cstr_buffer_args(ctx, meta)
+    _emit_windows_writefile_iat_call(ctx)
+    _emit_windows_write_cstr_frame_leave(ctx)
+    return nil
+}
+
+fn _emit_windows_write_cstr_meta(ctx, s) {
+    return _data_add_cstr_newline(ctx, s)
+}
+
+fn _emit_windows_write_cstr_frame_enter(ctx) {
     // Reserve shadow + stack-arg scratch so this helper is self-contained.
     // 0x30 keeps 16B alignment when the caller is already aligned.
     bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(48))
+    return nil
+}
 
+fn _emit_windows_write_cstr_stdout_handle(ctx) {
     // --- GetStdHandle(STD_OUTPUT_HANDLE=-11) ---
     // ecx = 0xFFFFFFF5
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285))
@@ -24,14 +38,17 @@ fn _emit_windows_write_cstr(ctx, s) {
 
     // rcx = rax (hStdout)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
+    return nil
+}
 
+fn _emit_windows_write_cstr_buffer_args(ctx, meta) {
     // rdx = &data (RIP-relative into the user data blob; mapped as `.data` in PE v0)
     var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": data_off})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": meta["off"]})
 
     // r8d = len
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, nbytes))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, meta["len"]))
 
     // Stack arg5 (lpOverlapped) = NULL at [rsp+0x20], and bytesWritten at [rsp+0x28].
     //
@@ -40,12 +57,19 @@ fn _emit_windows_write_cstr(ctx, s) {
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(36, 0))
     // r9 = &written
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40))
+    return nil
+}
 
+fn _emit_windows_writefile_iat_call(ctx) {
     // --- WriteFile(...) ---
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_WriteFile")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
+
+fn _emit_windows_write_cstr_frame_leave(ctx) {
     bytes_extend(ctx["code"], core.insn_add_rsp_imm32(48))
     return nil
 }

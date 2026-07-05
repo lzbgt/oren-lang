@@ -2996,6 +2996,14 @@
 <p>  ~33.6s parse, with <code>_emit_windows_write_cstr</code> exposed at ~43ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>Windows x64 literal C-string writing now separates C-string data registration,</li>
+</ul>
+<p>  local Win64 shadow-space framing, stdout handle acquisition, WriteFile</p>
+<p>  argument materialization, and IAT call emission while preserving the emitted</p>
+<p>  instruction/fixup order. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at ~46.6s total / ~33.6s parse, with <code>_emit_var_i32_op_x64</code> exposed at ~43ms</p>
+<p>  as the next parser body.</p>
+<ul>
 <li>Native HTTP/2 client response header-block and DATA payload accumulation now uses amortized <code>u8_buf</code> builders, and header-only responses with <code>END_STREAM</code> terminate without waiting for a DATA frame.</li>
 <li>X64 conditional branch and SETcc instruction builders now decode condition strings through byte-based opcode helpers and expose direct opcode builders; the central label and compare-not emitters use the numeric path to avoid repeated string-equality dispatch in hot branch emission.</li>
 <li>Renamer scope lookup now caches positive and negative results per parent-linked scope frame and updates the active frame cache on declaration. The focused <code>renamer_scope_cache_shadow_main</code> fixture proves the hot false-then-declare shadowing path still resolves a later local over an earlier imported module alias.</li>

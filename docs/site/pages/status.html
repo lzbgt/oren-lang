@@ -3914,6 +3914,14 @@ make docs-site</code></pre>
 <p>  The capped profile now shows <code>x64_native_program.oren</code> at about 46.5s total /</p>
 <p>  33.6s parse, with <code>_emit_windows_write_cstr</code> exposed at about 43ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>Windows x64 literal C-string writing now separates C-string data registration,</li>
+</ul>
+<p>  local Win64 shadow-space framing, stdout handle acquisition, WriteFile</p>
+<p>  argument materialization, and IAT call emission while preserving the emitted</p>
+<p>  instruction/fixup order. The capped profile now shows <code>x64_native_program.oren</code></p>
+<p>  at about 46.6s total / 33.6s parse, with <code>_emit_var_i32_op_x64</code> exposed at</p>
+<p>  about 43ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
