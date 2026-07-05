@@ -3512,6 +3512,12 @@ make docs-site
   `x64_native_program.oren` at about 46.8s total / 33.8s parse, with
   `_x64_match_fast_list_int_get_sum_body` exposed at about 43ms as the next
   parser body.
+- X64 fast LIST/LIST_INT get-sum matching now shares step selection, sum-name
+  consistency, local/list validation, load recording, and body finalization
+  while preserving the LIST_INT-only inty proof checks. The capped profile now
+  shows `x64_native_program.oren` at about 46.9s total / 33.9s parse, with
+  `_emit_intrinsic_sys_win_close_handle_windows_x64` exposed at about 42ms as
+  the next parser body.
 
 ## Documentation Guardrail
 

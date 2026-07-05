@@ -707,34 +707,66 @@ fn _x64_match_fast_counted_int_loop(ctx, op, locals) {
 }
 
 fn _x64_match_fast_list_int_get_sum_body(ctx, locals, loop) {
+    return _x64_match_fast_get_sum_body(ctx, locals, loop, true)
+}
+
+fn _x64_match_fast_get_step(ctx, body, i, idx_name, locals, use_list_int) {
+    if use_list_int == true {
+        return _x64_match_sum_add_list_int_get_step(ctx, body, i, idx_name, locals)
+    }
+    return _x64_match_sum_add_list_get_step(ctx, body, i, idx_name, locals)
+}
+
+fn _x64_match_fast_get_sum_name(sum_name, info) {
+    if sum_name == nil { return info["sum"] }
+    if _x64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
+    return sum_name
+}
+
+fn _x64_match_fast_get_validate_sum(ctx, locals, sum_name, step, use_list_int) {
+    if oren_type_tag(locals[sum_name]) == 0 { return false }
+    if use_list_int != true { return true }
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return false }
+    if step["sum_expr_inty_ok"] != true && _x64_expr_is_inty(ctx, step["sum_op"]["expr"]) != true { return false }
+    return true
+}
+
+fn _x64_match_fast_get_record_load(lists, loads, list_name) {
+    if _x64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
+    oren_list_push(loads, list_name)
+    return nil
+}
+
+fn _x64_match_fast_get_accumulate_step(ctx, locals, state, step, use_list_int) {
+    var info = step["info"]
+    var sum_name = _x64_match_fast_get_sum_name(state["sum"], info)
+    if sum_name == nil { return nil }
+    if _x64_match_fast_get_validate_sum(ctx, locals, sum_name, step, use_list_int) != true { return nil }
+    var list_name = info["list"]
+    if oren_type_tag(locals[list_name]) == 0 { return nil }
+    _x64_match_fast_get_record_load(state["lists"], state["loads"], list_name)
+    state["sum"] = sum_name
+    return state
+}
+
+fn _x64_match_fast_get_sum_body(ctx, locals, loop, use_list_int) {
     var body = loop["body"]
     var idx_name = loop["idx"]
     var n = loop["body_n"]
-    var sum_name = nil
-    var lists = []
-    var loads = []
+    var state = {"sum": nil, "lists": [], "loads": []}
     var i = 0
     while i < n - 1 {
-        var step = _x64_match_sum_add_list_int_get_step(ctx, body, i, idx_name, locals)
+        var step = _x64_match_fast_get_step(ctx, body, i, idx_name, locals, use_list_int)
         if step == nil { return nil }
-        var info = step["info"]
-        var sum_op = step["sum_op"]
-        if sum_name == nil { sum_name = info["sum"] }
-        else if _x64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
-        if oren_type_tag(locals[sum_name]) == 0 { return nil }
-        if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
-        if step["sum_expr_inty_ok"] != true && _x64_expr_is_inty(ctx, sum_op["expr"]) != true { return nil }
-        var list_name = info["list"]
-        if oren_type_tag(locals[list_name]) == 0 { return nil }
-        if _x64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
-        oren_list_push(loads, list_name)
+        if _x64_match_fast_get_accumulate_step(ctx, locals, state, step, use_list_int) == nil { return nil }
         i = step["next_i"]
     }
+    var sum_name = state["sum"]
     if sum_name == nil { return nil }
-    if oren_list_len(loads) == 0 { return nil }
+    if oren_list_len(state["loads"]) == 0 { return nil }
     var sum_inty = false
     if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
-    return {"sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
+    return {"sum": sum_name, "lists": state["lists"], "loads": state["loads"], "sum_inty": sum_inty}
 }
 
 fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
@@ -753,29 +785,7 @@ fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
 }
 
 fn _x64_match_fast_list_get_sum_body(ctx, locals, loop) {
-    var body = loop["body"]
-    var idx_name = loop["idx"]
-    var n = loop["body_n"]
-    var sum_name = nil
-    var lists = []
-    var loads = []
-    var i = 0
-    while i < n - 1 {
-        var step = _x64_match_sum_add_list_get_step(ctx, body, i, idx_name, locals)
-        if step == nil { return nil }
-        var info = step["info"]
-        if sum_name == nil { sum_name = info["sum"] }
-        else if _x64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
-        if oren_type_tag(locals[sum_name]) == 0 { return nil }
-        var list_name = info["list"]
-        if oren_type_tag(locals[list_name]) == 0 { return nil }
-        if _x64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
-        oren_list_push(loads, list_name)
-        i = step["next_i"]
-    }
-    if sum_name == nil { return nil }
-    if oren_list_len(loads) == 0 { return nil }
-    return {"sum": sum_name, "lists": lists, "loads": loads}
+    return _x64_match_fast_get_sum_body(ctx, locals, loop, false)
 }
 
 fn _x64_match_fast_list_get_sum_while(ctx, op, locals) {
