@@ -3245,6 +3245,11 @@
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>
 <p>  bytes directly, while boxed byte-list fallback validation remains covered.</p>
 <ul>
+<li><code>std:ui/avm</code> frame payload appends now copy <code>u8_buf</code> command payloads directly</li>
+</ul>
+<p>  into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for</p>
+<p>  non-u8 byte carriers.</p>
+<ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>
 <p>  direct/link bytecode emission gates use carrier-aware byte lengths for metadata</p>

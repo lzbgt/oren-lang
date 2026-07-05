@@ -1430,7 +1430,8 @@ This file is the concise task view. Detailed implementation status lives in
      DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy
      through `oren_memcpy` after validation;
      Base64/Base64URL
-     decode/encode writes exact-size output buffers directly, PPM header/body
+     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
+     directly from u8 command buffers, PPM header/body
      output and software raster clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
      caches typed response body bytes for `.bytes()` on content-length and
      chunked responses. Native `oren_write_file` writes strings directly

@@ -2380,6 +2380,9 @@ design evidence lives under `project-doc/`.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.
+- `std:ui/avm` frame payload appends now copy `u8_buf` command payloads directly
+  into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for
+  non-u8 byte carriers.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

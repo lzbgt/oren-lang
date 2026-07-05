@@ -1500,7 +1500,8 @@
 <p>     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy</p>
 <p>     through <code>oren_memcpy</code> after validation;</p>
 <p>     Base64/Base64URL</p>
-<p>     decode/encode writes exact-size output buffers directly, PPM header/body</p>
+<p>     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
+<p>     directly from u8 command buffers, PPM header/body</p>
 <p>     output and software raster clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
