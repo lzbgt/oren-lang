@@ -907,33 +907,53 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
 }
 
 fn _x64_windows_msg6_state(ctx, locals, args) {
+    var slots = _x64_windows_msg6_alloc_slots(ctx, locals)
+    if slots == nil { return nil }
+    if _x64_windows_msg6_spill_args(ctx, locals, args, slots) != true {
+        _intr_tmp_pop(ctx, slots["base"])
+        return nil
+    }
+    return _x64_windows_msg6_pack_state(slots)
+}
+
+fn _x64_windows_msg6_alloc_slots(ctx, locals) {
     var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,to,tolen
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["fd"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["buf"] = _intr_tmp_off(ctx, locals, base + 1)
-    state["len"] = _intr_tmp_off(ctx, locals, base + 2)
-    state["flags"] = _intr_tmp_off(ctx, locals, base + 3)
-    state["addr"] = _intr_tmp_off(ctx, locals, base + 4)
-    state["addrlen"] = _intr_tmp_off(ctx, locals, base + 5)
-    if oren_type_tag(state["fd"]) == 0 || oren_type_tag(state["buf"]) == 0 || oren_type_tag(state["len"]) == 0 ||
-       oren_type_tag(state["flags"]) == 0 || oren_type_tag(state["addr"]) == 0 || oren_type_tag(state["addrlen"]) == 0 {
+    var fd = _intr_tmp_off(ctx, locals, base + 0)
+    var buf = _intr_tmp_off(ctx, locals, base + 1)
+    var len = _intr_tmp_off(ctx, locals, base + 2)
+    var flags = _intr_tmp_off(ctx, locals, base + 3)
+    var addr = _intr_tmp_off(ctx, locals, base + 4)
+    var addrlen = _intr_tmp_off(ctx, locals, base + 5)
+    if oren_type_tag(fd) == 0 || oren_type_tag(buf) == 0 || oren_type_tag(len) == 0 ||
+       oren_type_tag(flags) == 0 || oren_type_tag(addr) == 0 || oren_type_tag(addrlen) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
+    return {"base": base, "fd": fd, "buf": buf, "len": len, "flags": flags, "addr": addr, "addrlen": addrlen}
+}
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["fd"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["buf"])
-    _intr_eval_spill_x64(ctx, locals, args[2], state["len"])
-    _intr_eval_spill_x64(ctx, locals, args[3], state["flags"])
-    _intr_eval_spill_x64(ctx, locals, args[4], state["addr"])
-    _intr_eval_spill_x64(ctx, locals, args[5], state["addrlen"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, base)
-        return nil
+fn _x64_windows_msg6_spill_args(ctx, locals, args, slots) {
+    _intr_eval_spill_x64(ctx, locals, args[0], slots["fd"])
+    _intr_eval_spill_x64(ctx, locals, args[1], slots["buf"])
+    _intr_eval_spill_x64(ctx, locals, args[2], slots["len"])
+    _intr_eval_spill_x64(ctx, locals, args[3], slots["flags"])
+    _intr_eval_spill_x64(ctx, locals, args[4], slots["addr"])
+    _intr_eval_spill_x64(ctx, locals, args[5], slots["addrlen"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_windows_msg6_pack_state(slots) {
+    return {
+        "base": slots["base"],
+        "fd": slots["fd"],
+        "buf": slots["buf"],
+        "len": slots["len"],
+        "flags": slots["flags"],
+        "addr": slots["addr"],
+        "addrlen": slots["addrlen"]
     }
-    return state
 }
 
 fn _x64_load_windows_msg6_args(ctx, state) {

@@ -3482,6 +3482,12 @@ make docs-site
   behavior. The capped profile now shows `x64_native_program.oren` at about
   46.8s total / 33.9s parse, with `_x64_windows_msg6_state` exposed at about
   42ms as the next parser body.
+- Windows x64 sendto/recvfrom six-argument state setup now matches the Linux
+  msg path shape by separating temp-slot allocation, left-to-right argument
+  spilling, and state-map packing while preserving temp cleanup on spill errors.
+  The capped profile now shows `x64_native_program.oren` at about 46.5s total /
+  33.6s parse, with `_emit_windows_write_cstr` exposed at about 43ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
