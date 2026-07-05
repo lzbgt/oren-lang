@@ -1390,16 +1390,23 @@ fn _bin_slice(data, off, n) {
     return bytes.slice(data, off, n)
 }
 
+fn _bin_byte(data, data_ptr, off) {
+    if data_ptr != nil { return ptr_get_byte(data_ptr + off) & 255 }
+    return bytes.get_u8(data, off)
+}
+
 fn _bin_magic_ok(data) {
     if bytes.len(data) < 28 { return false }
-    return bytes.get_u8(data, 0) == 79 &&
-        bytes.get_u8(data, 1) == 83 &&
-        bytes.get_u8(data, 2) == 51 &&
-        bytes.get_u8(data, 3) == 68 &&
-        bytes.get_u8(data, 4) == 48 &&
-        bytes.get_u8(data, 5) == 49 &&
-        bytes.get_u8(data, 6) == 0 &&
-        bytes.get_u8(data, 7) == 0
+    var p = nil
+    if oren_is_u8_buf(data) == true { p = oren_buf_data_ptr_unchecked(data) }
+    return _bin_byte(data, p, 0) == 79 &&
+        _bin_byte(data, p, 1) == 83 &&
+        _bin_byte(data, p, 2) == 51 &&
+        _bin_byte(data, p, 3) == 68 &&
+        _bin_byte(data, p, 4) == 48 &&
+        _bin_byte(data, p, 5) == 49 &&
+        _bin_byte(data, p, 6) == 0 &&
+        _bin_byte(data, p, 7) == 0
 }
 
 fn scene_from_binary(data) {

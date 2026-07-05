@@ -1768,6 +1768,11 @@ fn main() {
     assert_eq(_px(bin_buf, 4, 1, 1, 1), 255)
     assert_eq(_px(bin_buf, 4, 1, 1, 2), 0)
     assert_true(oren_is_err(scene3d.commands_from_binary(bytes.pack([79, 83]))) == true)
+    var bad_bin_magic = bytes.pack([
+        79, 83, 51, 68, 48, 50, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ])
+    assert_true(oren_is_err(scene3d.commands_from_binary(bad_bin_magic)) == true)
 
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"bad\"}")) == true)
     assert_true(oren_is_err(scene3d.commands_from_json("{\"schema\":\"oren.ui.scene3d.v0\",\"instances\":[{\"id\":1,\"template\":\"missing\"}]}")) == true)

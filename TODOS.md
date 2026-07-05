@@ -2387,6 +2387,8 @@ design evidence lives under `project-doc/`.
   magic/opcode/payload-length reads while retaining list-compatible byte input.
 - `std:ui/raster` now caches u8 pointers for image RGBA and mesh RGBA byte
   reads, with explicit image-data length guards before pointer-backed sampling.
+- `std:ui/scene3d` binary `.os3d` package magic checks now read u8-buffer
+  headers directly while keeping list-compatible byte input fallback.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.
