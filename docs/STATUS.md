@@ -3450,6 +3450,13 @@ make docs-site
   The capped profile now shows `x64_native_program.oren` at about 49.3s total /
   34.2s parse, with `_x64_native_program_prepare_inputs` exposed at about 114ms
   as the next parser body.
+- X64 native-program input preparation now lives in `089_prepare_inputs` and
+  separates runtime-object choice, runtime statement preparation, function-set
+  preparation, and final prepare-state packing while preserving declaration
+  order at the original tail include site. The capped profile now shows
+  `x64_native_program.oren` at about 59.5s total / 42.8s parse, with
+  `_x64_fast_list_int_push_validate_tracked_list` exposed at about 225ms as the
+  next parser body.
 
 ## Documentation Guardrail
 

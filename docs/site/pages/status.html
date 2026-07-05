@@ -3864,6 +3864,15 @@ make docs-site</code></pre>
 <p>  The capped profile now shows <code>x64_native_program.oren</code> at about 49.3s total /</p>
 <p>  34.2s parse, with <code>_x64_native_program_prepare_inputs</code> exposed at about 114ms</p>
 <p>  as the next parser body.</p>
+<ul>
+<li>X64 native-program input preparation now lives in <code>089_prepare_inputs</code> and</li>
+</ul>
+<p>  separates runtime-object choice, runtime statement preparation, function-set</p>
+<p>  preparation, and final prepare-state packing while preserving declaration</p>
+<p>  order at the original tail include site. The capped profile now shows</p>
+<p>  <code>x64_native_program.oren</code> at about 59.5s total / 42.8s parse, with</p>
+<p>  <code>_x64_fast_list_int_push_validate_tracked_list</code> exposed at about 225ms as the</p>
+<p>  next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

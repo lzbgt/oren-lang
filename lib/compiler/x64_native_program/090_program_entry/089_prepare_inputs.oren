@@ -1,0 +1,58 @@
+fn _x64_native_program_prepare_rtobj(ctx, linked, platform, trace_prog, trace_sum, phase_log) {
+    var rtobj_choice = _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log)
+    var t_rtobj_done = 0
+    if trace_sum { t_rtobj_done = oren_time_now_ns() }
+    return {
+        "runtime_path": rtobj_choice["runtime_path"],
+        "used_rtobj": rtobj_choice["used_rtobj"] == true,
+        "t_rtobj_done": t_rtobj_done
+    }
+}
+
+fn _x64_native_program_prepare_runtime_inputs(ctx, linked, platform, trace_prog, phase_log, rtobj_state) {
+    return _x64_prepare_runtime_statement_sets(
+        ctx,
+        linked,
+        platform,
+        rtobj_state["runtime_path"],
+        rtobj_state["used_rtobj"] == true,
+        trace_prog,
+        phase_log
+    )
+}
+
+fn _x64_native_program_prepare_function_inputs(ctx, runtime_info, used_rtobj, trace_prog, phase_log) {
+    return _x64_prepare_program_function_sets(
+        ctx,
+        runtime_info["linked"],
+        runtime_info["runtime_stmts"],
+        runtime_info["user_stmts"],
+        used_rtobj == true,
+        trace_prog,
+        phase_log
+    )
+}
+
+fn _x64_native_program_pack_prepare_inputs(rtobj_state, prep) {
+    return {
+        "used_rtobj": rtobj_state["used_rtobj"] == true,
+        "t_rtobj_done": rtobj_state["t_rtobj_done"],
+        "fns": prep["fns"],
+        "has_main": prep["has_main"] == true,
+        "top_info": prep["top_info"],
+        "wrappers": prep["wrappers"]
+    }
+}
+
+fn _x64_native_program_prepare_inputs(ctx, linked, platform, opts_compile) {
+    var trace_sum = opts_compile["trace_sum"] == true
+    var trace_prog = opts_compile["trace_prog"] == true
+    var phase_log = opts_compile["phase_log"]
+    var rtobj_state = _x64_native_program_prepare_rtobj(ctx, linked, platform, trace_prog, trace_sum, phase_log)
+    var runtime_info = _x64_native_program_prepare_runtime_inputs(ctx, linked, platform, trace_prog, phase_log, rtobj_state)
+    if runtime_info == nil { return nil }
+
+    var prep = _x64_native_program_prepare_function_inputs(ctx, runtime_info, rtobj_state["used_rtobj"], trace_prog, phase_log)
+    if prep == nil { return nil }
+    return _x64_native_program_pack_prepare_inputs(rtobj_state, prep)
+}

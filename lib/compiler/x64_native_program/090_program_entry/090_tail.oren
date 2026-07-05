@@ -1898,36 +1898,7 @@ fn _x64_native_program_start(linked, platform, opts_compile) {
     return {"ctx": ctx, "t0": t0}
 }
 
-fn _x64_native_program_prepare_inputs(ctx, linked, platform, opts_compile) {
-    var trace_sum = opts_compile["trace_sum"] == true
-    var trace_prog = opts_compile["trace_prog"] == true
-    var phase_log = opts_compile["phase_log"]
-    var t_rtobj_done = 0
-    var rtobj_choice = _x64_setup_runtime_object_choice(ctx, linked, platform, trace_prog, phase_log)
-    var runtime_path = rtobj_choice["runtime_path"]
-    var used_rtobj = rtobj_choice["used_rtobj"] == true
-    if trace_sum { t_rtobj_done = oren_time_now_ns() }
-    var runtime_info = _x64_prepare_runtime_statement_sets(ctx, linked, platform, runtime_path, used_rtobj, trace_prog, phase_log)
-    if runtime_info == nil { return nil }
-    var linked2 = runtime_info["linked"]
-    var runtime_stmts = runtime_info["runtime_stmts"]
-    var user_stmts = runtime_info["user_stmts"]
-
-    var prep = _x64_prepare_program_function_sets(ctx, linked2, runtime_stmts, user_stmts, used_rtobj, trace_prog, phase_log)
-    if prep == nil { return nil }
-    var fns = prep["fns"]
-    var has_main = prep["has_main"] == true
-    var top_info = prep["top_info"]
-    var wrappers = prep["wrappers"]
-    return {
-        "used_rtobj": used_rtobj,
-        "t_rtobj_done": t_rtobj_done,
-        "fns": fns,
-        "has_main": has_main,
-        "top_info": top_info,
-        "wrappers": wrappers
-    }
-}
+// @include "089_prepare_inputs.oren"
 
 fn _x64_native_program_emit_body(ctx, platform, prep, opts_compile) {
     var trace_sum = opts_compile["trace_sum"] == true
