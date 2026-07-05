@@ -3962,6 +3962,14 @@ make docs-site</code></pre>
 <p>  profile now shows <code>x64_native_program.oren</code> at about 47.5s total / 34.3s</p>
 <p>  parse, with <code>_x64_setup_symtab_display</code> exposed at about 107ms as the next</p>
 <p>  parser body.</p>
+<ul>
+<li>X64 debug symtab display setup now lives in <code>089_symtab_display.oren</code>, splitting</li>
+</ul>
+<p>  entry initialization, user function display formatting, generated-wrapper</p>
+<p>  labels, and FFI labels while reducing <code>090_tail.oren</code> to 1915 lines. The</p>
+<p>  capped profile now shows <code>x64_native_program.oren</code> at about 47.1s total /</p>
+<p>  33.8s parse, with <code>_data_add_fnobj</code> exposed at about 41ms as the next parser</p>
+<p>  body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

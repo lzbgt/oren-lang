@@ -3524,6 +3524,12 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 47.5s total / 34.3s
   parse, with `_x64_setup_symtab_display` exposed at about 107ms as the next
   parser body.
+- X64 debug symtab display setup now lives in `089_symtab_display.oren`, splitting
+  entry initialization, user function display formatting, generated-wrapper
+  labels, and FFI labels while reducing `090_tail.oren` to 1915 lines. The
+  capped profile now shows `x64_native_program.oren` at about 47.1s total /
+  33.8s parse, with `_data_add_fnobj` exposed at about 41ms as the next parser
+  body.
 
 ## Documentation Guardrail
 
