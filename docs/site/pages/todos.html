@@ -3254,10 +3254,10 @@
 </ul>
 <p>  magic/opcode/payload-length reads while retaining list-compatible byte input.</p>
 <ul>
-<li><code>std:cbor</code> byte-string encoding plus recursive and sequence decoding now cache</li>
+<li><code>std:cbor</code> byte-string encoding plus recursive and sequence decoding now carry</li>
 </ul>
-<p>  u8 carrier pointers once per operation while retaining list-compatible byte</p>
-<p>  input fallback.</p>
+<p>  one cached byte view with length and optional u8 carrier pointer per operation</p>
+<p>  while retaining list-compatible byte input fallback.</p>
 <ul>
 <li><code>std:ui/commands</code> validation now caches u8 payload pointers for geometry,</li>
 </ul>

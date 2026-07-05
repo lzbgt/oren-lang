@@ -13,10 +13,10 @@ fn assert_true(x, code) {
 }
 
 fn assert_bytes_eq(got, exp, code) {
-    if oren_list_len(got) != oren_list_len(exp) { fail(code) }
+    if oren_bytes_len(got) != oren_bytes_len(exp) { fail(code) }
     var i = 0
-    while i < oren_list_len(got) {
-        if got[i] != exp[i] { fail(code) }
+    while i < oren_bytes_len(got) {
+        if oren_bytes_get_u8(got, i) != oren_bytes_get_u8(exp, i) { fail(code) }
         i = i + 1
     }
 }
@@ -113,4 +113,3 @@ test_cbor_nested_roundtrip()
 
 print("module format_nested_roundtrip OK")
 exit(0)
-

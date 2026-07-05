@@ -8,15 +8,17 @@ fn assert(cond, msg) {
 }
 
 fn assert_bytes_eq(got, exp, msg) {
-    if oren_list_len(got) != oren_list_len(exp) {
-        print("LEN GOT: " + oren_int_to_string(oren_list_len(got)))
-        print("LEN EXP: " + oren_int_to_string(oren_list_len(exp)))
+    if oren_bytes_len(got) != oren_bytes_len(exp) {
+        print("LEN GOT: " + oren_int_to_string(oren_bytes_len(got)))
+        print("LEN EXP: " + oren_int_to_string(oren_bytes_len(exp)))
         assert(false, msg + " (len)")
     }
     var i = 0
-    while i < oren_list_len(got) {
-        if got[i] != exp[i] {
-            print("BYTE MISMATCH at " + oren_int_to_string(i) + ": got=" + oren_int_to_string(got[i]) + " exp=" + oren_int_to_string(exp[i]))
+    while i < oren_bytes_len(got) {
+        var gb = oren_bytes_get_u8(got, i)
+        var eb = oren_bytes_get_u8(exp, i)
+        if gb != eb {
+            print("BYTE MISMATCH at " + oren_int_to_string(i) + ": got=" + oren_int_to_string(gb) + " exp=" + oren_int_to_string(eb))
             assert(false, msg + " (byte)")
         }
         i = i + 1

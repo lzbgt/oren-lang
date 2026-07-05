@@ -1418,8 +1418,9 @@ This file is the concise task view. Detailed implementation status lives in
      exact-size writes; Base64/Base64URL encode reads `u8_buf` inputs directly after one length check, and decode also rejects malformed padding and
      nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:strings` prefix/suffix/search/equality
 	     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
-	     encoding through growable `u8_buf` output plus cached u8 carrier pointers
-	     for byte-string encode and recursive/sequence decode, and full regex
+		     encoding through growable `u8_buf` output plus cached byte views with
+		     length and optional u8 carrier pointers for byte-string encode and
+		     recursive/sequence decode, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers

@@ -2336,8 +2336,9 @@ Facts from the 2026-05-28 implementation pass:
   slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
 	  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
-	  key ordering/text encoding writes growable `u8_buf` output while byte-string
-	  encoding plus recursive/sequence decode cache u8 carrier pointers, full regex
+		  key ordering/text encoding writes growable `u8_buf` output while byte-string
+		  encoding plus recursive/sequence decode reuse cached byte views with length
+		  and optional u8 carrier pointers, full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
