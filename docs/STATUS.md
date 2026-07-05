@@ -3439,6 +3439,11 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 46.9s total / 33.8s
   parse, with `_emit_malloc_slow_windows_x64` exposed at about 55ms as the next
   parser body.
+- Windows x64 malloc slow-path lowering now separates `VirtualAlloc` argument
+  materialization, IAT call emission, and null-result guard routing while
+  preserving heap-commit seeding and abort exit behavior. The capped profile now
+  shows `x64_native_program.oren` at about 47.0s total / 33.8s parse, with
+  `_x64_fast_lcg_prepare_offsets` exposed at about 60ms as the next parser body.
 
 ## Documentation Guardrail
 

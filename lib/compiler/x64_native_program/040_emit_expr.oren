@@ -87,23 +87,36 @@ fn _emit_malloc_heap_commit_from_rax_x64(ctx, tmp0, labels, local_fixups, l_done
     return nil
 }
 
-fn _emit_malloc_slow_windows_x64(ctx, tmp0, labels, local_fixups, l_done) {
+fn _emit_malloc_windows_virtualalloc_args_x64(ctx) {
     // VirtualAlloc(0, chunk, MEM_COMMIT|MEM_RESERVE=0x3000, PAGE_READWRITE=0x04)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0)) // ecx = 0
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 10))  // rdx = chunk
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 4))     // r9d = 4
+    return nil
+}
 
+fn _emit_malloc_windows_virtualalloc_call_x64(ctx) {
     var mov_iat_va = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat_va + 3, "IAT_VirtualAlloc")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
 
+fn _emit_malloc_windows_alloc_guard_x64(ctx, labels, local_fixups) {
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     var l_alloc_ok = _new_label(ctx, "malloc_alloc_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_alloc_ok)
     _emit_abort_exitcode(ctx, 200)
     _emit_label(ctx, labels, l_alloc_ok)
+    return nil
+}
+
+fn _emit_malloc_slow_windows_x64(ctx, tmp0, labels, local_fixups, l_done) {
+    _emit_malloc_windows_virtualalloc_args_x64(ctx)
+    _emit_malloc_windows_virtualalloc_call_x64(ctx)
+    _emit_malloc_windows_alloc_guard_x64(ctx, labels, local_fixups)
     _emit_malloc_heap_commit_from_rax_x64(ctx, tmp0, labels, local_fixups, l_done, "malloc_chunk_ok3")
     return nil
 }
