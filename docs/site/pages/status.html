@@ -3825,6 +3825,14 @@ make docs-site</code></pre>
 <p>  spills. The capped profile now shows <code>x64_native_program.oren</code> at about 46.9s</p>
 <p>  total / 33.7s parse, with <code>_emit_jcc_false_for_cond_x64</code> exposed at about 54ms</p>
 <p>  as the next parser body.</p>
+<ul>
+<li>X64 conditional false-branch emission now separates argument validation and</li>
+</ul>
+<p>  final cmp/Jcc fallback emission from the float, prefix-not, and truthy</p>
+<p>  short-circuit paths while preserving branch polarity and false-label fixup</p>
+<p>  behavior. The capped profile now shows <code>x64_native_program.oren</code> at about</p>
+<p>  48.5s total / 35.0s parse, with <code>_x64_prepare_function_frame_v0</code> exposed at</p>
+<p>  about 86ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

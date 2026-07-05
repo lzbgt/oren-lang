@@ -3421,6 +3421,12 @@ make docs-site
   spills. The capped profile now shows `x64_native_program.oren` at about 46.9s
   total / 33.7s parse, with `_emit_jcc_false_for_cond_x64` exposed at about 54ms
   as the next parser body.
+- X64 conditional false-branch emission now separates argument validation and
+  final cmp/Jcc fallback emission from the float, prefix-not, and truthy
+  short-circuit paths while preserving branch polarity and false-label fixup
+  behavior. The capped profile now shows `x64_native_program.oren` at about
+  48.5s total / 35.0s parse, with `_x64_prepare_function_frame_v0` exposed at
+  about 86ms as the next parser body.
 
 ## Documentation Guardrail
 

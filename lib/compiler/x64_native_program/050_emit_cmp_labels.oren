@@ -350,15 +350,30 @@ fn _x64_emit_truthy_expr_false(ctx, cond, locals, local_fixups, false_label) {
     return true
 }
 
+fn _x64_check_jcc_false_cond_args(ctx, cond, local_fixups, false_label) {
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+    if local_fixups == nil { err(ctx, "x64 native v0: missing local_fixups"); return nil }
+    if false_label == nil { err(ctx, "x64 native v0: missing false label"); return nil }
+    return true
+}
+
+fn _x64_emit_cmp_cond_false_branch(ctx, cond, locals, local_fixups, false_label) {
+    // Integer/truthy condition fallback.
+    _emit_cmp_from_cond(ctx, cond, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var false_cc = _cond_false_cc_for_cond(cond)
+    if false_cc == nil { err(ctx, "x64 native v0: unsupported condition"); return nil }
+    _emit_jcc_to_label(ctx, local_fixups, false_cc, false_label)
+    return nil
+}
+
 fn _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, false_label) {
     // Emit branch to `false_label` when `cond` is false.
     //
     // Rolling note:
     // - integer comparisons use `cmp` flags + Jcc mapping
     // - float comparisons must be lowered via IEEE-aware ucomisd sequences
-    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
-    if local_fixups == nil { err(ctx, "x64 native v0: missing local_fixups"); return nil }
-    if false_label == nil { err(ctx, "x64 native v0: missing false label"); return nil }
+    if _x64_check_jcc_false_cond_args(ctx, cond, local_fixups, false_label) == nil { return nil }
 
     // Float compare condition: compute boolean into RAX, then branch on RAX==0.
     if _x64_emit_float_cmp_false_for_cond(ctx, cond, locals, local_fixups, false_label) == true { return nil }
@@ -370,12 +385,7 @@ fn _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, false_label) {
 
     if _x64_emit_truthy_expr_false(ctx, cond, locals, local_fixups, false_label) == true { return nil }
 
-    // Integer/truthy condition fallback.
-    _emit_cmp_from_cond(ctx, cond, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    var false_cc = _cond_false_cc_for_cond(cond)
-    if false_cc == nil { err(ctx, "x64 native v0: unsupported condition"); return nil }
-    _emit_jcc_to_label(ctx, local_fixups, false_cc, false_label)
+    _x64_emit_cmp_cond_false_branch(ctx, cond, locals, local_fixups, false_label)
     return nil
 }
 
