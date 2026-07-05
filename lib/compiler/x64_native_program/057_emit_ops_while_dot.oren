@@ -79,7 +79,10 @@ fn _x64_fast_list_int_dot_prepare(ctx, info, locals) {
 }
 
 fn _x64_fast_list_dot_prepare(ctx, info, locals) {
-    return _x64_fast_dot_prepare_common(ctx, info, locals)
+    var prep = _x64_fast_dot_prepare_common(ctx, info, locals)
+    if prep == nil { return nil }
+    _trace_x64_list_fast_loop(ctx, "fast_list_dot_while", info)
+    return prep
 }
 
 fn _x64_fast_list_int_dot_validate_state(ctx, locals, lists, li, base, off_n) {

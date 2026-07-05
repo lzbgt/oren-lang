@@ -917,5 +917,6 @@ fn _x64_match_fast_list_int_dot_while(ctx, op, locals) {
 }
 
 fn _x64_match_fast_list_dot_while(ctx, op, locals) {
+    if _x64_env_enabled_default_false("OREN_X64_FAST_LIST_DOT") != true { return nil }
     return _x64_match_fast_dot_while(ctx, op, locals, false)
 }

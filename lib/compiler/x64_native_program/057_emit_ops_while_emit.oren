@@ -1631,6 +1631,7 @@ fn _x64_fast_list_get_sum_prepare(ctx, info, locals) {
     var sum_inty = info["sum_inty"]
     if sum_inty != true { return nil }
     var list_count = oren_list_len(lists)
+    _trace_x64_list_fast_loop(ctx, "fast_list_get_sum_while", info)
     var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
     if oren_type_tag(base) == 0 { return nil }
     var load_count = oren_list_len(loads)

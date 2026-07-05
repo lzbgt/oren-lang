@@ -4,11 +4,13 @@ import raw "std:buffer/raw"
 fn _parse_u64(s) {
     if s == nil { return 0 }
     var bs = oren_bytes_from_string(s)
-    if bs == nil || oren_list_len(bs) == 0 { return 0 }
+    if bs == nil { return 0 }
+    var n = oren_bytes_len(bs)
+    if n == 0 { return 0 }
     var i = 0
     var out = 0
-    while i < oren_list_len(bs) {
-        var c = bs[i]
+    while i < n {
+        var c = oren_bytes_get_u8(bs, i)
         if c < 48 || c > 57 { return 0 }
         out = out * 10 + (c - 48)
         i = i + 1
