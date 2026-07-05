@@ -88,16 +88,26 @@ fn _emit_eval_infix_to_rax(ctx, expr, locals) {
     var op = expr["op"]
     var l = expr["left"]
     var r = expr["right"]
+    if _x64_try_emit_float_or_concat_infix(ctx, expr, op, l, r, locals) == 1 { return nil }
+    _emit_eval_scalar_infix_to_rax(ctx, expr, op, l, r, locals)
+    return nil
+}
+
+fn _x64_try_emit_float_or_concat_infix(ctx, expr, op, l, r, locals) {
     var is_float_op = op == "+" || op == "-" || op == "*" || op == "/"
     if is_float_op && (_x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r)) {
         // Float arithmetic (binary64): operands are carried as raw f64 bits in integer registers.
         _emit_float64_binop_x64(ctx, op, l, r, locals)
-        return nil
+        return 1
     }
     if op == "+" {
         var handled = _emit_infix_add_or_string_concat_x64(ctx, expr, locals)
-        if handled == 1 { return nil }
+        if handled == 1 { return 1 }
     }
+    return 0
+}
+
+fn _emit_eval_scalar_infix_to_rax(ctx, expr, op, l, r, locals) {
     if op == "&&" || op == "||" { _emit_eval_logical_infix_to_rax(ctx, op, l, r, locals); return nil }
     if _cond_is_cmp_infix(expr) != nil { _emit_eval_compare_infix_to_rax(ctx, expr, op, l, r, locals); return nil }
     if op == "%" { _emit_eval_mod_infix_to_rax(ctx, l, r, locals); return nil }

@@ -3994,6 +3994,13 @@ make docs-site</code></pre>
 <p>  preserving <code>_compile_function_v0</code> call order. The capped profile now shows</p>
 <p>  <code>x64_native_program.oren</code> at about 47.8s total / 34.5s parse, with</p>
 <p>  <code>_emit_eval_infix_to_rax</code> exposed at about 42ms as the next parser body.</p>
+<ul>
+<li>X64 infix expression dispatch now separates float/string-concat pre-dispatch</li>
+</ul>
+<p>  from scalar operator routing, keeping the hot infix evaluator as a thin</p>
+<p>  dispatcher without changing operator lowering order. The capped profile now</p>
+<p>  shows <code>x64_native_program.oren</code> at about 47.9s total / 34.4s parse, with</p>
+<p>  <code>_x64_gqcsx_normalize_result</code> exposed at about 41ms as the next parser body.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

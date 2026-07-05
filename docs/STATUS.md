@@ -3548,6 +3548,11 @@ make docs-site
   preserving `_compile_function_v0` call order. The capped profile now shows
   `x64_native_program.oren` at about 47.8s total / 34.5s parse, with
   `_emit_eval_infix_to_rax` exposed at about 42ms as the next parser body.
+- X64 infix expression dispatch now separates float/string-concat pre-dispatch
+  from scalar operator routing, keeping the hot infix evaluator as a thin
+  dispatcher without changing operator lowering order. The capped profile now
+  shows `x64_native_program.oren` at about 47.9s total / 34.4s parse, with
+  `_x64_gqcsx_normalize_result` exposed at about 41ms as the next parser body.
 
 ## Documentation Guardrail
 
