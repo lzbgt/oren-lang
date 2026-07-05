@@ -20,29 +20,49 @@ fn _emit_eval_iadd_intrinsic_x64(ctx, locals, args) {
     return 1
 }
 
-fn _emit_eval_ptr_load_intrinsic_x64(ctx, nm, locals, args) {
+fn _x64_ptr_load_args_ok(ctx, nm, args) {
+    if args == nil || oren_list_len(args) != 1 {
+        err(ctx, "x64 native v0: " + nm + " expects 1 arg")
+        return 0
+    }
+    return 1
+}
+
+fn _x64_ptr_load_eval_ptr(ctx, locals, args) {
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 0 }
+    return 1
+}
+
+fn _x64_ptr_load_emit_width(ctx, nm) {
     if nm == "ptr_get" {
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: ptr_get expects 1 arg"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
         bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-        return 1
+        return true
     }
     if nm == "ptr_get_byte" {
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: ptr_get_byte expects 1 arg"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
         bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 0))
-        return 1
+        return true
     }
     if nm == "oren_ptr_get_i32_le" {
-        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_ptr_get_i32_le expects 1 arg"); return 1 }
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
         bytes_extend(ctx["code"], core.insn_mov_r32_m64_disp(0, 0, 0))
         bytes_extend(ctx["code"], core.insn_movsxd_r64_r32(0, 0))
-        return 1
+        return true
     }
+    return false
+}
+
+fn _emit_eval_ptr_load_intrinsic_x64(ctx, nm, locals, args) {
+    if nm != "ptr_get" && nm != "ptr_get_byte" && nm != "oren_ptr_get_i32_le" { return 0 }
+    if _x64_ptr_load_args_ok(ctx, nm, args) == 0 { return 1 }
+    if _x64_ptr_load_eval_ptr(ctx, locals, args) == 0 { return 1 }
+    _x64_ptr_load_emit_width(ctx, nm)
+    return 1
+}
+
+fn _x64_ptr_load_name_matches(nm) {
+    if nm == "ptr_get" { return true }
+    if nm == "ptr_get_byte" { return true }
+    if nm == "oren_ptr_get_i32_le" { return true }
     return 0
 }
 
@@ -127,7 +147,7 @@ fn _emit_eval_buf_load_u8_unchecked_x64(ctx, locals, args) {
 
 fn _emit_eval_pointer_call_intrinsic_x64(ctx, nm, expr, locals, args) {
     if nm == "iadd" { return _emit_eval_iadd_intrinsic_x64(ctx, locals, args) }
-    if nm == "ptr_get" || nm == "ptr_get_byte" || nm == "oren_ptr_get_i32_le" {
+    if _x64_ptr_load_name_matches(nm) == true {
         return _emit_eval_ptr_load_intrinsic_x64(ctx, nm, locals, args)
     }
     if nm == "ptr_set" || nm == "ptr_set_byte" || nm == "oren_ptr_set_i32_le" {

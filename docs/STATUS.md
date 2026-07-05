@@ -3654,6 +3654,12 @@ make docs-site
   now shows `x64_native_program.oren` at about 47.8s total / 34.4s parse, with
   `_emit_eval_ptr_load_intrinsic_x64` exposed at about 40ms as the next parser
   body.
+- X64 pointer-load intrinsic lowering now shares one-argument validation,
+  pointer evaluation, and width-specific load emission across `ptr_get`,
+  `ptr_get_byte`, and `oren_ptr_get_i32_le`. The capped profile now shows
+  `x64_native_program.oren` at about 48.9s total / 35.5s parse, with
+  `_emit_intrinsic_sys_linux_signal_x64` exposed at about 40ms as the next
+  parser body.
 
 ## Documentation Guardrail
 
