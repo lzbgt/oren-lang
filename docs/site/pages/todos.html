@@ -3236,8 +3236,9 @@
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>
 <p>  fourth-character padding plus nonzero trailing pad bits while keeping decoded</p>
-<p>  output as exact-size <code>u8_buf</code>; Base64URL encode/decode now uses the same</p>
-<p>  direct byte-buffer path.</p>
+<p>  output as exact-size <code>u8_buf</code>; Base64/Base64URL encode now reads <code>u8_buf</code></p>
+<p>  inputs directly after one length check, and Base64URL decode uses the same</p>
+<p>  direct byte-buffer output path.</p>
 <ul>
 <li>Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and</li>
 </ul>

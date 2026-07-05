@@ -2349,7 +2349,8 @@ Facts from the 2026-05-28 implementation pass:
   and native WebSocket header slices plus unmasked frame payloads copy with
   `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
-  Base64/Base64URL decode/encode writes exact-size output buffers directly, PPM header/body
+  Base64/Base64URL encode reads `u8_buf` inputs directly after one length
+  check and decode/encode writes exact-size output buffers directly, PPM header/body
   output, RGBA input reads, and software raster clear/pixel writes now use raw exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly, SHA hex helpers and
@@ -2424,7 +2425,7 @@ Facts from the 2026-05-28 implementation pass:
 			  `sha256.hex`, `ui_cmds.validate`, `ui_raster.rasterize`,
 			  `ppm.write_rgba_ppm`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
-	  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now write exact-size `u8_buf` output instead of materializing an
+	  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now read `u8_buf` inputs directly and write exact-size `u8_buf` output instead of materializing an
 		  intermediate Oren list, and their decode paths reject malformed padding,
 		  third-character padding without fourth-character padding, and nonzero
 		  trailing pad bits before returning exact-size `u8_buf` decoded bytes. NET cleanup now covers native and AVM session
