@@ -2641,7 +2641,8 @@ design evidence lives under `project-doc/`.
   of formatted strings that copy the full label into every lookup key.
 - iOS SDK typed GFX input helpers now build fixed-size `OGE0` events on stack
   and enqueue raw bytes directly; text/composition events use segmented
-  stack-first construction with one heap event fallback only for large payloads.
+  stack-first construction, encode UTF-8 directly into the final event buffer,
+  and use one heap event fallback only for large payloads.
 - CoreGraphics and Metal touch tracking now store active touch pointer IDs as
   raw scalar values instead of retaining per-touch `NSNumber` boxes.
 - Bytecode final artifact writes now report the original `u8_buf`

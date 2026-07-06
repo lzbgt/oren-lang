@@ -37,14 +37,18 @@ def main() -> int:
         fail("typed GFX input helpers must enqueue raw bytes directly")
     if "NSMutableData* payload" in input_text:
         fail("text/composition GFX input helpers must not allocate separate payload buffers")
+    if "dataUsingEncoding:NSUTF8StringEncoding" in input_text:
+        fail("text/composition GFX input helpers must encode UTF-8 directly into event buffers")
     if "OrenAVMGFXInputPutEventParts" not in input_text or "uint8_t stackEvent[stackCap]" not in input_text:
         fail("missing stack-first GFX input event construction helper")
+    if "OrenAVMGFXInputPutUTF8EventParts" not in input_text or "OrenAVMGFXInputWriteUTF8" not in input_text:
+        fail("missing direct UTF-8 GFX input event helper")
     if "NSMutableData* event = [NSMutableData dataWithLength:totalLen]" not in input_text:
         fail("large variable GFX input events need exactly one event buffer fallback")
     if input_text.count("OrenAVMGFXInputPutEvent(self,") < 7:
         fail("fixed-size GFX input helpers must use the stack-backed event helper")
-    if input_text.count("OrenAVMGFXInputPutEventParts(self,") != 2:
-        fail("text and composition events must use segmented event construction")
+    if input_text.count("OrenAVMGFXInputPutUTF8EventParts(self,") != 2:
+        fail("text and composition events must encode directly through segmented UTF-8 event construction")
     if "dataWithLength:4u + utf8.length" in input_text or "dataWithLength:12u + utf8.length" in input_text:
         fail("text/composition GFX input helpers regressed to payload allocation")
     if "@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs" in renderer_text:

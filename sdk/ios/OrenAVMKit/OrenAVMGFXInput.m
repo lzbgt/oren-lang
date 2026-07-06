@@ -73,6 +73,50 @@ static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* m
     return NO;
 }
 
+static BOOL OrenAVMGFXInputWriteUTF8(NSString* text, uint8_t* dst, NSUInteger expectedLen) {
+    if (expectedLen == 0) return text.length == 0;
+    NSUInteger usedLen = 0;
+    NSRange remaining = NSMakeRange(0, 0);
+    BOOL ok = [text getBytes:dst
+                   maxLength:expectedLen
+                  usedLength:&usedLen
+                    encoding:NSUTF8StringEncoding
+                     options:0
+                       range:NSMakeRange(0, text.length)
+              remainingRange:&remaining];
+    return ok && usedLen == expectedLen && remaining.length == 0;
+}
+
+static BOOL OrenAVMGFXInputPutUTF8EventParts(OrenAVMRuntime* runtime,
+                                             uint8_t opcode,
+                                             const uint8_t* prefix,
+                                             uint16_t prefixLen,
+                                             NSString* text,
+                                             NSUInteger utf8Len,
+                                             NSString* invalidMessage,
+                                             NSError** error) {
+    if (!text) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, invalidMessage);
+    enum { stackCap = 12 + 256 };
+    uint16_t suffixLen = (uint16_t)utf8Len;
+    uint16_t payloadLen = (uint16_t)(prefixLen + suffixLen);
+    NSUInteger totalLen = (NSUInteger)12u + (NSUInteger)payloadLen;
+    if (totalLen <= stackCap) {
+        uint8_t stackEvent[stackCap];
+        OrenAVMGFXInputWriteEvent(stackEvent, opcode, prefix, prefixLen, NULL, suffixLen);
+        if (!OrenAVMGFXInputWriteUTF8(text, stackEvent + 12 + prefixLen, utf8Len)) {
+            return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, invalidMessage);
+        }
+        return [runtime orenPutGraphicsInputEventBytes:stackEvent length:totalLen error:error];
+    }
+    NSMutableData* event = [NSMutableData dataWithLength:totalLen];
+    uint8_t* bytes = (uint8_t*)event.mutableBytes;
+    OrenAVMGFXInputWriteEvent(bytes, opcode, prefix, prefixLen, NULL, suffixLen);
+    if (!OrenAVMGFXInputWriteUTF8(text, bytes + 12 + prefixLen, utf8Len)) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, invalidMessage);
+    }
+    return [runtime orenPutGraphicsInputEventBytes:event.bytes length:event.length error:error];
+}
+
 @implementation OrenAVMRuntime (GFXInput)
 
 - (BOOL)putGraphicsPointerEventWithKind:(uint8_t)kind x:(int32_t)x y:(int32_t)y pointerId:(uint32_t)pointerId error:(NSError**)error {
@@ -133,18 +177,17 @@ static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* m
 }
 
 - (BOOL)putGraphicsTextInputString:(NSString*)text error:(NSError**)error {
-    NSData* utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
-    if (!utf8) {
-        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                      @"GFX text input must be valid UTF-8");
-    }
-    if (utf8.length > UINT16_MAX - 4u) {
-        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                      @"GFX text input event is too large");
-    }
+    if (!text) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                             @"GFX text input must be valid UTF-8");
+    NSUInteger utf8Len = [text lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (utf8Len > UINT16_MAX - 4u) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                                                  @"GFX text input event is too large");
     uint8_t prefix[4];
-    OrenAVMGFXInputPutU32LE(prefix, (uint32_t)utf8.length);
-    return OrenAVMGFXInputPutEventParts(self, 48, prefix, sizeof(prefix), utf8.bytes, (uint16_t)utf8.length, error);
+    OrenAVMGFXInputPutU32LE(prefix, (uint32_t)utf8Len);
+    return OrenAVMGFXInputPutUTF8EventParts(self, 48, prefix, sizeof(prefix), text,
+                                            utf8Len,
+                                            @"GFX text input must be valid UTF-8",
+                                            error);
 }
 
 - (BOOL)putGraphicsGamepadEventWithControllerID:(uint32_t)controllerID
@@ -195,20 +238,19 @@ static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* m
 }
 
 - (BOOL)putGraphicsCompositionEventWithKind:(uint8_t)kind text:(NSString*)text selectionStart:(uint32_t)selectionStart selectionEnd:(uint32_t)selectionEnd error:(NSError**)error {
-    NSData* utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
-    if (!utf8) {
-        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                      @"GFX composition event must be valid UTF-8");
-    }
-    if (utf8.length > UINT16_MAX - 12u) {
-        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                      @"GFX composition event is too large");
-    }
+    if (!text) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                             @"GFX composition event must be valid UTF-8");
+    NSUInteger utf8Len = [text lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (utf8Len > UINT16_MAX - 12u) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                                                   @"GFX composition event is too large");
     uint8_t prefix[12];
-    OrenAVMGFXInputPutU32LE(prefix, (uint32_t)utf8.length);
+    OrenAVMGFXInputPutU32LE(prefix, (uint32_t)utf8Len);
     OrenAVMGFXInputPutU32LE(prefix + 4, selectionStart);
     OrenAVMGFXInputPutU32LE(prefix + 8, selectionEnd);
-    return OrenAVMGFXInputPutEventParts(self, kind, prefix, sizeof(prefix), utf8.bytes, (uint16_t)utf8.length, error);
+    return OrenAVMGFXInputPutUTF8EventParts(self, kind, prefix, sizeof(prefix), text,
+                                            utf8Len,
+                                            @"GFX composition event must be valid UTF-8",
+                                            error);
 }
 
 @end
