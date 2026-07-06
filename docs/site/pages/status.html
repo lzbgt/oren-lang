@@ -2460,7 +2460,9 @@
 <p><code>LIST_INT</code> directly from 1 MiB read chunks instead of per-byte</p>
 <p><code>oren_list_push</code> growth. Legacy AVM host and VFS <code>oren_read_bytes</code></p>
 <p>compatibility paths now also materialize pre-sized <code>LIST_INT</code> carriers directly</p>
-<p>instead of boxed <code>AvmValue</code> byte-list entries. Legacy AVM host</p>
+<p>instead of boxed <code>AvmValue</code> byte-list entries; the host path now fills the</p>
+<p>returned <code>LIST_INT</code> directly from bounded 64 KiB file chunks instead of</p>
+<p>allocating a full-size AVM heap byte mirror first. Legacy AVM host</p>
 <p><code>oren_write_bytes</code> now keeps list-input compatibility but validates list bytes</p>
 <p>before opening the destination and streams bounded 64 KiB stack chunks instead</p>
 <p>of allocating a full-size AVM heap byte mirror. Legacy C runtime</p>

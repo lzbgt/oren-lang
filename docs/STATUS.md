@@ -2362,7 +2362,9 @@ exists for explicit compatibility callers, but it now fills a stat-sized native
 `LIST_INT` directly from 1 MiB read chunks instead of per-byte
 `oren_list_push` growth. Legacy AVM host and VFS `oren_read_bytes`
 compatibility paths now also materialize pre-sized `LIST_INT` carriers directly
-instead of boxed `AvmValue` byte-list entries. Legacy AVM host
+instead of boxed `AvmValue` byte-list entries; the host path now fills the
+returned `LIST_INT` directly from bounded 64 KiB file chunks instead of
+allocating a full-size AVM heap byte mirror first. Legacy AVM host
 `oren_write_bytes` now keeps list-input compatibility but validates list bytes
 before opening the destination and streams bounded 64 KiB stack chunks instead
 of allocating a full-size AVM heap byte mirror. Legacy C runtime

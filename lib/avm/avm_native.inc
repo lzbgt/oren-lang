@@ -545,29 +545,9 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     }
                 }
 
-                uint8_t* buf = NULL;
-                if (len > 0) {
-                    buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
-                    if (!buf) {
-                        fclose(f);
-                        res = avm_alloc_fail_value();
-                        avm_abort(vm, res);
-                        break;
-                    }
-                    size_t n = fread(buf, 1, (size_t)len, f);
-                    if (n != (size_t)len) {
-                        avm_heap_free(buf);
-                        fclose(f);
-                        res = avm_err(AVM_ERR_IO, "read_bytes: short read");
-                        break;
-                    }
-                }
-                fclose(f);
-                (void)avm_io_charge(vm, (uint64_t)len, 1, 3);
-
                 AvmValue out = avm_list_int_new((int)len);
                 if (out.type != AVM_VAL_LIST_INT || !out.as.li) {
-                    if (buf) avm_heap_free(buf);
+                    fclose(f);
                     res = out;
                     if (avm_is_err_val(res)) avm_abort(vm, res);
                     break;
@@ -576,16 +556,31 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 list->count = (int)len;
                 if (len > 0) {
                     if (!list->items) {
-                        if (buf) avm_heap_free(buf);
+                        fclose(f);
                         res = avm_err(AVM_ERR_INTERNAL, "read_bytes: invalid list_int output");
                         avm_abort(vm, res);
                         break;
                     }
-                    for (long i = 0; i < len; i++) {
-                        list->items[i] = (int64_t)(unsigned char)buf[i];
+                    uint8_t chunk[64 * 1024];
+                    long off = 0;
+                    while (off < len) {
+                        size_t want = (size_t)(len - off);
+                        if (want > sizeof(chunk)) want = sizeof(chunk);
+                        size_t n = fread(chunk, 1, want, f);
+                        if (n != want) {
+                            fclose(f);
+                            res = avm_err(AVM_ERR_IO, "read_bytes: short read");
+                            break;
+                        }
+                        for (size_t i = 0; i < n; i++) {
+                            list->items[off + (long)i] = (int64_t)chunk[i];
+                        }
+                        off += (long)n;
                     }
+                    if (avm_is_err_val(res)) break;
                 }
-                if (buf) avm_heap_free(buf);
+                fclose(f);
+                (void)avm_io_charge(vm, (uint64_t)len, 1, 3);
                 res = out;
             }
             break;
