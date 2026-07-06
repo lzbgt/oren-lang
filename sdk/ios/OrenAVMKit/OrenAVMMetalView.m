@@ -114,6 +114,12 @@ static NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame) {
     return (NSUInteger)opCount < maxRecordsByBytes ? (NSUInteger)opCount : maxRecordsByBytes;
 }
 
+static NSMutableArray* OrenAVMMetalEnsureRunArray(NSMutableArray** runs, NSUInteger capacity) {
+    if (!runs) return nil;
+    if (!*runs) *runs = [NSMutableArray arrayWithCapacity:capacity];
+    return *runs;
+}
+
 static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {
     return (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 8) +
            (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 20) +
@@ -999,10 +1005,11 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 
 - (NSArray<OrenAVMMetalVertexRun*>*)orenVertexRunsForFrame:(NSData*)frame
                                                  clearColor:(MTLClearColor*)clearColor
-                                                  textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns
-                                                 imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>*)imageRuns {
+                                                  textRuns:(NSMutableArray<OrenAVMMetalTextRun*>**)textRuns
+                                                 imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>**)imageRuns
+                                               runCapacity:(NSUInteger)runCapacity {
     NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns =
-        [NSMutableArray arrayWithCapacity:OrenAVMMetalFrameRunCapacity(frame)];
+        [NSMutableArray arrayWithCapacity:runCapacity];
     NSMutableData* vertices = [NSMutableData data];
     if (frame.length < 40) return vertexRuns;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -1503,7 +1510,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
-                    [textRuns addObject:run];
+                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
                 }
             }
         } else if (opcode == 68 && payloadLen >= 12) {
@@ -1548,7 +1555,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
-                    [textRuns addObject:run];
+                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
                 }
             }
         } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
@@ -1580,7 +1587,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
-                    [textRuns addObject:run];
+                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
                 }
             }
         } else if (opcode == 70 && payloadLen == 4) {
@@ -1619,7 +1626,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             if (run) {
                 run.hasScissor = clip.enabled;
                 run.scissor = clip.rect;
-                [imageRuns addObject:run];
+                [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
             }
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
@@ -1656,7 +1663,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             if (run) {
                 run.hasScissor = clip.enabled;
                 run.scissor = clip.rect;
-                [imageRuns addObject:run];
+                [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
             }
         } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
@@ -1679,7 +1686,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     if (run) {
                         run.hasScissor = clip.enabled;
                         run.scissor = clip.rect;
-                        [imageRuns addObject:run];
+                        [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
                     }
                 }
             }
@@ -1695,13 +1702,14 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                                  textRuns:(NSArray<OrenAVMMetalTextRun*>**)textRunsOut {
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
     NSUInteger runCapacity = OrenAVMMetalFrameRunCapacity(self.frameData);
-    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray arrayWithCapacity:runCapacity];
-    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray arrayWithCapacity:runCapacity];
+    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = nil;
+    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = nil;
     NSArray<OrenAVMMetalVertexRun*>* vertexRuns = [self orenVertexRunsForFrame:self.frameData
                                                                     clearColor:&clearColor
-                                                                      textRuns:textRuns
-                                                                     imageRuns:imageRuns];
-    NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = OrenAVMMetalCoalesceTextRuns(textRuns);
+                                                                      textRuns:&textRuns
+                                                                     imageRuns:&imageRuns
+                                                                   runCapacity:runCapacity];
+    NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = textRuns ? OrenAVMMetalCoalesceTextRuns(textRuns) : @[];
     uint32_t vertexCount = 0;
     for (OrenAVMMetalVertexRun* run in vertexRuns) {
         vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
@@ -1710,7 +1718,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     self.lastFrameTextRunCount = (uint32_t)coalescedTextRuns.count;
     self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
     if (clearColorOut) *clearColorOut = clearColor;
-    if (imageRunsOut) *imageRunsOut = imageRuns;
+    if (imageRunsOut) *imageRunsOut = imageRuns ?: @[];
     if (textRunsOut) *textRunsOut = coalescedTextRuns;
     return vertexRuns;
 }

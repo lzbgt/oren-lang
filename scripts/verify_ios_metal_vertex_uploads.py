@@ -49,10 +49,19 @@ def main() -> int:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
         fail("missing bounded Metal frame run-capacity helper")
-    if text.count("OrenAVMMetalFrameRunCapacity(") < 3:
-        fail("expected frame run-capacity helper use at declaration and run-array allocation sites")
-    if text.count("arrayWithCapacity:") < 3:
-        fail("expected bounded capacity preallocation for vertex/text/image run arrays")
+    if text.count("OrenAVMMetalFrameRunCapacity(") != 2:
+        fail("expected frame run-capacity helper declaration plus one prepare-frame call")
+    if "static NSMutableArray* OrenAVMMetalEnsureRunArray" not in text:
+        fail("missing lazy Metal text/image run-array helper")
+    eager_run_arrays = [
+        "NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
+        "NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
+    ]
+    for pattern in eager_run_arrays:
+        if pattern in text:
+            fail("text/image run arrays must be allocated lazily, not eagerly from runCapacity")
+    if text.count("OrenAVMMetalEnsureRunArray(") < 7:
+        fail("expected lazy run-array helper declaration plus text/image add sites")
 
     in_helper = False
     saw_helper_body = False

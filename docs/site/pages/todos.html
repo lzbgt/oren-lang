@@ -3509,6 +3509,11 @@
 <p>  as the merge destination, avoiding the first-run clone for adjacent batched</p>
 <p>  text runs with matching texture/scissor/opacity.</p>
 <ul>
+<li>Metal frame preparation now keeps vertex-run capacity byte-bounded while</li>
+</ul>
+<p>  allocating text/image run arrays lazily only when the frame actually contains</p>
+<p>  those records.</p>
+<ul>
 <li>Retained Metal mesh, material, and text resource colors now store 4-byte RGBA</li>
 </ul>
 <p>  values as scalars instead of allocating <code>NSData</code> wrappers for each color.</p>

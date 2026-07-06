@@ -2548,6 +2548,9 @@ design evidence lives under `project-doc/`.
 - Metal coalescing also reuses already mutable batched text-run vertex buffers
   as the merge destination, avoiding the first-run clone for adjacent batched
   text runs with matching texture/scissor/opacity.
+- Metal frame preparation now keeps vertex-run capacity byte-bounded while
+  allocating text/image run arrays lazily only when the frame actually contains
+  those records.
 - Retained Metal mesh, material, and text resource colors now store 4-byte RGBA
   values as scalars instead of allocating `NSData` wrappers for each color.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads
