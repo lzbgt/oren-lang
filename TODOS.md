@@ -2652,6 +2652,10 @@ design evidence lives under `project-doc/`.
 - Example build and cross-compile smoke targets now live in `mk/examples.mk`,
   reducing the top-level `Makefile` to 1883 lines and preserving source-line
   guardrail headroom as verification targets continue to grow.
+- Std math inverse-trig and hypotenuse helpers now live in
+  `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
+  preserving the `std:math` import surface through compile-time include
+  expansion.
 - iOS SDK symbol verification now caches `nm` output once per archive and
   greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads

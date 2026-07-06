@@ -2668,10 +2668,13 @@ Working evidence:
   to 1990 lines while keeping that platform boundary explicit. Runtime GC
   marking and spawn-entry helpers now live in `010_prelude_gc_mark_spawn.inc`,
   reducing `010_prelude.inc` to 1805 lines. Runtime SHA-256 helpers now live
-  in `050_io_misc_sha256.inc`, reducing `050_io_misc.inc` to 1705 lines.
-  Example build and cross-compile smoke targets now live in `mk/examples.mk`,
-  reducing the top-level `Makefile` to 1883 lines. Metal primitive vertex/RGBA
-  geometry helpers now live in `OrenAVMMetalGeometry`, reducing
+  in `050_io_misc_sha256.inc`, reducing `050_io_misc.inc` to 1705 lines. Std
+  math inverse-trig and hypotenuse helpers now live in
+  `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
+  preserving the `std:math` import surface through compile-time include
+  expansion. Example build and cross-compile smoke targets now live in
+  `mk/examples.mk`, reducing the top-level `Makefile` to 1883 lines. Metal
+  primitive vertex/RGBA geometry helpers now live in `OrenAVMMetalGeometry`, reducing
   `OrenAVMMetalView.m` to 1585 lines.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,

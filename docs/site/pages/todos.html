@@ -3681,6 +3681,12 @@
 <p>  reducing the top-level <code>Makefile</code> to 1883 lines and preserving source-line</p>
 <p>  guardrail headroom as verification targets continue to grow.</p>
 <ul>
+<li>Std math inverse-trig and hypotenuse helpers now live in</li>
+</ul>
+<p>  <code>std/math/atan_hypot.oren</code>, reducing <code>std/math.oren</code> to 1738 lines while</p>
+<p>  preserving the <code>std:math</code> import surface through compile-time include</p>
+<p>  expansion.</p>
+<ul>
 <li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
 </ul>
 <p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>
