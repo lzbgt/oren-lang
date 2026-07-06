@@ -3572,6 +3572,11 @@
 <p>  verifier now shares <code>scripts/obc_to_c_header.py</code> for embedded OBC fixture</p>
 <p>  headers, reducing <code>verify_libavm_ios.sh</code> to 1923 lines.</p>
 <ul>
+<li>Windows runtime once/atomic compatibility shims now live in</li>
+</ul>
+<p>  <code>010_prelude_windows_once_atomics.inc</code>, reducing <code>010_prelude.inc</code> to 1990</p>
+<p>  lines while keeping the platform-specific prelude boundary explicit.</p>
+<ul>
 <li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
 </ul>
 <p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>
