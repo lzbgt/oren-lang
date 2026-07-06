@@ -222,6 +222,25 @@ static BOOL OrenAVMGfxSubrectInImage(uint32_t sx, uint32_t sy, uint32_t sw, uint
         (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
 }
 
+static void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
+                                       size_t imageWidth,
+                                       size_t imageHeight,
+                                       uint32_t sx,
+                                       uint32_t sy,
+                                       uint32_t sw,
+                                       uint32_t sh,
+                                       uint32_t x,
+                                       uint32_t y,
+                                       uint32_t w,
+                                       uint32_t h) {
+    if (!cgImage || !OrenAVMGfxSubrectInImage(sx, sy, sw, sh, imageWidth, imageHeight)) return;
+    CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
+    if (!subImage) return;
+    UIImage* cropped = [UIImage imageWithCGImage:subImage];
+    [cropped drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
+    CGImageRelease(subImage);
+}
+
 static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (frame.length < 24) return NO;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -992,13 +1011,9 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t h = OrenAVMGfxReadU32LE(payload + 32);
             UIImage* image = self.orenImages[@(imageID)].image;
             CGImageRef cgImage = image.CGImage;
-            if (cgImage && OrenAVMGfxSubrectInImage(sx, sy, sw, sh, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))) {
-                CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
-                if (subImage) {
-                    UIImage* cropped = [UIImage imageWithCGImage:subImage];
-                    [cropped drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
-                    CGImageRelease(subImage);
-                }
+            if (cgImage) {
+                OrenAVMGfxDrawImageSubrect(cgImage, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage),
+                                           sx, sy, sw, sh, x, y, w, h);
             }
         } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
@@ -1006,6 +1021,8 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             UIImage* image = self.orenImages[@(imageID)].image;
             CGImageRef cgImage = image.CGImage;
             if (cgImage && rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                size_t imageWidth = CGImageGetWidth(cgImage);
+                size_t imageHeight = CGImageGetHeight(cgImage);
                 for (uint32_t ri = 0; ri < rectCount; ri++) {
                     const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
                     uint32_t sx = OrenAVMGfxReadU32LE(r);
@@ -1016,14 +1033,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                     uint32_t y = OrenAVMGfxReadU32LE(r + 20);
                     uint32_t w = OrenAVMGfxReadU32LE(r + 24);
                     uint32_t h = OrenAVMGfxReadU32LE(r + 28);
-                    if (OrenAVMGfxSubrectInImage(sx, sy, sw, sh, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))) {
-                        CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
-                        if (subImage) {
-                            UIImage* cropped = [UIImage imageWithCGImage:subImage];
-                            [cropped drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
-                            CGImageRelease(subImage);
-                        }
-                    }
+                    OrenAVMGfxDrawImageSubrect(cgImage, imageWidth, imageHeight, sx, sy, sw, sh, x, y, w, h);
                 }
             }
         }

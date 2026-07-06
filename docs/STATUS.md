@@ -2297,7 +2297,8 @@ now use typed resources with cached drawing attributes instead of dictionary
 payloads and per-draw attributes dictionaries; CoreGraphics retained image
 fallback records now use typed resources for image plus pixel accounting instead
 of parallel image/pixel dictionaries, with overflow-safe retained sub-rect
-bounds checks. Retained Metal image resources now use typed texture/pixel
+bounds checks, shared checked sub-rect drawing, and cached image dimensions for
+batched atlas rects. Retained Metal image resources now use typed texture/pixel
 records instead of parallel texture/pixel dictionaries, with overflow-safe
 upload accounting and sub-rect UV bounds checks. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
