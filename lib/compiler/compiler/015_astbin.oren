@@ -619,6 +619,8 @@ fn _astbin_fail(msg, off) {
     return 0
 }
 
+var g_astbin_decode_len = 0
+
 // --- v2 string pool collection ---
 fn _astbin_pool_add_str(pool_idx_map, pool, s) {
     if s == nil { return nil }
@@ -665,6 +667,9 @@ fn _astbin_collect_strings(v, pool_idx_map, pool) {
 
 fn _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf) {
     var off = off_ref[0]
+    if off < 0 || off >= g_astbin_decode_len {
+        _astbin_fail("read_u8 out of bounds len=" + oren_int_to_string(g_astbin_decode_len), off)
+    }
     if is_u8_buf == true {
         // Hot path: load from the u8_buf payload via an already-materialized data pointer.
         //
@@ -716,6 +721,9 @@ fn _astbin_unzigzag(zz) {
 fn _astbin_read_string(bytes, data_ptr, off_ref, is_u8_buf) {
     var n = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
     var off = off_ref[0]
+    if off < 0 || n < 0 || n > g_astbin_decode_len || off > g_astbin_decode_len - n {
+        _astbin_fail("string slice out of bounds len=" + oren_int_to_string(g_astbin_decode_len), off)
+    }
     // Fast path: avoid boxing bytes into list<int> (critical for stage2 throughput).
     var s = oren_string_from_bytes_slice(bytes, off, n)
     if oren_is_err(s) {
@@ -740,6 +748,9 @@ fn _astbin_read_string(bytes, data_ptr, off_ref, is_u8_buf) {
 fn _astbin_read_u8_buf(bytes, data_ptr, off_ref, is_u8_buf) {
     var n = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
     var off = off_ref[0]
+    if off < 0 || n < 0 || n > g_astbin_decode_len || off > g_astbin_decode_len - n {
+        _astbin_fail("u8_buf slice out of bounds len=" + oren_int_to_string(g_astbin_decode_len), off)
+    }
     // Fast path: memcpy on u8_buf input (stage2-native runtime injection).
     var out = oren_u8_buf_from_bytes_slice(bytes, off, n)
     if oren_is_err(out) { _astbin_fail("u8_buf slice decode failed", off) }
@@ -764,9 +775,13 @@ var g_astbin_g_bytes = 0
 var g_astbin_g_data_ptr = 0
 var g_astbin_g_is_u8 = 0
 var g_astbin_g_off = 0
+var g_astbin_g_len = 0
 
 fn _astbin_g_read_u8() {
     // Caller guarantees we are decoding a u8_buf.
+    if g_astbin_g_off < 0 || g_astbin_g_off >= g_astbin_g_len {
+        _astbin_fail("read_u8 out of bounds len=" + oren_int_to_string(g_astbin_g_len), g_astbin_g_off)
+    }
     var b0 = ptr_get_byte(iadd(g_astbin_g_data_ptr, g_astbin_g_off))
     g_astbin_g_off = iadd(g_astbin_g_off, 1)
     return b0 & 255
@@ -800,6 +815,9 @@ fn _astbin_g_read_u64_le() {
 fn _astbin_g_read_u8_buf() {
     var n = _astbin_g_read_uvarint()
     var off = g_astbin_g_off
+    if off < 0 || n < 0 || n > g_astbin_g_len || off > g_astbin_g_len - n {
+        _astbin_fail("u8_buf slice out of bounds len=" + oren_int_to_string(g_astbin_g_len), off)
+    }
     var out = oren_u8_buf_from_bytes_slice(g_astbin_g_bytes, off, n)
     if oren_is_err(out) { _astbin_fail("u8_buf slice decode failed (fast v2)", off) }
     g_astbin_g_off = iadd(off, n)
@@ -1030,6 +1048,15 @@ fn astbin_decode(bytes) {
     var t0 = 0
     if trace { t0 = oren_time_now_ns() }
 
+    var input_n = oren_bytes_len(bytes)
+    if oren_is_err(input_n) {
+        if oren_is_list(bytes) == true { input_n = oren_list_len(bytes) }
+    }
+    if input_n == nil || oren_is_err(input_n) || input_n <= 0 {
+        _astbin_fail("input must be non-empty bytes", 0)
+    }
+    g_astbin_decode_len = input_n
+
     var is_u8 = (oren_is_u8_buf(bytes) == true)
     var data_ptr = 0
     if is_u8 == true {
@@ -1066,6 +1093,7 @@ fn astbin_decode(bytes) {
             g_astbin_g_data_ptr = data_ptr
             g_astbin_g_is_u8 = 1
             g_astbin_g_off = off_ref2[0]
+            g_astbin_g_len = input_n
             out2 = _astbin_g_read_value_v2(pool, pool_n)
         } else {
             out2 = _astbin_read_value_v2(pool, pool_n, bytes, data_ptr, off_ref2, is_u8)

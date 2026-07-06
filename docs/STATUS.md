@@ -2380,7 +2380,7 @@ Facts from the 2026-05-28 implementation pass:
 		  bytecode final artifact return as `u8_buf`, compiler-in-AVM VirtualFS fixture
 			  snapshots through exact-size AVMVFS01 `u8_buf` writes and byte-buffer body
 			  slices, compiler SHA digest hex routing through direct runtime bytes hex, OBC/OBX parse and link loops use shared compiler-local byte views for u8 carriers, parsed OBC code and byte constants kept as `u8_buf`, builder-patched linked code, linked OBC final emission as `u8_buf`, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw
-	  writes, native Mach-O/ELF object string payloads, runtime-object debug-name
+	  writes plus bounded u8 decode reads, native Mach-O/ELF object string payloads, runtime-object debug-name
 	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,
 	  native capsule mount path resolution, realpath segment output, readdir names,
 		  and UNIX-socket path copies through `oren_memcpy`, shared compiler
