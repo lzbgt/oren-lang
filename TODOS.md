@@ -2163,6 +2163,9 @@ design evidence lives under `project-doc/`.
   The capped profile now shows `x64_native_program.oren` at ~49.3s total /
   ~34.2s parse, with `_x64_native_program_prepare_inputs` exposed at ~114ms as
   the next parser body.
+- X64 fast list-get-sum while lowering now lives in
+  `057_emit_ops_while_list_get_sum.oren`, preserving the original include-order
+  boundary while reducing `057_emit_ops_while_emit.oren` to 1615 lines.
 - X64 native-program input preparation now lives in `089_prepare_inputs` and
   separates runtime-object choice, runtime statement preparation, function-set
   preparation, and final prepare-state packing while preserving declaration

@@ -4037,6 +4037,11 @@ make docs-site</code></pre>
 <p>  34.2s parse, with <code>_x64_native_program_prepare_inputs</code> exposed at about 114ms</p>
 <p>  as the next parser body.</p>
 <ul>
+<li>X64 fast list-get-sum while lowering now lives in</li>
+</ul>
+<p>  <code>057_emit_ops_while_list_get_sum.oren</code>, preserving the original include-order</p>
+<p>  boundary while reducing <code>057_emit_ops_while_emit.oren</code> to 1615 lines.</p>
+<ul>
 <li>X64 native-program input preparation now lives in <code>089_prepare_inputs</code> and</li>
 </ul>
 <p>  separates runtime-object choice, runtime statement preparation, function-set</p>
