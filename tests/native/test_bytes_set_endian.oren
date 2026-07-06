@@ -78,6 +78,21 @@ fn main() {
     assert_eq(oren_buf_load_u8(ub, 0), 8, 95)
     assert_eq(oren_buf_load_u8(ub, 7), 1, 96)
 
+    var li = oren_new_list_int(0)
+    oren_list_int_push(li, 1)
+    oren_list_int_push(li, 2)
+    oren_list_int_push(li, 3)
+    oren_list_int_push(li, 4)
+    oren_list_int_push(li, 5)
+    oren_list_int_push(li, 6)
+    oren_list_int_push(li, 7)
+    oren_list_int_push(li, 8)
+    assert_eq(oren_bytes_get_u8(li, 0), 1, 100)
+    assert_eq(oren_bytes_get_u16_be(li, 0), 258, 101)
+    assert_eq(oren_bytes_get_u32_le(li, 0), 67305985, 102)
+    assert_eq(oren_bytes_get_u64_be(li, 0), 72623859790382856, 103)
+    assert_eq(oren_is_err(oren_bytes_get_u16_be(li, 7)), true, 104)
+
     print("native bytes_set_endian OK")
     exit(0)
 }

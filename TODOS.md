@@ -2482,6 +2482,10 @@ design evidence lives under `project-doc/`.
   overflow-safe byte-span checks across byte buffers, boxed byte lists, and
   packed `LIST_INT` read carriers; `tests/avm/test_bytes_set_endian.oren`
   covers direct endian reads.
+- Native-runtime byte-order helpers now use the same overflow-safe byte-span
+  predicate for boxed byte lists and u8 buffers, and endian reads accept packed
+  `LIST_INT` carriers; `tests/native/test_bytes_set_endian.oren` and native
+  quick integration cover direct and `pack_view`-generated paths.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

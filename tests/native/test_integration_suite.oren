@@ -450,6 +450,17 @@ fn test_bytes_endian_and_pack_view() {
     assert_eq(pack_view("PV_H", pktb, 0).src, 3232235521, 229)
     assert_eq(pack_view("PV_H", pktb, 0).dst, 134744072, 230)
 
+    var pktli = oren_new_list_int(0)
+    var li_i = 0
+    while li_i < 12 {
+        oren_list_int_push(pktli, pkt[li_i])
+        li_i = li_i + 1
+    }
+    assert_eq(oren_bytes_get_u32_be(pktli, 4), 3232235521, 233)
+    assert_eq(pack_view("PV_H", pktli, 0).src, 3232235521, 234)
+    assert_eq(pack_view("PV_H", pktli, 0).dst, 134744072, 235)
+    assert_true(oren_is_err(oren_bytes_get_u32_be(pktli, 9)) == true, 236)
+
     var bn = [255, 254]
     assert_eq(pack_view("PV_S16", bn, 0).x, -2, 224)
 

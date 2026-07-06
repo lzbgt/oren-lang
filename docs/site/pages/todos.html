@@ -3403,6 +3403,12 @@
 <p>  packed <code>LIST_INT</code> read carriers; <code>tests/avm/test_bytes_set_endian.oren</code></p>
 <p>  covers direct endian reads.</p>
 <ul>
+<li>Native-runtime byte-order helpers now use the same overflow-safe byte-span</li>
+</ul>
+<p>  predicate for boxed byte lists and u8 buffers, and endian reads accept packed</p>
+<p>  <code>LIST_INT</code> carriers; <code>tests/native/test_bytes_set_endian.oren</code> and native</p>
+<p>  quick integration cover direct and <code>pack_view</code>-generated paths.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>
