@@ -1,0 +1,68 @@
+// Compiler-local byte-carrier view helpers.
+//
+// Keep this independent of stdlib modules: the compiler is itself packaged for
+// AVM, and linker/parser internals should not add stdlib import cycles.
+
+fn len(bs) {
+    if bs == nil { return 0 }
+    var n = oren_bytes_len(bs)
+    if !oren_is_err(n) { return n }
+    return oren_list_len(bs)
+}
+
+fn view(bs) {
+    var n = len(bs)
+    var p = nil
+    if oren_is_u8_buf(bs) == true { p = oren_buf_data_ptr_unchecked(bs) }
+    return [bs, n, p]
+}
+
+fn bytes(v) { return v[0] }
+fn view_len(v) { return v[1] }
+fn ptr(v) { return v[2] }
+
+fn span_ok(v, pos, n) {
+    if pos < 0 || n < 0 { return false }
+    return pos + n <= view_len(v)
+}
+
+fn u8_at(v, pos) {
+    var bs = bytes(v)
+    if pos < 0 || pos >= view_len(v) { return oren_bytes_get_u8(bs, pos) & 255 }
+    var p = ptr(v)
+    if p != nil { return ptr_get_byte(p + pos) & 255 }
+    return oren_bytes_get_u8(bs, pos) & 255
+}
+
+fn u16_le_at(v, pos) {
+    var p = ptr(v)
+    if p != nil && pos >= 0 && pos + 2 <= view_len(v) {
+        return (ptr_get_byte(p + pos) & 255) | ((ptr_get_byte(p + pos + 1) & 255) << 8)
+    }
+    var b0 = u8_at(v, pos + 0)
+    var b1 = u8_at(v, pos + 1)
+    return (b0 & 255) | ((b1 & 255) << 8)
+}
+
+fn u32_le_at(v, pos) {
+    var p = ptr(v)
+    if p != nil && pos >= 0 && pos + 4 <= view_len(v) {
+        return (ptr_get_byte(p + pos) & 255) |
+            ((ptr_get_byte(p + pos + 1) & 255) << 8) |
+            ((ptr_get_byte(p + pos + 2) & 255) << 16) |
+            ((ptr_get_byte(p + pos + 3) & 255) << 24)
+    }
+    var b0 = u8_at(v, pos + 0)
+    var b1 = u8_at(v, pos + 1)
+    var b2 = u8_at(v, pos + 2)
+    var b3 = u8_at(v, pos + 3)
+    return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24)
+}
+
+fn u64_le_at(v, pos) {
+    var lo = u32_le_at(v, pos + 0)
+    var hi = u32_le_at(v, pos + 4)
+    if hi < 0 { hi = hi + 4294967296 }
+    if lo < 0 { lo = lo + 4294967296 }
+    return lo + hi * 4294967296
+}
