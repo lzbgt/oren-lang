@@ -61,19 +61,20 @@ fn _truthy_flag(v) {
 }
 
 fn _append_bytes(wr, bs) {
-    var n = bytes.len(bs)
-    if oren_is_err(n) { return n }
-    if oren_is_u8_buf(bs) == true {
+    var bv = bytes.view(bs, "ui.avm frame bytes")
+    if oren_is_err(bv) { return bv }
+    var n = bytes.view_len(bv)
+    var p = bytes.view_ptr(bv)
+    if p != nil {
         if n > 0 {
-            raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], oren_buf_data_ptr_unchecked(bs), n)
+            raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], p, n)
         }
         wr[1] = wr[1] + n
         return 0
     }
     var i = 0
     while i < n {
-        var b = bytes.get_u8(bs, i)
-        if oren_is_err(b) { return b }
+        var b = bytes.view_get_u8_unchecked(bv, i)
         _push_u8(wr, b)
         i = i + 1
     }
