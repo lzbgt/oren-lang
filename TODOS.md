@@ -2613,6 +2613,9 @@ design evidence lives under `project-doc/`.
   headers, reducing `verify_libavm_ios.sh` to 1923 lines.
 - AVM VM helper definitions now live in `avm_vm_helpers.inc`, reducing
   `avm_vm.c` to 1828 lines while keeping dispatch-loop control flow in place.
+- AVM native typed-buffer dot slice/strided cases now live in
+  `avm_native_buffer_cases_e.inc`, reducing `avm_native_buffer_cases_b.inc` to
+  1583 lines while preserving native-op case order.
 - iOS SDK verifier local NET/TCP/UDP/WebSocket/static-package helper servers
   now live in `scripts/libavm_ios_verify_net_helpers.py`, reducing
   `verify_libavm_ios.sh` to 1761 lines while keeping the same network smokes.

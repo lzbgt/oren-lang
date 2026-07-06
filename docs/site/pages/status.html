@@ -2749,7 +2749,10 @@
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the AVM</p>
 <p>  VM helper definitions now live in <code>avm_vm_helpers.inc</code>, reducing</p>
 <p>  <code>avm_vm.c</code> to 1828 lines while keeping dispatch-loop control flow in place.</p>
-<p>  The iOS SDK verifier reuses <code>scripts/obc_to_c_header.py</code> for embedded OBC</p>
+<p>  AVM native typed-buffer dot slice/strided cases now live in</p>
+<p>  <code>avm_native_buffer_cases_e.inc</code>, reducing <code>avm_native_buffer_cases_b.inc</code> to</p>
+<p>  1583 lines while preserving native-op case order. The iOS SDK verifier reuses</p>
+<p>  <code>scripts/obc_to_c_header.py</code> for embedded OBC</p>
 <p>  headers, reducing <code>verify_libavm_ios.sh</code> to 1923 lines. Its local</p>
 <p>  NET/TCP/UDP/WebSocket/static-package helper servers now live in</p>
 <p>  <code>scripts/libavm_ios_verify_net_helpers.py</code>, reducing the verifier shell</p>

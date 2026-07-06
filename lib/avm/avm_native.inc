@@ -1859,6 +1859,8 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 
 #include "avm_native_buffer_cases_b.inc"
 
+#include "avm_native_buffer_cases_e.inc"
+
 #include "avm_native_buffer_cases_c.inc"
 
 #include "avm_native_buffer_cases_d.inc"
