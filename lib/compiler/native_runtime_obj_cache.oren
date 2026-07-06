@@ -321,16 +321,6 @@ fn _rtobj_dbg_val_to_string(v) {
     return "<tag=" + oren_int_to_string(tt) + ">"
 }
 
-fn _rtobj_u8_at(ub, idx) {
-    if ub == nil { return -1 }
-    if oren_is_u8_buf(ub) != true { return -1 }
-    var n = oren_buf_len(ub)
-    if idx < 0 || idx >= n { return -1 }
-    var p = oren_buf_data_ptr_unchecked(ub)
-    if p == 0 { return -1 }
-    return ptr_get_byte(iadd(p, idx)) & 255
-}
-
 fn _rtobj_read_u32_le(ub, off) {
     if ub == nil { return -1 }
     if oren_is_u8_buf(ub) != true { return -1 }

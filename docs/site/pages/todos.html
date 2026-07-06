@@ -3505,6 +3505,11 @@
 <p>  validated check-buffer pointer instead of routing each magic byte through the</p>
 <p>  checked byte helper.</p>
 <ul>
+<li><code>make verify-avm-bytes-hotpath-guards</code> now centralizes byte-hotpath source</li>
+</ul>
+<p>  invariants, including the removed bytecode final-write list fallback and the</p>
+<p>  removed runtime-object per-byte checked metadata helper.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

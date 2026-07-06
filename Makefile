@@ -6,7 +6,7 @@
 .PHONY: verify-oretest
 .PHONY: verify-yield-lowering-v0 verify-yield-backend-parity-v0 verify-yield-value-surface-v0 verify-yield-exchange-surface-v0 verify-generator-surface-v0 verify-coroutine-surface-v0 verify-task-surface-v0 verify-task-group-surface-v0 verify-task-group-task-surface-v0 verify-generator-finalize-surface-v0 verify-generator-nested-green-resume-v0
 .PHONY: verify-native-x64-selfhost-compile
-.PHONY: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-effect-ledger-json verify-avm-release-manifest verify-avm-package-policy-runner verify-native-package-policy-runner verify-native-capsule-resource-checks verify-native-gas-accounting-modes verify-gas-surface-registry verify-public-readme-positioning verify-avm-spawn-channel-args verify-backend-gas-surface-calibration-set verify-backend-native-instruction-surface-decision
+.PHONY: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-effect-ledger-json verify-avm-release-manifest verify-avm-package-policy-runner verify-avm-bytes-hotpath-guards verify-native-package-policy-runner verify-native-capsule-resource-checks verify-native-gas-accounting-modes verify-gas-surface-registry verify-public-readme-positioning verify-avm-spawn-channel-args verify-backend-gas-surface-calibration-set verify-backend-native-instruction-surface-decision
 .PHONY: verify-x64-linux-qemu
 .PHONY: verify-x64-linux-qemu-net
 .PHONY: verify-x64-linux-qemu-tls
@@ -1136,11 +1136,11 @@ verify-effect-ledger-contract: verify-avm-effect-ledger-json
 verify-avm-effect-ledger-json: oren avm
 	@./scripts/verify_avm_effect_ledger_json.sh
 
-verify-avm-release-manifest: oren avm
-	@python3 scripts/verify_avm_release_manifest.py --manifest tests/avm/release_manifest.json --tests $(AVM_TESTS)
+verify-avm-release-manifest: oren avm ; @python3 scripts/verify_avm_release_manifest.py --manifest tests/avm/release_manifest.json --tests $(AVM_TESTS)
 
-verify-avm-package-policy-runner: oren avm
-	@./scripts/verify_avm_package_policy_runner.sh
+verify-avm-package-policy-runner: oren avm ; @./scripts/verify_avm_package_policy_runner.sh
+
+verify-avm-bytes-hotpath-guards: ; @./scripts/verify_avm_bytes_hotpath_guards.sh
 
 verify-native-package-policy-runner: oren
 	@./scripts/verify_native_package_policy_runner.sh

@@ -2546,6 +2546,9 @@ design evidence lives under `project-doc/`.
 - Runtime-object cache metadata check magic validation now reuses the already
   validated check-buffer pointer instead of routing each magic byte through the
   checked byte helper.
+- `make verify-avm-bytes-hotpath-guards` now centralizes byte-hotpath source
+  invariants, including the removed bytecode final-write list fallback and the
+  removed runtime-object per-byte checked metadata helper.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases
