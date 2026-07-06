@@ -2622,27 +2622,28 @@ Working evidence:
 - The iOS SDK implementation is split so `OrenAVMRuntimeConfig` and
   `OrenAVMRunResult` live in `OrenAVMRuntimeTypes.m`, while
   `OrenAVMGraphicsView` lives in its own UIKit/CoreGraphics implementation file;
-	  this keeps the core runtime file below the 2000-line source guardrail while
-	  GUI/NET/FS providers continue to grow. `make verify-source-line-guard` now
-	  checks tracked first-party source files against that limit while excluding
-	  generated site, archived web research, vendor, and build artifacts. The AVM
-	  dispatch loop now keeps deadline-backed scheduler wait scanning in
-	  `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
-	  SDK verifier reuses `scripts/obc_to_c_header.py` for embedded OBC headers,
-	  reducing `verify_libavm_ios.sh` to 1923 lines. Its local
-	  NET/TCP/UDP/WebSocket/static-package helper servers now live in
-	  `scripts/libavm_ios_verify_net_helpers.py`, reducing the verifier shell
-	  script to 1761 lines. Windows runtime
-	  once/atomic compatibility shims now live in
-		  `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc` to 1990
-		  lines while keeping that platform boundary explicit. Runtime GC marking and
-		  spawn-entry helpers now live in `010_prelude_gc_mark_spawn.inc`, reducing
-		  `010_prelude.inc` to 1805 lines. Runtime SHA-256 helpers now live in
-		  `050_io_misc_sha256.inc`, reducing `050_io_misc.inc` to 1705 lines.
-		  Example build and cross-compile smoke targets now live in `mk/examples.mk`,
-		  reducing the top-level `Makefile` to 1883 lines. Metal primitive vertex/RGBA
-		  geometry helpers now live in `OrenAVMMetalGeometry`, reducing
-		  `OrenAVMMetalView.m` to 1585 lines.
+  this keeps the core runtime file below the 2000-line source guardrail while
+  GUI/NET/FS providers continue to grow. `make verify-source-line-guard` now
+  checks tracked first-party source files against that limit while excluding
+  generated site, archived web research, vendor, and build artifacts. The AVM
+  dispatch loop now keeps deadline-backed scheduler wait scanning in
+  `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the AVM
+  VM helper definitions now live in `avm_vm_helpers.inc`, reducing
+  `avm_vm.c` to 1828 lines while keeping dispatch-loop control flow in place.
+  The iOS SDK verifier reuses `scripts/obc_to_c_header.py` for embedded OBC
+  headers, reducing `verify_libavm_ios.sh` to 1923 lines. Its local
+  NET/TCP/UDP/WebSocket/static-package helper servers now live in
+  `scripts/libavm_ios_verify_net_helpers.py`, reducing the verifier shell
+  script to 1761 lines. Windows runtime once/atomic compatibility shims now
+  live in `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc`
+  to 1990 lines while keeping that platform boundary explicit. Runtime GC
+  marking and spawn-entry helpers now live in `010_prelude_gc_mark_spawn.inc`,
+  reducing `010_prelude.inc` to 1805 lines. Runtime SHA-256 helpers now live
+  in `050_io_misc_sha256.inc`, reducing `050_io_misc.inc` to 1705 lines.
+  Example build and cross-compile smoke targets now live in `mk/examples.mk`,
+  reducing the top-level `Makefile` to 1883 lines. Metal primitive vertex/RGBA
+  geometry helpers now live in `OrenAVMMetalGeometry`, reducing
+  `OrenAVMMetalView.m` to 1585 lines.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
