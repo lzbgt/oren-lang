@@ -725,6 +725,14 @@ def flat_xy_z(item, key):
         raise SystemExit(f"scene {key} z must be i32")
 
 
+def round_half_away(value):
+    if not math.isfinite(value):
+        raise SystemExit("scene flat shape coordinate is not finite")
+    if value >= 0.0:
+        return int(math.floor(value + 0.5))
+    return int(math.ceil(value - 0.5))
+
+
 def flat_xy_triangle_vertices(item, key):
     points = flat_xy_points(item, key, 3)
     z = flat_xy_z(item, key)
@@ -846,6 +854,151 @@ def pack_polygons_xy(polygons):
     return pack_triangles_xyz(triangles)
 
 
+def flat_line_width(item, key):
+    width = item.get("width", item.get("width_milli", 1))
+    try:
+        width = int(width)
+    except (TypeError, ValueError):
+        raise SystemExit(f"scene {key} width must be positive i32")
+    if width <= 0:
+        raise SystemExit(f"scene {key} width must be positive i32")
+    return width
+
+
+def line_offset(dx, dy, width, key):
+    length = math.sqrt(float(dx) * float(dx) + float(dy) * float(dy))
+    if length <= 0.0:
+        raise SystemExit(f"scene {key} line segment must be nonzero")
+    scale = float(width) * 0.5 / length
+    ox = round_half_away((0.0 - float(dy)) * scale)
+    oy = round_half_away(float(dx) * scale)
+    if ox == 0 and oy == 0:
+        raise SystemExit(f"scene {key} line width rounds to zero")
+    return ox, oy
+
+
+def line_segment_triangles(x0, y0, x1, y1, z, width, key):
+    dx = x1 - x0
+    dy = y1 - y0
+    ox, oy = line_offset(dx, dy, width, key)
+    ax, ay = x0 + ox, y0 + oy
+    bx, by = x1 + ox, y1 + oy
+    cx, cy = x1 - ox, y1 - oy
+    dxp, dyp = x0 - ox, y0 - oy
+    return [
+        [[ax, ay, z], [bx, by, z], [cx, cy, z]],
+        [[ax, ay, z], [cx, cy, z], [dxp, dyp, z]],
+    ]
+
+
+def segment_endpoints(seg, key):
+    if not isinstance(seg, dict):
+        raise SystemExit(f"scene {key} entries must be objects")
+    p0 = seg.get("from", seg.get("start"))
+    p1 = seg.get("to", seg.get("end"))
+    x0, y0 = flat_xy_pair(p0, key, "from")
+    x1, y1 = flat_xy_pair(p1, key, "to")
+    if x0 == x1 and y0 == y1:
+        raise SystemExit(f"scene {key} segment must be nonzero")
+    return x0, y0, x1, y1
+
+
+def pack_segments_xy(segments):
+    triangles = []
+    for seg in segments:
+        x0, y0, x1, y1 = segment_endpoints(seg, "segments_xy")
+        triangles.extend(line_segment_triangles(x0, y0, x1, y1, flat_xy_z(seg, "segments_xy"), flat_line_width(seg, "segments_xy"), "segments_xy"))
+    if len(triangles) > 4096:
+        raise SystemExit("scene segments_xy exceed mesh3d triangle budget")
+    return pack_triangles_xyz(triangles)
+
+
+def path_points_xy(path, key):
+    if not isinstance(path, dict):
+        raise SystemExit(f"scene {key} entries must be objects")
+    points = path.get("points", path.get("points_xy"))
+    if not isinstance(points, list) or len(points) < 2 or len(points) > 128:
+        raise SystemExit(f"scene {key} points must contain 2..128 [x,y] entries")
+    return [flat_xy_pair(point, key, "point") for point in points]
+
+
+def pack_paths_xy(paths):
+    triangles = []
+    for path in paths:
+        points = path_points_xy(path, "paths_xy")
+        width = flat_line_width(path, "paths_xy")
+        z = flat_xy_z(path, "paths_xy")
+        for i in range(1, len(points)):
+            x0, y0 = points[i - 1]
+            x1, y1 = points[i]
+            if x0 == x1 and y0 == y1:
+                raise SystemExit("scene paths_xy segment must be nonzero")
+            triangles.extend(line_segment_triangles(x0, y0, x1, y1, z, width, "paths_xy"))
+    if len(triangles) > 4096:
+        raise SystemExit("scene paths_xy exceed mesh3d triangle budget")
+    return pack_triangles_xyz(triangles)
+
+
+def bezier_points_xy(curve, key):
+    if not isinstance(curve, dict):
+        raise SystemExit(f"scene {key} entries must be objects")
+    points = curve.get("points", curve.get("points_xy"))
+    if not isinstance(points, list) or len(points) not in (3, 4):
+        raise SystemExit(f"scene {key} points must contain 3 or 4 [x,y] entries")
+    return [flat_xy_pair(point, key, "point") for point in points]
+
+
+def bezier_axis(points, step, segments, axis):
+    t = float(step) / float(segments)
+    mt = 1.0 - t
+    if len(points) == 3:
+        value = (
+            mt * mt * float(points[0][axis]) +
+            2.0 * mt * t * float(points[1][axis]) +
+            t * t * float(points[2][axis])
+        )
+    else:
+        value = (
+            mt * mt * mt * float(points[0][axis]) +
+            3.0 * mt * mt * t * float(points[1][axis]) +
+            3.0 * mt * t * t * float(points[2][axis]) +
+            t * t * t * float(points[3][axis])
+        )
+    return round_half_away(value)
+
+
+def bezier_segments(curve):
+    segments = curve.get("segments", 16)
+    try:
+        segments = int(segments)
+    except (TypeError, ValueError):
+        raise SystemExit("scene beziers_xy segments must be 1..96")
+    if segments < 1 or segments > 96:
+        raise SystemExit("scene beziers_xy segments must be 1..96")
+    return segments
+
+
+def pack_beziers_xy(curves):
+    triangles = []
+    for curve in curves:
+        points = bezier_points_xy(curve, "beziers_xy")
+        width = flat_line_width(curve, "beziers_xy")
+        z = flat_xy_z(curve, "beziers_xy")
+        segments = bezier_segments(curve)
+        x0 = bezier_axis(points, 0, segments, 0)
+        y0 = bezier_axis(points, 0, segments, 1)
+        for i in range(1, segments + 1):
+            x1 = bezier_axis(points, i, segments, 0)
+            y1 = bezier_axis(points, i, segments, 1)
+            if x0 == x1 and y0 == y1:
+                raise SystemExit("scene beziers_xy segment must be nonzero")
+            triangles.extend(line_segment_triangles(x0, y0, x1, y1, z, width, "beziers_xy"))
+            x0, y0 = x1, y1
+    if len(triangles) > 4096:
+        raise SystemExit("scene beziers_xy exceed mesh3d triangle budget")
+    return pack_triangles_xyz(triangles)
+
+
 def box_min_max(box):
     if not isinstance(box, dict):
         raise SystemExit("scene boxes_xyz entries must be objects")
@@ -960,12 +1113,6 @@ def cylinder_segments(cyl):
     if segments < 3 or segments > 96:
         raise SystemExit("scene cylinders_z segments must be 3..96")
     return segments
-
-
-def round_half_away(x):
-    if x >= 0:
-        return math.floor(x + 0.5)
-    return math.ceil(x - 0.5)
 
 
 def cylinder_point(cx, cy, radius, segments, idx, z):
@@ -1599,6 +1746,12 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_flat_xy_rects(mesh["rects_xy"], "rects_xy")
             elif mesh.get("polygons_xy") is not None:
                 payload = pack_polygons_xy(mesh["polygons_xy"])
+            elif mesh.get("segments_xy") is not None:
+                payload = pack_segments_xy(mesh["segments_xy"])
+            elif mesh.get("paths_xy") is not None:
+                payload = pack_paths_xy(mesh["paths_xy"])
+            elif mesh.get("beziers_xy") is not None:
+                payload = pack_beziers_xy(mesh["beziers_xy"])
             elif mesh.get("boxes_xyz") is not None:
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
             elif mesh.get("prisms_xy") is not None:

@@ -191,6 +191,72 @@ def verify_scene3d_flat_shape_lowering():
         raise SystemExit("scene malformed polygons_xy unexpectedly lowered")
 
 
+def verify_scene3d_flat_line_lowering():
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{
+            "kind": "triangles",
+            "id": 1,
+            "segments_xy": [{"from": [1, 2], "to": [4, 2], "width": 2, "z": 1}],
+            "color": "#44cc88ff",
+        }],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    segment_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((1, 3, 1), (4, 3, 1), (4, 1, 1), (1, 3, 1), (4, 1, 1), (1, 1, 1))
+    )
+    if struct.pack("<I", 72) not in data or segment_payload not in data:
+        raise SystemExit("scene segments_xy lowering did not produce expected thick-line payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "paths_xy": [{"points": [[1, 1], [4, 1], [4, 4]], "width": 2, "z": 1}],
+        "color": "#8844ccff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    path_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((1, 2, 1), (4, 2, 1), (4, 0, 1), (1, 2, 1), (4, 0, 1), (1, 0, 1))
+    )
+    if struct.pack("<I", 144) not in data or path_payload not in data:
+        raise SystemExit("scene paths_xy lowering did not produce expected first segment payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "beziers_xy": [{"points": [[1, 2], [2, 2], [4, 2]], "segments": 2, "width": 2, "z": 1}],
+        "color": "#cc8844ff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    bezier_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((1, 3, 1), (2, 3, 1), (2, 1, 1), (1, 3, 1), (2, 1, 1), (1, 1, 1))
+    )
+    if struct.pack("<I", 144) not in data or bezier_payload not in data:
+        raise SystemExit("scene beziers_xy lowering did not produce expected first segment payload")
+
+    for mesh in (
+        {"kind": "triangles", "id": 1, "segments_xy": [{"from": [0, 0], "to": [0, 0], "width": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "paths_xy": [{"points": [[0, 0], [0, 0]], "width": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "beziers_xy": [{"points": [[0, 0], [1, 1]], "segments": 2}], "color": "#ffffffff"},
+    ):
+        try:
+            scene3d_module.scene3d_bin_v0(json.dumps({
+                "schema": "oren.ui.scene3d.v0",
+                "meshes": [mesh],
+                "models": [{"id": 2, "mesh_id": 1}],
+                "draw": [2],
+            }))
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("scene malformed flat line shape unexpectedly lowered")
+
+
 def verify_scene3d_gltf_lowering():
     payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
@@ -851,6 +917,7 @@ def verify_scene3d_3mf_lowering():
 verify_scene3d_obj_lowering()
 verify_scene3d_flat_xy_lowering()
 verify_scene3d_flat_shape_lowering()
+verify_scene3d_flat_line_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()
