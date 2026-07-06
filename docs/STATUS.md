@@ -2629,7 +2629,9 @@ Working evidence:
 	  reducing `verify_libavm_ios.sh` to 1923 lines. Windows runtime
 	  once/atomic compatibility shims now live in
 	  `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc` to 1990
-	  lines while keeping that platform boundary explicit.
+	  lines while keeping that platform boundary explicit. Example build and
+	  cross-compile smoke targets now live in `mk/examples.mk`, reducing the
+	  top-level `Makefile` to 1883 lines.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

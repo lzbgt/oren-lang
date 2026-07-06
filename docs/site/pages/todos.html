@@ -3608,6 +3608,11 @@
 <p>  <code>010_prelude_windows_once_atomics.inc</code>, reducing <code>010_prelude.inc</code> to 1990</p>
 <p>  lines while keeping the platform-specific prelude boundary explicit.</p>
 <ul>
+<li>Example build and cross-compile smoke targets now live in <code>mk/examples.mk</code>,</li>
+</ul>
+<p>  reducing the top-level <code>Makefile</code> to 1883 lines and preserving source-line</p>
+<p>  guardrail headroom as verification targets continue to grow.</p>
+<ul>
 <li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
 </ul>
 <p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>
