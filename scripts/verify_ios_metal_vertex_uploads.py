@@ -175,6 +175,10 @@ def main() -> int:
         "OrenAVMMetalRetainedMeshKey",
         "OrenAVMMetalRetainedMesh2DResource",
         "OrenAVMMetalRetainedMesh3DResource",
+        "OrenAVMMetalPutMesh2DResource",
+        "OrenAVMMetalRemoveMeshResource",
+        "OrenAVMMetalPutPackedMesh3DResource",
+        "OrenAVMMetalPutIndexedMesh3DResource",
         "OrenAVMMetalRetainedMaterialKey",
         "OrenAVMMetalRetainedMaterialValue",
         "OrenAVMMetalRetainedMaterialRGBA",
@@ -211,6 +215,18 @@ def main() -> int:
         fail("retained Metal 2D mesh draws must use the scalar-map resource helper")
     if "OrenAVMMetalRetainedMesh3DResource(_orenMeshes3DByID, meshID)" not in text:
         fail("retained Metal 3D mesh draws must use the scalar-map resource helper")
+    if "OrenAVMMetalPutMesh2DResource(&_orenMeshesByID," not in text:
+        fail("retained Metal 2D mesh uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalPutPackedMesh3DResource(&_orenMeshes3DByID," not in text:
+        fail("retained Metal packed 3D mesh uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalPutIndexedMesh3DResource(&_orenMeshes3DByID," not in text:
+        fail("retained Metal indexed 3D mesh uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalRemoveMeshResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload))" not in text:
+        fail("retained Metal 2D mesh removals must use the resource-owned removal helper")
+    if "OrenAVMMetalRemoveMeshResource(_orenMeshes3DByID, OrenAVMMetalReadU32LE(payload))" not in text:
+        fail("retained Metal 3D mesh removals must use the resource-owned removal helper")
+    if "CFDictionarySetValue(_orenMeshes" in text or "CFDictionaryRemoveValue(_orenMeshes" in text:
+        fail("retained Metal mesh map mutation must live in OrenAVMMetalResources")
     if "NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources" in text:
         fail("retained Metal text lookups must avoid boxed NSNumber text IDs")
     if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:

@@ -2712,7 +2712,11 @@ Working evidence:
 		  configuration and scalar-map lifetime ownership intact. Metal retained
 		  text/material/model resource upload/remove helpers now live in
 		  `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1307 lines
-		  while keeping per-frame retained draw decisions in the view.
+		  while keeping per-frame retained draw decisions in the view. Metal
+		  retained 2D/3D mesh resource copy/store/remove helpers now live in
+		  `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1292 lines
+		  while leaving command payload validation and retained draw decisions in
+		  the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

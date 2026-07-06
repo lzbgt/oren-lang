@@ -174,6 +174,76 @@ OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef m
     return (__bridge OrenAVMMetalMesh3DResource*)CFDictionaryGetValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
 }
 
+BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
+                                   uint32_t meshID,
+                                   uint32_t rgbaValue,
+                                   const uint8_t* triangles,
+                                   NSUInteger triangleBytes,
+                                   uint32_t triangleCount) {
+    if (!meshes || meshID == 0 || !triangles || triangleBytes == 0) return NO;
+    OrenAVMMetalMesh2DResource* mesh = [[OrenAVMMetalMesh2DResource alloc] init];
+    mesh.rgbaValue = rgbaValue;
+    mesh.triangleBytes = triangleBytes;
+    mesh.triangles = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
+    if (!mesh.triangles) return NO;
+    mesh.triangleCount = triangleCount;
+    if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*meshes) return NO;
+    CFDictionarySetValue(*meshes, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
+    return YES;
+}
+
+void OrenAVMMetalRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID) {
+    if (meshes && meshID != 0) CFDictionaryRemoveValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
+}
+
+BOOL OrenAVMMetalPutPackedMesh3DResource(CFMutableDictionaryRef* meshes,
+                                         uint32_t meshID,
+                                         uint32_t rgbaValue,
+                                         BOOL hasRGBA,
+                                         const uint8_t* triangles,
+                                         NSUInteger triangleBytes,
+                                         uint32_t triangleCount,
+                                         uint32_t stride) {
+    if (!meshes || meshID == 0 || !triangles || triangleBytes == 0) return NO;
+    OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
+    mesh.rgbaValue = rgbaValue;
+    mesh.hasRGBA = hasRGBA;
+    mesh.triangleBytes = triangleBytes;
+    mesh.triangles = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
+    if (!mesh.triangles) return NO;
+    mesh.triangleCount = triangleCount;
+    mesh.stride = stride;
+    if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*meshes) return NO;
+    CFDictionarySetValue(*meshes, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
+    return YES;
+}
+
+BOOL OrenAVMMetalPutIndexedMesh3DResource(CFMutableDictionaryRef* meshes,
+                                          uint32_t meshID,
+                                          uint32_t rgbaValue,
+                                          const uint8_t* vertices,
+                                          NSUInteger vertexBytes,
+                                          const uint8_t* indices,
+                                          NSUInteger indexBytes,
+                                          uint32_t indexCount) {
+    if (!meshes || meshID == 0 || !vertices || !indices || vertexBytes == 0 || indexBytes == 0) return NO;
+    OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
+    mesh.rgbaValue = rgbaValue;
+    mesh.hasRGBA = YES;
+    mesh.vertexBytes = vertexBytes;
+    mesh.indexBytes = indexBytes;
+    mesh.vertices = OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes);
+    mesh.indices = OrenAVMMetalCopyPayloadBytes(indices, indexBytes);
+    if (!mesh.vertices || !mesh.indices) return NO;
+    mesh.indexCount = indexCount;
+    if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*meshes) return NO;
+    CFDictionarySetValue(*meshes, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
+    return YES;
+}
+
 const void* OrenAVMMetalRetainedMaterialKey(uint32_t materialID) {
     return OrenAVMMetalRetainedKey(materialID);
 }

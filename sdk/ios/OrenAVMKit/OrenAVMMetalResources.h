@@ -105,6 +105,29 @@ void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textI
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID);
 OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID);
 OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID);
+BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
+                                   uint32_t meshID,
+                                   uint32_t rgbaValue,
+                                   const uint8_t* triangles,
+                                   NSUInteger triangleBytes,
+                                   uint32_t triangleCount);
+void OrenAVMMetalRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID);
+BOOL OrenAVMMetalPutPackedMesh3DResource(CFMutableDictionaryRef* meshes,
+                                         uint32_t meshID,
+                                         uint32_t rgbaValue,
+                                         BOOL hasRGBA,
+                                         const uint8_t* triangles,
+                                         NSUInteger triangleBytes,
+                                         uint32_t triangleCount,
+                                         uint32_t stride);
+BOOL OrenAVMMetalPutIndexedMesh3DResource(CFMutableDictionaryRef* meshes,
+                                          uint32_t meshID,
+                                          uint32_t rgbaValue,
+                                          const uint8_t* vertices,
+                                          NSUInteger vertexBytes,
+                                          const uint8_t* indices,
+                                          NSUInteger indexBytes,
+                                          uint32_t indexCount);
 const void* OrenAVMMetalRetainedMaterialKey(uint32_t materialID);
 const void* OrenAVMMetalRetainedMaterialValue(uint32_t rgbaValue);
 BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);
