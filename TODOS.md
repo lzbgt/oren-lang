@@ -2607,6 +2607,9 @@ design evidence lives under `project-doc/`.
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
   headers, reducing `verify_libavm_ios.sh` to 1923 lines.
+- iOS SDK verifier local NET/TCP/UDP/WebSocket/static-package helper servers
+  now live in `scripts/libavm_ios_verify_net_helpers.py`, reducing
+  `verify_libavm_ios.sh` to 1761 lines while keeping the same network smokes.
 - Windows runtime once/atomic compatibility shims now live in
   `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc` to 1990
   lines while keeping the platform-specific prelude boundary explicit.

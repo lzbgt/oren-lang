@@ -2626,7 +2626,10 @@ Working evidence:
 	  dispatch loop now keeps deadline-backed scheduler wait scanning in
 	  `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
 	  SDK verifier reuses `scripts/obc_to_c_header.py` for embedded OBC headers,
-	  reducing `verify_libavm_ios.sh` to 1923 lines. Windows runtime
+	  reducing `verify_libavm_ios.sh` to 1923 lines. Its local
+	  NET/TCP/UDP/WebSocket/static-package helper servers now live in
+	  `scripts/libavm_ios_verify_net_helpers.py`, reducing the verifier shell
+	  script to 1761 lines. Windows runtime
 	  once/atomic compatibility shims now live in
 	  `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc` to 1990
 	  lines while keeping that platform boundary explicit. Example build and

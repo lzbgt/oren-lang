@@ -1468,158 +1468,15 @@ cat > "$REMOTE_STORE_DIR/index.json" <<JSON
 }
 JSON
 openssl dgst -sha256 -sign "$PACKAGE_SIGN_KEY" -out "$REMOTE_STORE_DIR/index.json.sig" "$REMOTE_STORE_DIR/index.json"
-python3 - "$NET_PORT" "$NET_DIR/net.txt" "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 <<'PY' &
-import pathlib
-import socket
-import sys
-
-port = int(sys.argv[1])
-body = pathlib.Path(sys.argv[2]).read_bytes()
-ready = pathlib.Path(sys.argv[3])
-srv = socket.socket()
-srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv.bind(("127.0.0.1", port))
-srv.listen(5)
-ready.write_text("ready\n", encoding="utf-8")
-for _ in range(8):
-    conn, _addr = srv.accept()
-    try:
-        conn.recv(4096)
-        header = (
-            b"HTTP/1.1 200 OK\r\n"
-            + b"Content-Type: text/plain\r\n"
-            + b"Content-Length: "
-            + str(len(body)).encode("ascii")
-            + b"\r\nConnection: close\r\n\r\n"
-        )
-        conn.sendall(header + body)
-    finally:
-        conn.close()
-srv.close()
-PY
+python3 scripts/libavm_ios_verify_net_helpers.py http-fixed --port "$NET_PORT" --body "$NET_DIR/net.txt" --ready "$NET_READY" > "$LOG_DIR/libavm_ios_sdk_net_server.log" 2>&1 &
 NET_SERVER_PID=$!
-python3 - "$TCP_PORT" "$TCP_READY" > "$LOG_DIR/libavm_ios_sdk_tcp_server.log" 2>&1 <<'PY' &
-import pathlib
-import socket
-import sys
-
-port = int(sys.argv[1])
-ready = pathlib.Path(sys.argv[2])
-srv = socket.socket()
-srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv.bind(("127.0.0.1", port))
-srv.listen(2)
-ready.write_text("ready\n", encoding="utf-8")
-for _ in range(2):
-    conn, _addr = srv.accept()
-    try:
-        data = conn.recv(4)
-        if data == b"ping":
-            conn.sendall(b"pong")
-    finally:
-        conn.close()
-srv.close()
-PY
+python3 scripts/libavm_ios_verify_net_helpers.py tcp-ping --port "$TCP_PORT" --ready "$TCP_READY" > "$LOG_DIR/libavm_ios_sdk_tcp_server.log" 2>&1 &
 TCP_SERVER_PID=$!
-python3 - "$UDP_PORT" "$UDP_READY" > "$LOG_DIR/libavm_ios_sdk_udp_server.log" 2>&1 <<'PY' &
-import pathlib
-import socket
-import sys
-
-port = int(sys.argv[1])
-ready = pathlib.Path(sys.argv[2])
-srv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv.bind(("127.0.0.1", port))
-ready.write_text("ready\n", encoding="utf-8")
-data, addr = srv.recvfrom(16)
-if data == b"ping":
-    srv.sendto(b"pong", addr)
-srv.close()
-PY
+python3 scripts/libavm_ios_verify_net_helpers.py udp-ping --port "$UDP_PORT" --ready "$UDP_READY" > "$LOG_DIR/libavm_ios_sdk_udp_server.log" 2>&1 &
 UDP_SERVER_PID=$!
-python3 - "$WS_PORT" "$WS_READY" > "$LOG_DIR/libavm_ios_sdk_ws_server.log" 2>&1 <<'PY' &
-import base64
-import hashlib
-import pathlib
-import socket
-import sys
-
-port = int(sys.argv[1])
-ready = pathlib.Path(sys.argv[2])
-
-def recv_exact(conn, n):
-    out = bytearray()
-    while len(out) < n:
-        chunk = conn.recv(n - len(out))
-        if not chunk:
-            raise RuntimeError("short read")
-        out.extend(chunk)
-    return bytes(out)
-
-srv = socket.socket()
-srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv.bind(("127.0.0.1", port))
-srv.listen(1)
-ready.write_text("ready\n", encoding="utf-8")
-conn, _addr = srv.accept()
-try:
-    header = bytearray()
-    while b"\r\n\r\n" not in header:
-        chunk = conn.recv(1024)
-        if not chunk:
-            raise RuntimeError("closed before handshake")
-        header.extend(chunk)
-    key = None
-    for line in header.decode("ascii", "strict").split("\r\n"):
-        if line.lower().startswith("sec-websocket-key:"):
-            key = line.split(":", 1)[1].strip()
-            break
-    if not key:
-        raise RuntimeError("missing websocket key")
-    accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")).digest()).decode("ascii")
-    response = (
-        "HTTP/1.1 101 Switching Protocols\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
-    )
-    conn.sendall(response.encode("ascii"))
-    h = recv_exact(conn, 2)
-    opcode = h[0] & 0x0f
-    length = h[1] & 0x7f
-    if length == 126:
-        ext = recv_exact(conn, 2)
-        length = (ext[0] << 8) | ext[1]
-    elif length == 127:
-        raise RuntimeError("64-bit websocket length unsupported in verifier")
-    mask = recv_exact(conn, 4) if (h[1] & 0x80) else b"\x00\x00\x00\x00"
-    payload = bytearray(recv_exact(conn, length))
-    for i in range(len(payload)):
-        payload[i] ^= mask[i & 3]
-    if opcode != 1 or bytes(payload) != b"ping":
-        raise RuntimeError("unexpected websocket payload")
-    conn.sendall(b"\x81\x04pong")
-finally:
-    conn.close()
-    srv.close()
-PY
+python3 scripts/libavm_ios_verify_net_helpers.py ws-echo --port "$WS_PORT" --ready "$WS_READY" > "$LOG_DIR/libavm_ios_sdk_ws_server.log" 2>&1 &
 WS_SERVER_PID=$!
-python3 - "$PKG_PORT" "$REMOTE_STORE_DIR" "$PKG_READY" > "$LOG_DIR/libavm_ios_sdk_package_http_server.log" 2>&1 <<'PY' &
-import functools
-import http.server
-import pathlib
-import socketserver
-import sys
-
-port = int(sys.argv[1])
-root = pathlib.Path(sys.argv[2])
-ready = pathlib.Path(sys.argv[3])
-handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
-with socketserver.TCPServer(("127.0.0.1", port), handler) as srv:
-    ready.write_text("ready\n", encoding="utf-8")
-    srv.serve_forever()
-PY
+python3 scripts/libavm_ios_verify_net_helpers.py static-http --port "$PKG_PORT" --root "$REMOTE_STORE_DIR" --ready "$PKG_READY" > "$LOG_DIR/libavm_ios_sdk_package_http_server.log" 2>&1 &
 PKG_SERVER_PID=$!
 OBC_STORE_ADMIN_USERNAME=admin \
 OBC_STORE_ADMIN_PASSWORD=secret \
@@ -1896,26 +1753,7 @@ OREN_AVM_SDK_NET_ALLOWED_HOSTS="http://127.0.0.1:${NET_PORT},tcp-listen://127.0.
 OREN_AVM_SDK_TCP_LISTEN_URL="tcp-listen://127.0.0.1:${TCP_LISTEN_PORT}" \
   "$HOST_SDK_BIN" > "$LOG_DIR/libavm_ios_sdk_tcp_listen_host.log" 2>&1 &
 TCP_LISTEN_HOST_PID=$!
-python3 - "$TCP_LISTEN_PORT" > "$LOG_DIR/libavm_ios_sdk_tcp_listen_client.log" 2>&1 <<'PY'
-import socket
-import sys
-import time
-
-port = int(sys.argv[1])
-last = None
-for _ in range(100):
-    try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.2) as s:
-            s.sendall(b"ping")
-            data = s.recv(4)
-            if data != b"pong":
-                raise RuntimeError(f"unexpected response: {data!r}")
-            sys.exit(0)
-    except Exception as exc:
-        last = exc
-        time.sleep(0.05)
-raise SystemExit(f"tcp listen verifier client failed: {last}")
-PY
+python3 scripts/libavm_ios_verify_net_helpers.py tcp-listen-client --port "$TCP_LISTEN_PORT" > "$LOG_DIR/libavm_ios_sdk_tcp_listen_client.log" 2>&1
 wait "$TCP_LISTEN_HOST_PID"
 cleanup_net_server
 trap - EXIT
