@@ -10,6 +10,18 @@ import sys
 try:
     from scene3d_gltf import gltf_mesh_data, has_gltf_mesh
     from scene3d_3mf import has_threemf_mesh, threemf_mesh_data
+    from scene3d_flat_arch import (
+        pack_curbs_xy,
+        pack_fences_xy,
+        pack_gable_roofs_xy,
+        pack_posts_xy,
+        pack_pyramids_xy,
+        pack_ramps_xy,
+        pack_rooms_xy,
+        pack_solid_ramps_xy,
+        pack_stairs_xy,
+        pack_walls_xy,
+    )
     from scene3d_flat_curves import (
         pack_arc_bands_xy,
         pack_discs_xy,
@@ -24,6 +36,18 @@ try:
 except ModuleNotFoundError:
     from scripts.scene3d_gltf import gltf_mesh_data, has_gltf_mesh
     from scripts.scene3d_3mf import has_threemf_mesh, threemf_mesh_data
+    from scripts.scene3d_flat_arch import (
+        pack_curbs_xy,
+        pack_fences_xy,
+        pack_gable_roofs_xy,
+        pack_posts_xy,
+        pack_pyramids_xy,
+        pack_ramps_xy,
+        pack_rooms_xy,
+        pack_solid_ramps_xy,
+        pack_stairs_xy,
+        pack_walls_xy,
+    )
     from scripts.scene3d_flat_curves import (
         pack_arc_bands_xy,
         pack_discs_xy,
@@ -1792,6 +1816,26 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_paths_xy(mesh["paths_xy"])
             elif mesh.get("beziers_xy") is not None:
                 payload = pack_beziers_xy(mesh["beziers_xy"])
+            elif mesh.get("walls_xy") is not None:
+                payload = pack_walls_xy(mesh["walls_xy"])
+            elif mesh.get("rooms_xy") is not None:
+                payload = pack_rooms_xy(mesh["rooms_xy"])
+            elif mesh.get("ramps_xy") is not None:
+                payload = pack_ramps_xy(mesh["ramps_xy"])
+            elif mesh.get("solid_ramps_xy") is not None:
+                payload = pack_solid_ramps_xy(mesh["solid_ramps_xy"])
+            elif mesh.get("posts_xy") is not None:
+                payload = pack_posts_xy(mesh["posts_xy"])
+            elif mesh.get("curbs_xy") is not None:
+                payload = pack_curbs_xy(mesh["curbs_xy"])
+            elif mesh.get("fences_xy") is not None:
+                payload = pack_fences_xy(mesh["fences_xy"])
+            elif mesh.get("stairs_xy") is not None:
+                payload = pack_stairs_xy(mesh["stairs_xy"])
+            elif mesh.get("gable_roofs_xy") is not None:
+                payload = pack_gable_roofs_xy(mesh["gable_roofs_xy"])
+            elif mesh.get("pyramids_xy") is not None:
+                payload = pack_pyramids_xy(mesh["pyramids_xy"])
             elif mesh.get("boxes_xyz") is not None:
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
             elif mesh.get("prisms_xy") is not None:

@@ -358,6 +358,110 @@ def verify_scene3d_flat_curve_lowering():
             raise SystemExit("scene malformed flat curve shape unexpectedly lowered")
 
 
+def verify_scene3d_flat_arch_lowering():
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles", "id": 1, "color": "#6688aaff"}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+
+    cases = [
+        (
+            "walls_xy",
+            [{"points": [[1, 1], [4, 1], [4, 3]], "z_min": 1, "z_max": 3}],
+            144,
+            ((1, 1, 1), (4, 1, 1), (4, 1, 3)),
+        ),
+        (
+            "rooms_xy",
+            [{"points": [[1, 1], [4, 1], [4, 3], [1, 3]], "z_min": 1, "z_max": 3}],
+            432,
+            ((1, 1, 1), (4, 3, 1), (4, 1, 1)),
+        ),
+        (
+            "ramps_xy",
+            [{"from": [1, 1], "to": [4, 1], "width": 2, "z_from": 1, "z_to": 3}],
+            72,
+            ((1, 2, 1), (4, 2, 3), (4, 0, 3)),
+        ),
+        (
+            "solid_ramps_xy",
+            [{"from": [1, 1], "to": [4, 1], "width": 2, "z_base": 0, "z_from": 1, "z_to": 3}],
+            432,
+            ((1, 2, 1), (4, 2, 3), (4, 0, 3)),
+        ),
+        (
+            "posts_xy",
+            [{"points": [[2, 2], [5, 2]], "width": 2, "z_min": 1, "z_max": 4}],
+            864,
+            ((1, 1, 1), (3, 1, 1), (3, 3, 1)),
+        ),
+        (
+            "curbs_xy",
+            [{"points": [[1, 1], [4, 1], [4, 3]], "width": 2, "z_min": 1, "z_max": 3}],
+            864,
+            ((1, 2, 3), (4, 2, 3), (4, 0, 3)),
+        ),
+        (
+            "fences_xy",
+            [{"points": [[2, 2], [4, 2]], "post_width": 2, "rail_width": 2, "z_min": 0, "z_max": 3, "rail_z_min": 1, "rail_z_max": 2}],
+            1296,
+            ((1, 1, 0), (3, 1, 0), (3, 3, 0)),
+        ),
+        (
+            "stairs_xy",
+            [{"from": [1, 1], "to": [5, 1], "width": 2, "z_from": 1, "z_to": 3, "steps": 2}],
+            288,
+            ((1, 2, 1), (1, 0, 1), (1, 0, 2)),
+        ),
+        (
+            "gable_roofs_xy",
+            [{"from": [1, 1], "to": [5, 1], "width": 2, "z_eave": 1, "z_ridge": 4}],
+            216,
+            ((1, 2, 1), (5, 2, 1), (5, 1, 4)),
+        ),
+        (
+            "pyramids_xy",
+            [{"points": [[1, 1], [4, 1], [4, 3], [1, 3]], "z_base": 1, "apex": [2, 2, 4]}],
+            216,
+            ((1, 1, 1), (4, 3, 1), (4, 1, 1)),
+        ),
+    ]
+
+    for key, items, payload_len, expected_vertices in cases:
+        scene["meshes"][0] = {"kind": "triangles", "id": 1, key: items, "color": "#6688aaff"}
+        data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+        if struct.pack("<I", payload_len) not in data or packed_xyz(expected_vertices) not in data:
+            raise SystemExit(f"scene {key} lowering did not produce expected architectural payload")
+
+    bad_meshes = [
+        {"kind": "triangles", "id": 1, "ramps_xy": [{"from": [0, 0], "to": [0, 0], "width": 1, "z_from": 0, "z_to": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "solid_ramps_xy": [{"from": [0, 0], "to": [1, 0], "width": 1, "z_base": 1, "z_from": 1, "z_to": 2}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "posts_xy": [{"points": [], "width": 1, "z_min": 0, "z_max": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "curbs_xy": [{"points": [[0, 0], [0, 0]], "width": 1, "z_min": 0, "z_max": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "fences_xy": [{"points": [[0, 0], [1, 0]], "post_width": 1, "rail_width": 1, "z_min": 0, "z_max": 1, "rail_z_min": 1, "rail_z_max": 2}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "fences_xy": [{"points": [[0, 0], [1, 0]], "post_width": 1, "z_min": 0, "z_max": 1, "rails": []}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "stairs_xy": [{"from": [0, 0], "to": [1, 0], "width": 1, "z_from": 0, "z_to": 1, "steps": 0}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "gable_roofs_xy": [{"from": [0, 0], "to": [1, 0], "width": 1, "z_eave": 1, "z_ridge": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "pyramids_xy": [{"points": [[0, 0], [1, 0]], "z_base": 0, "apex": [0, 0, 1]}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "rooms_xy": [{"points": [[0, 0], [1, 0]], "z_min": 0, "z_max": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "walls_xy": [{"points": [[0, 0]], "z_min": 0, "z_max": 1}], "color": "#ffffffff"},
+    ]
+    for mesh in bad_meshes:
+        try:
+            scene3d_module.scene3d_bin_v0(json.dumps({
+                "schema": "oren.ui.scene3d.v0",
+                "meshes": [mesh],
+                "models": [{"id": 2, "mesh_id": 1}],
+                "draw": [2],
+            }))
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("scene malformed flat architectural shape unexpectedly lowered")
+
+
 def verify_scene3d_gltf_lowering():
     payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
@@ -1020,6 +1124,7 @@ verify_scene3d_flat_xy_lowering()
 verify_scene3d_flat_shape_lowering()
 verify_scene3d_flat_line_lowering()
 verify_scene3d_flat_curve_lowering()
+verify_scene3d_flat_arch_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()
