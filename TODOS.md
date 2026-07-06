@@ -2622,7 +2622,7 @@ design evidence lives under `project-doc/`.
   `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines while
   keeping draw-command parsing and run flushing in the view.
 - Metal shader and render-pipeline setup now lives in `OrenAVMMetalPipeline`,
-  reducing `OrenAVMMetalView.m` to 1676 lines while keeping frame parsing and
+  reducing `OrenAVMMetalView.m` to 1680 lines while keeping frame parsing and
   draw submission in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS

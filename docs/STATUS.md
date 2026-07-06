@@ -2688,7 +2688,7 @@ Working evidence:
 		  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in
 		  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines. Metal
 		  shader and render-pipeline setup now lives in `OrenAVMMetalPipeline`,
-		  reducing `OrenAVMMetalView.m` to 1676 lines while keeping frame parsing and
+		  reducing `OrenAVMMetalView.m` to 1680 lines while keeping frame parsing and
 		  draw submission in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
