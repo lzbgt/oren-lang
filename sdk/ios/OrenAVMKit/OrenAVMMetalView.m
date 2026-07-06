@@ -102,6 +102,17 @@ static BOOL OrenAVMMetalFrameDataIsValid(NSData* frame) {
     return OrenAVMMetalReadU32LE(data + 8) != 0 && OrenAVMMetalReadU32LE(data + 12) != 0;
 }
 
+static NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame) {
+    if (frame.length < 40) return 0;
+    const uint8_t* data = (const uint8_t*)frame.bytes;
+    if (memcmp(data, "OGF0", 4) != 0 || data[4] != 1) return 0;
+    uint16_t headerLen = OrenAVMMetalReadU16LE(data + 6);
+    if (headerLen < 40 || headerLen > frame.length) return 0;
+    uint32_t opCount = OrenAVMMetalReadU32LE(data + 20);
+    NSUInteger maxRecordsByBytes = (frame.length - headerLen) / 4u;
+    return (NSUInteger)opCount < maxRecordsByBytes ? (NSUInteger)opCount : maxRecordsByBytes;
+}
+
 static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {
     return (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 8) +
            (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 20) +
@@ -968,9 +979,10 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 
 - (NSArray<OrenAVMMetalVertexRun*>*)orenVertexRunsForFrame:(NSData*)frame
                                                  clearColor:(MTLClearColor*)clearColor
-                                                   textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns
-                                                  imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>*)imageRuns {
-    NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = [NSMutableArray array];
+                                                  textRuns:(NSMutableArray<OrenAVMMetalTextRun*>*)textRuns
+                                                 imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>*)imageRuns {
+    NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns =
+        [NSMutableArray arrayWithCapacity:OrenAVMMetalFrameRunCapacity(frame)];
     NSMutableData* vertices = [NSMutableData data];
     if (frame.length < 40) return vertexRuns;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -1650,8 +1662,9 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                                 imageRuns:(NSArray<OrenAVMMetalImageRun*>**)imageRunsOut
                                                                  textRuns:(NSArray<OrenAVMMetalTextRun*>**)textRunsOut {
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
-    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
-    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray array];
+    NSUInteger runCapacity = OrenAVMMetalFrameRunCapacity(self.frameData);
+    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray arrayWithCapacity:runCapacity];
+    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray arrayWithCapacity:runCapacity];
     NSArray<OrenAVMMetalVertexRun*>* vertexRuns = [self orenVertexRunsForFrame:self.frameData
                                                                     clearColor:&clearColor
                                                                       textRuns:textRuns

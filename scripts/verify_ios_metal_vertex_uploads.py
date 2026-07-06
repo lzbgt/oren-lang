@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Metal vertex uploads stay on the bounded helper path."""
+"""Verify hot Metal frame paths stay bounded."""
 
 from pathlib import Path
 import sys
@@ -25,6 +25,12 @@ def main() -> int:
         fail("missing large vertex upload buffer retention path")
     if "[transientVertexBuffers copy]" in text:
         fail("large vertex upload completion path must retain the existing tracking array without copying it")
+    if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
+        fail("missing bounded Metal frame run-capacity helper")
+    if text.count("OrenAVMMetalFrameRunCapacity(") < 3:
+        fail("expected frame run-capacity helper use at declaration and run-array allocation sites")
+    if text.count("arrayWithCapacity:") < 3:
+        fail("expected bounded capacity preallocation for vertex/text/image run arrays")
 
     in_helper = False
     saw_helper_body = False
@@ -62,7 +68,7 @@ def main() -> int:
     if helper_bind_calls < 3:
         fail(f"expected geometry/image/text helper bindings, found {helper_bind_calls}")
 
-    print("OK: Metal vertex uploads use bounded helper path")
+    print("OK: Metal frame hot paths use bounded helpers")
     return 0
 
 
