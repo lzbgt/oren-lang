@@ -56,9 +56,15 @@ def main() -> int:
     if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source or "dataWithBytes:pending->inlineVertices" not in text_source:
         fail("text coalescing must reuse mutable batches and materialize inline quads only when merging")
     cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
-    color_create = text_source.find("UIColor* color = [UIColor colorWithRed:")
-    if cache_lookup < 0 or color_create < 0 or cache_lookup > color_create:
-        fail("Metal text cache hits must return before constructing UIColor/attributes")
+    attrs_lookup = text_source.find("OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba)")
+    if cache_lookup < 0 or attrs_lookup < 0 or cache_lookup > attrs_lookup:
+        fail("Metal text cache hits must return before looking up UIKit attributes")
+    if "OrenAVMMetalTextAttributeCacheEntryLimit = 256u" not in text_source:
+        fail("Metal text attribute cache must stay bounded")
+    if "NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes" not in text:
+        fail("Metal text attributes must be cached by packed RGBA on the view")
+    if text.count("self.orenTextAttributes") < 4:
+        fail("Metal text creation paths must share the view-owned attribute cache")
     if "[NSString stringWithFormat:" in text_source:
         fail("Metal text cache keys must stay typed objects instead of formatted strings")
     if "@interface OrenAVMMetalTextCacheKey : NSObject <NSCopying>" not in text_header:

@@ -2,6 +2,8 @@
 
 #if TARGET_OS_IPHONE
 
+#import <dispatch/dispatch.h>
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,6 +64,7 @@
 
 static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalTextCacheEntryLimit = 256u;
+static const NSUInteger OrenAVMMetalTextAttributeCacheEntryLimit = 256u;
 static const NSUInteger OrenAVMMetalTextAtlasSize = 1024u;
 static const NSUInteger OrenAVMMetalTextAtlasPadding = 1u;
 
@@ -166,6 +169,34 @@ static void OrenAVMMetalClearTextAtlasPadding(id<MTLTexture> texture,
     }
 }
 
+static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGBA(
+    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* cache,
+    const uint8_t* rgba) {
+    if (!rgba) return nil;
+    uint32_t rgbaValue = (uint32_t)rgba[0] |
+        ((uint32_t)rgba[1] << 8) |
+        ((uint32_t)rgba[2] << 16) |
+        ((uint32_t)rgba[3] << 24);
+    NSNumber* key = @(rgbaValue);
+    NSDictionary<NSAttributedStringKey, id>* cached = cache[key];
+    if (cached) return cached;
+    static UIFont* font = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        font = [UIFont systemFontOfSize:14.0];
+    });
+    UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
+                                     green:(CGFloat)rgba[1] / 255.0
+                                      blue:(CGFloat)rgba[2] / 255.0
+                                     alpha:(CGFloat)rgba[3] / 255.0];
+    NSDictionary<NSAttributedStringKey, id>* attrs = @{
+        NSForegroundColorAttributeName: color,
+        NSFontAttributeName: font
+    };
+    if (cache && cache.count < OrenAVMMetalTextAttributeCacheEntryLimit) cache[key] = attrs;
+    return attrs;
+}
+
 void OrenAVMMetalClearTextTextureCache(NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                        NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
                                        NSUInteger* pixels) {
@@ -180,6 +211,7 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     OrenAVMMetalTextAtlas** atlas,
     NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
     NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
+    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
     NSUInteger* cachePixels,
     NSString* text,
     const uint8_t* rgba) {
@@ -194,15 +226,8 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
         OrenAVMMetalTouchTextCacheKey(order, cacheKey);
         return cached;
     }
-    UIFont* font = [UIFont systemFontOfSize:14.0];
-    UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
-                                     green:(CGFloat)rgba[1] / 255.0
-                                      blue:(CGFloat)rgba[2] / 255.0
-                                     alpha:(CGFloat)rgba[3] / 255.0];
-    NSDictionary<NSAttributedStringKey, id>* attrs = @{
-        NSForegroundColorAttributeName: color,
-        NSFontAttributeName: font
-    };
+    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba);
+    if (!attrs) return nil;
     CGSize textSize = [text sizeWithAttributes:attrs];
     if (textSize.width <= 0.0 || textSize.height <= 0.0) return nil;
 
@@ -353,6 +378,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                OrenAVMMetalTextAtlas** atlas,
                                                NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                                NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
+                                               NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
                                                NSUInteger* cachePixels,
                                                NSString* text,
                                                float x,
@@ -361,7 +387,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                float opacity,
                                                float logicalWidth,
                                                float logicalHeight) {
-    OrenAVMMetalTextCacheEntry* entry = OrenAVMMetalTextCacheEntryForText(device, screen, atlas, cache, order, cachePixels, text, rgba);
+    OrenAVMMetalTextCacheEntry* entry = OrenAVMMetalTextCacheEntryForText(device, screen, atlas, cache, order, attributesCache, cachePixels, text, rgba);
     if (!entry) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
@@ -386,6 +412,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
                                                     OrenAVMMetalTextAtlas** atlas,
                                                     NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                                     NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
+                                                    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
                                                     NSUInteger* cachePixels,
                                                     NSString* text,
                                                     const uint8_t* positions,
@@ -397,7 +424,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
                                                     float logicalWidth,
                                                     float logicalHeight) {
     if (!positions || positionCount == 0) return nil;
-    OrenAVMMetalTextCacheEntry* entry = OrenAVMMetalTextCacheEntryForText(device, screen, atlas, cache, order, cachePixels, text, rgba);
+    OrenAVMMetalTextCacheEntry* entry = OrenAVMMetalTextCacheEntryForText(device, screen, atlas, cache, order, attributesCache, cachePixels, text, rgba);
     if (!entry) return nil;
     if (positionCount == 1) {
         const uint8_t* p = positions;

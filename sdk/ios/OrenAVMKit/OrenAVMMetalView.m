@@ -595,6 +595,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenTextPipelineState;
 @property(nonatomic, strong) NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
 @property(nonatomic, strong) NSMutableArray<OrenAVMMetalTextCacheKey*>* orenTextCacheOrder;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes;
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic, strong, nullable) OrenAVMMetalTextAtlas* orenTextAtlas;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources;
@@ -691,6 +692,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
+    if (!self.orenTextAttributes) self.orenTextAttributes = [NSMutableDictionary dictionary];
     if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
@@ -1508,6 +1510,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                                      &textAtlas,
                                                                      self.orenTextCache,
                                                                      self.orenTextCacheOrder,
+                                                                     self.orenTextAttributes,
                                                                      &textCachePixels,
                                                                      text,
                                                                      (float)x + tx,
@@ -1553,6 +1556,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                                      &textAtlas,
                                                                      self.orenTextCache,
                                                                      self.orenTextCacheOrder,
+                                                                     self.orenTextAttributes,
                                                                      &textCachePixels,
                                                                      resource.text,
                                                                      (float)x + tx,
@@ -1583,6 +1587,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                                           &textAtlas,
                                                                           self.orenTextCache,
                                                                           self.orenTextCacheOrder,
+                                                                          self.orenTextAttributes,
                                                                           &textCachePixels,
                                                                           resource.text,
                                                                           payload + 8,
