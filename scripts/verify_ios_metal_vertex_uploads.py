@@ -71,6 +71,12 @@ def main() -> int:
         fail("Metal text atlas creation must not allocate a full zero buffer")
     if "OrenAVMMetalClearTextAtlasPadding((*atlas).texture, atlasX, atlasY, pixelWidth, pixelHeight)" not in text_source:
         fail("packed Metal text uploads must clear transparent atlas padding")
+    if "NSMutableData* pixels = [NSMutableData dataWithLength:pixelWidth * pixelHeight * 4u]" in text_source:
+        fail("Metal text cache misses must not wrap temporary glyph pixels in NSMutableData")
+    if "uint8_t* pixels = (uint8_t*)malloc(pixelBytes)" not in text_source or "free(pixels)" not in text_source:
+        fail("Metal text cache misses must use raw temporary glyph pixels with explicit cleanup")
+    if "withBytes:pixels.bytes" in text_source or "pixels.mutableBytes" in text_source:
+        fail("Metal text texture uploads must use raw glyph pixel pointers")
     if "OrenAVMMetalTextureQuad" in text_source or "OrenAVMMetalTextureQuad" in text_header:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:

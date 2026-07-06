@@ -3518,6 +3518,10 @@
 </ul>
 <p>  objects, keeping repeated labels on the cached texture path.</p>
 <ul>
+<li>Metal text cache misses now render glyphs into raw temporary pixel buffers</li>
+</ul>
+<p>  instead of allocating <code>NSMutableData</code> wrappers before texture upload.</p>
+<ul>
 <li>Metal text atlas creation now avoids a full zeroed atlas upload buffer and</li>
 </ul>
 <p>  clears only the transparent padding texels around packed glyph regions.</p>

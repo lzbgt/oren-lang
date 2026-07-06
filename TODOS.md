@@ -2553,6 +2553,8 @@ design evidence lives under `project-doc/`.
   text runs with matching texture/scissor/opacity.
 - Metal text cache hits now return before constructing UIKit color/attribute
   objects, keeping repeated labels on the cached texture path.
+- Metal text cache misses now render glyphs into raw temporary pixel buffers
+  instead of allocating `NSMutableData` wrappers before texture upload.
 - Metal text atlas creation now avoids a full zeroed atlas upload buffer and
   clears only the transparent padding texels around packed glyph regions.
 - Metal frame preparation now keeps vertex-run capacity byte-bounded while

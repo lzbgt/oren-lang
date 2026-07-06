@@ -3,6 +3,7 @@
 #if TARGET_OS_IPHONE
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 @implementation OrenAVMMetalTextRun
@@ -209,9 +210,16 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     NSUInteger pixelHeight = (NSUInteger)ceil(textSize.height * scale);
     if (pixelWidth == 0 || pixelHeight == 0 || pixelWidth > 4096u || pixelHeight > 4096u) return nil;
 
-    NSMutableData* pixels = [NSMutableData dataWithLength:pixelWidth * pixelHeight * 4u];
+    if (pixelWidth > ((NSUInteger)-1) / pixelHeight / 4u) return nil;
+    NSUInteger pixelBytes = pixelWidth * pixelHeight * 4u;
+    uint8_t* pixels = (uint8_t*)malloc(pixelBytes);
+    if (!pixels) return nil;
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes,
+    if (!colorSpace) {
+        free(pixels);
+        return nil;
+    }
+    CGContextRef ctx = CGBitmapContextCreate(pixels,
                                              pixelWidth,
                                              pixelHeight,
                                              8,
@@ -219,7 +227,10 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
                                              colorSpace,
                                              kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
     CGColorSpaceRelease(colorSpace);
-    if (!ctx) return nil;
+    if (!ctx) {
+        free(pixels);
+        return nil;
+    }
     CGContextClearRect(ctx, CGRectMake(0.0, 0.0, (CGFloat)pixelWidth, (CGFloat)pixelHeight));
     CGContextScaleCTM(ctx, scale, scale);
     UIGraphicsPushContext(ctx);
@@ -245,7 +256,7 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     if (packed && atlas && *atlas && (*atlas).texture) {
         [(*atlas).texture replaceRegion:MTLRegionMake2D(atlasX, atlasY, pixelWidth, pixelHeight)
                             mipmapLevel:0
-                              withBytes:pixels.bytes
+                              withBytes:pixels
                             bytesPerRow:pixelWidth * 4u];
         OrenAVMMetalClearTextAtlasPadding((*atlas).texture, atlasX, atlasY, pixelWidth, pixelHeight);
         entry.texture = (*atlas).texture;
@@ -260,10 +271,13 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
                                                                                          mipmapped:NO];
         descriptor.usage = MTLTextureUsageShaderRead;
         id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
-        if (!texture) return nil;
+        if (!texture) {
+            free(pixels);
+            return nil;
+        }
         [texture replaceRegion:MTLRegionMake2D(0, 0, pixelWidth, pixelHeight)
                    mipmapLevel:0
-                     withBytes:pixels.bytes
+                     withBytes:pixels
                    bytesPerRow:pixelWidth * 4u];
         entry.texture = texture;
         entry.u0 = 0.0f;
@@ -271,6 +285,7 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
         entry.u1 = 1.0f;
         entry.v1 = 1.0f;
     }
+    free(pixels);
     cache[cacheKey] = entry;
     *cachePixels += entry.pixelCount;
     OrenAVMMetalTouchTextCacheKey(order, cacheKey);

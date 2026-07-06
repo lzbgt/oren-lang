@@ -2199,9 +2199,10 @@ Facts from the 2026-05-28 implementation pass:
   destroy/sub-rect and batched atlas records, and byte-native/retained text
   payloads through Metal pipelines. Its `targetHzMilli` setting
 	  drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
-	  SDK-side LRU texture cache for repeated labels, clears only transparent glyph
-	  padding when creating packed atlas regions instead of uploading a full zeroed
-	  atlas buffer, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated `frame_tick`
+		  SDK-side LRU texture cache for repeated labels, renders cache-miss glyphs into
+		  raw temporary pixel buffers before texture upload, clears only transparent
+		  glyph padding when creating packed atlas regions instead of uploading a full
+		  zeroed atlas buffer, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated `frame_tick`
 	  records so OBC game loops can receive host display timing through the same virtual
 	  event path instead of polling raw platform clocks. Frame ticks are coalesced so
 	  stale timing records cannot fill the input FIFO and starve real input, and SDK
