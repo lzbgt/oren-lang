@@ -3424,6 +3424,12 @@
 <p>  slice conversion, keeping the module fixture green across native, C, and</p>
 <p>  bytecode backends.</p>
 <ul>
+<li>ARM64 native runtime debug-info records now include the required zero</li>
+</ul>
+<p>  parameter-count word, and the ARM64 rtobj backend signature invalidates stale</p>
+<p>  debug sidecars; <code>scripts/verify_arm64_macho_debug_table.py</code> verifies the</p>
+<p>  emitted Mach-O table shape for postmortem native-QI symbolication.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

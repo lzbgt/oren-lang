@@ -2495,6 +2495,10 @@ design evidence lives under `project-doc/`.
 - AVM byte helper intrinsics now match that list-int carrier surface for hex and
   slice conversion, keeping the module fixture green across native, C, and
   bytecode backends.
+- ARM64 native runtime debug-info records now include the required zero
+  parameter-count word, and the ARM64 rtobj backend signature invalidates stale
+  debug sidecars; `scripts/verify_arm64_macho_debug_table.py` verifies the
+  emitted Mach-O table shape for postmortem native-QI symbolication.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

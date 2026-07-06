@@ -164,6 +164,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
                 push_u64_le(p, 0)
                 push_u64_le(p, 0)
                 push_u64_le(p, 0)
+                push_u64_le(p, 0)
             }
             ri1 = ri1 + 1
         }
@@ -180,6 +181,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
                     push_u64_le(p, base + rt_base_code + rt_start)
                     push_u64_le(p, base + rt_base_code + rt_end)
                     _elf_push_utf8_aligned(p, rt_name)
+                    push_u64_le(p, 0)
                     push_u64_le(p, 0)
                     push_u64_le(p, 0)
                     push_u64_le(p, 0)
