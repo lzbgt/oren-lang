@@ -3514,6 +3514,14 @@
 <p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>
 <p>  copying the bytes and then freeing the original buffer.</p>
 <ul>
+<li><code>OrenAVMRunResult</code> now preserves immutable no-copy stdout data without</li>
+</ul>
+<p>  recopying it, while still copying mutable inputs defensively.</p>
+<ul>
+<li>The iOS package installer now borrows stored ZIP entry byte slices directly</li>
+</ul>
+<p>  from the release bundle during CRC/write instead of copying each stored entry.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> now guards the SDK embed-byte ownership contract so</li>
 </ul>
 <p>  hot returned byte buffers do not regress to copy/free handoff.</p>

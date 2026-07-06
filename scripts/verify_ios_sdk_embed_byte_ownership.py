@@ -8,6 +8,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SDK_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMKit.m"
+RUNTIME_TYPES_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMRuntimeTypes.m"
+PACKAGE_STORE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMPackageStore.m"
 EMBED_SOURCE = ROOT / "lib/avm/avm_embed.c"
 
 
@@ -18,6 +20,8 @@ def fail(message: str) -> None:
 
 def main() -> int:
     sdk = SDK_SOURCE.read_text()
+    runtime_types = RUNTIME_TYPES_SOURCE.read_text()
+    package_store = PACKAGE_STORE_SOURCE.read_text()
     embed = EMBED_SOURCE.read_text()
 
     if "void avm_embed_free_bytes(uint8_t* data) {\n    free(data);\n}" not in embed:
@@ -38,6 +42,14 @@ def main() -> int:
     helper_uses = sdk.count("OrenAVMKitDataTakingEmbedBytes(") - 1
     if helper_uses != 4:
         fail(f"expected 4 embed-byte helper uses, found {helper_uses}")
+    if "_stdoutData = [stdoutData copy]" in runtime_types:
+        fail("OrenAVMRunResult must not recopy immutable no-copy stdout NSData")
+    if "[stdoutData isKindOfClass:[NSMutableData class]] ? [stdoutData copy]" not in runtime_types:
+        fail("OrenAVMRunResult must copy only mutable stdout inputs")
+    if "body = [NSData dataWithBytes:compressed length:uncompressedSize]" in package_store:
+        fail("stored ZIP entries must borrow the release-bundle slice instead of copying it")
+    if "body = [NSData dataWithBytesNoCopy:(void*)compressed length:uncompressedSize freeWhenDone:NO]" not in package_store:
+        fail("stored ZIP entries must use no-copy NSData over borrowed release-bundle bytes")
 
     print("OK: iOS SDK embed byte getters use no-copy NSData ownership")
     return 0

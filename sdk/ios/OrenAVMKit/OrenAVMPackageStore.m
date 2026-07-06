@@ -295,7 +295,7 @@ static BOOL OrenAVMPackageWriteZIPEntry(NSData* zipData,
         if (compressedSize != uncompressedSize) {
             return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle stored entry size mismatch");
         }
-        body = [NSData dataWithBytes:compressed length:uncompressedSize];
+        body = [NSData dataWithBytesNoCopy:(void*)compressed length:uncompressedSize freeWhenDone:NO];
     } else if (method == 8) {
         body = OrenAVMPackageInflateRawDeflate(compressed, compressedSize, uncompressedSize);
         if (!body) return OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC release bundle deflate entry failed");

@@ -91,7 +91,7 @@
     _heapUsedBytes = result ? result->heap_used_bytes : 0;
     _ioUsedBytes = result ? result->io_used_bytes : 0;
     _message = result && result->message[0] ? [[NSString alloc] initWithUTF8String:result->message] : @"";
-    _stdoutData = [stdoutData copy] ?: [NSData data];
+    _stdoutData = [stdoutData isKindOfClass:[NSMutableData class]] ? [stdoutData copy] : (stdoutData ?: [NSData data]);
     return self;
 }
 

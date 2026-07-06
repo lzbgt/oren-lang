@@ -2551,6 +2551,10 @@ design evidence lives under `project-doc/`.
 - The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and
   permission-request byte buffers directly into `NSData` ownership instead of
   copying the bytes and then freeing the original buffer.
+- `OrenAVMRunResult` now preserves immutable no-copy stdout data without
+  recopying it, while still copying mutable inputs defensively.
+- The iOS package installer now borrows stored ZIP entry byte slices directly
+  from the release bundle during CRC/write instead of copying each stored entry.
 - `make verify-libavm-ios` now guards the SDK embed-byte ownership contract so
   hot returned byte buffers do not regress to copy/free handoff.
 - Metal single texture-quad emission now writes the six text/image vertices
