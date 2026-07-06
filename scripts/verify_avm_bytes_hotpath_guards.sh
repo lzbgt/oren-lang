@@ -82,6 +82,11 @@ if grep -q 'oren_read_bytes(\|oren_list_len(b)' \
   exit 1
 fi
 
+if grep -q 'oren_read_bytes(path)\|oren_list_len(out)\|out\[[0-9]\]' tests/native/test_integration_suite.oren; then
+  echo "ERROR: native integration FS smoke must validate byte-native oren_read_u8_buf output" >&2
+  exit 1
+fi
+
 if ! grep -q 'fn read_u8_buf(path)' lib/std/fs.oren || grep -q 'var rb = fs.read_bytes\|var rb2 = fs.read_bytes_under' \
   tests/modules/test_fs_std.oren \
   tests/avm/test_std_fs_vfs.oren; then

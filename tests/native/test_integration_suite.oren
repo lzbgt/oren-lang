@@ -772,8 +772,8 @@ fn test_string_eq_semantics() {
     if y != "c" { fail(517) }
 }
 
-fn test_read_bytes_roundtrip() {
-    var path = "build/native_test_integration_read_bytes.bin"
+fn test_read_u8_buf_roundtrip() {
+    var path = "build/native_test_integration_read_u8_buf.bin"
     var bytes = []
     var i = 0
     while i < 4096 {
@@ -784,11 +784,11 @@ fn test_read_bytes_roundtrip() {
         i = i + 1
     }
     oren_write_bytes(path, bytes)
-    var out = oren_read_bytes(path)
-    assert_eq(oren_list_len(out), oren_list_len(bytes), 600)
+    var out = oren_read_u8_buf(path)
+    assert_eq(oren_bytes_len(out), oren_list_len(bytes), 600)
     var j = 0
     while j < oren_list_len(bytes) {
-        if out[j] != bytes[j] { fail(601) }
+        if oren_bytes_get_u8(out, j) != bytes[j] { fail(601) }
         j = j + 1
     }
 }
@@ -1413,7 +1413,7 @@ fn main() {
     test_u8_buf_syscall_io()
     test_u8_buf_wrap_ptr_zero_copy()
     test_string_eq_semantics()
-    test_read_bytes_roundtrip()
+    test_read_u8_buf_roundtrip()
     test_sys_fs_basic()
     test_gc_mem_stats()
     test_net_loopback_minimal()
