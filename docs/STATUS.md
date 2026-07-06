@@ -2631,7 +2631,9 @@ Working evidence:
 	  `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc` to 1990
 	  lines while keeping that platform boundary explicit. Example build and
 	  cross-compile smoke targets now live in `mk/examples.mk`, reducing the
-	  top-level `Makefile` to 1883 lines.
+	  top-level `Makefile` to 1883 lines. Metal primitive vertex/RGBA geometry
+	  helpers now live in `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m`
+	  to 1585 lines.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

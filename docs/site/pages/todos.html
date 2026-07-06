@@ -3597,6 +3597,11 @@
 <p>  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1874 lines</p>
 <p>  and preserving source-line guardrail headroom for continued renderer work.</p>
 <ul>
+<li>Metal primitive vertex/RGBA geometry helpers now live in</li>
+</ul>
+<p>  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines while</p>
+<p>  keeping draw-command parsing and run flushing in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

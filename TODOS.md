@@ -2600,6 +2600,9 @@ design evidence lives under `project-doc/`.
 - Private Metal retained run/resource records and the raw payload-copy helper now
   live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1874 lines
   and preserving source-line guardrail headroom for continued renderer work.
+- Metal primitive vertex/RGBA geometry helpers now live in
+  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines while
+  keeping draw-command parsing and run flushing in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

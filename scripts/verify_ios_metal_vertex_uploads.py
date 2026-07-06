@@ -7,6 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalView.m"
+GEOMETRY_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.h"
+GEOMETRY_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.m"
 RESOURCE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.h"
 RESOURCE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.m"
 TEXT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.m"
@@ -21,8 +23,9 @@ def fail(message: str) -> None:
 
 def main() -> int:
     text = SOURCE.read_text()
+    geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
-    metal_text = text + "\n" + resource_text
+    metal_text = text + "\n" + geometry_text + "\n" + resource_text
     text_source = TEXT_SOURCE.read_text()
     text_header = TEXT_HEADER.read_text()
     if "OrenAVMMetalInlineVertexBytesLimit" not in text:
@@ -41,6 +44,10 @@ def main() -> int:
         fail("geometry vertex buffers must be allocated lazily on first append with bounded capacity")
     if "OrenAVMMetalInitialVertexBuilderCapacity" not in text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in text:
         fail("geometry vertex builder must cap its lazy initial reservation")
+    if '"OrenAVMMetalGeometry.h"' not in text or "OrenAVMMetalAppendRoundRect" not in geometry_text:
+        fail("Metal primitive geometry helpers must live in OrenAVMMetalGeometry")
+    if "static void OrenAVMMetalAppendRoundRect" in text or "static void OrenAVMMetalAppendCircle" in text:
+        fail("Metal view must not inline primitive geometry append helpers")
     if "[NSMutableData data]" in text:
         fail("geometry vertex builder must not default-grow from an uncapped zero-capacity buffer")
     if "run.vertices = [vertices copy]" in text_source:
