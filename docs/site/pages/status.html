@@ -2849,7 +2849,9 @@
 <p>		  retained 2D/3D mesh resource copy/store/remove helpers now live in</p>
 <p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1292 lines</p>
 <p>		  while leaving command payload validation and retained draw decisions in</p>
-<p>		  the view.</p>
+<p>		  the view. Metal retained 2D mesh draw payload expansion now lives in</p>
+<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1276 lines</p>
+<p>		  while keeping retained draw opcode routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

@@ -4,6 +4,7 @@
 #if TARGET_OS_IPHONE
 
 #import <Metal/Metal.h>
+#import "OrenAVMMetalGeometry.h"
 #import "OrenAVMMetalText.h"
 #include <stdint.h>
 
@@ -105,6 +106,13 @@ void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textI
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID);
 OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID);
 OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID);
+void OrenAVMMetalAppendMesh2DResource(OrenAVMMetalMesh2DResource* mesh,
+                                      OrenAVMMetalVertexBuffer* vertices,
+                                      float tx,
+                                      float ty,
+                                      float logicalWidth,
+                                      float logicalHeight,
+                                      float opacity);
 BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
                                    uint32_t meshID,
                                    uint32_t rgbaValue,

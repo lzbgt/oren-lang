@@ -174,6 +174,32 @@ OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef m
     return (__bridge OrenAVMMetalMesh3DResource*)CFDictionaryGetValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
 }
 
+void OrenAVMMetalAppendMesh2DResource(OrenAVMMetalMesh2DResource* mesh,
+                                      OrenAVMMetalVertexBuffer* vertices,
+                                      float tx,
+                                      float ty,
+                                      float logicalWidth,
+                                      float logicalHeight,
+                                      float opacity) {
+    const uint8_t* tris = mesh.triangles;
+    if (!tris || mesh.triangleCount != mesh.triangleBytes / 24u) return;
+    uint8_t rgba[4];
+    OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
+    for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
+        const uint8_t* tri = tris + ((size_t)ti * 24u);
+        OrenAVMMetalAppendTriangle(vertices,
+                                   (float)OrenAVMMetalReadU32LE(tri) + tx,
+                                   (float)OrenAVMMetalReadU32LE(tri + 4) + ty,
+                                   (float)OrenAVMMetalReadU32LE(tri + 8) + tx,
+                                   (float)OrenAVMMetalReadU32LE(tri + 12) + ty,
+                                   (float)OrenAVMMetalReadU32LE(tri + 16) + tx,
+                                   (float)OrenAVMMetalReadU32LE(tri + 20) + ty,
+                                   logicalWidth,
+                                   logicalHeight,
+                                   rgba);
+    }
+}
+
 BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
                                    uint32_t meshID,
                                    uint32_t rgbaValue,

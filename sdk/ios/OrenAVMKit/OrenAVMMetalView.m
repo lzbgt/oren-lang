@@ -652,23 +652,7 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             }
         } else if (opcode == 81 && payloadLen == 4) {
             OrenAVMMetalMesh2DResource* mesh = OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload));
-            const uint8_t* tris = mesh.triangles;
-            if (tris && mesh.triangleCount == mesh.triangleBytes / 24u) {
-                OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
-                for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
-                    const uint8_t* tri = tris + ((size_t)ti * 24u);
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                               (float)OrenAVMMetalReadU32LE(tri) + tx,
-                                               (float)OrenAVMMetalReadU32LE(tri + 4) + ty,
-                                               (float)OrenAVMMetalReadU32LE(tri + 8) + tx,
-                                               (float)OrenAVMMetalReadU32LE(tri + 12) + ty,
-                                               (float)OrenAVMMetalReadU32LE(tri + 16) + tx,
-                                               (float)OrenAVMMetalReadU32LE(tri + 20) + ty,
-                                               (float)logicalW,
-                                               (float)logicalH,
-                                               rgba);
-                }
-            }
+            OrenAVMMetalAppendMesh2DResource(mesh, &vertices, tx, ty, (float)logicalW, (float)logicalH, opacity);
         } else if (opcode == 82 && payloadLen == 4) {
             OrenAVMMetalRemoveMeshResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload));
         } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {

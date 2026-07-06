@@ -175,6 +175,7 @@ def main() -> int:
         "OrenAVMMetalRetainedMeshKey",
         "OrenAVMMetalRetainedMesh2DResource",
         "OrenAVMMetalRetainedMesh3DResource",
+        "OrenAVMMetalAppendMesh2DResource",
         "OrenAVMMetalPutMesh2DResource",
         "OrenAVMMetalRemoveMeshResource",
         "OrenAVMMetalPutPackedMesh3DResource",
@@ -213,6 +214,8 @@ def main() -> int:
         fail("retained Metal mesh resources must use scalar-key CF dictionaries")
     if "OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload))" not in text:
         fail("retained Metal 2D mesh draws must use the scalar-map resource helper")
+    if "OrenAVMMetalAppendMesh2DResource(mesh, &vertices, tx, ty, (float)logicalW, (float)logicalH, opacity)" not in text:
+        fail("retained Metal 2D mesh draws must delegate raw payload expansion to OrenAVMMetalResources")
     if "OrenAVMMetalRetainedMesh3DResource(_orenMeshes3DByID, meshID)" not in text:
         fail("retained Metal 3D mesh draws must use the scalar-map resource helper")
     if "OrenAVMMetalPutMesh2DResource(&_orenMeshesByID," not in text:
@@ -227,6 +230,13 @@ def main() -> int:
         fail("retained Metal 3D mesh removals must use the resource-owned removal helper")
     if "CFDictionarySetValue(_orenMeshes" in text or "CFDictionaryRemoveValue(_orenMeshes" in text:
         fail("retained Metal mesh map mutation must live in OrenAVMMetalResources")
+    retained_2d_start = text.find("} else if (opcode == 81")
+    retained_2d_end = text.find("} else if (opcode == 82", retained_2d_start)
+    if retained_2d_start < 0 or retained_2d_end < 0:
+        fail("missing retained Metal 2D draw block")
+    retained_2d_block = text[retained_2d_start:retained_2d_end]
+    if "mesh.triangles" in retained_2d_block or "mesh.triangleCount" in retained_2d_block:
+        fail("retained Metal 2D draw block must not expand resource payloads in the view")
     if "NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources" in text:
         fail("retained Metal text lookups must avoid boxed NSNumber text IDs")
     if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:
