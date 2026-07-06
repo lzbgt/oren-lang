@@ -69,6 +69,10 @@ def main() -> int:
         fail("CoreGraphics retained images must not store bare UIImage values")
     if "orenImagePixels" in text:
         fail("CoreGraphics retained image pixel accounting must not use a parallel dictionary")
+    if "NSData* imageData = [NSData dataWithBytes:rgba" in text or "CGDataProviderCreateWithCFData" in text:
+        fail("CoreGraphics retained image uploads must use provider-owned raw bytes, not NSData wrappers")
+    if "CGDataProviderCreateWithData(NULL, imageBytes" not in text or "OrenAVMGfxReleaseImageBytes" not in text:
+        fail("CoreGraphics retained image uploads must transfer raw bytes to the CG provider release callback")
     if "OrenAVMGfxSubrectInImage" not in text:
         fail("CoreGraphics retained image sub-rect checks must use the overflow-safe helper")
     if "OrenAVMGfxDrawImageSubrect" not in text:

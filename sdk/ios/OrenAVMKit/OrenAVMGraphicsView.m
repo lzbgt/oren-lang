@@ -207,12 +207,23 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributes(uint32_
     };
 }
 
+static void OrenAVMGfxReleaseImageBytes(void* info, const void* data, size_t size) {
+    (void)info;
+    (void)size;
+    free((void*)data);
+}
+
 static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount) {
     uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
     if (!rgba || width == 0 || height == 0 || expected != (uint64_t)byteCount) return nil;
-    NSData* imageData = [NSData dataWithBytes:rgba length:(NSUInteger)byteCount];
-    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)imageData);
-    if (!provider) return nil;
+    uint8_t* imageBytes = (uint8_t*)malloc((size_t)byteCount);
+    if (!imageBytes) return nil;
+    memcpy(imageBytes, rgba, (size_t)byteCount);
+    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, imageBytes, (size_t)byteCount, OrenAVMGfxReleaseImageBytes);
+    if (!provider) {
+        free(imageBytes);
+        return nil;
+    }
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     CGImageRef image = CGImageCreate((size_t)width,
                                      (size_t)height,
