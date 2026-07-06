@@ -2360,9 +2360,10 @@ a temporary mutable-data append/copy pair for common single-run draws.
   shared checked byte views for non-contiguous view/matrix fallbacks, while contiguous
   slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
-		  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
-		  now exposes shared checked byte views plus explicit unchecked hot-loop
-			  u8/u32/i32/u64 little-endian readers, CBOR canonical key ordering/text
+			  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
+			  now exposes shared checked byte views plus explicit unchecked hot-loop
+				  u8/u32/i32/u64 little-endian and u16/u32/u64 big-endian readers,
+			  CBOR canonical key ordering/text
 				  encoding writes growable `u8_buf` output while byte-string
 				  encoding plus recursive/sequence decode use shared `std:bytes` byte views,
 			  full regex

@@ -39,4 +39,9 @@ if grep -q 'fn _read_event_u8\|fn _read_u16_le\|fn _read_u32_le\|fn _read_u64_le
   exit 1
 fi
 
+if grep -q 'fn _read_u16be\|fn _read_u32be\|fn _read_u64be' lib/std/cbor.oren; then
+  echo "ERROR: std:cbor decode must use shared std:bytes big-endian byte-view readers directly" >&2
+  exit 1
+fi
+
 echo "OK: AVM bytes hotpath source guards passed"

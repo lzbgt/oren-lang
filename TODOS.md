@@ -2388,6 +2388,8 @@ design evidence lives under `project-doc/`.
 - `std:cbor` byte-string encoding plus recursive and sequence decoding now carry
   one cached byte view with length and optional u8 carrier pointer per operation
   while retaining list-compatible byte input fallback.
+- `std:bytes` now exposes shared big-endian byte-view readers, and CBOR decode
+  uses them directly instead of maintaining local endian read wrappers.
 - `std:ui/commands` validation now caches u8 payload pointers for geometry,
   indexed-mesh, text-position, and image-rect byte fields while retaining
   list-compatible byte input fallback.

@@ -295,27 +295,6 @@ fn _need(v, pos, n) {
     return 1
 }
 
-fn _read_u16be(v, pos) {
-    return (bytem.view_get_u8_unchecked(v, pos) << 8) | bytem.view_get_u8_unchecked(v, pos + 1)
-}
-
-fn _read_u32be(v, pos) {
-    return (bytem.view_get_u8_unchecked(v, pos) << 24) |
-        (bytem.view_get_u8_unchecked(v, pos + 1) << 16) |
-        (bytem.view_get_u8_unchecked(v, pos + 2) << 8) |
-        bytem.view_get_u8_unchecked(v, pos + 3)
-}
-
-fn _read_u64be(v, pos) {
-    var acc = 0
-    var i = 0
-    while i < 8 {
-        acc = (acc << 8) | bytem.view_get_u8_unchecked(v, pos + i)
-        i = i + 1
-    }
-    return acc
-}
-
 fn _read_uint_arg(v, pos, ai) {
     // Returns {"ok":1,"n":<uint>,"pos":newpos} or err
     if ai < 24 { return {"ok": 1, "n": ai, "pos": pos} }
@@ -325,15 +304,15 @@ fn _read_uint_arg(v, pos, ai) {
     }
     if ai == 25 {
         if _need(v, pos, 2) != 1 { return _err("unexpected EOF", pos) }
-        return {"ok": 1, "n": _read_u16be(v, pos), "pos": pos + 2}
+        return {"ok": 1, "n": bytem.view_get_u16_be_unchecked(v, pos), "pos": pos + 2}
     }
     if ai == 26 {
         if _need(v, pos, 4) != 1 { return _err("unexpected EOF", pos) }
-        return {"ok": 1, "n": _read_u32be(v, pos), "pos": pos + 4}
+        return {"ok": 1, "n": bytem.view_get_u32_be_unchecked(v, pos), "pos": pos + 4}
     }
     if ai == 27 {
         if _need(v, pos, 8) != 1 { return _err("unexpected EOF", pos) }
-        return {"ok": 1, "n": _read_u64be(v, pos), "pos": pos + 8}
+        return {"ok": 1, "n": bytem.view_get_u64_be_unchecked(v, pos), "pos": pos + 8}
     }
     return _err("unsupported additional info", pos)
 }

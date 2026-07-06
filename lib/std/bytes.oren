@@ -93,6 +93,18 @@ fn _u32_le_from_ptr(p, off) {
         ((ptr_get_byte(p + off + 3) & 255) << 24)
 }
 
+fn _u16_be_from_ptr(p, off) {
+    return ((ptr_get_byte(p + off) & 255) << 8) |
+        (ptr_get_byte(p + off + 1) & 255)
+}
+
+fn _u32_be_from_ptr(p, off) {
+    return ((ptr_get_byte(p + off) & 255) << 24) |
+        ((ptr_get_byte(p + off + 1) & 255) << 16) |
+        ((ptr_get_byte(p + off + 2) & 255) << 8) |
+        (ptr_get_byte(p + off + 3) & 255)
+}
+
 fn view(bs, ctx) {
     var n = _len_or_err(bs, ctx)
     if oren_is_err(n) { return n }
@@ -123,6 +135,30 @@ fn view_get_u8(v, idx) {
     var ok = _view_check(v, idx, 1, "u8 read")
     if oren_is_err(ok) { return ok }
     return view_get_u8_unchecked(v, idx)
+}
+
+fn view_get_u16_be_unchecked(v, idx) {
+    var p = view_ptr(v)
+    if p != nil { return _u16_be_from_ptr(p, idx) }
+    return get_u16_be(view_bytes(v), idx)
+}
+
+fn view_get_u16_be(v, idx) {
+    var ok = _view_check(v, idx, 2, "u16 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u16_be_unchecked(v, idx)
+}
+
+fn view_get_u32_be_unchecked(v, idx) {
+    var p = view_ptr(v)
+    if p != nil { return _u32_be_from_ptr(p, idx) }
+    return get_u32_be(view_bytes(v), idx)
+}
+
+fn view_get_u32_be(v, idx) {
+    var ok = _view_check(v, idx, 4, "u32 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u32_be_unchecked(v, idx)
 }
 
 fn view_get_u32_le_unchecked(v, idx) {
@@ -164,6 +200,22 @@ fn view_get_u64_le(v, idx) {
     var ok = _view_check(v, idx, 8, "u64 read")
     if oren_is_err(ok) { return ok }
     return view_get_u64_le_unchecked(v, idx)
+}
+
+fn view_get_u64_be_unchecked(v, idx) {
+    var acc = 0
+    var i = 0
+    while i < 8 {
+        acc = (acc << 8) | view_get_u8_unchecked(v, idx + i)
+        i = i + 1
+    }
+    return acc
+}
+
+fn view_get_u64_be(v, idx) {
+    var ok = _view_check(v, idx, 8, "u64 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u64_be_unchecked(v, idx)
 }
 
 fn _store_u16_be(bytes, idx, v) {
