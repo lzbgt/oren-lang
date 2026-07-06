@@ -3547,8 +3547,8 @@
 <ul>
 <li>CoreGraphics retained mesh/material fallback records now use typed mesh</li>
 </ul>
-<p>  resources and scalar RGBA material values instead of dictionary payloads and</p>
-<p>  retained <code>UIColor</code> material objects.</p>
+<p>  resources, scalar-key mesh lookup, and scalar RGBA material values instead of</p>
+<p>  dictionary payloads, boxed mesh IDs, and retained <code>UIColor</code> material objects.</p>
 <ul>
 <li>CoreGraphics and Metal retained mesh payloads now live in raw resource-owned</li>
 </ul>
@@ -3584,6 +3584,10 @@
 <p>  parallel texture/pixel dictionaries, with overflow-safe upload accounting and</p>
 <p>  sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture</p>
 <p>  dimensions for batched image rects.</p>
+<ul>
+<li>Metal retained 2D/3D mesh resources now use scalar-key maps instead of boxed</li>
+</ul>
+<p>  mesh ID dictionary keys.</p>
 <ul>
 <li>CoreGraphics and Metal retained model resources now use typed resource records</li>
 </ul>

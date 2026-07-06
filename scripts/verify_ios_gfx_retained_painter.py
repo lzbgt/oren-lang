@@ -48,6 +48,12 @@ def main() -> int:
         fail("CoreGraphics immediate primitive color fast path is missing")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes' in text:
         fail("CoreGraphics retained meshes must not use dictionary payload records")
+    if "NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes" in text:
+        fail("CoreGraphics retained mesh lookups must avoid boxed NSNumber mesh IDs")
+    if "CFMutableDictionaryRef _orenMeshesByID" not in text:
+        fail("CoreGraphics retained mesh resources must use a scalar-key CF dictionary")
+    if "OrenAVMGfxRetainedMeshResource(_orenMeshesByID, meshID)" not in text:
+        fail("CoreGraphics retained 3D mesh draws must use the scalar-map resource helper")
     if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
         fail("CoreGraphics retained mesh payloads must stay raw owned buffers, not NSData wrappers")
     for pattern in (

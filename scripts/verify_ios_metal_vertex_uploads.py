@@ -136,6 +136,16 @@ def main() -> int:
         fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
     if "@property(nonatomic) uint32_t rgbaValue" not in metal_text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
         fail("missing scalar RGBA storage for retained Metal mesh/text resources")
+    if "NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes" in text:
+        fail("retained Metal 2D mesh lookups must avoid boxed NSNumber mesh IDs")
+    if "NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D" in text:
+        fail("retained Metal 3D mesh lookups must avoid boxed NSNumber mesh IDs")
+    if "CFMutableDictionaryRef _orenMeshesByID" not in text or "CFMutableDictionaryRef _orenMeshes3DByID" not in text:
+        fail("retained Metal mesh resources must use scalar-key CF dictionaries")
+    if "OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload))" not in text:
+        fail("retained Metal 2D mesh draws must use the scalar-map resource helper")
+    if "OrenAVMMetalRetainedMesh3DResource(_orenMeshes3DByID, meshID)" not in text:
+        fail("retained Metal 3D mesh draws must use the scalar-map resource helper")
     if "NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources" in text:
         fail("retained Metal text lookups must avoid boxed NSNumber text IDs")
     if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:

@@ -77,6 +77,20 @@ static OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRe
     return (__bridge OrenAVMMetalTextResource*)CFDictionaryGetValue(texts, OrenAVMMetalRetainedTextKey(textID));
 }
 
+static const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID) {
+    return (const void*)(uintptr_t)((uint64_t)meshID + 1ull);
+}
+
+static OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID) {
+    if (!meshes || meshID == 0) return nil;
+    return (__bridge OrenAVMMetalMesh2DResource*)CFDictionaryGetValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
+}
+
+static OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID) {
+    if (!meshes || meshID == 0) return nil;
+    return (__bridge OrenAVMMetalMesh3DResource*)CFDictionaryGetValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
+}
+
 static const void* OrenAVMMetalRetainedMaterialKey(uint32_t materialID) {
     return (const void*)(uintptr_t)((uint64_t)materialID + 1ull);
 }
@@ -313,6 +327,8 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 @interface OrenAVMMetalView () <MTKViewDelegate> {
     CFMutableDictionaryRef _orenTouchIDs;
     CFMutableDictionaryRef _orenTextResourcesByID;
+    CFMutableDictionaryRef _orenMeshesByID;
+    CFMutableDictionaryRef _orenMeshes3DByID;
     CFMutableDictionaryRef _orenMaterials3DByID;
     CFMutableDictionaryRef _orenModels3DByID;
     CFMutableDictionaryRef _orenImagesByID;
@@ -325,8 +341,6 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 @property(nonatomic, strong) OrenAVMMetalTextAttributeCache* orenTextAttributes;
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic, strong, nullable) OrenAVMMetalTextAtlas* orenTextAtlas;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic) uint32_t orenFrameTickSequence;
 @property(nonatomic) uint64_t orenLastFrameTickNs;
@@ -412,6 +426,14 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         CFRelease(_orenTextResourcesByID);
         _orenTextResourcesByID = NULL;
     }
+    if (_orenMeshesByID) {
+        CFRelease(_orenMeshesByID);
+        _orenMeshesByID = NULL;
+    }
+    if (_orenMeshes3DByID) {
+        CFRelease(_orenMeshes3DByID);
+        _orenMeshes3DByID = NULL;
+    }
     if (_orenMaterials3DByID) {
         CFRelease(_orenMaterials3DByID);
         _orenMaterials3DByID = NULL;
@@ -436,8 +458,8 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
     if (!self.orenTextAttributes) self.orenTextAttributes = [[OrenAVMMetalTextAttributeCache alloc] init];
     if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
-    if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
+    if (!_orenMeshesByID) _orenMeshesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!_orenMeshes3DByID) _orenMeshes3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
@@ -1019,10 +1041,10 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                     continue;
                 }
                 mesh.triangleCount = triangleCount;
-                self.orenMeshes[@(meshID)] = mesh;
+                if (_orenMeshesByID) CFDictionarySetValue(_orenMeshesByID, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
             }
         } else if (opcode == 81 && payloadLen == 4) {
-            OrenAVMMetalMesh2DResource* mesh = self.orenMeshes[@(OrenAVMMetalReadU32LE(payload))];
+            OrenAVMMetalMesh2DResource* mesh = OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload));
             const uint8_t* tris = mesh.triangles;
             if (tris && mesh.triangleCount == mesh.triangleBytes / 24u) {
                 OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
@@ -1041,7 +1063,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                 }
             }
         } else if (opcode == 82 && payloadLen == 4) {
-            [self.orenMeshes removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];
+            if (_orenMeshesByID) CFDictionaryRemoveValue(_orenMeshesByID, OrenAVMMetalRetainedMeshKey(OrenAVMMetalReadU32LE(payload)));
         } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
             uint32_t meshID = OrenAVMMetalReadU32LE(payload);
             uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 8);
@@ -1057,7 +1079,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                 }
                 mesh.triangleCount = triangleCount;
                 mesh.stride = 36u;
-                self.orenMeshes3D[@(meshID)] = mesh;
+                if (_orenMeshes3DByID) CFDictionarySetValue(_orenMeshes3DByID, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
             }
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
                    (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
@@ -1081,7 +1103,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                 modelZ = model.z;
                 scaleMilli = model.scaleMilli;
             }
-            OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(meshID)];
+            OrenAVMMetalMesh3DResource* mesh = OrenAVMMetalRetainedMesh3DResource(_orenMeshes3DByID, meshID);
             BOOL hasMaterialRGBA = NO;
             uint32_t materialRGBAOverride = 0;
             if (opcode == 90 || opcode == 91) {
@@ -1187,7 +1209,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                 free(heapOrder);
             }
         } else if (opcode == 85 && payloadLen == 4) {
-            [self.orenMeshes3D removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];
+            if (_orenMeshes3DByID) CFDictionaryRemoveValue(_orenMeshes3DByID, OrenAVMMetalRetainedMeshKey(OrenAVMMetalReadU32LE(payload)));
         } else if (opcode == 89 && payloadLen == 8) {
             uint32_t materialID = OrenAVMMetalReadU32LE(payload);
             if (materialID != 0) {
@@ -1232,7 +1254,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                 }
                 mesh.triangleCount = triangleCount;
                 mesh.stride = 40u;
-                self.orenMeshes3D[@(meshID)] = mesh;
+                if (_orenMeshes3DByID) CFDictionarySetValue(_orenMeshes3DByID, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
             }
         } else if (opcode == 88 && payloadLen >= 64) {
             uint32_t meshID = OrenAVMMetalReadU32LE(payload);
@@ -1260,7 +1282,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                     continue;
                 }
                 mesh.indexCount = indexCount;
-                self.orenMeshes3D[@(meshID)] = mesh;
+                if (_orenMeshes3DByID) CFDictionarySetValue(_orenMeshes3DByID, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
             }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMMetalReadU32LE(payload);

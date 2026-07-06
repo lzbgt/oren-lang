@@ -2571,8 +2571,8 @@ design evidence lives under `project-doc/`.
 - Retained Metal 3D material override draws now unbox the material RGBA once per
   draw instead of sending `NSNumber.unsignedIntValue` inside triangle loops.
 - CoreGraphics retained mesh/material fallback records now use typed mesh
-  resources and scalar RGBA material values instead of dictionary payloads and
-  retained `UIColor` material objects.
+  resources, scalar-key mesh lookup, and scalar RGBA material values instead of
+  dictionary payloads, boxed mesh IDs, and retained `UIColor` material objects.
 - CoreGraphics and Metal retained mesh payloads now live in raw resource-owned
   buffers instead of retained `NSData` wrappers, preserving lifetime safety while
   removing per-mesh payload objects from retained draw paths.
@@ -2596,6 +2596,8 @@ design evidence lives under `project-doc/`.
   parallel texture/pixel dictionaries, with overflow-safe upload accounting and
   sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture
   dimensions for batched image rects.
+- Metal retained 2D/3D mesh resources now use scalar-key maps instead of boxed
+  mesh ID dictionary keys.
 - CoreGraphics and Metal retained model resources now use typed resource records
   instead of string-keyed dictionaries, removing per-draw model field lookups and
   boxed model ID lookups.

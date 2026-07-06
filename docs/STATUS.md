@@ -2210,7 +2210,7 @@ Facts from the 2026-05-28 implementation pass:
 	  publisher consumes the latest retained frame without building an unbounded UI
 	  task backlog. The Metal
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-		      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append and transfer raw buffers into vertex-run ownership, retained Metal material override draws resolve material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; CoreGraphics and Metal retained image, text, material, and model lookups use scalar IDs instead of boxed dictionary keys; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with a scalar one-entry MRU to reduce repeated same-color miss overhead. UIKit/CoreGraphics
+	      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append and transfer raw buffers into vertex-run ownership, retained Metal material override draws resolve material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; CoreGraphics and Metal retained image, text, mesh, material, and model lookups use scalar IDs instead of boxed dictionary keys; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with a scalar one-entry MRU to reduce repeated same-color miss overhead. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
@@ -2298,11 +2298,13 @@ mutable-data append/copy pair for common single-run draws. Retained
 Metal mesh, material, and text resource colors now keep 4-byte RGBA values as
 scalars instead of allocating `NSData` wrappers for each color, and the
 CoreGraphics retained mesh/material fallback now stores typed mesh resource
-records plus scalar RGBA material values instead of dictionary payloads and
-retained `UIColor` material objects. CoreGraphics and Metal retained mesh
-payloads now live in raw resource-owned buffers instead of retained `NSData`
-wrappers, preserving lifetime safety while removing per-mesh payload objects
-from retained draw paths. The private Metal retained run/resource record classes
+records plus scalar-key mesh lookup and scalar RGBA material values instead of
+dictionary payloads, boxed mesh IDs, and retained `UIColor` material objects.
+CoreGraphics and Metal retained mesh payloads now live in raw resource-owned
+buffers instead of retained `NSData` wrappers, and Metal retained 2D/3D mesh
+resources use scalar-key maps instead of boxed mesh ID dictionary keys,
+preserving lifetime safety while removing per-mesh payload objects and boxed
+lookups from retained draw paths. The private Metal retained run/resource record classes
 and raw payload-copy helper now live in `OrenAVMMetalResources`, keeping
 `OrenAVMMetalView.m` below the 2000-line guardrail with headroom for continued
 renderer work. CoreGraphics immediate primitive draws now set
