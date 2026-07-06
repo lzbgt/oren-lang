@@ -2505,8 +2505,10 @@
 <p>		  magic/endian reads use cached u8 pointers after upfront validation with</p>
 <p>		  the old per-byte checked metadata helper removed,</p>
 <p>		  compiler-in-AVM VirtualFS fixture</p>
-<p>			  snapshots through exact-size AVMVFS01 <code>u8_buf</code> writes and byte-buffer body</p>
-<p>			  slices, compiler SHA digest hex routing through direct runtime bytes hex, OBC/OBX parse and link loops use shared compiler-local byte views with overflow-safe span checks and guarded unchecked readers for u8 carriers, parsed OBC code and byte constants kept as <code>u8_buf</code>, builder-patched linked code, linked OBC final emission as <code>u8_buf</code>, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw</p>
+<p>		  snapshots through exact-size AVMVFS01 <code>u8_buf</code> writes and byte-buffer body</p>
+<p>		  slices, <code>std:ui/commands</code> strict byte validations now call shared</p>
+<p>		  <code>std:bytes</code> views directly instead of retaining local byte-view aliases,</p>
+<p>		  compiler SHA digest hex routing through direct runtime bytes hex, OBC/OBX parse and link loops use shared compiler-local byte views with overflow-safe span checks and guarded unchecked readers for u8 carriers, parsed OBC code and byte constants kept as <code>u8_buf</code>, builder-patched linked code, linked OBC final emission as <code>u8_buf</code>, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw</p>
 <p>	  writes plus bounded u8 decode reads, native Mach-O/ELF object string payloads, runtime-object debug-name</p>
 <p>	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,</p>
 <p>	  native capsule mount path resolution, realpath segment output, readdir names,</p>

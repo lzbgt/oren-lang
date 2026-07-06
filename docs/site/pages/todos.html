@@ -3513,7 +3513,9 @@
 <li><code>make verify-avm-bytes-hotpath-guards</code> now centralizes byte-hotpath source</li>
 </ul>
 <p>  invariants, including the removed bytecode final-write list fallback and the</p>
-<p>  removed runtime-object per-byte checked metadata helper.</p>
+<p>  removed runtime-object per-byte checked metadata helper. It also prevents</p>
+<p>  <code>std:ui/commands</code> from reintroducing local byte-view aliases instead of using</p>
+<p>  shared <code>std:bytes</code> views directly.</p>
 <ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>

@@ -24,4 +24,9 @@ if grep -q 'fn _rtobj_u8_at' lib/compiler/native_runtime_obj_cache.oren; then
   exit 1
 fi
 
+if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands.oren; then
+  echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
+  exit 1
+fi
+
 echo "OK: AVM bytes hotpath source guards passed"
