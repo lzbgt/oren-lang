@@ -2328,8 +2328,8 @@ immutable cache keys instead of formatted strings that copy the full label into
 every lookup key. iOS SDK typed GFX input helpers now build
 fixed-size `OGE0` events on stack and enqueue raw bytes directly; text and
 composition events use segmented stack-first construction, encode UTF-8 directly
-into the final event buffer, and use one heap event fallback only for large
-payloads; CoreGraphics plus Metal touch tracking
+into the final event buffer, and use one raw heap event fallback, not an
+Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking
 keep active pointer IDs in scalar pointer maps instead of retaining per-touch
 `NSNumber` boxes. The
 iOS SDK symbol verifier

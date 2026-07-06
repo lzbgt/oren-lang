@@ -3690,7 +3690,8 @@
 </ul>
 <p>  and enqueue raw bytes directly; text/composition events use segmented</p>
 <p>  stack-first construction, encode UTF-8 directly into the final event buffer,</p>
-<p>  and use one heap event fallback only for large payloads.</p>
+<p>  and use one raw heap event fallback, not an Objective-C data wrapper, only</p>
+<p>  for large payloads.</p>
 <ul>
 <li>CoreGraphics and Metal touch tracking now store active touch pointer IDs as</li>
 </ul>

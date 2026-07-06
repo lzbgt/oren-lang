@@ -1,5 +1,6 @@
 #import "OrenAVMKit.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 @interface OrenAVMRuntime (GFXInputRaw)
@@ -40,6 +41,15 @@ static void OrenAVMGFXInputWriteEvent(uint8_t* buf,
     if (suffixLen > 0 && suffix) memcpy(buf + 12 + prefixLen, suffix, suffixLen);
 }
 
+static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* message) {
+    if (error) {
+        *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
+                                     code:code
+                                 userInfo:@{NSLocalizedDescriptionKey: message ?: @"OrenAVMKit error"}];
+    }
+    return NO;
+}
+
 static BOOL OrenAVMGFXInputPutEventParts(OrenAVMRuntime* runtime,
                                          uint8_t opcode,
                                          const uint8_t* prefix,
@@ -55,22 +65,16 @@ static BOOL OrenAVMGFXInputPutEventParts(OrenAVMRuntime* runtime,
         OrenAVMGFXInputWriteEvent(stackEvent, opcode, prefix, prefixLen, suffix, suffixLen);
         return [runtime orenPutGraphicsInputEventBytes:stackEvent length:totalLen error:error];
     }
-    NSMutableData* event = [NSMutableData dataWithLength:totalLen];
-    OrenAVMGFXInputWriteEvent((uint8_t*)event.mutableBytes, opcode, prefix, prefixLen, suffix, suffixLen);
-    return [runtime orenPutGraphicsInputEventBytes:event.bytes length:event.length error:error];
+    uint8_t* event = (uint8_t*)malloc(totalLen);
+    if (!event) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_VM, @"failed to allocate GFX input event");
+    OrenAVMGFXInputWriteEvent(event, opcode, prefix, prefixLen, suffix, suffixLen);
+    BOOL ok = [runtime orenPutGraphicsInputEventBytes:event length:totalLen error:error];
+    free(event);
+    return ok;
 }
 
 static BOOL OrenAVMGFXInputPutEvent(OrenAVMRuntime* runtime, uint8_t opcode, const uint8_t* payload, uint16_t payloadLen, NSError** error) {
     return OrenAVMGFXInputPutEventParts(runtime, opcode, payload, payloadLen, NULL, 0, error);
-}
-
-static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* message) {
-    if (error) {
-        *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
-                                     code:code
-                                 userInfo:@{NSLocalizedDescriptionKey: message ?: @"OrenAVMKit error"}];
-    }
-    return NO;
 }
 
 static BOOL OrenAVMGFXInputWriteUTF8(NSString* text, uint8_t* dst, NSUInteger expectedLen) {
@@ -108,13 +112,16 @@ static BOOL OrenAVMGFXInputPutUTF8EventParts(OrenAVMRuntime* runtime,
         }
         return [runtime orenPutGraphicsInputEventBytes:stackEvent length:totalLen error:error];
     }
-    NSMutableData* event = [NSMutableData dataWithLength:totalLen];
-    uint8_t* bytes = (uint8_t*)event.mutableBytes;
-    OrenAVMGFXInputWriteEvent(bytes, opcode, prefix, prefixLen, NULL, suffixLen);
-    if (!OrenAVMGFXInputWriteUTF8(text, bytes + 12 + prefixLen, utf8Len)) {
+    uint8_t* event = (uint8_t*)malloc(totalLen);
+    if (!event) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_VM, @"failed to allocate GFX input event");
+    OrenAVMGFXInputWriteEvent(event, opcode, prefix, prefixLen, NULL, suffixLen);
+    if (!OrenAVMGFXInputWriteUTF8(text, event + 12 + prefixLen, utf8Len)) {
+        free(event);
         return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, invalidMessage);
     }
-    return [runtime orenPutGraphicsInputEventBytes:event.bytes length:event.length error:error];
+    BOOL ok = [runtime orenPutGraphicsInputEventBytes:event length:totalLen error:error];
+    free(event);
+    return ok;
 }
 
 @implementation OrenAVMRuntime (GFXInput)

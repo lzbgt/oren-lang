@@ -43,8 +43,10 @@ def main() -> int:
         fail("missing stack-first GFX input event construction helper")
     if "OrenAVMGFXInputPutUTF8EventParts" not in input_text or "OrenAVMGFXInputWriteUTF8" not in input_text:
         fail("missing direct UTF-8 GFX input event helper")
-    if "NSMutableData* event = [NSMutableData dataWithLength:totalLen]" not in input_text:
-        fail("large variable GFX input events need exactly one event buffer fallback")
+    if "NSMutableData* event" in input_text or "[NSMutableData dataWithLength:totalLen]" in input_text:
+        fail("large variable GFX input events must use raw heap buffers, not NSMutableData wrappers")
+    if input_text.count("uint8_t* event = (uint8_t*)malloc(totalLen)") != 2 or input_text.count("free(event)") < 3:
+        fail("large variable GFX input events need raw heap fallbacks with explicit cleanup")
     if input_text.count("OrenAVMGFXInputPutEvent(self,") < 7:
         fail("fixed-size GFX input helpers must use the stack-backed event helper")
     if input_text.count("OrenAVMGFXInputPutUTF8EventParts(self,") != 2:
