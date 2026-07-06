@@ -3495,6 +3495,11 @@
 <p>  bytecode into a legacy <code>list&lt;int&gt;</code> fallback on any write failure; the</p>
 <p>  bytecode-link smoke now guards that the fallback stays removed.</p>
 <ul>
+<li>Runtime-object cache metadata check endian reads now validate each u8-buffer</li>
+</ul>
+<p>  span once and read through one cached pointer, instead of revalidating and</p>
+<p>  reloading the buffer pointer for every byte.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

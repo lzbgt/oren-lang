@@ -2540,6 +2540,9 @@ design evidence lives under `project-doc/`.
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the
   bytecode-link smoke now guards that the fallback stays removed.
+- Runtime-object cache metadata check endian reads now validate each u8-buffer
+  span once and read through one cached pointer, instead of revalidating and
+  reloading the buffer pointer for every byte.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

@@ -332,18 +332,33 @@ fn _rtobj_u8_at(ub, idx) {
 }
 
 fn _rtobj_read_u32_le(ub, off) {
-    var b0 = _rtobj_u8_at(ub, off + 0); if b0 < 0 { return -1 }
-    var b1 = _rtobj_u8_at(ub, off + 1); if b1 < 0 { return -1 }
-    var b2 = _rtobj_u8_at(ub, off + 2); if b2 < 0 { return -1 }
-    var b3 = _rtobj_u8_at(ub, off + 3); if b3 < 0 { return -1 }
-    return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216
+    if ub == nil { return -1 }
+    if oren_is_u8_buf(ub) != true { return -1 }
+    var n = oren_buf_len(ub)
+    if off < 0 || n < 4 || off > n - 4 { return -1 }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return -1 }
+    return (ptr_get_byte(iadd(p, off + 0)) & 255) +
+        (ptr_get_byte(iadd(p, off + 1)) & 255) * 256 +
+        (ptr_get_byte(iadd(p, off + 2)) & 255) * 65536 +
+        (ptr_get_byte(iadd(p, off + 3)) & 255) * 16777216
 }
 
 fn _rtobj_read_u64_le(ub, off) {
-    var lo = _rtobj_read_u32_le(ub, off)
-    if lo < 0 { return -1 }
-    var hi = _rtobj_read_u32_le(ub, off + 4)
-    if hi < 0 { return -1 }
+    if ub == nil { return -1 }
+    if oren_is_u8_buf(ub) != true { return -1 }
+    var n = oren_buf_len(ub)
+    if off < 0 || n < 8 || off > n - 8 { return -1 }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return -1 }
+    var lo = (ptr_get_byte(iadd(p, off + 0)) & 255) +
+        (ptr_get_byte(iadd(p, off + 1)) & 255) * 256 +
+        (ptr_get_byte(iadd(p, off + 2)) & 255) * 65536 +
+        (ptr_get_byte(iadd(p, off + 3)) & 255) * 16777216
+    var hi = (ptr_get_byte(iadd(p, off + 4)) & 255) +
+        (ptr_get_byte(iadd(p, off + 5)) & 255) * 256 +
+        (ptr_get_byte(iadd(p, off + 6)) & 255) * 65536 +
+        (ptr_get_byte(iadd(p, off + 7)) & 255) * 16777216
     return lo + hi * 4294967296
 }
 
