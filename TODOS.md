@@ -2652,6 +2652,9 @@ design evidence lives under `project-doc/`.
 - Example build and cross-compile smoke targets now live in `mk/examples.mk`,
   reducing the top-level `Makefile` to 1883 lines and preserving source-line
   guardrail headroom as verification targets continue to grow.
+- Native all-test, full verify, AVM build, and libavm verification targets now
+  live in `mk/native_avm.mk`, reducing the top-level `Makefile` to 1732 lines
+  while preserving the existing target names and include-time variable scope.
 - Std math inverse-trig and hypotenuse helpers now live in
   `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
   preserving the `std:math` import surface through compile-time include

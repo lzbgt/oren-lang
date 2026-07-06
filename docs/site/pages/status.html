@@ -2792,9 +2792,10 @@
 <p>  <code>std/math/atan_hypot.oren</code>, reducing <code>std/math.oren</code> to 1738 lines while</p>
 <p>  preserving the <code>std:math</code> import surface through compile-time include</p>
 <p>  expansion. Example build and cross-compile smoke targets now live in</p>
-<p>  <code>mk/examples.mk</code>, reducing the top-level <code>Makefile</code> to 1883 lines. Metal</p>
-<p>  primitive vertex/RGBA geometry helpers now live in <code>OrenAVMMetalGeometry</code>, reducing</p>
-<p>  <code>OrenAVMMetalView.m</code> to 1585 lines.</p>
+<p>  <code>mk/examples.mk</code>, and native all-test, full verify, AVM build, and libavm</p>
+<p>  verification targets now live in <code>mk/native_avm.mk</code>, reducing the top-level</p>
+<p>  <code>Makefile</code> to 1732 lines. Metal primitive vertex/RGBA geometry helpers now</p>
+<p>  live in <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>
