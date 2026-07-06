@@ -38,6 +38,7 @@ OREN_AVM_KIT_SOURCES=(
   sdk/ios/OrenAVMKit/OrenAVMGFXInput.m
   sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m
   sdk/ios/OrenAVMKit/OrenAVMKit.m
+  sdk/ios/OrenAVMKit/OrenAVMMetalFrame.m
   sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.m
   sdk/ios/OrenAVMKit/OrenAVMMetalPipeline.m
   sdk/ios/OrenAVMKit/OrenAVMMetalResources.m

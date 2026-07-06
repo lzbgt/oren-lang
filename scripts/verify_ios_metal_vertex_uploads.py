@@ -7,6 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalView.m"
+FRAME_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalFrame.h"
+FRAME_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalFrame.m"
 GEOMETRY_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.h"
 GEOMETRY_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.m"
 RESOURCE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.h"
@@ -15,7 +17,7 @@ PIPELINE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalPipeline.h"
 PIPELINE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalPipeline.m"
 TEXT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.m"
 TEXT_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.h"
-HELPER = "static BOOL OrenAVMMetalBindVertexPayload"
+HELPER = "BOOL OrenAVMMetalBindVertexPayload"
 
 
 def fail(message: str) -> None:
@@ -25,13 +27,18 @@ def fail(message: str) -> None:
 
 def main() -> int:
     text = SOURCE.read_text()
+    frame_header = FRAME_HEADER.read_text()
+    frame_source = FRAME_SOURCE.read_text()
+    frame_text = frame_header + "\n" + frame_source
     geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
     pipeline_text = PIPELINE_HEADER.read_text() + "\n" + PIPELINE_SOURCE.read_text()
-    metal_text = text + "\n" + geometry_text + "\n" + resource_text
+    metal_text = text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
     text_source = TEXT_SOURCE.read_text()
     text_header = TEXT_HEADER.read_text()
-    if "OrenAVMMetalInlineVertexBytesLimit" not in text:
+    if '"OrenAVMMetalFrame.h"' not in text:
+        fail("Metal frame/run helpers must be imported through OrenAVMMetalFrame")
+    if "OrenAVMMetalInlineVertexBytesLimit" not in frame_text:
         fail("missing inline vertex upload limit")
     if '"OrenAVMMetalPipeline.h"' not in text or "OrenAVMMetalBuildPipelineStates(" not in pipeline_text:
         fail("Metal shader/pipeline setup must live in OrenAVMMetalPipeline")
@@ -39,10 +46,12 @@ def main() -> int:
         fail("Metal view must not inline shader compilation or pipeline descriptor setup")
     if "newLibraryWithSource:" not in pipeline_text or "newRenderPipelineStateWithDescriptor:" not in pipeline_text:
         fail("Metal pipeline helper must compile shaders and create render pipeline states")
-    if HELPER not in text:
+    if HELPER not in frame_text:
         fail("missing bounded vertex payload helper")
-    if "newBufferWithBytes:" not in text or "addCompletedHandler:" not in text:
+    if "newBufferWithBytes:" not in frame_text or "addCompletedHandler:" not in text:
         fail("missing large vertex upload buffer retention path")
+    if "newBufferWithBytes:" in text:
+        fail("Metal view must use the frame helper for large vertex upload buffers")
     if "[transientVertexBuffers copy]" in text:
         fail("large vertex upload completion path must retain the existing tracking array without copying it")
     if "run.vertices = [vertices copy]" in text:
@@ -59,9 +68,9 @@ def main() -> int:
         fail("Metal geometry runs must own raw vertex buffers, not NSData wrappers")
     if "uint8_t* vertices" not in resource_text or "NSUInteger vertexBytes" not in resource_text or "free(_vertices)" not in resource_text:
         fail("Metal geometry vertex runs must expose raw bytes with explicit cleanup")
-    if "OrenAVMMetalVertexBufferTakeBytes" not in text or "run.vertexBytes = vertexBytes" not in text:
+    if "OrenAVMMetalVertexBufferTakeBytes" not in frame_text or "run.vertexBytes = vertexBytes" not in frame_text:
         fail("Metal geometry flush must transfer raw vertex buffers into runs")
-    if "OrenAVMMetalInitialVertexBuilderCapacity" not in text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in text:
+    if "OrenAVMMetalInitialVertexBuilderCapacity" not in frame_text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in frame_text:
         fail("geometry vertex builder must cap its lazy initial reservation")
     if '"OrenAVMMetalGeometry.h"' not in text or "OrenAVMMetalAppendRoundRect" not in geometry_text:
         fail("Metal primitive geometry helpers must live in OrenAVMMetalGeometry")
@@ -236,7 +245,7 @@ def main() -> int:
         fail("Metal image runs must write single-quad vertices directly into inline storage")
     if "NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u]" in text:
         fail("Metal image runs must not allocate mutable vertex data for one quad")
-    if "OrenAVMMetalSubrectInTexture" not in text:
+    if "OrenAVMMetalSubrectInTexture" not in frame_text or "OrenAVMMetalSubrectInTexture" not in text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
     if "orenImageRunWithID:" in text:
         fail("Metal image runs must be built from cached texture/dimensions, not ID lookups")
@@ -264,11 +273,11 @@ def main() -> int:
         fail("retained Metal model draws must not use string-key dictionary lookups")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
-    if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
+    if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")
-    if text.count("OrenAVMMetalFrameRunCapacity(") != 2:
-        fail("expected frame run-capacity helper declaration plus one prepare-frame call")
-    if "static NSMutableArray* OrenAVMMetalEnsureRunArray" not in text:
+    if text.count("OrenAVMMetalFrameRunCapacity(") != 1:
+        fail("expected one prepare-frame call to the frame run-capacity helper")
+    if "NSMutableArray* OrenAVMMetalEnsureRunArray" not in frame_text:
         fail("missing lazy Metal text/image run-array helper")
     eager_run_arrays = [
         "NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
@@ -280,8 +289,8 @@ def main() -> int:
             fail("geometry/text/image run arrays must be allocated lazily, not eagerly from runCapacity")
     if "[NSMutableArray arrayWithCapacity:runCapacity]" in text:
         fail("Metal frame run arrays must use lazy OrenAVMMetalEnsureRunArray allocation")
-    if text.count("OrenAVMMetalEnsureRunArray(") < 8:
-        fail("expected lazy run-array helper declaration plus geometry/text/image add sites")
+    if text.count("OrenAVMMetalEnsureRunArray(") < 6:
+        fail("expected lazy run-array helper calls for geometry/text/image add sites")
 
     in_helper = False
     saw_helper_body = False
@@ -290,20 +299,17 @@ def main() -> int:
     direct_calls: list[str] = []
     helper_bind_calls = 0
 
-    for lineno, line in enumerate(text.splitlines(), start=1):
+    for lineno, line in enumerate(frame_source.splitlines(), start=1):
         if HELPER in line:
             in_helper = True
             saw_helper_body = False
             helper_depth = 0
 
-        if "OrenAVMMetalBindVertexPayload(" in line and HELPER not in line:
-            helper_bind_calls += 1
-
         if "setVertexBytes:" in line:
             if in_helper:
                 helper_set_vertex_bytes += 1
             else:
-                direct_calls.append(f"{SOURCE}:{lineno}: {line.strip()}")
+                direct_calls.append(f"{FRAME_SOURCE}:{lineno}: {line.strip()}")
 
         if in_helper:
             if "{" in line:
@@ -311,6 +317,12 @@ def main() -> int:
             helper_depth += line.count("{") - line.count("}")
             if saw_helper_body and helper_depth <= 0:
                 in_helper = False
+
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if "OrenAVMMetalBindVertexPayload(" in line:
+            helper_bind_calls += 1
+        if "setVertexBytes:" in line:
+            direct_calls.append(f"{SOURCE}:{lineno}: {line.strip()}")
 
     if direct_calls:
         fail("direct setVertexBytes calls outside helper:\n" + "\n".join(direct_calls))

@@ -2689,7 +2689,10 @@ Working evidence:
 		  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines. Metal
 		  shader and render-pipeline setup now lives in `OrenAVMMetalPipeline`,
 		  reducing `OrenAVMMetalView.m` to 1680 lines while keeping frame parsing and
-		  draw submission in the view.
+		  draw submission in the view. Metal frame byte/scissor/run-array and bounded
+		  vertex-upload helpers now live in `OrenAVMMetalFrame`, reducing
+		  `OrenAVMMetalView.m` to 1522 lines while keeping command decoding in the
+		  view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
