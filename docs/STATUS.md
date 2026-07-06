@@ -2283,6 +2283,8 @@ coalescing now avoids copying every non-merged run into mutable vertex storage
 and only allocates mutable coalescing storage when an adjacent compatible run
 actually merges; adjacent batched text runs reuse the first run's existing
 mutable vertex buffer as the merge destination instead of cloning it first.
+Metal text cache hits now return before constructing UIKit color/attribute
+objects, keeping repeated labels on the cached texture path.
 Single texture-quad emission now appends the six text/image vertices directly
 into caller-owned run buffers, avoiding tiny `NSData` wrappers and a temporary
 mutable-data append/copy pair for common single-run draws. Retained

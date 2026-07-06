@@ -39,6 +39,10 @@ def main() -> int:
         fail("missing text coalescing mutable-vertex reuse helper")
     if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source:
         fail("text coalescing must reuse mutable batched vertex buffers before falling back to copying")
+    cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
+    color_create = text_source.find("UIColor* color = [UIColor colorWithRed:")
+    if cache_lookup < 0 or color_create < 0 or cache_lookup > color_create:
+        fail("Metal text cache hits must return before constructing UIColor/attributes")
     if "OrenAVMMetalTextureQuad" in text_source or "OrenAVMMetalTextureQuad" in text_header:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:

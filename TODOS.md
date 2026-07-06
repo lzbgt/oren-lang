@@ -2548,6 +2548,8 @@ design evidence lives under `project-doc/`.
 - Metal coalescing also reuses already mutable batched text-run vertex buffers
   as the merge destination, avoiding the first-run clone for adjacent batched
   text runs with matching texture/scissor/opacity.
+- Metal text cache hits now return before constructing UIKit color/attribute
+  objects, keeping repeated labels on the cached texture path.
 - Metal frame preparation now keeps vertex-run capacity byte-bounded while
   allocating text/image run arrays lazily only when the frame actually contains
   those records.

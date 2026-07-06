@@ -128,33 +128,33 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     OrenAVMMetalTextAtlas** atlas,
     NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* cache,
     NSMutableArray<NSString*>* order,
-    NSUInteger* cachePixels,
-    NSString* text,
-    const uint8_t* rgba) {
-    if (!text || text.length == 0 || !device || !rgba || !cachePixels) return nil;
-    UIFont* font = [UIFont systemFontOfSize:14.0];
-    UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
-                                     green:(CGFloat)rgba[1] / 255.0
-                                      blue:(CGFloat)rgba[2] / 255.0
-                                     alpha:(CGFloat)rgba[3] / 255.0];
-    NSDictionary<NSAttributedStringKey, id>* attrs = @{
-        NSForegroundColorAttributeName: color,
-        NSFontAttributeName: font
-    };
-    CGSize textSize = [text sizeWithAttributes:attrs];
-    if (textSize.width <= 0.0 || textSize.height <= 0.0) return nil;
-    CGFloat scale = screen.scale;
-    if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
-    if (scale <= 0.0) scale = 1.0;
-    uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
-    NSString* cacheKey = OrenAVMMetalTextCacheKey(text, rgba, scaleMilli);
+	    NSUInteger* cachePixels,
+	    NSString* text,
+	    const uint8_t* rgba) {
+	    if (!text || text.length == 0 || !device || !rgba || !cachePixels) return nil;
+	    CGFloat scale = screen.scale;
+	    if (scale <= 0.0) scale = UIScreen.mainScreen.scale;
+	    if (scale <= 0.0) scale = 1.0;
+	    uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
+	    NSString* cacheKey = OrenAVMMetalTextCacheKey(text, rgba, scaleMilli);
     OrenAVMMetalTextCacheEntry* cached = cache[cacheKey];
     if (cached) {
-        OrenAVMMetalTouchTextCacheKey(order, cacheKey);
-        return cached;
-    }
+	        OrenAVMMetalTouchTextCacheKey(order, cacheKey);
+	        return cached;
+	    }
+	    UIFont* font = [UIFont systemFontOfSize:14.0];
+	    UIColor* color = [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
+	                                     green:(CGFloat)rgba[1] / 255.0
+	                                      blue:(CGFloat)rgba[2] / 255.0
+	                                     alpha:(CGFloat)rgba[3] / 255.0];
+	    NSDictionary<NSAttributedStringKey, id>* attrs = @{
+	        NSForegroundColorAttributeName: color,
+	        NSFontAttributeName: font
+	    };
+	    CGSize textSize = [text sizeWithAttributes:attrs];
+	    if (textSize.width <= 0.0 || textSize.height <= 0.0) return nil;
 
-    NSUInteger pixelWidth = (NSUInteger)ceil(textSize.width * scale);
+	    NSUInteger pixelWidth = (NSUInteger)ceil(textSize.width * scale);
     NSUInteger pixelHeight = (NSUInteger)ceil(textSize.height * scale);
     if (pixelWidth == 0 || pixelHeight == 0 || pixelWidth > 4096u || pixelHeight > 4096u) return nil;
 
