@@ -3509,6 +3509,15 @@
 <p>  as the merge destination, avoiding the first-run clone for adjacent batched</p>
 <p>  text runs with matching texture/scissor/opacity.</p>
 <ul>
+<li>The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and</li>
+</ul>
+<p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>
+<p>  copying the bytes and then freeing the original buffer.</p>
+<ul>
+<li><code>make verify-libavm-ios</code> now guards the SDK embed-byte ownership contract so</li>
+</ul>
+<p>  hot returned byte buffers do not regress to copy/free handoff.</p>
+<ul>
 <li>Metal single texture-quad emission now writes the six text/image vertices</li>
 </ul>
 <p>  directly into stack storage before returning immutable <code>NSData</code>, avoiding a</p>

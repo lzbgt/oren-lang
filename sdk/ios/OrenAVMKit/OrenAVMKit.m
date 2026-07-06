@@ -216,6 +216,15 @@ static NSString* OrenAVMRuntimeKindForSession(OrenAVMRuntime* runtime, uint32_t 
     return kind;
 }
 
+static NSData* OrenAVMKitDataTakingEmbedBytes(uint8_t* bytes, size_t len) {
+    if (!bytes) return [NSData data];
+    if (len == 0) {
+        avm_embed_free_bytes(bytes);
+        return [NSData data];
+    }
+    return [NSData dataWithBytesNoCopy:bytes length:len freeWhenDone:YES];
+}
+
 static NSString* OrenAVMRuntimeWebSocketAccept(NSString* key) {
     NSString* input = [key stringByAppendingString:@"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"];
     NSData* data = [input dataUsingEncoding:NSASCIIStringEncoding];
@@ -944,9 +953,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
         OrenAVMKitAssignError(error, @"failed to read VFS file", &result);
         return nil;
     }
-    NSData* out = [NSData dataWithBytes:bytes length:len];
-    avm_embed_free_bytes(bytes);
-    return out;
+    return OrenAVMKitDataTakingEmbedBytes(bytes, len);
 }
 
 - (BOOL)mountFileURL:(NSURL*)fileURL atVFSPath:(NSString*)vfsPath error:(NSError**)error {
@@ -1189,8 +1196,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
         AvmEmbedResult outputResult;
         NSData* stdoutData = [NSData data];
         if (avm_embed_output_get(_handle, &stdoutBytes, &stdoutLen, &outputResult) == AVM_EMBED_OK) {
-            stdoutData = [NSData dataWithBytes:stdoutBytes length:stdoutLen];
-            avm_embed_free_bytes(stdoutBytes);
+            stdoutData = OrenAVMKitDataTakingEmbedBytes(stdoutBytes, stdoutLen);
         }
         runResult = [[OrenAVMRunResult alloc] initWithResult:&result stdoutData:stdoutData];
     }
@@ -1241,9 +1247,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
         OrenAVMKitAssignError(error, @"failed to read GFX frame", &result);
         return nil;
     }
-    NSData* out = [NSData dataWithBytes:bytes length:len];
-    avm_embed_free_bytes(bytes);
-    return out;
+    return OrenAVMKitDataTakingEmbedBytes(bytes, len);
 }
 
 - (BOOL)clearGraphicsFrameWithError:(NSError**)error {
@@ -1283,9 +1287,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
         OrenAVMKitAssignError(error, @"failed to read permission request", &result);
         return nil;
     }
-    NSData* out = [NSData dataWithBytes:bytes length:len];
-    avm_embed_free_bytes(bytes);
-    return out;
+    return OrenAVMKitDataTakingEmbedBytes(bytes, len);
 }
 
 - (NSDictionary<NSString*, id>*)getPermissionRequestWithError:(NSError**)error {

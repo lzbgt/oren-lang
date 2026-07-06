@@ -2283,7 +2283,11 @@ actually merges; adjacent batched text runs reuse the first run's existing
 mutable vertex buffer as the merge destination instead of cloning it first.
 Single texture-quad emission now fills the six text/image
 vertices directly in stack storage before returning immutable `NSData`, avoiding
-a temporary mutable-data append/copy pair for common single-run draws.
+a temporary mutable-data append/copy pair for common single-run draws. The iOS
+SDK now transfers embedder-returned stdout, VFS, GFX frame, and permission-
+request byte buffers directly into `NSData` ownership instead of copying bytes
+and freeing the original buffer; `make verify-libavm-ios` guards that ownership
+contract.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
   harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
   republishes animated frames from host `frame_tick` events, records device

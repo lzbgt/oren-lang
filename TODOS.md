@@ -2548,6 +2548,11 @@ design evidence lives under `project-doc/`.
 - Metal coalescing also reuses already mutable batched text-run vertex buffers
   as the merge destination, avoiding the first-run clone for adjacent batched
   text runs with matching texture/scissor/opacity.
+- The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and
+  permission-request byte buffers directly into `NSData` ownership instead of
+  copying the bytes and then freeing the original buffer.
+- `make verify-libavm-ios` now guards the SDK embed-byte ownership contract so
+  hot returned byte buffers do not regress to copy/free handoff.
 - Metal single texture-quad emission now writes the six text/image vertices
   directly into stack storage before returning immutable `NSData`, avoiding a
   temporary mutable-data append/copy pair for common single-run draws.
