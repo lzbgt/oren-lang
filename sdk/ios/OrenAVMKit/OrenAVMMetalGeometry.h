@@ -95,5 +95,14 @@ void OrenAVMMetalAppendRoundRect(OrenAVMMetalVertexBuffer* vertices,
                                  float logicalWidth,
                                  float logicalHeight,
                                  const uint8_t* rgba);
+BOOL OrenAVMMetalAppendPrimitiveCommand(uint8_t opcode,
+                                        const uint8_t* payload,
+                                        uint16_t payloadLen,
+                                        OrenAVMMetalVertexBuffer* vertices,
+                                        float tx,
+                                        float ty,
+                                        float logicalWidth,
+                                        float logicalHeight,
+                                        float opacity);
 
 #endif

@@ -62,7 +62,7 @@ def main() -> int:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
     if "[NSMutableData dataWithCapacity:vertices.length]" in text:
         fail("geometry flush must not allocate the next mutable vertex buffer eagerly")
-    if "OrenAVMMetalVertexBuffer vertices;" not in text or "OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity)" not in text:
+    if "OrenAVMMetalVertexBuffer vertices;" not in text or "OrenAVMMetalVertexBufferInit(&vertices" not in text:
         fail("geometry vertex buffers must use the raw lazy vertex buffer builder")
     if "NSMutableData* vertices" in text or "NSMutableData* vertices" in geometry_text:
         fail("Metal geometry vertex builders must not use NSMutableData wrappers")
@@ -76,10 +76,26 @@ def main() -> int:
         fail("Metal geometry flush must transfer raw vertex buffers into runs")
     if "OrenAVMMetalInitialVertexBuilderCapacity" not in frame_text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in frame_text:
         fail("geometry vertex builder must cap its lazy initial reservation")
-    if '"OrenAVMMetalGeometry.h"' not in text or "OrenAVMMetalAppendRoundRect" not in geometry_text:
+    if (
+        '"OrenAVMMetalGeometry.h"' not in text
+        or "OrenAVMMetalAppendRoundRect" not in geometry_text
+        or "BOOL OrenAVMMetalAppendPrimitiveCommand" not in geometry_text
+    ):
         fail("Metal primitive geometry helpers must live in OrenAVMMetalGeometry")
+    if "OrenAVMMetalAppendPrimitiveCommand(opcode," not in text:
+        fail("Metal view must delegate primitive payload expansion to OrenAVMMetalGeometry")
     if "static void OrenAVMMetalAppendRoundRect" in text or "static void OrenAVMMetalAppendCircle" in text:
         fail("Metal view must not inline primitive geometry append helpers")
+    primitive_view_tokens = (
+        "pointCount = OrenAVMMetalReadU32LE(payload + 4)",
+        "triangleCount = OrenAVMMetalReadU32LE(payload)",
+        "OrenAVMMetalAppendStrokeRect(",
+        "OrenAVMMetalAppendEllipse(",
+        "OrenAVMMetalAppendTriangle(",
+    )
+    for token in primitive_view_tokens:
+        if token in text:
+            fail("Metal primitive payload expansion must not live in OrenAVMMetalView")
     if "[NSMutableData data]" in text:
         fail("geometry vertex builder must not default-grow from an uncapped zero-capacity buffer")
     if "run.vertices = [vertices copy]" in text_source:

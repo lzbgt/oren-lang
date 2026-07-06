@@ -91,6 +91,10 @@ static OrenAVMMetalVertex OrenAVMMetalMakeVertex(float x,
     return v;
 }
 
+static uint32_t OrenAVMMetalGeometryReadU32LE(const uint8_t* p) {
+    return ((uint32_t)p[0]) | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
 void OrenAVMMetalRGBAWithOpacity(const uint8_t* rgba, float opacity, uint8_t out[4]) {
     out[0] = rgba[0];
     out[1] = rgba[1];
@@ -400,6 +404,212 @@ void OrenAVMMetalAppendRoundRect(OrenAVMMetalVertexBuffer* vertices,
     OrenAVMMetalAppendArcLines(vertices, x + w - r, y + r, r, pi * 1.5f, pi * 2.0f, lw, logicalWidth, logicalHeight, rgba);
     OrenAVMMetalAppendArcLines(vertices, x + w - r, y + h - r, r, 0.0f, pi * 0.5f, lw, logicalWidth, logicalHeight, rgba);
     OrenAVMMetalAppendArcLines(vertices, x + r, y + h - r, r, pi * 0.5f, pi, lw, logicalWidth, logicalHeight, rgba);
+}
+
+BOOL OrenAVMMetalAppendPrimitiveCommand(uint8_t opcode,
+                                        const uint8_t* payload,
+                                        uint16_t payloadLen,
+                                        OrenAVMMetalVertexBuffer* vertices,
+                                        float tx,
+                                        float ty,
+                                        float logicalWidth,
+                                        float logicalHeight,
+                                        float opacity) {
+    if (!payload || !vertices) return NO;
+    uint8_t rgba[4];
+    switch (opcode) {
+        case 1: {
+            if (payloadLen == 20) {
+                uint32_t x = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t y = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t w = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t h = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, rgba);
+                OrenAVMMetalAppendRect(vertices, (float)x + tx, (float)y + ty, (float)w, (float)h, logicalWidth, logicalHeight, rgba);
+            }
+            return YES;
+        }
+        case 3: {
+            if (payloadLen == 24) {
+                uint32_t x1 = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t y1 = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t x2 = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t y2 = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                uint32_t width = OrenAVMMetalGeometryReadU32LE(payload + 16);
+                OrenAVMMetalRGBAWithOpacity(payload + 20, opacity, rgba);
+                OrenAVMMetalAppendLine(vertices,
+                                       (float)x1 + tx,
+                                       (float)y1 + ty,
+                                       (float)x2 + tx,
+                                       (float)y2 + ty,
+                                       (float)(width == 0 ? 1u : width),
+                                       logicalWidth,
+                                       logicalHeight,
+                                       rgba);
+            }
+            return YES;
+        }
+        case 4: {
+            if (payloadLen == 20) {
+                uint32_t cx = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t cy = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t radius = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t flags = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, rgba);
+                OrenAVMMetalAppendCircle(vertices,
+                                         (float)cx + tx,
+                                         (float)cy + ty,
+                                         (float)radius,
+                                         (flags & 1u) != 0,
+                                         logicalWidth,
+                                         logicalHeight,
+                                         rgba);
+            }
+            return YES;
+        }
+        case 5: {
+            if (payloadLen == 28) {
+                uint32_t x1 = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t y1 = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t x2 = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t y2 = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                uint32_t x3 = OrenAVMMetalGeometryReadU32LE(payload + 16);
+                uint32_t y3 = OrenAVMMetalGeometryReadU32LE(payload + 20);
+                OrenAVMMetalRGBAWithOpacity(payload + 24, opacity, rgba);
+                OrenAVMMetalAppendTriangle(vertices,
+                                           (float)x1 + tx,
+                                           (float)y1 + ty,
+                                           (float)x2 + tx,
+                                           (float)y2 + ty,
+                                           (float)x3 + tx,
+                                           (float)y3 + ty,
+                                           logicalWidth,
+                                           logicalHeight,
+                                           rgba);
+            }
+            return YES;
+        }
+        case 6: {
+            if (payloadLen == 24) {
+                uint32_t x = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t y = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t w = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t h = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                uint32_t width = OrenAVMMetalGeometryReadU32LE(payload + 16);
+                OrenAVMMetalRGBAWithOpacity(payload + 20, opacity, rgba);
+                OrenAVMMetalAppendStrokeRect(vertices,
+                                             (float)x + tx,
+                                             (float)y + ty,
+                                             (float)w,
+                                             (float)h,
+                                             (float)(width == 0 ? 1u : width),
+                                             logicalWidth,
+                                             logicalHeight,
+                                             rgba);
+            }
+            return YES;
+        }
+        case 7: {
+            if (payloadLen == 28) {
+                uint32_t x = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t y = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t w = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t h = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                uint32_t width = OrenAVMMetalGeometryReadU32LE(payload + 16);
+                uint32_t flags = OrenAVMMetalGeometryReadU32LE(payload + 20);
+                OrenAVMMetalRGBAWithOpacity(payload + 24, opacity, rgba);
+                OrenAVMMetalAppendEllipse(vertices,
+                                          (float)x + tx,
+                                          (float)y + ty,
+                                          (float)w,
+                                          (float)h,
+                                          (float)(width == 0 ? 1u : width),
+                                          (flags & 1u) != 0,
+                                          logicalWidth,
+                                          logicalHeight,
+                                          rgba);
+            }
+            return YES;
+        }
+        case 8: {
+            if (payloadLen >= 28 && ((payloadLen - 12) % 8) == 0) {
+                uint32_t width = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t pointCount = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                OrenAVMMetalRGBAWithOpacity(payload + 8, opacity, rgba);
+                const uint8_t* points = payload + 12;
+                if (pointCount == ((uint32_t)payloadLen - 12u) / 8u && pointCount >= 2) {
+                    uint32_t lastX = OrenAVMMetalGeometryReadU32LE(points);
+                    uint32_t lastY = OrenAVMMetalGeometryReadU32LE(points + 4);
+                    for (uint32_t pi = 1; pi < pointCount; pi++) {
+                        const uint8_t* point = points + ((size_t)pi * 8u);
+                        uint32_t x = OrenAVMMetalGeometryReadU32LE(point);
+                        uint32_t y = OrenAVMMetalGeometryReadU32LE(point + 4);
+                        OrenAVMMetalAppendLine(vertices,
+                                               (float)lastX + tx,
+                                               (float)lastY + ty,
+                                               (float)x + tx,
+                                               (float)y + ty,
+                                               (float)(width == 0 ? 1u : width),
+                                               logicalWidth,
+                                               logicalHeight,
+                                               rgba);
+                        lastX = x;
+                        lastY = y;
+                    }
+                }
+            }
+            return YES;
+        }
+        case 9: {
+            if (payloadLen == 32) {
+                uint32_t x = OrenAVMMetalGeometryReadU32LE(payload);
+                uint32_t y = OrenAVMMetalGeometryReadU32LE(payload + 4);
+                uint32_t w = OrenAVMMetalGeometryReadU32LE(payload + 8);
+                uint32_t h = OrenAVMMetalGeometryReadU32LE(payload + 12);
+                uint32_t radius = OrenAVMMetalGeometryReadU32LE(payload + 16);
+                uint32_t width = OrenAVMMetalGeometryReadU32LE(payload + 20);
+                uint32_t flags = OrenAVMMetalGeometryReadU32LE(payload + 24);
+                OrenAVMMetalRGBAWithOpacity(payload + 28, opacity, rgba);
+                OrenAVMMetalAppendRoundRect(vertices,
+                                            (float)x + tx,
+                                            (float)y + ty,
+                                            (float)w,
+                                            (float)h,
+                                            (float)radius,
+                                            (float)(width == 0 ? 1u : width),
+                                            (flags & 1u) != 0,
+                                            logicalWidth,
+                                            logicalHeight,
+                                            rgba);
+            }
+            return YES;
+        }
+        case 10: {
+            if (payloadLen >= 32 && ((payloadLen - 8) % 24) == 0) {
+                uint32_t triangleCount = OrenAVMMetalGeometryReadU32LE(payload);
+                OrenAVMMetalRGBAWithOpacity(payload + 4, opacity, rgba);
+                const uint8_t* tris = payload + 8;
+                if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
+                    for (uint32_t ti = 0; ti < triangleCount; ti++) {
+                        const uint8_t* tri = tris + ((size_t)ti * 24u);
+                        OrenAVMMetalAppendTriangle(vertices,
+                                                   (float)OrenAVMMetalGeometryReadU32LE(tri) + tx,
+                                                   (float)OrenAVMMetalGeometryReadU32LE(tri + 4) + ty,
+                                                   (float)OrenAVMMetalGeometryReadU32LE(tri + 8) + tx,
+                                                   (float)OrenAVMMetalGeometryReadU32LE(tri + 12) + ty,
+                                                   (float)OrenAVMMetalGeometryReadU32LE(tri + 16) + tx,
+                                                   (float)OrenAVMMetalGeometryReadU32LE(tri + 20) + ty,
+                                                   logicalWidth,
+                                                   logicalHeight,
+                                                   rgba);
+                    }
+                }
+            }
+            return YES;
+        }
+        default:
+            return NO;
+    }
 }
 
 #endif

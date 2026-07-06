@@ -2851,10 +2851,13 @@
 <p>		  while leaving command payload validation and retained draw decisions in</p>
 <p>		  the view. Metal retained 2D mesh draw payload expansion now lives in</p>
 <p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1276 lines</p>
-<p>		  while keeping retained draw opcode routing in the view. Metal retained</p>
-<p>		  3D mesh/model/material draw payload expansion now lives in</p>
-<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1165 lines</p>
-<p>		  while keeping retained 3D opcode routing in the view.</p>
+<p>			  while keeping retained draw opcode routing in the view. Metal retained</p>
+<p>			  3D mesh/model/material draw payload expansion now lives in</p>
+<p>			  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1165 lines</p>
+<p>			  while keeping retained 3D opcode routing in the view. Metal immediate</p>
+<p>			  primitive draw payload expansion now lives in <code>OrenAVMMetalGeometry</code>,</p>
+<p>			  reducing <code>OrenAVMMetalView.m</code> to 1033 lines while keeping full-frame</p>
+<p>			  clear-color policy, state stacks, and opcode routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

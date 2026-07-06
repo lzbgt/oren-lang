@@ -2655,6 +2655,10 @@ design evidence lives under `project-doc/`.
 - Metal retained 3D mesh/model/material draw payload expansion now lives in
   `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1165 lines while
   keeping retained 3D opcode routing in the view.
+- Metal immediate primitive draw payload expansion now lives in
+  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1033 lines while
+  keeping full-frame clear-color policy, state stacks, and opcode routing in
+  the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

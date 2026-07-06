@@ -413,7 +413,6 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
     int32_t nearZStack[64];
     int32_t farZStack[64];
     uint32_t cameraDepth = 0;
-    uint8_t rgba[4];
     for (uint32_t i = 0; i < opCount && off + 4 <= frame.length; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMMetalReadU16LE(data + off + 2);
@@ -425,16 +424,25 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
             uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
-            OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, rgba);
             if (x == 0 && y == 0 && w >= logicalW && h >= logicalH && clearColor && opacity >= 0.999f) {
-                *clearColor = MTLClearColorMake((double)rgba[0] / 255.0,
-                                                (double)rgba[1] / 255.0,
-                                                (double)rgba[2] / 255.0,
-                                                (double)rgba[3] / 255.0);
+                uint8_t clearRGBA[4];
+                OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, clearRGBA);
+                *clearColor = MTLClearColorMake((double)clearRGBA[0] / 255.0,
+                                                (double)clearRGBA[1] / 255.0,
+                                                (double)clearRGBA[2] / 255.0,
+                                                (double)clearRGBA[3] / 255.0);
             }
-            OrenAVMMetalAppendRect(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity), (float)x + tx, (float)y + ty, (float)w, (float)h,
-                                   (float)logicalW, (float)logicalH, rgba);
-        } else if (opcode == 16 && payloadLen == 16) {
+        }
+        BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,
+                                                                   payload,
+                                                                   payloadLen,
+                                                                   &vertices,
+                                                                   tx,
+                                                                   ty,
+                                                                   (float)logicalW,
+                                                                   (float)logicalH,
+                                                                   opacity);
+        if (!primitiveHandled && opcode == 16 && payloadLen == 16) {
             OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
             if (clipDepth < 64) {
                 clipStack[clipDepth++] = clip;
@@ -497,146 +505,6 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                 depthEnabled = depthEnabledStack[cameraDepth];
                 nearZ = nearZStack[cameraDepth];
                 farZ = farZStack[cameraDepth];
-            }
-        } else if (opcode == 3 && payloadLen == 24) {
-            uint32_t x1 = OrenAVMMetalReadU32LE(payload);
-            uint32_t y1 = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t x2 = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t y2 = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t width = OrenAVMMetalReadU32LE(payload + 16);
-            OrenAVMMetalRGBAWithOpacity(payload + 20, opacity, rgba);
-            OrenAVMMetalAppendLine(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity), (float)x1 + tx, (float)y1 + ty, (float)x2 + tx, (float)y2 + ty,
-                                   (float)(width == 0 ? 1u : width),
-                                   (float)logicalW, (float)logicalH, rgba);
-        } else if (opcode == 6 && payloadLen == 24) {
-            uint32_t x = OrenAVMMetalReadU32LE(payload);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t width = OrenAVMMetalReadU32LE(payload + 16);
-            OrenAVMMetalRGBAWithOpacity(payload + 20, opacity, rgba);
-            OrenAVMMetalAppendStrokeRect(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                         (float)x + tx,
-                                         (float)y + ty,
-                                         (float)w,
-                                         (float)h,
-                                         (float)(width == 0 ? 1u : width),
-                                         (float)logicalW,
-                                         (float)logicalH,
-                                         rgba);
-        } else if (opcode == 9 && payloadLen == 32) {
-            uint32_t x = OrenAVMMetalReadU32LE(payload);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t radius = OrenAVMMetalReadU32LE(payload + 16);
-            uint32_t width = OrenAVMMetalReadU32LE(payload + 20);
-            uint32_t flags = OrenAVMMetalReadU32LE(payload + 24);
-            OrenAVMMetalRGBAWithOpacity(payload + 28, opacity, rgba);
-            OrenAVMMetalAppendRoundRect(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                        (float)x + tx,
-                                        (float)y + ty,
-                                        (float)w,
-                                        (float)h,
-                                        (float)radius,
-                                        (float)(width == 0 ? 1u : width),
-                                        (flags & 1u) != 0,
-                                        (float)logicalW,
-                                        (float)logicalH,
-                                        rgba);
-        } else if (opcode == 4 && payloadLen == 20) {
-            uint32_t cx = OrenAVMMetalReadU32LE(payload);
-            uint32_t cy = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t radius = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t flags = OrenAVMMetalReadU32LE(payload + 12);
-            OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, rgba);
-            OrenAVMMetalAppendCircle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                     (float)cx + tx,
-                                     (float)cy + ty,
-                                     (float)radius,
-                                     (flags & 1u) != 0,
-                                     (float)logicalW,
-                                     (float)logicalH,
-                                     rgba);
-        } else if (opcode == 7 && payloadLen == 28) {
-            uint32_t x = OrenAVMMetalReadU32LE(payload);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t width = OrenAVMMetalReadU32LE(payload + 16);
-            uint32_t flags = OrenAVMMetalReadU32LE(payload + 20);
-            OrenAVMMetalRGBAWithOpacity(payload + 24, opacity, rgba);
-            OrenAVMMetalAppendEllipse(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                      (float)x + tx,
-                                      (float)y + ty,
-                                      (float)w,
-                                      (float)h,
-                                      (float)(width == 0 ? 1u : width),
-                                      (flags & 1u) != 0,
-                                      (float)logicalW,
-                                      (float)logicalH,
-                                      rgba);
-        } else if (opcode == 8 && payloadLen >= 28 && ((payloadLen - 12) % 8) == 0) {
-            uint32_t width = OrenAVMMetalReadU32LE(payload);
-            uint32_t pointCount = OrenAVMMetalReadU32LE(payload + 4);
-            OrenAVMMetalRGBAWithOpacity(payload + 8, opacity, rgba);
-            const uint8_t* points = payload + 12;
-            if (pointCount == ((uint32_t)payloadLen - 12u) / 8u && pointCount >= 2) {
-                uint32_t lastX = OrenAVMMetalReadU32LE(points);
-                uint32_t lastY = OrenAVMMetalReadU32LE(points + 4);
-                for (uint32_t pi = 1; pi < pointCount; pi++) {
-                    const uint8_t* point = points + ((size_t)pi * 8u);
-                    uint32_t x = OrenAVMMetalReadU32LE(point);
-                    uint32_t y = OrenAVMMetalReadU32LE(point + 4);
-                    OrenAVMMetalAppendLine(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                           (float)lastX + tx,
-                                           (float)lastY + ty,
-                                           (float)x + tx,
-                                           (float)y + ty,
-                                           (float)(width == 0 ? 1u : width),
-                                           (float)logicalW,
-                                           (float)logicalH,
-                                           rgba);
-                    lastX = x;
-                    lastY = y;
-                }
-            }
-        } else if (opcode == 5 && payloadLen == 28) {
-            uint32_t x1 = OrenAVMMetalReadU32LE(payload);
-            uint32_t y1 = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t x2 = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t y2 = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t x3 = OrenAVMMetalReadU32LE(payload + 16);
-            uint32_t y3 = OrenAVMMetalReadU32LE(payload + 20);
-            OrenAVMMetalRGBAWithOpacity(payload + 24, opacity, rgba);
-            OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                       (float)x1 + tx,
-                                       (float)y1 + ty,
-                                       (float)x2 + tx,
-                                       (float)y2 + ty,
-                                       (float)x3 + tx,
-                                       (float)y3 + ty,
-                                       (float)logicalW,
-                                       (float)logicalH,
-                                       rgba);
-        } else if (opcode == 10 && payloadLen >= 32 && ((payloadLen - 8) % 24) == 0) {
-            uint32_t triangleCount = OrenAVMMetalReadU32LE(payload);
-            OrenAVMMetalRGBAWithOpacity(payload + 4, opacity, rgba);
-            const uint8_t* tris = payload + 8;
-            if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
-                for (uint32_t ti = 0; ti < triangleCount; ti++) {
-                    const uint8_t* tri = tris + ((size_t)ti * 24u);
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                               (float)OrenAVMMetalReadU32LE(tri) + tx,
-                                               (float)OrenAVMMetalReadU32LE(tri + 4) + ty,
-                                               (float)OrenAVMMetalReadU32LE(tri + 8) + tx,
-                                               (float)OrenAVMMetalReadU32LE(tri + 12) + ty,
-                                               (float)OrenAVMMetalReadU32LE(tri + 16) + tx,
-                                               (float)OrenAVMMetalReadU32LE(tri + 20) + ty,
-                                               (float)logicalW,
-                                               (float)logicalH,
-                                               rgba);
-                }
             }
         } else if (opcode == 80 && payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
             uint32_t meshID = OrenAVMMetalReadU32LE(payload);
