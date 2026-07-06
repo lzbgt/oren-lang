@@ -5,7 +5,13 @@
 #import <UIKit/UIKit.h>
 #import <dispatch/dispatch.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
+
+typedef struct {
+    uint32_t triangle;
+    int64_t zsum;
+} OrenAVMGfxTriangleOrder;
 
 static BOOL OrenAVMGraphicsViewAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
@@ -43,6 +49,30 @@ static int64_t OrenAVMGfxMesh3DZSumModel(const uint8_t* tri, int32_t offset, uin
 static BOOL OrenAVMGfxMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ) {
     if (!depthEnabled) return YES;
     return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
+}
+
+static int OrenAVMGfxTriangleOrderCompare(const void* left, const void* right) {
+    const OrenAVMGfxTriangleOrder* a = (const OrenAVMGfxTriangleOrder*)left;
+    const OrenAVMGfxTriangleOrder* b = (const OrenAVMGfxTriangleOrder*)right;
+    if (a->zsum > b->zsum) return -1;
+    if (a->zsum < b->zsum) return 1;
+    if (a->triangle < b->triangle) return -1;
+    if (a->triangle > b->triangle) return 1;
+    return 0;
+}
+
+static OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount, NSMutableData** storage) {
+    if (storage) *storage = nil;
+    if (triangleCount == 0 || !storage) return NULL;
+    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMGfxTriangleOrder)];
+    OrenAVMGfxTriangleOrder* bytes = data.mutableBytes;
+    if (!bytes) return NULL;
+    *storage = data;
+    return bytes;
+}
+
+static void OrenAVMGfxSortTriangleOrder(OrenAVMGfxTriangleOrder* order, uint32_t count) {
+    if (count > 1) qsort(order, count, sizeof(OrenAVMGfxTriangleOrder), OrenAVMGfxTriangleOrderCompare);
 }
 
 static int64_t OrenAVMGfxMesh3DIndexedZSumModel(const uint8_t* vertices,
@@ -676,25 +706,21 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 scaleMilli = OrenAVMGfxReadU32LE(payload + 20);
             }
             if (verts && idx && color && scaleMilli != 0 && triangleCount == indices.length / 12u && vertices.length % 12u == 0) {
-                NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:triangleCount];
-                for (uint32_t di = 0; di < triangleCount; di++) {
-                    uint32_t best = 0;
-                    BOOL found = NO;
-                    int64_t bestZ = -9223372036854775807LL;
-                    for (uint32_t ti = 0; ti < triangleCount; ti++) {
-                        NSNumber* key = @(ti);
-                        if ([drawn containsObject:key]) continue;
-                        int64_t z = OrenAVMGfxMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
-                        if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                        if (!found || z > bestZ) {
-                            best = ti;
-                            bestZ = z;
-                            found = YES;
-                        }
-                    }
-                    if (!found) break;
-                    [drawn addObject:@(best)];
-                    const uint8_t* tri = idx + ((size_t)best * 12u);
+                NSMutableData* orderData = nil;
+                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount, &orderData);
+                if (!order) {
+                    off += payloadLen;
+                    continue;
+                }
+                uint32_t visibleCount = 0;
+                for (uint32_t ti = 0; ti < triangleCount; ti++) {
+                    int64_t z = OrenAVMGfxMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
+                    if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
+                    order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
+                }
+                OrenAVMGfxSortTriangleOrder(order, visibleCount);
+                for (uint32_t oi = 0; oi < visibleCount; oi++) {
+                    const uint8_t* tri = idx + ((size_t)order[oi].triangle * 12u);
                     const uint8_t* v1 = verts + ((size_t)OrenAVMGfxReadU32LE(tri) * 12u);
                     const uint8_t* v2 = verts + ((size_t)OrenAVMGfxReadU32LE(tri + 4) * 12u);
                     const uint8_t* v3 = verts + ((size_t)OrenAVMGfxReadU32LE(tri + 8) * 12u);
@@ -713,25 +739,21 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                     CGContextFillPath(ctx);
                 }
             } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && triangleCount == triangles.length / meshStride) {
-                NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:triangleCount];
-                for (uint32_t di = 0; di < triangleCount; di++) {
-                    uint32_t best = 0;
-                    BOOL found = NO;
-                    int64_t bestZ = -9223372036854775807LL;
-                    for (uint32_t ti = 0; ti < triangleCount; ti++) {
-                        NSNumber* key = @(ti);
-                        if ([drawn containsObject:key]) continue;
-                        int64_t z = OrenAVMGfxMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
-                        if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                        if (!found || z > bestZ) {
-                            best = ti;
-                            bestZ = z;
-                            found = YES;
-                        }
-                    }
-                    if (!found) break;
-                    [drawn addObject:@(best)];
-                    const uint8_t* tri = tris + ((size_t)best * meshStride);
+                NSMutableData* orderData = nil;
+                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount, &orderData);
+                if (!order) {
+                    off += payloadLen;
+                    continue;
+                }
+                uint32_t visibleCount = 0;
+                for (uint32_t ti = 0; ti < triangleCount; ti++) {
+                    int64_t z = OrenAVMGfxMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
+                    if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
+                    order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
+                }
+                OrenAVMGfxSortTriangleOrder(order, visibleCount);
+                for (uint32_t oi = 0; oi < visibleCount; oi++) {
+                    const uint8_t* tri = tris + ((size_t)order[oi].triangle * meshStride);
                     UIColor* drawColor = materialColor ?: (meshStride == 40u ? OrenAVMGfxColor(tri + 36) : color);
                     if (!drawColor) continue;
                     CGContextSetFillColorWithColor(ctx, drawColor.CGColor);

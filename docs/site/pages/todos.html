@@ -3452,6 +3452,16 @@
 <p>  avoiding per-triangle Objective-C allocations and repeated full rescans in</p>
 <p>  the frame path.</p>
 <ul>
+<li>iOS <code>OrenAVMGraphicsView</code> retained 3D painter ordering now uses the same</li>
+</ul>
+<p>  compact visible-triangle order buffer for indexed and packed 3D meshes,</p>
+<p>  removing per-triangle <code>NSNumber</code>/<code>NSMutableSet</code> allocations and repeated</p>
+<p>  full rescans from the CoreGraphics fallback path.</p>
+<ul>
+<li><code>make verify-libavm-ios</code> now guards the CoreGraphics retained-3D fallback</li>
+</ul>
+<p>  against regressing to boxed set-based painter tracking.</p>
+<ul>
 <li>iOS <code>OrenAVMMetalView</code> live drawing and drawable-independent</li>
 </ul>
 <p>  <code>prepareFrameResourcesWithError:</code> now share one prepared-frame path for</p>
