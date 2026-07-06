@@ -2210,7 +2210,7 @@ Facts from the 2026-05-28 implementation pass:
 	  publisher consumes the latest retained frame without building an unbounded UI
 	  task backlog. The Metal
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-	      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append, retained Metal material override draws unbox material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths, and Metal packs rendered labels into bounded atlas textures and coalesces adjacent same-atlas/scissor/opacity runs to reduce text draw calls. UIKit/CoreGraphics
+	      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append, retained Metal material override draws unbox material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures and coalesces adjacent same-atlas/scissor/opacity runs to reduce text draw calls. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
@@ -2307,7 +2307,8 @@ fill/stroke colors from raw RGBA bytes instead of allocating per-draw
 `UIColor` wrappers; CoreGraphics retained text fallback records
 now use typed resources with cached attributed strings instead of dictionary
 payloads, separate resource attribute dictionaries, or per-draw attributes
-dictionaries; CoreGraphics retained image
+dictionaries; CoreGraphics text attribute lookup now keeps a scalar same-color
+MRU before `NSNumber` key boxing; CoreGraphics retained image
 fallback records now use typed resources for image plus pixel accounting instead
 of parallel image/pixel dictionaries, with overflow-safe retained sub-rect
 bounds checks, shared checked sub-rect drawing, and cached image dimensions for

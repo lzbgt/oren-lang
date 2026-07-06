@@ -2579,7 +2579,8 @@ design evidence lives under `project-doc/`.
   attribute dictionaries, or per-draw attributes dictionaries.
 - CoreGraphics immediate and retained text paths now cache UIKit text
   attributes by RGBA value instead of rebuilding `UIColor`/attribute
-  dictionaries for repeated text colors.
+  dictionaries for repeated text colors, with a scalar one-entry MRU before
+  boxed dictionary-key lookup for repeated same-color draws.
 - CoreGraphics retained image fallback records now use typed resources for image
   plus pixel accounting instead of parallel image/pixel dictionaries, with
   overflow-safe retained sub-rect bounds checks, shared checked sub-rect drawing,

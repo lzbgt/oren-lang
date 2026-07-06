@@ -71,6 +71,15 @@ def main() -> int:
         fail("CoreGraphics text draws must cache UIKit text attributes by RGBA")
     if "OrenAVMGfxTextAttributesForView" not in text:
         fail("CoreGraphics text draws must use the per-view text attribute cache")
+    attr_helper_start = text.find("static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView")
+    attr_helper_end = text.find("@implementation OrenAVMGraphicsView", attr_helper_start)
+    if attr_helper_start < 0 or attr_helper_end < 0:
+        fail("missing CoreGraphics text attribute helper body")
+    attr_helper = text[attr_helper_start:attr_helper_end]
+    mru_pos = attr_helper.find("view.orenLastTextAttributes && view.orenLastTextAttributesRGBA == rgbaValue")
+    boxed_key_pos = attr_helper.find("NSNumber* key = @(rgbaValue)")
+    if mru_pos < 0 or boxed_key_pos < 0 or mru_pos > boxed_key_pos:
+        fail("CoreGraphics text attribute cache must check the scalar MRU before boxing NSNumber keys")
     if "OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 8))" in text:
         fail("CoreGraphics immediate text draws must not rebuild text attributes per draw")
     if "OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 4))" in text:

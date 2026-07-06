@@ -3563,7 +3563,8 @@
 <li>CoreGraphics immediate and retained text paths now cache UIKit text</li>
 </ul>
 <p>  attributes by RGBA value instead of rebuilding <code>UIColor</code>/attribute</p>
-<p>  dictionaries for repeated text colors.</p>
+<p>  dictionaries for repeated text colors, with a scalar one-entry MRU before</p>
+<p>  boxed dictionary-key lookup for repeated same-color draws.</p>
 <ul>
 <li>CoreGraphics retained image fallback records now use typed resources for image</li>
 </ul>

@@ -284,6 +284,8 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes;
+@property(nonatomic) uint32_t orenLastTextAttributesRGBA;
+@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* orenLastTextAttributes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D;
@@ -294,12 +296,16 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @end
 
 static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(OrenAVMGraphicsView* view, uint32_t rgbaValue) {
+    if (view.orenLastTextAttributes && view.orenLastTextAttributesRGBA == rgbaValue) return view.orenLastTextAttributes;
     if (!view.orenTextAttributes) view.orenTextAttributes = [NSMutableDictionary dictionary];
     NSNumber* key = @(rgbaValue);
     NSDictionary<NSAttributedStringKey, id>* attrs = view.orenTextAttributes[key];
-    if (attrs) return attrs;
-    attrs = OrenAVMGfxTextAttributes(rgbaValue);
-    view.orenTextAttributes[key] = attrs;
+    if (!attrs) {
+        attrs = OrenAVMGfxTextAttributes(rgbaValue);
+        view.orenTextAttributes[key] = attrs;
+    }
+    view.orenLastTextAttributesRGBA = rgbaValue;
+    view.orenLastTextAttributes = attrs;
     return attrs;
 }
 
