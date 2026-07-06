@@ -3701,6 +3701,11 @@
 <p>  833 lines while keeping the text cache, atlas, and attribute-cache ownership</p>
 <p>  in the view.</p>
 <ul>
+<li>Metal retained mesh/material/model upload/draw/remove opcode handling now</li>
+</ul>
+<p>  lives in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 747 lines</p>
+<p>  while keeping frame transforms, depth windows, and vertex output in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

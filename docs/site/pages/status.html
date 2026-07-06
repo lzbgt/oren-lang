@@ -2811,61 +2811,63 @@
 <p>  math inverse-trig and hypotenuse helpers now live in</p>
 <p>  <code>std/math/atan_hypot.oren</code>, reducing <code>std/math.oren</code> to 1738 lines while</p>
 <p>  preserving the <code>std:math</code> import surface through compile-time include</p>
-<p>	  expansion. Example build and cross-compile smoke targets now live in</p>
-<p>	  <code>mk/examples.mk</code>, and native all-test, full verify, AVM build, and libavm</p>
-<p>	  verification targets now live in <code>mk/native_avm.mk</code>, reducing the top-level</p>
-<p>	  <code>Makefile</code> to 1732 lines. Native quick integration math/module/codec</p>
-<p>	  follow-on smokes now live in</p>
-<p>	  <code>scripts/native_quick_math_followon_smokes.sh</code>, reducing</p>
-<p>	  <code>run_native_quick_integration.sh</code> to 1578 lines while preserving the sourced</p>
-<p>		  retry/logging context. Scene3D invalid JSON/package validation assertions now</p>
-<p>		  live in <code>tests/avm/includes/test_ui_scene3d_invalid_cases.oren</code>, reducing</p>
-<p>		  <code>test_ui_scene3d_v0.oren</code> to 1782 lines while preserving the curated AVM</p>
-<p>		  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in</p>
-<p>		  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines. Metal</p>
-<p>		  shader and render-pipeline setup now lives in <code>OrenAVMMetalPipeline</code>,</p>
-<p>		  reducing <code>OrenAVMMetalView.m</code> to 1680 lines while keeping frame parsing and</p>
-<p>		  draw submission in the view. Metal frame byte/scissor/run-array and bounded</p>
-<p>		  vertex-upload helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
-<p>		  <code>OrenAVMMetalView.m</code> to 1522 lines while keeping command decoding in the</p>
-<p>		  view. Metal retained-resource scalar key and lookup helpers now live in</p>
-<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1464 lines while</p>
-<p>		  keeping resource lifetime callbacks with the resource model types. Metal</p>
-<p>		  retained-3D painter ordering, depth-window, and model-coordinate helpers now</p>
-<p>		  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1394</p>
-<p>		  lines while keeping per-frame draw decisions in the view. Metal frame timing</p>
-<p>		  and target-budget helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
-<p>		  <code>OrenAVMMetalView.m</code> to 1384 lines while keeping lifecycle, input, and draw</p>
-<p>		  decisions in the view. Metal image-run sub-rect validation and quad</p>
-<p>		  construction now lives in <code>OrenAVMMetalResources</code>, reducing</p>
-<p>		  <code>OrenAVMMetalView.m</code> to 1357 lines while keeping retained image upload</p>
-<p>		  budgets and pixel accounting in the view. Metal retained-image</p>
-<p>		  upload/remove helpers now live in <code>OrenAVMMetalResources</code>, reducing</p>
-<p>		  <code>OrenAVMMetalView.m</code> to 1328 lines while keeping view-owned budget</p>
-<p>		  configuration and scalar-map lifetime ownership intact. Metal retained</p>
-<p>		  text/material/model resource upload/remove helpers now live in</p>
-<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1307 lines</p>
-<p>		  while keeping per-frame retained draw decisions in the view. Metal</p>
-<p>		  retained 2D/3D mesh resource copy/store/remove helpers now live in</p>
-<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1292 lines</p>
-<p>		  while leaving command payload validation and retained draw decisions in</p>
-<p>		  the view. Metal retained 2D mesh draw payload expansion now lives in</p>
-<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1276 lines</p>
-<p>			  while keeping retained draw opcode routing in the view. Metal retained</p>
-<p>			  3D mesh/model/material draw payload expansion now lives in</p>
-<p>				  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1165 lines</p>
-<p>				  while keeping retained 3D opcode routing in the view. Metal immediate</p>
-<p>				  primitive draw payload expansion now lives in <code>OrenAVMMetalGeometry</code>,</p>
-<p>				  reducing <code>OrenAVMMetalView.m</code> to 1033 lines while keeping full-frame</p>
-<p>				  clear-color policy, state stacks, and opcode routing in the view.</p>
-<p>					  Metal retained-image upload/remove/draw/sub-rect/batched image opcode</p>
-<p>					  handling now lives in <code>OrenAVMMetalResources</code>, reducing</p>
-<p>					  <code>OrenAVMMetalView.m</code> to 915 lines while keeping retained image budget</p>
-<p>					  configuration in the view. Metal immediate and retained text</p>
-<p>					  upload/draw/batched/destroy opcode handling now lives in</p>
-<p>					  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 833 lines</p>
-<p>					  while keeping the text cache, atlas, and attribute-cache ownership in</p>
-<p>					  the view.</p>
+<p>  expansion. Example build and cross-compile smoke targets now live in</p>
+<p>  <code>mk/examples.mk</code>, and native all-test, full verify, AVM build, and libavm</p>
+<p>  verification targets now live in <code>mk/native_avm.mk</code>, reducing the top-level</p>
+<p>  <code>Makefile</code> to 1732 lines. Native quick integration math/module/codec</p>
+<p>  follow-on smokes now live in</p>
+<p>  <code>scripts/native_quick_math_followon_smokes.sh</code>, reducing</p>
+<p>  <code>run_native_quick_integration.sh</code> to 1578 lines while preserving the sourced</p>
+<p>  retry/logging context. Scene3D invalid JSON/package validation assertions now</p>
+<p>  live in <code>tests/avm/includes/test_ui_scene3d_invalid_cases.oren</code>, reducing</p>
+<p>  <code>test_ui_scene3d_v0.oren</code> to 1782 lines while preserving the curated AVM</p>
+<p>  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in</p>
+<p>  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines. Metal</p>
+<p>  shader and render-pipeline setup now lives in <code>OrenAVMMetalPipeline</code>,</p>
+<p>  reducing <code>OrenAVMMetalView.m</code> to 1680 lines while keeping frame parsing and</p>
+<p>  draw submission in the view. Metal frame byte/scissor/run-array and bounded</p>
+<p>  vertex-upload helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
+<p>  <code>OrenAVMMetalView.m</code> to 1522 lines while keeping command decoding in the</p>
+<p>  view. Metal retained-resource scalar key and lookup helpers now live in</p>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1464 lines while</p>
+<p>  keeping resource lifetime callbacks with the resource model types. Metal</p>
+<p>  retained-3D painter ordering, depth-window, and model-coordinate helpers now</p>
+<p>  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1394</p>
+<p>  lines while keeping per-frame draw decisions in the view. Metal frame timing</p>
+<p>  and target-budget helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
+<p>  <code>OrenAVMMetalView.m</code> to 1384 lines while keeping lifecycle, input, and draw</p>
+<p>  decisions in the view. Metal image-run sub-rect validation and quad</p>
+<p>  construction now lives in <code>OrenAVMMetalResources</code>, reducing</p>
+<p>  <code>OrenAVMMetalView.m</code> to 1357 lines while keeping retained image upload</p>
+<p>  budgets and pixel accounting in the view. Metal retained-image</p>
+<p>  upload/remove helpers now live in <code>OrenAVMMetalResources</code>, reducing</p>
+<p>  <code>OrenAVMMetalView.m</code> to 1328 lines while keeping view-owned budget</p>
+<p>  configuration and scalar-map lifetime ownership intact. Metal retained</p>
+<p>  text/material/model resource upload/remove helpers now live in</p>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1307 lines</p>
+<p>  while keeping per-frame retained draw decisions in the view. Metal</p>
+<p>  retained 2D/3D mesh resource copy/store/remove helpers now live in</p>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1292 lines</p>
+<p>  while leaving command payload validation and retained draw decisions in</p>
+<p>  the view. Metal retained 2D mesh draw payload expansion now lives in</p>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1276 lines</p>
+<p>  while keeping retained draw opcode routing in the view. Metal retained</p>
+<p>  3D mesh/model/material draw payload expansion now lives in</p>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1165 lines</p>
+<p>  while keeping retained 3D opcode routing in the view. Metal immediate</p>
+<p>  primitive draw payload expansion now lives in <code>OrenAVMMetalGeometry</code>,</p>
+<p>  reducing <code>OrenAVMMetalView.m</code> to 1033 lines while keeping full-frame</p>
+<p>  clear-color policy, state stacks, and opcode routing in the view. Metal</p>
+<p>  retained-image upload/remove/draw/sub-rect/batched image opcode handling</p>
+<p>  now lives in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to</p>
+<p>  915 lines while keeping retained image budget configuration in the view.</p>
+<p>  Metal immediate and retained text upload/draw/batched/destroy opcode handling</p>
+<p>  now lives in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to</p>
+<p>  833 lines while keeping the text cache, atlas, and attribute-cache ownership</p>
+<p>  in the view. Metal retained mesh/material/model upload/draw/remove opcode</p>
+<p>  handling now lives in <code>OrenAVMMetalResources</code>, reducing</p>
+<p>  <code>OrenAVMMetalView.m</code> to 747 lines while keeping frame transforms, depth</p>
+<p>  windows, and vertex output in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

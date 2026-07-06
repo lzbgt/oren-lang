@@ -642,6 +642,176 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
     }
 }
 
+BOOL OrenAVMMetalHandleMeshCommand(CFMutableDictionaryRef* meshes2D,
+                                   CFMutableDictionaryRef* meshes3D,
+                                   CFMutableDictionaryRef* materials,
+                                   CFMutableDictionaryRef* models,
+                                   uint8_t opcode,
+                                   const uint8_t* payload,
+                                   uint16_t payloadLen,
+                                   OrenAVMMetalVertexBuffer* vertices,
+                                   float tx,
+                                   float ty,
+                                   float logicalWidth,
+                                   float logicalHeight,
+                                   float opacity,
+                                   BOOL depthEnabled,
+                                   int32_t nearZ,
+                                   int32_t farZ) {
+    if (!payload) return NO;
+    switch (opcode) {
+        case 80: {
+            if (payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
+                uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+                uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 8);
+                if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
+                    (void)OrenAVMMetalPutMesh2DResource(meshes2D,
+                                                        meshID,
+                                                        OrenAVMMetalReadU32LE(payload + 4),
+                                                        payload + 12,
+                                                        (NSUInteger)payloadLen - 12u,
+                                                        triangleCount);
+                }
+            }
+            return YES;
+        }
+        case 81: {
+            if (payloadLen == 4) {
+                OrenAVMMetalMesh2DResource* mesh = OrenAVMMetalRetainedMesh2DResource(meshes2D ? *meshes2D : NULL,
+                                                                                      OrenAVMMetalReadU32LE(payload));
+                OrenAVMMetalAppendMesh2DResource(mesh, vertices, tx, ty, logicalWidth, logicalHeight, opacity);
+            }
+            return YES;
+        }
+        case 82: {
+            if (payloadLen == 4) OrenAVMMetalRemoveMeshResource(meshes2D ? *meshes2D : NULL, OrenAVMMetalReadU32LE(payload));
+            return YES;
+        }
+        case 83: {
+            if (payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
+                uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+                uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 8);
+                if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
+                    (void)OrenAVMMetalPutPackedMesh3DResource(meshes3D,
+                                                              meshID,
+                                                              OrenAVMMetalReadU32LE(payload + 4),
+                                                              YES,
+                                                              payload + 12,
+                                                              (NSUInteger)payloadLen - 12u,
+                                                              triangleCount,
+                                                              36u);
+                }
+            }
+            return YES;
+        }
+        case 84:
+        case 87:
+        case 90:
+        case 91:
+        case 94: {
+            BOOL valid = (opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
+                         (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
+                         (opcode == 94 && payloadLen == 4);
+            if (valid) {
+                OrenAVMMetalAppendMesh3DResource(meshes3D ? *meshes3D : NULL,
+                                                 materials ? *materials : NULL,
+                                                 models ? *models : NULL,
+                                                 opcode,
+                                                 payload,
+                                                 vertices,
+                                                 tx,
+                                                 ty,
+                                                 logicalWidth,
+                                                 logicalHeight,
+                                                 opacity,
+                                                 depthEnabled,
+                                                 nearZ,
+                                                 farZ);
+            }
+            return YES;
+        }
+        case 85: {
+            if (payloadLen == 4) OrenAVMMetalRemoveMeshResource(meshes3D ? *meshes3D : NULL, OrenAVMMetalReadU32LE(payload));
+            return YES;
+        }
+        case 86: {
+            if (payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
+                uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+                uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 4);
+                if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
+                    (void)OrenAVMMetalPutPackedMesh3DResource(meshes3D,
+                                                              meshID,
+                                                              0,
+                                                              NO,
+                                                              payload + 8,
+                                                              (NSUInteger)payloadLen - 8u,
+                                                              triangleCount,
+                                                              40u);
+                }
+            }
+            return YES;
+        }
+        case 88: {
+            if (payloadLen >= 64) {
+                uint32_t meshID = OrenAVMMetalReadU32LE(payload);
+                uint32_t vertexCount = OrenAVMMetalReadU32LE(payload + 8);
+                uint32_t indexCount = OrenAVMMetalReadU32LE(payload + 12);
+                size_t vertexBytes = (size_t)vertexCount * 12u;
+                size_t indexBytes = (size_t)indexCount * 4u;
+                BOOL indicesOK = meshID != 0 && vertexCount >= 3u && indexCount >= 3u && indexCount % 3u == 0 &&
+                    16u + vertexBytes + indexBytes == (size_t)payloadLen;
+                for (uint32_t ii = 0; indicesOK && ii < indexCount; ii++) {
+                    if (OrenAVMMetalReadU32LE(payload + 16 + vertexBytes + ((size_t)ii * 4u)) >= vertexCount) {
+                        indicesOK = NO;
+                    }
+                }
+                if (indicesOK) {
+                    (void)OrenAVMMetalPutIndexedMesh3DResource(meshes3D,
+                                                               meshID,
+                                                               OrenAVMMetalReadU32LE(payload + 4),
+                                                               payload + 16,
+                                                               vertexBytes,
+                                                               payload + 16 + vertexBytes,
+                                                               indexBytes,
+                                                               indexCount);
+                }
+            }
+            return YES;
+        }
+        case 89: {
+            if (payloadLen == 8) {
+                (void)OrenAVMMetalPutMaterialResource(materials,
+                                                      OrenAVMMetalReadU32LE(payload),
+                                                      OrenAVMMetalReadU32LE(payload + 4));
+            }
+            return YES;
+        }
+        case 92: {
+            if (payloadLen == 4) OrenAVMMetalRemoveMaterialResource(materials ? *materials : NULL, OrenAVMMetalReadU32LE(payload));
+            return YES;
+        }
+        case 93: {
+            if (payloadLen == 28) {
+                (void)OrenAVMMetalPutModelResource(models,
+                                                   OrenAVMMetalReadU32LE(payload),
+                                                   OrenAVMMetalReadU32LE(payload + 4),
+                                                   OrenAVMMetalReadU32LE(payload + 8),
+                                                   (int32_t)OrenAVMMetalReadU32LE(payload + 12),
+                                                   (int32_t)OrenAVMMetalReadU32LE(payload + 16),
+                                                   (int32_t)OrenAVMMetalReadU32LE(payload + 20),
+                                                   OrenAVMMetalReadU32LE(payload + 24));
+            }
+            return YES;
+        }
+        case 95: {
+            if (payloadLen == 4) OrenAVMMetalRemoveModelResource(models ? *models : NULL, OrenAVMMetalReadU32LE(payload));
+            return YES;
+        }
+        default:
+            return NO;
+    }
+}
+
 BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
                                    uint32_t meshID,
                                    uint32_t rgbaValue,

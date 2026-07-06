@@ -485,108 +485,22 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                 nearZ = nearZStack[cameraDepth];
                 farZ = farZStack[cameraDepth];
             }
-        } else if (opcode == 80 && payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
-            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
-            uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 8);
-            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
-                OrenAVMMetalPutMesh2DResource(&_orenMeshesByID,
-                                              meshID,
-                                              OrenAVMMetalReadU32LE(payload + 4),
-                                              payload + 12,
-                                              (NSUInteger)payloadLen - 12u,
-                                              triangleCount);
-            }
-        } else if (opcode == 81 && payloadLen == 4) {
-            OrenAVMMetalMesh2DResource* mesh = OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload));
-            OrenAVMMetalAppendMesh2DResource(mesh, &vertices, tx, ty, (float)logicalW, (float)logicalH, opacity);
-        } else if (opcode == 82 && payloadLen == 4) {
-            OrenAVMMetalRemoveMeshResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload));
-        } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
-            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
-            uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 8);
-            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
-                OrenAVMMetalPutPackedMesh3DResource(&_orenMeshes3DByID,
-                                                    meshID,
-                                                    OrenAVMMetalReadU32LE(payload + 4),
-                                                    YES,
-                                                    payload + 12,
-                                                    (NSUInteger)payloadLen - 12u,
-                                                    triangleCount,
-                                                    36u);
-            }
-        } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
-                   (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
-                   (opcode == 94 && payloadLen == 4)) {
-            OrenAVMMetalAppendMesh3DResource(_orenMeshes3DByID,
-                                             _orenMaterials3DByID,
-                                             _orenModels3DByID,
-                                             opcode,
-                                             payload,
-                                             &vertices,
-                                             tx,
-                                             ty,
-                                             (float)logicalW,
-                                             (float)logicalH,
-                                             opacity,
-                                             depthEnabled,
-                                             nearZ,
-                                             farZ);
-        } else if (opcode == 85 && payloadLen == 4) {
-            OrenAVMMetalRemoveMeshResource(_orenMeshes3DByID, OrenAVMMetalReadU32LE(payload));
-        } else if (opcode == 89 && payloadLen == 8) {
-            uint32_t materialID = OrenAVMMetalReadU32LE(payload);
-            OrenAVMMetalPutMaterialResource(&_orenMaterials3DByID, materialID, OrenAVMMetalReadU32LE(payload + 4));
-        } else if (opcode == 92 && payloadLen == 4) {
-            OrenAVMMetalRemoveMaterialResource(_orenMaterials3DByID, OrenAVMMetalReadU32LE(payload));
-        } else if (opcode == 93 && payloadLen == 28) {
-            uint32_t modelID = OrenAVMMetalReadU32LE(payload);
-            uint32_t meshID = OrenAVMMetalReadU32LE(payload + 4);
-            OrenAVMMetalPutModelResource(&_orenModels3DByID,
-                                         modelID,
-                                         meshID,
-                                         OrenAVMMetalReadU32LE(payload + 8),
-                                         (int32_t)OrenAVMMetalReadU32LE(payload + 12),
-                                         (int32_t)OrenAVMMetalReadU32LE(payload + 16),
-                                         (int32_t)OrenAVMMetalReadU32LE(payload + 20),
-                                         OrenAVMMetalReadU32LE(payload + 24));
-        } else if (opcode == 95 && payloadLen == 4) {
-            OrenAVMMetalRemoveModelResource(_orenModels3DByID, OrenAVMMetalReadU32LE(payload));
-        } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
-            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
-            uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 4);
-            if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
-                OrenAVMMetalPutPackedMesh3DResource(&_orenMeshes3DByID,
-                                                    meshID,
-                                                    0,
-                                                    NO,
-                                                    payload + 8,
-                                                    (NSUInteger)payloadLen - 8u,
-                                                    triangleCount,
-                                                    40u);
-            }
-        } else if (opcode == 88 && payloadLen >= 64) {
-            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
-            uint32_t vertexCount = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t indexCount = OrenAVMMetalReadU32LE(payload + 12);
-            size_t vertexBytes = (size_t)vertexCount * 12u;
-            size_t indexBytes = (size_t)indexCount * 4u;
-            BOOL indicesOK = meshID != 0 && vertexCount >= 3u && indexCount >= 3u && indexCount % 3u == 0 &&
-                16u + vertexBytes + indexBytes == (size_t)payloadLen;
-            for (uint32_t ii = 0; indicesOK && ii < indexCount; ii++) {
-                if (OrenAVMMetalReadU32LE(payload + 16 + vertexBytes + ((size_t)ii * 4u)) >= vertexCount) {
-                    indicesOK = NO;
-                }
-            }
-            if (indicesOK) {
-                OrenAVMMetalPutIndexedMesh3DResource(&_orenMeshes3DByID,
-                                                     meshID,
-                                                     OrenAVMMetalReadU32LE(payload + 4),
-                                                     payload + 16,
-                                                     vertexBytes,
-                                                     payload + 16 + vertexBytes,
-                                                     indexBytes,
-                                                     indexCount);
-            }
+        } else if (OrenAVMMetalHandleMeshCommand(&_orenMeshesByID,
+                                                 &_orenMeshes3DByID,
+                                                 &_orenMaterials3DByID,
+                                                 &_orenModels3DByID,
+                                                 opcode,
+                                                 payload,
+                                                 payloadLen,
+                                                 &vertices,
+                                                 tx,
+                                                 ty,
+                                                 (float)logicalW,
+                                                 (float)logicalH,
+                                                 opacity,
+                                                 depthEnabled,
+                                                 nearZ,
+                                                 farZ)) {
         } else {
             NSUInteger textCachePixels = self.orenTextCachePixels;
             OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;

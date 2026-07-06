@@ -229,30 +229,32 @@ def main() -> int:
         fail("retained Metal 3D mesh lookups must avoid boxed NSNumber mesh IDs")
     if "CFMutableDictionaryRef _orenMeshesByID" not in text or "CFMutableDictionaryRef _orenMeshes3DByID" not in text:
         fail("retained Metal mesh resources must use scalar-key CF dictionaries")
-    if "OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload))" not in text:
+    if "OrenAVMMetalHandleMeshCommand(&_orenMeshesByID," not in text:
+        fail("retained Metal mesh/material/model opcodes must delegate to the resource-owned command helper")
+    if "BOOL OrenAVMMetalHandleMeshCommand" not in resource_text:
+        fail("retained Metal mesh/material/model command helper must live in OrenAVMMetalResources")
+    mesh_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleMeshCommand") :]
+    if "OrenAVMMetalRetainedMesh2DResource(meshes2D ? *meshes2D : NULL" not in mesh_command:
         fail("retained Metal 2D mesh draws must use the scalar-map resource helper")
-    if "OrenAVMMetalAppendMesh2DResource(mesh, &vertices, tx, ty, (float)logicalW, (float)logicalH, opacity)" not in text:
+    if "OrenAVMMetalAppendMesh2DResource(mesh, vertices, tx, ty, logicalWidth, logicalHeight, opacity)" not in mesh_command:
         fail("retained Metal 2D mesh draws must delegate raw payload expansion to OrenAVMMetalResources")
-    if "OrenAVMMetalAppendMesh3DResource(_orenMeshes3DByID," not in text:
+    if "OrenAVMMetalAppendMesh3DResource(meshes3D ? *meshes3D : NULL" not in mesh_command:
         fail("retained Metal 3D mesh draws must delegate raw payload expansion to OrenAVMMetalResources")
-    if "OrenAVMMetalPutMesh2DResource(&_orenMeshesByID," not in text:
+    if "OrenAVMMetalPutMesh2DResource(meshes2D," not in mesh_command:
         fail("retained Metal 2D mesh uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalPutPackedMesh3DResource(&_orenMeshes3DByID," not in text:
+    if "OrenAVMMetalPutPackedMesh3DResource(meshes3D," not in mesh_command:
         fail("retained Metal packed 3D mesh uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalPutIndexedMesh3DResource(&_orenMeshes3DByID," not in text:
+    if "OrenAVMMetalPutIndexedMesh3DResource(meshes3D," not in mesh_command:
         fail("retained Metal indexed 3D mesh uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalRemoveMeshResource(_orenMeshesByID, OrenAVMMetalReadU32LE(payload))" not in text:
+    if "OrenAVMMetalRemoveMeshResource(meshes2D ? *meshes2D : NULL" not in mesh_command:
         fail("retained Metal 2D mesh removals must use the resource-owned removal helper")
-    if "OrenAVMMetalRemoveMeshResource(_orenMeshes3DByID, OrenAVMMetalReadU32LE(payload))" not in text:
+    if "OrenAVMMetalRemoveMeshResource(meshes3D ? *meshes3D : NULL" not in mesh_command:
         fail("retained Metal 3D mesh removals must use the resource-owned removal helper")
     if "CFDictionarySetValue(_orenMeshes" in text or "CFDictionaryRemoveValue(_orenMeshes" in text:
         fail("retained Metal mesh map mutation must live in OrenAVMMetalResources")
-    retained_2d_start = text.find("} else if (opcode == 81")
-    retained_2d_end = text.find("} else if (opcode == 82", retained_2d_start)
-    if retained_2d_start < 0 or retained_2d_end < 0:
-        fail("missing retained Metal 2D draw block")
-    retained_2d_block = text[retained_2d_start:retained_2d_end]
-    if "mesh.triangles" in retained_2d_block or "mesh.triangleCount" in retained_2d_block:
+    if "OrenAVMMetalRetainedMesh2DResource(_orenMeshesByID" in text or "OrenAVMMetalAppendMesh2DResource(mesh, &vertices" in text:
+        fail("retained Metal 2D draw command expansion must not live in the view")
+    if "mesh.triangles" in text or "mesh.triangleCount" in text:
         fail("retained Metal 2D draw block must not expand resource payloads in the view")
     if "NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources" in text:
         fail("retained Metal text lookups must avoid boxed NSNumber text IDs")
@@ -337,26 +339,55 @@ def main() -> int:
         fail("retained Metal materials must avoid boxed NSNumber IDs/RGBA values")
     if "CFMutableDictionaryRef _orenMaterials3DByID" not in text:
         fail("retained Metal materials must use a scalar-key/scalar-value CF dictionary")
+    if "OrenAVMMetalHandleMeshCommand(&_orenMeshesByID," not in text:
+        fail("retained Metal mesh/material/model opcodes must delegate to the resource-owned command helper")
+    if "BOOL OrenAVMMetalHandleMeshCommand" not in resource_text:
+        fail("retained Metal mesh/material/model command helper must live in OrenAVMMetalResources")
     if "OrenAVMMetalRetainedMaterialRGBA(materials, materialID, &materialRGBAOverride)" not in resource_text:
         fail("retained Metal material draws must use the scalar material lookup helper")
-    if "OrenAVMMetalPutMaterialResource(&_orenMaterials3DByID, materialID," not in text:
+    if "OrenAVMMetalPutMaterialResource(materials," not in resource_text:
         fail("retained Metal material uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalRemoveMaterialResource(_orenMaterials3DByID, OrenAVMMetalReadU32LE(payload))" not in text:
+    if "OrenAVMMetalRemoveMaterialResource(materials ? *materials : NULL" not in resource_text:
         fail("retained Metal material removals must use the resource-owned removal helper")
     if "CFDictionarySetValue(_orenMaterials3DByID" in text or "CFDictionaryRemoveValue(_orenMaterials3DByID" in text:
         fail("retained Metal material map mutation must live in OrenAVMMetalResources")
     if "materialRGBAValue" in text or "@(materialID)" in text:
         fail("retained Metal material paths must not box material IDs or RGBA values")
-    retained_3d_start = text.find("} else if ((opcode == 84")
-    retained_3d_end = text.find("} else if (opcode == 85", retained_3d_start)
-    if retained_3d_start < 0 or retained_3d_end < 0:
-        fail("missing retained Metal 3D draw block")
-    retained_3d_block = text[retained_3d_start:retained_3d_end]
+    mesh_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleMeshCommand") :]
+    for token in (
+        "case 80:",
+        "case 81:",
+        "case 82:",
+        "case 83:",
+        "case 84:",
+        "case 85:",
+        "case 86:",
+        "case 87:",
+        "case 88:",
+        "case 89:",
+        "case 90:",
+        "case 91:",
+        "case 92:",
+        "case 93:",
+        "case 94:",
+        "case 95:",
+        "OrenAVMMetalPutMesh2DResource(meshes2D,",
+        "OrenAVMMetalPutPackedMesh3DResource(meshes3D,",
+        "OrenAVMMetalPutIndexedMesh3DResource(meshes3D,",
+        "OrenAVMMetalAppendMesh2DResource(mesh,",
+        "OrenAVMMetalAppendMesh3DResource(meshes3D ? *meshes3D : NULL",
+        "OrenAVMMetalPutMaterialResource(materials,",
+        "OrenAVMMetalPutModelResource(models,",
+    ):
+        if token in text:
+            fail("retained Metal mesh/material/model opcode expansion must not live in OrenAVMMetalView")
+        if token not in mesh_command:
+            fail(f"retained Metal mesh/material/model command helper missing expected path: {token}")
     if "uint32_t materialRGBA = hasMaterialRGBA ? materialRGBAOverride : mesh.rgbaValue;" not in resource_text:
         fail("retained Metal material overrides must resolve once per draw")
-    if "mesh.triangles" in retained_3d_block or "mesh.indexCount" in retained_3d_block or "OrenAVMMetalTriangleOrder" in retained_3d_block:
+    if "OrenAVMMetalAppendMesh3DResource(_orenMeshes3DByID" in text or "OrenAVMMetalTriangleOrder" in text:
         fail("retained Metal 3D draw block must not expand resource payloads in the view")
-    if "unsignedIntValue" in retained_3d_block:
+    if "unsignedIntValue" in mesh_command:
         fail("retained Metal material override must not unbox NSNumber values inside triangle loops")
     if "@interface OrenAVMMetalImageResource" not in metal_text:
         fail("retained Metal images must use typed resource objects")
@@ -437,9 +468,9 @@ def main() -> int:
         fail("retained Metal models must use a scalar-key CF dictionary")
     if "OrenAVMMetalRetainedModelResource(models, meshID)" not in resource_text:
         fail("retained Metal model draws must use the typed scalar-map resource helper")
-    if "OrenAVMMetalPutModelResource(&_orenModels3DByID," not in text:
+    if "OrenAVMMetalPutModelResource(models," not in resource_text:
         fail("retained Metal model uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalRemoveModelResource(_orenModels3DByID, OrenAVMMetalReadU32LE(payload))" not in text:
+    if "OrenAVMMetalRemoveModelResource(models ? *models : NULL" not in resource_text:
         fail("retained Metal model removals must use the resource-owned removal helper")
     if "CFDictionarySetValue(_orenModels3DByID" in text or "CFDictionaryRemoveValue(_orenModels3DByID" in text:
         fail("retained Metal model map mutation must live in OrenAVMMetalResources")
